@@ -479,7 +479,7 @@ Defaults in the last column apply when the file says nothing. A reference
 | `players N` | 102.1 | `GameState::new(N)` | 2 |
 | `starting life L` | 103.4 | `starting_life` and each life total | 20 |
 | `seed S` | — | §6's two streams | 0 |
-| `turn T`, `active A` | 500.1, 102.1 | `begin_turn` and `begin_turn_history` for the turns the natural rotation over the players in the game gives, ending with A's turn T; `turn_rotation`; `priority_player` | 1, player 0 |
+| `turn T`, `active A` | 500.1, 102.1 | `begin_turn`, which writes each player's own turn, for the turns the natural rotation over the players in the game gives, ending with A's turn T; `turn_rotation`; `priority_player` | 1, player 0 |
 | `step …` | 500.1, 117.3a | `set_turn_position`; `combat_had_attackers` from the combatants | precombat main |
 | *(who has priority)* | 117.3a | the active player, at the round's start | not a word: §5.3 |
 | *(the first draw)* | 103.8 | `skip_first_draw`, from `starting_player_skips_first_draw` (§1) | derived |
@@ -488,7 +488,7 @@ Defaults in the last column apply when the file says nothing. A reference
 | `player p: lands played N` | 305.2 | `lands_played_this_turn` | 0 |
 | `player p: left the game` | 104.5, 800.4a | `player_lost`; refused if p owns or controls anything, is active, or leaves fewer than two in the game | in the game |
 | `player p: commander damage N from <card>` | 903.10a | `commander_damage_taken` | none |
-| `player p this turn:`, `last turn:`, `this game:` (and `since your last turn:`, which reads and is refused: the rows derive it), each with `spells cast N`, `<type> spells cast N`, `cards drawn N`, `life gained N`, `life gain events N`, `life lost N`, `life loss events N`, `damage taken N`, `creatures died N`, `attackers declared N` | — | `PlayerHistory`'s rows, one word per `TurnFact`; "this game" defaults to the other two rows' sum, and "since your last turn" is derived from the rows | zero |
+| `player p this turn:`, `last turn:`, `this game:` (and `since your last turn:`, which reads and is refused: the rows derive it), each with `spells cast N`, `cards drawn N`, `life gained N`, `life gain events N`, `life lost N`, `life loss events N`, `damage taken N`, `creatures died N`, `attackers declared N`, and `cast <card>` | 601.2i | a history log row per count, `RowFact::Stated`, the player's on the span's turn: this turn on T, last turn on T-1, the rest of this game on T-2. "This game" defaults to the other two's sum, and "since your last turn" is derived. `cast <card>` takes the rest of its line and is a cast row holding the printed card's frame, cast from a hand, beside the span's unnamed count, so a count narrowed by what its spells were reads it; a card that narrows an unnamed count is loud in a debug build, and the save names every cast and reports one its printed card would not reload as it was (TR-5h; draws, deaths, attacks and damage stay counts, `codebase-state.md` item 287) | zero |
 | `this turn: <card> \| triggered`, `resolved N`, `took its once-each-turn action`, each after an optional `ability N` (its printed place, needed when the card has two that could be meant) | 603.2h, 603.7h | `triggered_this_turn`, `resolutions_this_turn`, `action_taken_this_turn` | none |
 | `hand p:`, `library p:`, `graveyard p:` | 402, 401, 404 | `create_in_zone`: a library top first; a graveyard bottom first, each card on top of the last, since lines are stamped in file order (§4.3) | empty |
 | `library p shuffled:` | 401, 701.24 | then `shuffle_library` from the game's stream | — |

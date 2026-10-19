@@ -348,7 +348,7 @@ where each lands, and what CR 707.10 lets a copy keep.
 | Modes (601.2b, 700.2) | `chosen_modes`, never written | — (nothing is modal) | a copy keeps them | owned: item 31, `backlog.md` §2.7 |
 | **The objects that paid** (601.2h, 400.7d) | `PaymentPlan.sacrifices`, until the cast completes | **no** | a copy uses the original's (707.10); Fling reads one object's power from its LKI; convoke's objects never move | item 30's open half, sharpened: beside the cost decisions, a list of identities. 34 + 6 readers |
 | **What a copy of the spell gets** (707.10) | planned: CV-4's "`StackEntry` clone plus a new `ObjectId`" | planned | a clone keeps `cast_from`, `mana_spent` and `controller`, and 707.10 gives the copy none of the original's | `copy-effects-architecture.md` §4.4 amended |
-| **Storm's count** (702.40a) | planned: `TurnSummary.spells_cast`, read live | planned | a spell cast in response is not "before it"; 33 cards | `triggers-architecture.md` §3.10 amended |
+| **Storm's count** (702.40a) | planned: the history log's cast rows ordered before the spell's own | planned | a spell cast in response is not "before it"; 33 cards | `triggers-architecture.md` §3.10 amended |
 | A mana unit's source; restrictions (106.6, 107.4h) | dropped by the plain pool at `pool.add` | no | per unit | owned: item 33, slot B9 |
 
 **Pass 3 files no new item.** Production records each cost fact at its own

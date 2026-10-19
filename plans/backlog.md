@@ -591,7 +591,13 @@ critical path, which lists neither; that is the owner's line to add.
   entry owes, not one `SourcePattern` or `ObjectSet` is missing today. The
   scenario loader asks the wrong one already (A6l's inventory, 2026-10-10):
   `scenario/build.rs`'s `attacked_player` reads a battle's controller, where
-  CR 506.2 and 508.5 make its protector the defending player.
+  CR 506.2 and 508.5 make its protector the defending player. And
+  `combat/steps.rs`'s `get_defending_players` keeps only the players
+  attacked directly, so neither an attacked planeswalker's controller nor an
+  attacked battle's protector would declare blockers (CR 506.2, 802.4); the
+  declaration refuses both targets today, and the attack path reads
+  `oracle::characteristics::defending_player_for` in both places (TR-5h's
+  model pass, 2026-10-19).
 - **Size** — one PR in the band, after item 6 (the flip is a trigger) and
   the planeswalker attack path it shares (`replacement-architecture.md` §9,
   RD-1 leaves both out of combat on purpose).
@@ -2393,8 +2399,8 @@ the matrix waits for the design that needs it.
 - **"If X would" and "when X"** are `EventPattern` (20 arms, over proposals,
   CR 614) and `TriggerEvent` (12, over records, CR 603), with no parity rule
   between them.
-- `Condition` leaves, `TemplateAmount` arms and `TurnSummary` fields grow with
-  the card that needs them, on purpose.
+- `Condition` leaves, `TemplateAmount` arms and the history log's `RowFact`
+  variants grow with the card that needs them, on purpose.
 
 **Two pieces, two times.**
 - **Parity, at TR-6's close.** A table of `EventPattern` against

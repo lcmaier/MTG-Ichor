@@ -130,6 +130,7 @@ is derived.
 | 2026-10-17 | Counters, and one history struct | `TR-5b` | `triggers-architecture.md` |
 | 2026-10-18 | The legal values of X | `MA-2` | `mana-architecture.md` |
 | 2026-10-18 | Blocks, targeting and activation | `TR-5c` | `triggers-architecture.md` |
+| 2026-10-19 | One history of what happened | `TR-5h` | `triggers-architecture.md` |
 
 ### Named, not yet landed
 
@@ -156,7 +157,6 @@ and no ✅ heading records, in the docs' order.
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
-| One history of what happened | `TR-5h` | `triggers-architecture.md` |
 | Prevention and excess damage | `TR-5d` | `triggers-architecture.md` |
 | The multiplier, tokens and scry | `TR-5g` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
@@ -182,9 +182,9 @@ is bolded.
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
 | 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 57% | 2026-10-06 |
-| 2. Allocations per clone | ≤ 64 | 42 | 52% | 2026-10-17 |
+| 2. Allocations per clone | ≤ 64 | 39 | 64% | 2026-10-19 |
 | 2. Microseconds per clone | ≤ 10 | 6.9 | 45% | 2026-10-06 |
-| 3. Kilobytes per clone | ≤ 128 | 93.3 | 37% | 2026-10-17 |
+| 3. Kilobytes per clone | ≤ 128 | 91.2 | 40% | 2026-10-19 |
 
 ## Debt — `codebase-state.md`'s Deferred Migrations
 

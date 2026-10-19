@@ -7128,3 +7128,26 @@ instances.
     lands the item stays, unreachable.
     **Slotted:** TR-5c, whose `BecomesTarget` arm is the reader of #231's
     `GameEvent::Targeted` (re-slotted from TR-5a at A6p's split).
+
+### Item 280 — closed 2026-10-19 by PR #262 (TR-5h)
+
+`AmountExpr::History(HistorySpan, Box<HistoryCount>)` reads a history count
+as a number: in a layer through the layer walk's filter context, and at
+resolution through the resolving text's, both through
+`GameHistory::total`. The comparison moved out of `HistoryCount` into the
+condition, so one question serves both readers, and a count narrowed by `of`
+is a narrowed amount: "life equal to the number of creature spells you've
+cast this turn".
+
+*Original entry:*
+
+280. **No amount reads a player's turn summary.** `Condition::ThisTurn` asks
+     a `HistoryCount`, but "equal to the amount of life you gained this turn"
+     (31 cards, Betor, Ancestor's Voice) and "life you lost this turn" (6) are
+     numbers, and no `AmountExpr` reads a summary. Found at TR-5c's review.
+     **Reachability (2026-10-18):** unreachable — no registered card reads one.
+     **Sized:** an `AmountExpr` over a `HistoryCount`'s fact and players,
+     ~15 lines of code and ~30 of tests.
+     **Slotted:** TR-5h, whose `HistoryCount` an `AmountExpr` reads; moved
+     there at TR-5d's review (2026-10-19), since the log's one way to read
+     answers a count as a number.

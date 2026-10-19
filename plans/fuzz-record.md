@@ -37,6 +37,51 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-19 for TR-5h** (#262: one history of what happened;
+item 280 and item 279's damage half). No card registered and no pool
+changed, so no §3 table is re-recorded. One `close_out.py` sitting against
+**main** `336a0f7` (#261's merge), one arm: **engine** `16fe587`, the last
+code commit; the earlier commits were read the same way as they landed, at
++1.48% to +1.84%.
+
+**Predictions, before any arm ran** (`triggers-architecture.md` §12, now in
+the archive's "TR-5h"): every gameplay row identical, both pools, both seat
+counts, since every reader answers as before and a record's place in its
+turn is the same number; instructions per decision +0.3% to +1%, from a row
+and a frame per logged record; floor 3 about 2.3 KB lower at four seats,
+floor 2 unchanged; about 3.5 KB a turn held by a game.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, dispatches agreed, both arms, performance / stress | 171,563 / 160,706 | 340,483 / 346,229 |
+| audit, triggers agreed, both arms, performance / stress | 1,405 / 934 | 3,598 / 2,513 |
+| `Layer walks`, `main` → engine, performance / stress | 326 → 381 / 345 → 396 | 701 → 804 / 833 → 934 |
+| `Layer frames`, `main` → engine, performance / stress | 3,763 → 3,967 / 3,922 → 4,075 | 12,580 → 13,074 / 13,228 → 13,597 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7382 M → 0.7483 M, **+1.37%** |
+| clone, allocations at worst / KB, `main` → engine, `clone_bound_test`'s 190 readings | | 39 → 39 / 93.5 → 91.2 KB, 2.2 KB lower on average |
+| held by a game, `history_held_test`'s 23 games | | 2.7–4.6 KB a turn, 378 KB in the largest |
+
+**The gameplay, floor and held predictions held; instructions read past
+theirs.** The +1% bound missed by 0.37 points. At the gate, elimination arms
+put 0.93 points on the entry rows' frames, which the cost table named as the
+new per-record work; dropping the draw rows' frames instead read 0.07, so
+the owner kept every frame. The layer walks and frames that rose are those
+frames: objects no static's pass reached before, a spell on the stack, a
+card drawn, a permanent entering. The window's own rows in its frames cost
+nothing when no static reads a row; its first version read +0.31 points and
+was rewritten.
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
+engine: 0 errors and 0 panics everywhere, every dispatch agreed (873,785 /
+912,616 at two seats, 1,702,566 / 1,843,125 at four, `main`'s counts). One
+two-seat `stress` game hit the turn limit: seed 810, the Words of Worship
+standoff recorded before.
+
+**Copies** (`close_out.py`'s report against `main`, and the model pass,
+`plans/references/duplicate-inventory.md` §3.8): three fixes, each shown
+failing first, and one merge, inside the arm measured above.
+
 **Re-recorded 2026-10-18 for TR-5c** (#261: blocks, targeting and
 activation; items 11 and 12). Loyal Sentry and Cephalid Aristocrat join the
 registry and the pool (206 → 208 registered, 116 → 118 pooled), so both §3

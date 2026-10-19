@@ -81,9 +81,9 @@ ruled out in advance; `can_change_abilities()` is still the cautionary tale.
 
 **What this does *not* claim.** The event vocabulary is incomplete and says
 so — nine gaps are sized in §3.12 and one (control change) needed a design
-rather than a field. The turn summary's field list is the CR's "this turn"
-quantities as of today's cards, and a new lookback quantity is a field plus
-an update arm, authored with the card. Modes on a trigger (603.3c), linked
+rather than a field. The history log's facts are the CR's "this turn"
+quantities as of today's cards, and a new lookback quantity is a `RowFact`
+variant and a writer arm, authored with the card. Modes on a trigger (603.3c), linked
 abilities (603.11/607), ward's payment (702.21a's "unless"), the monarch's
 source-less abilities (724.2) and the loop detector's state hash (731) are
 named, given owners, and not built here (§16).
@@ -142,7 +142,7 @@ phase by phase in §13, with `specdb owed` the gate at each close.
 ┌────────────────┐   ┌──────────────────────────────┐   ┌─────────────────────┐   ┌──────────────┐
 │ GameEvent      │──►│ at the batch's close, or at  │──►│ perform_sba_and_    │──►│ StackEntry   │
 │ (performed,    │   │ an unbatched emission:       │   │ triggers drains     │   │ is_spell:    │
-│  stamped)      │   │  advance the turn summaries  │   │ pending_triggers:   │   │  false,      │
+│  stamped)      │   │  write the history log rows  │   │ pending_triggers:   │   │  false,      │
 └────────────────┘   │  match every candidate       │   │  800.4d refusal     │   │ trigger: Some│
         ▲            │  ability against the window  │   │  tier 1 then tier 2 │   │ (the binding)│
         │            │  check state triggers        │   │  APNAP over seats   │   └──────┬───────┘
@@ -193,8 +193,8 @@ controller, no status (item 14), and for no other departure (item 15).
 | | Detection (§4) | Placement (§5) |
 |---|---|---|
 | **When** | the close of the outermost batch, or an unbatched emission; state and reflexive checks at the same instant | `perform_sba_and_triggers`, after SBAs settle (117.5, 704.3); the cleanup step's 514.3a check |
-| **Reads** | the window's records, the live board, the LKI frames the records carry, the turn summaries, the delayed registry | the pending queue, the seat list, the board for targets and modes |
-| **Writes** | `pending_triggers`, the turn summaries, the two once-per-turn gates, `AbilityTriggered` records, the trace's `trigger` record | the stack, `AbilityTriggered`-shaped nothing (placement announces no event), the trace's `pending` record |
+| **Reads** | the window's records, the live board, the LKI frames the records carry, the history log, the delayed registry | the pending queue, the seat list, the board for targets and modes |
+| **Writes** | `pending_triggers`, the history log's rows, the two once-per-turn gates, `AbilityTriggered` records, the trace's `trigger` record | the stack, `AbilityTriggered`-shaped nothing (placement announces no event), the trace's `pending` record |
 | **Prompts** | none — except CR 603.7b's simultaneous-events choice for a delayed trigger, which the CR puts at the trigger | `OrderTriggers` (603.3b), modes (603.3c, deferred), targets (603.3d via `announce_targets`) |
 | **Outcome-bearing state** | all on `GameState` — item 40's invariant, the one constraint with a deadline (A4h's fork test) | same |
 
@@ -256,7 +256,7 @@ pub enum TriggerCondition {
 
 CR 603.1b's "more than one trigger condition, and an instruction referring
 to whether *all* of them happened this turn" is `AnyOf` plus an
-`intervening_if` over the turn summary (§3.10): the ability triggers on any
+`intervening_if` over the history log (§3.10): the ability triggers on any
 of its events and the "if all" is a condition, which is exactly how the rule
 reads ("regardless of whether that ability has triggered based on those
 conditions"). Avatar Aang, the one printing, is a fixture until its four
@@ -465,13 +465,13 @@ pub enum TriggerLimit {
     TriggersOnlyOnceEachTurn,
     /// "Whenever [event] for the first time each turn" (Kira, Vengeful
     /// Warchief): not a gate on the ability but a predicate on the event —
-    /// this record is the first of its kind in the player's turn summary
-    /// (§3.10). Written by nobody; read at dispatch, record by record.
+    /// this record is the first of its kind among the player's rows of the
+    /// turn (§3.10). Written by nobody; read at dispatch, record by record.
     FirstTimeEachTurn,
 }
 ```
 
-The two gate sets live on `GameState` beside the turn summaries:
+The two gate sets live on `GameState` beside the history log:
 `action_taken_this_turn` and `triggered_this_turn`, each keyed by the full
 identity (§3.6), so a bounced and replayed permanent — a new object, CR
 400.7 — starts clean, and both cleared by the `BeginTurn` performer. "Each
@@ -833,122 +833,125 @@ questions, since a dropped entry otherwise leaves no trace in the log. Cards
 write `when_you_do(event, …)` and `when_you_dont(event, …)`, so the call site
 says it is checked once.
 
-### 3.10 `TurnSummary`, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15)
+### 3.10 The history log, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15) — rebuilt in TR-5h
 
 ```rust
-/// One player's turn, materialized: every "this turn" quantity the CR or a
-/// registered card reads, one count each, one meaning each — never a scan
-/// of the log. Advanced record by record as each event ends (§4.1; amended
-/// below, A6r). As built in
-/// TR-2a and its review: the fact is the key, and each `TurnFact` variant's
-/// name says whose row it is counted on.
-pub struct TurnSummary {
-    counts: [u64; TurnFact::COUNT],  // one slot per fact; spells per card type
+/// One event a reader of the past can ask about, as it was then, kept for
+/// the whole game (`state::history_log`).
+pub struct HistoryRow {
+    pub seq: EventSeq,                    // the record it was written from
+    pub turn: u32,
+    pub combat: u32,                      // which of the turn's combats had begun
+    pub player: Option<PlayerId>,         // whose event
+    pub object: Option<ObjectRef>,        // the existence it was about (CR 400.7)
+    pub frame: Option<Arc<EffectiveCharacteristics>>, // that object then (CR 608.2h)
+    pub fact: RowFact,
 }
-// TurnFact: SpellsCast, SpellsCastOfType(CardType), CardsDrawn, LifeGained,
-// LifeGainEvents, LifeLost, LifeLossEvents, DamageTaken (dealt to this
-// player: bloodthirst), ControlledCreaturesDied (controlled as it died:
-// morbid sums the rows), AttackersDeclared (raid is at least one)
+// RowFact: Cast { from }, Drew, GainedLife(n), LostLife(n), Entered { from },
+// LeftZone { from, to, act, became }, LeftTheGame { from },
+// DealtDamage { to, amount, combat }, Attacked(target), Blocked(attacker),
+// RemovedFromCombat { attacking }, BecameTarget { by_spell, controller },
+// Stated { fact, count } (a scenario's count, §5.1 of setup)
 
-/// One player's history, bounded by the table and never by the turn count
-/// (the bounded-state PR, `codebase-state.md` item 179). "This turn" and
-/// "last turn" (Paladin of Atonement: whether you lost life last turn,
-/// whoever's turn it was) are two rows that move along as a new turn is
-/// counted on; "this game" is a running total; "since your last turn" (CR
-/// 730's day/night, Arboria, Concert Kaboomist) is every player's total
-/// now less their total as your last turn ended, taken as the next turn
-/// began. Your last turn is your most recent to have ended.
-pub struct PlayerHistory {
-    turn: u32,                              // the turn `this_turn` counts
-    this_turn: TurnSummary,
-    last_turn: TurnSummary,                 // turn - 1's
-    this_game: TurnSummary,
-    own_turn: Option<u32>,                  // the turn this player last began
-    at_your_last_turn: Arc<[TurnSummary]>,  // by PlayerId: O(seats²) in all, shared
-}
-// on GameHistory: players: Vec<PlayerHistory>, by PlayerId (TR-5b)
+/// "[Players'] [fact] [of what]", summed over a span's rows. A `Condition`
+/// leaf compares it with a `CountIs`; `AmountExpr::History` reads it.
+pub struct HistoryCount { pub players: PlayerSet, pub fact: TurnFact, pub of: Option<Box<ObjectFilter>> }
+// TurnFact: SpellsCast, CardsDrawn, LifeGained, LifeGainEvents, LifeLost,
+// LifeLossEvents, DamageTaken (dealt to this player: bloodthirst),
+// ControlledCreaturesDied (controlled as it died: morbid sums the players),
+// AttackersDeclared (raid is at least one)
+
+/// Beside the log, per player: "your last turn" and the draw step's count.
+pub struct PlayerHistory { own_turn: Option<u32>, previous_own_turn: Option<u32>, this_draw_step: u64 }
 ```
 
-**Three decisions.** *Whole game, not two turns*: the brief's recommendation,
-because the pregame sweep that would prune it (the state-tracking doc's
-`RelevantEffects`) is an optimization over a static property of the
-registry and pays only if measured — deferred until a reading says it
-should, with the fallback the doc already names (conjure, wishes: track
-everything). **The reading came 2026-09-25 and the bounded-state PR acted on
-it (item 179):** no reader needed the whole-game rows, so every fact is still
-tracked for every player, and only the turns stopped being kept one row each.
-*A game-scoped quantity is a scope on a counter, not a window on the log*:
-Approach of the Second Sun's casts and CR 903.8's commander tax are
-`this_game` counts, and the tax — `cost-architecture.md` §3.8, waiting
-on designation — becomes the first game-scoped reader, a field
-`commander_casts_from_command_zone` on the summary the day B2 lands. *A
-quantity no field anticipates is a field plus an update arm, authored with
-its card* — the postscript's rule, restated here so it is this document's
-too. The `Condition` leaves that read it are `ThisTurn(TurnFact, Cmp)`,
-`LastTurn(..)`, `SinceYourLastTurn(..)`, `ThisGame(..)`, three edits each
-(the variant, the `holds` arm, the `condition_reads` arm, which for a
-summary read is "nothing" — no frame is read).
+**One store, written once.** Every count a card reads and every "what did
+this object do" is a read of one log, written by one writer
+(`engine::triggers::history`) record by record as each event ends (§4.1).
+A row records an event, never the board: its frame is a departure's record's
+last known information, or else the object as the window left it (CR
+603.10), the window's own rows included. That last clause costs a second
+look only when the layer memo's gate says a frame read a kind of row the
+window wrote (the archive's "TR-5h", what the build corrected). A new fact is a
+`RowFact` variant and a writer arm, never a new store: a fact a filter can
+narrow is narrowed by `of` over the frames, so "noncreature spells you've
+cast this turn" and "creatures with power 3 or greater that died this turn"
+need no field.
 
-**Amended 2026-10-17 (TR-5b's decision 1): one history struct.** The rows
-moved from `PlayerState` into `GameHistory.players`, and each player's
-snapshot sits behind an `Arc`: its one writer replaces it whole once a turn,
-so a clone copies a pointer, and the seats² summaries cost a clone nothing
-however `TurnSummary` grows. The worst clone of `clone_bound_test`'s board
-went from 41 allocations to 38 (§12, TR-5b; `fuzz-record.md`).
+**Every span is a read.** "This turn" is turn T's rows; "last turn" is T-1's,
+whoever's turn it was (Paladin of Atonement's ruling); "since your last turn"
+is every turn after your most recent one to have ended, this one included,
+so on your own turn the one before (CR 730's day/night, Arboria, Concert
+Kaboomist); "this game" is every turn's. `GameHistory::turns_of` maps a span
+to its turns for every reader. CR 103's opening hands are drawn on turn 0,
+which no span counts. *A game-scoped quantity is a scope on the log, not a
+store*: Approach of the Second Sun's casts and CR 903.8's commander tax
+(`cost-architecture.md` §3.8, waiting on designation) are counts over
+"this game", each with its first card.
 
-**A departed player's counts stay readable (CR 800.4i).** The rule says that
-"if an effect requires information from the game about actions players have
-taken, the effect can find actions that were taken by a player who has left
-the game." `GameState.players` never shrinks, so a departed player's history
-keeps its counts. A read over every player (`PlayerSet::Everyone`) sums them,
-"an opponent" includes them, and the snapshot "since your last turn"
-subtracts holds their totals too. No test pins this yet: session 10 deferred
-CR 800.4i to Phase 9 with no atom.
+**The readers.** `Condition::ThisTurn`, `LastTurn`, `SinceYourLastTurn` and
+`ThisGame` compare a `HistoryCount`; `AmountExpr::History` reads one as a
+number ("the life you gained this turn", Betor, item 280);
+`ObjectFilter::ThisTurn` and `ThisCombat` ask what an object did (attacked,
+blocked, was blocked, entered, was dealt damage, dealt damage to a player);
+a record's place in its turn, the targeting limit (CR 115.1's "first time
+each turn") and a removed creature's defending player (CR 508.5) are lookups
+on the same rows. A `HistoryCount`'s players resolve against the reader's
+"you", so a static's `condition_reads` arm declares the source's controller.
 
-**As built (TR-2a, 2026-09-24).** The owner had each field named at the
-sizing for the side it counts, chosen from the cards that read it:
-- `damage_taken` is damage dealt *to* the player, which bloodthirst reads.
-- `controlled_creatures_died` is counted on the row of whoever controlled the
-  creature as it died, and morbid sums the rows.
-- `attackers_declared` is a count, and raid reads it as at least one.
+**The gate.** The layer memo keys a history read by what it touches: a key
+per kind of row, the turn number and the combat count
+(`GatedWalkInput::Rows`, `TurnNumber`, `CombatCount`), noted inside the
+lookup that scans them, so no caller can leave a dependency out. The writer
+bumps the kinds it wrote; a turn's start bumps the turn number. The memo
+audit re-walks fresh against each hit in a debug build.
 
-Three sketched fields are not in the struct:
-- `counters_put` waits for TR-5's `by` on the record.
-- `lands_played` stays on `PlayerState`.
-- CR 603.7h's count is not a row. It lives on `GameState`, keyed by the
-  ability (§6.5).
+**What it holds (item 179, restated 2026-10-19).** A clone copies one
+pointer for the log, however long the game: the rows sit in chunks of
+sixteen behind `Arc`s, newest first, and a fork's first write copies only
+the open chunk. What a *game* holds now grows with its events, never with a
+clone: 2.7–4.6 KB a turn over `history_held_test`'s 23 games, 378 KB in the
+largest. Nothing truncates the log; if what a game holds ever needs to
+shrink, an old row's frame can become a compact copy of what filters read,
+and identical frames can be shared, each waiting for a measurement that asks.
 
-A leaf takes a `HistoryCount { players: PlayerSet, fact: TurnFact, is:
-CountIs }`. Its `condition_reads` arm declares the source's controller,
-because `players` resolves against "you". CR 103.5's opening hands are drawn
-before the first turn, so `Game::setup` clears the rows they wrote.
+**A departed player's rows stay (CR 800.4i).** "If an effect requires
+information from the game about actions players have taken, the effect can
+find actions that were taken by a player who has left the game." The log
+keeps their rows, a read over every player (`PlayerSet::Everyone`) sums
+them, and "an opponent" includes them. No test pins this yet: session 10
+deferred CR 800.4i to Phase 9 with no atom.
 
-**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 3): a count "before
-it" is taken at its record.** Storm copies a spell "for each other spell that
-was cast before it this turn" (CR 702.40a). That covers 33 cards (`kw:storm`)
-plus Thousand-Year Storm's "cast before it this turn". The trigger resolves
-later, and a spell cast in response advances `spells_cast` without being
-before it. So a leaf that reads the live summary at resolution counts too
-many.
+**A count "before it" is a read by order (`cr-coverage-audit.md` §4a, pass
+3).** Storm copies a spell "for each other spell that was cast before it
+this turn" (CR 702.40a; 33 cards plus Thousand-Year Storm). A spell cast in
+response is not before it, so the count is the turn's cast rows ordered
+before the storm spell's own, by `seq`, readable at resolution with nothing
+carried by the trigger. It is authored with the first storm card.
 
-The count is every player's casts this turn, taken at the storm spell's
-`SpellCast` record. The summaries are advanced record by record,
-so the count is known there, and it has to travel with the trigger. The
-smallest form is `SpellCast` carrying the turn's ordinal. It is authored with
-the first storm card, like any other field in the summary.
+**A record is counted as its event ends (A6r, at #248's review).** That is
+its window's dispatch, as before, for every record but one kind: a card of a
+draw instruction is counted as that card's draw ends. CR 121.2 draws an
+instruction's cards one at a time and 614.11a decides each after the last,
+all inside one window, so a replacement asking "is this the draw step's
+first card" of the second card must see the first counted. A simultaneous
+batch is still counted once, at its end, and triggers are still matched
+once per window. The draw step's count is a field beside the log, reset by a
+draw step's `StepBegin`, because no turn can hold it: a turn can have two
+draw steps (CR 500.8, Sphinx of the Second Sun). A draw's record carries its
+place in the draw step beside its place in turn (`codebase-state.md` item
+254).
 
-**Amended 2026-10-14 (A6r, at #248's review): a record is counted as its
-event ends.** That is its window's dispatch, as before, for every record but
-one kind: a card of a draw instruction is counted as that card's draw ends.
-CR 121.2 draws an instruction's cards one at a time and 614.11a decides each
-after the last, all inside one window, so a replacement asking "is this the
-draw step's first card" of the second card must see the first counted. A
-simultaneous batch is still counted once, at its end, and triggers are still
-matched once per window. Each record is counted once (`EventRecord::counted`).
-The draw step's count is a field beside the rows, reset by a draw step's
-`StepBegin`, because no turn row can hold it: a turn can have two draw steps
-(CR 500.8, Sphinx of the Second Sun). A draw's record carries its place in
-the draw step beside its place in turn (`codebase-state.md` item 254).
+**What a row does not keep.** A frame, not the store's facts beside it: a
+filter leaf the frame cannot answer — whether it was a token, its counters,
+the owner of an object the store has lost — reads the store by the row's id,
+which answers for the object now (`codebase-state.md` item 286).
+
+**The history before TR-5h** (TR-2a's three summaries per player, item 179's
+bound by the table, TR-5b's one struct, the combat and targeting rows of
+TR-5f and TR-5c) is in `plans/archive/triggers-architecture-landed.md`,
+each under its phase, and TR-5h's design there says why the log replaced
+them.
 
 ### 3.11 `Lki` — the last known information, widened (items 14, 15) — built in TR-4a
 
@@ -1579,7 +1582,7 @@ entry: a devoured creature's death triggers before the entry's ETB, and
 both are placed together at the next priority.
 
 **Order within a dispatch.** Records are taken in window order, and for
-each: the turn summaries advance (§3.10), then the record is matched. So
+each: its place in its turn is counted (§3.10), then the record is matched. So
 "for the first time each turn" reads a count that includes this record and
 asks whether it is one; two life losses in one batch are the first and the
 second, which is Vengeful Warchief's answer. Then the state check (§4.5),
@@ -3559,255 +3562,42 @@ written in one place and missed in another, both fixed, and eight copies.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-5c".
 
-### TR-5h — one history of what happened
+### TR-5h — one history of what happened — ✅ landed 2026-10-19
 
-*Raised at TR-5d's design review (the owner, 2026-10-19): "We've done a few
-abstractions already with respect to game history, are we sure this is the
-end of that? I'd rather write it once and get it right than continually
-rewrite it." Designed the same day against the same tree, for review with
-TR-5d and TR-5g. It lands first, and TR-5d's damage facts are its first new
-rows. Nothing built.*
+*Body evicted 2026-10-19 to `plans/archive/triggers-architecture-landed.md`,
+"TR-5h", with the plan as designed, its measurement gate, and what the build
+corrected.*
 
-**Why the history keeps being rewritten.** Five phases have reshaped it,
-each for a reader its store could not hold:
-- TR-2a counted each player's facts in three summaries (this turn, last turn,
-  this game), and item 179 bounded them.
-- A6r gave a draw its place in its turn.
-- TR-5b joined the players' rows into one struct and shared the "since your
-  last turn" snapshot.
-- TR-5f and TR-5c added rows for what creatures did in combat, and rows for
-  targeting.
-- TR-5d's first draft generalized the combat rows for damage.
+**What shipped.** One log of the game's events, kept whole
+(`state::history_log`): a row per event a card can ask about later, each with
+its object's frame as the event left it, in chunks of sixteen behind `Arc`s,
+so a clone copies one pointer. Every history reader reads it (§3.10): the
+four span conditions over a `HistoryCount`, which gains `of`, a filter over
+each row's frame; `AmountExpr::History`, the same count as a number (item
+280); `ObjectFilter::ThisTurn` and `ThisCombat`, with the damage facts
+`WasDealtDamage` and `DealtDamageTo` (item 279's damage half); a record's
+place in its turn; the targeting limit; a removed creature's defending
+player. The layer memo's gate keys a read by kind of row, the turn number and
+the combat count, noted inside each lookup. `TurnSummary`, the seats × seats
+snapshot, `CombatHistory`, `TargetingHistory` and `SpellsCastOfType` are
+gone. The scenario states a count as a row and names each cast by its card.
 
-Each fixed the reader in front of it. This section asks every printed reader
-at once.
+**What moved on the way in.** The gate's draw-row trim was measured and
+reverted with the owner's approval, held memory unchanged. Frames see their
+own window's rows. The count's comparison moved into the condition so an
+amount shares it. The scenario names casts only; the other facts stay
+counts.
 
-**The census** (Scryfall, 2026-10-19; `plans/references/history-census.py`
-re-runs the second row's count):
+**Measured** (`fuzz-record.md`, TR-5h's block). The engine arm plays
+`main`'s games on every table; +1.37% instructions per decision, past the
+predicted +0.3% to +1%, most of it the entry rows' frames. Floor 3 2.2 KB
+lower per clone; 2.7–4.6 KB held a turn. The model pass found three faults,
+each fixed and shown failing first, and one copy.
 
-| What a reader asks | Examples | Today's store | Holds it? |
-|---|---|---|---|
-| A count of a player's events in a span | "for each spell you've cast this turn" (Aetherflux Reservoir); raid; "the life that player lost this turn"; "if no spells were cast last turn" (the werewolves) | `TurnSummary`'s slots | yes |
-| A count, total or aggregate over what the things were at the time | "for each Zubera that died this turn" (Ashen-Skin Zubera); "if you sacrificed three or more Clues this turn" (Briarbridge Patrol); "a player who was dealt combat damage by three or more Pirates this turn" (Admiral Beckett Brass); "the number of Treasure tokens you created this turn" (Vazi, Keen Negotiator); "the total mana value of other spells you've cast this turn" (Call Forth the Tempest); "each card type among spells you've cast this turn" (April O'Neil, Hacktivist). **124 cards** over eleven phrasings, a lower bound | none. A count has no characteristics. `SpellsCastOfType`'s fifteen slots are card types alone, and six of them are types no spell has. A subtype, a color, a mana value or a name is no slot at all | **no** |
-| An object's own past | TR-5c's census, about 210 cards; "the first time +1/+1 counters have been put on that permanent this turn" (Botanical Brawler); "the first time that creature has become tapped this turn" (Captain America, Living Legend); "target planeswalker that was activated this turn" (Cut Short) | the combat rows: attacked, blocked, removed | three facts of it |
-| The order of events | "the first spell you cast each turn"; "your second card each turn"; valiant; "the last red instant or sorcery spell that dealt damage to you this turn" (Suffocation) | a record's place in its turn, for casts, draws and life; the targeting rows' order | for those kinds |
-| Last turn, your last turn, since your last turn | the werewolves; Giant Turtle; "a nonblack creature that entered since your last turn ended" (Premature Burial); "if you haven't been dealt combat damage since your last turn" (Invasion of Fiora) | the players' last turn and the seats × seats snapshot; the combat rows, kept a round | players' counts, and objects' combat facts |
-| This game | 17 count casts of a commander from the command zone; Approach of the Second Sun, Yidaro and Gollum count by name; Flourishing Forces' life gained; First Contact's first spell; Rampaging Ursaguana's "attacked this game"; The Fallen's "dealt damage to this game"; Echogoyfs' "not from your starting deck" | `this_game`'s slots | counts only |
-| The abilities' own facts | "the second time this ability has resolved this turn" (28 cards); "only once each turn" | three per-turn sets | yes |
+**What it leaves.** Items 286 and 287 (`codebase-state.md`, "Found by
+TR-5h"); item 279's other facts, each with its first card.
 
-The second row is what the next rewrite would be for. No number of slots
-answers it, and every slot costs every clone.
-
-**The shape, written once: the game's log** (decided at review, the owner,
-2026-10-19). One store answers every span a card can name, and the
-abilities' gates stay as they are.
-1. **The game's log.** It records events, never the board: a row is one
-   thing that happened, and its frame is the one object's characteristics
-   then, behind a pointer. Every event a reader of the past can ask about is
-   one row, kept for the whole game. A row is the event as it happened: its
-   turn and combat, whose event it was, the object it was about as the
-   existence it was (CR 400.7), that object's frame then, and what happened.
-   ```rust
-   /// One event a reader of the past can ask about, as it was then.
-   pub struct HistoryRow {
-       /// The record it was written from, which orders the log: "the first",
-       /// "the last", "for the first time each turn".
-       pub seq: EventSeq,
-       pub turn: u32,
-       /// Which of the turn's combats, from 1; 0 outside combat.
-       pub combat: u32,
-       /// Whose event: the caster, the drawer, the player whose life moved or
-       /// who was dealt damage, who controlled the creature as it died.
-       pub player: Option<PlayerId>,
-       /// The object it was about, as the existence it was.
-       pub object: Option<ObjectRef>,
-       /// That object as it was then (CR 608.2h): a record's frame where it
-       /// carries one, else the object's frame as the event left it.
-       pub frame: Option<Arc<EffectiveCharacteristics>>,
-       pub fact: RowFact,
-   }
-
-   /// What happened. A fact a later card asks is a variant and an arm in the
-   /// writer, never a new store.
-   pub enum RowFact {
-       Cast { from: Zone },
-       Drew,
-       GainedLife(u64),
-       LostLife(u64),
-       Entered { from: Option<Zone> },
-       /// Died, discarded, milled, sacrificed, exiled: the move and its act.
-       LeftZone { from: Zone, to: Option<Zone>, act: ZoneChangeAct },
-       DealtDamage { to: ObjectOrPlayer, amount: u64, combat: bool },
-       Attacked(AttackTarget),
-       Blocked(ObjectRef),
-       RemovedFromCombat { attacking: Option<AttackTarget> },
-       BecameTarget { by_spell: bool, controller: PlayerId },
-   }
-   ```
-   - **Why the whole game, not a round.** A round is the longest span a
-     printed card names short of "this game": the 11 that say "your last
-     turn", "their last turn" or "since your last turn" (Giant Turtle, Halls
-     of Mist, Premature Burial) reach back up to a full rotation. "This game"
-     has no shorter store that is always right. Counts per fact miss a
-     filter ("the first creature spell you've cast this game"), and counts
-     compiled at setup from the cards in the game miss a chosen creature
-     type, a text change (CR 612) and a card that joins from outside the
-     decks, silently. Only the whole log is right for every card, printed or
-     custom.
-   - **The rows today's readers need**, and the damage rows TR-5d's facts
-     read: casts, draws, life, entries, zone changes, damage, combat and
-     targeting. Counters, taps, activations, token creations, cycling and the
-     rest each join with their first card, as a variant.
-   - **Stored as a chain of fixed chunks, each behind an `Arc`**, appended
-     within the newest. A clone copies one pointer, the chain's head, however
-     long the game. The first write after a fork copies only the open chunk,
-     at most sixteen rows, and every full chunk stays shared by every clone in
-     a search. A read walks back from the newest chunk and stops where its
-     span starts. "This game" walks the whole log, about 600 rows at our fuzz
-     games' average, and only a "this game" reader does.
-   - **The frame is one the engine already has.** A departure's record
-     carries it, and an object still where the event left it has the layer
-     memo's (an `Arc` clone, with no walk while it is current).
-   - **Never truncated.** If what a game holds ever needs to shrink, two
-     storage changes keep every answer and touch no reader: rows older than a
-     round swap their frame for a compact copy of what filters read (332
-     bytes to about 64), and identical frames are shared (a thousand
-     identical Treasure tokens, one frame). Each waits for a measurement that
-     asks for it.
-2. **The abilities' gates**, unchanged: what has triggered, been done once,
-   or resolved this turn, by ability. They are rule gates keyed by an
-   ability, and no reader filters them.
-
-`TurnSummary` and its three views, and the seats × seats snapshot, go:
-this turn, last turn, your last turn, since your last turn and this game are
-all spans of the log. `PlayerHistory` keeps the turn each player last began
-and the draws in a draw step in progress (CR 504). `GameHistory.combat` and
-`.targetings` fold into the log.
-
-**Item 179's bound changes** (the owner, 2026-10-19). It made the history
-"the table's size, never the turn count's". That still holds for what a clone
-copies, which is one pointer. It no longer holds for what a game holds: the
-log grows with the game's events, by about 3.5 KB a turn at four seats (the
-cost table below), held once and shared by every clone. Each close-out
-reads it, on the longest fuzz game and on TR-7's persist loop.
-
-**One way to read it.** Every reader asks the log the same question, with
-the span it names:
-```rust
-/// "[Players'] [fact] [of what] [span]": the rows that answer, read as a
-/// count, a total of their amounts, or "any".
-pub struct HistoryCount { pub players: PlayerSet, pub fact: TurnFact, pub of: Option<ObjectFilter>, pub is: CountIs }
-```
-- **`TurnFact` stays the vocabulary of what is counted**, and gains `of`, a
-  filter over each row's frame: "noncreature spells you've cast this turn" is
-  `SpellsCast` of `Not(ByType(Creature))`. `SpellsCastOfType(t)` becomes
-  `SpellsCast` of `ByType(t)`, so its fifteen slots go.
-- **`Condition::ThisTurn`, `LastTurn`, `SinceYourLastTurn` and `ThisGame`
-  keep their names and their cards**, and all four read the log.
-- **`ObjectFilter::ThisTurn` and `ThisCombat`** read the rows that name the
-  object, as TR-5c built them, with TR-5d's damage facts.
-- **An `AmountExpr` reads a `HistoryCount` as a number**: "the amount of
-  life you gained this turn" (Betor, Ancestor's Voice; item 280). The
-  aggregates ("the greatest mana value among", "card types among") are
-  further readings of the same rows, each with its first card.
-- **A record's place in its turn** is counted off the log as the row is
-  written, so "the first spell you cast each turn" reads what it reads today.
-- **`backlog.md` §2.47's "this game" counts are readings too**, each with its
-  first card: a commander's casts from the command zone (B2's designation),
-  a count by name (Approach of the Second Sun, Yidaro, Gollum), an object's
-  lifetime facts (Rampaging Ursaguana, The Fallen). None needs a store.
-
-**The layer memo's gate**, keyed by the rows a read touches (item 279): a key
-for each kind of row, the combat count and the turn number, in place of
-today's one `GatedWalkInput::Histories` (`state/layer_memo.rs:75`), with
-`GatedInputs` widened from a `u8` to a `u16`.
-- **Noted inside the log's lookups.** Each lookup takes the walk's note,
-  notes its own kind of row, and notes the combat count when it asks for the
-  latest combat. So a filter over two facts notes both, and no caller can
-  leave one out. `Condition::DefendingPlayer` notes the removal rows through
-  `attacking_when_removed`, never by name.
-- **Bumped by kind.** The writer bumps the keys of the rows it wrote, and a
-  turn's start bumps the turn number. The memo audit, which re-walks fresh
-  against each hit in a debug build, catches a key a lookup misses.
-
-**The scenario** (`setup-architecture.md` §5.1). Today it writes each
-player's three summaries as count words (`scenario/text.rs`). A count word
-for a fact no filter narrows, such as life gained, writes rows with no
-object. A fact a filter can narrow names its objects ("cast this turn" and
-the cards), and reads them back with their printed frames. What it cannot
-say, it reports, as it reports a combat row today (`scenario/write.rs:194`).
-
-**What it costs, against today** (a size probe, a frame measured over 9,291
-samples, and 60 four-seat games in both pools, 2026-10-19):
-
-| | Today | The log |
-|---|---|---|
-| Bytes a four-seat clone copies for the history | 2,464: four players × 616, each with three 192-byte summaries of 24 counts | about 100: four players' turn and draw-step counts; the log is one pointer |
-| Allocations a clone makes for it | 1, the players' `Vec` | 1 |
-| A fork's first write | the summaries in place; a whole round of combat or targeting rows (48 bytes each) once one is written | the open chunk: at most 16 rows of about 80 bytes, 1 allocation |
-| A new fact | 96 bytes on every four-seat clone (a slot in three summaries, four players). A fact by characteristic needs a slot per value, or cannot have one | a variant: nothing on the clone, and a row only when it happens |
-| Held once per game, shared by every clone of it | the combat and targeting rows, about 1–2 KB | about 8–10 rows a turn of these kinds (the games wrote 42.7 records a turn, p90 65), each about 80 bytes, and the frame each keeps alive, 332 bytes on average where nothing else shares it: at most about 3.5 KB a turn. Over a whole game, 220–250 KB on average and about 400 KB at most (the longest game 118 turns, the busiest turn 116 rows). The clone floors do not count it, since no clone copies it |
-
-A read of "this turn" scans its turn's rows of one kind, about ten, where a
-count read one slot. The readers are a static's condition, which the layer
-memo holds, and a trigger's "if", so floor 1 is not expected to move. Taking
-a live object's frame for its row is the new per-record work.
-
-**The first commit is a measurement gate.** It builds the log's storage and
-its writer for today's kinds, and moves no reader. Its sitting reads:
-- bytes and allocations per clone on `clone_bound_test`'s board;
-- instructions per decision on the fuzz tables, against `main`;
-- what a game holds at 74, 118 and 200 turns.
-
-The build stops and reports if a clone costs more than it does today, if
-instructions per decision rise past +1.5%, or if a game holds more than
-about 5 KB a turn. Only then do the readers move.
-
-**What it closes.** Item 279's damage half, since TR-5d's facts are rows
-here, and its shape for every other fact: each later one is a variant and a
-writer arm. Item 280. And `backlog.md` §2.47, whose counts become readings of
-the log with their first cards.
-
-**Planned shapes corrected here, with no decision**
-- **§3.10's `TurnSummary` and its three views** go; every span is the log's.
-- **TR-5c's "the combat rows become the object's rows when the first deed
-  that is not combat's lands"** happens here, for every reader at once.
-
-**Not in this phase**, each with its first card: the aggregates ("greatest",
-"total", "among"); counters, taps, activations, token creations and cycling
-as rows; the "this game" readings above. "Dealt damage to it" and a source as
-it was then (Brine Hag, Giant Albatross, Aegar, the Freezing Flame) are a
-filter over a damage row's frame and its recipient, which the shape holds;
-their leaf comes with the first card. The two storage changes wait for a
-measurement that asks for them.
-
-**Sized.** Code at 1.5–2× plus tests, counted against the tree on
-2026-10-19. The lines it deletes (`TurnSummary`, the snapshot, the type
-slots, `CombatHistory`, `TargetingHistory`) are not counted against it.
-
-| Piece | Code | Tests |
-|---|---|---|
-| The row, its facts, the chunk chain and its spans | ~140 | ~780 across the phase: today's history tests moved onto the log (~150 lines changed); a filtered count read off a frame after the object changed; since your last turn at four seats; last turn; this game; a clone shares the log and a fork's write copies one chunk; the gate, twice; the scenario's round trip by card name, twice; a place in a turn; Betor's amount; the held-memory reading at the gate; the damage facts (~150, from TR-5d) |
-| The writer: today's facts as rows, frames, places | ~100 | |
-| The readers: `HistoryCount`'s `of`, the span conditions, the filter's facts, the targeting limit, the defending player, the amount | ~110 | |
-| The gate by kind of row | ~55 | |
-| The scenario's words | ~100 | |
-| TR-5d's damage rows and its two facts, `WasDealtDamage` and `DealtDamageTo { player, combat }` | ~40 | |
-| The held-memory reading, beside `clone_bound_test` | ~25 | |
-| **Whole: 1,630–1,920** | ~570 (855–1,140) | ~780 |
-
-Docs at the close-out, about 400: the stub and the archive, `fuzz-record.md`'s
-block, §3.10 rewritten to the log, item 179's bound restated,
-`setup-architecture.md` §5.1's words, and the glossary's history entry.
-
-**Predictions for the close-out** (re-stated before `close_out.py`; it moves
-what a clone holds, so its sitting carries a cost arm)
-- *The engine arm, against `main`.* Every gameplay row identical, both pools,
-  two seats and four: every reader answers as before, and a record's place
-  in its turn is the same number. Instructions per decision +0.3% to +1%,
-  from a row and a frame per logged record. Floor 3 about 2.3 KB lower at
-  four seats, and floor 2 unchanged. A game holds about 3.5 KB a turn.
-- *No shipped arm*: no card is registered.
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5h".
 
 ### TR-5d — prevention and excess damage
 
@@ -4280,7 +4070,7 @@ ahead of both, TR-5h.
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
 | **TR-5b — counters, and one history struct** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5b" | | | | +2,103 |
 | **TR-5c — blocks, targeting and activation** — ✅ landed 2026-10-18, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5c" | | | | +2,630 |
-| **TR-5h — one history of what happened** — designed above | the game's log of events, kept whole, each row with its object's frame then, which every history reader reads; the layer memo's gate by kind of row; the scenario's words; the damage rows and facts (item 279's damage half); item 280; a measurement gate first | none registered: every registered reader of the history moves onto it | ~570 (855–1,140) | ~780 | 1,630–1,920 |
+| **TR-5h — one history of what happened** — ✅ landed 2026-10-19, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5h" | | | | +2,058 |
 | **TR-5d — prevention and excess damage** (CR 615.13, 120.10) — designed above | item 16's arm over `DamagePrevented`; excess damage per recipient, decided with the batch, and on TR-5h's damage row; item 275 | Selfless Squire; ATOM-120.10-001 | ~240 (360–480) | ~520 | 880–1,000 |
 | **TR-5g — the multiplier, tokens and scry** (CR 603.2d, 701.7, 701.22) — designed above | `Effect::TriggerMultiplier` with its three legs and the triggered mana path; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; a count of targets the text defines (CR 601.2c) | Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's fixture against item 251's "from anywhere" arm (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001 | ~355 (530–710) | ~800 | 1,330–1,510 |
 | *TR-5d as sized at TR-5c's review (2026-10-18), kept for the record* | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; excess damage per recipient over the batch, and the "this turn" damage facts ("was dealt damage", "dealt damage to"), moved from TR-5c at its review (TR-5c's piece 11 and part (a)); item 275, moved with them; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001, ATOM-120.10-001 | ~610 (915–1,220) | ~1,080 | 1,995–2,300 |

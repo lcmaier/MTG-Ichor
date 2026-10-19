@@ -508,6 +508,60 @@ the landed ones.
 - T1–T3's fold and queue (the dispatch's and the delayed registry's) were
   re-found, and #261 edited both copies of T1's tail identically.
 
+### 3.8 Found by TR-5h's model pass (2026-10-19)
+
+§2a's prompt over the history's files #262 changed, scoped to the functions
+it touched, its report unseen. It named 14 facts and five small ones; #262
+fixed three, merged one, and routed or kept the rest. It read while the
+first merge was being written, and named it too.
+
+**Fixed in #262, each shown failing first.**
+- **T22. "You" for an amount on a registry row** (CR 109.5): the history
+  amount and the hand-size amount read the row's `controller`, fixed when a
+  static registers, so a stolen source counted its old controller's, while
+  the same row's filter read the new one. `compute::amount_players` builds
+  an amount's filter context as the row's filter is built, and `CountOf`
+  takes it too.
+- **T23. A gone source's owner in a history count's filter:** the count
+  built its players without the source's last known owner, so "its owner"
+  reached `FilterPlayers::owner`'s expect. It is built as the condition's
+  other leaves build it.
+- **T24. The turn a player last began, in two stores written at two
+  instants:** `begin_turn` wrote `last_turn_began`, and the turn's record,
+  dispatched after it, wrote `PlayerHistory`'s. `begin_turn` writes both.
+
+**Merged in #262, no game moved.** A history count over a span
+(`GameHistory::total`, the walk's and the resolution's, each with its filter
+context); the save's spans (`GameHistory::turns_of`).
+
+**Kept, each with its reason.**
+- A draw's place: `next_draw_ordinals` answers a replacement before the draw
+  and the writer's `place_in_turn` the record after it, both off the log;
+  the writer's adds the window's earlier placed records, which a draw never
+  has, since each card is counted as its draw ends (A6r).
+- The scenario's landing of a span on a turn: `history_counts_by_turn` lands
+  sums, this game less the two rows, and `named_casts_by_turn` lands rows;
+  `write.rs`'s `since_your_last_turn_differs` re-derives from the natural
+  rotation on purpose, since it predicts what the loader will rebuild.
+- `counted` and `kind_counted` answer which rows a fact sums and which kind
+  a read of it notes; `kind_counted` is exhaustive, so a new fact is asked
+  for there.
+- A row write and its kind's bump: the writer bumps once per window, which
+  the reframe's epoch comparison reads; the loader's two writes pair them by
+  hand before any frame of the game is read by a card.
+- The `Entered` rows have no reader yet: a count over what entered reads them
+  with its first card, while `ObjectFact::Entered` asks the permanent's own
+  turn, which last known information carries.
+- The placed kinds and `BecomesTarget`'s two predicates, as §3.7 keeps them.
+
+**Routed elsewhere.** The defending player of an attacked planeswalker or
+battle (`scenario/build.rs`'s `attacked_player`, `combat/steps.rs`'s
+`get_defending_players`) is `backlog.md` §2.23's, beside the attack path.
+**Item 247's, beside T19–T21:** the natural rotation walked back in both
+`scenario/build.rs` and `write.rs`; a `LifeChanged`'s gain or loss in both of
+the history writer's halves; turn 0 belonging to no span, asked at seven
+sites that agree.
+
 ## 4. The rename: "departed frame" to LKI
 
 **Decided (the owner, 2026-10-10, at #240's review): its own mechanical PR,
