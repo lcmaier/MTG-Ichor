@@ -2367,7 +2367,7 @@ fn apply_rewrite(
             // entries scaled, each restricted atom repeated in place with its
             // restrictions (`ATOM-106.6a-001`). No card adds or halves mana by
             // replacement, so other arms are pairing errors.
-            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana } => {
+            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana, source_lki } => {
                 match amount_rewrite {
                     AmountRewrite::Multiplier(n) => {
                         let times = usize::try_from(*n).map_err(|_| {
@@ -2391,6 +2391,7 @@ fn apply_rewrite(
                                 mana: scaled,
                                 special: repeated,
                                 tapped_for_mana,
+                                source_lki,
                             }),
                             Applied { took_effect, prevented: 0 },
                         ))
@@ -2778,7 +2779,7 @@ fn substitute(
         // production is refused (the `Half-Bound Grove` fixture reaches it).
         (
             GameActionTemplate::ProduceMana { mana_type, amount },
-            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana },
+            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana, source_lki },
         ) => {
             let plain: u64 = mana.iter().map(|(_, n)| n).sum();
             let (mana, special) = match amount {
@@ -2819,7 +2820,7 @@ fn substitute(
                     }
                 }
             };
-            Ok(GameAction::ProduceMana { player, source, mana, special, tapped_for_mana })
+            Ok(GameAction::ProduceMana { player, source, mana, special, tapped_for_mana, source_lki })
         }
 
         // CR 614.1a from a draw to the game's end (Laboratory Maniac). The affected

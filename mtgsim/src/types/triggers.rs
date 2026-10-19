@@ -1939,7 +1939,7 @@ mod tests {
             ("LeftTheGame", GameEvent::LeftTheGame { object_id: id, owner: 0, from: Zone::Battlefield, lki: None }),
             ("Tapped", GameEvent::Tapped { object_id: id }),
             ("Untapped", GameEvent::Untapped { object_id: id }),
-            ("ManaAdded", GameEvent::ManaAdded { player_id: 0, source_id: id, mana: Vec::new(), tapped_for_mana: false }),
+            ("ManaAdded", GameEvent::ManaAdded { player_id: 0, source_id: id, mana: Vec::new(), tapped_for_mana: false, source_lki: None }),
             ("DamageDealt", GameEvent::DamageDealt {
                 source_id: id,
                 target: DamageTarget::Player(0),

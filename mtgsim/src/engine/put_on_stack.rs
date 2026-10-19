@@ -22,7 +22,7 @@ use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::{TargetInstance, TargetRef};
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
@@ -66,6 +66,14 @@ impl std::fmt::Display for SorceryTiming {
 pub(crate) struct SourceBeforePaying {
     zone: Zone,
     lki: Option<Lki>,
+}
+
+impl SourceBeforePaying {
+    /// Its last known information, where a cost has since moved `source`,
+    /// the existence that was activated; `None` while it is where it was.
+    pub(crate) fn lki_if_it_moved(&self, game: &GameState, source: ObjectRef) -> Option<Lki> {
+        self.lki.clone().filter(|_| game.object_ref(source.id) != Some(source))
+    }
 }
 
 impl GameState {
@@ -432,12 +440,11 @@ impl GameState {
         identity: AbilityIdentity,
         controller: PlayerId,
         mana_ability: bool,
-        before_paying: SourceBeforePaying,
+        before_paying: &SourceBeforePaying,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        let SourceBeforePaying { zone: from, lki } = before_paying;
-        let source_lki = lki.filter(|_| self.object_ref(identity.source.id) != Some(identity.source));
-        let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from, source_lki };
+        let source_lki = before_paying.lki_if_it_moved(self, identity.source);
+        let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from: before_paying.zone, source_lki };
         self.emit_event_with_provider(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
     }
 
@@ -566,7 +573,7 @@ impl GameState {
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
         self.announce_targeted_records(ability_obj_id, activating, decisions)?;
-        self.announce_activation(identity, player_id, false, before_paying, decisions)?;
+        self.announce_activation(identity, player_id, false, &before_paying, decisions)?;
 
         Ok(())
     }

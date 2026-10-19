@@ -33,9 +33,12 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
-    fill_library, put_in_hand, put_on_battlefield, put_on_battlefield_this_turn, set_active_player, set_attacking, setup_game,
-    setup_two_player_game, static_ability, test_ctx, test_dp,
+    fill_library, put_in_hand, put_on_battlefield, put_on_battlefield_this_turn, put_on_battlefield_under, set_active_player,
+    set_attacking, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
 };
+use mtgsim::cards::phase_re9_cards::deep_water;
+use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
@@ -1113,6 +1116,56 @@ fn a_source_sacrificed_as_a_cost_is_read_as_it_was_at_resolution() {
     assert_eq!(game.objects[&golem].zone, Zone::Graveyard);
     resolve_all(&mut game);
     assert_eq!(life(&game, 0), 23);
+}
+
+/// A land player 1 owns and player 0 controls, which sacrifices itself for
+/// {C}, as Crystal Vein's second ability does ("{T}, Sacrifice this land: Add
+/// {C}{C}").
+fn a_stolen_vein(game: &mut GameState) -> ObjectId {
+    let vein = with_a_sacrifice_for_mana(CardDataBuilder::new("Fixture Vein").card_type(CardType::Land), &[Cost::TapSelf]);
+    put_on_battlefield_under(game, vein, 1, 0)
+}
+
+/// The mana a source makes after its own cost moved it is still the mana of
+/// the permanent it was (CR 608.2h): "whenever a land you control is tapped
+/// for mana" triggers for a stolen land sacrificed for its mana, which in its
+/// owner's graveyard is no land its thief controls.
+#[test]
+fn a_source_its_cost_moved_is_read_as_it_was_when_its_mana_is_added() {
+    let mut game = stocked(2);
+    let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Land)), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    let watcher = life_on("Fixture Land Watcher", TriggerEvent::ManaAdded { source: TriggerSubject::Filter(yours), tapped_for_mana: Some(true), mana: None });
+    put_on_battlefield(&mut game, watcher, 0);
+    let vein = a_stolen_vein(&mut game);
+    tap_for_mana(&mut game, 0, vein);
+    assert_eq!(game.objects[&vein].zone, Zone::Graveyard);
+    resolve_all(&mut game);
+    assert_eq!(life(&game, 0), 21, "a land its controller tapped for mana");
+}
+
+/// And a replacement reads it the same way: under Deep Water ("if you tap a
+/// land you control for mana, it produces {U} instead"), the stolen land's
+/// {C} is {U}.
+#[test]
+fn a_replacement_reads_a_source_its_cost_moved_as_it_was() {
+    let mut game = stocked(2);
+    let card = deep_water();
+    let water = put_on_battlefield(&mut game, card.clone(), 0);
+    let ctx = ResolutionContext {
+        source: water,
+        ability_source: None,
+        controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
+        targets: ChosenTargets::NONE,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).expect("Deep Water's ability");
+    let vein = a_stolen_vein(&mut game);
+    tap_for_mana(&mut game, 0, vein);
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Blue), 1, "Deep Water's blue");
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 0);
 }
 
 /// CR 605.1b: a triggered ability that triggers on a mana ability's

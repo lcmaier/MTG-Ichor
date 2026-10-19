@@ -108,6 +108,9 @@ pub enum GameEvent {
         source_id: ObjectId,
         mana: Vec<(ManaType, u64)>,
         tapped_for_mana: bool,
+        /// The source as it last existed, where its own mana ability's cost
+        /// moved it first (CR 608.2h).
+        source_lki: Option<Lki>,
     },
 
     // --- Damage ---
@@ -517,12 +520,15 @@ impl GameEvent {
 
     /// The last known information this record keeps of its source, which had
     /// left before the event: a damage source gone before its damage (CR
-    /// 608.2h), or an ability's source a cost moved before it was activated
-    /// (CR 602.2b). `None` where the source was where the event found it.
+    /// 608.2h), an ability's source a cost moved before it was activated (CR
+    /// 602.2b), or a mana source its own mana ability's cost moved before the
+    /// mana was made. `None` where the source was where the event found it.
     /// Not [`Self::lki`], which is the object the event itself moved.
     pub fn source_lki(&self) -> Option<&Lki> {
         match self {
-            GameEvent::DamageDealt { source_lki, .. } | GameEvent::AbilityActivated { source_lki, .. } => source_lki.as_ref(),
+            GameEvent::DamageDealt { source_lki, .. }
+            | GameEvent::AbilityActivated { source_lki, .. }
+            | GameEvent::ManaAdded { source_lki, .. } => source_lki.as_ref(),
             _ => None,
         }
     }

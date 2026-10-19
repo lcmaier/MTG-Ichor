@@ -20,6 +20,7 @@
 
 use std::sync::Arc;
 
+use crate::engine::mana::ManaProducer;
 use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::types::effects::Antecedent;
 use crate::engine::actions::{ActionContext, GameAction};
@@ -1653,7 +1654,8 @@ impl GameState {
                 GameEvent::ManaAdded { source_id, mana: added, tapped_for_mana: tapped, .. },
             ) => {
                 let added = |m: ManaType| added.iter().any(|(t, n)| *t == m && *n > 0);
-                triggering_event_if(self.mana_added_arm_matches(arm, *source_id, *tapped, added, referents, seq))
+                let producer = ManaProducer { id: *source_id, tapped_for_mana: *tapped, lki: event.source_lki() };
+                triggering_event_if(self.mana_added_arm_matches(arm, producer, added, referents, seq))
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
@@ -2073,16 +2075,17 @@ impl GameState {
     fn mana_added_arm_matches(
         &self,
         arm: &TriggerEvent,
-        producer: ObjectId,
-        tapped: bool,
+        producer: ManaProducer<'_>,
         added: impl Fn(ManaType) -> bool,
         referents: &TriggerReferents<'_>,
         seq: EventSeq,
     ) -> bool {
         let TriggerEvent::ManaAdded { source, tapped_for_mana, mana } = arm else { return false };
-        tapped_for_mana.is_none_or(|t| t == tapped)
+        // A producer its own cost moved is read as it last existed (CR 608.2h).
+        let read = producer.lki.map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+        tapped_for_mana.is_none_or(|t| t == producer.tapped_for_mana)
             && mana.is_none_or(added)
-            && self.subject_matches(source, Some(producer), referents, seq, SubjectRead::Now)
+            && self.subject_matches(source, Some(producer.id), referents, seq, read)
     }
 
     /// [`Self::mana_added_arm_matches`], asked before the mana is made.
@@ -2114,7 +2117,8 @@ impl GameState {
             this_ability: None,
             referred: &[],
         };
-        self.mana_added_arm_matches(arm, producer, tapped, added, &referents, self.events.next_seq())
+        let producer = ManaProducer { id: producer, tapped_for_mana: tapped, lki: None };
+        self.mana_added_arm_matches(arm, producer, added, &referents, self.events.next_seq())
     }
 
     /// "Which object" (§3.3): `This` is the source itself, `Host` what it is
@@ -2270,6 +2274,8 @@ impl GameState {
             | GameEvent::Untapped { object_id }
             | GameEvent::PermanentEnteredBattlefield { object_id, .. }
             | GameEvent::ControlChanged { object_id, .. } => *object_id,
+            // The existence that made the mana, where its own cost moved it.
+            GameEvent::ManaAdded { source_lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
             GameEvent::ManaAdded { source_id, .. } => *source_id,
             GameEvent::CardDrawn { card_id, .. } => *card_id,
             GameEvent::SpellCast { spell_id, .. } | GameEvent::SpellCountered { spell_id, .. } => *spell_id,
@@ -2379,7 +2385,8 @@ impl GameState {
                 let player = triggered_mana_recipient(self, recipient, source, pending.controller);
                 let mut resolution = ResolutionContext::for_mana_ability(self, source, player, GeneratedBy::TriggeredAbility);
                 resolution.trigger = Some(pending.binding.clone());
-                self.produce_mana(output, player, source, false, &resolution, &ActionContext::resolving(ctx.dp, &resolution))
+                let producer = ManaProducer { id: source, tapped_for_mana: false, lki: None };
+                self.produce_mana(output, player, producer, &resolution, &ActionContext::resolving(ctx.dp, &resolution))
             }
             Effect::Sequence(effects) => {
                 for sub in effects {

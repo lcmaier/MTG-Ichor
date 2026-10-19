@@ -900,7 +900,8 @@ impl GameState {
             // never be a mana ability"), which is why Mana Reflection leaves
             // it at three: its first ruling, and the definition says it first.
             Primitive::ProduceMana(output) => {
-                self.produce_mana(output, ctx.controller, ctx.effect_source(), false, ctx, &actx)
+                let producer = crate::engine::mana::ManaProducer { id: ctx.effect_source(), tapped_for_mana: false, lki: None };
+                self.produce_mana(output, ctx.controller, producer, ctx, &actx)
             }
 
             Primitive::CounterSpell => {
