@@ -2455,8 +2455,9 @@ impl GameState {
 
     // --- Helper: evaluate AmountExpr ---
 
-    /// The first record of the resolution in progress, which "dealt this
-    /// way" counts from.
+    /// Where the resolution in progress starts in the event window: the
+    /// number its first record would take, whatever that record turns out to
+    /// be. "Dealt this way" reads the resolution's damage records from there.
     fn resolution_began_at(&self) -> Result<crate::events::event::EventId, String> {
         self.resolving
             .as_ref()

@@ -220,9 +220,10 @@ pub struct ResolvingObject {
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
     /// The last known information the entry kept, and any its own effect adds.
     pub kept_lki: Vec<crate::types::triggers::Lki>,
-    /// The first record this resolution could perform: where a later
-    /// instruction starts reading what the earlier ones did
-    /// (`EventWindow::resolution_records`), for "the damage dealt this way".
+    /// Where this resolution starts in the event window: the number its first
+    /// record would take, whatever that record is. A later instruction reads
+    /// the earlier ones' records from here (`EventWindow::resolution_records`),
+    /// for "the damage dealt this way".
     pub began_at: crate::events::event::EventId,
 }
 
