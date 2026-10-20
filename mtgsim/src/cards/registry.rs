@@ -68,7 +68,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 119] = [
+const PERFORMANCE_POOL: [&str; 120] = [
     "Plains",
     "Island",
     "Swamp",
@@ -563,6 +563,10 @@ const PERFORMANCE_POOL: [&str; 119] = [
     // own entry makes the prevention, so any damage aimed at its controller
     // that turn opens the path.
     "Selfless Squire",
+    // TR-5d's other: the excess damage a resolution's own effect dealt,
+    // read in the same resolution after its damage's window, and X. Any
+    // creature it hits for more than its toughness makes Goblins.
+    "Goblin Negotiation",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -1004,6 +1008,9 @@ impl CardRegistry {
         // to its controller this turn, and it grows by each prevention to them
         // (CR 615.13), its own or another's.
         registry.register("Selfless Squire", phase_tr5d_cards::selfless_squire);
+        // The damage and excess a resolution dealt "this way": Goblin
+        // Negotiation makes a Goblin for each point past lethal.
+        registry.register("Goblin Negotiation", phase_tr5d_cards::goblin_negotiation);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

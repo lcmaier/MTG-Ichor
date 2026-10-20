@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-19",
+  "fetched": "2026-10-20",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -580,6 +580,13 @@
         {"n": 1, "published_at": "2018-10-05", "comment": "To determine the total cost of a spell, start with the mana cost or alternative cost you're paying, add any cost increases, then apply any cost reductions. The mana value of the spell remains unchanged, no matter what the total cost to cast it was."},
         {"n": 2, "published_at": "2018-10-05", "comment": "Goblin Electromancer's effect reduces only generic mana in the spell's total cost."},
         {"n": 3, "published_at": "2017-03-14", "comment": "Two Goblin Electromancers will make instant and sorcery spells you cast cost {2} less to cast, and so on."}
+      ]
+    },
+    "Goblin Negotiation": {
+      "first_seen": "2026-10-20",
+      "rulings": [
+        {"n": 1, "published_at": "2024-11-08", "comment": "Excess damage has been dealt to a creature if the damage dealt to it is greater than lethal damage. Usually, this means damage greater than its toughness, although damage already marked on the creature is taken into account."},
+        {"n": 2, "published_at": "2024-11-08", "comment": "In some unusual cases, Goblin Negotiation may have deathtouch. Even 1 damage dealt to a creature from a source with deathtouch is considered lethal damage, so any amount greater than that will cause excess damage to be dealt, even if the total amount of damage isn't greater than the creature's toughness"}
       ]
     },
     "Grafted Wargear": {
