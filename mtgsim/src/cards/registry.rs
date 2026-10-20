@@ -34,6 +34,7 @@ use super::phase_tr5a_cards;
 use super::phase_tr5b_cards;
 use super::phase_tr5c_cards;
 use super::phase_tr5d_cards;
+use super::phase_tr5g_cards;
 use super::phase_ma2_cards;
 use super::phase_tr5e_cards;
 use super::phase_tr5f_cards;
@@ -1011,6 +1012,11 @@ impl CardRegistry {
         // The damage and excess a resolution dealt "this way": Goblin
         // Negotiation makes a Goblin for each point past lethal.
         registry.register("Goblin Negotiation", phase_tr5d_cards::goblin_negotiation);
+
+        // TR-5g: CR 603.2d's count. Panharmonicon doubles every triggered
+        // ability of its controller's permanents that an artifact or
+        // creature entering causes, its own entry and one beside it included.
+        registry.register("Panharmonicon", phase_tr5g_cards::panharmonicon);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,
