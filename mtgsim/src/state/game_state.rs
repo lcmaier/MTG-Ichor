@@ -595,6 +595,17 @@ pub struct GameState {
     /// inserts and `cleanup_zone_state` removes.
     pub cost_modification_ability_sources: IdSet<ObjectId>,
 
+    /// Objects that entered the battlefield with a static ability, printed or
+    /// an entry copy's, whose body is an `Effect::TriggerMultiplier`, through
+    /// an "as long as" wrapper or not: the printed leg of the dispatch's
+    /// count (CR 603.2d, `triggers-architecture.md` §12, TR-5g), whose granted
+    /// and copied legs are the registry summary's two flags. The fourth such
+    /// set, under the three above's rule.
+    ///
+    /// **Engine-maintained. Read it; do not write it.** `perform_entry`
+    /// inserts and `cleanup_zone_state` removes.
+    pub trigger_multiplier_sources: IdSet<ObjectId>,
+
     /// CR 614.13a/b — the two sets an auxiliary zone change is chosen against,
     /// scoped to the batch whose entries are being decided.
     ///
@@ -1012,6 +1023,7 @@ impl GameState {
             restrictions: RestrictionRegistry::new(),
             restriction_ability_sources: IdSet::default(),
             cost_modification_ability_sources: IdSet::default(),
+            trigger_multiplier_sources: IdSet::default(),
             entry_selection: EntrySelectionScope::default(),
             nesting: NestingGuards::default(),
             rider_lineage: None,
@@ -2029,6 +2041,11 @@ impl GameState {
                 self.cost_modification_ability_sources.insert(id);
             }
 
+            // CR 603.2d — and the count's, for the same reasons.
+            if zone == Zone::Battlefield && ability.effect.as_trigger_multiplier().is_some() {
+                self.trigger_multiplier_sources.insert(id);
+            }
+
             // CR 604.3a(3) — a CDA affects only the object that has it, so it needs no
             // `ObjectSet` and no row; `engine::layers::cda` applies it off the object's
             // own effective ability list, in every zone (CR 604.3) and after Layer 6 has
@@ -2258,6 +2275,10 @@ impl GameState {
             // `engine::cost_determination::cost_modifications_for` reads it off this object's
             // *effective* ability list when a cost is determined.
             Effect::CostModification(_) => Vec::new(),
+            // CR 603.2d — the same again: a multiplier applies to how many
+            // times an ability triggers, which the dispatch reads off this
+            // object's effective ability list as it queues.
+            Effect::TriggerMultiplier(_) => Vec::new(),
             // CR 603 — the fourth static shape with no rows; the dispatcher
             // reads it off the effective list.
             Effect::Triggered(_) => Vec::new(),

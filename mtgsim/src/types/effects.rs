@@ -2308,6 +2308,15 @@ pub enum Effect {
     /// this carries none of (`cost-architecture.md` §3.10).
     CostModification(Box<crate::types::cost_modification::CostModificationDef>),
 
+    /// CR 603.2d — "triggers an additional time". A static shape with no
+    /// layer rows, as the three above are: it applies to no object but to
+    /// how many times a triggered ability triggers, so
+    /// `register_static_effects` skips it and the dispatch reads it off the
+    /// source's effective ability list as it queues what a window
+    /// triggered. Through an "as long as" wrapper too, which
+    /// [`Self::as_trigger_multiplier`] peels.
+    TriggerMultiplier(Box<crate::types::triggers::TriggerMultiplierDef>),
+
     /// CR 603 — this ability is a triggered ability: a condition, an optional
     /// intervening "if", an optional once-per-turn limit, and the effect.
     ///
@@ -2366,7 +2375,7 @@ impl Effect {
             Effect::Atom(Primitive::CreateDelayedTrigger(template), _) => {
                 std::sync::Arc::make_mut(&mut template.def).effect.for_each_ability_def_mut(f);
             }
-            Effect::Atom(..) | Effect::Restriction(_) | Effect::CostModification(_) => {}
+            Effect::Atom(..) | Effect::Restriction(_) | Effect::CostModification(_) | Effect::TriggerMultiplier(_) => {}
             Effect::Sequence(effects) | Effect::Modal { modes: effects, .. } => {
                 for effect in effects {
                     effect.for_each_ability_def_mut(f);
@@ -2537,6 +2546,17 @@ impl Effect {
     pub fn as_restriction(&self) -> Option<(Option<&Condition>, &crate::types::restriction::RestrictionDef)> {
         match self.with_its_condition() {
             (condition, Effect::Restriction(def)) => Some((condition, def)),
+            _ => None,
+        }
+    }
+
+    /// The trigger multiplier a static body is (CR 603.2d), with the "as long
+    /// as" clause wrapped around it if there is one: the same peel, asked by
+    /// every leg of the dispatch's count and by the count itself, which alone
+    /// evaluates the condition.
+    pub fn as_trigger_multiplier(&self) -> Option<(Option<&Condition>, &crate::types::triggers::TriggerMultiplierDef)> {
+        match self.with_its_condition() {
+            (condition, Effect::TriggerMultiplier(def)) => Some((condition, def)),
             _ => None,
         }
     }

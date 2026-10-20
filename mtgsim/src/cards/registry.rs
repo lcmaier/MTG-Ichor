@@ -1308,6 +1308,29 @@ mod tests {
         }
     }
 
+    /// Every registered trigger multiplier is one the count can read (CR
+    /// 603.2d): an event or none, and at least one more time.
+    #[test]
+    fn every_trigger_multiplier_names_an_event_and_a_count() {
+        use crate::objects::card_data::AbilityDef;
+        let registry = CardRegistry::default_registry();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            let mut copy = (*card).clone();
+            for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
+                let check = |def: &AbilityDef| {
+                    if let Some((_, multiplier)) = def.effect.as_trigger_multiplier() {
+                        assert_eq!(multiplier.refusal(), None, "{name} ability #{i}");
+                    }
+                };
+                check(ability);
+                ability.effect.for_each_ability_def_mut(&mut |def: &mut AbilityDef| check(def));
+            }
+        }
+    }
+
     /// Every event role a registered trigger names is one every arm of its
     /// condition has (TR-5a's decision 2): "that creature" after a dies
     /// trigger is the card that moved, and no dies record has a recipient. A
@@ -1352,7 +1375,8 @@ mod tests {
                 Effect::Atom(..)
                 | Effect::Replacement(_)
                 | Effect::Restriction(_)
-                | Effect::CostModification(_) => {}
+                | Effect::CostModification(_)
+                | Effect::TriggerMultiplier(_) => {}
             }
         }
 
@@ -1468,7 +1492,8 @@ mod instance_references {
                     Effect::Triggered(def) => stack.push(&def.effect),
                     Effect::Replacement(_)
                     | Effect::Restriction(_)
-                    | Effect::CostModification(_) => {}
+                    | Effect::CostModification(_)
+                    | Effect::TriggerMultiplier(_) => {}
                 }
             }
         }

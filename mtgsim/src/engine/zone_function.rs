@@ -104,7 +104,8 @@ fn zones_its_text_states(effect: &Effect) -> Option<ZoneSet> {
         | Effect::Repeat(..)
         | Effect::Replacement(_)
         | Effect::Restriction(_)
-        | Effect::CostModification(_) => None,
+        | Effect::CostModification(_)
+        | Effect::TriggerMultiplier(_) => None,
     }
 }
 

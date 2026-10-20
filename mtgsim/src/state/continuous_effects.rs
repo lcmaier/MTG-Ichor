@@ -178,6 +178,13 @@ pub struct RegistryScopeSummary {
     pub any_granted_cost_modification: bool,
     pub any_copied_cost_modification: bool,
 
+    /// True iff some row grants an ability whose body is an
+    /// `Effect::TriggerMultiplier`, and its copied twin: the granted and
+    /// copied legs of the dispatch's count (CR 603.2d), which sweeps every
+    /// permanent while either is on, for the reason the pair above does.
+    pub any_granted_trigger_multiplier: bool,
+    pub any_copied_trigger_multiplier: bool,
+
     /// Where an object may carry a triggered ability it did not print — a
     /// Layer 6 grant, or a copy whose captured list carries one (CR 707.2a)
     /// — when the row names zones: a `Filter` row, whose zones the
@@ -310,6 +317,9 @@ impl RegistryScopeSummary {
                     if def.effect.as_cost_modification().is_some() {
                         summary.any_granted_cost_modification = true;
                     }
+                    if def.effect.as_trigger_multiplier().is_some() {
+                        summary.any_granted_trigger_multiplier = true;
+                    }
                 }
                 // CR 707.2a — the captured list is scanned rather than counted,
                 // because both gates ask about a *body*, not about a copy. A
@@ -321,6 +331,9 @@ impl RegistryScopeSummary {
                         }
                         if ability.effect.as_cost_modification().is_some() {
                             summary.any_copied_cost_modification = true;
+                        }
+                        if ability.effect.as_trigger_multiplier().is_some() {
+                            summary.any_copied_trigger_multiplier = true;
                         }
                     }
                 }

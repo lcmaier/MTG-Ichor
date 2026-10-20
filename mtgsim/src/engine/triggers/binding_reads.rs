@@ -242,6 +242,7 @@ fn effect_reads(e: &Effect) -> TriggerBindingReads {
         Effect::Replacement(_)
         | Effect::Restriction(_)
         | Effect::CostModification(_)
+        | Effect::TriggerMultiplier(_)
         | Effect::Triggered(_) => TriggerBindingReads::EVERYTHING,
     }
 }

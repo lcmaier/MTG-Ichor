@@ -94,6 +94,39 @@ impl TriggerCondition {
     }
 }
 
+/// CR 603.2d — "if [an event] causes a triggered ability of [a permanent] to
+/// trigger, that ability triggers an additional time": the body of a static
+/// ability, read off its source's effective ability list as the dispatch
+/// queues what a window triggered (`triggers-architecture.md` §12, TR-5g).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TriggerMultiplierDef {
+    /// "If an artifact or creature entering causes": the event a triggering
+    /// event must be, or any of several ("entering or leaving"), asked of
+    /// the record with this ability's own referents and the frames its own
+    /// arm reads. `None` names no event (Roaming Throne).
+    pub caused_by: Option<TriggerCondition>,
+    /// "A triggered ability of a permanent you control": the permanent whose
+    /// ability triggers, whose "you" is this ability's controller.
+    pub abilities_of: ObjectFilter,
+    /// "An additional time" is 1.
+    pub additional: u32,
+}
+
+impl TriggerMultiplierDef {
+    /// What the count cannot read, which the registry refuses: a state for
+    /// the event, since CR 603.2d counts the triggers an event causes and a
+    /// state trigger has none (CR 603.8), and no additional time.
+    pub fn refusal(&self) -> Option<&'static str> {
+        if matches!(self.caused_by, Some(TriggerCondition::State(_))) {
+            Some("a state is no event that causes an ability to trigger")
+        } else if self.additional == 0 {
+            Some("it adds no time")
+        } else {
+            None
+        }
+    }
+}
+
 /// CR 603.3b's two-part placement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TriggerTier {

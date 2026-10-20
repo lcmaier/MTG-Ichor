@@ -187,6 +187,7 @@ fn could_add_mana(effect: &Effect) -> bool {
         Effect::Replacement(_)
         | Effect::Restriction(_)
         | Effect::CostModification(_)
+        | Effect::TriggerMultiplier(_)
         | Effect::Triggered(_) => false,
     }
 }

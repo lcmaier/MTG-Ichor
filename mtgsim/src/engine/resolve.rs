@@ -248,6 +248,7 @@ impl GameState {
             | Effect::Replacement(_)
             | Effect::Restriction(_)
             | Effect::CostModification(_)
+            | Effect::TriggerMultiplier(_)
             | Effect::Conditional(..)
             | Effect::Triggered(_)
             | Effect::Remember(_)
@@ -421,6 +422,16 @@ impl GameState {
                  static ability's cost effect does not resolve at all — put it on \
                  an `AbilityType::Static` ability and \
                  `engine::cost_determination::cost_modifications_for` will find it at CR 601.2f."
+                    .to_string(),
+            ),
+
+            // CR 603.2d's: a multiplier is read off the effective list as the
+            // dispatch queues, and never resolves.
+            Effect::TriggerMultiplier(_) => Err(
+                "a trigger multiplier is a static ability's, read off its source's \
+                 effective ability list as the dispatch queues what a window \
+                 triggered; it does not resolve. Put it on an `AbilityType::Static` \
+                 ability."
                     .to_string(),
             ),
 
