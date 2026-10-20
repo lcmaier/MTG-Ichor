@@ -9567,3 +9567,26 @@ Number 277 was withdrawn in #260 and is not reused.
      and `set_affects`' 4 callers. Counted again at A6e's first ticket, and
      split along these three seams if the PR would pass 2,500.
      **Slotted:** A6e, beside its naming sweep (`roadmap-v2.md`).
+
+292. **A one-player instruction whose player is gone acts on its controller
+     instead.** `resolve_player_for_self` (`engine/resolve.rs`) finds the one
+     player for 13 primitives: a draw, a discard, a mill, a gain, a loss, a
+     life total set, a scry, a token's controller, an extra turn, a win, a
+     loss of the game, counters, and the top cards put into a hand. For
+     "target player", "that player" and "defending player" it returns the
+     first player its list holds, and `ctx.controller` when the list is
+     empty; every recipient it does not name falls to `ctx.controller` too.
+     Two boards answer wrong:
+     - a spell with a "target player" and another target, whose player
+       became illegal while the other did not: the spell resolves and does
+       nothing to the illegal target (CR 608.2b), but the controller draws;
+     - a "that player" whose binding finds nobody (CR 603.6).
+     Found at TR-5d's review beside `DealDamage`'s `Controller` gap (#263),
+     which was the same shape.
+     **Reachability (2026-10-20):** unreachable — every registered card
+     names one of its arms, and each that targets a player has that one
+     target, so CR 608.2b keeps the whole spell or ability from resolving.
+     **Sized:** the exhaustive match `DealDamage` got, with "no player" an
+     answer that does nothing: ~60–80 lines over the resolver and its 13
+     callers, and a fixture for each board, shown failing first.
+     **Slotted:** A6e (the owner, 2026-10-20), beside item 291.
