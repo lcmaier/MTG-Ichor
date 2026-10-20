@@ -536,11 +536,11 @@ impl GameState {
             Primitive::DealDamage { amount: amount_expr, unpreventable } => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
                 let targets: Vec<DamageTarget> = match recipient {
-                    // CR 119.3 — damage is dealt to permanents and players, so
+                    // CR 120.1 — damage is dealt to permanents and players, so
                     // a zone-reaching recipient has nothing to be dealt to.
                     EffectRecipient::FilteredObjectsIn(..) => {
                         return Err(format!(
-                            "a `Primitive::DealDamage` on {:?} has a zone-reaching recipient (CR 119.3)",
+                            "a `Primitive::DealDamage` on {:?} has a zone-reaching recipient (CR 120.1)",
                             ctx.source
                         ));
                     }
@@ -550,7 +550,35 @@ impl GameState {
                         .filter(|&id| self.matches_for_effect(id, filter, ctx))
                         .map(DamageTarget::Object)
                         .collect(),
-                    _ => targets
+                    // "Deals 2 damage to you": Char, a painland.
+                    EffectRecipient::Controller => vec![DamageTarget::Player(ctx.controller)],
+                    EffectRecipient::Implicit => {
+                        return Err(format!(
+                            "a `Primitive::DealDamage` on {:?} names no recipient; damage is dealt to \
+                             a permanent or a player (CR 120.1), and \"you\" is `Controller`",
+                            ctx.source
+                        ));
+                    }
+                    // Refused at the atom until its card: once the Aura has
+                    // left, "enchanted creature" is what it last enchanted
+                    // (CR 608.2h), which the live attachment no longer says.
+                    EffectRecipient::Host => {
+                        return Err(format!("a `Host` recipient on a `Primitive::DealDamage` on {:?} is not built", ctx.source));
+                    }
+                    EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
+                    // Each of these was found before the primitive, into
+                    // `targets`.
+                    EffectRecipient::ThisObject
+                    | EffectRecipient::Target(..)
+                    | EffectRecipient::Choose(..)
+                    | EffectRecipient::Triggering(_)
+                    | EffectRecipient::TriggeringPlayer
+                    | EffectRecipient::Referred
+                    | EffectRecipient::AttackedBy(_)
+                    | EffectRecipient::DefendingPlayer(_)
+                    | EffectRecipient::EachOf(_)
+                    | EffectRecipient::Group(_)
+                    | EffectRecipient::ChosenBy(_) => targets
                         .iter()
                         .map(|t| match t {
                             ResolvedTarget::Object(id) => DamageTarget::Object(*id),

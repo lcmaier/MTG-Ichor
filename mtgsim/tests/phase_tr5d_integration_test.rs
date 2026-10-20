@@ -729,6 +729,23 @@ fn the_damage_dealt_this_way_is_what_prevention_left() {
     assert_eq!(life(&game, 0), 22, "the 2 dealt, not the 6 proposed");
 }
 
+/// "Deals 2 damage to you" (Char's second half, a painland's) is dealt to
+/// the controller, who is no chosen target.
+#[test]
+fn damage_to_you_is_dealt_to_the_controller() {
+    let hurt_me = Effect::Atom(
+        Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
+        EffectRecipient::Controller,
+    );
+    let mut game = setup_two_player_game();
+    let id = put_in_hand(&mut game, fixture_sorcery(hurt_me), 0);
+    let dp = ScriptedDecisionProvider::new();
+    game.cast_spell(0, id, &dp).expect("it is castable");
+    game.resolve_top_of_stack(&dp).expect("it resolves");
+
+    assert_eq!(life(&game, 0), 18);
+}
+
 /// A rider acting during the resolution is its replacement's effect (CR
 /// 615.5), not this resolution's: player 1's shield prevents the fixture's 3,
 /// and its rider deals 2 to the replaced event's subject, player 1. Nothing
