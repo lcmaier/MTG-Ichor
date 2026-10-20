@@ -26,7 +26,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry
 use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::zones::{DrawFilter, Zone, ZoneChangePattern};
+use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
 
 /// CR 603.1 — "[When/Whenever/At] [trigger condition or event], [effect]".
 #[derive(Debug, Clone, PartialEq)]
@@ -113,6 +113,20 @@ pub struct TriggerMultiplierDef {
 }
 
 impl TriggerMultiplierDef {
+    /// The static ability whose body this is, which a card file writes.
+    pub fn into_ability(self, rules_text: &'static str) -> crate::objects::card_data::AbilityDef {
+        crate::objects::card_data::AbilityDef {
+            rules_text: rules_text.into(),
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: crate::objects::card_data::AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::TriggerMultiplier(Box::new(self)),
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            is_characteristic_defining: false,
+        }
+    }
+
     /// What the count cannot read, which the registry refuses: a state for
     /// the event, since CR 603.2d counts the triggers an event causes and a
     /// state trigger has none (CR 603.8), and no additional time.
@@ -982,6 +996,13 @@ impl TriggerEvent {
     /// the Aura's new object in a graveyard.
     pub fn watches_its_host_leave(&self) -> bool {
         matches!(self, TriggerEvent::ZoneChange { subject: TriggerSubject::Host, change, .. } if change.from == Some(Zone::Battlefield))
+    }
+
+    /// The act a zone-change arm names: "whenever you sacrifice". The engine
+    /// writes a sacrifice and the death it causes as one record, and CR
+    /// 603.2d's count tells them apart by this (Teysa Karlov's fifth ruling).
+    pub fn named_act(&self) -> Option<ZoneChangeAct> {
+        if let TriggerEvent::ZoneChange { change, .. } = self { change.act } else { None }
     }
 
     /// The kinds of record this arm can match — the discriminant half of
@@ -1983,7 +2004,6 @@ impl PendingTrigger {
 mod tests {
     use super::*;
     use crate::events::event::EventId;
-    use crate::types::zones::ZoneChangeAct;
     use crate::state::game_state::AbilityIdentity;
     use crate::types::ids::{AbilityId, ObjectRef};
 

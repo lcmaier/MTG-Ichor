@@ -226,7 +226,11 @@ impl GameState {
                 candidates.push(candidate);
             }
         }
-        self.match_candidates(&records, &candidates, snapshots)
+        let (mut matches, matched) = self.match_candidates(&records, &candidates, snapshots);
+        // CR 603.2d's count, with every object a multiplier could be on: every
+        // candidate is one, now and before each batch.
+        self.count_additional_triggers(&mut matches, &matched, &candidates, &candidates, &records, snapshots);
+        matches
     }
 
     /// A trigger as the comparison and its report read it.
@@ -236,13 +240,14 @@ impl GameState {
             matched.triggering_events.iter().map(|e| (e.record.seq.0, format!("{:?}", e.objects))).collect();
         events.sort_unstable();
         format!(
-            "{} {}@{} ability {} arm {} triggering events {events:?} controller {}",
+            "{} {}@{} ability {} arm {} triggering events {events:?} controller {} additional {}",
             crate::ui::display::printed_name(self, source.id),
             source.id,
             source.zone_change_epoch,
             matched.identity.ability,
             matched.event.0,
-            matched.controller
+            matched.controller,
+            matched.additional
         )
     }
 

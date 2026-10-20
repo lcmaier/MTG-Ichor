@@ -175,6 +175,8 @@ impl GameState {
             triggering_events: Vec::new(),
             mana: false,
             source_lki: None,
+            // CR 603.2d's last sentence: a reflexive trigger is never counted.
+            additional: 0,
         };
         Some(pending_of(unbound, reflexive))
     }
@@ -439,6 +441,8 @@ impl GameState {
             triggering_events,
             mana: false,
             source_lki: None,
+            // CR 603.2d's last sentence: nor a delayed one.
+            additional: 0,
         };
         let these = triggering_events.into_iter().map(|objects| TriggeringEvent { record: record.clone(), objects });
         let arm = &delayed.def.condition.events()[event.0];

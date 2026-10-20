@@ -36,7 +36,7 @@ use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::engine::replacement::EventSubject;
 use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent};
-use crate::objects::card_data::{AbilityDef, CardData};
+use crate::objects::card_data::{AbilityDef, AbilityType, CardData};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
@@ -330,6 +330,24 @@ impl TriggerCandidateFrame<'_> {
         }
     }
 
+    /// The list as a filter reads its object: the frame it was read
+    /// through, which for an object that left says who controlled it then.
+    fn held(&self) -> HeldFrame<'_> {
+        match self {
+            TriggerCandidateFrame::LastKnown { lki, .. } => HeldFrame::LastKnown(lki),
+            TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::Before { .. } => {
+                HeldFrame::Characteristics(self.chars())
+            }
+        }
+    }
+
+    /// Whether this list is on the board `arm` reads for a record that looks
+    /// back through snapshot `looks_back_through` (CR 603.10): after the
+    /// event, or before it for an arm that looks back.
+    fn on_the_board_read_by(&self, arm: &TriggerEvent, looks_back_through: Option<usize>, newcomer: bool) -> bool {
+        self.answered_arms(looks_back_through, newcomer).is_some_and(|answered| answered.admits(arm))
+    }
+
     /// The candidate's last known information, for an object that left: what
     /// its own condition reads "this" off (CR 113.7a).
     fn lki(&self) -> Option<&Lki> {
@@ -401,6 +419,16 @@ enum AnsweredArms {
     AllButLookBack,
 }
 
+impl AnsweredArms {
+    fn admits(self, arm: &TriggerEvent) -> bool {
+        match self {
+            AnsweredArms::All => true,
+            AnsweredArms::LookBackOnly => arm.looks_back(),
+            AnsweredArms::AllButLookBack => !arm.looks_back(),
+        }
+    }
+}
+
 /// How an arm reads its subject off a record: where the subject was at the
 /// moment the trigger asks about.
 ///
@@ -466,6 +494,9 @@ pub(super) struct MatchedTrigger {
     /// triggered had already left, which its entry keeps from the start (CR
     /// 113.7a): no later hand-over will reach it.
     pub(super) source_lki: Option<Lki>,
+    /// How many more times it triggers (CR 603.2d): the multipliers' count,
+    /// which a delayed or reflexive trigger never has.
+    pub(super) additional: u32,
 }
 
 /// One registry entry's matches in a window (`delayed.rs`): every event
@@ -713,12 +744,16 @@ impl GameState {
         for m in matches {
             let caused_by = m.triggering_events[0].record.seq;
             // "Triggers only once each turn" is written as the ability
-            // queues, so a second match in this same window finds it taken.
-            if m.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn) && !self.history.triggered_this_turn.insert(m.identity) {
-                continue;
-            }
-            let seq = TriggerSeq(self.next_trigger_seq);
-            self.next_trigger_seq += 1;
+            // queues, so a second match in this same window finds it taken,
+            // and is read before CR 603.2d's count: once, whatever the count.
+            let times = if m.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn) {
+                if !self.history.triggered_this_turn.insert(m.identity) {
+                    continue;
+                }
+                1
+            } else {
+                1 + m.additional
+            };
             let source_found_in_graveyard = self.aura_put_into_graveyard_beside_its_host(&m);
             let binding = TriggerBinding {
                 def: Arc::clone(&m.def),
@@ -729,33 +764,40 @@ impl GameState {
                 source_found_in_graveyard,
             };
             let origin = TriggerOrigin::Object(m.identity);
-            let pending = PendingTrigger {
-                seq,
-                origin,
-                controller: m.controller,
-                source_card: Arc::clone(&m.source_card),
-                instances: m.instances.clone(),
-                binding,
-                is_state_trigger: false,
-                kept_lki: m.source_lki.into_iter().collect(),
-                x_value: None,
-            };
-            if m.mana {
-                match ctx {
-                    Some(ctx) => self.resolve_triggered_mana(&pending, ctx)?,
-                    // Unreachable: `ManaAdded` is always performed inside a
-                    // batch, and every activation is announced with its
-                    // provider. Loud in debug; queued in release, so the mana
-                    // is late rather than lost.
-                    None => {
-                        debug_assert!(false, "a triggered mana ability reached an unbatched dispatch");
-                        self.pending_triggers.push(pending);
+            let kept_lki: Vec<Lki> = m.source_lki.into_iter().collect();
+            // Each time it triggers is its own trigger, with its own choices
+            // and targets (Panharmonicon's fifth ruling).
+            for _ in 0..times {
+                let seq = TriggerSeq(self.next_trigger_seq);
+                self.next_trigger_seq += 1;
+                let pending = PendingTrigger {
+                    seq,
+                    origin,
+                    controller: m.controller,
+                    source_card: Arc::clone(&m.source_card),
+                    instances: m.instances.clone(),
+                    binding: binding.clone(),
+                    is_state_trigger: false,
+                    kept_lki: kept_lki.clone(),
+                    x_value: None,
+                };
+                if m.mana {
+                    match ctx {
+                        Some(ctx) => self.resolve_triggered_mana(&pending, ctx)?,
+                        // Unreachable: `ManaAdded` is always performed inside a
+                        // batch, and every activation is announced with its
+                        // provider. Loud in debug; queued in release, so the mana
+                        // is late rather than lost.
+                        None => {
+                            debug_assert!(false, "a triggered mana ability reached an unbatched dispatch");
+                            self.pending_triggers.push(pending);
+                        }
                     }
+                    continue;
                 }
-                continue;
+                self.pending_triggers.push(pending);
+                queued.push((seq, origin, m.controller, caused_by));
             }
-            self.pending_triggers.push(pending);
-            queued.push((seq, origin, m.controller, caused_by));
         }
         self.queue_delayed(delayed, ctx, &mut queued);
 
@@ -1119,10 +1161,14 @@ impl GameState {
         // and a kind filter here would be a second table of it.
         let named = self.named_trigger_carriers(EventKindMask::ALL);
         // No newcomer's trigger looks back but off its own move's frame.
-        self.candidates_now(self.battlefield_readers(EventKindMask::ALL), named, Vec::new(), unattributed)
-            .into_iter()
-            .filter_map(|id| self.object_snapshot(id))
-            .collect()
+        let mut ids = self.candidates_now(self.battlefield_readers(EventKindMask::ALL), named, Vec::new(), unattributed);
+        // And the multipliers, which CR 603.2d's count reads on the same board.
+        for id in self.trigger_multiplier_sources_now() {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        ids.into_iter().filter_map(|id| self.object_snapshot(id)).collect()
     }
 
     /// `id` as it is now, and where it is.
@@ -1206,15 +1252,7 @@ impl GameState {
         // Each survivor's lists from before the window's snapshotting batches.
         // A survivor no live set reaches now, like a grant's carrier after
         // the granter left, is still asked, after the rest.
-        let mut before: IdMap<ObjectId, Vec<(usize, &EffectiveCharacteristics)>> = IdMap::default();
-        for (k, snapshot) in snapshots.iter().enumerate() {
-            for frame in &snapshot.frames {
-                let object = frame.lki.object();
-                if self.find(object).is_some() {
-                    before.entry(object.id).or_default().push((k, frame.lki.chars()));
-                }
-            }
-        }
+        let mut before = self.lists_before(snapshots);
         if !before.is_empty() {
             let mut reached: IdSet<ObjectId> = live.iter().copied().collect();
             for snapshot in snapshots {
@@ -1237,7 +1275,45 @@ impl GameState {
         let frames: Vec<(&Lki, Zone)> = records.iter().filter_map(|(_, r)| r.event.lki()).map(|(lki, from, _)| (lki, from)).collect();
 
         let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
-        for id in live {
+        self.push_live_candidates(live, &mut before, &mut candidates);
+        for (lki, from) in frames {
+            candidates.push(self.departure_candidate(lki, from));
+        }
+
+        let (mut matches, matched_candidates) = self.match_candidates(&records, &candidates, snapshots);
+        // CR 603.2d, asked only of a window that triggered something.
+        if !matches.is_empty() {
+            let multipliers = self.trigger_multiplier_candidates(&records, snapshots);
+            self.count_additional_triggers(&mut matches, &matched_candidates, &candidates, &multipliers, &records, snapshots);
+        }
+        self.diagnostics.record_trigger_dispatch(candidates.len() as u64, matches.len() as u64);
+        matches
+    }
+
+    /// Each survivor's lists from before the window's snapshotting batches,
+    /// by the snapshot that holds each.
+    fn lists_before<'a>(&self, snapshots: &'a [LookBackSnapshot]) -> IdMap<ObjectId, Vec<(usize, &'a EffectiveCharacteristics)>> {
+        let mut before: IdMap<ObjectId, Vec<(usize, &EffectiveCharacteristics)>> = IdMap::default();
+        for (k, snapshot) in snapshots.iter().enumerate() {
+            for frame in &snapshot.frames {
+                let object = frame.lki.object();
+                if self.find(object).is_some() {
+                    before.entry(object.id).or_default().push((k, frame.lki.chars()));
+                }
+            }
+        }
+        before
+    }
+
+    /// The live objects `ids` as candidates: each one's list now, then the
+    /// lists `before` holds for it.
+    fn push_live_candidates<'a>(
+        &'a self,
+        ids: Vec<ObjectId>,
+        before: &mut IdMap<ObjectId, Vec<(usize, &'a EffectiveCharacteristics)>>,
+        candidates: &mut Vec<TriggerCandidate<'a>>,
+    ) {
+        for id in ids {
             let Some(object) = self.objects.get(&id) else { continue };
             let Some(chars) = compute_characteristics(self, id) else { continue };
             let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
@@ -1269,43 +1345,181 @@ impl GameState {
                 });
             }
         }
-        for (lki, from) in frames {
-            // The card of an object that left: in the store for a zone change,
-            // gone for a `LeftTheGame` — then the frame's own list is all
-            // there is, and the stack object is built from a card that names
-            // what the frame does.
-            let card = match self.objects.get(&lki.object().id) {
-                Some(object) => Arc::clone(&object.card_data),
-                None => Arc::new(frame_card(lki.chars())),
-            };
-            candidates.push(TriggerCandidate {
-                object: lki.object(),
-                controller: lki.chars().controller,
-                owner: lki.owner(),
-                zone: from,
-                host: lki.host(),
-                frame: TriggerCandidateFrame::LastKnown { lki, snapshot: None },
-                card,
-            });
-        }
+    }
 
-        let matches = self.match_candidates(&records, &candidates, snapshots);
-        self.diagnostics.record_trigger_dispatch(candidates.len() as u64, matches.len() as u64);
-        matches
+    /// Leg 2's candidate: the list an object that left had, off the CR
+    /// 603.10a frame its record carries.
+    fn departure_candidate<'a>(&self, lki: &'a Lki, from: Zone) -> TriggerCandidate<'a> {
+        // The card of an object that left: in the store for a zone change,
+        // gone for a `LeftTheGame` — then the frame's own list is all
+        // there is, and the stack object is built from a card that names
+        // what the frame does.
+        let card = match self.objects.get(&lki.object().id) {
+            Some(object) => Arc::clone(&object.card_data),
+            None => Arc::new(frame_card(lki.chars())),
+        };
+        TriggerCandidate {
+            object: lki.object(),
+            controller: lki.chars().controller,
+            owner: lki.owner(),
+            zone: from,
+            host: lki.host(),
+            frame: TriggerCandidateFrame::LastKnown { lki, snapshot: None },
+            card,
+        }
+    }
+
+    /// The permanents CR 603.2d's count asks, each read as the dispatch reads
+    /// a trigger's source: on the battlefield now, with its lists from before
+    /// the window's snapshotting batches, then each that left the
+    /// battlefield in the window, off its departure's frame. Empty, and
+    /// nothing walked, on a board with no printed multiplier, no row granting
+    /// or copying one, and no departure carrying one.
+    fn trigger_multiplier_candidates<'a>(
+        &'a self,
+        records: &[(EventId, &'a EventRecord)],
+        snapshots: &'a [LookBackSnapshot],
+    ) -> Vec<TriggerCandidate<'a>> {
+        let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
+        let sources = self.trigger_multiplier_sources_now();
+        if !sources.is_empty() {
+            self.push_live_candidates(sources, &mut self.lists_before(snapshots), &mut candidates);
+        }
+        for (lki, from, _) in records.iter().filter_map(|(_, record)| record.event.lki()) {
+            if from == Zone::Battlefield && carries_a_trigger_multiplier(lki.chars()) {
+                candidates.push(self.departure_candidate(lki, from));
+            }
+        }
+        candidates
+    }
+
+    /// The permanents that may carry a trigger multiplier now, in timestamp
+    /// order: every one while a row grants or copies one (the summary's two
+    /// flags), else the printed sources.
+    pub(crate) fn trigger_multiplier_sources_now(&self) -> Vec<ObjectId> {
+        let summary = self.continuous_effects.summary();
+        if summary.any_granted_trigger_multiplier || summary.any_copied_trigger_multiplier {
+            return self.battlefield_ids_ordered();
+        }
+        // ORDER-FREE: sorted by timestamp next.
+        let mut sources: Vec<(Timestamp, ObjectId)> = self
+            .trigger_multiplier_sources
+            .iter()
+            .filter_map(|&id| self.battlefield.get(&id).map(|entry| (entry.timestamp, id)))
+            .collect();
+        sources.sort_unstable_by_key(|&(timestamp, _)| timestamp);
+        sources.into_iter().map(|(_, id)| id).collect()
+    }
+
+    /// CR 603.2d: how many more times each match triggers, every multiplier
+    /// that applies to it adding its `additional` (Panharmonicon's sixth
+    /// ruling). `matched` names each match's candidate, which says how its
+    /// source was read; `multipliers` are the permanents that may carry one,
+    /// read the same way.
+    pub(super) fn count_additional_triggers(
+        &self,
+        matches: &mut [MatchedTrigger],
+        matched: &[usize],
+        candidates: &[TriggerCandidate<'_>],
+        multipliers: &[TriggerCandidate<'_>],
+        records: &[(EventId, &EventRecord)],
+        snapshots: &[LookBackSnapshot],
+    ) {
+        if multipliers.is_empty() {
+            return;
+        }
+        let newcomers: Vec<ObjectRef> = records.iter().filter_map(|(_, record)| self.newcomer_from(&record.event)).collect();
+        for (each, &candidate) in matches.iter_mut().zip(matched) {
+            let source = &candidates[candidate];
+            each.additional = multipliers
+                .iter()
+                .map(|multiplier| {
+                    let newcomer = newcomers.contains(&multiplier.object);
+                    self.additional_times_from(multiplier, newcomer, each, source, snapshots)
+                })
+                .sum();
+        }
+    }
+
+    /// What one permanent's multipliers add to `matched`, whose source the
+    /// dispatch read as `source`. Each adds when it is on the board the
+    /// matched arm reads (CR 603.10), the source is a permanent it names, and
+    /// a triggering event is the event it names.
+    fn additional_times_from(
+        &self,
+        multiplier: &TriggerCandidate<'_>,
+        newcomer: bool,
+        matched: &MatchedTrigger,
+        source: &TriggerCandidate<'_>,
+        snapshots: &[LookBackSnapshot],
+    ) -> u32 {
+        // A card's ability in another zone is no permanent's: on the
+        // battlefield, or off its frame from it (Teysa Karlov's first and
+        // seventh rulings).
+        if source.zone != Zone::Battlefield || multiplier.zone != Zone::Battlefield {
+            return 0;
+        }
+        let arm = &matched.def.condition.events()[matched.event.0];
+        let chars = multiplier.frame.chars();
+        let referents = TriggerReferents {
+            this: ThisObject::Candidate(multiplier.object.id),
+            controller: multiplier.controller,
+            owner: multiplier.owner,
+            host: multiplier.host,
+            this_ability: None,
+            referred: &[],
+        };
+        let mut additional = 0;
+        for ability in chars.abilities.iter() {
+            let Some((condition, def)) = ability.effect.as_trigger_multiplier() else { continue };
+            if ability.ability_type != AbilityType::Static || !functions_in(ability, &chars.types, Zone::Battlefield) {
+                continue;
+            }
+            let as_long_as = ConditionReferents { source_lki: multiplier.frame.lki(), triggering_event: TriggeringEventView::None };
+            if condition.is_some_and(|condition| !settled_holds(condition, self, multiplier.object.id, Some(multiplier.controller), as_long_as)) {
+                continue;
+            }
+            if !self.object_matches_filter(source.object.id, &def.abilities_of, &mut { referents }, Some(source.frame.held())) {
+                continue;
+            }
+            let caused = matched.triggering_events.iter().any(|event| {
+                let looks_back_through = LookBackSnapshot::for_record(snapshots, event.record.seq.0);
+                multiplier.frame.on_the_board_read_by(arm, looks_back_through, newcomer)
+                    && def.caused_by.as_ref().is_none_or(|caused_by| self.is_caused_by(caused_by, arm, &referents, &event.record))
+            });
+            if caused {
+                additional += def.additional;
+            }
+        }
+        additional
+    }
+
+    /// Whether `record`, which triggered `arm`, is an event a multiplier's
+    /// `caused_by` names: asked of the record with the multiplier's own
+    /// referents and the frames its own arm reads, whatever the doubled arm
+    /// says (Gandalf the White's ninth and tenth rulings). An arm naming an
+    /// act the multiplier's does not watches another event, which the
+    /// record shares (Teysa Karlov's fifth).
+    fn is_caused_by(&self, caused_by: &TriggerCondition, arm: &TriggerEvent, referents: &TriggerReferents<'_>, record: &EventRecord) -> bool {
+        caused_by.events().iter().any(|by| {
+            arm.named_act().is_none_or(|act| by.named_act() == Some(act)) && !self.triggering_events_in(by, referents, record).is_empty()
+        })
     }
 
     /// Every candidate ability against every record of the window, in window
     /// order then candidate order — the order the `OrderTriggers` prompt will
     /// offer, which has to be process-stable end to end (§15 item 1). Which
     /// candidates there are is the caller's: the dispatcher's legs, or the
-    /// audit's every object (`audit.rs`).
+    /// audit's every object (`audit.rs`). Beside each match, the candidate it
+    /// is of, which CR 603.2d's count reads its source through.
     pub(super) fn match_candidates(
         &self,
         records: &[(EventId, &EventRecord)],
         candidates: &[TriggerCandidate<'_>],
         snapshots: &[LookBackSnapshot],
-    ) -> Vec<MatchedTrigger> {
+    ) -> (Vec<MatchedTrigger>, Vec<usize>) {
         let mut matches: Vec<MatchedTrigger> = Vec::new();
+        let mut matched_candidates: Vec<usize> = Vec::new();
         // "One or more" accumulates across the window: (identity, event, and
         // for a once-per-subject arm the subject) -> index into `matches`.
         let mut once: Vec<((AbilityIdentity, EventIndex, Option<EventSubject>), usize)> = Vec::new();
@@ -1384,6 +1598,7 @@ impl GameState {
                 match arm.multiplicity() {
                     Multiplicity::PerOccurrence => {
                         for objects in triggering_events {
+                            matched_candidates.push(row.candidate);
                             matches.push(MatchedTrigger {
                                 identity,
                                 controller: candidate.controller,
@@ -1394,6 +1609,7 @@ impl GameState {
                                 triggering_events: vec![TriggeringEvent { record: (*record).clone(), objects }],
                                 mana,
                                 source_lki: candidate.frame.lki().cloned(),
+                                additional: 0,
                             });
                         }
                     }
@@ -1410,6 +1626,7 @@ impl GameState {
                             Some((_, at)) => matches[*at].triggering_events.extend(these),
                             None => {
                                 once.push(((identity, matched, subject), matches.len()));
+                                matched_candidates.push(row.candidate);
                                 matches.push(MatchedTrigger {
                                     identity,
                                     controller: candidate.controller,
@@ -1420,6 +1637,7 @@ impl GameState {
                                     triggering_events: these.collect(),
                                     mana,
                                     source_lki: candidate.frame.lki().cloned(),
+                                    additional: 0,
                                 });
                             }
                         }
@@ -1427,7 +1645,7 @@ impl GameState {
                 }
             }
         }
-        matches
+        (matches, matched_candidates)
     }
 
     /// One def against one record: the first arm that matches, and the
@@ -1458,12 +1676,7 @@ impl GameState {
         };
         let mut matched: Option<(EventIndex, Vec<TriggeringEventObjects>)> = None;
         for (index, arm) in def.condition.events().iter().enumerate() {
-            match answered {
-                AnsweredArms::LookBackOnly if !arm.looks_back() => continue,
-                AnsweredArms::AllButLookBack if arm.looks_back() => continue,
-                AnsweredArms::All | AnsweredArms::LookBackOnly | AnsweredArms::AllButLookBack => {}
-            }
-            if !arm.reads(event) {
+            if !answered.admits(arm) || !arm.reads(event) {
                 continue;
             }
             // CR 113.6k asks each trigger condition where it functions; the
@@ -2429,6 +2642,10 @@ impl GameState {
 
 fn is_triggered(def: &AbilityDef) -> bool {
     matches!(def.effect, Effect::Triggered(_))
+}
+
+fn carries_a_trigger_multiplier(chars: &EffectiveCharacteristics) -> bool {
+    chars.abilities.iter().any(|ability| ability.effect.as_trigger_multiplier().is_some())
 }
 
 /// A card for a frame whose object has left the game (CR 800.4a): the name
