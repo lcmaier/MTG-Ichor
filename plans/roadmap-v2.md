@@ -423,9 +423,10 @@ worker pool already scales to ~6.7× on eight cores, and what is open is in
 the priority-boundary fork test (main item 41) before any refactor is priced.
 Which of its games it keeps records of, and where, starts from
 `setup-architecture.md` §7.2's decision 6.
-Profile-driven performance: the 7a residual (`layers-architecture.md` §12) and
-the `Arc<Vec<AbilityDef>>` lever (main item 67). **Both are gated on a
-measurement this row does not own.** Until RE-7 every number the project had
+Profile-driven performance: the 7a residual (`layers-architecture.md` §12),
+the `Arc<Vec<AbilityDef>>` lever (main item 67) and the history log's chunk
+size (`backlog.md` §2.48, read on the harness's search). **All three are
+gated on a measurement this row does not own.** Until RE-7 every number the project had
 was two-player, because `fuzz_games` built a literal pair of decks; since
 2026-09-13 the harness takes `--players`, every `fuzz-record.md` block
 carries two- and four-seat columns (RE-9's: 13.98 ms and 44.83 ms CPU per
