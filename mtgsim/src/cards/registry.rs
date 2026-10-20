@@ -69,7 +69,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 120] = [
+const PERFORMANCE_POOL: [&str; 121] = [
     "Plains",
     "Island",
     "Swamp",
@@ -568,6 +568,12 @@ const PERFORMANCE_POOL: [&str; 120] = [
     // read in the same resolution after its damage's window, and X. Any
     // creature it hits for more than its toughness makes Goblins.
     "Goblin Negotiation",
+    // TR-5g's: CR 603.2d's count, asked of every window that triggers
+    // something while one is on the battlefield. No agent choice: it doubles
+    // what its controller's permanents trigger on an artifact or creature
+    // entering. Registered alone it moved `stress` games by about a turn
+    // either way and no game ended differently in kind.
+    "Panharmonicon",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
