@@ -79,9 +79,9 @@ repeat byte for byte across runs and hash seeds).
 **Reachability**, shipped, 200 games forced: Selfless Squire cast 186 times
 in 117 games at two seats, and 108 in 88 at four.
 
-**The Squire's distortion is small, and its sign depends on the deal.** It
-lengthens two of the three `stress` deals by up to about two turns at four
-seats and reads a third of a turn shorter on the other.
+**The Squire's distortion is small, and its sign depends on the decks a
+seed builds.** It lengthens two of the three `stress` readings by up to about
+two turns at four seats and reads a third of a turn shorter on the other.
 
 **The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
 shipped: 0 errors and 0 panics everywhere, every dispatch agreed (871,995 /
@@ -91,12 +91,13 @@ before.
 
 **Memory.** A history row is 112 bytes, from 104. `history_held_test` (release
 only, outside CI) reads its worst game at 4,725 B a turn on the engine arm
-against `main`'s 4,597, the row's 8 bytes. On shipped's new deal it fails:
-four games past its 5,120 B a turn, the worst `performance` 12353 at 8,018,
-a dense 42-turn four-seat game that holds 7,288 B a turn without the 200
-rows two eliminated players' cards write. The clone test reads 45
-allocations at worst on shipped (39 on the engine arm, that game's end) and
-90.8 KB. The gate is the owner's call at review.
+against `main`'s 4,597, the row's 8 bytes. On shipped, whose pooled Squire
+changes the decks every seed builds, four games read past 5,120 alone, the
+worst `performance` 12353 at 8,018: 329 KB over 42 turns, where the same seed
+had built a game holding 302 KB over 72. The owner had the gate assert every
+game together (2026-10-19): 4,004 B a turn over 1,533 turns. The clone test
+reads 45 allocations at worst on shipped (39 on the engine arm, that game's
+end) and 90.8 KB.
 
 **The ratchet** re-bases on shipped, which moves the stream.
 

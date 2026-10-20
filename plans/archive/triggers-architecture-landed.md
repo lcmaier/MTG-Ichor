@@ -4903,14 +4903,23 @@ pools at two seats and four, at +0.13% instructions per decision against
 board's own among them. Five of 200 `performance` games diverge between the
 two arms, each after Protean Hydra's delayed triggers fired together. The
 Squire was cast in 117 of 200 forced games at two seats and 88 at four. The
-audited smoke ran clean but for seed 810's standoff. On the new deal the
-clone floors read 45 allocations at worst (39 on the engine arm) and 90.8 KB.
-TR-5h's held-memory gate, release-only and outside CI, reads four games past
-its 5,120 B a turn on the new deal, the worst `performance` 12353 at 8,018:
-a dense 42-turn four-seat game, 7,288 B a turn without its 200 rows for the
-two eliminated players' cards; without the Squire pooled the same seed
-deals a 72-turn game held at 4,406. The gate
-measures the deal as much as the log; the owner decides it at review.
+audited smoke ran clean but for seed 810's standoff. With the Squire
+pooled, the clone floors read 45 allocations at worst (39 on the engine arm)
+and 90.8 KB.
+
+**The held-memory gate, decided at review (the owner, 2026-10-19).**
+`history_held_test` asserted that each of its 23 games held at most 5,120 B
+of log a turn. Its decks are built from the registry by a seeded random
+picker, so pooling the Squire changed every seed's decks, and four games read
+past the bound: `performance` 12353 at 8,018 B a turn, a 42-turn game holding
+329 KB, where the same seed had built a 72-turn game holding 302 KB. The log
+per event had not grown beyond the row's 8 bytes (the engine arm, on the old
+decks, read 4,725 at worst against `main`'s 4,597), and the largest game held
+379 KB, against TR-5h's estimate of about 400 at most. A short game divides an
+ordinary log by few turns. The bound was TR-5h's stop-and-report line, about
+1.4 times its 3.5 KB estimate, not a v1 requirement. The test now asserts the
+games' total held over their total turns, 4,004 B a turn, and still prints
+each game.
 
 **The model pass** (`plans/references/duplicate-inventory.md` §3.9) named
 five copies the branch made, each merged with no game moved (T25–T29), and

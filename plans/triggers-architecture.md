@@ -3628,11 +3628,11 @@ design counted at 4 is 24 cards (item 289).
 without item 275 plays `main`'s games on every table at +0.13% instructions
 per decision; item 275 moves only games where Protean Hydra's delayed
 triggers fire together. The Squire's stress distortion is small and its sign
-depends on the deal. The model pass found five copies, merged, and one
-older disagreement, item 290. TR-5h's held-memory gate reads past its 5 KB a
-turn on the new pool's deal, 8.0 KB on a dense four-seat game, where the
-same seed without the Squire pooled deals a game held at 4.4: the owner's
-call at review.
+depends on the decks a seed builds. The model pass found five copies,
+merged, and one older disagreement, item 290. TR-5h's held-memory gate is now
+asserted over every game together (the owner, 2026-10-19): 4,004 B a turn.
+Pooling the Squire changed the decks its seeds build, and one short game
+read 8.0 KB a turn alone while holding an ordinary 329 KB.
 
 **What it leaves.** Items 288–290 (`codebase-state.md`, "Found by TR-5d").
 TR-5g is next, designed below.
