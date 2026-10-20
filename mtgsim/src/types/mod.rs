@@ -25,6 +25,7 @@ macro_rules! counted_enum {
         }
     };
 }
+pub(crate) use counted_enum;
 
 pub mod ids;
 pub mod colors;

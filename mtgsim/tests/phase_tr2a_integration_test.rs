@@ -35,7 +35,6 @@ use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, PhaseType, StepType};
-use mtgsim::state::history_log::TurnsCounted;
 use mtgsim::test_support::{
     creature_with_ability, pass_turn, put_in_hand, put_on_battlefield, set_active_player, setup_game,
     setup_two_player_game, stock_libraries, test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
@@ -128,7 +127,7 @@ fn this_object_finds_nothing_once_its_source_has_left_and_returned() {
 
 /// `player`'s count of `fact` this turn.
 fn counted_this_turn(game: &GameState, player: PlayerId, fact: TurnFact) -> u64 {
-    game.history.count(player, fact, TurnsCounted::Turn(game.turn_number))
+    game.history.count(player, fact, game.turn_number..=game.turn_number)
 }
 
 /// Whether every fact counts zero for `player` this turn.
@@ -298,7 +297,8 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     let mut game = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
     game.setup(&test_dp()).unwrap();
     for player in 0..2 {
-        assert_eq!(game.state.history.count(player, TurnFact::CardsDrawn, TurnsCounted::From(1)), 0);
+        // Every turn, turn 0 among them, which counts none of its rows.
+        assert_eq!(game.state.history.count(player, TurnFact::CardsDrawn, 0..=u32::MAX), 0);
     }
     pass_turn(&mut game.state);
     while game.state.phase.phase_type != PhaseType::Precombat {
@@ -306,7 +306,7 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     }
     let turn = game.state.turn_number;
     assert_eq!(
-        game.state.history.count(1, TurnFact::CardsDrawn, TurnsCounted::Turn(turn)),
+        game.state.history.count(1, TurnFact::CardsDrawn, turn..=turn),
         1,
         "the second turn's draw step"
     );

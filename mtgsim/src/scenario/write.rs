@@ -9,7 +9,7 @@
 use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
 use super::text::{draw_step_skipped, every_turn_fact, in_combat_from};
 use crate::engine::layers::compute::seed_frame;
-use crate::state::history_log::{RowFact, TurnsCounted};
+use crate::state::history_log::RowFact;
 use crate::engine::layers::intrinsic::intrinsic_entry_counter_kind;
 use crate::engine::layers::types::EffectOrigin;
 use crate::objects::object::GameObject;
@@ -182,7 +182,7 @@ impl<'g> Writer<'g> {
         }
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
-            || history.count(active, TurnFact::AttackersDeclared, TurnsCounted::Turn(turn)) > 0;
+            || history.count(active, TurnFact::AttackersDeclared, turn..=turn) > 0;
         if *combat_had_attackers != (attacked && in_combat_from(*phase, StepType::DeclareAttackers))
             || *blockers_declared != (attacked && in_combat_from(*phase, StepType::DeclareBlockers))
         {
@@ -353,7 +353,7 @@ impl<'g> Writer<'g> {
                     Some(2) if ended > 0 => this.saturating_add(last),
                     _ => spanned(HistorySpan::ThisGame),
                 };
-                count(since) != derived
+                count(since.clone()) != derived
             })
         })
     }

@@ -10,9 +10,11 @@
 //! [`GameHistory`] holds it all: the log, each player's [`PlayerHistory`],
 //! and each ability's "this turn" facts.
 
+use std::ops::RangeInclusive;
+
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::state::game_state::AbilityIdentity;
-use crate::state::history_log::{HistoryLog, HistoryRow, TurnsCounted};
+use crate::state::history_log::{HistoryLog, HistoryRow};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
 use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
@@ -109,7 +111,7 @@ impl GameHistory {
     }
 
     /// `player`'s count of `fact` over `turns`.
-    pub fn count(&self, player: PlayerId, fact: TurnFact, turns: TurnsCounted) -> u64 {
+    pub fn count(&self, player: PlayerId, fact: TurnFact, turns: RangeInclusive<u32>) -> u64 {
         self.log.count(fact, turns, &|counted| counted == player, &mut |_| true, &|_| {})
     }
 
@@ -135,22 +137,22 @@ impl GameHistory {
     }
 
     /// The turns `span` names for `you` on turn `now`.
-    pub fn turns_of(&self, span: HistorySpan, you: PlayerId, now: u32) -> TurnsCounted {
+    pub fn turns_of(&self, span: HistorySpan, you: PlayerId, now: u32) -> RangeInclusive<u32> {
         match span {
-            HistorySpan::ThisTurn => TurnsCounted::Turn(now),
-            HistorySpan::LastTurn => TurnsCounted::Turn(now.saturating_sub(1)),
+            HistorySpan::ThisTurn => now..=now,
+            HistorySpan::LastTurn => now.saturating_sub(1)..=now.saturating_sub(1),
             HistorySpan::SinceYourLastTurn => self.since_your_last_turn(you, now),
-            HistorySpan::ThisGame => TurnsCounted::From(1),
+            HistorySpan::ThisGame => 1..=now,
         }
     }
 
     /// The turns "since your last turn" spans for `you` on turn `now`: every
     /// turn after your most recent one to have ended, this one included, so
     /// the whole game before you have had one.
-    pub fn since_your_last_turn(&self, you: PlayerId, now: u32) -> TurnsCounted {
+    pub fn since_your_last_turn(&self, you: PlayerId, now: u32) -> RangeInclusive<u32> {
         match self.players.get(you).and_then(|yours| yours.your_last_turn(now)) {
-            Some(last) => TurnsCounted::From(last + 1),
-            None => TurnsCounted::From(1),
+            Some(last) => last + 1..=now,
+            None => 1..=now,
         }
     }
 
@@ -186,11 +188,11 @@ mod tests {
         let mut history = GameHistory::new(2);
         drew(&mut history, 0, 3, 2);
         drew(&mut history, 0, 5, 1);
-        assert_eq!(history.count(0, DRAWN, TurnsCounted::Turn(3)), 2);
-        assert_eq!(history.count(0, DRAWN, TurnsCounted::Turn(4)), 0);
-        assert_eq!(history.count(0, DRAWN, TurnsCounted::Turn(5)), 1);
-        assert_eq!(history.count(0, DRAWN, TurnsCounted::From(1)), 3);
-        assert_eq!(history.count(1, DRAWN, TurnsCounted::From(1)), 0, "the rows are player 0's");
+        assert_eq!(history.count(0, DRAWN, 3..=3), 2);
+        assert_eq!(history.count(0, DRAWN, 4..=4), 0);
+        assert_eq!(history.count(0, DRAWN, 5..=5), 1);
+        assert_eq!(history.count(0, DRAWN, 1..=5), 3);
+        assert_eq!(history.count(1, DRAWN, 1..=5), 0, "the rows are player 0's");
     }
 
     /// "Since your last turn" for player 0, read off player 1's counts: the

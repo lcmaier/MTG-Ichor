@@ -8,6 +8,7 @@
 //! "this game" reads all of it, for any card, printed or custom. A count a
 //! scenario states is a row too, standing in for the events it does not name.
 
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
@@ -16,6 +17,7 @@ use crate::events::event::EventSeq;
 use crate::state::battlefield::AttackTarget;
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::card_types::CardType;
+use crate::types::counted_enum;
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::ObjectOrPlayer;
@@ -135,57 +137,50 @@ impl HistoryRow {
     }
 }
 
-/// [`RowFact`]'s variants, without their fields.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RowKind {
-    Cast,
-    Drew,
-    Life,
-    EnteredBattlefield,
-    LeftZone,
-    LeftTheGame,
-    DealtDamage,
-    Attacked,
-    Blocked,
-    RemovedFromCombat,
-    BecameTarget,
+counted_enum! {
+    /// Which kind of row a [`RowFact`] is, without its fields: the key the layer
+    /// memo notes a read of the log by (`GatedWalkInput::Rows`), so a frame
+    /// that read the attack rows stands through a damage row.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum RowKind {
+        Cast,
+        Drew,
+        Life,
+        EnteredBattlefield,
+        LeftZone,
+        LeftTheGame,
+        DealtDamage,
+        Attacked,
+        Blocked,
+        RemovedFromCombat,
+        BecameTarget,
+    }
 }
 
-impl RowKind {
-    pub const COUNT: usize = 11;
-}
-
-/// What one row adds to a count, and to whose.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RowCount {
-    /// The caster, the drawer, the player whose life moved, the player dealt
-    /// the damage, who controlled the creature as it died, the player whose
-    /// creatures attacked.
-    pub player: PlayerId,
-    pub amount: u64,
-}
-
-/// What `fact` counts in `row`, or `None` for a row the fact does not count.
-pub fn counted(fact: TurnFact, row: &HistoryRow) -> Option<RowCount> {
+/// What `row` adds to the count of `fact` for a player `counts_for` admits:
+/// one for a cast or a draw, the life for a life row, the damage for a damage
+/// row; nothing for a row the fact does not count or for another player's.
+/// Whose count a row adds to is the fact's to say: a damage row adds to the
+/// player dealt the damage, where the row's player is the source's controller.
+pub fn added_to_count(fact: TurnFact, row: &HistoryRow, counts_for: &dyn Fn(PlayerId) -> bool) -> u64 {
     let has_type = |card_type: CardType| row.frame.as_ref().is_some_and(|chars| chars.types.contains(&card_type));
-    let (player, amount) = match (fact, row.fact) {
-        (TurnFact::SpellsCast, RowFact::Cast { .. }) | (TurnFact::CardsDrawn, RowFact::Drew) => (row.player?, 1),
-        (TurnFact::LifeGained, RowFact::GainedLife(n)) | (TurnFact::LifeLost, RowFact::LostLife(n)) => (row.player?, n),
-        (TurnFact::LifeGainEvents, RowFact::GainedLife(_)) | (TurnFact::LifeLossEvents, RowFact::LostLife(_)) => {
-            (row.player?, 1)
-        }
-        (TurnFact::DamageTaken, RowFact::DealtDamage { to: ObjectOrPlayer::Player(player), amount, .. }) => (player, amount),
+    let Some(player) = row.player else { return 0 };
+    let (whose, amount) = match (fact, row.fact) {
+        (TurnFact::SpellsCast, RowFact::Cast { .. }) | (TurnFact::CardsDrawn, RowFact::Drew) => (player, 1),
+        (TurnFact::LifeGained, RowFact::GainedLife(n)) | (TurnFact::LifeLost, RowFact::LostLife(n)) => (player, n),
+        (TurnFact::LifeGainEvents, RowFact::GainedLife(_)) | (TurnFact::LifeLossEvents, RowFact::LostLife(_)) => (player, 1),
+        (TurnFact::DamageTaken, RowFact::DealtDamage { to: ObjectOrPlayer::Player(dealt_to), amount, .. }) => (dealt_to, amount),
         // CR 700.4's "dies", under whoever controlled the creature as it did.
         (TurnFact::ControlledCreaturesDied, RowFact::LeftZone { from: Zone::Battlefield, to: Zone::Graveyard, .. })
             if has_type(CardType::Creature) =>
         {
-            (row.player?, 1)
+            (player, 1)
         }
-        (TurnFact::AttackersDeclared, RowFact::Attacked(_)) => (row.player?, 1),
-        (asked, RowFact::Stated { fact, count }) if asked == fact => (row.player?, count),
-        _ => return None,
+        (TurnFact::AttackersDeclared, RowFact::Attacked(_)) => (player, 1),
+        (asked, RowFact::Stated { fact, count }) if asked == fact => (player, count),
+        _ => return 0,
     };
-    Some(RowCount { player, amount })
+    if counts_for(whose) { amount } else { 0 }
 }
 
 /// The kind of row `fact` counts, which a count notes it read.
@@ -198,16 +193,6 @@ pub fn kind_counted(fact: TurnFact) -> RowKind {
         TurnFact::ControlledCreaturesDied => RowKind::LeftZone,
         TurnFact::AttackersDeclared => RowKind::Attacked,
     }
-}
-
-/// Which turns a count of the log spans.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TurnsCounted {
-    /// One turn: "this turn", "last turn".
-    Turn(u32),
-    /// This turn and every turn since `from`: "since your last turn", and
-    /// "this game" from turn 1.
-    From(u32),
 }
 
 /// One thing becoming the target of a spell or ability (CR 115.1), as the
@@ -427,30 +412,22 @@ impl HistoryLog {
     pub(crate) fn count(
         &self,
         fact: TurnFact,
-        turns: TurnsCounted,
+        turns: RangeInclusive<u32>,
         counts_for: &dyn Fn(PlayerId) -> bool,
         of: &mut dyn FnMut(&HistoryRow) -> bool,
         note: &dyn Fn(GatedWalkInput),
     ) -> u64 {
         note(GatedWalkInput::TurnNumber);
         note(GatedWalkInput::Rows(kind_counted(fact)));
-        let mut sum = |rows: &mut dyn Iterator<Item = &HistoryRow>| -> u64 {
-            let mut total: u64 = 0;
-            for row in rows {
-                if let Some(RowCount { player, amount }) = counted(fact, row)
-                    && counts_for(player)
-                    && of(row)
-                {
-                    total = total.saturating_add(amount);
-                }
+        let (first, last) = ((*turns.start()).max(1), *turns.end());
+        let mut total: u64 = 0;
+        for row in self.rows_newest_first().skip_while(|row| row.turn > last).take_while(|row| row.turn >= first) {
+            let added = added_to_count(fact, row, counts_for);
+            if added > 0 && of(row) {
+                total = total.saturating_add(added);
             }
-            total
-        };
-        match turns {
-            TurnsCounted::Turn(0) => 0,
-            TurnsCounted::Turn(turn) => sum(&mut self.rows_of_turn(turn)),
-            TurnsCounted::From(from) => sum(&mut self.rows_newest_first().take_while(|row| row.turn >= from.max(1))),
         }
+        total
     }
 
     pub fn len(&self) -> usize {

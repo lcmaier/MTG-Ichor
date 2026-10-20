@@ -14,27 +14,12 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
-use crate::state::history_log::{HistoryRow, RowFact, RowKind, TurnsCounted};
+use crate::state::history_log::{HistoryRow, RowFact, RowKind};
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::ObjectOrPlayer;
 use crate::types::zones::{Zone, ZoneChangeAct};
 use crate::state::layer_memo::GatedWalkInput;
-
-/// Every kind of row, in their order, for bumping the ones a window wrote.
-const ROW_KINDS: [RowKind; RowKind::COUNT] = [
-    RowKind::Cast,
-    RowKind::Drew,
-    RowKind::Life,
-    RowKind::EnteredBattlefield,
-    RowKind::LeftZone,
-    RowKind::LeftTheGame,
-    RowKind::DealtDamage,
-    RowKind::Attacked,
-    RowKind::Blocked,
-    RowKind::RemovedFromCombat,
-    RowKind::BecameTarget,
-];
 
 /// When a counted record happened, which each of its rows carries.
 #[derive(Clone, Copy)]
@@ -148,7 +133,7 @@ impl GameState {
     }
 
     fn bump_rows_written(&mut self, kinds_written: &[bool; RowKind::COUNT]) {
-        for kind in ROW_KINDS.into_iter().filter(|kind| kinds_written[*kind as usize]) {
+        for kind in RowKind::ALL.into_iter().filter(|kind| kinds_written[*kind as usize]) {
             self.bump_layer_epoch_if_read(GatedWalkInput::Rows(kind));
         }
     }
@@ -191,7 +176,7 @@ impl GameState {
         if self.turn_number == 0 {
             return None;
         }
-        let logged = self.history.count(player, fact, TurnsCounted::Turn(self.turn_number));
+        let logged = self.history.count(player, fact, self.turn_number..=self.turn_number);
         let earlier = placed_this_window.iter().filter(|&&placed| placed == (player, fact)).count() as u64;
         Some(logged.saturating_add(earlier).saturating_add(1))
     }

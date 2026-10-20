@@ -20,7 +20,6 @@ use mtgsim::test_support::{
     creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game, test_ctx, test_dp,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::state::history_log::TurnsCounted;
 use mtgsim::types::history::TurnFact;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -277,7 +276,7 @@ fn the_draw_steps_count_is_a_word_of_the_save() {
         .map(|built| built.game)
         .unwrap_or_else(|refusal| panic!("{refusal}"));
     let history = &game.state.history;
-    assert_eq!((history.count(0, TurnFact::CardsDrawn, TurnsCounted::Turn(3)), history.players[0].this_draw_step()), (2, 1));
+    assert_eq!((history.count(0, TurnFact::CardsDrawn, 3..=3), history.players[0].this_draw_step()), (2, 1));
     let written = Scenario::write(&game.state).to_string();
     assert!(written.contains("cards drawn this draw step 1"), "{written}");
 

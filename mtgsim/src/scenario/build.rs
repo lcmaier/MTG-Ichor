@@ -10,7 +10,7 @@ use super::error::{ScenarioError, ScenarioErrorKind};
 use super::setup::{ResolvedSetupAction, SetupActions};
 use super::text::{draw_step_skipped, in_combat_from, position_word};
 use crate::engine::layers::compute::seed_frame;
-use crate::state::history_log::{HistoryRow, RowFact, TurnsCounted};
+use crate::state::history_log::{HistoryRow, RowFact};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::cards::registry::CardRegistry;
 use crate::engine::resolve::ResolvedTarget;
@@ -478,7 +478,7 @@ impl<'s> Loader<'s> {
         self.state.skip_first_draw = self.scenario.step.step == Some(StepType::Upkeep) && draw_step_skipped(&self.state, turn);
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
-            || self.state.history.count(active, TurnFact::AttackersDeclared, TurnsCounted::Turn(turn)) > 0;
+            || self.state.history.count(active, TurnFact::AttackersDeclared, turn..=turn) > 0;
         self.state.combat_had_attackers = self.in_combat_from(StepType::DeclareAttackers) && attacked;
         self.state.blockers_declared = self.in_combat_from(StepType::DeclareBlockers) && attacked;
         let skipped_without_attackers = matches!(
@@ -513,7 +513,7 @@ impl<'s> Loader<'s> {
             let player = self.checked_player(player, located.line)?;
             let message = if !self.state.in_own_draw_step(player) {
                 "a player draws in a draw step only during their own (CR 504)"
-            } else if count > self.state.history.count(player, TurnFact::CardsDrawn, TurnsCounted::Turn(turn)) {
+            } else if count > self.state.history.count(player, TurnFact::CardsDrawn, turn..=turn) {
                 "more cards drawn this draw step than this turn: state `this turn: cards drawn N`"
             } else {
                 self.state.history.players[player].draw_step_drawn(count);
