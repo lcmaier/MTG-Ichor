@@ -4872,63 +4872,70 @@ three-arm sitting item 275 carries)
   for four that grows only when damage to its controller is prevented, so a
   small one is expected.
 
-### As landed (2026-10-19)
+### As landed (2026-10-20)
 
-**Built as designed.** Five code commits on #263: the prevention arm with
-the Squire unregistered, its registration, excess damage, item 275, and the
-close-out's merges; a rider renaming `TriggerBindingReads::NOTHING` and its
-helpers first, and two dev GUI pictures redrawn.
+**Built as designed, then widened at review.** Seven code commits on #263:
+the prevention arm with the Squire unregistered, its registration, excess
+damage, item 275, the close-out's merges; then at review the names, item
+289 with Goblin Negotiation and its registration, and item 290. A rider
+renamed `TriggerBindingReads::NOTHING` and its helpers first, and two dev GUI
+pictures were redrawn.
 
 **What the build corrected.**
 - **`occurrence_subject` names an `EventSubject`**, the replacement
-  pipeline's "what an event is about", with `From` impls for a damage target
-  and a counter subject, so the counters' and the damage's once-per-subject
-  grouping key on one type.
+  pipeline's "what an event is about", so the counters' and the damage's
+  once-per-subject grouping key on one type.
 - **A history row grew from 104 to 112 bytes**: `DealtDamage` is the widest
   `RowFact`, and `excess` adds 8 bytes to every row. A chunk of sixteen is
-  1,792 bytes, under 2 KB. On the held test's games it adds 2.8% at the
-  worst game, 4,597 → 4,725 B a turn.
+  1,792 bytes, under 2 KB.
 - **The "dealt this way" family is 24 cards**, not 4: `o:"excess damage"
-  o:"this way"` finds 25, less Megatron, Tyrant's CR 120.4a replacement; the
-  design's query needed "when" or "whenever". Item 289 owns it with
-  `AmountExpr::DamageDealtThisWay`, which errors at resolution today.
+  o:"this way"` finds 25, less Megatron, Tyrant's CR 120.4a replacement.
 - **`event_log_test` pinned the prevention record as unread**; the arm's
   commit carries the change.
 - **Two dev GUI pictures moved**: Bolt into a 0/1 logs "for 3, 2 excess",
   and item 275 removed the end-step prompt `why_prevented` stopped at.
 
-**At the close-out.** Every prediction held. pre275 read IDENTICAL on both
-pools at two seats and four, at +0.13% instructions per decision against
-`main`; the engine arm's +0.50% is over games item 275 moved, the callgrind
-board's own among them. Five of 200 `performance` games diverge between the
-two arms, each after Protean Hydra's delayed triggers fired together. The
-Squire was cast in 117 of 200 forced games at two seats and 88 at four. The
-audited smoke ran clean but for seed 810's standoff. With the Squire
-pooled, the clone floors read 45 allocations at worst (39 on the engine arm)
-and 90.8 KB.
+**What the review changed** (the owner, 2026-10-20).
+- **The held-memory gate asserts every game together.** Its decks are built
+  from the registry by a seeded picker, so pooling the Squire changed every
+  seed's decks, and a 42-turn game holding an ordinary 329 KB read 8,018 B a
+  turn alone. The bound was TR-5h's stop-and-report line, not a v1
+  requirement.
+- **Names:** `take_excess_damage` became `calculate_excess_damage`, which
+  only reads, beside `reduce_lethal_damage_left`; `deals_damage_with` became
+  `deals_damage_with_keyword`. `TriggerBindingReads`, 30 of 32 bits used,
+  asserts its width at compile time.
+- **The phase's loose ends, built rather than filed.** Item 289: the
+  `DealDamage` performer writes the resolving object's own damage onto
+  `ResolvingObject::damage_dealt_this_way`, since the window holding those
+  records is dispatched before the rest of the resolution reads them;
+  `AmountExpr::DamageDealtThisWay` and `ExcessDamageDealtThisWay` sum it,
+  and Goblin Negotiation is the card. Item 290, half of what the model pass
+  said: resolution reads an object still in its zone as it is (CR 608.2h),
+  so the gaps were a control change's object as the ability triggers (CR
+  603.10d) and an unattach's departed end, whose frame the record now
+  carries. Item 288 is a design rather than a fix, CR 607.2h's linked
+  abilities and the prevented damage's sources, and went to A6s.
 
-**The held-memory gate, decided at review (the owner, 2026-10-19).**
-`history_held_test` asserted that each of its 23 games held at most 5,120 B
-of log a turn. Its decks are built from the registry by a seeded random
-picker, so pooling the Squire changed every seed's decks, and four games read
-past the bound: `performance` 12353 at 8,018 B a turn, a 42-turn game holding
-329 KB, where the same seed had built a 72-turn game holding 302 KB. The log
-per event had not grown beyond the row's 8 bytes (the engine arm, on the old
-decks, read 4,725 at worst against `main`'s 4,597), and the largest game held
-379 KB, against TR-5h's estimate of about 400 at most. A short game divides an
-ordinary log by few turns. The bound was TR-5h's stop-and-report line, about
-1.4 times its 3.5 KB estimate, not a v1 requirement. The test now asserts the
-games' total held over their total turns, 4,004 B a turn, and still prints
-each game.
+**At the close-out.** Two sittings, the second after the review's code.
+Every prediction held. pre275 read IDENTICAL on both pools at two seats and
+four in both, at +0.13% instructions per decision against `main`; the
+engine arm's +0.50% is over games item 275 moved. Five of 200 `performance`
+games diverge between the two arms, each after Protean Hydra's delayed
+triggers fired together. The audited smoke ran clean; its two turn-limit
+games are Words of Worship standoffs, and one game ran 14.8 s on a correct,
+exponential Pariah and Protean Hydra loop. The clone floors read 41
+allocations and 91.3 KB at worst; the logs held 3,923 B a turn together.
 
 **The model pass** (`plans/references/duplicate-inventory.md` §3.9) named
 five copies the branch made, each merged with no game moved (T25–T29), and
-one older pair that already disagrees, a record's frame at the match and at
-resolution for three look-back records, unreachable today: item 290.
+T30, fixed at review as item 290.
 
-**What it leaves.** Items 288–290. TR-5g next.
+**What it leaves.** Item 288, at A6s. TR-5g next.
 
-**Size.** +1,093/−154 in code and tests (code +466/−145, of it the card and
-its registration +101; tests +627/−9), against 880–1,000: code inside its
-360–480 with the merges, tests about 100 over their ~520. Nineteen
-integration tests in `phase_tr5d_integration_test`.
+**Size.** +1,543/−193 in code and tests (code +691/−169, of it the two
+cards and their registrations +168; tests +852/−24), against 880–1,000 for
+the phase as designed: the review's items 289 and 290 and Goblin
+Negotiation took it into the 1,500–2,500 band. Twenty-six integration tests
+in `phase_tr5d_integration_test`, and a unit test in
+`engine::triggers::binding`.

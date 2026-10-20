@@ -7241,3 +7241,78 @@ stops one question later for it.
      **Slotted:** TR-5d, which moves the stream too (Selfless Squire,
      Panharmonicon); moved from TR-5c at its review (2026-10-18), with excess
      damage, to keep both phases in the band.
+
+### Item 289 — closed 2026-10-20 by PR #263 (TR-5d's review)
+
+Closed at TR-5d's review, which asked that the phase's own loose ends be
+built rather than filed. "Dealt this way" is read later in the same
+resolution, after the damage's own batch has dispatched its window, so the
+records are gone by then: the `DealDamage` performer writes each damage whose
+cause names the resolving object onto
+`ResolvingObject::damage_dealt_this_way`, with its recipient, amount and
+excess. `AmountExpr::DamageDealtThisWay`, which errored until then, sums the
+amounts, and `ExcessDamageDealtThisWay` the excess. Goblin Negotiation is
+registered and pooled, its two rulings tests. "To that creature" narrows to
+one recipient when a card whose resolution damages two needs it; the rows
+keep the recipient for that. A condition on the excess, "if excess damage
+was dealt this way", joins with its first card (Torch the Witness needs a
+Clue token too).
+
+*Original entry:*
+
+289. **No amount reads the damage, or its excess, that a resolution dealt.**
+     "If excess damage was dealt this way" and "the excess damage dealt this
+     way" read the `DamageDealt` records the resolving instruction performed,
+     and so does `AmountExpr::DamageDealtThisWay`, which errors at resolution
+     today. 24 cards read the excess: `o:"excess damage" o:"this way"` finds
+     25, less Megatron, Tyrant, whose "if excess damage would be dealt" is CR
+     120.4a's replacement (2026-10-19). Among them are Hell to Pay, Torch the
+     Witness and Bolg of the North, and two reflexive triggers, Rhino's
+     Rampage and Unleash the Inferno. TR-5d's design counted 4, on a query
+     that needed "when" or "whenever".
+     **Reachability (2026-10-19):** unreachable — no registered card reads
+     the damage or the excess a resolution dealt.
+     **Sized:** the resolution's own damage records, read off its batches by
+     source, summed as an amount and as its excess, with a condition on the
+     excess; ~40 lines of code and ~80 of tests.
+     **Slotted:** with the first registered card that reads the damage or the
+     excess dealt this way (Hell to Pay).
+
+### Item 290 — closed 2026-10-20 by PR #263 (TR-5d's review)
+
+Closed at TR-5d's review. The model pass's finding was half right. At
+resolution an object still in its zone is read as it is (CR 608.2h), and a
+control change and a kept move leave the object where it was, so
+resolution should not take their frames. The gaps:
+- As the ability triggers, a control change's object is read as it was
+  before the change (CR 603.10d): `read_at_trigger` takes a control change's
+  and a kept move's frame. A unit test reads a stolen creature at its
+  owner's anthem's 3 power where the board says 2.
+- An unattach whose host or attachment left in the same event now carries
+  that end's frame, handed over by the performer that moved it, and
+  `record_frame` reads it: an Equipment's trigger gaining life equal to its
+  dead host's power reads it with the Equipment's bonus.
+The defending-player condition already answered after a control change:
+CR 508.5 keeps a removed creature's defending player, which the log records.
+
+*Original entry:*
+
+290. **A record's frame for a control change, a kept move or an unattach is
+     read at the match and not at resolution.** CR 603.10c–d look back:
+     the dispatcher matches a `ControlChanged`'s, a `SameZoneMove`'s and an
+     `Unattached`'s object as the record framed it, while `record_frame`
+     (`engine/triggers/binding.rs`), which "its power" and an intervening
+     "if" read at resolution, takes only what `GameEvent::lki` returns: a
+     zone change's, a leaving's and a countered spell's. So such a trigger
+     can match the object as it was and resolve reading it as it is. Found by
+     TR-5d's model pass (`plans/references/duplicate-inventory.md` §3.9,
+     T30).
+     **Reachability (2026-10-19):** unreachable — no registered card reads
+     the characteristics of a control change's, a kept move's or an
+     unattach's object: Grafted Wargear sacrifices it, Ray of Command taps
+     it, and Guerrilla Tactics reads its own source.
+     **Sized:** `GameEvent::lki` returning the three records' frames, and the
+     dispatcher's `SubjectRead` derived from it, ~20 lines of code and ~50
+     of tests.
+     **Slotted:** with the first registered card whose trigger on a control
+     change, a kept move or an unattach reads the object's characteristics.

@@ -9476,59 +9476,55 @@ Number 277 was withdrawn in #260 and is not reused.
 
 ### Found by TR-5d (2026-10-19)
 
-288. **"Prevented this way" cannot name the effect.** `DamageIsPrevented`
-     reads any prevention effect applied to its recipient's damage, which is
-     Selfless Squire's reading (its second ruling). Five triggers watch their
-     own effect instead: Phyrexian Vindicator, New Way Forward, Outfitted
-     Jouster, Judgment of Alexander and Samite Ministration
+288. **"Prevented this way" cannot name the effect, nor the damage's source.**
+     `DamageIsPrevented` reads any prevention effect applied to its
+     recipient's damage, which is Selfless Squire's reading (its second
+     ruling). Five triggers watch their own effect instead
      (`(o:"is prevented" or o:"are prevented") (o:whenever or o:when)`, 6
-     cards less the Squire, 2026-10-19). The record names the effect
-     (`DamagePrevented.by`), and the arm has no field to match it against:
-     the source's own static replacement, or the effect its resolution
-     created, which a delayed trigger made beside it would have to remember.
-     **Reachability (2026-10-19):** unreachable — no registered card asks
-     which effect prevented the damage.
-     **Sized:** a `by` on the arm naming the trigger's own effect, matched
-     against the record's `ReplacementInstanceId`, and the delayed trigger's
-     memory of the effect its resolution created; ~40 lines of code and ~80
-     of tests.
-     **Slotted:** with the first registered card that triggers on damage
-     prevented this way (Phyrexian Vindicator).
+     cards less the Squire, 2026-10-19), and their texts (2026-10-20) need
+     three things, not one field:
+     - **CR 607.2h's linked abilities.** Phyrexian Vindicator's static
+       prevention and its "when damage is prevented this way" trigger are
+       printed in one paragraph, so the trigger refers only to that static
+       ability's actions (Outfitted Jouster's too, a digital card). Linked
+       abilities are one of the questions A6s owns.
+     - **The prevented damage's source.** Judgment of Alexander's "whenever
+       damage from a creature is prevented this way ... to that creature" and
+       Samite Ministration's "from a black or red source" ask it, and
+       `DamagePrevented` carries none, by TR-5d's design, since one
+       application can cover several sources. The record would carry each
+       source's share.
+     - **A delayed trigger that remembers the effect its resolution
+       created.** New Way Forward's and Samite Ministration's "this way" is
+       the prevention their own spell made, and New Way Forward's "that
+       source's controller" is its chosen source (CR 609.7a).
+     **Reachability (2026-10-20):** unreachable — no registered card asks
+     which effect prevented the damage or what dealt it.
+     **Sized:** a design first: the record's per-source shares, the arm's
+     `by` naming a linked static ability or a remembered effect, and CR
+     607.2h's link; then ~100–150 lines of code and ~150 of tests, with
+     Phyrexian Vindicator and Samite Ministration.
+     **Slotted:** A6s, the route review, where CR 607's linked abilities are
+     decided (`roadmap-v2.md`); moved from "the first registered card" at
+     TR-5d's review (the owner, 2026-10-20), since the record's shape and the
+     link are design questions rather than a card's.
 
-289. **No amount reads the damage, or its excess, that a resolution dealt.**
-     "If excess damage was dealt this way" and "the excess damage dealt this
-     way" read the `DamageDealt` records the resolving instruction performed,
-     and so does `AmountExpr::DamageDealtThisWay`, which errors at resolution
-     today. 24 cards read the excess: `o:"excess damage" o:"this way"` finds
-     25, less Megatron, Tyrant, whose "if excess damage would be dealt" is CR
-     120.4a's replacement (2026-10-19). Among them are Hell to Pay, Torch the
-     Witness and Bolg of the North, and two reflexive triggers, Rhino's
-     Rampage and Unleash the Inferno. TR-5d's design counted 4, on a query
-     that needed "when" or "whenever".
-     **Reachability (2026-10-19):** unreachable — no registered card reads
-     the damage or the excess a resolution dealt.
-     **Sized:** the resolution's own damage records, read off its batches by
-     source, summed as an amount and as its excess, with a condition on the
-     excess; ~40 lines of code and ~80 of tests.
-     **Slotted:** with the first registered card that reads the damage or the
-     excess dealt this way (Hell to Pay).
+289. **~~No amount reads the damage, or its excess, that a resolution
+     dealt.~~ — ✅ CLOSED 2026-10-20 (PR #263, TR-5d's review).** — archived.
+     The `DealDamage` performer writes the resolving object's own damage onto
+     `ResolvingObject::damage_dealt_this_way`; `AmountExpr::DamageDealtThisWay`
+     and `ExcessDamageDealtThisWay` sum it. Goblin Negotiation is registered
+     and pooled.
+     **Reachability (2026-10-20):** closed — PR #263.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 289".
 
-290. **A record's frame for a control change, a kept move or an unattach is
-     read at the match and not at resolution.** CR 603.10c–d look back:
-     the dispatcher matches a `ControlChanged`'s, a `SameZoneMove`'s and an
-     `Unattached`'s object as the record framed it, while `record_frame`
-     (`engine/triggers/binding.rs`), which "its power" and an intervening
-     "if" read at resolution, takes only what `GameEvent::lki` returns: a
-     zone change's, a leaving's and a countered spell's. So such a trigger
-     can match the object as it was and resolve reading it as it is. Found by
-     TR-5d's model pass (`plans/references/duplicate-inventory.md` §3.9,
-     T30).
-     **Reachability (2026-10-19):** unreachable — no registered card reads
-     the characteristics of a control change's, a kept move's or an
-     unattach's object: Grafted Wargear sacrifices it, Ray of Command taps
-     it, and Guerrilla Tactics reads its own source.
-     **Sized:** `GameEvent::lki` returning the three records' frames, and the
-     dispatcher's `SubjectRead` derived from it, ~20 lines of code and ~50
-     of tests.
-     **Slotted:** with the first registered card whose trigger on a control
-     change, a kept move or an unattach reads the object's characteristics.
+290. **~~A record's frame for a control change, a kept move or an unattach is
+     read at the match and not at resolution.~~ — ✅ CLOSED 2026-10-20 (PR
+     #263, TR-5d's review).** — archived.
+     At resolution an object still in its zone is read as it is (CR 608.2h),
+     so only two gaps were real: a control change's and a kept move's object
+     as the ability triggers (CR 603.10d), now read off their frames, and an
+     unattach's end that left in the same event, whose frame the record now
+     carries.
+     **Reachability (2026-10-20):** closed — PR #263.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 290".

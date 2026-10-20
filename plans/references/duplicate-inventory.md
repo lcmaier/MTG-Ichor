@@ -566,8 +566,8 @@ sites that agree.
 
 §2a's prompt over the files #263 changed, its report unseen. It named 11
 facts and three small ones, one of them a pair that already disagrees;
-`close_out.py`'s report named two of the same. #263 merged five, filed one as
-an item, and kept or routed the rest.
+`close_out.py`'s report named two of the same. #263 merged five, fixed one at
+its review, and kept or routed the rest.
 
 **Merged in #263, no game moved** (50 audited games on both pools, at two
 seats and four, play the shipped arm's exactly).
@@ -583,12 +583,14 @@ seats and four, play the shipped arm's exactly).
 - **T29. A damage target's name in a log line**, shared by the damage and
   prevention lines.
 
-**Filed.** **T30. Which frame a record carries for an object, at the match
-and at resolution** (CR 603.10c–d): the matcher reads a `ControlChanged`'s, a
-`SameZoneMove`'s and an `Unattached`'s frame, and `record_frame` only what
-`GameEvent::lki` returns, a zone change's, a leaving's and a countered
-spell's. They already differ; no registered card reads such an object's
-characteristics, so it is `codebase-state.md` item 290.
+**Fixed at #263's review, half of it.** **T30. Which frame a record carries
+for an object, at the match and at resolution** (CR 603.10c–d). At
+resolution an object still in its zone is read as it is (CR 608.2h), and a
+control change or a kept move leaves it where it was, so `record_frame` was
+right to take no frame of theirs. The real gaps: `read_at_trigger` now
+takes a control change's and a kept move's frame as the ability triggers,
+and an unattach's end that left in the same event carries its frame on the
+record, which `record_frame` reads (`codebase-state.md` item 290, closed).
 
 **Kept, each with its reason.**
 - Deathtouch among simultaneous damage: `lethal_damage_owed` answers what a
@@ -599,6 +601,10 @@ characteristics, so it is `codebase-state.md` item 290.
   performs: the lethal amounts are decided against the board the batch
   decided against, as its replacements are, and the flag is CR 704.5h's
   memory of the damage dealt.
+- `condition_reads` and `player_fact_reads`, in `layers/board.rs` and in
+  `triggers/binding_reads.rs`: two walkers of one condition tree for two
+  answers, the layer memo's gated inputs and a trigger's binding facts,
+  each named by what it returns in its own module since #263's rename.
 
 **Item 247's, beside T19–T21** (each older than #263): combat's lethal
 reading asks `has_keyword` where `deals_damage_with_keyword` reads a gone

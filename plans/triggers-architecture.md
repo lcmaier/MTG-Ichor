@@ -3602,40 +3602,38 @@ TR-5h"); item 279's other facts, each with its first card.
 ### TR-5d — prevention and excess damage — ✅ landed 2026-10-19
 
 *Body evicted 2026-10-19 to `plans/archive/triggers-architecture-landed.md`,
-"TR-5d", with the plan as designed and what the build corrected.*
+"TR-5d", with the plan as designed and what the build and its review
+corrected.*
 
 **What shipped.** `TriggerEvent::DamageIsPrevented` reads `DamagePrevented`
 at its batch's close: one trigger each time a prevention effect is applied
-to one recipient's damage, however many sources (CR 615.13), an object
-recipient its `EventRole::DamageRecipient`. Excess damage (CR 120.10) is
-decided with the batch: before any member performs, each creature or
-planeswalker it damages gets the damage still lethal to it
-(`lethal_damage_owed`'s reading, at most 1 under deathtouch; a planeswalker's
-loyalty; the smaller for a creature planeswalker), and each `DealDamage`
-takes its share, so a permanent's records sum to the event's excess. The
-damage arm's `excess` reads it once per permanent, the arm joining
-`supports_once_per_subject` keyed on its recipient, and
+to one recipient's damage, however many sources (CR 615.13). Excess damage
+(CR 120.10) is decided with the batch: before any member performs, each
+creature or planeswalker it damages gets the damage still lethal to it, and
+each `DealDamage` takes its share, so a permanent's records sum to the
+event's excess. The damage arm's `excess` reads it once per permanent, and
 `ObjectFact::WasDealtExcessDamage` reads it off the damage row. Item 275:
-`SOURCE` compares the source by identity and the last known information each
-entry carries for it, and `TriggerBindingReads::X` reads X. Selfless Squire
-is registered and pooled (208 → 209, 118 → 119). Items 16 and 275 closed.
+`SOURCE` compares the source by identity and what each entry carries of it,
+and `TriggerBindingReads::X` reads X. At review: the damage and excess a
+resolution dealt "this way" (item 289), and the frames a control change
+and an unattach carry, read where they apply (item 290). Selfless Squire
+and Goblin Negotiation are registered and pooled (208 → 210, 118 → 120).
+Items 16, 275, 289 and 290 closed.
 
 **What moved on the way in.** `occurrence_subject` names an `EventSubject`.
 A history row grew from 104 to 112 bytes. The "dealt this way" family the
-design counted at 4 is 24 cards (item 289).
+design counted at 4 is 24 cards. Review asked the phase's loose ends built
+rather than filed: two were, and item 288 needs CR 607.2h's linked
+abilities and the prevented damage's sources, so it went to A6s.
 
-**Measured** (`fuzz-record.md`, TR-5d's block). A three-arm sitting: the arm
-without item 275 plays `main`'s games on every table at +0.13% instructions
-per decision; item 275 moves only games where Protean Hydra's delayed
-triggers fire together. The Squire's stress distortion is small and its sign
-depends on the decks a seed builds. The model pass found five copies,
-merged, and one older disagreement, item 290. TR-5h's held-memory gate is now
-asserted over every game together (the owner, 2026-10-19): 4,004 B a turn.
-Pooling the Squire changed the decks its seeds build, and one short game
-read 8.0 KB a turn alone while holding an ordinary 329 KB.
+**Measured** (`fuzz-record.md`, TR-5d's block). The arm without item 275
+plays `main`'s games on every table at +0.13% instructions per decision;
+item 275 moves only games where Protean Hydra's delayed triggers fire
+together. The two cards' stress distortion is small. TR-5h's held-memory
+gate is asserted over every game together (the owner, 2026-10-20): 3,923 B
+a turn.
 
-**What it leaves.** Items 288–290 (`codebase-state.md`, "Found by TR-5d").
-TR-5g is next, designed below.
+**What it leaves.** Item 288, at A6s. TR-5g is next, designed below.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-5d".
 

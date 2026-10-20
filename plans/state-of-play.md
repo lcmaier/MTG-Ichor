@@ -167,9 +167,9 @@ and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 209 |
-| …of them in `PERFORMANCE_POOL` | 119 |
-| `#[test]` functions | 2654 |
+| Cards registered | 210 |
+| …of them in `PERFORMANCE_POOL` | 120 |
+| `#[test]` functions | 2662 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -182,22 +182,22 @@ is bolded.
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
 | 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 57% | 2026-10-06 |
-| 2. Allocations per clone | ≤ 64 | 45 | 42% | 2026-10-19 |
+| 2. Allocations per clone | ≤ 64 | 41 | 56% | 2026-10-20 |
 | 2. Microseconds per clone | ≤ 10 | 6.9 | 45% | 2026-10-06 |
-| 3. Kilobytes per clone | ≤ 128 | 90.8 | 41% | 2026-10-19 |
+| 3. Kilobytes per clone | ≤ 128 | 91.3 | 40% | 2026-10-20 |
 
 ## Debt — `codebase-state.md`'s Deferred Migrations
 
 | | |
 |---|---:|
 | Numbered items | 341 |
-| …closed, still recorded | 191 |
-| …open — unreachable, and says why | 101 |
+| …closed, still recorded | 193 |
+| …open — unreachable, and says why | 99 |
 | **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 148 of 150 |
+| …open, carrying an explicit `**Sized:**` | 146 of 148 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -211,8 +211,8 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 82 |
-| …slotted to the first registered card that needs it | 56 |
+| …slotted to a phase or roadmap row still to come | 83 |
+| …slotted to the first registered card that needs it | 53 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
