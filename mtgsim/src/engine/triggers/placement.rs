@@ -18,7 +18,7 @@ use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, ObjectRef};
-use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
+use crate::types::triggers::{EventRole, Lki, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
@@ -122,11 +122,15 @@ impl GameState {
                 .flat_map(|e| e.objects.objects().filter(|(p, _)| named.contains(p)).collect::<Vec<_>>())
                 .collect()
         };
+        // The source by identity, not the origin: a delayed trigger's origin
+        // is its own registry number, which no two share.
+        let same_source = a.origin.source_ref() == b.origin.source_ref() && kept_source_lki(a) == kept_source_lki(b);
         (unread(TriggerBindingReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))
             && (unread(TriggerBindingReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
             && (unread(TriggerBindingReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))
             && (unread(TriggerBindingReads::CHARACTERISTICS) || (objects(x) == objects(y) && x.first_record() == y.first_record()))
-            && (unread(TriggerBindingReads::SOURCE) || a.origin == b.origin)
+            && (unread(TriggerBindingReads::SOURCE) || same_source)
+            && (unread(TriggerBindingReads::X) || a.x_value == b.x_value)
             && (unread(TriggerBindingReads::ABILITY) || self.ability_state(a) == self.ability_state(b))
             && (unread(TriggerBindingReads::REFERRED) || x.referred == y.referred)
     }
@@ -208,4 +212,12 @@ impl GameState {
         self.announce_targeted_records(id, EventCause::GameRule(GameRule::TriggeredAbilityPutOnStack), dp)?;
         Ok(true)
     }
+}
+
+/// The last known information `entry` kept of its source, once the source
+/// has left (CR 113.7a): two delayed triggers made on either side of its
+/// leaving keep different information.
+fn kept_source_lki(entry: &PendingTrigger) -> Option<&Lki> {
+    let source = entry.origin.source_ref();
+    entry.kept_lki.iter().find(|lki| lki.object() == source)
 }

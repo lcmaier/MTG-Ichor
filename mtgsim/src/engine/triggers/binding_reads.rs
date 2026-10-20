@@ -38,20 +38,23 @@ impl TriggerBindingReads {
     /// "Its power", "its toughness": an object of the triggering event, and
     /// the record its frame comes from.
     pub const CHARACTERISTICS: TriggerBindingReads = TriggerBindingReads(1 << 3);
-    /// "This object": the source the entry's origin names.
+    /// "This object": the source the entry's origin names, and as it last
+    /// existed once it has left.
     pub const SOURCE: TriggerBindingReads = TriggerBindingReads(1 << 4);
     /// "This ability": its CR 603.2h gate and its CR 603.7h count.
     pub const ABILITY: TriggerBindingReads = TriggerBindingReads(1 << 5);
     /// "That card", "that token": what a delayed trigger refers to (CR
     /// 603.7c).
     pub const REFERRED: TriggerBindingReads = TriggerBindingReads(1 << 6);
+    /// X: a delayed trigger's, its creator's (CR 107.3n).
+    pub const X: TriggerBindingReads = TriggerBindingReads(1 << 7);
     /// Every fact, and no event role: a def that reads everything is asked
     /// whatever its event roles are, and an event role named inside a
     /// delayed trigger's or a static ability's body is that body's own.
-    const EVERYTHING: TriggerBindingReads = TriggerBindingReads(0x007F);
-    /// The bit for the first event role the def names: after the seven
+    const EVERYTHING: TriggerBindingReads = TriggerBindingReads(0x00FF);
+    /// The bit for the first event role the def names: after the eight
     /// facts, one bit per `EventRole`.
-    const FIRST_EVENT_ROLE: u32 = 7;
+    const FIRST_EVENT_ROLE: u32 = 8;
     /// The bit for the first event role the def needs exactly one object
     /// of: after the bits for the event roles it names, one bit per `EventRole`.
     /// Counted from `EventRole::ALL`, so a new event role moves it and
@@ -275,8 +278,8 @@ fn creature_reads(creature: Antecedent) -> TriggerBindingReads {
 
 fn amount_reads(a: &AmountExpr) -> TriggerBindingReads {
     match a {
+        AmountExpr::X => TriggerBindingReads::X,
         AmountExpr::Fixed(_)
-        | AmountExpr::X
         | AmountExpr::AffectedManaValue
         | AmountExpr::TargetPower
         | AmountExpr::TargetToughness

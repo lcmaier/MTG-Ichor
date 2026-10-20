@@ -8,29 +8,35 @@
 //! 3. Excess damage, decided with the batch: each record's share of what the
 //!    batch dealt each creature or planeswalker past lethal, read once per
 //!    permanent by the damage arm and by "was dealt excess damage this turn".
+//! 4. Delayed triggers of one template agree on their source by identity
+//!    and by what was kept of it, and differ by their creators' X.
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{damage_to_is_prevented, triggered_ability, whenever};
+use mtgsim::cards::authoring::{at_beginning_of, damage_to_is_prevented, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_rd_cards::{mending_hands, safe_passage};
 use mtgsim::cards::phase_tr5d_cards::selfless_squire;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::events::cause::EventCause;
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
-use mtgsim::state::game_state::GameState;
+use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
-    pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_dp, vanilla_creature,
+    fill_library, pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_dp, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive};
+use mtgsim::types::effects::{AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
 use mtgsim::types::history::ObjectFact;
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{
+    DamageRecipient, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, Referred, TriggerEvent,
+    TriggerSubject, TriggerTurn,
+};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::display::format_record;
@@ -513,5 +519,88 @@ fn the_damage_log_line_names_its_excess() {
     let recorded = game.recorded_events();
     let lines: Vec<String> = recorded.records()[before..].iter().map(|record| format_record(&game, record)).collect();
     assert!(lines.iter().any(|line| line.contains("for 5, 3 excess")), "{lines:?}");
+}
+
+// ---------------------------------------------------------------------------
+// Delayed triggers of one template (item 275)
+// ---------------------------------------------------------------------------
+
+/// "At the beginning of the next end step, [effect]", once.
+fn at_the_next_end_step(effect: Effect) -> DelayedTriggerTemplate {
+    DelayedTriggerTemplate {
+        def: Arc::new(whenever(at_beginning_of(StepType::End, Whose::Each), effect)),
+        duration: DelayedDuration::Once,
+        turn: DelayedTurn::NoneNamed,
+        rules_text: "".into(),
+    }
+}
+
+/// `template` made by `source`, the existence `source` names, for player 0,
+/// with its creator's `x`.
+fn make_delayed(game: &mut GameState, template: &DelayedTriggerTemplate, source: ObjectRef, card: Arc<CardData>, x: Option<u64>) {
+    let provenance = DelayedProvenance {
+        source,
+        source_card: card,
+        controller: 0,
+        created_by: None,
+        x_value: x,
+        turn: TriggerTurn::Any,
+        resolution: None,
+        cause: EventCause::Harness,
+    };
+    game.create_delayed_trigger(template, provenance, Referred::default()).expect("it is made");
+}
+
+/// The end step's delayed triggers, put on the stack and resolved under `dp`.
+fn end_step(game: &mut GameState, dp: &dyn DecisionProvider) {
+    game.execute_action(GameAction::BeginStep { step: StepType::End, player: 0 }, &ActionContext::new(&test_dp()))
+        .expect("the step begins");
+    resolve_all(game, dp);
+}
+
+/// CR 107.3n: two delayed triggers of one template and one source differ in
+/// their creators' X, so the order of "draw X cards" with X = 2 and X = 5 is
+/// still asked, though nothing else about them differs.
+#[test]
+fn delayed_draws_of_two_xs_still_ask_their_order() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 10);
+    let card = vanilla_creature(1, 1, &[]);
+    let source = put_on_battlefield(&mut game, Arc::clone(&card), 0);
+    let source = game.object_ref(source).expect("it is there");
+    let draw_x = at_the_next_end_step(Effect::Atom(Primitive::DrawCards(AmountExpr::X), EffectRecipient::Controller));
+    make_delayed(&mut game, &draw_x, source, Arc::clone(&card), Some(2));
+    make_delayed(&mut game, &draw_x, source, card, Some(5));
+    let hand = game.players[0].hand.len();
+
+    let dp = RecordingDecisionProvider::picking(0);
+    end_step(&mut game, &dp);
+
+    assert_eq!(dp.kinds(), vec!["OrderTriggers"]);
+    assert_eq!(game.players[0].hand.len(), hand + 7);
+}
+
+/// CR 113.7a: one delayed trigger made while its source was there and one
+/// made after it left keep different information about it, so the order of
+/// "put two +1/+1 counters on it" is asked; two made while it stays are not
+/// (Protean Hydra's, in `phase_tr5b_integration_test`).
+#[test]
+fn delayed_triggers_on_either_side_of_their_source_leaving_ask_their_order() {
+    let mut game = setup_two_player_game();
+    let card = vanilla_creature(1, 1, &[]);
+    let id = put_on_battlefield(&mut game, Arc::clone(&card), 0);
+    let source = game.object_ref(id).expect("it is there");
+    let grow_it = at_the_next_end_step(Effect::Atom(
+        Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(2), by: PlayerRef::You },
+        EffectRecipient::ThisObject,
+    ));
+    make_delayed(&mut game, &grow_it, source, Arc::clone(&card), None);
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&test_dp())).expect("it dies");
+    make_delayed(&mut game, &grow_it, source, card, None);
+
+    let dp = RecordingDecisionProvider::picking(0);
+    end_step(&mut game, &dp);
+
+    assert_eq!(dp.kinds(), vec!["OrderTriggers"]);
 }
 
