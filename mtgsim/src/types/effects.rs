@@ -164,6 +164,21 @@ pub enum Selector {
     CardsInGraveyard(Option<PlayerRef>),
 }
 
+impl Selector {
+    /// The filter over permanents a selector of permanents is, "you" left to
+    /// the reader; `None` for one that selects cards elsewhere.
+    pub fn permanent_filter(&self) -> Option<std::borrow::Cow<'_, ObjectFilter>> {
+        match self {
+            Selector::PermanentsMatching(filter) => Some(std::borrow::Cow::Borrowed(filter)),
+            Selector::ControlledCreatures => Some(std::borrow::Cow::Owned(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(crate::types::card_types::CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            ))),
+            Selector::CreaturesInGraveyard(_) | Selector::CardsInHand(_) | Selector::CardsInGraveyard(_) => None,
+        }
+    }
+}
+
 /// Reference to a player in an effect context
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlayerRef {

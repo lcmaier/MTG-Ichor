@@ -27,7 +27,6 @@ use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::compute_as_entering;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
-use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_subtypes, get_effective_toughness,
     has_summoning_sickness, is_creature,
@@ -493,28 +492,18 @@ fn test_containment_priest_ignores_a_creature_that_was_cast() {
     assert_eq!(entries_of(&game, bears), vec![0]);
 }
 
-/// "Nontoken": a token entering under the Priest is not exiled.
+/// "Nontoken": a token entering under the Priest is not exiled. Created by
+/// the creation's own action, which is the only maker of a token's entry.
 #[test]
 fn test_containment_priest_ignores_tokens() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, containment_priest(), 1);
 
-    let mut token = GameObject::new(vanilla_creature(1, 1, &[]), 0, Zone::Battlefield);
-    token.is_token = true;
-    let id = game.add_object(token);
-    game.execute_action(
-        GameAction::EnterBattlefield {
-            object: id,
-            from: None,
-            controller: 0,
-            mods: EnterMods::NONE,
-            act: None,
-        },
-        &ActionContext::new(&test_dp()),
-    )
-    .unwrap();
+    let create = GameAction::CreateTokens { defs: vec![mtgsim::cards::phase_re_cards::goblin_token()], controller: 0, attacking: None };
+    game.execute_action(create, &ActionContext::new(&test_dp())).unwrap();
 
-    assert!(game.battlefield.contains_key(&id));
+    let tokens = game.battlefield_ids_ordered().into_iter().filter(|id| game.objects[id].is_token).count();
+    assert_eq!(tokens, 1);
 }
 
 /// The frame, on the Priest's own filter. Sol Ring is not a creature card, but

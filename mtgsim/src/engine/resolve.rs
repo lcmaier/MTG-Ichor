@@ -2491,8 +2491,16 @@ impl GameState {
                 .resolving_for(_ctx)
                 .and_then(|resolving| resolving.x_value)
                 .ok_or_else(|| format!("{} resolves with no X chosen for AmountExpr::X to read", _ctx.source)),
-            AmountExpr::CountOf(_selector) => {
-                Err("CountOf amount resolution not yet implemented".to_string())
+            // The permanents a selector names, as they are now (CR 608.2h),
+            // "you" the resolution's controller: Ajani, Nacatl Avenger's "the
+            // number of creatures you control".
+            AmountExpr::CountOf(selector) => {
+                let filter = selector
+                    .permanent_filter()
+                    .ok_or_else(|| format!("CountOf({selector:?}) resolution not yet implemented"))?;
+                let (you, source) = (_ctx.controller, _ctx.source);
+                let counted = self.battlefield_ids_ordered().into_iter().filter(|&id| self.object_matches_filter_of_source(id, &filter, you, source, None));
+                Ok(counted.count() as u64)
             }
             AmountExpr::CardTypesAmong(_selector) => {
                 Err("CardTypesAmong amount resolution not yet implemented".to_string())

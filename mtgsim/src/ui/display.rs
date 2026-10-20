@@ -1140,7 +1140,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         LeftTheGame { object_id, owner, from, lki } => {
             format!("LeftTheGame: {} (P{}, from {:?})", as_it_left(game, *object_id, lki.as_ref(), announced), owner, from)
         }
-        TokenCreated { object_id, owner, zone } => {
+        TokenCreated { object_id, owner, zone, .. } => {
             format!("TokenCreated: {} (P{}, in {:?})", obj_name(game, *object_id), owner, zone)
         }
         TokenCeasedToExist { object_id } => {

@@ -501,8 +501,11 @@ pub enum GameEvent {
     /// announced by its zone change alone.
     ///
     /// `owner` is CR 111.2's "the player who creates a token is its owner";
-    /// a token created in exile has no controller to name.
-    TokenCreated { object_id: ObjectId, owner: PlayerId, zone: Zone },
+    /// a token created in exile has no controller to name. `definition` is
+    /// what the creation made it from, after any replacement substituted
+    /// another (Divine Visitation), which "when you do" after "create a
+    /// [token]" asks (Ajani, Nacatl Avenger's eighth ruling).
+    TokenCreated { object_id: ObjectId, owner: PlayerId, zone: Zone, definition: Arc<crate::types::effects::TokenDef> },
 
     /// A token in a non-battlefield zone ceased to exist (rule 704.5d).
     /// Not a zone change — the token is simply removed from the game.

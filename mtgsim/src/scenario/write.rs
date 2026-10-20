@@ -114,6 +114,7 @@ impl<'g> Writer<'g> {
             trigger_multiplier_sources: _,
             entry_selection: _,     // a batch's, empty at any prompt outside one
             prevention_allocations: _,
+            tokens_being_created: _, // a creation's, empty at any prompt outside one
             lethal_damage_left: _,
             nesting: _,
             rider_lineage: _,

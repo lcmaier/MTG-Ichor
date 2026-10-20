@@ -8,10 +8,11 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{another, dies, enters, is_sacrificed, triggered_ability, whenever};
+use mtgsim::cards::authoring::{another, creates_a_token, dies, enters, is_sacrificed, triggered_ability, when_you_do, whenever, Whose};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::phase_cv_cards::cytoshape;
 use mtgsim::cards::phase_rc_cards::chainbreaker;
+use mtgsim::cards::phase_re_cards::{divine_visitation, doubling_season};
 use mtgsim::cards::phase_tr1_cards::{soul_warden, wild_growth};
 use mtgsim::cards::phase_tr5g_cards::panharmonicon;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
@@ -19,19 +20,24 @@ use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
-use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     creature_with_ability, put_in_graveyard, put_on_battlefield, registered, setup_two_player_game, static_ability, test_dp, vanilla_creature,
 };
-use mtgsim::types::card_types::{CardType, Supertype};
-use mtgsim::types::effects::{AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::events::event::GameEvent;
+use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
+use mtgsim::types::colors::Color;
+use mtgsim::types::effects::{
+    AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive, SelectionFilter,
+    Selector, TargetCount, TokenDef,
+};
+use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
-    TriggerMultiplierDef, TriggerSubject,
+    TriggerMultiplierDef, TriggerSubject, TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
@@ -465,4 +471,148 @@ fn gandalf_leaves_a_sacrifice_trigger_alone() {
     game.change_zone(hero, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ActionContext::new(&test_dp())).unwrap();
     assert_eq!(waiting_from(&game, sacrificed), 1);
     assert_eq!(waiting_from(&game, mourner), 2);
+}
+
+// ---------------------------------------------------------------------------
+// Tokens: the definition a creation made its token from (CR 111.2, 701.7)
+// ---------------------------------------------------------------------------
+
+/// "A 2/1 white Cat Warrior creature token."
+fn cat_warrior() -> TokenDef {
+    TokenDef {
+        name: None,
+        colors: vec![Color::White],
+        types: vec![CardType::Creature],
+        subtypes: vec![Subtype::Creature(CreatureType::Cat), Subtype::Creature(CreatureType::Warrior)],
+        supertypes: Vec::new(),
+        power: Some(2),
+        toughness: Some(1),
+        keyword_flags: Vec::new(),
+        abilities: Vec::new(),
+        rules_text: String::new(),
+        enchant_filter: None,
+        enters_tapped: false,
+        enters_attacking: None,
+    }
+}
+
+/// Ajani, Nacatl Avenger's 0 ability, which a loyalty ability is once CP-2
+/// builds them: "Create a 2/1 white Cat Warrior creature token. When you
+/// do, if you control a red permanent other than Ajani, he deals damage
+/// equal to the number of creatures you control to any target."
+fn ajanis_zero() -> Effect {
+    let damage = Effect::Atom(
+        Primitive::DealDamage { amount: AmountExpr::CountOf(Selector::ControlledCreatures), unpreventable: false },
+        EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+    );
+    let mut when_you_do = when_you_do(creates_a_token(Whose::Yours, Some(cat_warrior())), damage, "");
+    let red_other = ObjectFilter::And(Box::new(ObjectFilter::ByColor(Color::Red)), Box::new(ObjectFilter::NotSource));
+    Arc::make_mut(&mut when_you_do.def).intervening_if =
+        Some(Condition::Player { players: PlayerSet::You, fact: PlayerFact::ControlsPermanent(red_other) });
+    Effect::Sequence(vec![
+        Effect::Atom(Primitive::CreateToken(cat_warrior(), AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(when_you_do)), EffectRecipient::Controller),
+    ])
+}
+
+/// Ajani, with a red creature beside him or not, his 0 ability activated
+/// and resolved: an artifact's "{0}: ..." until CP-2 builds loyalty.
+fn ajani_activates(game: &mut GameState, red_beside: bool) -> ObjectId {
+    let zero = AbilityDef {
+        rules_text: "".into(),
+        id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
+        ability_type: AbilityType::Activated,
+        costs: Vec::new(),
+        effect: ajanis_zero(),
+        is_characteristic_defining: false,
+        activation_restriction: ActivationRestriction::None,
+    };
+    let ajani = CardDataBuilder::new("Ajani, Nacatl Avenger").card_type(CardType::Artifact).ability(zero).build();
+    let ajani = put_on_battlefield(game, ajani, 0);
+    if red_beside {
+        let red = CardDataBuilder::new("Red Bear").card_type(CardType::Creature).color(Color::Red).power_toughness(2, 2).build();
+        put_on_battlefield(game, red, 0);
+    }
+    resolve_all(game, &test_dp());
+    game.activate_ability(0, ajani, 0, &test_dp()).expect("it is activated, with no target");
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    ajani
+}
+
+/// The waiting triggers on the stack, each aimed at player 1, in the order
+/// they triggered.
+fn place_each_at_the_opponent(game: &mut GameState, triggers: usize) {
+    let dp = ScriptedDecisionProvider::new();
+    if triggers > 1 {
+        dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, (0..triggers).collect());
+    }
+    for _ in 0..triggers {
+        dp.expect_choice(
+            ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+            vec![ChoiceOption::Player(1)],
+        );
+    }
+    game.perform_sba_and_triggers(&dp).unwrap();
+    assert!(dp.is_empty(), "each target is chosen as its trigger goes on the stack");
+}
+
+// RULING: Ajani, Nacatl Avenger #7 - no target is chosen as the ability is activated; the reflexive ability's is chosen as it goes on the stack.
+#[test]
+fn ajanis_reflexive_trigger_chooses_its_target_as_it_goes_on_the_stack() {
+    let mut game = audited_game();
+    let ajani = ajani_activates(&mut game, true);
+    assert_eq!(waiting_from(&game, ajani), 1);
+    place_each_at_the_opponent(&mut game, 1);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 1), 20 - 2, "the Cat Warrior and the red creature");
+}
+
+// RULING: Ajani, Nacatl Avenger #8 - under Doubling Season the reflexive ability triggers once for each Cat Warrior.
+#[test]
+fn ajanis_reflexive_trigger_triggers_for_each_cat_warrior_doubling_season_makes() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, doubling_season(), 0);
+    let ajani = ajani_activates(&mut game, true);
+    assert_eq!(waiting_from(&game, ajani), 2);
+    place_each_at_the_opponent(&mut game, 2);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 1), 20 - 3 - 3, "two Cat Warriors and the red creature, twice");
+}
+
+// RULING: Ajani, Nacatl Avenger #8 - tokens a replacement creates instead, as Divine Visitation's Angels, don't trigger it.
+#[test]
+fn ajanis_reflexive_trigger_ignores_the_angels_divine_visitation_makes_instead() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, divine_visitation(), 0);
+    let ajani = ajani_activates(&mut game, true);
+    let made_angels = game.recorded_events().events().any(|e| matches!(e, GameEvent::TokenCreated { definition, .. } if **definition != cat_warrior()));
+    assert!(made_angels, "the creation made Angels instead");
+    assert_eq!(waiting_from(&game, ajani), 0);
+}
+
+/// The intervening "if": with no red permanent but Ajani, nothing triggers.
+#[test]
+fn ajanis_reflexive_trigger_needs_a_red_permanent_other_than_ajani() {
+    let mut game = audited_game();
+    let ajani = ajani_activates(&mut game, false);
+    assert_eq!(waiting_from(&game, ajani), 0);
+}
+
+/// "Whenever you create one or more tokens" triggers once for a creation of
+/// three, and "whenever you create a token" three times; an opponent's
+/// tokens are theirs.
+#[test]
+fn one_or_more_tokens_triggers_once_for_a_creation_of_several() {
+    let mut game = audited_game();
+    let once = whenever(creates_a_token(Whose::Yours, None).once_per_event(), gain_one());
+    let once = put_on_battlefield(&mut game, watcher("Once", once), 0);
+    let each = put_on_battlefield(&mut game, watcher("Each", whenever(creates_a_token(Whose::Yours, None), gain_one())), 0);
+    resolve_all(&mut game, &test_dp());
+    let three = Effect::Atom(Primitive::CreateToken(cat_warrior(), AmountExpr::Fixed(3)), EffectRecipient::Controller);
+    game.resolve_effect(&three, &ResolutionContext::untargeted(once, 0, GeneratedBy::Spell), &test_dp()).unwrap();
+    assert_eq!((waiting_from(&game, once), waiting_from(&game, each)), (1, 3));
+    game.pending_triggers.clear();
+    game.resolve_effect(&three, &ResolutionContext::untargeted(once, 1, GeneratedBy::Spell), &test_dp()).unwrap();
+    assert_eq!((waiting_from(&game, once), waiting_from(&game, each)), (0, 0));
 }

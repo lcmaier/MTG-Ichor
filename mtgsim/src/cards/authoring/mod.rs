@@ -23,7 +23,7 @@ pub mod triggers;
 
 pub use triggers::{
     activates_an_ability_of, an_opponent_gains_control_of, another, at_beginning_of, attacks, attacks_alone, attacks_and_isnt_blocked, attacks_defender, becomes_attached,
-    becomes_blocked, becomes_blocked_by, becomes_the_target_of, becomes_unattached, blocks, blocks_a_creature, counters_put_on, counters_removed_from, damage_to_is_prevented, dies, draws_a_card, enters, is_attacked, is_sacrificed, leaves_the_battlefield, loses_the_game, persist,
-    player_attacks, player_attacks_player, player_becomes_the_target_of, player_or_their_planeswalker, shuffles_their_library, spell_is_countered, triggered_ability, undying, when_you_do,
+    becomes_blocked, becomes_blocked_by, becomes_the_target_of, becomes_unattached, blocks, blocks_a_creature, counters_put_on, creates_a_token, counters_removed_from, damage_to_is_prevented, dies, draws_a_card, enters, is_attacked, is_sacrificed, leaves_the_battlefield, loses_the_game, persist,
+    player_attacks, player_attacks_player, player_becomes_the_target_of, player_or_their_planeswalker, scries, shuffles_their_library, spell_is_countered, triggered_ability, undying, when_you_do,
     when_you_dont, whenever, you_lose_control_of, CountableEvent, CounterEvent, Whose,
 };

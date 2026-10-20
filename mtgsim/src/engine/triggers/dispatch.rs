@@ -2133,6 +2133,18 @@ impl GameState {
                     Vec::new()
                 }
             }
+            // The definition the creation made the token from, after any
+            // replacement (Ajani, Nacatl Avenger's eighth ruling).
+            (
+                TriggerEvent::CreatesToken { owner, definition, .. },
+                GameEvent::TokenCreated { owner: creator, definition: made_from, .. },
+            ) => triggering_event_if(
+                owner.as_ref().is_none_or(|p| self.player_ref_is(p, *creator, referents))
+                    && definition.as_deref().is_none_or(|definition| definition == made_from.as_ref()),
+            ),
+            (TriggerEvent::Scries { player }, GameEvent::Scried { player_id, .. }) => {
+                triggering_event_if(player.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
+            }
             // Every arm, by name, so a new arm does not compile until it is matched
             // here; a record of another kind holds no event of it.
             (
@@ -2163,7 +2175,9 @@ impl GameState {
                 | TriggerEvent::BecomesUnattached { .. }
                 | TriggerEvent::ControlChanges { .. }
                 | TriggerEvent::AbilityTriggers { .. }
-                | TriggerEvent::AbilityResolves { .. },
+                | TriggerEvent::AbilityResolves { .. }
+                | TriggerEvent::CreatesToken { .. }
+                | TriggerEvent::Scries { .. },
                 _,
             ) => Vec::new(),
         }
@@ -2461,7 +2475,8 @@ impl GameState {
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
-            | TriggerEvent::ControlChanges { .. } => self.single_object(&record.event),
+            | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::CreatesToken { .. } => self.single_object(&record.event),
             TriggerEvent::DamageDealt { .. } => self.damage_objects(&record.event),
             TriggerEvent::DamageIsPrevented { .. } => self.prevention_objects(&record.event),
             TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } => {
@@ -2488,13 +2503,14 @@ impl GameState {
             | TriggerEvent::PlayerLoses { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. } => TriggeringEventObjects::NoObject,
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::Scries { .. } => TriggeringEventObjects::NoObject,
         }
     }
 
     /// The one object a one-object event is about: the card or permanent
     /// that moved, was tapped, untapped, entered or changed control, the
-    /// mana's source, the card drawn, or the spell.
+    /// token created, the mana's source, the card drawn, or the spell.
     fn single_object(&self, event: &GameEvent) -> TriggeringEventObjects {
         let id = match event {
             GameEvent::ZoneChange { object_id, .. }
@@ -2503,7 +2519,8 @@ impl GameState {
             | GameEvent::Tapped { object_id }
             | GameEvent::Untapped { object_id }
             | GameEvent::PermanentEnteredBattlefield { object_id, .. }
-            | GameEvent::ControlChanged { object_id, .. } => *object_id,
+            | GameEvent::ControlChanged { object_id, .. }
+            | GameEvent::TokenCreated { object_id, .. } => *object_id,
             // The existence that made the mana, where its own cost moved it.
             GameEvent::ManaAdded { source_lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
             GameEvent::ManaAdded { source_id, .. } => *source_id,
