@@ -220,6 +220,20 @@ pub struct ResolvingObject {
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
     /// The last known information the entry kept, and any its own effect adds.
     pub kept_lki: Vec<crate::types::triggers::Lki>,
+    /// Each damage its own effect dealt, as it was dealt: what "the damage
+    /// dealt this way" and "the excess damage dealt this way" (CR 120.10)
+    /// read later in the same resolution, after the window holding those
+    /// records has been dispatched.
+    pub damage_dealt_this_way: Vec<DamageDealtThisWay>,
+}
+
+/// One damage a resolution's own effect dealt: to whom, how much, and how
+/// much of it was excess (CR 120.10).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DamageDealtThisWay {
+    pub to: crate::events::event::DamageTarget,
+    pub amount: u64,
+    pub excess: u64,
 }
 
 /// One CR 500.7 extra turn in the queue: who takes it, and which turn it is.

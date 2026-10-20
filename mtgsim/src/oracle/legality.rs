@@ -683,6 +683,7 @@ mod tests {
             identity: None,
             trigger: None,
             kept_lki: Vec::new(),
+            damage_dealt_this_way: Vec::new(),
         });
 
         assert_eq!(

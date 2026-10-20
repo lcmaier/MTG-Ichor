@@ -2517,8 +2517,16 @@ impl GameState {
             AmountExpr::TargetToughness => {
                 Err("TargetToughness amount resolution not yet implemented".to_string())
             }
-            AmountExpr::DamageDealtThisWay => {
-                Err("DamageDealt amount resolution not yet implemented".to_string())
+            AmountExpr::DamageDealtThisWay | AmountExpr::ExcessDamageDealtThisWay => {
+                let dealt = &self
+                    .resolving
+                    .as_ref()
+                    .ok_or_else(|| "damage dealt this way has no meaning outside a resolution".to_string())?
+                    .damage_dealt_this_way;
+                Ok(dealt
+                    .iter()
+                    .map(|damage| if matches!(expr, AmountExpr::ExcessDamageDealtThisWay) { damage.excess } else { damage.amount })
+                    .sum())
             }
             // CR 615.5's "that much"/"that many". Only a rider sets the field, so
             // outside a `ReplacementDef::then` this leaf asks a question its context

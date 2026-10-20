@@ -10,18 +10,20 @@
 //!    permanent by the damage arm and by "was dealt excess damage this turn".
 //! 4. Delayed triggers of one template agree on their source by identity
 //!    and by what was kept of it, and differ by their creators' X.
+//! 5. The damage, and its excess, a resolution's own effect dealt ("this
+//!    way"), which Goblin Negotiation reads after its damage's window.
 
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{at_beginning_of, damage_to_is_prevented, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_rd_cards::{mending_hands, safe_passage};
-use mtgsim::cards::phase_tr5d_cards::selfless_squire;
+use mtgsim::cards::phase_tr5d_cards::{goblin_negotiation, selfless_squire};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::EventCause;
 use mtgsim::events::event::{DamageTarget, GameEvent};
-use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
@@ -29,16 +31,21 @@ use mtgsim::test_support::{
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
+use mtgsim::types::effects::{
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+};
 use mtgsim::types::history::ObjectFact;
-use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::mana::ManaType;
+use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::triggers::{
     DamageRecipient, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, Referred, TriggerEvent,
     TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_record;
 
 // ---------------------------------------------------------------------------
@@ -604,3 +611,127 @@ fn delayed_triggers_on_either_side_of_their_source_leaving_ask_their_order() {
     assert_eq!(dp.kinds(), vec!["OrderTriggers"]);
 }
 
+// ---------------------------------------------------------------------------
+// The damage, and its excess, dealt this way (item 289)
+// ---------------------------------------------------------------------------
+
+/// Cast `card` from player 0's hand with X = `x`, its one target the one
+/// creature on the board, paying from a pool of red mana, and resolve it.
+fn cast_with_x(game: &mut GameState, card: Arc<CardData>, x: u64) {
+    let id = put_in_hand(game, card, 0);
+    game.players[0].mana_pool.add(ManaType::Red, x + 2);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(x)) }, x);
+    game.cast_spell(0, id, &dp).expect("it is castable");
+    game.resolve_top_of_stack(&dp).expect("it resolves");
+}
+
+/// "Target creature", as the card's instruction names it.
+fn target_creature() -> EffectRecipient {
+    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
+}
+
+/// Player 0's Goblin tokens.
+fn goblins(game: &GameState) -> usize {
+    game.battlefield_ids_ordered()
+        .into_iter()
+        .filter(|id| game.objects[id].card_data.name == "Goblin Token" && game.battlefield[id].controller == 0)
+        .count()
+}
+
+/// The card's own text: X damage past a 2/2's lethal 2 is a Goblin each.
+#[test]
+fn goblin_negotiation_makes_a_goblin_for_each_point_of_excess() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    cast_with_x(&mut game, goblin_negotiation(), 5);
+
+    assert_eq!(goblins(&game), 3);
+}
+
+/// Damage within lethal is no excess, so no tokens.
+#[test]
+fn goblin_negotiation_within_lethal_makes_no_goblins() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    cast_with_x(&mut game, goblin_negotiation(), 2);
+
+    assert_eq!(goblins(&game), 0);
+}
+
+// RULING: Goblin Negotiation #1 - excess damage is damage past lethal, the
+//   damage already marked on the creature taken into account.
+#[test]
+fn goblin_negotiation_counts_the_damage_already_marked() {
+    let mut game = setup_two_player_game();
+    let pinger = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    let wall = put_on_battlefield(&mut game, vanilla_creature(0, 4, &[]), 1);
+    deal_together(&mut game, vec![damage(pinger, DamageTarget::Object(wall), 3)], &test_dp());
+
+    // The pinger is a second creature, so the target is asked: the wall.
+    let id = put_in_hand(&mut game, goblin_negotiation(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 5);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(3)) }, 3);
+    dp.expect_choice(ChoiceKind::SelectRecipients { recipient: target_creature(), spell_id: id }, vec![ChoiceOption::Object(wall)]);
+    game.cast_spell(0, id, &dp).expect("it is castable");
+    game.resolve_top_of_stack(&dp).expect("it resolves");
+
+    assert_eq!(goblins(&game), 2, "1 was still lethal, so 2 of 3 is excess");
+}
+
+// RULING: Goblin Negotiation #2 - with deathtouch, 1 damage is lethal, so the
+//   rest is excess whatever the creature's toughness.
+#[test]
+fn goblin_negotiation_with_deathtouch_makes_all_but_one_excess() {
+    let deathtouch_negotiation = Arc::new({
+        let mut card = (*goblin_negotiation()).clone();
+        card.keyword_flags.insert(KeywordFlag::Deathtouch);
+        card
+    });
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, vanilla_creature(4, 4, &[]), 1);
+
+    cast_with_x(&mut game, deathtouch_negotiation, 4);
+
+    assert_eq!(goblins(&game), 3);
+}
+
+/// "The damage dealt this way" is the damage dealt, after prevention (CR
+/// 615.6): a fixture's 6 into Mending Hands' 4 deals 2, and gains 2.
+#[test]
+fn the_damage_dealt_this_way_is_what_prevention_left() {
+    let siphon = Effect::Sequence(vec![
+        Effect::Atom(
+            Primitive::DealDamage { amount: AmountExpr::Fixed(6), unpreventable: false },
+            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        ),
+        Effect::Atom(Primitive::GainLife(AmountExpr::DamageDealtThisWay), EffectRecipient::Controller),
+    ]);
+    let fixture = CardDataBuilder::new("Fixture Siphon")
+        .card_type(CardType::Sorcery)
+        .ability(AbilityDef {
+            rules_text: "".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: siphon,
+        })
+        .build();
+    let mut game = setup_two_player_game();
+    let giant = put_on_battlefield(&mut game, vanilla_creature(7, 7, &[]), 1);
+    resolve_spell(&mut game, mending_hands(), 1, vec![ResolvedTarget::Object(giant)]);
+
+    let id = put_in_hand(&mut game, fixture, 0);
+    let dp = ScriptedDecisionProvider::new();
+    game.cast_spell(0, id, &dp).expect("it is castable");
+    game.resolve_top_of_stack(&dp).expect("it resolves");
+
+    assert_eq!(game.battlefield[&giant].damage_marked, 2);
+    assert_eq!(life(&game, 0), 22, "the 2 dealt, not the 6 proposed");
+}

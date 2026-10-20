@@ -289,6 +289,7 @@ fn amount_reads(a: &AmountExpr) -> TriggerBindingReads {
         | AmountExpr::TargetPower
         | AmountExpr::TargetToughness
         | AmountExpr::DamageDealtThisWay
+        | AmountExpr::ExcessDamageDealtThisWay
         | AmountExpr::ReplacedAmount
         | AmountExpr::UnspentMana(_)
         | AmountExpr::DamagePrevented
