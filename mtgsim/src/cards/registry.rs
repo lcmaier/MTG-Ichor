@@ -33,6 +33,7 @@ use super::phase_tr4d_cards;
 use super::phase_tr5a_cards;
 use super::phase_tr5b_cards;
 use super::phase_tr5c_cards;
+use super::phase_tr5d_cards;
 use super::phase_ma2_cards;
 use super::phase_tr5e_cards;
 use super::phase_tr5f_cards;
@@ -67,7 +68,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 118] = [
+const PERFORMANCE_POOL: [&str; 120] = [
     "Plains",
     "Island",
     "Swamp",
@@ -557,6 +558,15 @@ const PERFORMANCE_POOL: [&str; 118] = [
     // targeted spell and ability aimed at it opens the path; it mills its
     // controller, which a long game can feel.
     "Cephalid Aristocrat",
+    // TR-5d's: CR 615.13's event, one record each time a prevention effect
+    // is applied to its controller's damage, read at the batch's close. Its
+    // own entry makes the prevention, so any damage aimed at its controller
+    // that turn opens the path.
+    "Selfless Squire",
+    // TR-5d's other: the excess damage a resolution's own effect dealt,
+    // read in the same resolution after its damage's window, and X. Any
+    // creature it hits for more than its toughness makes Goblins.
+    "Goblin Negotiation",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -993,6 +1003,14 @@ impl CardRegistry {
         // Cephalid Aristocrat mills two each time it becomes the target of a
         // spell or ability, its controller's own included.
         registry.register("Cephalid Aristocrat", phase_tr5c_cards::cephalid_aristocrat);
+
+        // TR-5d: prevention. Selfless Squire's entry prevents the damage dealt
+        // to its controller this turn, and it grows by each prevention to them
+        // (CR 615.13), its own or another's.
+        registry.register("Selfless Squire", phase_tr5d_cards::selfless_squire);
+        // The damage and excess a resolution dealt "this way": Goblin
+        // Negotiation makes a Goblin for each point past lethal.
+        registry.register("Goblin Negotiation", phase_tr5d_cards::goblin_negotiation);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

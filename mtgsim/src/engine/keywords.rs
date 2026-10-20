@@ -14,7 +14,7 @@ use crate::types::triggers::Lki;
 /// Whether `source` deals damage with `keyword`: as it last existed when
 /// the damage carries its `source_lki` (CR 702.15c, 702.2e), and as it is
 /// otherwise.
-fn deals_damage_with(
+pub(crate) fn deals_damage_with_keyword(
     game: &GameState,
     source: ObjectId,
     lki: Option<&Lki>,
@@ -39,7 +39,7 @@ pub fn apply_deathtouch_flag(
     target: &DamageTarget,
 ) {
     // Pre-check before mutable borrow (borrow checker: the read borrows objects)
-    if !deals_damage_with(game, source, lki, KeywordFlag::Deathtouch) {
+    if !deals_damage_with_keyword(game, source, lki, KeywordFlag::Deathtouch) {
         return;
     }
     // NOT REPLACEABLE: CR 704.5h's memory of the damage, which `DealDamage`
@@ -74,7 +74,7 @@ pub fn add_lifelink_gain(
     lki: Option<&Lki>,
     amount: u64,
 ) {
-    if !deals_damage_with(game, source, lki, KeywordFlag::Lifelink) {
+    if !deals_damage_with_keyword(game, source, lki, KeywordFlag::Lifelink) {
         return;
     }
     let controller = match lki {

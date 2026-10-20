@@ -272,7 +272,7 @@ impl GameState {
             }
             // A source that left before dealing it deals it as it last existed
             // (CR 608.2h).
-            GameEvent::DamageDealt { source_id, target, amount, is_combat, source_lki } => {
+            GameEvent::DamageDealt { source_id, target, amount, excess, is_combat, source_lki } => {
                 let (object, frame) = match source_lki {
                     Some(lki) => (Some(lki.object()), Some(Arc::clone(lki.frame()))),
                     None => match current(*source_id) {
@@ -285,7 +285,7 @@ impl GameState {
                     DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
                 };
                 if let Some(to) = to {
-                    let fact = RowFact::DealtDamage { to, amount: *amount, combat: *is_combat };
+                    let fact = RowFact::DealtDamage { to, amount: *amount, excess: *excess, combat: *is_combat };
                     draft_history_row(controller(&frame), object, frame, fact);
                 }
             }

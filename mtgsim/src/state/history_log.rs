@@ -76,8 +76,9 @@ pub enum RowFact {
     /// CR 800.4a: an object leaving the game with its owner, which CR 603.6c
     /// counts as leaving the battlefield when it was there.
     LeftTheGame { from: Zone },
-    /// CR 120.1: the row's object dealt it.
-    DealtDamage { to: ObjectOrPlayer, amount: u64, combat: bool },
+    /// CR 120.1: the row's object dealt it, `excess` of it past lethal
+    /// damage (CR 120.10).
+    DealtDamage { to: ObjectOrPlayer, amount: u64, excess: u64, combat: bool },
     /// CR 508.1: declared as an attacker.
     Attacked(AttackTarget),
     /// CR 509.1: declared as a blocker of this attacking creature, a row for
@@ -356,8 +357,29 @@ impl HistoryLog {
 
     /// Was `object` dealt damage in `span` of turn `turn` (CR 120.3)?
     pub(crate) fn was_dealt_damage(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
-        self.rows_during(turn, span, RowKind::DealtDamage, note)
-            .any(|row| matches!(row.fact, RowFact::DealtDamage { to: ObjectOrPlayer::Object(to), .. } if to == object))
+        self.excess_of_each_damage_to(object, turn, span, note).next().is_some()
+    }
+
+    /// Was `object` dealt excess damage in `span` of turn `turn` (CR
+    /// 120.10)? A row's excess is its share of the event's, so any row with
+    /// some says the event had some.
+    pub(crate) fn was_dealt_excess_damage(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
+        self.excess_of_each_damage_to(object, turn, span, note).any(|excess| excess > 0)
+    }
+
+    /// The excess of each damage row dealt to `object` in `span` of turn
+    /// `turn`, 0 for damage within lethal.
+    fn excess_of_each_damage_to(
+        &self,
+        object: ObjectRef,
+        turn: u32,
+        span: CombatSpan,
+        note: &dyn Fn(GatedWalkInput),
+    ) -> impl Iterator<Item = u64> {
+        self.rows_during(turn, span, RowKind::DealtDamage, note).filter_map(move |row| match row.fact {
+            RowFact::DealtDamage { to: ObjectOrPlayer::Object(to), excess, .. } if to == object => Some(excess),
+            _ => None,
+        })
     }
 
     /// The players `object` dealt damage to in `span` of turn `turn`, only

@@ -16,7 +16,9 @@ use crate::types::effects::{
     AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, Selector,
 };
-use crate::types::triggers::{BlockOccurrence, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
+use crate::types::triggers::{
+    BlockOccurrence, DamageRecipient, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
+};
 
 /// A set of the facts of an entry a def reads, each one a column the elision
 /// compares, and the event roles of its event it names. Built like
@@ -26,7 +28,7 @@ use crate::types::triggers::{BlockOccurrence, EventRole, Multiplicity, TargetedB
 pub struct TriggerBindingReads(u32);
 
 impl TriggerBindingReads {
-    pub const NOTHING: TriggerBindingReads = TriggerBindingReads(0);
+    pub const NONE: TriggerBindingReads = TriggerBindingReads(0);
     /// "That creature", "them": an object of the triggering events.
     pub const TRIGGERING_OBJECTS: TriggerBindingReads = TriggerBindingReads(1 << 0);
     /// "That player".
@@ -36,20 +38,23 @@ impl TriggerBindingReads {
     /// "Its power", "its toughness": an object of the triggering event, and
     /// the record its frame comes from.
     pub const CHARACTERISTICS: TriggerBindingReads = TriggerBindingReads(1 << 3);
-    /// "This object": the source the entry's origin names.
+    /// "This object": the source the entry's origin names, and as it last
+    /// existed once it has left.
     pub const SOURCE: TriggerBindingReads = TriggerBindingReads(1 << 4);
     /// "This ability": its CR 603.2h gate and its CR 603.7h count.
     pub const ABILITY: TriggerBindingReads = TriggerBindingReads(1 << 5);
     /// "That card", "that token": what a delayed trigger refers to (CR
     /// 603.7c).
     pub const REFERRED: TriggerBindingReads = TriggerBindingReads(1 << 6);
+    /// X: a delayed trigger's, its creator's (CR 107.3n).
+    pub const X: TriggerBindingReads = TriggerBindingReads(1 << 7);
     /// Every fact, and no event role: a def that reads everything is asked
     /// whatever its event roles are, and an event role named inside a
     /// delayed trigger's or a static ability's body is that body's own.
-    const EVERYTHING: TriggerBindingReads = TriggerBindingReads(0x007F);
-    /// The bit for the first event role the def names: after the seven
+    const EVERYTHING: TriggerBindingReads = TriggerBindingReads(0x00FF);
+    /// The bit for the first event role the def names: after the eight
     /// facts, one bit per `EventRole`.
-    const FIRST_EVENT_ROLE: u32 = 7;
+    const FIRST_EVENT_ROLE: u32 = 8;
     /// The bit for the first event role the def needs exactly one object
     /// of: after the bits for the event roles it names, one bit per `EventRole`.
     /// Counted from `EventRole::ALL`, so a new event role moves it and
@@ -85,6 +90,11 @@ impl TriggerBindingReads {
     }
 }
 
+// The facts and both runs of event-role bits fit the word: a new fact or
+// event role past it fails to compile, where an event role's shift would
+// otherwise wrap onto a fact's bit in a release build.
+const _: () = assert!(TriggerBindingReads::FIRST_NEEDS_ONE + EventRole::ALL.len() as u32 <= u32::BITS);
+
 impl BitOr for TriggerBindingReads {
     type Output = TriggerBindingReads;
     fn bitor(self, rhs: TriggerBindingReads) -> TriggerBindingReads {
@@ -98,9 +108,9 @@ impl TriggerDef {
     pub fn trigger_binding_reads(&self) -> TriggerBindingReads {
         let gate = match self.limit {
             Some(TriggerLimit::DoThisOnlyOnceEachTurn) => TriggerBindingReads::ABILITY,
-            Some(TriggerLimit::TriggersOnlyOnceEachTurn | TriggerLimit::FirstTimeEachTurn) | None => TriggerBindingReads::NOTHING,
+            Some(TriggerLimit::TriggersOnlyOnceEachTurn | TriggerLimit::FirstTimeEachTurn) | None => TriggerBindingReads::NONE,
         };
-        effect(&self.effect) | self.intervening_if.as_ref().map_or(TriggerBindingReads::NOTHING, condition) | gate
+        effect_reads(&self.effect) | self.intervening_if.as_ref().map_or(TriggerBindingReads::NONE, condition_reads) | gate
     }
 
     /// Each event role the def names that some arm of its condition does not
@@ -136,6 +146,17 @@ impl TriggerDef {
         let mut wrong = Vec::new();
         if arms.iter().any(|arm| arm.multiplicity() == Multiplicity::OncePerSubject && !arm.supports_once_per_subject()) {
             wrong.push("once per subject, on an arm that cannot be read that way");
+        }
+        // CR 120.10's excess is the event's, which a permanent's records sum
+        // to, and a player is dealt none.
+        for arm in arms {
+            let TriggerEvent::DamageDealt { excess: true, recipient, multiplicity, .. } = arm else { continue };
+            if *multiplicity == Multiplicity::PerOccurrence {
+                wrong.push("excess damage, read per record rather than once per permanent");
+            }
+            if matches!(recipient, DamageRecipient::Player(_)) {
+                wrong.push("excess damage, dealt to a player");
+            }
         }
         let puts_once_per_subject =
             |arm: &TriggerEvent| matches!(arm, TriggerEvent::CountersPutOn { multiplicity: Multiplicity::OncePerSubject, .. });
@@ -205,19 +226,19 @@ fn reads_a_counter_threshold(condition: &Condition) -> bool {
     }
 }
 
-fn effect(e: &Effect) -> TriggerBindingReads {
+fn effect_reads(e: &Effect) -> TriggerBindingReads {
     match e {
-        Effect::Atom(verb, recipient_of) => primitive(verb) | recipient(recipient_of),
-        Effect::Sequence(effects) => effects.iter().fold(TriggerBindingReads::NOTHING, |reads, e| reads | effect(e)),
-        Effect::Conditional(test, inner) => condition(test) | effect(inner),
-        Effect::Optional { chooser, effect: inner } => player_ref(chooser) | effect(inner),
-        Effect::Remember(inner) => effect(inner),
-        Effect::ForEach(over, inner) => selector(over) | effect(inner),
-        Effect::Repeat(times, inner) => amount(times) | effect(inner),
+        Effect::Atom(verb, recipient_of) => primitive_reads(verb) | recipient_reads(recipient_of),
+        Effect::Sequence(effects) => effects.iter().fold(TriggerBindingReads::NONE, |reads, e| reads | effect_reads(e)),
+        Effect::Conditional(test, inner) => condition_reads(test) | effect_reads(inner),
+        Effect::Optional { chooser, effect: inner } => player_ref_reads(chooser) | effect_reads(inner),
+        Effect::Remember(inner) => effect_reads(inner),
+        Effect::ForEach(over, inner) => selector_reads(over) | effect_reads(inner),
+        Effect::Repeat(times, inner) => amount_reads(times) | effect_reads(inner),
         // CR 603.3c's modes are chosen at placement, so a modal def is never
         // elided, and each mode's event roles are the def's. The other four
         // are static abilities' bodies.
-        Effect::Modal { modes, .. } => modes.iter().fold(TriggerBindingReads::EVERYTHING, |reads, e| reads | effect(e)),
+        Effect::Modal { modes, .. } => modes.iter().fold(TriggerBindingReads::EVERYTHING, |reads, e| reads | effect_reads(e)),
         Effect::Replacement(_)
         | Effect::Restriction(_)
         | Effect::CostModification(_)
@@ -225,7 +246,7 @@ fn effect(e: &Effect) -> TriggerBindingReads {
     }
 }
 
-fn recipient(r: &EffectRecipient) -> TriggerBindingReads {
+fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
     match r {
         // An instance is never elided, and "you" is one player across the
         // entries the elision compares.
@@ -234,47 +255,48 @@ fn recipient(r: &EffectRecipient) -> TriggerBindingReads {
         | EffectRecipient::Target(..)
         | EffectRecipient::Choose(..)
         | EffectRecipient::SameInstanceAs(_)
-        | EffectRecipient::EachOf(_) => TriggerBindingReads::NOTHING,
+        | EffectRecipient::EachOf(_) => TriggerBindingReads::NONE,
         EffectRecipient::ThisObject | EffectRecipient::Host => TriggerBindingReads::SOURCE,
         EffectRecipient::Triggering(p) => TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*p),
         EffectRecipient::TriggeringPlayer => TriggerBindingReads::PLAYER,
-        EffectRecipient::AttackedBy(creature) | EffectRecipient::DefendingPlayer(creature) => creature_read(*creature),
+        EffectRecipient::AttackedBy(creature) | EffectRecipient::DefendingPlayer(creature) => creature_reads(*creature),
         EffectRecipient::Referred => TriggerBindingReads::REFERRED,
-        EffectRecipient::Group(members) => members.iter().fold(TriggerBindingReads::NOTHING, |reads, member| reads | recipient(member)),
-        EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter(among),
-        EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient(&choice.chooser), |reads, pick| {
+        EffectRecipient::Group(members) => members.iter().fold(TriggerBindingReads::NONE, |reads, member| reads | recipient_reads(member)),
+        EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter_reads(among),
+        EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient_reads(&choice.chooser), |reads, pick| {
             let count = match &pick.count {
-                PickCount::Exactly(n) => amount(n),
+                PickCount::Exactly(n) => amount_reads(n),
             };
-            reads | filter(&pick.filter) | count
+            reads | filter_reads(&pick.filter) | count
         }),
     }
 }
 
 /// A creature the def names by `Antecedent` and reads a fact of as it
 /// is now: its attack.
-fn creature_read(creature: Antecedent) -> TriggerBindingReads {
+fn creature_reads(creature: Antecedent) -> TriggerBindingReads {
     match creature {
         Antecedent::ThisObject => TriggerBindingReads::SOURCE,
         Antecedent::Triggering(p) => TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::needs_one(p),
     }
 }
 
-fn amount(a: &AmountExpr) -> TriggerBindingReads {
+fn amount_reads(a: &AmountExpr) -> TriggerBindingReads {
     match a {
+        AmountExpr::X => TriggerBindingReads::X,
         AmountExpr::Fixed(_)
-        | AmountExpr::X
         | AmountExpr::AffectedManaValue
         | AmountExpr::TargetPower
         | AmountExpr::TargetToughness
         | AmountExpr::DamageDealtThisWay
+        | AmountExpr::ExcessDamageDealtThisWay
         | AmountExpr::ReplacedAmount
         | AmountExpr::UnspentMana(_)
         | AmountExpr::DamagePrevented
-        | AmountExpr::StartingLifeTotal => TriggerBindingReads::NOTHING,
-        AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => selector(over),
-        AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount(inner),
-        AmountExpr::History(_, history) => history_count(history),
+        | AmountExpr::StartingLifeTotal => TriggerBindingReads::NONE,
+        AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => selector_reads(over),
+        AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount_reads(inner),
+        AmountExpr::History(_, history) => history_count_reads(history),
         AmountExpr::SourcePower | AmountExpr::SourceCounters(_) => TriggerBindingReads::SOURCE,
         AmountExpr::TriggeringAmount => TriggerBindingReads::AMOUNT,
         AmountExpr::TriggeringPower(p) | AmountExpr::TriggeringToughness(p) => {
@@ -283,24 +305,24 @@ fn amount(a: &AmountExpr) -> TriggerBindingReads {
     }
 }
 
-fn selector(s: &Selector) -> TriggerBindingReads {
+fn selector_reads(s: &Selector) -> TriggerBindingReads {
     match s {
-        Selector::ControlledCreatures => TriggerBindingReads::NOTHING,
-        Selector::CreaturesInGraveyard(whose) | Selector::CardsInHand(whose) => player_ref(whose),
-        Selector::CardsInGraveyard(whose) => whose.as_ref().map_or(TriggerBindingReads::NOTHING, player_ref),
-        Selector::PermanentsMatching(among) => filter(among),
+        Selector::ControlledCreatures => TriggerBindingReads::NONE,
+        Selector::CreaturesInGraveyard(whose) | Selector::CardsInHand(whose) => player_ref_reads(whose),
+        Selector::CardsInGraveyard(whose) => whose.as_ref().map_or(TriggerBindingReads::NONE, player_ref_reads),
+        Selector::PermanentsMatching(among) => filter_reads(among),
     }
 }
 
-fn player_ref(p: &PlayerRef) -> TriggerBindingReads {
+fn player_ref_reads(p: &PlayerRef) -> TriggerBindingReads {
     match p {
-        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) | PlayerRef::AnyDefendingPlayer => TriggerBindingReads::NOTHING,
+        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) | PlayerRef::AnyDefendingPlayer => TriggerBindingReads::NONE,
         PlayerRef::Owner => TriggerBindingReads::SOURCE,
-        PlayerRef::DefendingPlayer(creature) => creature_read(*creature),
+        PlayerRef::DefendingPlayer(creature) => creature_reads(*creature),
     }
 }
 
-fn filter(f: &ObjectFilter) -> TriggerBindingReads {
+fn filter_reads(f: &ObjectFilter) -> TriggerBindingReads {
     match f {
         ObjectFilter::All
         | ObjectFilter::ByType(_)
@@ -310,67 +332,72 @@ fn filter(f: &ObjectFilter) -> TriggerBindingReads {
         | ObjectFilter::PowerLE(_)
         | ObjectFilter::WithCounters { .. }
         | ObjectFilter::Token
-        | ObjectFilter::OtherThanInstance(_) => TriggerBindingReads::NOTHING,
-        ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => object_fact(fact),
-        ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref(whose),
+        | ObjectFilter::OtherThanInstance(_) => TriggerBindingReads::NONE,
+        ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => object_fact_reads(fact),
+        ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref_reads(whose),
         ObjectFilter::NotSource => TriggerBindingReads::SOURCE,
-        ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => filter(a) | filter(b),
-        ObjectFilter::Not(inner) => filter(inner),
+        ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => filter_reads(a) | filter_reads(b),
+        ObjectFilter::Not(inner) => filter_reads(inner),
     }
 }
 
-fn condition(c: &Condition) -> TriggerBindingReads {
+fn condition_reads(c: &Condition) -> TriggerBindingReads {
     match c {
-        Condition::Player { fact, .. } => player_fact(fact),
-        Condition::DefendingPlayer { of, fact } => creature_read(*of) | player_fact(fact),
+        Condition::Player { fact, .. } => player_fact_reads(fact),
+        Condition::DefendingPlayer { of, fact } => creature_reads(*of) | player_fact_reads(fact),
         Condition::SpellWasKicked
         | Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SourceTapped
         | Condition::CounterCount { object: Antecedent::ThisObject, .. } => TriggerBindingReads::SOURCE,
-        Condition::HostMatches(among) => TriggerBindingReads::SOURCE | filter(among),
+        Condition::HostMatches(among) => TriggerBindingReads::SOURCE | filter_reads(among),
         // "It had": the object, as the record it left with framed it.
         Condition::CounterCount { object: Antecedent::Triggering(p), .. } => {
             TriggerBindingReads::CHARACTERISTICS | TriggerBindingReads::needs_one(*p)
         }
-        Condition::All(all) => all.iter().fold(TriggerBindingReads::NOTHING, |reads, c| reads | condition(c)),
+        Condition::All(all) => all.iter().fold(TriggerBindingReads::NONE, |reads, c| reads | condition_reads(c)),
         Condition::ResolvedThisTurn(_) => TriggerBindingReads::ABILITY,
         // The counts its records left, as "that many" reads their counters.
         Condition::CounterCountReached { .. } => TriggerBindingReads::AMOUNT,
         Condition::ThisTurn(history, _)
         | Condition::LastTurn(history, _)
         | Condition::SinceYourLastTurn(history, _)
-        | Condition::ThisGame(history, _) => history_count(history),
+        | Condition::ThisGame(history, _) => history_count_reads(history),
         // A mode makes the def modal, which reads everything; the walk's
         // answer is one player's, the same for each entry.
-        Condition::ModeChosen(_) | Condition::CostAnswer(_) => TriggerBindingReads::NOTHING,
+        Condition::ModeChosen(_) | Condition::CostAnswer(_) => TriggerBindingReads::NONE,
     }
 }
 
-fn object_fact(f: &ObjectFact) -> TriggerBindingReads {
+fn object_fact_reads(f: &ObjectFact) -> TriggerBindingReads {
     match f {
-        ObjectFact::Attacked | ObjectFact::Blocked | ObjectFact::WasBlocked | ObjectFact::Entered | ObjectFact::WasDealtDamage => {
-            TriggerBindingReads::NOTHING
+        ObjectFact::Attacked
+        | ObjectFact::Blocked
+        | ObjectFact::WasBlocked
+        | ObjectFact::Entered
+        | ObjectFact::WasDealtDamage
+        | ObjectFact::WasDealtExcessDamage => {
+            TriggerBindingReads::NONE
         }
-        ObjectFact::DealtDamageTo { player, .. } => player.as_ref().map_or(TriggerBindingReads::NOTHING, player_ref),
+        ObjectFact::DealtDamageTo { player, .. } => player.as_ref().map_or(TriggerBindingReads::NONE, player_ref_reads),
     }
 }
 
 /// What a history count's filter reads; its rows are one player's, the same
 /// for each entry.
-fn history_count(history: &HistoryCount) -> TriggerBindingReads {
-    history.of.as_deref().map_or(TriggerBindingReads::NOTHING, filter)
+fn history_count_reads(history: &HistoryCount) -> TriggerBindingReads {
+    history.of.as_deref().map_or(TriggerBindingReads::NONE, filter_reads)
 }
 
-fn player_fact(f: &PlayerFact) -> TriggerBindingReads {
+fn player_fact_reads(f: &PlayerFact) -> TriggerBindingReads {
     match f {
-        PlayerFact::ControlsPermanent(among) | PlayerFact::CardInGraveyard(among) => filter(among),
-        PlayerFact::LifeAtLeast(n) | PlayerFact::LifeAtMost(n) => amount(n),
-        PlayerFact::LibraryEmpty => TriggerBindingReads::NOTHING,
+        PlayerFact::ControlsPermanent(among) | PlayerFact::CardInGraveyard(among) => filter_reads(among),
+        PlayerFact::LifeAtLeast(n) | PlayerFact::LifeAtMost(n) => amount_reads(n),
+        PlayerFact::LibraryEmpty => TriggerBindingReads::NONE,
     }
 }
 
-fn primitive(p: &Primitive) -> TriggerBindingReads {
+fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
     match p {
         // The return watches the source, and CR 610.3a/b asks whether it has
         // already left: two sources' exiles differ in whose leaving returns.
@@ -395,7 +422,7 @@ fn primitive(p: &Primitive) -> TriggerBindingReads {
         | Primitive::Untap
         | Primitive::CounterSpell
         | Primitive::CounterAbility
-        | Primitive::Counter => TriggerBindingReads::NOTHING,
+        | Primitive::Counter => TriggerBindingReads::NONE,
         Primitive::Mill(n)
         | Primitive::PutTopCardsIntoHand(n)
         | Primitive::Discard(n, _)
@@ -406,16 +433,16 @@ fn primitive(p: &Primitive) -> TriggerBindingReads {
         | Primitive::Scry(n)
         | Primitive::Surveil(n)
         | Primitive::RemoveCounters(_, n)
-        | Primitive::CreateToken(_, n) => amount(n),
+        | Primitive::CreateToken(_, n) => amount_reads(n),
         Primitive::AddCounters { amount: n, by, .. } | Primitive::GetCounters { amount: n, by, .. } => {
-            amount(n) | player_ref(by)
+            amount_reads(n) | player_ref_reads(by)
         }
         // The source deals the damage and makes the mana, and lifelink,
         // deathtouch, protection and a mana restriction read it.
-        Primitive::DealDamage { amount: n, .. } => TriggerBindingReads::SOURCE | amount(n),
+        Primitive::DealDamage { amount: n, .. } => TriggerBindingReads::SOURCE | amount_reads(n),
         Primitive::ProduceMana(_) | Primitive::Attach | Primitive::Fight => TriggerBindingReads::SOURCE,
         Primitive::SetPowerToughness(p, t, lasts) | Primitive::ModifyPowerToughness(p, t, lasts) => {
-            amount(p) | amount(t) | duration(lasts)
+            amount_reads(p) | amount_reads(t) | duration_reads(lasts)
         }
         Primitive::SwitchPowerToughness(lasts)
         | Primitive::GrantKeywordFlag(_, lasts)
@@ -425,7 +452,7 @@ fn primitive(p: &Primitive) -> TriggerBindingReads {
         | Primitive::LoseAllAbilities(lasts)
         | Primitive::ChangeColor(_, lasts)
         | Primitive::ChangeType(_, lasts)
-        | Primitive::GainControl(lasts) => duration(lasts),
+        | Primitive::GainControl(lasts) => duration_reads(lasts),
         Primitive::CreateReplacement(..)
         | Primitive::Restrict(..)
         | Primitive::Copy { .. }
@@ -433,9 +460,9 @@ fn primitive(p: &Primitive) -> TriggerBindingReads {
     }
 }
 
-fn duration(d: &Duration) -> TriggerBindingReads {
+fn duration_reads(d: &Duration) -> TriggerBindingReads {
     match d {
-        Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => TriggerBindingReads::NOTHING,
+        Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => TriggerBindingReads::NONE,
         Duration::WhileSourceOnBattlefield | Duration::WhileEnchanted | Duration::WhileEquipped => TriggerBindingReads::SOURCE,
     }
 }

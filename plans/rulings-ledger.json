@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-18",
+  "fetched": "2026-10-20",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -19,6 +19,17 @@
     "Adaptive Shimmerer": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Aegar, the Freezing Flame": {
+      "first_seen": "2026-10-19",
+      "rulings": [
+        {"n": 1, "published_at": "2023-04-14", "comment": "Aegar's ability won't trigger when a battle is dealt excess damage. It's not his fault. They didn't exist yet."},
+        {"n": 2, "published_at": "2021-02-05", "comment": "A creature has been dealt excess damage if one or more sources deal more damage to it than the minimum amount of damage required to be lethal damage. In most cases, this means damage greater than its toughness, but consider the damage already dealt to it that turn."},
+        {"n": 3, "published_at": "2021-02-05", "comment": "A planeswalker is dealt excess damage if it's dealt damage greater than its current loyalty."},
+        {"n": 4, "published_at": "2021-02-05", "comment": "Even 1 damage dealt to a creature from a source with deathtouch is considered lethal damage, so any amount greater than that will cause excess damage to be dealt, even if the total amount of damage isn't greater than the creature's toughness. Note that a source of damage having deathtouch has no effect on damage dealt to planeswalkers."},
+        {"n": 5, "published_at": "2021-02-05", "comment": "It doesn't matter whether a Giant, Wizard, or spell you control deals the excess damage, only that excess damage was dealt and that one of those three things dealt damage to the creature or planeswalker at some point during the turn. For example, if a 4/4 creature an opponent controls is dealt 2 damage by a spell you control and later that turn is dealt 3 damage by a spell another player controls, Aegar's ability will trigger."},
+        {"n": 6, "published_at": "2021-02-05", "comment": "If a permanent is both a creature and a planeswalker, the minimum amount of damage to be considered lethal damage is used to determine if excess damage has been dealt. For example, if a 5/5 creature that's also a planeswalker with three loyalty counters on it is dealt 4 damage, it's been dealt 1 excess damage and Aegar's ability may trigger."}
+      ]
     },
     "Aggravated Assault": {
       "first_seen": "2026-09-17",
@@ -569,6 +580,13 @@
         {"n": 1, "published_at": "2018-10-05", "comment": "To determine the total cost of a spell, start with the mana cost or alternative cost you're paying, add any cost increases, then apply any cost reductions. The mana value of the spell remains unchanged, no matter what the total cost to cast it was."},
         {"n": 2, "published_at": "2018-10-05", "comment": "Goblin Electromancer's effect reduces only generic mana in the spell's total cost."},
         {"n": 3, "published_at": "2017-03-14", "comment": "Two Goblin Electromancers will make instant and sorcery spells you cast cost {2} less to cast, and so on."}
+      ]
+    },
+    "Goblin Negotiation": {
+      "first_seen": "2026-10-20",
+      "rulings": [
+        {"n": 1, "published_at": "2024-11-08", "comment": "Excess damage has been dealt to a creature if the damage dealt to it is greater than lethal damage. Usually, this means damage greater than its toughness, although damage already marked on the creature is taken into account."},
+        {"n": 2, "published_at": "2024-11-08", "comment": "In some unusual cases, Goblin Negotiation may have deathtouch. Even 1 damage dealt to a creature from a source with deathtouch is considered lethal damage, so any amount greater than that will cause excess damage to be dealt, even if the total amount of damage isn't greater than the creature's toughness"}
       ]
     },
     "Grafted Wargear": {
@@ -1176,6 +1194,13 @@
       "read": "2026-09-17",
       "rulings": [
         {"n": 1, "published_at": "2005-10-01", "comment": "You may choose the same creature as a target multiple times since the card says “target creature” multiple times. You may give three different creatures +1/+1 each, one creature +2/+2 and another creature +1/+1, or a single creature +3/+3."}
+      ]
+    },
+    "Selfless Squire": {
+      "first_seen": "2026-10-19",
+      "rulings": [
+        {"n": 1, "published_at": "2016-11-08", "comment": "Selfless Squire's first triggered ability prevents all damage that would be dealt to you this turn after the triggered ability resolves, even if Selfless Squire leaves the battlefield."},
+        {"n": 2, "published_at": "2016-11-08", "comment": "Selfless Squire's second triggered ability doesn't trigger only when damage is prevented by its first triggered ability's effect. Any effect that uses the word \"prevent\" will cause it to trigger."}
       ]
     },
     "Serra Angel": {

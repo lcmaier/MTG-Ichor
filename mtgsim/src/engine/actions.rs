@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
+use crate::engine::combat::keywords::lethal_damage_owed;
+use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_damage_with_keyword};
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
@@ -9,6 +10,7 @@ use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
 use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates};
 use crate::types::triggers::Lki;
@@ -691,6 +693,59 @@ impl DamageResults {
 }
 
 impl GameState {
+    /// CR 120.10's lethal damage to each creature or planeswalker `decided`
+    /// deals damage to, in batch order: a creature's is `lethal_damage_owed`'s
+    /// reading, at most 1 once a deathtouch source deals it any (Aegar, the
+    /// Freezing Flame's fourth ruling); a planeswalker's is its loyalty, which
+    /// deathtouch does not touch; a creature planeswalker's the smaller, which
+    /// makes CR 120.10's greatest excess. A battle's joins with its defense
+    /// counters (CR 120.3h, `backlog.md` §2.23).
+    fn lethal_damage_to_recipients<'a>(&self, decided: impl Iterator<Item = &'a GameAction>) -> Vec<(ObjectId, u64)> {
+        let mut recipients: Vec<(ObjectId, bool)> = Vec::new();
+        for action in decided {
+            let GameAction::DealDamage { source, source_lki, target: DamageTarget::Object(id), amount, .. } = action else {
+                continue;
+            };
+            let deathtouch = *amount > 0 && deals_damage_with_keyword(self, *source, source_lki.as_ref(), KeywordFlag::Deathtouch);
+            match recipients.iter_mut().find(|(recipient, _)| recipient == id) {
+                Some((_, any_deathtouch)) => *any_deathtouch |= deathtouch,
+                None => recipients.push((*id, deathtouch)),
+            }
+        }
+        recipients
+            .into_iter()
+            .filter_map(|(id, deathtouch)| {
+                let results = DamageResults::for_object(self, id);
+                let as_creature = results.mark_damage.then(|| lethal_damage_owed(self, id, &[], deathtouch));
+                let as_planeswalker =
+                    results.remove_loyalty.then(|| u64::from(self.counter_count_of(CounterSubject::Object(id), CounterType::Loyalty)));
+                let lethal = match (as_creature, as_planeswalker) {
+                    (Some(creature), Some(planeswalker)) => creature.min(planeswalker),
+                    (Some(lethal), None) | (None, Some(lethal)) => lethal,
+                    (None, None) => return None,
+                };
+                Some((id, lethal))
+            })
+            .collect()
+    }
+
+    /// The part of `amount` dealt to `recipient` past the damage still lethal
+    /// to it in this batch (CR 120.10); 0 for a permanent that is neither a
+    /// creature nor a planeswalker.
+    fn calculate_excess_damage(&self, recipient: ObjectId, amount: u64) -> u64 {
+        self.lethal_damage_left.iter().find(|(id, _)| *id == recipient).map_or(0, |(_, left)| amount.saturating_sub(*left))
+    }
+
+    /// Count `amount` toward the damage still lethal to `recipient`, so the
+    /// batch's later damage to it measures its excess against what is left.
+    fn reduce_lethal_damage_left(&mut self, recipient: ObjectId, amount: u64) {
+        if let Some((_, left)) = self.lethal_damage_left.iter_mut().find(|(id, _)| *id == recipient) {
+            *left = left.saturating_sub(amount);
+        }
+    }
+}
+
+impl GameState {
     /// Execute a game action: mutate state and emit the corresponding event.
     ///
     /// This is the central chokepoint for all game-state mutations that are
@@ -1086,6 +1141,11 @@ impl GameState {
         let mut decided: Vec<BatchMember> = groups.into_iter().flat_map(|g| g.members).collect();
         decided.sort_by_key(|m| m.place);
 
+        // CR 120.10's lethal damage, off the board the batch decided against:
+        // a member's damage marks and removes loyalty as it performs.
+        let lethal_damage = self.lethal_damage_to_recipients(decided.iter().filter_map(|m| m.event.as_ref()));
+        let outer_lethal_damage = std::mem::replace(&mut self.lethal_damage_left, lethal_damage);
+
         // CR 603.10's "immediately prior to the event": a survivor's abilities
         // change only if a decided member removes an ability-changing effect's
         // source, so then the lists are saved now (`LookBackSnapshot`).
@@ -1154,6 +1214,7 @@ impl GameState {
             }
         }
         self.lki_captures.truncate(frames_from);
+        self.lethal_damage_left = outer_lethal_damage;
         performed_ok?;
         self.trace(|| {
             trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
@@ -1420,6 +1481,14 @@ impl GameState {
                 }
 
                 apply_deathtouch_flag(self, source, source_lki.as_ref(), &target);
+                let excess = match target {
+                    DamageTarget::Object(id) => {
+                        let excess = self.calculate_excess_damage(id, amount);
+                        self.reduce_lethal_damage_left(id, amount);
+                        excess
+                    }
+                    DamageTarget::Player(_) => 0,
+                };
 
                 // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
@@ -1443,6 +1512,7 @@ impl GameState {
                     source_lki,
                     target,
                     amount,
+                    excess,
                     is_combat,
                 }, ctx.cause)?;
 
@@ -1592,7 +1662,7 @@ impl GameState {
                     // CR 701.3d: leaving the first host is becoming unattached
                     // from it, in the same event and ahead of the attach.
                     if let (Some(former), Some(moved)) = (unattached_from, self.object_ref(attachment)) {
-                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, ctx.cause)?;
+                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, None, ctx.cause)?;
                     }
                     self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
                 }
@@ -1613,7 +1683,7 @@ impl GameState {
                     return Ok(());
                 };
                 self.detach(attachment);
-                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, ctx.cause)
+                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, None, ctx.cause)
             }
 
             GameAction::Tap { object } => {
@@ -1975,8 +2045,9 @@ impl GameState {
         {
             self.aura_put_into_graveyard_by_the_check(aura);
         }
+        let leaving_frame = lki.clone();
         self.announce_zone_change(object, from, to, act, lki, applied, cause)?;
-        self.announce_unattached_by_leaving(unattached, cause)
+        self.announce_unattached_by_leaving(unattached, leaving_frame, cause)
     }
 
     /// CR 701.3d — what a permanent's leaving the battlefield unattaches,
@@ -2017,14 +2088,16 @@ impl GameState {
     }
 
     /// A leaving's unattaches (`unattached_by_leaving`), announced after its
-    /// own record by the performer that moved it, under the move's cause.
+    /// own record by the performer that moved it, under the move's cause, each
+    /// carrying the leaving object's frame, `leaving_frame`.
     pub(crate) fn announce_unattached_by_leaving(
         &mut self,
         unattached: Vec<(ObjectRef, ObjectRef, UnattachRoute)>,
+        leaving_frame: Option<Lki>,
         cause: EventCause,
     ) -> Result<(), String> {
         for (attachment, former_host, route) in unattached {
-            self.announce_unattached(attachment, former_host, route, cause)?;
+            self.announce_unattached(attachment, former_host, route, leaving_frame.clone(), cause)?;
         }
         Ok(())
     }
@@ -2060,9 +2133,10 @@ impl GameState {
         attachment: ObjectRef,
         former_host: ObjectRef,
         route: UnattachRoute,
+        lki: Option<Lki>,
         cause: EventCause,
     ) -> Result<(), String> {
-        self.emit_event(GameEvent::Unattached { attachment, former_host, route }, cause)?;
+        self.emit_event(GameEvent::Unattached { attachment, former_host, route, lki }, cause)?;
         Ok(())
     }
 

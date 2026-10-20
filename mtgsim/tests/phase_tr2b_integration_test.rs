@@ -255,7 +255,15 @@ fn a_may_whose_damage_is_prevented_still_answers_does() {
     let (life, hand) = (game.players[0].life_total, game.players[0].hand.len());
 
     let ability = top_of_stack(&game);
+    game.record_events();
     game.resolve_top_of_stack(&answering_may(ability, true)).unwrap();
+    assert!(
+        game.recorded_events().events().any(|e| matches!(
+            e,
+            GameEvent::DamagePrevented { target: DamageTarget::Player(0), amount: 2, .. }
+        )),
+        "the 2 were proposed and reached Safe Passage"
+    );
     assert_eq!(game.players[0].life_total, life, "Safe Passage prevented the 2");
     assert_eq!(game.players[0].hand.len(), hand + 1, "and the card is drawn: the answer is the choice");
 }

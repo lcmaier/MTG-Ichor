@@ -224,7 +224,9 @@ that …" and the card or class; or "none — a record". An item is slotted in t
 commit that files it, a phase reads its list at its first ticket (`python
 plans/check_state_of_play.py --slotted <code>`), and `--check` fails on an open
 item with no home, on one slotted only to phases that have landed, and on a
-number used twice in one run.
+number used twice in one run. "The first registered card" is for a fix that is
+mechanical once a card needs it; an item that needs a design decision names a
+phase or a row (`engineering-practices.md` §4, adopted at TR-5d's review).
 
 **What does not belong here (adopted 2026-09-12, RE-6's review).** A wrong
 answer sized under about thirty lines, with a fixture that can prove it, is
@@ -5182,43 +5184,13 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     **Reachability (2026-10-15):** closed — PR #253.
     Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 15".
 
-16. **No event for a prevention effect applying (the trigger survey,
-    2026-09-18).** CR 615.13: "such an ability triggers each time a
-    prevention effect is applied to one or more simultaneous damage events"
-    — 15 cards, Selfless Squire the plain one. The pipeline knows: A4c's
-    `pipeline` record is written at that CR 616.1 iteration. The stream does
-    not.
-
-    **Reachability (2026-09-18):** unreachable — no reader.
-
-    **Sized:** an event emitted by RD-2's shield path, one per prevention
-    applied, ~10 lines; its fields are the doc's.
-
-    **Phase (2026-09-18):** TR-5 — `GameEvent::DamagePrevented`, announced by the prevention leg once per instance per subject group; Selfless Squire is the card; `triggers-architecture.md` §3.12.
-    **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** the record drops `source`, since one
-    subject group can hold several, and keeps `by` a `ReplacementInstanceId`,
-    which "prevented this way" reads.
-    **Record built (2026-10-18, PR #260):** `GameEvent::DamagePrevented`,
-    announced by `apply_replacements` once per effect per recipient it
-    prevented damage to, for the dev GUI's log (item 276). No arm reads it.
-    **Slotted:** TR-5d, the arm over the record, with Selfless Squire
-    (re-slotted from TR-5b at A6p's split).
-
-17. **~~Counters a permanent enters with announce nothing, and the entry
-    record carries no `mods` (the trigger survey, 2026-09-18).~~ — ✅ CLOSED
-    2026-10-17 (PR #258, TR-5b).** — archived.
-    `perform_entry` announces a `CountersPutOn` for each counter row after the
-    entry, in its batch, put on by the row's player or the entering controller
-    (CR 122.6, 122.6a).
-    **Reachability (2026-10-17):** closed — PR #258.
-    Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 17".
-
-18. **~~Three `GameEvent` variants are never emitted (the trigger survey,
-    2026-09-18).~~ — ✅ CLOSED 2026-09-19 (TR-1).** — archived.
-   `PhaseEnd`, `StepEnd` and `TurnEnd` deleted with their `format_event` arms; `CountersAnnihilated` is TR-5's, once CR 704.5q proposes.
-   **Reachability (2026-09-19):** closed — TR-1.
-   Full entry: `plans/archive/codebase-state-closed.md`, "Before Triggered
-   abilities (CR 603)" item 18.
+16. **~~No event for a prevention effect applying (the trigger survey,
+    2026-09-18).~~ — ✅ CLOSED 2026-10-19 (PR #263, TR-5d).** — archived.
+    `TriggerEvent::DamageIsPrevented` reads `DamagePrevented` at its batch's
+    close, one trigger each time a prevention effect is applied to one
+    recipient's damage (CR 615.13). Selfless Squire is registered and pooled.
+    **Reachability (2026-10-19):** closed — PR #263.
+    Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 16".
 
 ### Before Commander (CR 903)
 
@@ -9325,31 +9297,14 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      **Slotted:** with the first registered card whose cost change applies
      by a spell's mana value (Krosan Drover, Thryx).
 
-275. **Delayed triggers from one template and one source still ask their
-     order.** Protean Hydra hit for three makes three delayed triggers, and
-     at the end step the engine asks the order of three identical "put two
-     +1/+1 counters on it". `trigger_order_cannot_change_outcome`
-     (`engine/triggers/placement.rs`) elides the prompt when every entry has
-     one def and agrees on each fact the def reads; the def is shared (each
-     `DelayedTrigger` clones the template's `Arc`), but the `SOURCE` read
-     compares `PendingTrigger::origin`, and a delayed trigger's origin is its
-     own registry number (`AbilityId::delayed`), so no two ever agree.
-     Asking is legal (CR 603.3b lets the player order them), so this is an
-     extra prompt, not a wrong answer. The fix compares the source under
-     `SOURCE` (`ABILITY` already reads what depends on the ability's own
-     identity), and has to check that two delayed triggers' last known
-     information of their source agrees: one made while the source was
-     there and one made after it left keep different `source_lki`. TR-5b's
-     `protean_hydra_triggers_once_for_each_counter_removed` expects the prompt
-     today, and dropping it moves the random agent's stream.
-     **Reachability (2026-10-18):** reachable — an extra prompt with Protean
-     Hydra registered; no answer changes.
-     **Sized:** the `SOURCE` comparison and its LKI check in `entries_agree_on`,
-     ~15 lines of code and ~40 of tests, plus the fixtures and a three-arm A/B
-     for the dropped prompt.
-     **Slotted:** TR-5d, which moves the stream too (Selfless Squire,
-     Panharmonicon); moved from TR-5c at its review (2026-10-18), with excess
-     damage, to keep both phases in the band.
+275. **~~Delayed triggers from one template and one source still ask their
+     order.~~ — ✅ CLOSED 2026-10-19 (PR #263, TR-5d).** — archived.
+     `SOURCE` compares the source by identity and the last known information
+     each entry kept of it, and `AmountExpr::X` reads a new
+     `TriggerBindingReads::X`, so Protean Hydra hit for three asks nothing at
+     the end step and delayed draws of X = 2 and X = 5 still ask.
+     **Reachability (2026-10-19):** closed — PR #263.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 275".
 
 276. **~~Three dev GUI notes from MA-2's manual testing.~~ — ✅ CLOSED 2026-10-18 (PR #260).** — archived.
      The why panel wraps instead of widening, the payment step greys a source
@@ -9463,7 +9418,10 @@ Number 277 was withdrawn in #260 and is not reused.
      the family: each such item names at least one example card where it is
      slotted (44 of the 55 do today), and the check fails when a
      card it names is registered while the item is open, so registering Betor
-     fails on item 280 until it is closed or re-slotted.
+     fails on item 280 until it is closed or re-slotted. Each of the 55 is
+     re-read beside it against `engineering-practices.md` §4's rule (TR-5d's
+     review, 2026-10-20): one that needs a design decision moves to a phase
+     or a row.
      **Reachability (2026-10-18):** reachable — not wrong: a process gap; no
      game answers differently.
      **Sized:** ~80 lines of Python over this file and the registry's names,
@@ -9520,3 +9478,115 @@ Number 277 was withdrawn in #260 and is not reused.
      each ~40 lines with its test.
      **Slotted:** with the first registered card that narrows one (Caller of
      the Claw for deaths).
+
+### Found by TR-5d (2026-10-19)
+
+288. **"Prevented this way" cannot name the effect, nor the damage's source.**
+     `DamageIsPrevented` reads any prevention effect applied to its
+     recipient's damage, which is Selfless Squire's reading (its second
+     ruling). Five triggers watch their own effect instead
+     (`(o:"is prevented" or o:"are prevented") (o:whenever or o:when)`, 6
+     cards less the Squire, 2026-10-19), and their texts (2026-10-20) need
+     three things, not one field:
+     - **CR 607.2h's linked abilities.** Phyrexian Vindicator's static
+       prevention and its "when damage is prevented this way" trigger are
+       printed in one paragraph, so the trigger refers only to that static
+       ability's actions (Outfitted Jouster's too, a digital card). Linked
+       abilities are one of the questions A6s owns.
+     - **The prevented damage's source.** Judgment of Alexander's "whenever
+       damage from a creature is prevented this way ... to that creature" and
+       Samite Ministration's "from a black or red source" ask it, and
+       `DamagePrevented` carries none, by TR-5d's design, since one
+       application can cover several sources. The record would carry each
+       source's share.
+     - **A delayed trigger that remembers the effect its resolution
+       created.** New Way Forward's and Samite Ministration's "this way" is
+       the prevention their own spell made, and New Way Forward's "that
+       source's controller" is its chosen source (CR 609.7a).
+     **Reachability (2026-10-20):** unreachable — no registered card asks
+     which effect prevented the damage or what dealt it.
+     **Sized:** a design first: the record's per-source shares, the arm's
+     `by` naming a linked static ability or a remembered effect, and CR
+     607.2h's link; then ~100–150 lines of code and ~150 of tests, with
+     Phyrexian Vindicator and Samite Ministration.
+     **Slotted:** A6s, the route review, where CR 607's linked abilities are
+     decided (`roadmap-v2.md`); moved from "the first registered card" at
+     TR-5d's review (the owner, 2026-10-20), since the record's shape and the
+     link are design questions rather than a card's.
+
+289. **~~No amount reads the damage, or its excess, that a resolution
+     dealt.~~ — ✅ CLOSED 2026-10-20 (PR #263, TR-5d's review).** — archived.
+     `AmountExpr::DamageDealtThisWay` and `ExcessDamageDealtThisWay` sum the
+     damage records the resolution performed, which the event window holds
+     until it ends (`EventWindow::resolution_records`), from
+     `ResolvingObject::began_at`. Goblin Negotiation is registered and
+     pooled.
+     **Reachability (2026-10-20):** closed — PR #263.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 289".
+
+290. **~~A record's frame for a control change, a kept move or an unattach is
+     read at the match and not at resolution.~~ — ✅ CLOSED 2026-10-20 (PR
+     #263, TR-5d's review).** — archived.
+     At resolution an object still in its zone is read as it is (CR 608.2h),
+     so only two gaps were real: a control change's and a kept move's object
+     as the ability triggers (CR 603.10d), now read off their frames, and an
+     unattach's end that left in the same event, whose frame the record now
+     carries.
+     **Reachability (2026-10-20):** closed — PR #263.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 290".
+
+291. **Three things are each written as several types.** Found at TR-5d's
+     review (the owner, 2026-10-20).
+     - **`Selector`** (35 references) is which objects an amount counts, and
+       each of its five variants is an `ObjectSet::Filter { filter, zones }`:
+       `PermanentsMatching(f)` is `f` on the battlefield, `CardsInHand(p)` the
+       cards in `p`'s hand, `CardsInGraveyard(None)` every graveyard's.
+       `AmountExpr::CountOf` and `CardTypesAmong` take an `ObjectSet`, and
+       `Selector` goes.
+     - **An object or a player, by id,** is four enums, each `Object(ObjectId)
+       | Player(PlayerId)`: `ResolvedTarget` (391 references), `DamageTarget`
+       (359), `CounterSubject` (89) and `EventSubject` (78), which TR-5d's
+       `From` impls convert into the last. `TargetRef` (40) and
+       `ObjectOrPlayer` (25) are the same over an `ObjectRef`. One type for
+       each, the role in the field's name; item 247's three matchers of one
+       shape (`CountersOn`, `TargetSubject`, `DamageRecipient`) fold with it.
+     - **The affected pair.** `ReplacementDef`, `Restriction::Event` and
+       `Restriction::ApplyReplacement` each keep an `ObjectSet` and a
+       `PlayerSet` that union with neither primary, so a player-only effect
+       is written `ObjectSet::NO_OBJECTS` (64 sites) and then
+       `.affecting_players(..)` (61). `PlayerSet`'s reason for being a second
+       set stands: the layer walk reads `ObjectSet` and would reject a player
+       arm. The fix is one type for the pair, CR 614.1's "whatever they're
+       affecting", built from its objects, its players or both, whose one
+       membership test takes the merged id above where `set_affects` takes
+       both halves today.
+     **Reachability (2026-10-20):** reachable — not wrong: a reader's cost.
+     **Sized:** mechanical: `Selector` ~40 lines; the id ~920 references,
+     most a path's rename, and the `From` impls deleted; the pair ~250
+     constructor sites (175 `ReplacementDef::new`, 35 `Restriction::Event`)
+     and `set_affects`' 4 callers. Counted again at A6e's first ticket, and
+     split along these three seams if the PR would pass 2,500.
+     **Slotted:** A6e, beside its naming sweep (`roadmap-v2.md`).
+
+292. **A one-player instruction whose player is gone acts on its controller
+     instead.** `resolve_player_for_self` (`engine/resolve.rs`) finds the one
+     player for 13 primitives: a draw, a discard, a mill, a gain, a loss, a
+     life total set, a scry, a token's controller, an extra turn, a win, a
+     loss of the game, counters, and the top cards put into a hand. For
+     "target player", "that player" and "defending player" it returns the
+     first player its list holds, and `ctx.controller` when the list is
+     empty; every recipient it does not name falls to `ctx.controller` too.
+     Two boards answer wrong:
+     - a spell with a "target player" and another target, whose player
+       became illegal while the other did not: the spell resolves and does
+       nothing to the illegal target (CR 608.2b), but the controller draws;
+     - a "that player" whose binding finds nobody (CR 603.6).
+     Found at TR-5d's review beside `DealDamage`'s `Controller` gap (#263),
+     which was the same shape.
+     **Reachability (2026-10-20):** unreachable — every registered card
+     names one of its arms, and each that targets a player has that one
+     target, so CR 608.2b keeps the whole spell or ability from resolving.
+     **Sized:** the exhaustive match `DealDamage` got, with "no player" an
+     answer that does nothing: ~60–80 lines over the resolver and its 13
+     callers, and a fixture for each board, shown failing first.
+     **Slotted:** A6e (the owner, 2026-10-20), beside item 291.

@@ -59,6 +59,7 @@ pub fn sphere_grid() -> Arc<CardData> {
         source: TriggerSubject::Filter(creature_you_control),
         recipient: DamageRecipient::Player(None),
         combat: Some(true),
+        excess: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
     let counter_on_that_creature = Effect::Atom(

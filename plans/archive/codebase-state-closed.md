@@ -7151,3 +7151,172 @@ cast this turn".
      **Slotted:** TR-5h, whose `HistoryCount` an `AmountExpr` reads; moved
      there at TR-5d's review (2026-10-19), since the log's one way to read
      answers a count as a number.
+
+### 'Before Triggered abilities' item 16 — closed 2026-10-19 by PR #263 (TR-5d)
+
+Closed by TR-5d. `TriggerEvent::DamageIsPrevented { recipient,
+multiplicity }` reads the `DamagePrevented` record #260 announced, at its
+batch's close, so the trigger sees the board the damage left (CR 603.10). One
+record is one application of one effect to one recipient's damage: two
+attackers into a Fog are one trigger, whose "that many" is their total; a
+shield and a Fog each preventing part of one damage are two. An object
+recipient is `EventRole::DamageRecipient`, as on the damage arm. Selfless
+Squire's two rulings are tests, and the card is registered and pooled.
+"Prevented this way" is item 288.
+
+*Original entry:*
+
+16. **No event for a prevention effect applying (the trigger survey,
+    2026-09-18).** CR 615.13: "such an ability triggers each time a
+    prevention effect is applied to one or more simultaneous damage events"
+    — 15 cards, Selfless Squire the plain one. The pipeline knows: A4c's
+    `pipeline` record is written at that CR 616.1 iteration. The stream does
+    not.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** an event emitted by RD-2's shield path, one per prevention
+    applied, ~10 lines; its fields are the doc's.
+
+    **Phase (2026-09-18):** TR-5 — `GameEvent::DamagePrevented`, announced by the prevention leg once per instance per subject group; Selfless Squire is the card; `triggers-architecture.md` §3.12.
+    **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** the record drops `source`, since one
+    subject group can hold several, and keeps `by` a `ReplacementInstanceId`,
+    which "prevented this way" reads.
+    **Record built (2026-10-18, PR #260):** `GameEvent::DamagePrevented`,
+    announced by `apply_replacements` once per effect per recipient it
+    prevented damage to, for the dev GUI's log (item 276). No arm reads it.
+    **Slotted:** TR-5d, the arm over the record, with Selfless Squire
+    (re-slotted from TR-5b at A6p's split).
+
+17. **~~Counters a permanent enters with announce nothing, and the entry
+    record carries no `mods` (the trigger survey, 2026-09-18).~~ — ✅ CLOSED
+    2026-10-17 (PR #258, TR-5b).** — archived.
+    `perform_entry` announces a `CountersPutOn` for each counter row after the
+    entry, in its batch, put on by the row's player or the entering controller
+    (CR 122.6, 122.6a).
+    **Reachability (2026-10-17):** closed — PR #258.
+    Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 17".
+
+18. **~~Three `GameEvent` variants are never emitted (the trigger survey,
+    2026-09-18).~~ — ✅ CLOSED 2026-09-19 (TR-1).** — archived.
+   `PhaseEnd`, `StepEnd` and `TurnEnd` deleted with their `format_event` arms; `CountersAnnihilated` is TR-5's, once CR 704.5q proposes.
+   **Reachability (2026-09-19):** closed — TR-1.
+   Full entry: `plans/archive/codebase-state-closed.md`, "Before Triggered
+   abilities (CR 603)" item 18.
+
+### Item 275 — closed 2026-10-19 by PR #263 (TR-5d)
+
+Closed by TR-5d. The elision's `SOURCE` compares
+`PendingTrigger::origin.source_ref()` and the last known information each
+entry kept of its source (`kept_source_lki`), so two delayed triggers made
+on either side of their source leaving still ask. `AmountExpr::X` reads a new
+`TriggerBindingReads::X`, compared on `x_value` (CR 107.3n). Protean Hydra's
+test asserts its end step asks nothing; the dev GUI's `why_prevented` picture
+stops one question later for it.
+
+*Original entry:*
+
+275. **Delayed triggers from one template and one source still ask their
+     order.** Protean Hydra hit for three makes three delayed triggers, and
+     at the end step the engine asks the order of three identical "put two
+     +1/+1 counters on it". `trigger_order_cannot_change_outcome`
+     (`engine/triggers/placement.rs`) elides the prompt when every entry has
+     one def and agrees on each fact the def reads; the def is shared (each
+     `DelayedTrigger` clones the template's `Arc`), but the `SOURCE` read
+     compares `PendingTrigger::origin`, and a delayed trigger's origin is its
+     own registry number (`AbilityId::delayed`), so no two ever agree.
+     Asking is legal (CR 603.3b lets the player order them), so this is an
+     extra prompt, not a wrong answer. The fix compares the source under
+     `SOURCE` (`ABILITY` already reads what depends on the ability's own
+     identity), and has to check that two delayed triggers' last known
+     information of their source agrees: one made while the source was
+     there and one made after it left keep different `source_lki`. TR-5b's
+     `protean_hydra_triggers_once_for_each_counter_removed` expects the prompt
+     today, and dropping it moves the random agent's stream.
+     **Reachability (2026-10-18):** reachable — an extra prompt with Protean
+     Hydra registered; no answer changes.
+     **Sized:** the `SOURCE` comparison and its LKI check in `entries_agree_on`,
+     ~15 lines of code and ~40 of tests, plus the fixtures and a three-arm A/B
+     for the dropped prompt.
+     **Slotted:** TR-5d, which moves the stream too (Selfless Squire,
+     Panharmonicon); moved from TR-5c at its review (2026-10-18), with excess
+     damage, to keep both phases in the band.
+
+### Item 289 — closed 2026-10-20 by PR #263 (TR-5d's review)
+
+Closed at TR-5d's review, which asked that the phase's own loose ends be
+built rather than filed. "Dealt this way" is read later in the same
+resolution, from the damage records the resolution performed: the event
+window holds a resolution's records until it ends
+(`flush_window_unless_nested`), and `EventWindow::resolution_records` picks
+them out by the resolution's stamp from `ResolvingObject::began_at`. The
+stamp is the cause, so damage the effect has another object deal counts
+(Windswift Slice is a bite that reads "this way") and a rider's or a mana
+ability's does not. `AmountExpr::DamageDealtThisWay`, which errored until
+then, sums the amounts, and `ExcessDamageDealtThisWay` the excess. The first
+build kept a tally on `ResolvingObject`, believing the window gone by then;
+the review's question about its struct found the records still held. Goblin
+Negotiation is registered and pooled, its two rulings tests. "To that
+creature" narrows to one recipient when a card whose resolution damages two
+needs it; the records keep the recipient for that. A condition on the excess, "if excess damage
+was dealt this way", joins with its first card (Torch the Witness needs a
+Clue token too).
+
+*Original entry:*
+
+289. **No amount reads the damage, or its excess, that a resolution dealt.**
+     "If excess damage was dealt this way" and "the excess damage dealt this
+     way" read the `DamageDealt` records the resolving instruction performed,
+     and so does `AmountExpr::DamageDealtThisWay`, which errors at resolution
+     today. 24 cards read the excess: `o:"excess damage" o:"this way"` finds
+     25, less Megatron, Tyrant, whose "if excess damage would be dealt" is CR
+     120.4a's replacement (2026-10-19). Among them are Hell to Pay, Torch the
+     Witness and Bolg of the North, and two reflexive triggers, Rhino's
+     Rampage and Unleash the Inferno. TR-5d's design counted 4, on a query
+     that needed "when" or "whenever".
+     **Reachability (2026-10-19):** unreachable — no registered card reads
+     the damage or the excess a resolution dealt.
+     **Sized:** the resolution's own damage records, read off its batches by
+     source, summed as an amount and as its excess, with a condition on the
+     excess; ~40 lines of code and ~80 of tests.
+     **Slotted:** with the first registered card that reads the damage or the
+     excess dealt this way (Hell to Pay).
+
+### Item 290 — closed 2026-10-20 by PR #263 (TR-5d's review)
+
+Closed at TR-5d's review. The model pass's finding was half right. At
+resolution an object still in its zone is read as it is (CR 608.2h), and a
+control change and a kept move leave the object where it was, so
+resolution should not take their frames. The gaps:
+- As the ability triggers, a control change's object is read as it was
+  before the change (CR 603.10d): `read_at_trigger` takes a control change's
+  and a kept move's frame. A unit test reads a stolen creature at its
+  owner's anthem's 3 power where the board says 2.
+- An unattach whose host or attachment left in the same event now carries
+  that end's frame, handed over by the performer that moved it, and
+  `record_frame` reads it: an Equipment's trigger gaining life equal to its
+  dead host's power reads it with the Equipment's bonus.
+The defending-player condition already answered after a control change:
+CR 508.5 keeps a removed creature's defending player, which the log records.
+
+*Original entry:*
+
+290. **A record's frame for a control change, a kept move or an unattach is
+     read at the match and not at resolution.** CR 603.10c–d look back:
+     the dispatcher matches a `ControlChanged`'s, a `SameZoneMove`'s and an
+     `Unattached`'s object as the record framed it, while `record_frame`
+     (`engine/triggers/binding.rs`), which "its power" and an intervening
+     "if" read at resolution, takes only what `GameEvent::lki` returns: a
+     zone change's, a leaving's and a countered spell's. So such a trigger
+     can match the object as it was and resolve reading it as it is. Found by
+     TR-5d's model pass (`plans/references/duplicate-inventory.md` §3.9,
+     T30).
+     **Reachability (2026-10-19):** unreachable — no registered card reads
+     the characteristics of a control change's, a kept move's or an
+     unattach's object: Grafted Wargear sacrifices it, Ray of Command taps
+     it, and Guerrilla Tactics reads its own source.
+     **Sized:** `GameEvent::lki` returning the three records' frames, and the
+     dispatcher's `SubjectRead` derived from it, ~20 lines of code and ~50
+     of tests.
+     **Slotted:** with the first registered card whose trigger on a control
+     change, a kept move or an unattach reads the object's characteristics.

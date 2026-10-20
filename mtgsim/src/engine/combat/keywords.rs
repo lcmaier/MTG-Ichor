@@ -59,7 +59,9 @@ pub fn should_deal_damage_this_step(
 /// it and the damage `assigned` gives it from other creatures this step. Any
 /// nonzero deathtouch damage is lethal (CR 702.2c), so a deathtouch source owes
 /// at most 1, and a blocker one already assigned to owes nothing more. A
-/// blocker already dealt lethal damage is owed nothing.
+/// blocker already dealt lethal damage is owed nothing. With nothing
+/// assigned, it is CR 120.10's lethal damage too, which a batch's excess
+/// damage is measured past.
 pub fn lethal_damage_owed(
     game: &GameState,
     blocker: ObjectId,

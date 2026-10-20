@@ -724,9 +724,9 @@ and the dated record of every reading stays in `fuzz-record.md`. The
 | Floor | Limit | Reading | Read on | Where |
 |---|---|---|---|---|
 | 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 2026-10-06 | #225's pooled tree on `performance` at Commander scale, 200 games: 17,900 on one thread, 7.26 times that on 16 threads over 8 physical cores |
-| 2. Allocations per clone | ≤ 64 | 39 | 2026-10-19 | `clone_bound_test` in release, 190 checkpoints over 24 Commander games, TR-5h's tree (`stress` 777 at turn 40, and two `performance` games) |
+| 2. Allocations per clone | ≤ 64 | 41 | 2026-10-20 | `clone_bound_test` in release, 191 checkpoints over 24 Commander games, TR-5d's tree, whose two pooled cards change the decks each seed builds |
 | 2. Microseconds per clone | ≤ 10 | 6.9 | 2026-10-06 | the same checkpoints, the median of nine clones at each, the worst checkpoint of three runs |
-| 3. Kilobytes per clone | ≤ 128 | 91.2 | 2026-10-19 | the same checkpoints, `performance` 12364 at turn 100; 2.2 KB lower on average than `main`'s, the summaries gone |
+| 3. Kilobytes per clone | ≤ 128 | 91.3 | 2026-10-20 | the same checkpoints |
 <!-- floors: end -->
 
 **Floor 1 is read under a named stack, as it is read on a named board.** Its
@@ -1307,6 +1307,24 @@ Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
   printed producer", never "nothing owed"; the band above still decides
   *when* it lands, not *whether*. Bold Plagiarist turned out to print the
   shape anyway, on a proposal rather than an entry.
+- **A gap a phase finds in its own subsystem is built in that phase while
+  the band holds** — adopted at TR-5d's review (2026-10-20; the owner: "we're
+  almost at 300 codebase state items, I don't like piling up loose ends").
+  The RE-4 rule above covers an arm the PR's own type opens, and RE-6's
+  (`codebase-state.md`, Deferred Migrations) a wrong answer under thirty
+  lines. TR-5d's close-out filed three items that were neither: an
+  `AmountExpr` arm that refused (item 289), look-back frames read at the
+  wrong moment (290) and "prevented this way" (288). Two were commits, at
+  about 290 and 190 lines, and the PR stayed at 1,586. So the test is the
+  subsystem and the band, not the item's shape: a gap in code the phase
+  already changes, with a printed customer or a fixture, ships in the PR if
+  the PR stays inside 2,500. What is still filed takes one of two slots:
+  - **"With the first registered card that …"** only for a fix that is
+    mechanical once a card needs it: the facility exists, and the card brings
+    the one case it lacks.
+  - **A phase code or a `roadmap-v2.md` row** for an item that needs a design
+    decision, as 288 needs CR 607.2h's linked abilities. A card's registration
+    is not where a design is reviewed.
 
 ---
 

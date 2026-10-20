@@ -992,6 +992,7 @@ fn spirit_link_fixture() -> Arc<CardData> {
         source: TriggerSubject::Host,
         recipient: DamageRecipient::Any,
         combat: None,
+        excess: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
     CardDataBuilder::new("Spirit Link Fixture")

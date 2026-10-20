@@ -122,11 +122,18 @@ impl GameState {
                 .flat_map(|e| e.objects.objects().filter(|(p, _)| named.contains(p)).collect::<Vec<_>>())
                 .collect()
         };
+        // The source by identity, not the origin: a delayed trigger's origin
+        // is its own registry number, which no two share. Two made on either
+        // side of the source leaving carry different information about it
+        // (CR 113.7a).
+        let source = a.origin.source_ref();
+        let same_source = source == b.origin.source_ref() && a.lki_of(source) == b.lki_of(source);
         (unread(TriggerBindingReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))
             && (unread(TriggerBindingReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
             && (unread(TriggerBindingReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))
             && (unread(TriggerBindingReads::CHARACTERISTICS) || (objects(x) == objects(y) && x.first_record() == y.first_record()))
-            && (unread(TriggerBindingReads::SOURCE) || a.origin == b.origin)
+            && (unread(TriggerBindingReads::SOURCE) || same_source)
+            && (unread(TriggerBindingReads::X) || a.x_value == b.x_value)
             && (unread(TriggerBindingReads::ABILITY) || self.ability_state(a) == self.ability_state(b))
             && (unread(TriggerBindingReads::REFERRED) || x.referred == y.referred)
     }

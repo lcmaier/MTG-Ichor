@@ -929,6 +929,10 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         CounterSubject::Object(id) => obj_name(game, id),
         CounterSubject::Player(pid) => format!("P{}", pid),
     };
+    let damage_target_name = |game: &GameState, target: crate::events::event::DamageTarget| match target {
+        crate::events::event::DamageTarget::Object(id) => obj_name(game, id),
+        crate::events::event::DamageTarget::Player(pid) => format!("P{}", pid),
+    };
     match event {
         ZoneChange { object_id, owner, from, to, act, lki, applied, new_epoch: _ } => {
             // The act says what was done and the CR 603.10a frame says every
@@ -1021,25 +1025,21 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 if *tapped_for_mana { " tapped for mana" } else { "" },
             )
         }
-        DamageDealt { source_id, source_lki, target, amount, is_combat } => {
-            let target_str = match target {
-                crate::events::event::DamageTarget::Player(pid) => format!("P{}", pid),
-                crate::events::event::DamageTarget::Object(oid) => obj_name(game, *oid),
-            };
+        DamageDealt { source_id, source_lki, target, amount, excess, is_combat } => {
+            let target_str = damage_target_name(game, *target);
             let source = as_it_left(game, *source_id, source_lki.as_ref(), announced);
+            let excess = if *excess > 0 { format!(", {excess} excess") } else { String::new() };
             format!(
-                "DamageDealt: {} -> {} for {}{}",
+                "DamageDealt: {} -> {} for {}{}{}",
                 source,
                 target_str,
                 amount,
+                excess,
                 if *is_combat { " (combat)" } else { "" },
             )
         }
         DamagePrevented { target, amount, by: _ } => {
-            let target_str = match target {
-                crate::events::event::DamageTarget::Player(pid) => format!("P{}", pid),
-                crate::events::event::DamageTarget::Object(oid) => obj_name(game, *oid),
-            };
+            let target_str = damage_target_name(game, *target);
             format!("DamagePrevented: {} to {} by {}", amount, target_str, cause_words(game, cause))
         }
         PhaseBegin { phase, player } => format!("PhaseBegin: {:?} [P{}]", phase, player),
@@ -1133,7 +1133,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             ),
             None => format!("Attached: {} to {}", obj_name(game, *attachment), obj_name(game, *host)),
         },
-        Unattached { attachment, former_host, route } => format!(
+        Unattached { attachment, former_host, route, lki: _ } => format!(
             "Unattached: {} from {} ({:?})",
             obj_name(game, attachment.id), obj_name(game, former_host.id), route
         ),

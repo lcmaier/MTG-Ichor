@@ -683,6 +683,7 @@ mod tests {
             identity: None,
             trigger: None,
             kept_lki: Vec::new(),
+            began_at: game.events.next_seq(),
         });
 
         assert_eq!(

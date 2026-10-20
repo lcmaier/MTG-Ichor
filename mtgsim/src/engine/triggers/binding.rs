@@ -10,33 +10,44 @@ use std::sync::Arc;
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
-use crate::events::event::EventRecord;
+use crate::events::event::{EventRecord, GameEvent};
 use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{EventRole, Lki, TriggerBinding, TriggerEvent, TriggeringEventObjects};
+use crate::types::triggers::{EventRole, Lki, PendingTrigger, TriggerBinding, TriggerEvent, TriggeringEventObjects};
 
 /// The frame `record` carries for its object `id`, as `arm` reads it: a
-/// departure's CR 603.10a frame for an arm that looks back, and a source
-/// that had left before the event, as it last existed
-/// (`GameEvent::source_lki`). A "from anywhere" arm's object is the object
-/// after the move (CR 603.6c), read where it went.
+/// departure's CR 603.10a frame for an arm that looks back, an unattach's end
+/// that left in the same event (CR 603.10c), and a source that had left
+/// before the event, as it last existed (`GameEvent::source_lki`). A "from
+/// anywhere" arm's object is the object after the move (CR 603.6c), read
+/// where it went.
 pub(crate) fn record_frame<'r>(arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> Option<&'r Lki> {
     if let Some(lki) = record.event.source_lki()
         && lki.object().id == id
     {
         return Some(lki);
     }
-    let (lki, ..) = record.event.lki()?;
+    let lki = match &record.event {
+        GameEvent::Unattached { lki: Some(lki), .. } => lki,
+        _ => record.event.lki()?.0,
+    };
     (arm.looks_back() && lki.object().id == id).then_some(lki)
 }
 
 /// An object of a triggering event, as a condition reads it when the ability
 /// triggers (CR 603.4's first check): as its record framed it
-/// (`record_frame`), and on the board otherwise.
+/// (`record_frame`), or as it was just before a control change (CR 603.10d)
+/// or a move a replacement kept in its zone, which the arm matched it by;
+/// and on the board otherwise. Neither object left, so as the ability
+/// resolves it is read as it is then (CR 608.2h).
 pub(crate) fn read_at_trigger<'r>(arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> CurrentOrLastKnown<'r> {
-    CurrentOrLastKnown { id, lki: record_frame(arm, record, id) }
+    let stayed = match &record.event {
+        GameEvent::ControlChanged { lki, .. } | GameEvent::SameZoneMove { lki, .. } => Some(lki).filter(|lki| lki.object().id == id),
+        _ => None,
+    };
+    CurrentOrLastKnown { id, lki: record_frame(arm, record, id).or(stayed) }
 }
 
 /// Each object of the binding's one triggering event that its record carries
@@ -73,6 +84,13 @@ impl ResolvingObject {
     /// The last known information it carries for `object` (`carried_lki`).
     pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
         carried_lki(object, self.trigger.as_ref(), &self.kept_lki)
+    }
+}
+
+impl PendingTrigger {
+    /// The last known information it carries for `object` (`carried_lki`).
+    pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
+        carried_lki(object, Some(&self.binding), &self.kept_lki)
     }
 }
 
@@ -255,5 +273,67 @@ impl GameState {
                 return Err(format!("{:?} is not a bound fact of a trigger", other));
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_at_trigger;
+    use crate::events::event::GameEvent;
+    use crate::oracle::characteristics::get_effective_power;
+    use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_dp, vanilla_creature};
+    use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+    use crate::engine::targeting::ChosenTargets;
+    use crate::objects::card_data::CardDataBuilder;
+    use crate::types::card_types::CardType;
+    use crate::types::effects::{
+        AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    };
+    use crate::types::triggers::{TriggerEvent, TriggerSubject};
+
+    /// CR 603.10d: as a control change's trigger triggers, its object is read
+    /// as it was just before the change. Under its owner's anthem it was 3/3;
+    /// under its new controller it is 2/2.
+    #[test]
+    fn a_control_changes_object_is_read_as_it_was_when_the_ability_triggers() {
+        let mut game = setup_two_player_game();
+        let anthem = CardDataBuilder::new("Fixture Anthem")
+            .card_type(CardType::Enchantment)
+            .ability(static_ability(Effect::Atom(
+                Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
+                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                )),
+            )))
+            .build();
+        put_on_battlefield(&mut game, anthem, 1);
+        let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+        assert_eq!(get_effective_power(&game, creature), Some(3));
+
+        let spell = put_in_hand(&mut game, CardDataBuilder::new("Fixture Threaten").card_type(CardType::Sorcery).build(), 0);
+        let ctx = ResolutionContext {
+            source: spell,
+            ability_source: None,
+            controller: 0,
+            generated_by: crate::events::cause::GeneratedBy::Spell,
+            targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
+            replaced_amount: None,
+            damage_prevented: None,
+            trigger: None,
+        };
+        let threaten = Effect::Atom(
+            Primitive::GainControl(Duration::UntilEndOfTurn),
+            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        );
+        game.resolve_effect(&threaten, &ctx, &test_dp()).expect("it resolves");
+        game.perform_sba_and_triggers(&test_dp()).expect("the settlement");
+        assert_eq!(get_effective_power(&game, creature), Some(2), "the anthem is its owner's");
+
+        let recorded = game.recorded_events();
+        let record = recorded.records().iter().rev().find(|r| matches!(r.event, GameEvent::ControlChanged { .. })).expect("announced");
+        let arm = TriggerEvent::ControlChanges { subject: TriggerSubject::Any, from: Some(PlayerRef::You), to: None };
+        let read = read_at_trigger(&arm, record, creature).characteristics(&game).expect("it exists");
+        assert_eq!(read.power, Some(3));
     }
 }

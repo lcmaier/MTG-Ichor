@@ -4683,3 +4683,259 @@ code past its 855–1,140 by the scenario's named casts and the reframe, tests
 under their ~780. Twelve integration tests in `phase_tr5h_integration_test`,
 the release-only `history_held_test`, and unit tests in `state::history_log`,
 `state::history` and `state::layer_memo`.
+
+#### TR-5d — prevention and excess damage — ✅ landed 2026-10-19
+
+*Evicted 2026-10-19 from `plans/triggers-architecture.md` §12, where the heading and a stub remain.*
+
+### The plan as designed (TR-5d, as §12 carried it on 2026-10-19)
+
+
+*Designed 2026-10-18 against the tree at `336a0f7` (`main`, #261 merged).
+Re-counted first: the row's 1,995–2,300 counted neither item 279's history
+nor what the card hunt found, and the whole re-counts at 2,660–3,040, so it
+split in two at the brief's seam, with TR-5g below. At review (2026-10-19)
+the history became its own phase, TR-5h above, and this phase keeps the
+damage batch's two records and item 275. Nothing built.*
+
+**Where it sits.** A trigger reads the performed stream. A record is
+announced, `EventKind::from_record` files it, the dispatch matches each
+source's arms, the binding keeps each object by its event role, and
+placement puts the trigger on the stack. The damage batch writes two
+records, and neither reaches an arm whole:
+- `DamagePrevented` has been announced while the batch decides since #260
+  (`engine/replacement/pipeline.rs:673`, item 16), and is filed as unread
+  (`types/triggers.rs:571`). Selfless Squire's second ability reads it.
+- `DamageDealt` says how much damage was dealt, and not how much of it was
+  excess (CR 120.10).
+
+This phase builds the prevention arm and CR 120.10's excess, in the batch,
+on the damage arm and on TR-5h's damage row. Item 275 rides with it, since
+registering Selfless Squire moves the random agent's stream.
+
+**What the re-read found** (CR 615.13, 120.10, 120.4a, 702.2c and 603.10,
+the cards' rulings, and Scryfall's counts on 2026-10-18)
+
+*Prevention*
+- **One printed card triggers on CR 615.13's event.** Selfless Squire:
+  "Whenever damage that would be dealt to you is prevented, put that many
+  +1/+1 counters on this creature." Its first ability's prevention lasts
+  after the Squire leaves (#1), and any prevention effect triggers the
+  second, not only its own (#2). The other five with "is prevented" in a
+  trigger say "prevented this way" (Phyrexian Vindicator, New Way Forward,
+  Outfitted Jouster, Judgment of Alexander, Samite Ministration; `(o:"is
+  prevented" or o:"are prevented") (o:whenever or o:when)`). They ask which
+  effect prevented the damage, which is the record's `by`.
+- **One record is one application.** CR 615.13 triggers "each time a
+  prevention effect is applied to one or more simultaneous damage events".
+  The pipeline applies an effect once per subject group, CR 616.1's affected
+  object or player (`replacement-architecture.md` §9's RD decision 3), and
+  #260 writes one record each time. So two attackers into a Fog at you are
+  one record and one trigger, whose "that many" is their total. A shield and
+  a Fog that each prevent part of one damage are two records. A Fog that
+  prevents damage to you and to your creature is applied twice, once to
+  each, and only the first is "dealt to you".
+
+*Excess damage* (TR-5c's piece 11, kept in the archive as written, re-checked)
+- **The readings** (CR 120.10, and Aegar, the Freezing Flame's rulings).
+  Damage already marked counts (#2). Any damage from a deathtouch source to
+  a creature is lethal, so the rest of it is excess (#4; CR 702.2c, 120.4a),
+  and deathtouch changes nothing for a planeswalker (#4). A creature
+  planeswalker takes the smaller lethal amount (#6). And excess is a fact of
+  the event, "those sources together": two sources into one creature make
+  one excess.
+- **Taken before the batch performs.** A planeswalker's loyalty falls in a
+  removal nested after its damage (`engine/actions.rs:1466`), and damage is
+  marked member by member. So the lethal amounts are taken once the batch has
+  decided its preventions and before it performs (`engine/actions.rs:1082`).
+  Prevented damage is never dealt (CR 615.6), so a Gideon that prevents the
+  damage dealt to it is dealt no excess. Damage that can't be prevented is
+  dealt: Aegar #6's 5/5 creature planeswalker with three loyalty counters,
+  dealt 4, is dealt 1 excess, indestructible or not.
+- **Who reads it** (12 cards, `o:"excess damage" (o:when or o:whenever)`):
+  the arm, "is dealt excess [noncombat] damage" (Aegar, Fall of Cair Andros);
+  "was dealt excess damage this turn" (Maarika, Brutal Gladiator; Overclocked
+  Electromancer), TR-5h's damage row with its excess; and "if excess damage
+  was dealt this way", a resolution's own records (4). Megatron, Tyrant's "if
+  excess damage would be dealt" is CR 120.4a's modification of the event,
+  not 120.10's.
+
+*Item 275* (TR-5c's piece 12, kept in the archive as written). The elision
+compares the origin under `SOURCE` (`engine/triggers/placement.rs:129`), and a
+delayed trigger's origin is its own registry number, so Protean Hydra hit for
+three asks the order of three identical triggers. Comparing the source
+uncovers X (CR 107.3n): two delayed triggers of one template can differ in
+their creator's X, which the elision reads as reading nothing
+(`engine/triggers/binding_reads.rs:265`).
+
+**The pieces**
+1. **The prevention arm** (item 16), §3.3's row with the damage arm's name
+   for its field:
+   ```rust
+   /// "Whenever damage that would be dealt to you is prevented" (CR 615.13):
+   /// once each time a prevention effect is applied to one recipient's
+   /// damage in a batch, however many sources it came from.
+   DamageIsPrevented { recipient: DamageRecipient, multiplicity: Multiplicity },
+   ```
+   - `EventKind::DamagePrevented` leaves `from_record`'s unread list. "That
+     many" is the record's `amount`, and an object recipient's event role is
+     `DamageRecipient`, as on the damage arm. About 16 exhaustive matches
+     take the arm.
+   - **Matched at the batch's close**, though announced while it decides.
+     The dispatch reads the window, so the trigger sees the board after the
+     damage, as CR 603.10 says. The record names no source, so the arm has
+     no `source` field.
+2. **Selfless Squire**, registered and pooled. {3}{W} 1/1 Human Soldier with
+   flash. "When this creature enters, prevent all damage that would be dealt
+   to you this turn" is RD-2's shield with one subject (the shape at
+   `cards/phase_rd_cards.rs:608`). Its second ability is `DamageIsPrevented {
+   recipient: Player(Some(You)), .. }`, putting `TriggeringAmount` +1/+1
+   counters on itself.
+3. **Excess damage** (CR 120.10):
+   - **Decided with the batch.** Between deciding and performing, each
+     permanent the decided damage is dealt to gets the damage still lethal
+     to it. For a creature that is its toughness less its damage marked, or 1
+     if a deathtouch source deals it any; that is `lethal_damage_owed`'s
+     reading (`engine/combat/keywords.rs:63`), shared rather than copied. For
+     a planeswalker it is its loyalty, and for a creature planeswalker the
+     smaller of the two. Battles join with `backlog.md` §2.23, which owns
+     their defense counters (CR 120.3h).
+   - **Each record takes its share.** The batch keeps the amounts on
+     `GameState` while it performs, saved and restored for a nested batch as
+     `prevention_allocations` is (`engine/actions.rs:1053`). Each `DealDamage`
+     performer takes what of its amount is past what is still lethal after
+     the batch's earlier members to the same permanent. So a permanent's
+     excess in one event is the sum of its records', which is CR 120.10's
+     "those sources together". `DamageDealt` gains `excess: u64` (18 literal
+     sites), and `GameAction::DealDamage` does not change. A player's record
+     says 0. The log line names the excess where there is some.
+   - **The arm.** `TriggerEvent::DamageDealt` gains `excess: bool`, "is
+     dealt excess damage", whose "that much" is the excess. It is read once
+     per permanent: the damage arm joins `supports_once_per_subject`, keyed
+     on the recipient, which "one or more creatures you control deal combat
+     damage to a player" will read too. `occurrence_subject` then names an
+     object or a player for both families rather than a `CounterSubject`. The
+     registry refuses `excess` read per record, or with a player recipient.
+   - **The row.** TR-5h's `DealtDamage` row gains the excess, and
+     `ObjectFact::WasDealtExcessDamage` reads it: "was dealt excess damage
+     this turn", two printed cards, under the size at which an arm ships
+     with its type (`engineering-practices.md` §4).
+   - ATOM-120.10-001 on a fixture ("whenever a creature is dealt excess
+     damage, you gain that much life").
+   - *Set aside* (at TR-5c): the permanent's total on each of its records,
+     which every reader would have to read once rather than sum; and a
+     record of its own per permanent, which is no performed event (§3.12a's
+     contract).
+4. **Item 275**, as piece 12 wrote it. `SOURCE` compares
+   `origin.source_ref()` and the source's last known information each entry
+   carries, and `AmountExpr::X` reads a new `TriggerBindingReads::X`, compared
+   on `x_value`. Protean Hydra hit for three asks nothing at the end step,
+   and a fixture's two delayed draws of X = 2 and X = 5 still ask.
+
+**Planned shapes corrected here, with no decision**
+- **§3.3's `DamageIsPrevented { target, multiplicity }`** names its field
+  `recipient`, the damage arm's word for the same `DamageRecipient`.
+- **§3.3's `DamageDealt` row** gains `excess`, and the damage arm reads
+  `OncePerSubject` by its recipient.
+
+**Not in this phase** (each an item at the close-out, slotted with its first
+registered card)
+- "Prevented this way" (5 cards): the arm's `by`.
+- "If excess damage was dealt this way" (4 cards): an amount over a
+  resolution's own records.
+
+**Sized.** Code at 1.5–2× plus tests, counted against the tree on
+2026-10-18. Tests are counted as tests, at TR-5c's 27 lines each:
+
+| Piece | Code | Tests |
+|---|---|---|
+| 1–2. The prevention arm, ~16 matches, its event role and amount; Selfless Squire | ~95 | ~160: Squire #1 and #2; two effects on one damage, two triggers; one effect over two attackers, one; a creature's prevention, not "to you"; an object arm's event role |
+| 3. Excess: the lethal amounts, shared with trample's; the shares, saved for a nested batch; the record's field at 18 sites; the arm's `excess`, per recipient, and its refusals; the row's excess and its fact; the log | ~130 | ~270: ATOM-120.10-001 with damage marked, deathtouch, two sources, a planeswalker, a creature planeswalker (Aegar #6), a prevention; once per permanent; noncombat only; "was dealt excess damage this turn"; the refusals |
+| 4. Item 275 with X | ~15 | ~90: Protean Hydra hit for three; X = 2 and X = 5; a source that left between |
+| **Whole: 880–1,000** | ~240 (360–480) | ~520 |
+
+Docs at the close-out, about 300 more: the stub and the archive,
+`fuzz-record.md`'s block, §3.3's two rows, and the two items above.
+
+**Predictions for the close-out** (re-stated before `close_out.py`; the
+three-arm sitting item 275 carries)
+- *The engine arm, against `main`.* Every gameplay row identical, both pools,
+  two seats and four, but for the games where Protean Hydra's delayed
+  triggers would have asked their order: item 275 drops that prompt, the
+  random agent draws less, and those games diverge from there. The three-arm
+  sitting isolates it: `main`, the tree without item 275's commit, and the
+  tree. No registered card reads a new arm or fact. The event dumps move: a
+  `DamageDealt` line names its excess. Instructions per decision within
+  +0.2%, from the lethal amounts per damage batch.
+- *The shipped arm.* Every dealt game moves once Selfless Squire is pooled,
+  and its stress distortion is reported at two seats and four. It is a 1/1
+  for four that grows only when damage to its controller is prevented, so a
+  small one is expected.
+
+### As landed (2026-10-20)
+
+**Built as designed, then widened at review.** Seven code commits on #263:
+the prevention arm with the Squire unregistered, its registration, excess
+damage, item 275, the close-out's merges; then at review the names, item
+289 with Goblin Negotiation and its registration, and item 290. A rider
+renamed `TriggerBindingReads::NOTHING` and its helpers first, and two dev GUI
+pictures were redrawn.
+
+**What the build corrected.**
+- **`occurrence_subject` names an `EventSubject`**, the replacement
+  pipeline's "what an event is about", so the counters' and the damage's
+  once-per-subject grouping key on one type.
+- **A history row grew from 104 to 112 bytes**: `DealtDamage` is the widest
+  `RowFact`, and `excess` adds 8 bytes to every row. A chunk of sixteen is
+  1,792 bytes, under 2 KB.
+- **The "dealt this way" family is 24 cards**, not 4: `o:"excess damage"
+  o:"this way"` finds 25, less Megatron, Tyrant's CR 120.4a replacement.
+- **`event_log_test` pinned the prevention record as unread**; the arm's
+  commit carries the change.
+- **Two dev GUI pictures moved**: Bolt into a 0/1 logs "for 3, 2 excess",
+  and item 275 removed the end-step prompt `why_prevented` stopped at.
+
+**What the review changed** (the owner, 2026-10-20).
+- **The held-memory gate asserts every game together.** Its decks are built
+  from the registry by a seeded picker, so pooling the Squire changed every
+  seed's decks, and a 42-turn game holding an ordinary 329 KB read 8,018 B a
+  turn alone. The bound was TR-5h's stop-and-report line, not a v1
+  requirement.
+- **Names:** `take_excess_damage` became `calculate_excess_damage`, which
+  only reads, beside `reduce_lethal_damage_left`; `deals_damage_with` became
+  `deals_damage_with_keyword`. `TriggerBindingReads`, 30 of 32 bits used,
+  asserts its width at compile time.
+- **The phase's loose ends, built rather than filed.** Item 289:
+  `AmountExpr::DamageDealtThisWay` and `ExcessDamageDealtThisWay` sum the
+  damage records the resolution performed, which the event window holds
+  until it ends, picked out by the resolution's stamp from
+  `ResolvingObject::began_at`, so a bite's damage counts and a rider's does
+  not; Goblin Negotiation is the card. Item 290, half of what the model pass
+  said: resolution reads an object still in its zone as it is (CR 608.2h),
+  so the gaps were a control change's object as the ability triggers (CR
+  603.10d) and an unattach's departed end, whose frame the record now
+  carries. Item 288 is a design rather than a fix, CR 607.2h's linked
+  abilities and the prevented damage's sources, and went to A6s.
+
+**At the close-out.** Two sittings, the second after the review's code.
+Every prediction held. pre275 read IDENTICAL on both pools at two seats and
+four in both, at +0.13% instructions per decision against `main`; the
+engine arm's +0.50% is over games item 275 moved. Five of 200 `performance`
+games diverge between the two arms, each after Protean Hydra's delayed
+triggers fired together. The audited smoke ran clean; its two turn-limit
+games are Words of Worship standoffs, and one game ran 14.8 s on a correct,
+exponential Pariah and Protean Hydra loop. The clone floors read 41
+allocations and 91.3 KB at worst; the logs held 3,923 B a turn together.
+
+**The model pass** (`plans/references/duplicate-inventory.md` §3.9) named
+five copies the branch made, each merged with no game moved (T25–T29), and
+T30, fixed at review as item 290.
+
+**What it leaves.** Item 288, at A6s. TR-5g next.
+
+**Size.** +1,543/−193 in code and tests (code +691/−169, of it the two
+cards and their registrations +168; tests +852/−24), against 880–1,000 for
+the phase as designed: the review's items 289 and 290 and Goblin
+Negotiation took it into the 1,500–2,500 band. Twenty-six integration tests
+in `phase_tr5d_integration_test`, and a unit test in
+`engine::triggers::binding`.

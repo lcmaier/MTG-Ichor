@@ -81,8 +81,12 @@ pub enum AmountExpr {
     TargetPower,
     /// "equal to that creature's toughness"
     TargetToughness,
-    /// "equal to the damage dealt this way"
+    /// "Equal to the damage dealt this way": what the resolving spell or
+    /// ability's own effect has dealt so far.
     DamageDealtThisWay,
+    /// "Equal to the excess damage dealt this way" (CR 120.10): the part of
+    /// that damage past lethal.
+    ExcessDamageDealtThisWay,
     /// CR 615.5's "that much" / "that many" — the amount the *replaced* event
     /// carried when a CR 615.5 rider was queued.
     ///

@@ -1081,13 +1081,15 @@ fn protean_hydra_triggers_once_for_each_counter_removed() {
 
     counters_on_target(&mut game, 1, hydra, remove(CounterType::PlusOnePlusOne, 3));
     assert_eq!(waiting_from(&game, hydra), 3);
-    // Three delayed triggers from three resolutions, each its own, so their
-    // order is asked (CR 603.3b).
-    let in_order = RecordingDecisionProvider::picking(0);
-    resolve_all_with(&mut game, &in_order);
+    // Each of the three makes a delayed trigger, which reads everything, so
+    // their order is asked (CR 603.3b).
+    resolve_all_with(&mut game, &RecordingDecisionProvider::picking(0));
 
+    // The three delayed triggers share a def and a source still there, so
+    // they go on the stack unasked: a scripted provider with nothing queued
+    // is the assertion.
     begin_step(&mut game, StepType::End, 0);
-    resolve_all_with(&mut game, &in_order);
+    resolve_all_with(&mut game, &ScriptedDecisionProvider::new());
     assert_eq!(plus_counters(&game, hydra), 1 + 6);
 }
 

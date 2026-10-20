@@ -122,6 +122,11 @@ pub enum GameEvent {
         source_id: ObjectId,
         target: DamageTarget,
         amount: u64,
+        /// CR 120.10: how much of `amount` was past the damage still lethal
+        /// to the permanent after the batch's earlier damage to it, so its
+        /// records' excess sums to the event's. 0 for a player, and for a
+        /// permanent that is neither a creature nor a planeswalker.
+        excess: u64,
         is_combat: bool,
         /// The proposal's `source_lki`: the source as it last existed, when
         /// it dealt the damage after leaving its zone, so a trigger asking
@@ -405,7 +410,11 @@ pub enum GameEvent {
     /// the event (CR 400.7): a host that left is gone by the time a trigger's
     /// "that permanent" is read (Grafted Wargear's first ruling). What caused
     /// it is the stamp's, not the route's.
-    Unattached { attachment: ObjectRef, former_host: ObjectRef, route: UnattachRoute },
+    ///
+    /// `lki` is the end that left the battlefield in this event, as it left,
+    /// for the two leaving routes (CR 603.10c): the attachment's or the former
+    /// host's frame, the one its own departure's record carries.
+    Unattached { attachment: ObjectRef, former_host: ObjectRef, route: UnattachRoute, lki: Option<Lki> },
 
     /// A permanent's controller became `to` from `from` (CR 613.1b): a
     /// control-changing effect started or ended. No performer does this, so

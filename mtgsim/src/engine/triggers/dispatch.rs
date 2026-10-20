@@ -34,6 +34,7 @@ use crate::engine::targeting::HeldFrame;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
+use crate::engine::replacement::EventSubject;
 use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
@@ -1306,7 +1307,7 @@ impl GameState {
         let mut matches: Vec<MatchedTrigger> = Vec::new();
         // "One or more" accumulates across the window: (identity, event, and
         // for a once-per-subject arm the subject) -> index into `matches`.
-        let mut once: Vec<((AbilityIdentity, EventIndex, Option<CounterSubject>), usize)> = Vec::new();
+        let mut once: Vec<((AbilityIdentity, EventIndex, Option<EventSubject>), usize)> = Vec::new();
 
         // The window's newcomers: a window is one event (§4.1), so each was
         // somewhere else immediately before every record of it.
@@ -1658,34 +1659,23 @@ impl GameState {
                 triggering_event_if(self.mana_added_arm_matches(arm, producer, added, referents, seq))
             }
             (
-                TriggerEvent::DamageDealt { source, recipient, combat, .. },
-                GameEvent::DamageDealt { source_id, target, is_combat, .. },
+                TriggerEvent::DamageDealt { source, recipient, combat, excess, .. },
+                GameEvent::DamageDealt { source_id, target, is_combat, excess: dealt_excess, .. },
             ) => {
-                let to = match (recipient, target) {
-                    (DamageRecipient::Any, _) => true,
-                    (DamageRecipient::Player(who), DamageTarget::Player(pid)) => {
-                        who.as_ref().is_none_or(|p| self.player_ref_is(p, *pid, referents))
-                    }
-                    (DamageRecipient::Object(filter), DamageTarget::Object(id)) => match filter {
-                        None => true,
-                        Some(filter) => self.subject_matches(
-                            &TriggerSubject::Filter(filter.clone()),
-                            Some(*id),
-                            referents,
-                            seq,
-                            SubjectRead::Now,
-                        ),
-                    },
-                    (DamageRecipient::Player(_), DamageTarget::Object(_))
-                    | (DamageRecipient::Object(_), DamageTarget::Player(_)) => false,
-                };
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
                 let source_read = record.event.source_lki().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
                 triggering_event_if(
-                    to && combat.is_none_or(|c| c == *is_combat)
+                    self.damage_recipient_matches(recipient, *target, referents, seq)
+                        && combat.is_none_or(|c| c == *is_combat)
+                        && (!*excess || *dealt_excess > 0)
                         && self.subject_matches(source, Some(*source_id), referents, seq, source_read),
                 )
+            }
+            // Announced as the batch decided, and read at its close, so the
+            // recipient is asked as the damage left it (CR 603.10).
+            (TriggerEvent::DamageIsPrevented { recipient, .. }, GameEvent::DamagePrevented { target, .. }) => {
+                triggering_event_if(self.damage_recipient_matches(recipient, *target, referents, seq))
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
                 triggering_event_if(phase == rp && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
@@ -1938,6 +1928,7 @@ impl GameState {
                 | TriggerEvent::DrawsCard { .. }
                 | TriggerEvent::ManaAdded { .. }
                 | TriggerEvent::DamageDealt { .. }
+                | TriggerEvent::DamageIsPrevented { .. }
                 | TriggerEvent::PhaseBegins { .. }
                 | TriggerEvent::StepBegins { .. }
                 | TriggerEvent::TurnBegins { .. }
@@ -2121,6 +2112,30 @@ impl GameState {
         self.mana_added_arm_matches(arm, producer, added, &referents, self.events.next_seq())
     }
 
+    /// Whether damage dealt, or prevented, to `target` is to the player or
+    /// permanent `recipient` names; a permanent is read now.
+    fn damage_recipient_matches(
+        &self,
+        recipient: &DamageRecipient,
+        target: DamageTarget,
+        referents: &TriggerReferents<'_>,
+        seq: EventId,
+    ) -> bool {
+        match (recipient, target) {
+            (DamageRecipient::Any, _) => true,
+            (DamageRecipient::Player(who), DamageTarget::Player(pid)) => {
+                who.as_ref().is_none_or(|p| self.player_ref_is(p, pid, referents))
+            }
+            (DamageRecipient::Object(filter), DamageTarget::Object(id)) => match filter {
+                None => true,
+                Some(filter) => {
+                    self.subject_matches(&TriggerSubject::Filter(filter.clone()), Some(id), referents, seq, SubjectRead::Now)
+                }
+            },
+            (DamageRecipient::Player(_), DamageTarget::Object(_)) | (DamageRecipient::Object(_), DamageTarget::Player(_)) => false,
+        }
+    }
+
     /// "Which object" (§3.3): `This` is the source itself, `Host` what it is
     /// attached to, a filter is read against the subject — as `read` says.
     /// `seq` is the record's, which a remembered source's own departure is.
@@ -2234,6 +2249,7 @@ impl GameState {
             | TriggerEvent::IsCountered { .. }
             | TriggerEvent::ControlChanges { .. } => self.single_object(&record.event),
             TriggerEvent::DamageDealt { .. } => self.damage_objects(&record.event),
+            TriggerEvent::DamageIsPrevented { .. } => self.prevention_objects(&record.event),
             TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } => {
                 match &record.event {
                     GameEvent::CountersPutOn { subject: CounterSubject::Object(id), .. }
@@ -2297,6 +2313,17 @@ impl GameState {
         };
         match (source, recipient) {
             (Some(source), Some(recipient)) => TriggeringEventObjects::Damage { source, recipient },
+            _ => TriggeringEventObjects::NoObject,
+        }
+    }
+
+    /// The object a prevention effect prevented damage to; a player is
+    /// none.
+    fn prevention_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
+        match event {
+            GameEvent::DamagePrevented { target: DamageTarget::Object(id), .. } => self
+                .subject_after(event, *id)
+                .map_or(TriggeringEventObjects::NoObject, |recipient| TriggeringEventObjects::Prevention { recipient }),
             _ => TriggeringEventObjects::NoObject,
         }
     }

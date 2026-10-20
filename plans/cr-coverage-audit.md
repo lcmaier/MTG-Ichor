@@ -594,6 +594,14 @@ is derivable; where each name was read is not, and the gate needs the names.
   - `settled_layer_epoch`: the layer epoch the last settlement of the
     layers' consequences read (`engine::layer_settlement`), its gate. A fact
     about the settlement, not the game, like `control_effects_at_last_sweep`.
+- **Added by TR-5d (2026-10-19)**:
+  - `lethal_damage_left`: CR 120.10's lethal damage for the batch being
+    performed, each creature or planeswalker its damage is dealt to and how
+    much more is lethal, taken before any member performs and spent by each
+    `DealDamage`, so a record carries its share of the event's excess. Empty
+    outside a batch, saved for a nested one as `prevention_allocations` is.
+    A battle's lethal amount is its defense, which joins with CR 120.3h's
+    counters (`backlog.md` §2.23); nothing else in CR 120.10 is unasked.
 
 ---
 

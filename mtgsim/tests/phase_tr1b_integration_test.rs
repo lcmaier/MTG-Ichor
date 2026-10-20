@@ -204,6 +204,7 @@ fn dread_shaped() -> Arc<CardData> {
         source: a_creature().into(),
         recipient: DamageRecipient::Player(Some(PlayerRef::You)),
         combat: None,
+        excess: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
     let from_anywhere = TriggerEvent::ZoneChange {

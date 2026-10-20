@@ -536,11 +536,11 @@ impl GameState {
             Primitive::DealDamage { amount: amount_expr, unpreventable } => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
                 let targets: Vec<DamageTarget> = match recipient {
-                    // CR 119.3 — damage is dealt to permanents and players, so
+                    // CR 120.1 — damage is dealt to permanents and players, so
                     // a zone-reaching recipient has nothing to be dealt to.
                     EffectRecipient::FilteredObjectsIn(..) => {
                         return Err(format!(
-                            "a `Primitive::DealDamage` on {:?} has a zone-reaching recipient (CR 119.3)",
+                            "a `Primitive::DealDamage` on {:?} has a zone-reaching recipient (CR 120.1)",
                             ctx.source
                         ));
                     }
@@ -550,7 +550,35 @@ impl GameState {
                         .filter(|&id| self.matches_for_effect(id, filter, ctx))
                         .map(DamageTarget::Object)
                         .collect(),
-                    _ => targets
+                    // "Deals 2 damage to you": Char, a painland.
+                    EffectRecipient::Controller => vec![DamageTarget::Player(ctx.controller)],
+                    EffectRecipient::Implicit => {
+                        return Err(format!(
+                            "a `Primitive::DealDamage` on {:?} names no recipient; damage is dealt to \
+                             a permanent or a player (CR 120.1), and \"you\" is `Controller`",
+                            ctx.source
+                        ));
+                    }
+                    // Refused at the atom until its card: once the Aura has
+                    // left, "enchanted creature" is what it last enchanted
+                    // (CR 608.2h), which the live attachment no longer says.
+                    EffectRecipient::Host => {
+                        return Err(format!("a `Host` recipient on a `Primitive::DealDamage` on {:?} is not built", ctx.source));
+                    }
+                    EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
+                    // Each of these was found before the primitive, into
+                    // `targets`.
+                    EffectRecipient::ThisObject
+                    | EffectRecipient::Target(..)
+                    | EffectRecipient::Choose(..)
+                    | EffectRecipient::Triggering(_)
+                    | EffectRecipient::TriggeringPlayer
+                    | EffectRecipient::Referred
+                    | EffectRecipient::AttackedBy(_)
+                    | EffectRecipient::DefendingPlayer(_)
+                    | EffectRecipient::EachOf(_)
+                    | EffectRecipient::Group(_)
+                    | EffectRecipient::ChosenBy(_) => targets
                         .iter()
                         .map(|t| match t {
                             ResolvedTarget::Object(id) => DamageTarget::Object(*id),
@@ -2427,6 +2455,16 @@ impl GameState {
 
     // --- Helper: evaluate AmountExpr ---
 
+    /// Where the resolution in progress starts in the event window: the
+    /// number its first record would take, whatever that record turns out to
+    /// be. "Dealt this way" reads the resolution's damage records from there.
+    fn resolution_began_at(&self) -> Result<crate::events::event::EventId, String> {
+        self.resolving
+            .as_ref()
+            .map(|resolving| resolving.began_at)
+            .ok_or_else(|| "damage dealt this way has no meaning outside a resolution".to_string())
+    }
+
     pub(crate) fn evaluate_amount(
         &self,
         expr: &AmountExpr,
@@ -2517,8 +2555,21 @@ impl GameState {
             AmountExpr::TargetToughness => {
                 Err("TargetToughness amount resolution not yet implemented".to_string())
             }
-            AmountExpr::DamageDealtThisWay => {
-                Err("DamageDealt amount resolution not yet implemented".to_string())
+            // The damage records this resolution performed, whichever object
+            // dealt them (Windswift Slice's creature); a rider's or a mana
+            // ability's are another resolution's. The window holds them
+            // until the resolution ends.
+            AmountExpr::DamageDealtThisWay | AmountExpr::ExcessDamageDealtThisWay => {
+                let excess_only = matches!(expr, AmountExpr::ExcessDamageDealtThisWay);
+                Ok(self
+                    .events
+                    .resolution_records(_ctx.stamp(), self.resolution_began_at()?)
+                    .map(|record| match &record.event {
+                        GameEvent::DamageDealt { excess, .. } if excess_only => *excess,
+                        GameEvent::DamageDealt { amount, .. } => *amount,
+                        _ => 0,
+                    })
+                    .sum())
             }
             // CR 615.5's "that much"/"that many". Only a rider sets the field, so
             // outside a `ReplacementDef::then` this leaf asks a question its context

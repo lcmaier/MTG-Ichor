@@ -75,6 +75,9 @@ pub enum ObjectFact {
     Entered,
     /// Was dealt damage (CR 120.3).
     WasDealtDamage,
+    /// Was dealt excess damage (CR 120.10): damage past lethal, the batch's
+    /// sources together.
+    WasDealtExcessDamage,
     /// Dealt damage to a player (CR 120.1), only combat damage when `combat`
     /// (CR 510.2). `None` is any player, `Some(You)` the asker's "you".
     DealtDamageTo { player: Option<PlayerRef>, combat: bool },

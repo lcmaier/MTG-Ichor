@@ -37,6 +37,117 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-20 for TR-5d** (#263: prevention and excess damage;
+items 16, 275, 289 and 290). Selfless Squire and Goblin Negotiation join
+the registry and the pool (208 → 210 registered, 118 → 120 pooled), so both
+§3 columns are new baselines. Two `close_out.py` sittings against **main**
+`185d4d9` (#262's merge), the second after review added items 289 and 290
+and Goblin Negotiation; this block is the second's, which read the first's
+engine numbers again. Three arms beside `main`, because item 275 drops a
+prompt: **pre275** `55c5f81`, every engine commit with item 275's two
+comparisons reverted, and **engine** `266f1b8`, every engine commit, both
+with the two cards unregistered, throwaway commits cut for the sitting and
+never pushed; and **shipped** `5a657f6`.
+
+**Predictions, before any arm ran** (the PR body): pre275 identical to
+`main` everywhere; engine moved only by games where Protean Hydra's delayed
+triggers fire together; instructions per decision within +0.2%; shipped
+moving every dealt game, its stress distortion small; a history row 104 →
+112 bytes, the clone floors still.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, pre275 vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Memo hits`, `main` → pre275, performance / stress | 50,783 → 50,810 / 52,577 → 52,595 | 156,560 → 156,623 / 170,239 → 170,289 |
+| audit, pre275, dispatches agreed, performance / stress | 171,563 / 160,706 | 340,483 / 346,229 |
+| gameplay rows, engine vs `main`, performance / stress | differ (item 275) / differ | differ / differ |
+| audit, engine, dispatches agreed, performance / stress | 171,456 / 161,282 | 339,668 / 345,702 |
+| audit, shipped, dispatches agreed, performance / stress | 176,057 / 171,731 | 339,366 / 358,393 |
+| `stress` avg turns, engine → shipped, 200 games | 23.6 → 24.9 | 48.5 → 50.0 |
+| `stress` avg turns, engine → shipped, 400 games, seeds 12345 / 777 | 24.5 → 25.2 / 26.7 → 27.2 | 49.1 → 50.1 / 51.4 → 51.7 |
+| instructions / decision, pre275 vs `main`, callgrind, the Commander board | | 0.7481 M → 0.7491 M, **+0.13%** |
+| instructions / decision, engine vs `main`, the same board (first sitting) | | 0.7483 M → 0.7520 M, +0.50%, over moved games |
+
+**Every prediction held, the budget read where the counters agree.** The
+budget is read at identical counters, which only pre275 has: +0.13% in both
+sittings, the lethal amounts taken per damage batch, and `Memo hits` rising
+by the walks they ask. Items 289 and 290 moved no game: pre275 and engine
+read the first sitting's numbers again. The engine arm's +0.50% is over
+other games, since item 275 moves the callgrind board's own (74.3 → 73.5
+turns, 494 → 491 decisions). Game by game, 5 of 200 `performance` games at
+two seats diverge between pre275 and engine, each after Protean Hydra's
+delayed triggers fired together. In two, the first differing event is
+their order. In the other three, the first differing event is later, since
+a prompt leaves no event of its own (dumps repeat byte for byte across runs
+and hash seeds).
+
+**Reachability**, shipped, 200 games forced: Selfless Squire cast 184 times
+in 124 games at two seats and 110 in 91 at four; Goblin Negotiation 173 in
+121 and 95 in 87.
+
+**The two cards lengthen `stress` games a little**, by up to 1.5 turns at
+four seats and under one at two, across three readings.
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
+shipped: 0 errors and 0 panics everywhere, every dispatch agreed (1,031,920
+/ 923,703 at two seats, 1,717,545 / 1,908,254 at four). Two `stress` games
+hit the turn limit, seed 810 at two seats and 1238 at four, both the Words
+of Worship standoff recorded before. One `performance` two-seat game, seed
+1181, ran 14.8 s with 49,134 triggers: player 0's Pariah enchants player 1's
+Protean Hydra, so each time the Hydra attacks player 0 its own damage is
+dealt to it, prevented, and returns as twice the counters at the end step,
+one trigger per counter removed (its fourth ruling). The prevented amounts
+run 6 × 2¹², so the game is right and exponential; item 275 makes it
+cheaper, since those triggers no longer ask their order.
+
+**Memory.** A history row is 112 bytes, from 104. `history_held_test`
+(release only, outside CI) asserts every game together since the review
+(the owner, 2026-10-20): 3,923 B a turn over 1,630 turns on shipped, against
+`main`'s 3,592. Asserted one game at a time it had failed once the Squire was
+pooled: the changed decks built a 42-turn game holding an ordinary 329 KB,
+8,018 B a turn. The clone test reads 41 allocations and 91.3 KB at worst on
+shipped, over 191 checkpoints.
+
+**The ratchet** re-bases on shipped, which moves the stream.
+
+**Copies** (`close_out.py`'s report against `main`, and the model pass,
+`plans/references/duplicate-inventory.md` §3.9): five merged after the first
+sitting, 50 audited games on both pools at two seats and four playing the
+shipped arm's exactly; T30 fixed at review as item 290.
+
+**§3 fixture rows, shipped `5a657f6`, two seats, 50 games / seed 12345.**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 24 (48.0%) / 25 (50.0%) | 28 (56.0%) / 21 (42.0%) |
+| Wins by effect | 1 | 1 |
+| Avg turns | 27.2 | 24.8 |
+| Spells cast | 20.9 | 19.7 |
+| Lands played | 16.2 | 15.0 |
+| Combat w/ atk | 11.0 | 8.6 |
+| Creatures died | 7.7 | 5.0 |
+| Damage events | 24.9 | 20.3 |
+| Total damage | 64.0 | 55.2 |
+| Life changes | 16.9 | 14.0 |
+| **Layer walks** | **384** | **406** |
+| **Board walks** | **214** | **224** |
+| **Memo hits** | **49,691** | **59,192** |
+| **Layer frames** | **3,938** | **4,371** |
+| **Frames/walk** | **10.24** | **10.77** |
+| **Dependency checks** | **8** | **11** |
+| **Replacement gathers** | **946** | **914** |
+| **Restriction queries** | **949** | **916** |
+| Mana productions | 64 | 75 |
+| Replacement prompts | 0.24 | 0.52 |
+| Max batch depth | 4 | 4 |
+| Decisions | 181 | 224 |
+| Priority decisions | 65 | 91 |
+| Actions reversed | 0.0 | 0.1 |
+| Triggers placed | 7.7 | 3.4 |
+| Windows past gate | 66.6 | 59.7 |
+| Candidate visits | 97.7 | 79.3 |
+| Trigger matches | 7.7 | 3.7 |
+
 **Measured 2026-10-19 for TR-5h** (#262: one history of what happened;
 item 280 and item 279's damage half). No card registered and no pool
 changed, so no §3 table is re-recorded. One `close_out.py` sitting against

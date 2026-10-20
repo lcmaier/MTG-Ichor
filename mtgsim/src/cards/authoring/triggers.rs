@@ -20,7 +20,7 @@ use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
 use crate::types::card_types::CardType;
 use crate::types::triggers::{
-    AttackOccurrence, BlockOccurrence, CountersOn, TargetSubject, TargetedBy, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
+    AttackOccurrence, BlockOccurrence, CountersOn, DamageRecipient, TargetSubject, TargetedBy, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
     ReflexiveForm, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
@@ -195,6 +195,7 @@ impl CountableEvent {
             TriggerEvent::ZoneChange { multiplicity, .. }
             | TriggerEvent::DrawsCard { multiplicity, .. }
             | TriggerEvent::DamageDealt { multiplicity, .. }
+            | TriggerEvent::DamageIsPrevented { multiplicity, .. }
             | TriggerEvent::GainsLife { multiplicity, .. }
             | TriggerEvent::LosesLife { multiplicity, .. }
             | TriggerEvent::EntersBattlefield { multiplicity, .. }
@@ -335,6 +336,13 @@ fn reflexive(form: ReflexiveForm, event: TriggerEvent, effect: Effect, rules_tex
 /// drawn.
 pub fn draws_a_card(whose: Whose) -> CountableEvent {
     CountableEvent(TriggerEvent::DrawsCard { player: whose.player_ref(), multiplicity: Multiplicity::PerOccurrence, place: None })
+}
+
+/// "Whenever damage that would be dealt to [recipient] is prevented" (CR
+/// 615.13): one trigger for each prevention effect applied to that
+/// recipient's damage.
+pub fn damage_to_is_prevented(recipient: DamageRecipient) -> CountableEvent {
+    CountableEvent(TriggerEvent::DamageIsPrevented { recipient, multiplicity: Multiplicity::PerOccurrence })
 }
 
 /// "Whenever a spell [whose player]'s cast is countered" (CR 701.6a): "a spell

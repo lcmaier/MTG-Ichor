@@ -88,13 +88,28 @@ pub(crate) enum EventSubject {
     Player(PlayerId),
 }
 
+impl From<DamageTarget> for EventSubject {
+    fn from(target: DamageTarget) -> Self {
+        match target {
+            DamageTarget::Object(id) => EventSubject::Object(id),
+            DamageTarget::Player(player) => EventSubject::Player(player),
+        }
+    }
+}
+
+impl From<CounterSubject> for EventSubject {
+    fn from(subject: CounterSubject) -> Self {
+        match subject {
+            CounterSubject::Object(id) => EventSubject::Object(id),
+            CounterSubject::Player(player) => EventSubject::Player(player),
+        }
+    }
+}
+
 /// The object or player a proposed action is about.
 pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
     match action {
-        GameAction::DealDamage { target, .. } => match target {
-            DamageTarget::Object(id) => EventSubject::Object(*id),
-            DamageTarget::Player(pid) => EventSubject::Player(*pid),
-        },
+        GameAction::DealDamage { target, .. } => EventSubject::from(*target),
         GameAction::DrawCards { player, .. } => EventSubject::Player(*player),
         GameAction::DrawCard { player, .. } => EventSubject::Player(*player),
         GameAction::GainLife { player, .. } => EventSubject::Player(*player),
@@ -110,12 +125,7 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         GameAction::CreateTokenIn { object, .. } => EventSubject::Object(*object),
         // CR 122.1's "on an object or player": CR 616.1's chooser is the
         // permanent's controller or the player getting them.
-        GameAction::AddCounters { subject, .. } | GameAction::RemoveCounters { subject, .. } => {
-            match subject {
-                CounterSubject::Object(id) => EventSubject::Object(*id),
-                CounterSubject::Player(pid) => EventSubject::Player(*pid),
-            }
-        }
+        GameAction::AddCounters { subject, .. } | GameAction::RemoveCounters { subject, .. } => EventSubject::from(*subject),
         GameAction::Attach { attachment, .. } | GameAction::Unattach { attachment } => EventSubject::Object(*attachment),
         // CR 616.1's "affected object": the token, whose owner chooses.
         GameAction::TokenCeasesToExist { object } => EventSubject::Object(*object),

@@ -220,6 +220,11 @@ pub struct ResolvingObject {
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
     /// The last known information the entry kept, and any its own effect adds.
     pub kept_lki: Vec<crate::types::triggers::Lki>,
+    /// Where this resolution starts in the event window: the number its first
+    /// record would take, whatever that record is. A later instruction reads
+    /// the earlier ones' records from here (`EventWindow::resolution_records`),
+    /// for "the damage dealt this way".
+    pub began_at: crate::events::event::EventId,
 }
 
 /// One CR 500.7 extra turn in the queue: who takes it, and which turn it is.
@@ -616,6 +621,16 @@ pub struct GameState {
     /// restored by `execute_batch_inner` with `entry_selection`.
     pub(crate) prevention_allocations: PreventionAllocationScope,
 
+    /// CR 120.10's lethal damage, for the batch being performed: each
+    /// creature or planeswalker its decided damage is dealt to, and how much
+    /// more damage is still lethal to it. Taken once the batch has decided and
+    /// before any member performs, since damage is marked and loyalty removed
+    /// member by member; each `DealDamage` takes its share, so a permanent's
+    /// excess in one event is the sum of its records' ("those sources
+    /// together"). Saved and restored by `execute_batch_inner`, as a nested
+    /// batch is another event.
+    pub(crate) lethal_damage_left: Vec<(ObjectId, u64)>,
+
     /// How deep inside itself the engine is right now, on three axes
     /// ([`NestingGuards`]).
     pub(crate) nesting: NestingGuards,
@@ -1001,6 +1016,7 @@ impl GameState {
             nesting: NestingGuards::default(),
             rider_lineage: None,
             prevention_allocations: PreventionAllocationScope::default(),
+            lethal_damage_left: Vec::new(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
             pending_triggers: Vec::new(),

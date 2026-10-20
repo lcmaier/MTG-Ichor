@@ -605,7 +605,9 @@ critical path, which lists neither; that is the owner's line to add.
   printings); CR 120.3h's result arm, which is one flag on RD-1's
   `engine::actions::DamageResults` and one block beside CR 120.3c's, and is
   blocked on the card type rather than on the arm (`codebase-state.md`
-  item 87).
+  item 87). CR 120.10's excess for a battle is past its defense: one arm in
+  `engine::actions`' `lethal_damage_to_recipients`, which reads a creature's
+  and a planeswalker's today (TR-5d).
 - **Atoms** — none filed under `Backlog` yet; CR 310's are in Phase 8.
 - **The defeat waits on its own trigger** (the feedback-loop census,
   2026-10-06). CR 704.5v puts a battle with defense 0 into its owner's
