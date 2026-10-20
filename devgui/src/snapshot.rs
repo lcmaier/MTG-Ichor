@@ -11,7 +11,7 @@ use std::sync::Arc;
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
 use mtgsim::engine::resolve::ResolvedTarget;
-use mtgsim::events::event::EventSeq;
+use mtgsim::events::event::EventId;
 use mtgsim::oracle::characteristics::has_summoning_sickness;
 use mtgsim::scenario::Scenario;
 use mtgsim::state::game_state::GameState;
@@ -53,7 +53,7 @@ pub struct Snapshot {
 /// event's place in the performed stream, which a why about it names.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LogLine {
-    pub event: EventSeq,
+    pub event: EventId,
     pub text: String,
 }
 

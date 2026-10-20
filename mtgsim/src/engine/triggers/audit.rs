@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 use super::dispatch::{LookBackSnapshot, MatchedTrigger, ObjectSnapshot, TriggerCandidate, TriggerCandidateFrame};
 use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
-use crate::events::event::{BatchId, EventRecord, EventSeq};
+use crate::events::event::{BatchId, EventRecord, EventId};
 use crate::objects::card_data::CardDataBuilder;
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::diagnostics::Diagnostics;
@@ -117,7 +117,7 @@ impl GameState {
     /// answer is the dispatcher's.
     pub(super) fn audit_dispatch(
         &mut self,
-        window: &[EventSeq],
+        window: &[EventId],
         snapshots: &[LookBackSnapshot],
         engine: &[MatchedTrigger],
     ) {
@@ -171,10 +171,10 @@ impl GameState {
     /// reads everything off the list now.
     fn matches_without_shortcuts(
         &self,
-        window: &[EventSeq],
+        window: &[EventId],
         snapshots: &[LookBackSnapshot],
     ) -> Vec<MatchedTrigger> {
-        let records: Vec<(EventSeq, &EventRecord)> =
+        let records: Vec<(EventId, &EventRecord)> =
             window.iter().filter_map(|seq| self.events.record(*seq).map(|r| (*seq, r))).collect();
         let every_snapshot: Vec<usize> = (0..snapshots.len()).collect();
         let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
@@ -246,7 +246,7 @@ impl GameState {
         )
     }
 
-    fn describe_window(&self, window: &[EventSeq]) -> String {
+    fn describe_window(&self, window: &[EventId]) -> String {
         let records: Vec<String> = window
             .iter()
             .filter_map(|seq| {

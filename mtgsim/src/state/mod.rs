@@ -12,3 +12,4 @@ pub mod layer_memo;
 pub mod trace;
 pub mod decision_log;
 pub mod history;
+pub mod history_log;

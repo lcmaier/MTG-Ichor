@@ -60,7 +60,7 @@ pub(super) const LAYER_ORDER: [Layer; 10] = [
 
 /// Layer 0 — an object's printed characteristics, plus the two things that
 /// are not printed: its controller and CR 302.6's clock.
-pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_turn: u32) -> EffectiveCharacteristics {
+pub(crate) fn seed_frame(card: &CardData, controller: PlayerId, control_since_turn: u32) -> EffectiveCharacteristics {
     EffectiveCharacteristics {
         name: card.name.clone(),
         mana_cost: card.mana_cost.clone(),
@@ -644,6 +644,11 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
         }
     }
 
+    /// Whether there is a "you" to read: a row's, or one resolved up front.
+    pub(super) fn has_you(&self) -> bool {
+        self.effect.is_some() || self.you.is_some()
+    }
+
     /// CR 109.5's "you".
     pub(super) fn you(&mut self) -> PlayerId {
         if let Some(you) = self.you {
@@ -709,7 +714,9 @@ impl FilterReferents for FilterPlayers<'_, '_> {
     /// The source, now: a static ability has no triggering event.
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
-            Antecedent::ThisObject => CurrentOrLastKnown { id: self.source, lki: None }.defending_player(game),
+            Antecedent::ThisObject => {
+                CurrentOrLastKnown { id: self.source, lki: None }.defending_player(game, &|input| self.board.note_gated_read(input))
+            }
             Antecedent::Triggering(_) => None,
         }
     }
@@ -788,7 +795,9 @@ fn resolve_set_controller(
         // triggering event, and "defending player" with no creature names no
         // one player.
         PlayerRef::DefendingPlayer(Antecedent::ThisObject) => {
-            CurrentOrLastKnown { id: effect.source, lki: None }.defending_player(game).filter(|&p| still_playing(p))
+            CurrentOrLastKnown { id: effect.source, lki: None }
+                .defending_player(game, &|input| board.note_gated_read(input))
+                .filter(|&p| still_playing(p))
         }
         PlayerRef::DefendingPlayer(Antecedent::Triggering(_)) | PlayerRef::AnyDefendingPlayer => None,
         PlayerRef::Opponent => {
@@ -895,6 +904,14 @@ pub(super) fn evaluate_amount(
                 .map(|v| v + *n as i32)
         }
 
+        // "You" is a CDA's object's controller or the row's (CR 109.5), as
+        // `CountOf` reads it.
+        AmountExpr::History(span, history) => {
+            let mut players = amount_players(origin, object_id, chars, game, board, layer_index);
+            let total = super::condition::history_total(history, *span, game, board, &mut players);
+            Some(i32::try_from(total).unwrap_or(i32::MAX))
+        }
+
         // A count over the battlefield at this layer (Keldon Warlord). **The real
         // battlefield**: an entering object is visible to filters and not to counts
         // (`replacement-architecture.md` §5a, Thassa's ruling). Each member's frame
@@ -909,7 +926,7 @@ pub(super) fn evaluate_amount(
                 "CountOf(CardsInHand({:?})) has no static-context evaluator yet (on '{}')",
                 whose, chars.name
             );
-            let you = origin.map_or(chars.controller, |row| row.controller);
+            let you = amount_players(origin, object_id, chars, game, board, layer_index).you();
             game.players.get(you).map(|player| player.hand.len() as i32)
         }
 
@@ -929,22 +946,7 @@ pub(super) fn evaluate_amount(
                     return None;
                 }
             };
-            let (you, owner) = match origin {
-                Some(_) => (None, None),
-                None => (
-                    Some(chars.controller),
-                    Some(game.objects.get(&object_id).map(|obj| obj.owner).unwrap_or(chars.controller)),
-                ),
-            };
-            let mut players = FilterPlayers {
-                effect: origin,
-                source: origin.map(|e| e.source).unwrap_or(object_id),
-                game,
-                board,
-                layer_index,
-                you,
-                owner,
-            };
+            let mut players = amount_players(origin, object_id, chars, game, board, layer_index);
             let mut count = 0;
             for other in board.battlefield_ids(game) {
                 let Some(other_chars) = board.frame_of(game, other, layer_index) else {
@@ -993,6 +995,26 @@ pub(super) fn evaluate_amount(
             );
             None
         }
+    }
+}
+
+/// Who "you" and "its owner" are for an amount inside a continuous effect,
+/// such as "+X/+0, where X is the number of cards in your hand". The effect is
+/// a registry row or a CDA. A row's amount reads them as the row's own filter
+/// does: a static ability's "you" is its source's controller now (CR 109.5),
+/// and a resolved spell's is whoever controlled it as it resolved. A CDA has no
+/// row, and its "you" is the controller of the object it defines.
+fn amount_players<'a, 'l>(
+    origin: Option<&'a ContinuousEffect>,
+    object_id: ObjectId,
+    chars: &EffectiveCharacteristics,
+    game: &'a GameState,
+    board: &'a Board<'l>,
+    layer_index: usize,
+) -> FilterPlayers<'a, 'l> {
+    match origin {
+        Some(row) => FilterPlayers::for_row(row, game, board, layer_index),
+        None => FilterPlayers::for_source(object_id, game, board, layer_index, Some(chars.controller), None),
     }
 }
 

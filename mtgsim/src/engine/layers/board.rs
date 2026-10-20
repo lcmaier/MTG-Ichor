@@ -45,6 +45,7 @@ use std::collections::HashMap;
 use std::ops::{BitOr, BitOrAssign, Deref};
 use std::sync::Arc;
 
+use crate::types::history::ObjectFact;
 use crate::engine::layers::cda;
 use crate::engine::layers::condition;
 use crate::engine::layers::explain::{AppliedBy, RecordedStep, Recorder, StepResult};
@@ -746,12 +747,14 @@ fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
         // Identity leaves read no characteristic: no layer can make an object
         // something other than itself, so neither a member's frame nor the
         // source's is touched.
-        ObjectFilter::All
-        | ObjectFilter::Token
-        | ObjectFilter::ThisTurn(_)
-        | ObjectFilter::ThisCombat(_)
-        | ObjectFilter::NotSource
-        | ObjectFilter::OtherThanInstance(_) => {}
+        ObjectFilter::All | ObjectFilter::Token | ObjectFilter::NotSource | ObjectFilter::OtherThanInstance(_) => {}
+        // What an object did is the log's, gated by its rows; a player the
+        // fact names resolves "you" off the source.
+        ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => {
+            if let ObjectFact::DealtDamageTo { player: Some(PlayerRef::You | PlayerRef::Opponent), .. } = fact {
+                out.source |= you_channel;
+            }
+        }
         ObjectFilter::ByType(_) => out.members |= Channels::TYPES,
         ObjectFilter::BySubtype(_) => out.members |= Channels::SUBTYPES,
         ObjectFilter::BySupertype(_) => out.members |= Channels::SUPERTYPES,
@@ -848,7 +851,7 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         | Condition::ModeChosen(_)
         | Condition::CostAnswer(_) => {}
         // The counts are off `GameState`; "you" is the source's controller.
-        Condition::ThisTurn(_) | Condition::LastTurn(_) | Condition::SinceYourLastTurn(_) | Condition::ThisGame(_) => {
+        Condition::ThisTurn(..) | Condition::LastTurn(..) | Condition::SinceYourLastTurn(..) | Condition::ThisGame(..) => {
             out.source |= you_channel;
         }
         // A resolution's count, off `GameState`, and a trigger's counts, off

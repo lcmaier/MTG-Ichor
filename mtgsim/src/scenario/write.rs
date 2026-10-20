@@ -8,6 +8,8 @@
 
 use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
 use super::text::{draw_step_skipped, every_turn_fact, in_combat_from};
+use crate::engine::layers::compute::seed_frame;
+use crate::state::history_log::RowFact;
 use crate::engine::layers::intrinsic::intrinsic_entry_counter_kind;
 use crate::engine::layers::types::EffectOrigin;
 use crate::objects::object::GameObject;
@@ -180,7 +182,7 @@ impl<'g> Writer<'g> {
         }
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
-            || history.players[active].this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
+            || history.count(active, TurnFact::AttackersDeclared, turn..=turn) > 0;
         if *combat_had_attackers != (attacked && in_combat_from(*phase, StepType::DeclareAttackers))
             || *blockers_declared != (attacked && in_combat_from(*phase, StepType::DeclareBlockers))
         {
@@ -191,10 +193,11 @@ impl<'g> Writer<'g> {
         }
         // A board is played through its turn rather than saved with each
         // creature's part in the turn's combats.
-        if history.combat.rows().iter().any(|row| row.turn == turn) {
+        let this_turn = || history.log.rows_of_turn(turn).map(|row| row.fact);
+        if this_turn().any(|fact| matches!(fact, RowFact::Attacked(_) | RowFact::Blocked(_) | RowFact::RemovedFromCombat { .. })) {
             self.report("what creatures did in combat this turn (CR 508.4, 508.5)");
         }
-        if !history.targetings.rows().is_empty() {
+        if this_turn().any(|fact| matches!(fact, RowFact::BecameTarget { .. })) {
             self.report("what became the target of a spell or ability this turn (CR 115.1)");
         }
         let first_draw = phase.step == Some(StepType::Upkeep) && draw_step_skipped(self.state, turn);
@@ -253,9 +256,19 @@ impl<'g> Writer<'g> {
                     None => self.report(format!("player {p}'s commander damage from a commander no longer in the game")),
                 }
             }
+            let casts = self.named_casts(p);
+            let named = |span| casts.iter().filter(|word| matches!(word, PlayerWord::Cast { span: named, .. } if *named == span)).count() as u64;
+            let (named_this, named_last, named_earlier) =
+                (named(HistorySpan::ThisTurn), named(HistorySpan::LastTurn), named(HistorySpan::ThisGame));
             for fact in every_turn_fact() {
-                let (this, last, game) =
-                    (history.this_turn(turn).count(fact), history.last_turn(turn).count(fact), history.this_game().count(fact));
+                let count = |span| state.history.count(p, fact, state.history.turns_of(span, p, turn));
+                let (mut this, mut last, mut game) = (count(HistorySpan::ThisTurn), count(HistorySpan::LastTurn), count(HistorySpan::ThisGame));
+                // The named casts are said by name; the count says the rest.
+                if fact == TurnFact::SpellsCast {
+                    this -= named_this;
+                    last -= named_last;
+                    game -= named_this + named_last + named_earlier;
+                }
                 for (span, count) in [(HistorySpan::ThisTurn, this), (HistorySpan::LastTurn, last)] {
                     if count > 0 {
                         facts.push(PlayerWord::History { player: p, span, fact, count });
@@ -265,6 +278,7 @@ impl<'g> Writer<'g> {
                     facts.push(PlayerWord::History { player: p, span: HistorySpan::ThisGame, fact, count: game });
                 }
             }
+            facts.extend(casts);
             self.scenario.player_words.extend(facts.into_iter().map(unnumbered));
             if mana_pool.total() > 0 || !mana_pool.special_atoms().is_empty() {
                 self.report(format!("player {p}'s mana pool (the word waits for item 33's provenance)"));
@@ -281,6 +295,40 @@ impl<'g> Writer<'g> {
         }
     }
 
+    /// `player`'s casts the log keeps a frame for, oldest first, each in the
+    /// span a save states it in: this turn, last turn, or the rest as "this
+    /// game". A cast the name would not reload as it was is reported.
+    fn named_casts(&mut self, player: PlayerId) -> Vec<PlayerWord> {
+        let state = self.state;
+        let turn = state.turn_number;
+        let mut casts = Vec::new();
+        for row in state.history.log.rows_newest_first().take_while(|row| row.turn >= 1) {
+            let (RowFact::Cast { from }, Some(frame)) = (row.fact, &row.frame) else { continue };
+            if row.player != Some(player) {
+                continue;
+            }
+            let span = match turn - row.turn {
+                0 => HistorySpan::ThisTurn,
+                1 => HistorySpan::LastTurn,
+                _ => HistorySpan::ThisGame,
+            };
+            if from != Zone::Hand {
+                self.report(format!("player {player}'s spell cast from a {from:?} zone, which a named cast does not say"));
+            }
+            // AS PRINTED: a named cast reloads as its card's printed frame. A
+            // row with no object is a loaded named cast, which is that frame.
+            let reloads_as_cast = row.object.map(|object| {
+                state.objects.get(&object.id).is_some_and(|obj| **frame == seed_frame(&obj.card_data, frame.controller, frame.control_since_turn))
+            });
+            if reloads_as_cast == Some(false) {
+                self.report(format!("player {player}'s {} as it was cast, which its printed card does not say", frame.name));
+            }
+            casts.push(PlayerWord::Cast { player, span, card: frame.name.clone() });
+        }
+        casts.reverse();
+        casts
+    }
+
     /// Does `player`'s "since your last turn" differ from what the loader
     /// derives? It lands the rows on turns T and T-1 and the rest of "this
     /// game" on T-2, so a player whose last turn ended at T-1 or T-2 reads
@@ -294,15 +342,18 @@ impl<'g> Writer<'g> {
             began => began,
         };
         let histories = &state.history;
-        histories.players.iter().enumerate().any(|(q, theirs)| {
+        let since = histories.since_your_last_turn(player, turn);
+        (0..histories.players.len()).any(|q| {
             every_turn_fact().any(|fact| {
-                let (this, last) = (theirs.this_turn(turn).count(fact), theirs.last_turn(turn).count(fact));
+                let count = |turns| histories.count(q, fact, turns);
+                let spanned = |span| count(histories.turns_of(span, q, turn));
+                let (this, last) = (spanned(HistorySpan::ThisTurn), spanned(HistorySpan::LastTurn));
                 let derived = match turn.checked_sub(ended) {
                     Some(1) if ended > 0 => this,
                     Some(2) if ended > 0 => this.saturating_add(last),
-                    _ => theirs.this_game().count(fact),
+                    _ => spanned(HistorySpan::ThisGame),
                 };
-                histories.since_your_last_turn(player, q).count(fact) != derived
+                count(since.clone()) != derived
             })
         })
     }

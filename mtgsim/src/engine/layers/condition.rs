@@ -21,6 +21,7 @@
 //! `ModeChosen` is resolution-only here and asserts the way `evaluate_amount`'s
 //! resolution-only amounts do.
 
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::layers::board::{Board, FrameRef};
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
@@ -29,7 +30,7 @@ use crate::state::game_state::GameState;
 use crate::state::player::PlayerState;
 use crate::types::costs::AdditionalCost;
 use crate::types::effects::{Antecedent, Condition, ObjectFilter, PlayerFact, PlayerSet};
-use crate::types::history::{HistoryCount, HistorySpan};
+use crate::types::history::{CountIs, HistoryCount, HistorySpan};
 use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::engine::triggers::binding::TriggeringEventView;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -107,6 +108,7 @@ pub(super) fn holds(
     }
     // "Its owner" for a filter, once the store has lost the source (CR 108.3).
     let owner_if_gone = referents.source_lki.map(Lki::owner);
+    let history_players = || FilterPlayers::for_source(source, game, board, layer_index, locked_you, owner_if_gone);
 
     // **A new leaf lands here and in `board::condition_reads`**, both exhaustive,
     // so the compiler asks for the second arm but cannot check it: one that
@@ -121,9 +123,8 @@ pub(super) fn holds(
         // CR 508.5: the fact about one player, the creature's defending player.
         // It attacks what the battlefield says, or what the history kept.
         Condition::DefendingPlayer { of, fact: player_fact } => {
-            board.note_gated_read(GatedWalkInput::Combat);
-            board.note_gated_read(GatedWalkInput::Histories);
-            match referents.object_for(*of, source).and_then(|it| it.defending_player(game)) {
+            let note = |input| board.note_gated_read(input);
+            match referents.object_for(*of, source).and_then(|it| it.defending_player(game, &note)) {
                 Some(defending) => {
                     let players = PlayerSet::Fixed(vec![defending]);
                     player_fact_holds(&players, player_fact, game, board, source, layer_index, locked_you, owner_if_gone)
@@ -177,7 +178,7 @@ pub(super) fn holds(
                     None => return false,
                 },
             };
-            count.met_by(u64::from(n))
+            count.satisfied_by(u64::from(n))
         }
 
         // CR 303.4m — whatever the source is attached to *now*, re-read at
@@ -206,23 +207,19 @@ pub(super) fn holds(
             object_matches_filter(filter, host, &chars, &mut players)
         }
 
-        // A turn summary's count (§3.10), for "you" as every leaf here reads it:
-        // the source's controller. The counts are off `GameState`.
-        Condition::ThisTurn(count) => {
-            board.note_gated_read(GatedWalkInput::Histories);
-            history_holds(count, HistorySpan::ThisTurn, game, board, source, layer_index, locked_you)
+        // A history count (TR-5h), for "you" as every leaf here reads it: the
+        // source's controller. The rows are off `GameState`.
+        Condition::ThisTurn(history, count) => {
+            history_holds(history, *count, HistorySpan::ThisTurn, game, board, &mut history_players())
         }
-        Condition::LastTurn(count) => {
-            board.note_gated_read(GatedWalkInput::Histories);
-            history_holds(count, HistorySpan::LastTurn, game, board, source, layer_index, locked_you)
+        Condition::LastTurn(history, count) => {
+            history_holds(history, *count, HistorySpan::LastTurn, game, board, &mut history_players())
         }
-        Condition::SinceYourLastTurn(count) => {
-            board.note_gated_read(GatedWalkInput::Histories);
-            history_holds(count, HistorySpan::SinceYourLastTurn, game, board, source, layer_index, locked_you)
+        Condition::SinceYourLastTurn(history, count) => {
+            history_holds(history, *count, HistorySpan::SinceYourLastTurn, game, board, &mut history_players())
         }
-        Condition::ThisGame(count) => {
-            board.note_gated_read(GatedWalkInput::Histories);
-            history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index, locked_you)
+        Condition::ThisGame(history, count) => {
+            history_holds(history, *count, HistorySpan::ThisGame, game, board, &mut history_players())
         }
         // CR 122.7, 714.2b: some record of the trigger's left the count at
         // least `n` from below it. Off the records, never the board, so it
@@ -309,39 +306,37 @@ pub fn settled_holds(
     holds(condition, game, &Board::settled(), source, LAYER_ORDER.len(), locked_you, referents)
 }
 
-/// A history leaf: the counts of the players `count.players` names, each over
-/// `span`, summed.
+/// Whether a "this turn", "last turn", "since your last turn" or "this game"
+/// condition holds: `history` totalled over `span` and compared with `count`,
+/// as "if you've gained life this turn" is life gained this turn at least 1.
+/// A condition whose source has no controller or owner left to be "you" is
+/// false.
 fn history_holds(
-    count: &HistoryCount,
+    history: &HistoryCount,
+    count: CountIs,
     span: HistorySpan,
     game: &GameState,
     board: &Board<'_>,
-    source: ObjectId,
-    layer_index: usize,
-    locked_you: Option<PlayerId>,
+    players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
-    let Some(you) = you_for(game, board, source, layer_index, locked_you) else {
-        return false;
-    };
-    let now = game.turn_number;
-    let yours = game.history.players.get(you);
-    let total: u64 = game
-        .history
-        .players
-        .iter()
-        .enumerate()
-        .filter(|(player, _)| count.players.contains(you, *player))
-        .map(|(player, theirs)| {
-            let counts = match (span, yours) {
-                (HistorySpan::ThisTurn, _) => theirs.this_turn(now),
-                (HistorySpan::LastTurn, _) => theirs.last_turn(now),
-                (HistorySpan::SinceYourLastTurn, Some(_)) => game.history.since_your_last_turn(you, player),
-                (HistorySpan::ThisGame, _) | (HistorySpan::SinceYourLastTurn, None) => theirs.this_game(),
-            };
-            counts.count(count.fact)
-        })
-        .sum();
-    count.is.met_by(total)
+    players.has_you() && count.satisfied_by(history_total(history, span, game, board, players))
+}
+
+/// `history` totalled over `span`: the rows of the players it names, read
+/// against `players`' "you" and narrowed by its filter over each row's frame in
+/// their context, a condition's or an amount's.
+pub(super) fn history_total(
+    history: &HistoryCount,
+    span: HistorySpan,
+    game: &GameState,
+    board: &Board<'_>,
+    players: &mut FilterPlayers<'_, '_>,
+) -> u64 {
+    let you = players.you();
+    let mut filter_matches =
+        |filter: &ObjectFilter, id, frame: &EffectiveCharacteristics| object_matches_filter(filter, id, frame, players);
+    let note = |input| board.note_gated_read(input);
+    game.history.total(history, span, you, game.turn_number, &mut filter_matches, &note)
 }
 
 /// CR 109.5's "you": `locked_you` when the asker fixed it, or else the

@@ -301,10 +301,10 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_)
         | Condition::CostAnswer(_)
-        | Condition::ThisTurn(_)
-        | Condition::LastTurn(_)
-        | Condition::SinceYourLastTurn(_)
-        | Condition::ThisGame(_)
+        | Condition::ThisTurn(..)
+        | Condition::LastTurn(..)
+        | Condition::SinceYourLastTurn(..)
+        | Condition::ThisGame(..)
         | Condition::ResolvedThisTurn(_)
         | Condition::CounterCountReached { .. } => None,
     }

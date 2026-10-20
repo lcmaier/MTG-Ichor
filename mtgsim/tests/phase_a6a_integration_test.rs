@@ -214,11 +214,8 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
 /// falls before it.
 #[test]
 fn since_your_last_turn_spans_the_other_seats_turns() {
-    let quiet = Condition::SinceYourLastTurn(HistoryCount {
-        players: PlayerSet::You,
-        fact: TurnFact::LifeLost,
-        is: CountIs::AtMost(0),
-    });
+    let lost = HistoryCount { players: PlayerSet::You, fact: TurnFact::LifeLost, of: None };
+    let quiet = Condition::SinceYourLastTurn(lost, CountIs::AtMost(0));
     let vigil = || {
         CardDataBuilder::new("Steady Vigil")
             .card_type(CardType::Enchantment)
@@ -273,8 +270,8 @@ fn resolve_all(game: &mut GameState) {
 fn since_your_last_turn_counts_amounts_and_events_around_four_seats() {
     let exactly = |fact, n| {
         Condition::All(vec![
-            Condition::SinceYourLastTurn(HistoryCount { players: PlayerSet::You, fact, is: CountIs::AtLeast(n) }),
-            Condition::SinceYourLastTurn(HistoryCount { players: PlayerSet::You, fact, is: CountIs::AtMost(n) }),
+            Condition::SinceYourLastTurn(HistoryCount { players: PlayerSet::You, fact, of: None }, CountIs::AtLeast(n)),
+            Condition::SinceYourLastTurn(HistoryCount { players: PlayerSet::You, fact, of: None }, CountIs::AtMost(n)),
         ])
     };
     let regent = CardDataBuilder::new("Watchful Regent")
@@ -293,7 +290,7 @@ fn since_your_last_turn_counts_amounts_and_events_around_four_seats() {
         game.execute_action(GameAction::LoseLife { player, amount, damage_source: None }, &test_ctx())
             .expect("the loss");
     };
-    let since = |game: &GameState, fact| game.history.since_your_last_turn(0, 0).count(fact);
+    let since = |game: &GameState, fact| game.history.count(0, fact, game.history.since_your_last_turn(0, game.turn_number));
 
     let mut game = setup_game(4);
     let regent = put_on_battlefield(&mut game, regent, 0);
@@ -361,7 +358,7 @@ fn a_departed_players_actions_this_turn_are_still_found() {
         .expect("the loss");
     assert!(!game.in_game(1), "player 1 has left the game");
 
-    let cast_this_turn = |players| Condition::ThisTurn(HistoryCount { players, fact: TurnFact::SpellsCast, is: CountIs::AtLeast(1) });
+    let cast_this_turn = |players| Condition::ThisTurn(HistoryCount { players, fact: TurnFact::SpellsCast, of: None }, CountIs::AtLeast(1));
     assert!(settled_holds(&cast_this_turn(PlayerSet::Opponents), &game, source, None, ConditionReferents::NONE), "an opponent cast a spell this turn");
     assert!(settled_holds(&cast_this_turn(PlayerSet::Everyone), &game, source, None, ConditionReferents::NONE), "a spell was cast this turn");
 }

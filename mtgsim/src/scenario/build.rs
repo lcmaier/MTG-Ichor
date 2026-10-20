@@ -9,6 +9,9 @@ use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered
 use super::error::{ScenarioError, ScenarioErrorKind};
 use super::setup::{ResolvedSetupAction, SetupActions};
 use super::text::{draw_step_skipped, in_combat_from, position_word};
+use crate::engine::layers::compute::seed_frame;
+use crate::state::history_log::{HistoryRow, RowFact};
+use crate::state::layer_memo::GatedWalkInput;
 use crate::cards::registry::CardRegistry;
 use crate::engine::resolve::ResolvedTarget;
 use crate::objects::card_data::{AbilityType, CardData};
@@ -49,7 +52,7 @@ impl Scenario {
         }
         loader.load_player_words()?;
         loader.load_combat()?;
-        loader.begin_turns()?;
+        loader.begin_turns(registry)?;
         loader.load_draw_step_counts()?;
         loader.load_this_turn_counts()?;
         let setup = loader.resolve_setup_actions()?;
@@ -79,6 +82,25 @@ struct Loader<'s> {
     blockers: Vec<(usize, ObjectId, &'s NamedCard)>,
     /// Whether each player's library lines are `shuffled`, once one is seen.
     shuffled: Vec<Option<bool>>,
+}
+
+/// A spell a scenario names as cast (`PlayerWord::Cast`), on its turn.
+struct NamedCast {
+    player: PlayerId,
+    turn: u32,
+    card: Arc<CardData>,
+}
+
+/// The card `name` names, among the registered cards and then those in
+/// development.
+fn registered_card(registry: &CardRegistry, name: &str, line: usize) -> Result<Arc<CardData>, ScenarioError> {
+    registry.create(name).ok().or_else(|| registry.create_in_development(name)).ok_or_else(|| {
+        ScenarioError::at(
+            ScenarioErrorKind::NotACard,
+            line,
+            format!("{name} is not registered: names are exact, and a card the engine does not play yet goes in the list of cards in development"),
+        )
+    })
 }
 
 impl<'s> Loader<'s> {
@@ -178,13 +200,7 @@ impl<'s> Loader<'s> {
             _ => {}
         }
         let name = &card_line.card.name;
-        let card = registry.create(name).ok().or_else(|| registry.create_in_development(name)).ok_or_else(|| {
-            ScenarioError::at(
-                ScenarioErrorKind::NotACard,
-                line,
-                format!("{name} is not registered: names are exact, and a card the engine does not play yet goes in the list of cards in development"),
-            )
-        })?;
+        let card = registered_card(registry, name, line)?;
         let owner_word = card_line.words.iter().find_map(|w| if let CardWord::Owner(p) = w { Some(*p) } else { None });
         let controller_word = card_line.words.iter().find_map(|w| if let CardWord::Controller(p) = w { Some(*p) } else { None });
         let (zone, owner) = match card_line.kind {
@@ -381,6 +397,7 @@ impl<'s> Loader<'s> {
             | PlayerWord::LeftTheGame { player }
             | PlayerWord::CommanderDamage { player, .. }
             | PlayerWord::History { player, .. }
+            | PlayerWord::Cast { player, .. }
             | PlayerWord::DrawnThisDrawStep { player, .. }) = located.value;
             let player = self.checked_player(player, line)?;
             match &located.value {
@@ -392,7 +409,7 @@ impl<'s> Loader<'s> {
                     let commander = self.object_named(from, line, "commander", |c| c.commander)?;
                     self.state.players[player].commander_damage_taken.insert(commander, *damage);
                 }
-                PlayerWord::History { .. } | PlayerWord::DrawnThisDrawStep { .. } => {}
+                PlayerWord::History { .. } | PlayerWord::Cast { .. } | PlayerWord::DrawnThisDrawStep { .. } => {}
             }
         }
         Ok(())
@@ -420,11 +437,12 @@ impl<'s> Loader<'s> {
     /// The turns the natural rotation over the players in the game gives,
     /// ending with the active player's turn T, each begun through the turn's
     /// writers; then the position, and each history row on its turn.
-    fn begin_turns(&mut self) -> Result<(), ScenarioError> {
+    fn begin_turns(&mut self, registry: &CardRegistry) -> Result<(), ScenarioError> {
         let (turn, active) = (self.scenario.turn, self.scenario.active);
         let in_game: Vec<PlayerId> = self.state.players_in_game().collect();
         let place = in_game.iter().position(|&p| p == active).unwrap_or_default();
         let rows = self.history_counts_by_turn()?;
+        let casts = self.named_casts_by_turn(registry)?;
         // The turns before the last rotation leave nothing a board reads: the
         // rows land on the last three turns, and each player's latest turn and
         // the end of the active player's turn before it fall in the last N.
@@ -433,11 +451,23 @@ impl<'s> Loader<'s> {
             let back = (turn - t) as usize % in_game.len();
             let player = in_game[(place + in_game.len() - back) % in_game.len()];
             self.state.begin_turn(t, player);
-            self.state.history.count_turn_began(t, player);
             for &(player, on_turn, fact, count) in &rows {
                 if on_turn == t && count > 0 {
-                    self.state.history.players[player].add(t, fact, count);
+                    let seq = self.state.events.next_seq();
+                    let fact = RowFact::Stated { fact, count };
+                    let row = HistoryRow { seq, turn: t, combat: 0, player: Some(player), object: None, frame: None, fact };
+                    self.state.history.log.push(row);
+                    self.state.bump_layer_epoch_if_read(GatedWalkInput::Rows(fact.kind()));
                 }
+            }
+            // A named cast is its printed card as cast from a hand, an object
+            // in no store.
+            for cast in casts.iter().filter(|cast| cast.turn == t) {
+                let frame = Some(Arc::new(seed_frame(&cast.card, cast.player, t)));
+                let seq = self.state.events.next_seq();
+                let fact = RowFact::Cast { from: Zone::Hand };
+                self.state.history.log.push(HistoryRow { seq, turn: t, combat: 0, player: Some(cast.player), object: None, frame, fact });
+                self.state.bump_layer_epoch_if_read(GatedWalkInput::Rows(fact.kind()));
             }
         }
         self.state.turn_rotation = active;
@@ -448,7 +478,7 @@ impl<'s> Loader<'s> {
         self.state.skip_first_draw = self.scenario.step.step == Some(StepType::Upkeep) && draw_step_skipped(&self.state, turn);
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
-            || self.state.history.players[active].this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
+            || self.state.history.count(active, TurnFact::AttackersDeclared, turn..=turn) > 0;
         self.state.combat_had_attackers = self.in_combat_from(StepType::DeclareAttackers) && attacked;
         self.state.blockers_declared = self.in_combat_from(StepType::DeclareBlockers) && attacked;
         let skipped_without_attackers = matches!(
@@ -481,10 +511,9 @@ impl<'s> Loader<'s> {
         for located in &self.scenario.player_words {
             let PlayerWord::DrawnThisDrawStep { player, count } = located.value else { continue };
             let player = self.checked_player(player, located.line)?;
-            let history = &self.state.history.players[player];
             let message = if !self.state.in_own_draw_step(player) {
                 "a player draws in a draw step only during their own (CR 504)"
-            } else if count > history.this_turn(turn).count(TurnFact::CardsDrawn) {
+            } else if count > self.state.history.count(player, TurnFact::CardsDrawn, turn..=turn) {
                 "more cards drawn this draw step than this turn: state `this turn: cards drawn N`"
             } else {
                 self.state.history.players[player].draw_step_drawn(count);
@@ -537,6 +566,30 @@ impl<'s> Loader<'s> {
             rows.push((player, turn.saturating_sub(2), fact, earlier));
         }
         Ok(rows)
+    }
+
+    /// Each named cast, on the turn its span lands on as
+    /// `history_counts_by_turn` lands a count: this turn on T, last turn on
+    /// T-1, this game on T-2.
+    fn named_casts_by_turn(&self, registry: &CardRegistry) -> Result<Vec<NamedCast>, ScenarioError> {
+        let turn = self.scenario.turn;
+        let mut casts = Vec::new();
+        for located in &self.scenario.player_words {
+            let PlayerWord::Cast { player, span, card } = &located.value else { continue };
+            let refused = |message: String| ScenarioError::at(ScenarioErrorKind::Unreachable, located.line, message);
+            let on_turn = match span {
+                HistorySpan::ThisTurn => turn,
+                HistorySpan::LastTurn if turn > 1 => turn - 1,
+                HistorySpan::ThisGame if turn > 2 => turn - 2,
+                HistorySpan::LastTurn => return Err(refused("turn 1 has no last turn: the game began with it".to_string())),
+                HistorySpan::ThisGame => return Err(refused(format!("turn {turn} has no turn before last to cast it on"))),
+                HistorySpan::SinceYourLastTurn => {
+                    return Err(refused("a cast is named on this turn, last turn or this game".to_string()));
+                }
+            };
+            casts.push(NamedCast { player: *player, turn: on_turn, card: registered_card(registry, card, located.line)? });
+        }
+        Ok(casts)
     }
 
     /// CR 603.2h and 603.7h's counts, once turn T has begun and cleared them.

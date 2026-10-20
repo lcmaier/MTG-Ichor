@@ -193,15 +193,17 @@ writing it, and recording the number so the prediction can be scored afterwards.
 Sense 2 is what missed lifelink's first helper — it censused `emit` sites, and
 the helper wrote `life_total` by hand while emitting loudly.
 
-**history** — `PlayerState.history`: a count for each `TurnFact` over this
-turn, last turn and the whole game, and every player's total as this player's
-last turn ended (`triggers-architecture.md` §3.10). It is what "this turn",
-"last turn", "since your last turn" and "this game" read, and its size is the
-table's, never the turn count's. The dispatcher is its one writer: `advance_history` turns each record it
-dispatches into a `HistoryUpdate`, which says what that record adds to whose
-row. **Not the event stream**: the stream is flushed from `EventWindow` once
-dispatched, a recorder keeps it only for whoever reads it, and no rule reads a
-past turn from it.
+**history** — `GameState.history`: the history log, a row for each event a
+card can ask about later, kept for the whole game, each holding its object's
+frame then (`state::history_log`, `triggers-architecture.md` §3.10); beside it,
+each player's own turns and draw-step count, and each ability's "this turn"
+gates. "This turn", "last turn", "since your last turn" and "this game" are
+spans of the log. A clone copies one pointer for it, however long the game;
+what a game holds grows with its events. The dispatcher is its one writer:
+`advance_history` writes each record's rows as its event ends. **Not the event
+stream**: the stream is flushed from `EventWindow` once dispatched, a recorder
+keeps it only for whoever reads it, and no rule reads a past turn from it; the
+log keeps only what a card can ask, as rows.
 
 **registry** — three tables wear the name and only two are game state.
 **(1)** `CardRegistry`: card name → constructor, the definitions themselves,

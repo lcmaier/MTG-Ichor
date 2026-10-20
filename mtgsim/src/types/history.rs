@@ -1,16 +1,15 @@
 //! What a card asks about the past: "this turn", "last turn", "since your
-//! last turn", "this game" (`triggers-architecture.md` §3.10).
+//! last turn", "this game" (`triggers-architecture.md` §3.10, §12's TR-5h).
 //!
-//! The answers are materialized, never scanned: `state::history` holds each
-//! player's rows and totals, advanced record by record as the dispatcher reads
-//! each window. This file is the vocabulary a `Condition` leaf uses to ask it.
+//! The answers are the history log's rows (`state::history_log`), written
+//! record by record as the dispatcher reads each window. This file is the
+//! vocabulary a `Condition` leaf, an amount and a filter use to ask it.
 
-use crate::types::card_types::CardType;
-use crate::types::effects::PlayerSet;
+use crate::types::effects::{ObjectFilter, PlayerRef, PlayerSet};
 
-/// Which turns a count spans. A `Condition` leaf reads any of the four; a
-/// scenario writes the three `state::history` keeps, and derives "since
-/// your last turn" from them (`setup-architecture.md` §5.1).
+/// Which turns a count spans. A `Condition` leaf and an amount read any of
+/// the four; a scenario states the first three, and derives "since your last
+/// turn" from them (`setup-architecture.md` §5.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HistorySpan {
     ThisTurn,
@@ -26,10 +25,8 @@ pub enum HistorySpan {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TurnFact {
     /// Spells this player cast (CR 601.2i). A copy is not cast (CR 707.10).
+    /// [`HistoryCount::of`] narrows them by what they were as they were cast.
     SpellsCast,
-    /// Of those, the spells that had this card type as they were cast: an
-    /// artifact creature spell counts under both types.
-    SpellsCastOfType(CardType),
     /// Cards this player drew (CR 121.1). A card put into a hand without the
     /// word "draw" is not drawn (CR 121.5).
     CardsDrawn,
@@ -54,25 +51,8 @@ pub enum TurnFact {
 }
 
 impl TurnFact {
-    /// How many counts a turn's row holds: the nine above, then one spell
-    /// count per card type.
-    pub const COUNT: usize = 9 + CardType::COUNT;
-
-    /// Where this fact's count sits in a row.
-    pub const fn slot(self) -> usize {
-        match self {
-            TurnFact::SpellsCast => 0,
-            TurnFact::CardsDrawn => 1,
-            TurnFact::LifeGained => 2,
-            TurnFact::LifeGainEvents => 3,
-            TurnFact::LifeLost => 4,
-            TurnFact::LifeLossEvents => 5,
-            TurnFact::DamageTaken => 6,
-            TurnFact::ControlledCreaturesDied => 7,
-            TurnFact::AttackersDeclared => 8,
-            TurnFact::SpellsCastOfType(card_type) => 9 + card_type.slot(),
-        }
-    }
+    /// How many facts there are.
+    pub const COUNT: usize = 9;
 }
 
 /// What an object did, which `ObjectFilter::ThisTurn` and `ThisCombat` ask:
@@ -81,7 +61,7 @@ impl TurnFact {
 /// past tense. A fact a later card asks is a variant with its writer; the
 /// ones counted and not built are listed in `codebase-state.md`, "Found by
 /// TR-5c".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ObjectFact {
     /// Declared as an attacker (CR 508.1); a creature put onto the
     /// battlefield attacking never attacked (CR 508.4).
@@ -93,6 +73,11 @@ pub enum ObjectFact {
     WasBlocked,
     /// Entered the battlefield. A turn's, never a combat's.
     Entered,
+    /// Was dealt damage (CR 120.3).
+    WasDealtDamage,
+    /// Dealt damage to a player (CR 120.1), only combat damage when `combat`
+    /// (CR 510.2). `None` is any player, `Some(You)` the asker's "you".
+    DealtDamageTo { player: Option<PlayerRef>, combat: bool },
 }
 
 /// How a count must compare.
@@ -105,7 +90,7 @@ pub enum CountIs {
 }
 
 impl CountIs {
-    pub fn met_by(self, count: u64) -> bool {
+    pub fn satisfied_by(self, count: u64) -> bool {
         match self {
             CountIs::AtLeast(n) => count >= n,
             CountIs::AtMost(n) => count <= n,
@@ -114,12 +99,16 @@ impl CountIs {
     }
 }
 
-/// "[Players] [fact] [is]" over a span of turns. `players` is resolved
-/// against the condition's "you" (CR 109.5), and the rows it names are
-/// summed: "an opponent lost life this turn" is `Opponents` at least 1.
+/// "[Players'] [fact] [of what]": the rows of a span of turns that answer,
+/// summed. `players` is resolved against the asker's "you" (CR 109.5): "an
+/// opponent lost life this turn" is `Opponents`. `of` narrows the rows by what
+/// their object was then, the frame each keeps: "noncreature spells you've
+/// cast this turn" is `SpellsCast` of `Not(ByType(Creature))`. A `Condition`
+/// leaf compares it with a [`CountIs`]; `AmountExpr::History` reads it as a
+/// number.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HistoryCount {
     pub players: PlayerSet,
     pub fact: TurnFact,
-    pub is: CountIs,
+    pub of: Option<Box<ObjectFilter>>,
 }

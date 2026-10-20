@@ -34,7 +34,7 @@ use crate::engine::targeting::HeldFrame;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
-use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventSeq, GameEvent};
+use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::{AttackTarget, CostChoices};
@@ -266,7 +266,7 @@ impl FilterReferents for TriggerReferents<'_> {
     /// The candidate, now: an arm's own words have no triggering event yet.
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
-            Antecedent::ThisObject => CurrentOrLastKnown { id: self.this.id(), lki: None }.defending_player(game),
+            Antecedent::ThisObject => CurrentOrLastKnown { id: self.this.id(), lki: None }.defending_player(game, &|_| {}),
             Antecedent::Triggering(_) => None,
         }
     }
@@ -293,7 +293,7 @@ impl ThisObject {
 
     /// Whether record `seq`'s object `id` is this object: the candidate, or
     /// the remembered existence (CR 400.7).
-    fn is(self, game: &GameState, id: ObjectId, seq: EventSeq) -> bool {
+    fn is(self, game: &GameState, id: ObjectId, seq: EventId) -> bool {
         match self {
             ThisObject::Candidate(this) => id == this,
             ThisObject::Remembered(remembered) => remembered.is(game, id, seq),
@@ -508,11 +508,11 @@ impl GameState {
     /// are `AbilityTriggered`s, dispatched as they were emitted.
     pub(crate) fn dispatch_batch(
         &mut self,
-        mark: EventSeq,
+        mark: EventId,
         batch: Option<BatchId>,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        let window: Vec<EventSeq> = self
+        let window: Vec<EventId> = self
             .events
             .records_since(mark)
             .iter()
@@ -535,7 +535,7 @@ impl GameState {
     /// the dispatch may have to ask (`emit_event_with_provider`). A
     /// triggered mana ability resolves here only on a mana ability's
     /// activation, which `announce_activation` emits with its provider.
-    pub(crate) fn dispatch_unbatched(&mut self, seq: EventSeq, ctx: Option<&ActionContext>) -> Result<(), String> {
+    pub(crate) fn dispatch_unbatched(&mut self, seq: EventId, ctx: Option<&ActionContext>) -> Result<(), String> {
         let audit = self.dispatch_audit.is_some().then(Vec::new);
         let result = self.dispatch(&[seq], ctx, &[], audit.as_deref());
         self.flush_window_unless_nested();
@@ -569,7 +569,7 @@ impl GameState {
 
     fn dispatch(
         &mut self,
-        window: &[EventSeq],
+        window: &[EventId],
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
         audit: Option<&[LookBackSnapshot]>,
@@ -629,7 +629,7 @@ impl GameState {
     /// whatever the gate said.
     fn dispatch_inner(
         &mut self,
-        window: &[EventSeq],
+        window: &[EventId],
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
         audit: Option<&[LookBackSnapshot]>,
@@ -665,7 +665,7 @@ impl GameState {
     /// `detect_delayed`.
     fn detect(
         &self,
-        window: &[EventSeq],
+        window: &[EventId],
         window_kinds: EventKindMask,
         snapshots: &[LookBackSnapshot],
     ) -> Vec<MatchedTrigger> {
@@ -707,7 +707,7 @@ impl GameState {
         ctx: Option<&ActionContext>,
     ) -> Result<(), String> {
         // --- Queue, or resolve a mana trigger at once (CR 605.4a) ----------
-        let mut queued: Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventSeq)> = Vec::new();
+        let mut queued: Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventId)> = Vec::new();
         for m in matches {
             let caused_by = m.triggering_events[0].record.seq;
             // "Triggers only once each turn" is written as the ability
@@ -870,7 +870,7 @@ impl GameState {
     /// battlefield whose every functioning trigger is on themselves moving,
     /// which no window but the one that brought them where they are can
     /// trigger. Empty, and no record read, while the set is.
-    fn newcomer_trigger_carriers(&self, window: &[EventSeq]) -> Vec<ObjectId> {
+    fn newcomer_trigger_carriers(&self, window: &[EventId]) -> Vec<ObjectId> {
         if self.newcomer_trigger_sources.is_empty() {
             return Vec::new();
         }
@@ -1192,7 +1192,7 @@ impl GameState {
     /// by [`Self::match_candidates`].
     fn find_matches(
         &self,
-        window: &[EventSeq],
+        window: &[EventId],
         readers: Vec<ObjectId>,
         named: Vec<ObjectId>,
         newcomers: Vec<ObjectId>,
@@ -1225,7 +1225,7 @@ impl GameState {
             }
         }
 
-        let records: Vec<(EventSeq, &EventRecord)> = window
+        let records: Vec<(EventId, &EventRecord)> = window
             .iter()
             .filter_map(|seq| self.events.record(*seq).map(|r| (*seq, r)))
             .collect();
@@ -1299,7 +1299,7 @@ impl GameState {
     /// audit's every object (`audit.rs`).
     pub(super) fn match_candidates(
         &self,
-        records: &[(EventSeq, &EventRecord)],
+        records: &[(EventId, &EventRecord)],
         candidates: &[TriggerCandidate<'_>],
         snapshots: &[LookBackSnapshot],
     ) -> Vec<MatchedTrigger> {
@@ -1556,11 +1556,11 @@ impl GameState {
             Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.history.triggered_this_turn.contains(&identity),
             Some(TriggerLimit::FirstTimeEachTurn) => match (arm, &record.event) {
                 (TriggerEvent::BecomesTarget { by, controller: whose, .. }, GameEvent::Targeted { target, .. }) => {
-                    !self.history.targetings.rows().iter().any(|row| {
-                        row.seq < record.seq
-                            && row.target == *target
-                            && by.admits(row.by_spell)
-                            && whose.as_ref().is_none_or(|p| self.player_ref_is(p, row.controller, referents))
+                    !self.history.log.targetings_of_turn(self.turn_number).any(|earlier| {
+                        earlier.seq < record.seq
+                            && earlier.target == *target
+                            && by.admits(earlier.by_spell)
+                            && whose.as_ref().is_none_or(|p| self.player_ref_is(p, earlier.controller, referents))
                     })
                 }
                 _ => record.place_in_turn() == Some(1),
@@ -1996,7 +1996,7 @@ impl GameState {
         }
         let is = |subject: &TriggerSubject, id: ObjectId| self.subject_matches(subject, Some(id), referents, seq, SubjectRead::Now);
         let now = |id: ObjectId| self.subject_after(event, id);
-        let enough = |n: usize| count.unwrap_or(CountIs::AtLeast(1)).met_by(n as u64);
+        let enough = |n: usize| count.unwrap_or(CountIs::AtLeast(1)).satisfied_by(n as u64);
         match *occurrence {
             BlockOccurrence::Block => blocks
                 .iter()
@@ -2055,7 +2055,7 @@ impl GameState {
     /// as it is after the event (CR 603.10). "On you" or "on a player"
     /// (`CountersOn::Player`) asks the player `on` names, any player for
     /// `None`. Counters on a player never match an object arm, nor the reverse.
-    fn counters_on_matches(&self, watched: &CountersOn, on: CounterSubject, referents: &TriggerReferents<'_>, seq: EventSeq) -> bool {
+    fn counters_on_matches(&self, watched: &CountersOn, on: CounterSubject, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
         match (watched, on) {
             (CountersOn::Object(which), CounterSubject::Object(id)) => {
                 self.subject_matches(which, Some(id), referents, seq, SubjectRead::Now)
@@ -2078,7 +2078,7 @@ impl GameState {
         producer: ManaProducer<'_>,
         added: impl Fn(ManaType) -> bool,
         referents: &TriggerReferents<'_>,
-        seq: EventSeq,
+        seq: EventId,
     ) -> bool {
         let TriggerEvent::ManaAdded { source, tapped_for_mana, mana } = arm else { return false };
         // A producer its own cost moved is read as it last existed (CR 608.2h).
@@ -2129,7 +2129,7 @@ impl GameState {
         subject: &TriggerSubject,
         id: Option<ObjectId>,
         referents: &TriggerReferents<'_>,
-        seq: EventSeq,
+        seq: EventId,
         read: SubjectRead<'_>,
     ) -> bool {
         match (subject, id) {
@@ -2166,7 +2166,7 @@ impl GameState {
 
     /// Whether `target`, what a creature was declared attacking, is what
     /// `asked` names (CR 508.3a, 508.3b, 508.3e).
-    fn defender_matches(&self, asked: &DefenderFilter, target: AttackTarget, referents: &TriggerReferents<'_>, seq: EventSeq) -> bool {
+    fn defender_matches(&self, asked: &DefenderFilter, target: AttackTarget, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
         asked.admits(target, &|who, player| self.player_ref_is(who, player, referents), &|filter, id| {
             self.subject_matches(&TriggerSubject::Filter(filter.clone()), Some(id), referents, seq, SubjectRead::Now)
         })
@@ -2200,7 +2200,7 @@ impl GameState {
     /// earlier in the same window — `None` for a token, which came from
     /// nowhere (CR 111.2). The entry's performer announces both, so the
     /// window holds the move whenever it holds the entry.
-    fn entry_origin(&self, id: ObjectId, entered_at: EventSeq) -> Option<Zone> {
+    fn entry_origin(&self, id: ObjectId, entered_at: EventId) -> Option<Zone> {
         let held = self.events.held();
         let before = held.partition_point(|r| r.seq < entered_at);
         for record in held[..before].iter().rev() {

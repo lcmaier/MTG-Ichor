@@ -12,7 +12,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use mtgsim::events::event::EventSeq;
+use mtgsim::events::event::EventId;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::triggers::DelayedDuration;
 use mtgsim::ui::auto_yield::Yield;
@@ -84,7 +84,7 @@ pub enum Input {
     /// or a click on its name in the why panel.
     Why(BoardRef),
     /// Ask what an event did: a right-click on its line in the log.
-    WhyEvent(EventSeq),
+    WhyEvent(EventId),
     /// The why panel goes back to the object asked about before this one.
     WhyBack,
     /// Close the why panel.
@@ -1910,8 +1910,8 @@ mod tests {
         let b = board();
         let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)));
         state.input(Input::Why(Object(b.bear)));
-        let event = WhyAbout::Event(EventSeq(7));
-        assert_eq!(state.input(Input::WhyEvent(EventSeq(7))), Some(Reply::Why(None)), "the seat stops following");
+        let event = WhyAbout::Event(EventId(7));
+        assert_eq!(state.input(Input::WhyEvent(EventId(7))), Some(Reply::Why(None)), "the seat stops following");
         assert_eq!(state.reading_the_trace, Some(TraceRequest { about: event, number: 1 }));
         let waiting = state.why_view().expect("the panel says it waits");
         assert_eq!((waiting.note, waiting.sections.len(), waiting.back), (Some(WHY_READING_THE_TRACE), 0, true));
@@ -1941,8 +1941,8 @@ mod tests {
         assert_eq!(state.reading_the_trace.map(|r| r.number), Some(2), "followed through the next one");
 
         let mut over = WindowState { board: Some(b.snapshot.clone()), outcome: Some(Outcome::Won(0)), ..WindowState::default() };
-        assert_eq!(over.input(Input::WhyEvent(EventSeq(3))), None, "no seat to tell");
-        assert_eq!(over.reading_the_trace.map(|r| r.about), Some(WhyAbout::Event(EventSeq(3))));
+        assert_eq!(over.input(Input::WhyEvent(EventId(3))), None, "no seat to tell");
+        assert_eq!(over.reading_the_trace.map(|r| r.about), Some(WhyAbout::Event(EventId(3))));
         assert_eq!(over.log_hint(), Some(WHY_ON_A_LOG_LINE));
         assert_eq!(item(&over.board_view().unwrap(), b.bear).why_hint, Some(WHY_ON_RIGHT_CLICK));
         over.receive(ToWindow::WhyFromTrace { request: 1, why: answer("an event") });

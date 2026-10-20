@@ -59,6 +59,11 @@ pub enum PlayerWord {
     LeftTheGame { player: PlayerId },
     CommanderDamage { player: PlayerId, damage: u32, from: NamedCard },
     History { player: PlayerId, span: HistorySpan, fact: TurnFact, count: u64 },
+    /// A spell the player cast in the span, by its card's name (CR 601.2i),
+    /// beside the span's unnamed `spells cast` count: what a count narrowed by
+    /// what its spells were reads, off the printed card
+    /// (`setup-architecture.md` §5.1).
+    Cast { player: PlayerId, span: HistorySpan, card: String },
     /// How many of this turn's cards the active player drew in their draw
     /// step in progress (CR 504), which "the first one you draw in each of
     /// your draw steps" counts.

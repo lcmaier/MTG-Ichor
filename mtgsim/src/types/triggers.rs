@@ -18,7 +18,7 @@ use crate::types::restriction::SourceFilter;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
-use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent, ResolutionStamp};
+use crate::events::event::{BatchId, DamageTarget, EventRecord, EventId, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
@@ -1533,7 +1533,7 @@ pub struct CreatingResolution {
     /// "That action": the records of the last instruction before it that took
     /// an action, from its first to the one after its last. `None` when no
     /// instruction before it took one.
-    pub that_action: Option<(EventSeq, EventSeq)>,
+    pub that_action: Option<(EventId, EventId)>,
 }
 
 /// Which turn a delayed triggered ability may trigger in, as a card prints it.
@@ -1605,7 +1605,7 @@ pub struct DelayedTrigger {
     /// which existence of it moved, so this is how "when this creature
     /// leaves the battlefield" knows its own departure and no later move of
     /// a new object with the same id.
-    pub source_left_at: Option<EventSeq>,
+    pub source_left_at: Option<EventId>,
     /// CR 113.7a, 608.2h — `source`'s last known information once it has
     /// left the zone it was in when this was created: kept as it left, or
     /// as this was created if it had already gone. Its trigger carries it to
@@ -1627,7 +1627,7 @@ pub struct DelayedTrigger {
     /// actually been created". A rider (CR 615.5) creates one inside the
     /// batch it rides on, after some of that event's members are performed
     /// and before others are, and the whole event happened "just beforehand".
-    pub created_at: EventSeq,
+    pub created_at: EventId,
     pub created_in: Option<BatchId>,
     /// The ability that created it, for CR 603.7h's "this ability"; `None`
     /// for a spell's and a replacement effect's.
@@ -1693,7 +1693,7 @@ pub struct Referred {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RememberedObject {
     pub object: ObjectRef,
-    pub left_at: Option<EventSeq>,
+    pub left_at: Option<EventId>,
 }
 
 impl RememberedObject {
@@ -1704,7 +1704,7 @@ impl RememberedObject {
 
     /// Whether record `seq`'s object `id` is this existence: its own
     /// departure, or, while it has not moved, the object as it is.
-    pub fn is(self, game: &GameState, id: ObjectId, seq: EventSeq) -> bool {
+    pub fn is(self, game: &GameState, id: ObjectId, seq: EventId) -> bool {
         id == self.object.id
             && match self.left_at {
                 Some(at) => at == seq,
@@ -1912,7 +1912,7 @@ impl PendingTrigger {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::event::EventSeq;
+    use crate::events::event::EventId;
     use crate::types::zones::ZoneChangeAct;
     use crate::state::game_state::AbilityIdentity;
     use crate::types::ids::{AbilityId, ObjectRef};
@@ -1957,7 +1957,7 @@ mod tests {
                 seq: TriggerSeq(0),
                 origin: TriggerOrigin::Object(identity),
                 controller: 0,
-                caused_by: EventSeq(0),
+                caused_by: EventId(0),
             }),
             ("SpellCast", GameEvent::SpellCast { spell_id: id, caster: 0 }),
             ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id }),

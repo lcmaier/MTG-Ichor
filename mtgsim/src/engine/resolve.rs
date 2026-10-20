@@ -4,11 +4,12 @@ use crate::engine::actions::{
     ActionContext, GameAction, ZoneChangeAct,
 };
 use crate::engine::layers::types::{
-    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, PtValue, Timestamp,
+    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, EffectiveCharacteristics, Layer, PtValue,
+    Timestamp,
 };
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, DamageTarget, EventSeq, GameEvent, ResolutionStamp};
-use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
+use crate::events::event::{CounterSubject, DamageTarget, EventId, GameEvent, ResolutionStamp};
+use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, HeldFrame, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::battlefield::AttackTarget;
@@ -161,7 +162,7 @@ struct ResolutionWalk {
     /// The records of the last instruction that took an action, from its
     /// first to the one after its last: CR 603.12's "that action", which a
     /// reflexive trigger made after it asks about.
-    last_action: Option<(EventSeq, EventSeq)>,
+    last_action: Option<(EventId, EventId)>,
 }
 
 impl ResolutionWalk {
@@ -2448,6 +2449,14 @@ impl GameState {
                 Err("CardTypesAmong amount resolution not yet implemented".to_string())
             }
             AmountExpr::Plus(inner, n) => Ok(self.evaluate_amount(inner, _ctx)? + n),
+            // "You" is the controller, and the text's "this" its source.
+            AmountExpr::History(span, history) => {
+                let (you, source) = (_ctx.controller, _ctx.source);
+                let mut filter_matches = |filter: &ObjectFilter, id, frame: &EffectiveCharacteristics| {
+                    self.object_matches_filter_of_source(id, filter, you, source, Some(HeldFrame::Characteristics(frame)))
+                };
+                Ok(self.history.total(history, *span, you, self.turn_number, &mut filter_matches, &|_| {}))
+            }
             AmountExpr::TargetPower => {
                 Err("TargetPower amount resolution not yet implemented".to_string())
             }
@@ -2752,7 +2761,7 @@ impl GameState {
     /// reads it.
     fn defending_player_of(&self, creature: Antecedent, ctx: &ResolutionContext) -> Option<PlayerId> {
         let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-        objects.object_for(creature, ctx.effect_source())?.defending_player(self)
+        objects.object_for(creature, ctx.effect_source())?.defending_player(self, &|_| {})
     }
 
     /// CR 113.7a, 608.2h — the ability's source's last known information,
@@ -2776,7 +2785,7 @@ impl GameState {
         primitive: &Primitive,
         acted_on: &[ResolvedTarget],
         ctx: &ResolutionContext,
-        mark: crate::events::event::EventSeq,
+        mark: crate::events::event::EventId,
     ) -> Referred {
         let players = acted_on
             .iter()
@@ -2817,7 +2826,7 @@ impl GameState {
     pub(crate) fn put_into_since(
         &self,
         stamp: ResolutionStamp,
-        mark: crate::events::event::EventSeq,
+        mark: crate::events::event::EventId,
     ) -> Vec<(ObjectRef, Option<Zone>)> {
         let mut put: Vec<(ObjectRef, Option<Zone>)> = Vec::new();
         for record in self.events.resolution_records(stamp, mark) {

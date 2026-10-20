@@ -11,6 +11,7 @@
 
 use std::ops::BitOr;
 
+use crate::types::history::{HistoryCount, ObjectFact};
 use crate::types::effects::{
     AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, Selector,
@@ -273,6 +274,7 @@ fn amount(a: &AmountExpr) -> TriggerBindingReads {
         | AmountExpr::StartingLifeTotal => TriggerBindingReads::NOTHING,
         AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => selector(over),
         AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount(inner),
+        AmountExpr::History(_, history) => history_count(history),
         AmountExpr::SourcePower | AmountExpr::SourceCounters(_) => TriggerBindingReads::SOURCE,
         AmountExpr::TriggeringAmount => TriggerBindingReads::AMOUNT,
         AmountExpr::TriggeringPower(p) | AmountExpr::TriggeringToughness(p) => {
@@ -308,9 +310,8 @@ fn filter(f: &ObjectFilter) -> TriggerBindingReads {
         | ObjectFilter::PowerLE(_)
         | ObjectFilter::WithCounters { .. }
         | ObjectFilter::Token
-        | ObjectFilter::ThisTurn(_)
-        | ObjectFilter::ThisCombat(_)
         | ObjectFilter::OtherThanInstance(_) => TriggerBindingReads::NOTHING,
+        ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => object_fact(fact),
         ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref(whose),
         ObjectFilter::NotSource => TriggerBindingReads::SOURCE,
         ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => filter(a) | filter(b),
@@ -336,15 +337,29 @@ fn condition(c: &Condition) -> TriggerBindingReads {
         Condition::ResolvedThisTurn(_) => TriggerBindingReads::ABILITY,
         // The counts its records left, as "that many" reads their counters.
         Condition::CounterCountReached { .. } => TriggerBindingReads::AMOUNT,
-        // A mode makes the def modal, which reads everything; a history and
-        // the walk's answer are one player's, the same for each entry.
-        Condition::ModeChosen(_)
-        | Condition::ThisTurn(_)
-        | Condition::LastTurn(_)
-        | Condition::SinceYourLastTurn(_)
-        | Condition::ThisGame(_)
-        | Condition::CostAnswer(_) => TriggerBindingReads::NOTHING,
+        Condition::ThisTurn(history, _)
+        | Condition::LastTurn(history, _)
+        | Condition::SinceYourLastTurn(history, _)
+        | Condition::ThisGame(history, _) => history_count(history),
+        // A mode makes the def modal, which reads everything; the walk's
+        // answer is one player's, the same for each entry.
+        Condition::ModeChosen(_) | Condition::CostAnswer(_) => TriggerBindingReads::NOTHING,
     }
+}
+
+fn object_fact(f: &ObjectFact) -> TriggerBindingReads {
+    match f {
+        ObjectFact::Attacked | ObjectFact::Blocked | ObjectFact::WasBlocked | ObjectFact::Entered | ObjectFact::WasDealtDamage => {
+            TriggerBindingReads::NOTHING
+        }
+        ObjectFact::DealtDamageTo { player, .. } => player.as_ref().map_or(TriggerBindingReads::NOTHING, player_ref),
+    }
+}
+
+/// What a history count's filter reads; its rows are one player's, the same
+/// for each entry.
+fn history_count(history: &HistoryCount) -> TriggerBindingReads {
+    history.of.as_deref().map_or(TriggerBindingReads::NOTHING, filter)
 }
 
 fn player_fact(f: &PlayerFact) -> TriggerBindingReads {

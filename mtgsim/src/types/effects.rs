@@ -24,6 +24,9 @@ pub enum AmountExpr {
     CardTypesAmong(Selector),
     /// "equal to that number plus N" — Tarmogoyf's toughness.
     Plus(Box<AmountExpr>, u64),
+    /// "Equal to the amount of life you gained this turn" (Betor, Ancestor's
+    /// Voice): a history count over a span of turns, read as a number.
+    History(crate::types::history::HistorySpan, Box<crate::types::history::HistoryCount>),
     /// "equal to its mana value", where "it" is the object the continuous
     /// effect is being applied to — March of the Machines' "power and toughness
     /// each equal to its mana value".
@@ -640,19 +643,19 @@ pub enum Condition {
     /// counter write bumps the layer epoch.
     CounterCount { object: Antecedent, kind: Option<CounterType>, count: crate::types::history::CountIs },
     /// "If you lost life this turn", "if an opponent was dealt damage this
-    /// turn" (bloodthirst): a count over the turn in progress, off the turn
-    /// summaries (`triggers-architecture.md` §3.10).
-    ThisTurn(crate::types::history::HistoryCount),
+    /// turn" (bloodthirst): a count over the turn in progress, off the history
+    /// log (`triggers-architecture.md` §12, TR-5h).
+    ThisTurn(crate::types::history::HistoryCount, crate::types::history::CountIs),
     /// "If you lost life last turn" (Paladin of Atonement): the game's
     /// previous turn, whoever's it was, as that card's ruling reads it.
-    LastTurn(crate::types::history::HistoryCount),
+    LastTurn(crate::types::history::HistoryCount, crate::types::history::CountIs),
     /// "If you haven't been dealt combat damage since your last turn"
     /// (Marchesa, Resolute Monarch): every turn after your most recent one
     /// before this, through the turn in progress.
-    SinceYourLastTurn(crate::types::history::HistoryCount),
+    SinceYourLastTurn(crate::types::history::HistoryCount, crate::types::history::CountIs),
     /// "If this spell is the first spell you've cast this game" (First
     /// Contact): every turn so far.
-    ThisGame(crate::types::history::HistoryCount),
+    ThisGame(crate::types::history::HistoryCount, crate::types::history::CountIs),
     /// CR 122.7's "when the Nth [kind] counter is put on [it]", and CR
     /// 714.2b's Saga chapter, which words it as this "if": the count was less
     /// than `n` before the triggering event's counters and at least `n`
@@ -713,10 +716,10 @@ impl Condition {
             | Condition::ModeChosen(_)
             | Condition::SourceInZone(_)
             | Condition::HostMatches(_)
-            | Condition::ThisTurn(_)
-            | Condition::LastTurn(_)
-            | Condition::SinceYourLastTurn(_)
-            | Condition::ThisGame(_)
+            | Condition::ThisTurn(..)
+            | Condition::LastTurn(..)
+            | Condition::SinceYourLastTurn(..)
+            | Condition::ThisGame(..)
             | Condition::ResolvedThisTurn(_)
             | Condition::CounterCountReached { .. }
             | Condition::CostAnswer(_) => false,

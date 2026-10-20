@@ -202,7 +202,7 @@ fn bolt_board() -> String {
 }
 
 /// The seats pass until the log shows a line starting `words`: its event.
-fn pass_until_the_log_shows(session: &mut Session, words: &str) -> mtgsim::events::event::EventSeq {
+fn pass_until_the_log_shows(session: &mut Session, words: &str) -> mtgsim::events::event::EventId {
     loop {
         if let Some(line) = session.state.log.iter().find(|line| line.text.starts_with(words)) {
             return line.event;

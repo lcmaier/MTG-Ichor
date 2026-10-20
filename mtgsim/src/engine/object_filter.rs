@@ -17,7 +17,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::targeting::{ChosenTargets, FilterIdentity, TargetInstance};
 use crate::state::game_state::GameState;
-use crate::state::history::CombatSpan;
+use crate::state::history_log::CombatSpan;
 use crate::types::effects::{CounterType, ObjectFilter, PlayerRef};
 use crate::types::history::ObjectFact;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -98,7 +98,7 @@ impl FilterReferents for TextReferents<'_, '_> {
     }
 
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
-        self.identity.named_objects.object_for(creature, self.identity.source?)?.defending_player(game)
+        self.identity.named_objects.object_for(creature, self.identity.source?)?.defending_player(game, &|_| {})
     }
 }
 
@@ -262,26 +262,41 @@ fn answer_or_refuse<'f>(
         // The existence it is, or the one its frame kept (CR 400.7). An entry
         // is the permanent's own fact, and every other is the combat's.
         ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => {
-            referents.note_gated_read(GatedWalkInput::Histories);
             let span = match filter {
                 ObjectFilter::ThisCombat(_) => CombatSpan::ThisCombat,
                 _ => CombatSpan::ThisTurn,
             };
-            let (combat, turn) = (&game.history.combat, game.turn_number);
+            let (log, turn) = (&game.history.log, game.turn_number);
+            let note = |input| referents.note_gated_read(input);
             let existence = || match last_known {
                 Some(lki) => Ok(lki.object()),
                 None => game.object_ref(id).ok_or(FilterRefusal::ObjectGone(id)),
             };
             Ok(match fact {
-                ObjectFact::Attacked => combat.attacked(existence()?, turn, span),
-                ObjectFact::Blocked => combat.blocked(existence()?, turn, span),
-                ObjectFact::WasBlocked => combat.was_blocked(existence()?, turn, span),
+                ObjectFact::Attacked => log.attacked(existence()?, turn, span, &note),
+                ObjectFact::Blocked => log.blocked(existence()?, turn, span, &note),
+                ObjectFact::WasBlocked => log.was_blocked(existence()?, turn, span, &note),
                 ObjectFact::Entered => {
+                    note(GatedWalkInput::TurnNumber);
                     let entered = match last_known {
                         Some(lki) => lki.entered_turn(),
                         None => game.battlefield.get(&id).map(|entry| entry.entered_battlefield_turn),
                     };
                     span == CombatSpan::ThisTurn && entered == Some(turn)
+                }
+                ObjectFact::WasDealtDamage => log.was_dealt_damage(existence()?, turn, span, &note),
+                ObjectFact::DealtDamageTo { player, combat } => {
+                    let dealt: Vec<PlayerId> = log.players_dealt_damage_by(existence()?, *combat, turn, span, &note).collect();
+                    match player {
+                        None => !dealt.is_empty(),
+                        Some(who) => {
+                            let mut named = false;
+                            for dealt_to in dealt {
+                                named |= player_ref_names(game, who, dealt_to, referents).ok_or(FilterRefusal::NoSource(id))?;
+                            }
+                            named
+                        }
+                    }
                 }
             })
         }
@@ -301,7 +316,7 @@ fn answer_or_refuse<'f>(
                 Some(lki) => lki.counters_of(*kind),
                 None => referents.counters_on(game, id, *kind),
             };
-            Ok(count.met_by(u64::from(n)))
+            Ok(count.satisfied_by(u64::from(n)))
         }
         // Identity, off the ids: no layer makes an object other than itself.
         ObjectFilter::NotSource => referents.source().map(|source| id != source).ok_or(FilterRefusal::NoSource(id)),

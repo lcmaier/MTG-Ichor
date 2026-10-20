@@ -7769,6 +7769,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      total and a per-player snapshot taken as the turn after each of that
      player's own turns begins: O(seats²), never the turn count.
      **Reachability (2026-09-25):** closed — the bounded-state PR.
+     **The bound restated (2026-10-19, PR #262, TR-5h; the owner):** what a
+     clone copies of the history is still the table's size, one pointer for
+     the whole log. What a game holds now grows with its events, read at each
+     close-out: 2.7–4.6 KB a turn, 378 KB in the largest of 23 games
+     (`triggers-architecture.md` §3.10).
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 179".
 
 ### Found by the bounded-state PR's review (2026-09-25)
@@ -7882,7 +7887,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      `AbilityDef.effect` and `TriggerDef.effect` `Arc`s, about 250 sites,
      for a copy paid once per push rather than once per fork. **B10 stays
      open:** the entry and its `GameObject` are still copied per fork.
-     **Slotted:** B10, a clone during a deep stack: stack objects shared
+     **Widened at TR-5d's design review (the owner, 2026-10-19):** the design
+     takes the battlefield's and the object store's per-object state with the
+     stack's, shared between forks and copied on write, since clone time read
+     8.9–9.5 µs against floor 2's 10 and a token-heavy board grows every
+     clone. It moves up if A6e's readiness pass reads less than 10% room.
+     **Slotted:** B10, the clone's structural sharing: per-object state shared
      between forks, copied on write, which also settles `FitOnClone`'s rule.
 
 184. **CR 613.6's lock carries one row's set to another row of the same
@@ -9381,9 +9391,10 @@ Number 277 was withdrawn in #260 and is not reused.
      **Sized:** the damage rows ~40 lines of code and ~60 of tests; the
      zone-change rows ~45 and ~70; each other fact ~15 and ~30 with its
      writer.
-     **Slotted:** TR-5d for the damage facts, beside excess damage, as TR-5c's
-     review decided; each other fact with the first registered card that
-     reads it.
+     **Slotted:** TR-5h, the log every reader of the history reads, whose
+     first new rows are the damage facts; moved from TR-5d at its review
+     (2026-10-19). Each other fact with the first registered card that
+     reads it, as a variant of the log's rows.
      **Shaped at TR-5c's review (the owner, 2026-10-18), for TR-5d's design:**
      one history of what each object did this round, the combat's rows
      generalized (an object, the turn, the combat and a fact), which these
@@ -9400,16 +9411,17 @@ Number 277 was withdrawn in #260 and is not reused.
      reader can leave a dependency out. A write that rewrites every row (the
      turn's retain) trips every key, and the layer memo's audit, which re-walks
      fresh against each hit in a debug build, catches a key the lookups miss.
+     **The damage half built (2026-10-19, PR #262, TR-5h):** the history log
+     is that one history, kept for the whole game, its gate keyed by kind of
+     row; `ObjectFact::WasDealtDamage` and `DealtDamageTo { player, combat }`
+     read its damage rows. The zone-change facts and the rest stay slotted as
+     above, each a `RowFact` reading or variant with its first card.
 
-280. **No amount reads a player's turn summary.** `Condition::ThisTurn` asks
-     a `HistoryCount`, but "equal to the amount of life you gained this turn"
-     (31 cards, Betor, Ancestor's Voice) and "life you lost this turn" (6) are
-     numbers, and no `AmountExpr` reads a summary. Found at TR-5c's review.
-     **Reachability (2026-10-18):** unreachable — no registered card reads one.
-     **Sized:** an `AmountExpr` over a `HistoryCount`'s fact and players,
-     ~15 lines of code and ~30 of tests.
-     **Slotted:** with the first registered card that reads an amount of
-     the turn's history (Betor, Ancestor's Voice).
+280. **~~No amount reads a player's turn summary.~~ — ✅ CLOSED 2026-10-19 (PR #262, TR-5h).** — archived.
+     `AmountExpr::History(span, count)` reads a `HistoryCount` as a number,
+     in a layer and at resolution, narrowed by its `of` like any count.
+     **Reachability (2026-10-19):** closed — PR #262.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 280".
 
 281. **`EffectRecipient::Group` refuses an instance of "target".** "Exile
      this creature and target creature without flying that's attacking you"
@@ -9472,3 +9484,39 @@ Number 277 was withdrawn in #260 and is not reused.
      **Sized:** sort the 80 by the rule, then a struct or a split for each
      that fails, mechanical; ~150–300 lines, counted before it runs.
      **Slotted:** A6e, beside its naming sweep (`roadmap-v2.md`).
+
+### Found by TR-5h (2026-10-19)
+
+286. **A history row keeps a frame, not the store's facts beside it.** A
+     filter leaf no frame answers reads the store by the row's id, which
+     answers for the object now: whether it was a token (a token's row reads
+     nothing once CR 704.5d has removed it), its counters then, the owner of
+     an object the store has lost. "For each nontoken creature that died this
+     turn" (Caller of the Claw, Gorma, the Gullet, Rise of the Dread Marn,
+     Tobias, Doomed Conqueror, Vile Redeemer; `o:"nontoken creature" o:"this
+     turn" (o:died OR o:"put into")`, 6 cards, 2026-10-19) answers right
+     today only because `Not` keeps a refusal; "tokens that died this turn"
+     counts none. `Lki` carries the owner and the counters but not
+     token-ness either.
+     **Reachability (2026-10-19):** unreachable — no registered card narrows
+     a history count by a fact the store holds.
+     **Sized:** a departure row keeps its record's last known information
+     beside its frame, `Lki` gains whether it was a token, and the filter's
+     `Token` leaf reads it; ~40 lines and ~50 of tests, with a held-memory
+     reading, since the information is larger than a frame.
+     **Slotted:** with the first registered card that narrows a history
+     count by token-ness or counters (Caller of the Claw).
+
+287. **The scenario names its casts and counts the rest.** A save writes each
+     cast by its card's name (`setup-architecture.md` §5.1), so a count
+     narrowed by what its spells were reloads exactly. Draws, deaths, attacks
+     and damage are written as counts, and a card that narrows one of those
+     on a reloaded board asks rows with no frame, which is loud in a debug
+     build. No registered card narrows one; the round-trip test would meet it
+     first.
+     **Reachability (2026-10-19):** unreachable — no registered card narrows
+     a count of draws, deaths, attacks or damage.
+     **Sized:** a word per fact naming its objects, as `cast <card>` does,
+     each ~40 lines with its test.
+     **Slotted:** with the first registered card that narrows one (Caller of
+     the Claw for deaths).

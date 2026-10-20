@@ -591,7 +591,13 @@ critical path, which lists neither; that is the owner's line to add.
   entry owes, not one `SourcePattern` or `ObjectSet` is missing today. The
   scenario loader asks the wrong one already (A6l's inventory, 2026-10-10):
   `scenario/build.rs`'s `attacked_player` reads a battle's controller, where
-  CR 506.2 and 508.5 make its protector the defending player.
+  CR 506.2 and 508.5 make its protector the defending player. And
+  `combat/steps.rs`'s `get_defending_players` keeps only the players
+  attacked directly, so neither an attacked planeswalker's controller nor an
+  attacked battle's protector would declare blockers (CR 506.2, 802.4); the
+  declaration refuses both targets today, and the attack path reads
+  `oracle::characteristics::defending_player_for` in both places (TR-5h's
+  model pass, 2026-10-19).
 - **Size** — one PR in the band, after item 6 (the flip is a trigger) and
   the planeswalker attack path it shares (`replacement-architecture.md` §9,
   RD-1 leaves both out of combat on purpose).
@@ -2393,8 +2399,8 @@ the matrix waits for the design that needs it.
 - **"If X would" and "when X"** are `EventPattern` (20 arms, over proposals,
   CR 614) and `TriggerEvent` (12, over records, CR 603), with no parity rule
   between them.
-- `Condition` leaves, `TemplateAmount` arms and `TurnSummary` fields grow with
-  the card that needs them, on purpose.
+- `Condition` leaves, `TemplateAmount` arms and the history log's `RowFact`
+  variants grow with the card that needs them, on purpose.
 
 **Two pieces, two times.**
 - **Parity, at TR-6's close.** A table of `EventPattern` against
@@ -2838,12 +2844,47 @@ no store today.
 
 | Field | |
 |---|---|
-| **Rules** | none of its own: each count is its fact's own rule, read over the whole game rather than a turn, as `PlayerHistory`'s `this_game` view reads the facts it keeps (`triggers-architecture.md` §3.10) |
-| **Verdict** | **A game-only fact pays for two rows it never reads.** A player's count of one fact over the game is a `TurnFact` slot, and a slot is in each of a player's three summaries: this turn, last turn, this game. A fact read only over the game spends the other two, copied by every clone (8 bytes a slot, 96 bytes a fact at four seats). A game-only row beside the summaries, which only `this_game` reads, holds such a fact at 8 bytes a player. **A count by card name fits no slot**, since names are unbounded: Approach of the Second Sun counts spells cast with its name, Yidaro, Wandering Monster cards cycled with its name, Gollum, Obsessed Stalker the opponents a creature with its name dealt combat damage. The store is a per-player map from a name some registered card's text watches to its count, kept for the game, so it is bounded by the names watched, not the turns |
-| **Size** | the row, ~40 lines and a test, with the first game-only fact; the map, ~80 lines with Approach of the Second Sun, whose six rulings are its tests |
+| **Rules** | none of its own: each count is its fact's own rule, read over the whole game rather than a turn, as every span reads the history log (`triggers-architecture.md` §3.10) |
+| **Verdict** | **Answered in shape by TR-5h's log (2026-10-19, PR #262), which keeps the whole game.** A game-only fact is a count over its rows from turn 1, and pays for nothing it does not read, so the row this entry once proposed is not needed. A count by name narrows the rows by their frames, which hold each object's name as it was; no `ObjectFilter` leaf reads a name yet. A cast from the command zone is a cast row whose `from` says so, which no `TurnFact` separates yet |
+| **Size** | each reading with its first card: a `ByName` filter leaf, ~30 lines and a test, with Approach of the Second Sun, whose six rulings are its tests; a cast count by zone, ~20 lines, with the first command-zone count and B2's designation |
 | **Blocks** | the 17 printed cards that count a player's casts of a commander from the command zone (Captain Vargus Wrath, Commander's Insignia, the Storm cycle), with B2's designation; the two Frodos' count of the Ring tempting you; Approach, Yidaro and Gollum by name; and the custom "this game" cards the owner expects |
 | **Atoms** | none |
-| **Owner** | — ; the row with the first game-only fact registered, the map with Approach of the Second Sun |
+| **Owner** | — ; each reading with its first registered card |
+
+### 2.48 The history log's chunk size — a performance lever, for a mature engine
+
+**What a chunk is.** The history log (`state::history_log`, TR-5h) is a chain
+of blocks of rows, newest first, each behind an `Arc`. Every copy of the game
+shares every block, so copying the game copies one pointer; the first time a
+copy, a fork, writes a row, it copies only the newest, partly filled block.
+`CHUNK_ROWS` sets how many rows a block holds: 16 today, chosen by reasoning
+at TR-5h's build, never measured against another size.
+
+**What the size trades.** A smaller block makes a fork's first write cheaper
+and the chain longer: more allocations as a game writes, more pointer hops
+for a long read. A larger block makes the chain shorter and each first write
+dearer, and leaves more empty room in the open block of every fork that
+wrote. The readings at the choice (2026-10-19, TR-5h's tree): a row is 104
+bytes, so a fork's first write copies under 2 KB in one allocation; a
+four-seat game writes about eleven rows a turn (1,297 rows over 118 turns);
+a "this game" count over those 1,297 rows takes 1.9 µs, "this turn" about
+50 ns, against about 64 µs a decision.
+
+**Why it waits** (the owner, 2026-10-19, at #262's review). The trade can only
+be read on the workload the size serves, a mature engine searched by the AI
+harness: how many forks a decision makes, how many of them write, how long
+games run, and which "this game" readers the registered cards hold. Today's
+fuzz games measure none of that, and the row's size will move as facts are
+added.
+
+| Field | |
+|---|---|
+| **Rules** | none; an implementation constant |
+| **Verdict** | `CHUNK_ROWS = 16` is a reasoned guess. Nothing measures a fork's first-write cost, a long read's chain walk or the open block's slack at another size |
+| **Size** | a sweep of 8, 16, 32 and 64 on the harness's search workload: clone time and allocations per fork (floor 2), instructions per decision, held bytes per game, a long game's "this game" read; a probe of ~50 lines and a sitting, then a one-line change if a size wins |
+| **Blocks** | nothing; a performance lever. Every gameplay row stays identical at any size |
+| **Atoms** | none |
+| **Owner** | — ; the AI harness's performance work in Phase 10, after B10's structural sharing changes what a fork copies (`roadmap-v2.md`) |
 
 ## 3. Dispositioned — sections that need no entry of their own
 
