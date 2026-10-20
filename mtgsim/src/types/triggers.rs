@@ -369,6 +369,9 @@ pub enum TriggeringEventObjects {
     /// CR 120.1: the damage's source, as the existence that dealt it, and what
     /// it was dealt to.
     Damage { source: ObjectRef, recipient: ObjectOrPlayer },
+    /// CR 615.13: the object whose damage a prevention effect prevented. The
+    /// record names no source, since the damage can come from several.
+    Prevention { recipient: ObjectRef },
     /// CR 508.1: one creature declared as an attacker, and what it attacks.
     Attack { attacker: ObjectRef, defender: ObjectOrPlayer },
     /// CR 508.3b: one player, planeswalker or battle attacked, and every
@@ -406,7 +409,8 @@ impl TriggeringEventObjects {
             | (TriggeringEventObjects::Blocking { blocker: object, .. }, EventRole::Blocker)
             | (TriggeringEventObjects::BlockedBy { attacker: object, .. }, EventRole::Attacker)
             | (TriggeringEventObjects::Unblocked { attacker: object }, EventRole::Attacker)
-            | (TriggeringEventObjects::Target { by: object, .. }, EventRole::SpellOrAbility) => Some(*object),
+            | (TriggeringEventObjects::Target { by: object, .. }, EventRole::SpellOrAbility)
+            | (TriggeringEventObjects::Prevention { recipient: object }, EventRole::DamageRecipient) => Some(*object),
             (TriggeringEventObjects::Target { target, .. }, EventRole::Target) => target.object(),
             (TriggeringEventObjects::Damage { recipient: object, .. }, EventRole::DamageRecipient)
             | (TriggeringEventObjects::Attack { defender: object, .. }, EventRole::Attacked)
@@ -415,6 +419,7 @@ impl TriggeringEventObjects {
                 TriggeringEventObjects::NoObject
                 | TriggeringEventObjects::Object(_)
                 | TriggeringEventObjects::Damage { .. }
+                | TriggeringEventObjects::Prevention { .. }
                 | TriggeringEventObjects::Attack { .. }
                 | TriggeringEventObjects::Defense { .. }
                 | TriggeringEventObjects::Attach { .. }
@@ -439,6 +444,9 @@ impl TriggeringEventObjects {
                 [Some((EventRole::DamageSource, *source)), recipient.object().map(|o| (EventRole::DamageRecipient, o))],
                 (EventRole::Attacker, &[]),
             ),
+            TriggeringEventObjects::Prevention { recipient } => {
+                ([Some((EventRole::DamageRecipient, *recipient)), None], (EventRole::Attacker, &[]))
+            }
             TriggeringEventObjects::Attack { attacker, defender } => (
                 [Some((EventRole::Attacker, *attacker)), defender.object().map(|o| (EventRole::Attacked, o))],
                 (EventRole::Attacker, &[]),
@@ -501,6 +509,7 @@ counted_enum! {
         Untapped,
         ManaAdded,
         DamageDealt,
+        DamagePrevented,
         PhaseBegin,
         StepBegin,
         TurnBegin,
@@ -544,6 +553,7 @@ impl EventKind {
             GameEvent::Untapped { .. } => EventKind::Untapped,
             GameEvent::ManaAdded { .. } => EventKind::ManaAdded,
             GameEvent::DamageDealt { .. } => EventKind::DamageDealt,
+            GameEvent::DamagePrevented { .. } => EventKind::DamagePrevented,
             GameEvent::PhaseBegin { .. } => EventKind::PhaseBegin,
             GameEvent::StepBegin { .. } => EventKind::StepBegin,
             GameEvent::TurnBegin { .. } => EventKind::TurnBegin,
@@ -568,7 +578,6 @@ impl EventKind {
             GameEvent::CountersRemovedFrom { .. } => EventKind::CountersRemovedFrom,
             GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
-            | GameEvent::DamagePrevented { .. }
             | GameEvent::DelayedTriggerCreated { .. }
             | GameEvent::PlayerWon { .. }
             | GameEvent::RemovedFromCombat { .. }
@@ -704,6 +713,11 @@ pub enum TriggerEvent {
         combat: Option<bool>,
         multiplicity: Multiplicity,
     },
+    /// "Whenever damage that would be dealt to you is prevented" (CR 615.13):
+    /// once each time a prevention effect is applied to one recipient's
+    /// damage in a batch, however many sources it came from. "That many" is
+    /// the damage that application prevented.
+    DamageIsPrevented { recipient: DamageRecipient, multiplicity: Multiplicity },
     /// "At the beginning of [your/each] [phase]". `whose: None` is each.
     PhaseBegins { phase: PhaseType, whose: Option<PlayerRef> },
     /// "At the beginning of [your/each] upkeep"; "at end of combat" is
@@ -903,6 +917,7 @@ impl TriggerEvent {
             | TriggerEvent::DrawsCard { .. }
             | TriggerEvent::ManaAdded { .. }
             | TriggerEvent::DamageDealt { .. }
+            | TriggerEvent::DamageIsPrevented { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
@@ -951,6 +966,7 @@ impl TriggerEvent {
             TriggerEvent::DrawsCard { .. } => EventKindMask::of(EventKind::CardDrawn),
             TriggerEvent::ManaAdded { .. } => EventKindMask::of(EventKind::ManaAdded),
             TriggerEvent::DamageDealt { .. } => EventKindMask::of(EventKind::DamageDealt),
+            TriggerEvent::DamageIsPrevented { .. } => EventKindMask::of(EventKind::DamagePrevented),
             TriggerEvent::PhaseBegins { .. } => EventKindMask::of(EventKind::PhaseBegin),
             TriggerEvent::StepBegins { .. } => EventKindMask::of(EventKind::StepBegin),
             TriggerEvent::TurnBegins { .. } => EventKindMask::of(EventKind::TurnBegin),
@@ -1018,6 +1034,7 @@ impl TriggerEvent {
             TriggerEvent::CountersPutOn { subject: CountersOn::Player(_), .. }
             | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Player(_), .. }
             | TriggerEvent::BecomesTarget { target: TargetSubject::Player(_), .. }
+            | TriggerEvent::DamageIsPrevented { .. }
             | TriggerEvent::DrawsCard { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
@@ -1049,6 +1066,7 @@ impl TriggerEvent {
             | TriggerEvent::DrawsCard { .. }
             | TriggerEvent::ManaAdded { .. }
             | TriggerEvent::DamageDealt { .. }
+            | TriggerEvent::DamageIsPrevented { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
@@ -1094,6 +1112,7 @@ impl TriggerEvent {
             TriggerEvent::ZoneChange { multiplicity, .. }
             | TriggerEvent::DrawsCard { multiplicity, .. }
             | TriggerEvent::DamageDealt { multiplicity, .. }
+            | TriggerEvent::DamageIsPrevented { multiplicity, .. }
             | TriggerEvent::GainsLife { multiplicity, .. }
             | TriggerEvent::LosesLife { multiplicity, .. }
             | TriggerEvent::EntersBattlefield { multiplicity, .. }
@@ -1176,6 +1195,7 @@ impl TriggerEvent {
             | TriggerEvent::CountersPutOn { subject: CountersOn::Object(_), .. }
             | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(_), .. } => &[EventRole::Object],
             TriggerEvent::DamageDealt { .. } => &[EventRole::DamageSource, EventRole::DamageRecipient],
+            TriggerEvent::DamageIsPrevented { .. } => &[EventRole::DamageRecipient],
             TriggerEvent::Attacks { .. } => &[EventRole::Attacker, EventRole::Attacked],
             TriggerEvent::Blocks { occurrence: BlockOccurrence::Unblocked, .. } => &[EventRole::Attacker],
             TriggerEvent::Blocks { .. } if self.other_combatant().is_some() => {
@@ -1208,7 +1228,8 @@ impl TriggerEvent {
             | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { owner, .. })
             | (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { owner, .. }) => Some(*owner),
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { player_id, .. }) => Some(*player_id),
-            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. }) => match target {
+            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. })
+            | (TriggerEvent::DamageIsPrevented { .. }, GameEvent::DamagePrevented { target, .. }) => match target {
                 DamageTarget::Player(pid) => Some(*pid),
                 DamageTarget::Object(_) => None,
             },
@@ -1260,6 +1281,7 @@ impl TriggerEvent {
                 | TriggerEvent::DrawsCard { .. }
                 | TriggerEvent::ManaAdded { .. }
                 | TriggerEvent::DamageDealt { .. }
+                | TriggerEvent::DamageIsPrevented { .. }
                 | TriggerEvent::PhaseBegins { .. }
                 | TriggerEvent::StepBegins { .. }
                 | TriggerEvent::TurnBegins { .. }
@@ -1290,7 +1312,8 @@ impl TriggerEvent {
     /// moved. `None` for an event with no quantity.
     pub fn amount_of(&self, record: &GameEvent) -> Option<u64> {
         match (self, record) {
-            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { amount, .. }) => Some(*amount),
+            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { amount, .. })
+            | (TriggerEvent::DamageIsPrevented { .. }, GameEvent::DamagePrevented { amount, .. }) => Some(*amount),
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { mana, .. }) => {
                 Some(mana.iter().map(|(_, n)| *n).sum())
             }
@@ -1346,6 +1369,7 @@ impl TriggerEvent {
                 | TriggerEvent::DrawsCard { .. }
                 | TriggerEvent::ManaAdded { .. }
                 | TriggerEvent::DamageDealt { .. }
+                | TriggerEvent::DamageIsPrevented { .. }
                 | TriggerEvent::PhaseBegins { .. }
                 | TriggerEvent::StepBegins { .. }
                 | TriggerEvent::TurnBegins { .. }
@@ -1969,6 +1993,11 @@ mod tests {
                 former_host: identity.source,
                 route: crate::events::event::UnattachRoute::HostLeft,
             }),
+            ("DamagePrevented", GameEvent::DamagePrevented {
+                target: DamageTarget::Player(0),
+                amount: 1,
+                by: crate::engine::replacement::ReplacementInstanceId::StaticAbility(identity.source, identity.ability),
+            }),
             ("Scried", GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 }),
         ]
     }
@@ -1997,6 +2026,7 @@ mod tests {
                 TriggerEvent::DamageDealt { source: this.clone(), recipient: DamageRecipient::Any, combat: None, multiplicity: each },
                 &["DamageDealt"],
             ),
+            (TriggerEvent::DamageIsPrevented { recipient: DamageRecipient::Any, multiplicity: each }, &["DamagePrevented"]),
             (TriggerEvent::PhaseBegins { phase: PhaseType::Precombat, whose: None }, &["PhaseBegin"]),
             (TriggerEvent::StepBegins { step: StepType::Upkeep, whose: None }, &["StepBegin"]),
             (TriggerEvent::TurnBegins { whose: None }, &["TurnBegin"]),

@@ -548,8 +548,8 @@ fn one_effect_preventing_damage_to_two_creatures_announces_each() {
 
 /// The dev GUI's note: Lightning Bolt on Protean Hydra. The prevention is
 /// announced, and its rider's removal of that many counters follows it
-/// (CR 615.5). Neither is a trigger's event yet: the record files under no
-/// kind a trigger arm reads.
+/// (CR 615.5). The prevention files under the kind `DamageIsPrevented`
+/// reads (CR 615.13).
 #[test]
 fn protean_hydras_prevention_is_announced_before_its_counters_come_off() {
     let (mut game, hydra) = hydra_with(5);
@@ -562,7 +562,7 @@ fn protean_hydras_prevention_is_announced_before_its_counters_come_off() {
     assert_followed_by(&log, &prevented, &removed);
     let records = game.recorded_events();
     let record = records.records().iter().find(|r| matches!(r.event, GameEvent::DamagePrevented { .. })).unwrap();
-    assert_eq!(EventKind::from_record(&record.event), None);
+    assert_eq!(EventKind::from_record(&record.event), Some(EventKind::DamagePrevented));
     assert!(record.stamp.batch.is_some(), "announced inside the Bolt's damage batch");
 }
 
