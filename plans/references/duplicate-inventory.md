@@ -562,6 +562,55 @@ battle (`scenario/build.rs`'s `attacked_player`, `combat/steps.rs`'s
 the history writer's halves; turn 0 belonging to no span, asked at seven
 sites that agree.
 
+### 3.9 Found by TR-5d's model pass (2026-10-19)
+
+§2a's prompt over the files #263 changed, its report unseen. It named 11
+facts and three small ones, one of them a pair that already disagrees;
+`close_out.py`'s report named two of the same. #263 merged five, filed one as
+an item, and kept or routed the rest.
+
+**Merged in #263, no game moved** (50 audited games on both pools, at two
+seats and four, play the shipped arm's exactly).
+- **T25. The last known information an entry carries for its source:**
+  `PendingTrigger::lki_of` on `carried_lki`, the reading `StackEntry` and
+  `ResolvingObject` ask, where placement had searched `kept_lki` alone.
+- **T26. A planeswalker's loyalty:** `counter_count_of`, in the batch's
+  lethal amounts.
+- **T27. A damage target or a counter subject as an `EventSubject`:** `From`
+  impls beside it, read by `subject_of` and `occurrence_subject`.
+- **T28. The damage rows dealt to an object:** one reader under
+  `was_dealt_damage` and `was_dealt_excess_damage`.
+- **T29. A damage target's name in a log line**, shared by the damage and
+  prevention lines.
+
+**Filed.** **T30. Which frame a record carries for an object, at the match
+and at resolution** (CR 603.10c–d): the matcher reads a `ControlChanged`'s, a
+`SameZoneMove`'s and an `Unattached`'s frame, and `record_frame` only what
+`GameEvent::lki` returns, a zone change's, a leaving's and a countered
+spell's. They already differ; no registered card reads such an object's
+characteristics, so it is `codebase-state.md` item 290.
+
+**Kept, each with its reason.**
+- Deathtouch among simultaneous damage: `lethal_damage_owed` answers what a
+  blocker is still owed after other creatures' assignments, the batch what is
+  lethal before any of its damage; both cap through its
+  `source_has_deathtouch`, each caller answering off its own list.
+- A member's deathtouch read before the batch performs and again as it
+  performs: the lethal amounts are decided against the board the batch
+  decided against, as its replacements are, and the flag is CR 704.5h's
+  memory of the damage dealt.
+
+**Item 247's, beside T19–T21** (each older than #263): combat's lethal
+reading asks `has_keyword` where `deals_damage_with` reads a gone source's
+last known information; CR 120.6's toughness less damage in the SBA and in
+`lethal_damage_owed`; a damage record's source existence and frame derived
+in four places beside `CurrentOrLastKnown`, and its target as an
+`ObjectOrPlayer` in two; `CountersOn`, `TargetSubject` and `DamageRecipient`,
+one shape with three matchers; `TriggeringEventObjects::get` beside
+`objects`; the arms' multiplicities, T7's; `zone_change_looks_back` beside
+`looks_back`'s zone-change arm; the placed kinds, as §3.8 keeps them; and
+`TurnFact::COUNT` counted by hand.
+
 ## 4. The rename: "departed frame" to LKI
 
 **Decided (the owner, 2026-10-10, at #240's review): its own mechanical PR,

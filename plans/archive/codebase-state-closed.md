@@ -7151,3 +7151,93 @@ cast this turn".
      **Slotted:** TR-5h, whose `HistoryCount` an `AmountExpr` reads; moved
      there at TR-5d's review (2026-10-19), since the log's one way to read
      answers a count as a number.
+
+### 'Before Triggered abilities' item 16 — closed 2026-10-19 by PR #263 (TR-5d)
+
+Closed by TR-5d. `TriggerEvent::DamageIsPrevented { recipient,
+multiplicity }` reads the `DamagePrevented` record #260 announced, at its
+batch's close, so the trigger sees the board the damage left (CR 603.10). One
+record is one application of one effect to one recipient's damage: two
+attackers into a Fog are one trigger, whose "that many" is their total; a
+shield and a Fog each preventing part of one damage are two. An object
+recipient is `EventRole::DamageRecipient`, as on the damage arm. Selfless
+Squire's two rulings are tests, and the card is registered and pooled.
+"Prevented this way" is item 288.
+
+*Original entry:*
+
+16. **No event for a prevention effect applying (the trigger survey,
+    2026-09-18).** CR 615.13: "such an ability triggers each time a
+    prevention effect is applied to one or more simultaneous damage events"
+    — 15 cards, Selfless Squire the plain one. The pipeline knows: A4c's
+    `pipeline` record is written at that CR 616.1 iteration. The stream does
+    not.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** an event emitted by RD-2's shield path, one per prevention
+    applied, ~10 lines; its fields are the doc's.
+
+    **Phase (2026-09-18):** TR-5 — `GameEvent::DamagePrevented`, announced by the prevention leg once per instance per subject group; Selfless Squire is the card; `triggers-architecture.md` §3.12.
+    **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** the record drops `source`, since one
+    subject group can hold several, and keeps `by` a `ReplacementInstanceId`,
+    which "prevented this way" reads.
+    **Record built (2026-10-18, PR #260):** `GameEvent::DamagePrevented`,
+    announced by `apply_replacements` once per effect per recipient it
+    prevented damage to, for the dev GUI's log (item 276). No arm reads it.
+    **Slotted:** TR-5d, the arm over the record, with Selfless Squire
+    (re-slotted from TR-5b at A6p's split).
+
+17. **~~Counters a permanent enters with announce nothing, and the entry
+    record carries no `mods` (the trigger survey, 2026-09-18).~~ — ✅ CLOSED
+    2026-10-17 (PR #258, TR-5b).** — archived.
+    `perform_entry` announces a `CountersPutOn` for each counter row after the
+    entry, in its batch, put on by the row's player or the entering controller
+    (CR 122.6, 122.6a).
+    **Reachability (2026-10-17):** closed — PR #258.
+    Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 17".
+
+18. **~~Three `GameEvent` variants are never emitted (the trigger survey,
+    2026-09-18).~~ — ✅ CLOSED 2026-09-19 (TR-1).** — archived.
+   `PhaseEnd`, `StepEnd` and `TurnEnd` deleted with their `format_event` arms; `CountersAnnihilated` is TR-5's, once CR 704.5q proposes.
+   **Reachability (2026-09-19):** closed — TR-1.
+   Full entry: `plans/archive/codebase-state-closed.md`, "Before Triggered
+   abilities (CR 603)" item 18.
+
+### Item 275 — closed 2026-10-19 by PR #263 (TR-5d)
+
+Closed by TR-5d. The elision's `SOURCE` compares
+`PendingTrigger::origin.source_ref()` and the last known information each
+entry kept of its source (`kept_source_lki`), so two delayed triggers made
+on either side of their source leaving still ask. `AmountExpr::X` reads a new
+`TriggerBindingReads::X`, compared on `x_value` (CR 107.3n). Protean Hydra's
+test asserts its end step asks nothing; the dev GUI's `why_prevented` picture
+stops one question later for it.
+
+*Original entry:*
+
+275. **Delayed triggers from one template and one source still ask their
+     order.** Protean Hydra hit for three makes three delayed triggers, and
+     at the end step the engine asks the order of three identical "put two
+     +1/+1 counters on it". `trigger_order_cannot_change_outcome`
+     (`engine/triggers/placement.rs`) elides the prompt when every entry has
+     one def and agrees on each fact the def reads; the def is shared (each
+     `DelayedTrigger` clones the template's `Arc`), but the `SOURCE` read
+     compares `PendingTrigger::origin`, and a delayed trigger's origin is its
+     own registry number (`AbilityId::delayed`), so no two ever agree.
+     Asking is legal (CR 603.3b lets the player order them), so this is an
+     extra prompt, not a wrong answer. The fix compares the source under
+     `SOURCE` (`ABILITY` already reads what depends on the ability's own
+     identity), and has to check that two delayed triggers' last known
+     information of their source agrees: one made while the source was
+     there and one made after it left keep different `source_lki`. TR-5b's
+     `protean_hydra_triggers_once_for_each_counter_removed` expects the prompt
+     today, and dropping it moves the random agent's stream.
+     **Reachability (2026-10-18):** reachable — an extra prompt with Protean
+     Hydra registered; no answer changes.
+     **Sized:** the `SOURCE` comparison and its LKI check in `entries_agree_on`,
+     ~15 lines of code and ~40 of tests, plus the fixtures and a three-arm A/B
+     for the dropped prompt.
+     **Slotted:** TR-5d, which moves the stream too (Selfless Squire,
+     Panharmonicon); moved from TR-5c at its review (2026-10-18), with excess
+     damage, to keep both phases in the band.

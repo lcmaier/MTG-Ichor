@@ -5182,43 +5182,13 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     **Reachability (2026-10-15):** closed — PR #253.
     Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 15".
 
-16. **No event for a prevention effect applying (the trigger survey,
-    2026-09-18).** CR 615.13: "such an ability triggers each time a
-    prevention effect is applied to one or more simultaneous damage events"
-    — 15 cards, Selfless Squire the plain one. The pipeline knows: A4c's
-    `pipeline` record is written at that CR 616.1 iteration. The stream does
-    not.
-
-    **Reachability (2026-09-18):** unreachable — no reader.
-
-    **Sized:** an event emitted by RD-2's shield path, one per prevention
-    applied, ~10 lines; its fields are the doc's.
-
-    **Phase (2026-09-18):** TR-5 — `GameEvent::DamagePrevented`, announced by the prevention leg once per instance per subject group; Selfless Squire is the card; `triggers-architecture.md` §3.12.
-    **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** the record drops `source`, since one
-    subject group can hold several, and keeps `by` a `ReplacementInstanceId`,
-    which "prevented this way" reads.
-    **Record built (2026-10-18, PR #260):** `GameEvent::DamagePrevented`,
-    announced by `apply_replacements` once per effect per recipient it
-    prevented damage to, for the dev GUI's log (item 276). No arm reads it.
-    **Slotted:** TR-5d, the arm over the record, with Selfless Squire
-    (re-slotted from TR-5b at A6p's split).
-
-17. **~~Counters a permanent enters with announce nothing, and the entry
-    record carries no `mods` (the trigger survey, 2026-09-18).~~ — ✅ CLOSED
-    2026-10-17 (PR #258, TR-5b).** — archived.
-    `perform_entry` announces a `CountersPutOn` for each counter row after the
-    entry, in its batch, put on by the row's player or the entering controller
-    (CR 122.6, 122.6a).
-    **Reachability (2026-10-17):** closed — PR #258.
-    Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 17".
-
-18. **~~Three `GameEvent` variants are never emitted (the trigger survey,
-    2026-09-18).~~ — ✅ CLOSED 2026-09-19 (TR-1).** — archived.
-   `PhaseEnd`, `StepEnd` and `TurnEnd` deleted with their `format_event` arms; `CountersAnnihilated` is TR-5's, once CR 704.5q proposes.
-   **Reachability (2026-09-19):** closed — TR-1.
-   Full entry: `plans/archive/codebase-state-closed.md`, "Before Triggered
-   abilities (CR 603)" item 18.
+16. **~~No event for a prevention effect applying (the trigger survey,
+    2026-09-18).~~ — ✅ CLOSED 2026-10-19 (PR #263, TR-5d).** — archived.
+    `TriggerEvent::DamageIsPrevented` reads `DamagePrevented` at its batch's
+    close, one trigger each time a prevention effect is applied to one
+    recipient's damage (CR 615.13). Selfless Squire is registered and pooled.
+    **Reachability (2026-10-19):** closed — PR #263.
+    Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 16".
 
 ### Before Commander (CR 903)
 
@@ -9325,31 +9295,14 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      **Slotted:** with the first registered card whose cost change applies
      by a spell's mana value (Krosan Drover, Thryx).
 
-275. **Delayed triggers from one template and one source still ask their
-     order.** Protean Hydra hit for three makes three delayed triggers, and
-     at the end step the engine asks the order of three identical "put two
-     +1/+1 counters on it". `trigger_order_cannot_change_outcome`
-     (`engine/triggers/placement.rs`) elides the prompt when every entry has
-     one def and agrees on each fact the def reads; the def is shared (each
-     `DelayedTrigger` clones the template's `Arc`), but the `SOURCE` read
-     compares `PendingTrigger::origin`, and a delayed trigger's origin is its
-     own registry number (`AbilityId::delayed`), so no two ever agree.
-     Asking is legal (CR 603.3b lets the player order them), so this is an
-     extra prompt, not a wrong answer. The fix compares the source under
-     `SOURCE` (`ABILITY` already reads what depends on the ability's own
-     identity), and has to check that two delayed triggers' last known
-     information of their source agrees: one made while the source was
-     there and one made after it left keep different `source_lki`. TR-5b's
-     `protean_hydra_triggers_once_for_each_counter_removed` expects the prompt
-     today, and dropping it moves the random agent's stream.
-     **Reachability (2026-10-18):** reachable — an extra prompt with Protean
-     Hydra registered; no answer changes.
-     **Sized:** the `SOURCE` comparison and its LKI check in `entries_agree_on`,
-     ~15 lines of code and ~40 of tests, plus the fixtures and a three-arm A/B
-     for the dropped prompt.
-     **Slotted:** TR-5d, which moves the stream too (Selfless Squire,
-     Panharmonicon); moved from TR-5c at its review (2026-10-18), with excess
-     damage, to keep both phases in the band.
+275. **~~Delayed triggers from one template and one source still ask their
+     order.~~ — ✅ CLOSED 2026-10-19 (PR #263, TR-5d).** — archived.
+     `SOURCE` compares the source by identity and the last known information
+     each entry kept of it, and `AmountExpr::X` reads a new
+     `TriggerBindingReads::X`, so Protean Hydra hit for three asks nothing at
+     the end step and delayed draws of X = 2 and X = 5 still ask.
+     **Reachability (2026-10-19):** closed — PR #263.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 275".
 
 276. **~~Three dev GUI notes from MA-2's manual testing.~~ — ✅ CLOSED 2026-10-18 (PR #260).** — archived.
      The why panel wraps instead of widening, the payment step greys a source
@@ -9520,3 +9473,62 @@ Number 277 was withdrawn in #260 and is not reused.
      each ~40 lines with its test.
      **Slotted:** with the first registered card that narrows one (Caller of
      the Claw for deaths).
+
+### Found by TR-5d (2026-10-19)
+
+288. **"Prevented this way" cannot name the effect.** `DamageIsPrevented`
+     reads any prevention effect applied to its recipient's damage, which is
+     Selfless Squire's reading (its second ruling). Five triggers watch their
+     own effect instead: Phyrexian Vindicator, New Way Forward, Outfitted
+     Jouster, Judgment of Alexander and Samite Ministration
+     (`(o:"is prevented" or o:"are prevented") (o:whenever or o:when)`, 6
+     cards less the Squire, 2026-10-19). The record names the effect
+     (`DamagePrevented.by`), and the arm has no field to match it against:
+     the source's own static replacement, or the effect its resolution
+     created, which a delayed trigger made beside it would have to remember.
+     **Reachability (2026-10-19):** unreachable — no registered card asks
+     which effect prevented the damage.
+     **Sized:** a `by` on the arm naming the trigger's own effect, matched
+     against the record's `ReplacementInstanceId`, and the delayed trigger's
+     memory of the effect its resolution created; ~40 lines of code and ~80
+     of tests.
+     **Slotted:** with the first registered card that triggers on damage
+     prevented this way (Phyrexian Vindicator).
+
+289. **No amount reads the damage, or its excess, that a resolution dealt.**
+     "If excess damage was dealt this way" and "the excess damage dealt this
+     way" read the `DamageDealt` records the resolving instruction performed,
+     and so does `AmountExpr::DamageDealtThisWay`, which errors at resolution
+     today. 24 cards read the excess: `o:"excess damage" o:"this way"` finds
+     25, less Megatron, Tyrant, whose "if excess damage would be dealt" is CR
+     120.4a's replacement (2026-10-19). Among them are Hell to Pay, Torch the
+     Witness and Bolg of the North, and two reflexive triggers, Rhino's
+     Rampage and Unleash the Inferno. TR-5d's design counted 4, on a query
+     that needed "when" or "whenever".
+     **Reachability (2026-10-19):** unreachable — no registered card reads
+     the damage or the excess a resolution dealt.
+     **Sized:** the resolution's own damage records, read off its batches by
+     source, summed as an amount and as its excess, with a condition on the
+     excess; ~40 lines of code and ~80 of tests.
+     **Slotted:** with the first registered card that reads the damage or the
+     excess dealt this way (Hell to Pay).
+
+290. **A record's frame for a control change, a kept move or an unattach is
+     read at the match and not at resolution.** CR 603.10c–d look back:
+     the dispatcher matches a `ControlChanged`'s, a `SameZoneMove`'s and an
+     `Unattached`'s object as the record framed it, while `record_frame`
+     (`engine/triggers/binding.rs`), which "its power" and an intervening
+     "if" read at resolution, takes only what `GameEvent::lki` returns: a
+     zone change's, a leaving's and a countered spell's. So such a trigger
+     can match the object as it was and resolve reading it as it is. Found by
+     TR-5d's model pass (`plans/references/duplicate-inventory.md` §3.9,
+     T30).
+     **Reachability (2026-10-19):** unreachable — no registered card reads
+     the characteristics of a control change's, a kept move's or an
+     unattach's object: Grafted Wargear sacrifices it, Ray of Command taps
+     it, and Guerrilla Tactics reads its own source.
+     **Sized:** `GameEvent::lki` returning the three records' frames, and the
+     dispatcher's `SubjectRead` derived from it, ~20 lines of code and ~50
+     of tests.
+     **Slotted:** with the first registered card whose trigger on a control
+     change, a kept move or an unattach reads the object's characteristics.
