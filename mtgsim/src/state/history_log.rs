@@ -26,7 +26,7 @@ use crate::types::zones::{Zone, ZoneChangeAct};
 /// How many rows a chunk holds. The log is a chain of chunks, each a block of
 /// rows behind an `Arc`, and every copy of the game shares every chunk, so a
 /// fork's first write copies only the newest, open one: this many rows at
-/// most, about 1.5 KB. Smaller would make that copy cheaper and the chain
+/// most, under 2 KB. Smaller would make that copy cheaper and the chain
 /// longer; larger, the reverse. A four-seat turn writes about ten rows.
 pub const CHUNK_ROWS: usize = 16;
 
