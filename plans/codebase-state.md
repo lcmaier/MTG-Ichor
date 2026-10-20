@@ -224,7 +224,9 @@ that …" and the card or class; or "none — a record". An item is slotted in t
 commit that files it, a phase reads its list at its first ticket (`python
 plans/check_state_of_play.py --slotted <code>`), and `--check` fails on an open
 item with no home, on one slotted only to phases that have landed, and on a
-number used twice in one run.
+number used twice in one run. "The first registered card" is for a fix that is
+mechanical once a card needs it; an item that needs a design decision names a
+phase or a row (`engineering-practices.md` §4, adopted at TR-5d's review).
 
 **What does not belong here (adopted 2026-09-12, RE-6's review).** A wrong
 answer sized under about thirty lines, with a fixture that can prove it, is
@@ -9416,7 +9418,10 @@ Number 277 was withdrawn in #260 and is not reused.
      the family: each such item names at least one example card where it is
      slotted (44 of the 55 do today), and the check fails when a
      card it names is registered while the item is open, so registering Betor
-     fails on item 280 until it is closed or re-slotted.
+     fails on item 280 until it is closed or re-slotted. Each of the 55 is
+     re-read beside it against `engineering-practices.md` §4's rule (TR-5d's
+     review, 2026-10-20): one that needs a design decision moves to a phase
+     or a row.
      **Reachability (2026-10-18):** reachable — not wrong: a process gap; no
      game answers differently.
      **Sized:** ~80 lines of Python over this file and the registry's names,
@@ -9511,10 +9516,11 @@ Number 277 was withdrawn in #260 and is not reused.
 
 289. **~~No amount reads the damage, or its excess, that a resolution
      dealt.~~ — ✅ CLOSED 2026-10-20 (PR #263, TR-5d's review).** — archived.
-     The `DealDamage` performer writes the resolving object's own damage onto
-     `ResolvingObject::damage_dealt_this_way`; `AmountExpr::DamageDealtThisWay`
-     and `ExcessDamageDealtThisWay` sum it. Goblin Negotiation is registered
-     and pooled.
+     `AmountExpr::DamageDealtThisWay` and `ExcessDamageDealtThisWay` sum the
+     damage records the resolution performed, which the event window holds
+     until it ends (`EventWindow::resolution_records`), from
+     `ResolvingObject::began_at`. Goblin Negotiation is registered and
+     pooled.
      **Reachability (2026-10-20):** closed — PR #263.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 289".
 
@@ -9528,3 +9534,36 @@ Number 277 was withdrawn in #260 and is not reused.
      carries.
      **Reachability (2026-10-20):** closed — PR #263.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 290".
+
+291. **Three things are each written as several types.** Found at TR-5d's
+     review (the owner, 2026-10-20).
+     - **`Selector`** (35 references) is which objects an amount counts, and
+       each of its five variants is an `ObjectSet::Filter { filter, zones }`:
+       `PermanentsMatching(f)` is `f` on the battlefield, `CardsInHand(p)` the
+       cards in `p`'s hand, `CardsInGraveyard(None)` every graveyard's.
+       `AmountExpr::CountOf` and `CardTypesAmong` take an `ObjectSet`, and
+       `Selector` goes.
+     - **An object or a player, by id,** is four enums, each `Object(ObjectId)
+       | Player(PlayerId)`: `ResolvedTarget` (391 references), `DamageTarget`
+       (359), `CounterSubject` (89) and `EventSubject` (78), which TR-5d's
+       `From` impls convert into the last. `TargetRef` (40) and
+       `ObjectOrPlayer` (25) are the same over an `ObjectRef`. One type for
+       each, the role in the field's name; item 247's three matchers of one
+       shape (`CountersOn`, `TargetSubject`, `DamageRecipient`) fold with it.
+     - **The affected pair.** `ReplacementDef`, `Restriction::Event` and
+       `Restriction::ApplyReplacement` each keep an `ObjectSet` and a
+       `PlayerSet` that union with neither primary, so a player-only effect
+       is written `ObjectSet::NO_OBJECTS` (64 sites) and then
+       `.affecting_players(..)` (61). `PlayerSet`'s reason for being a second
+       set stands: the layer walk reads `ObjectSet` and would reject a player
+       arm. The fix is one type for the pair, CR 614.1's "whatever they're
+       affecting", built from its objects, its players or both, whose one
+       membership test takes the merged id above where `set_affects` takes
+       both halves today.
+     **Reachability (2026-10-20):** reachable — not wrong: a reader's cost.
+     **Sized:** mechanical: `Selector` ~40 lines; the id ~920 references,
+     most a path's rename, and the `From` impls deleted; the pair ~250
+     constructor sites (175 `ReplacementDef::new`, 35 `Restriction::Event`)
+     and `set_affects`' 4 callers. Counted again at A6e's first ticket, and
+     split along these three seams if the PR would pass 2,500.
+     **Slotted:** A6e, beside its naming sweep (`roadmap-v2.md`).

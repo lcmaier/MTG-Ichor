@@ -7246,15 +7246,19 @@ stops one question later for it.
 
 Closed at TR-5d's review, which asked that the phase's own loose ends be
 built rather than filed. "Dealt this way" is read later in the same
-resolution, after the damage's own batch has dispatched its window, so the
-records are gone by then: the `DealDamage` performer writes each damage whose
-cause names the resolving object onto
-`ResolvingObject::damage_dealt_this_way`, with its recipient, amount and
-excess. `AmountExpr::DamageDealtThisWay`, which errored until then, sums the
-amounts, and `ExcessDamageDealtThisWay` the excess. Goblin Negotiation is
-registered and pooled, its two rulings tests. "To that creature" narrows to
-one recipient when a card whose resolution damages two needs it; the rows
-keep the recipient for that. A condition on the excess, "if excess damage
+resolution, from the damage records the resolution performed: the event
+window holds a resolution's records until it ends
+(`flush_window_unless_nested`), and `EventWindow::resolution_records` picks
+them out by the resolution's stamp from `ResolvingObject::began_at`. The
+stamp is the cause, so damage the effect has another object deal counts
+(Windswift Slice is a bite that reads "this way") and a rider's or a mana
+ability's does not. `AmountExpr::DamageDealtThisWay`, which errored until
+then, sums the amounts, and `ExcessDamageDealtThisWay` the excess. The first
+build kept a tally on `ResolvingObject`, believing the window gone by then;
+the review's question about its struct found the records still held. Goblin
+Negotiation is registered and pooled, its two rulings tests. "To that
+creature" narrows to one recipient when a card whose resolution damages two
+needs it; the records keep the recipient for that. A condition on the excess, "if excess damage
 was dealt this way", joins with its first card (Torch the Witness needs a
 Clue token too).
 

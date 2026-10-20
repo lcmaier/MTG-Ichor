@@ -4905,12 +4905,12 @@ pictures were redrawn.
   only reads, beside `reduce_lethal_damage_left`; `deals_damage_with` became
   `deals_damage_with_keyword`. `TriggerBindingReads`, 30 of 32 bits used,
   asserts its width at compile time.
-- **The phase's loose ends, built rather than filed.** Item 289: the
-  `DealDamage` performer writes the resolving object's own damage onto
-  `ResolvingObject::damage_dealt_this_way`, since the window holding those
-  records is dispatched before the rest of the resolution reads them;
-  `AmountExpr::DamageDealtThisWay` and `ExcessDamageDealtThisWay` sum it,
-  and Goblin Negotiation is the card. Item 290, half of what the model pass
+- **The phase's loose ends, built rather than filed.** Item 289:
+  `AmountExpr::DamageDealtThisWay` and `ExcessDamageDealtThisWay` sum the
+  damage records the resolution performed, which the event window holds
+  until it ends, picked out by the resolution's stamp from
+  `ResolvingObject::began_at`, so a bite's damage counts and a rider's does
+  not; Goblin Negotiation is the card. Item 290, half of what the model pass
   said: resolution reads an object still in its zone as it is (CR 608.2h),
   so the gaps were a control change's object as the ability triggers (CR
   603.10d) and an unattach's departed end, whose frame the record now

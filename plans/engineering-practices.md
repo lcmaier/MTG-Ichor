@@ -1307,6 +1307,24 @@ Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
   printed producer", never "nothing owed"; the band above still decides
   *when* it lands, not *whether*. Bold Plagiarist turned out to print the
   shape anyway, on a proposal rather than an entry.
+- **A gap a phase finds in its own subsystem is built in that phase while
+  the band holds** — adopted at TR-5d's review (2026-10-20; the owner: "we're
+  almost at 300 codebase state items, I don't like piling up loose ends").
+  The RE-4 rule above covers an arm the PR's own type opens, and RE-6's
+  (`codebase-state.md`, Deferred Migrations) a wrong answer under thirty
+  lines. TR-5d's close-out filed three items that were neither: an
+  `AmountExpr` arm that refused (item 289), look-back frames read at the
+  wrong moment (290) and "prevented this way" (288). Two were commits, at
+  about 290 and 190 lines, and the PR stayed at 1,586. So the test is the
+  subsystem and the band, not the item's shape: a gap in code the phase
+  already changes, with a printed customer or a fixture, ships in the PR if
+  the PR stays inside 2,500. What is still filed takes one of two slots:
+  - **"With the first registered card that …"** only for a fix that is
+    mechanical once a card needs it: the facility exists, and the card brings
+    the one case it lacks.
+  - **A phase code or a `roadmap-v2.md` row** for an item that needs a design
+    decision, as 288 needs CR 607.2h's linked abilities. A card's registration
+    is not where a design is reviewed.
 
 ---
 
