@@ -906,9 +906,9 @@ pub(super) fn evaluate_amount(
 
         // "You" is a CDA's object's controller or the row's (CR 109.5), as
         // `CountOf` reads it.
-        AmountExpr::History(span, count) => {
+        AmountExpr::History(span, history) => {
             let mut players = amount_players(origin, object_id, chars, game, board, layer_index);
-            let total = super::condition::history_total(count, *span, game, board, &mut players);
+            let total = super::condition::history_total(history, *span, game, board, &mut players);
             Some(i32::try_from(total).unwrap_or(i32::MAX))
         }
 
@@ -998,9 +998,12 @@ pub(super) fn evaluate_amount(
     }
 }
 
-/// The players an amount's words read, as its row's filter reads them (CR
-/// 109.5: a static ability's "you" is its source's controller now), or, for a
-/// CDA, its own object's controller.
+/// Who "you" and "its owner" are for an amount inside a continuous effect,
+/// such as "+X/+0, where X is the number of cards in your hand". The effect is
+/// a registry row or a CDA. A row's amount reads them as the row's own filter
+/// does: a static ability's "you" is its source's controller now (CR 109.5),
+/// and a resolved spell's is whoever controlled it as it resolved. A CDA has no
+/// row, and its "you" is the controller of the object it defines.
 fn amount_players<'a, 'l>(
     origin: Option<&'a ContinuousEffect>,
     object_id: ObjectId,

@@ -847,7 +847,7 @@ pub struct HistoryRow {
     pub frame: Option<Arc<EffectiveCharacteristics>>, // that object then (CR 608.2h)
     pub fact: RowFact,
 }
-// RowFact: Cast { from }, Drew, GainedLife(n), LostLife(n), Entered { from },
+// RowFact: Cast { from }, Drew, GainedLife(n), LostLife(n), EnteredBattlefield { from },
 // LeftZone { from, to, act, became }, LeftTheGame { from },
 // DealtDamage { to, amount, combat }, Attacked(target), Blocked(attacker),
 // RemovedFromCombat { attacking }, BecameTarget { by_spell, controller },

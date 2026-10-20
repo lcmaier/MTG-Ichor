@@ -1996,7 +1996,7 @@ impl GameState {
         }
         let is = |subject: &TriggerSubject, id: ObjectId| self.subject_matches(subject, Some(id), referents, seq, SubjectRead::Now);
         let now = |id: ObjectId| self.subject_after(event, id);
-        let enough = |n: usize| count.unwrap_or(CountIs::AtLeast(1)).met_by(n as u64);
+        let enough = |n: usize| count.unwrap_or(CountIs::AtLeast(1)).satisfied_by(n as u64);
         match *occurrence {
             BlockOccurrence::Block => blocks
                 .iter()

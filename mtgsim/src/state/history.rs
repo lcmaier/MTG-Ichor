@@ -113,25 +113,25 @@ impl GameHistory {
         self.log.count(fact, turns, &|counted| counted == player, &mut |_| true, &|_| {})
     }
 
-    /// `count` over `span` for `you` on turn `now`: the rows of the players it
-    /// names, narrowed by its filter over each row's frame, which
+    /// `history` totalled over `span` for `you` on turn `now`: the rows of the
+    /// players it names, narrowed by its filter over each row's frame, which
     /// `filter_matches` asks in its reader's context, a layer walk's or a
     /// resolution's. Notes what it read into `note`.
     pub(crate) fn total(
         &self,
-        count: &HistoryCount,
+        history: &HistoryCount,
         span: HistorySpan,
         you: PlayerId,
         now: u32,
         filter_matches: &mut dyn FnMut(&ObjectFilter, ObjectId, &EffectiveCharacteristics) -> bool,
         note: &dyn Fn(GatedWalkInput),
     ) -> u64 {
-        let counts_for = |player: PlayerId| count.players.contains(you, player);
-        let mut of = |row: &HistoryRow| match &count.of {
+        let counts_for = |player: PlayerId| history.players.contains(you, player);
+        let mut of = |row: &HistoryRow| match &history.of {
             None => true,
             Some(filter) => row.frame_matches(|id, frame| filter_matches(filter, id, frame)),
         };
-        self.log.count(count.fact, self.turns_of(span, you, now), &counts_for, &mut of, note)
+        self.log.count(history.fact, self.turns_of(span, you, now), &counts_for, &mut of, note)
     }
 
     /// The turns `span` names for `you` on turn `now`.

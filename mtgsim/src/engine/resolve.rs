@@ -2450,12 +2450,12 @@ impl GameState {
             }
             AmountExpr::Plus(inner, n) => Ok(self.evaluate_amount(inner, _ctx)? + n),
             // "You" is the controller, and the text's "this" its source.
-            AmountExpr::History(span, count) => {
+            AmountExpr::History(span, history) => {
                 let (you, source) = (_ctx.controller, _ctx.source);
                 let mut filter_matches = |filter: &ObjectFilter, id, frame: &EffectiveCharacteristics| {
                     self.object_matches_filter_of_source(id, filter, you, source, Some(HeldFrame::Characteristics(frame)))
                 };
-                Ok(self.history.total(count, *span, you, self.turn_number, &mut filter_matches, &|_| {}))
+                Ok(self.history.total(history, *span, you, self.turn_number, &mut filter_matches, &|_| {}))
             }
             AmountExpr::TargetPower => {
                 Err("TargetPower amount resolution not yet implemented".to_string())

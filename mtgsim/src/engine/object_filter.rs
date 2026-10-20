@@ -316,7 +316,7 @@ fn answer_or_refuse<'f>(
                 Some(lki) => lki.counters_of(*kind),
                 None => referents.counters_on(game, id, *kind),
             };
-            Ok(count.met_by(u64::from(n)))
+            Ok(count.satisfied_by(u64::from(n)))
         }
         // Identity, off the ids: no layer makes an object other than itself.
         ObjectFilter::NotSource => referents.source().map(|source| id != source).ok_or(FilterRefusal::NoSource(id)),

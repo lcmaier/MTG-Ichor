@@ -274,7 +274,7 @@ fn amount(a: &AmountExpr) -> TriggerBindingReads {
         | AmountExpr::StartingLifeTotal => TriggerBindingReads::NOTHING,
         AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => selector(over),
         AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount(inner),
-        AmountExpr::History(_, count) => history_count(count),
+        AmountExpr::History(_, history) => history_count(history),
         AmountExpr::SourcePower | AmountExpr::SourceCounters(_) => TriggerBindingReads::SOURCE,
         AmountExpr::TriggeringAmount => TriggerBindingReads::AMOUNT,
         AmountExpr::TriggeringPower(p) | AmountExpr::TriggeringToughness(p) => {
@@ -337,10 +337,10 @@ fn condition(c: &Condition) -> TriggerBindingReads {
         Condition::ResolvedThisTurn(_) => TriggerBindingReads::ABILITY,
         // The counts its records left, as "that many" reads their counters.
         Condition::CounterCountReached { .. } => TriggerBindingReads::AMOUNT,
-        Condition::ThisTurn(count, _)
-        | Condition::LastTurn(count, _)
-        | Condition::SinceYourLastTurn(count, _)
-        | Condition::ThisGame(count, _) => history_count(count),
+        Condition::ThisTurn(history, _)
+        | Condition::LastTurn(history, _)
+        | Condition::SinceYourLastTurn(history, _)
+        | Condition::ThisGame(history, _) => history_count(history),
         // A mode makes the def modal, which reads everything; the walk's
         // answer is one player's, the same for each entry.
         Condition::ModeChosen(_) | Condition::CostAnswer(_) => TriggerBindingReads::NOTHING,
@@ -358,8 +358,8 @@ fn object_fact(f: &ObjectFact) -> TriggerBindingReads {
 
 /// What a history count's filter reads; its rows are one player's, the same
 /// for each entry.
-fn history_count(count: &HistoryCount) -> TriggerBindingReads {
-    count.of.as_deref().map_or(TriggerBindingReads::NOTHING, filter)
+fn history_count(history: &HistoryCount) -> TriggerBindingReads {
+    history.of.as_deref().map_or(TriggerBindingReads::NOTHING, filter)
 }
 
 fn player_fact(f: &PlayerFact) -> TriggerBindingReads {

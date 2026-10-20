@@ -178,7 +178,7 @@ pub(super) fn holds(
                     None => return false,
                 },
             };
-            count.met_by(u64::from(n))
+            count.satisfied_by(u64::from(n))
         }
 
         // CR 303.4m — whatever the source is attached to *now*, re-read at
@@ -209,12 +209,18 @@ pub(super) fn holds(
 
         // A history count (TR-5h), for "you" as every leaf here reads it: the
         // source's controller. The rows are off `GameState`.
-        Condition::ThisTurn(count, is) => history_holds(count, *is, HistorySpan::ThisTurn, game, board, &mut history_players()),
-        Condition::LastTurn(count, is) => history_holds(count, *is, HistorySpan::LastTurn, game, board, &mut history_players()),
-        Condition::SinceYourLastTurn(count, is) => {
-            history_holds(count, *is, HistorySpan::SinceYourLastTurn, game, board, &mut history_players())
+        Condition::ThisTurn(history, count) => {
+            history_holds(history, *count, HistorySpan::ThisTurn, game, board, &mut history_players())
         }
-        Condition::ThisGame(count, is) => history_holds(count, *is, HistorySpan::ThisGame, game, board, &mut history_players()),
+        Condition::LastTurn(history, count) => {
+            history_holds(history, *count, HistorySpan::LastTurn, game, board, &mut history_players())
+        }
+        Condition::SinceYourLastTurn(history, count) => {
+            history_holds(history, *count, HistorySpan::SinceYourLastTurn, game, board, &mut history_players())
+        }
+        Condition::ThisGame(history, count) => {
+            history_holds(history, *count, HistorySpan::ThisGame, game, board, &mut history_players())
+        }
         // CR 122.7, 714.2b: some record of the trigger's left the count at
         // least `n` from below it. Off the records, never the board, so it
         // answers alike at both instants; false outside a trigger.
@@ -300,24 +306,27 @@ pub fn settled_holds(
     holds(condition, game, &Board::settled(), source, LAYER_ORDER.len(), locked_you, referents)
 }
 
-/// A history leaf: `count` over `span`, compared by `is`; false with no "you"
-/// to read.
+/// Whether a "this turn", "last turn", "since your last turn" or "this game"
+/// condition holds: `history` totalled over `span` and compared with `count`,
+/// as "if you've gained life this turn" is life gained this turn at least 1.
+/// A condition whose source has no controller or owner left to be "you" is
+/// false.
 fn history_holds(
-    count: &HistoryCount,
-    is: CountIs,
+    history: &HistoryCount,
+    count: CountIs,
     span: HistorySpan,
     game: &GameState,
     board: &Board<'_>,
     players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
-    players.has_you() && is.met_by(history_total(count, span, game, board, players))
+    players.has_you() && count.satisfied_by(history_total(history, span, game, board, players))
 }
 
-/// `count` over `span`: the rows of the players it names, read against
-/// `players`' "you" and narrowed by its filter over each row's frame in their
-/// context, a condition's or an amount's.
+/// `history` totalled over `span`: the rows of the players it names, read
+/// against `players`' "you" and narrowed by its filter over each row's frame in
+/// their context, a condition's or an amount's.
 pub(super) fn history_total(
-    count: &HistoryCount,
+    history: &HistoryCount,
     span: HistorySpan,
     game: &GameState,
     board: &Board<'_>,
@@ -327,7 +336,7 @@ pub(super) fn history_total(
     let mut filter_matches =
         |filter: &ObjectFilter, id, frame: &EffectiveCharacteristics| object_matches_filter(filter, id, frame, players);
     let note = |input| board.note_gated_read(input);
-    game.history.total(count, span, you, game.turn_number, &mut filter_matches, &note)
+    game.history.total(history, span, you, game.turn_number, &mut filter_matches, &note)
 }
 
 /// CR 109.5's "you": `locked_you` when the asker fixed it, or else the

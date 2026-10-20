@@ -21,10 +21,18 @@ use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::ObjectOrPlayer;
 use crate::types::zones::{Zone, ZoneChangeAct};
 
-/// How many rows a chunk holds, so how many a fork's first write copies at most.
+/// How many rows a chunk holds. The log is a chain of chunks, each a block of
+/// rows behind an `Arc`, and every copy of the game shares every chunk, so a
+/// fork's first write copies only the newest, open one: this many rows at
+/// most, about 1.5 KB. Smaller would make that copy cheaper and the chain
+/// longer; larger, the reverse. A four-seat turn writes about ten rows.
 pub const CHUNK_ROWS: usize = 16;
 
-/// One event a reader of the past can ask about, as it was then.
+/// One fact about one subject that a reader of the past can ask about, as it
+/// was then. An event with several subjects writes a row for each, a
+/// declaration of three attackers three `Attacked` rows; a fact with a second
+/// party names it in the fact, the creature a damage row was dealt to or the
+/// attacker a `Blocked` row blocks.
 #[derive(Debug, Clone)]
 pub struct HistoryRow {
     /// The record it was written from, which orders the log: "the first",
@@ -55,9 +63,10 @@ pub enum RowFact {
     /// CR 119.9: each source's gain is its own event.
     GainedLife(u64),
     LostLife(u64),
-    /// CR 603.6a, from the zone it came from; a token comes from none.
-    Entered { from: Option<Zone> },
-    /// A move that is no draw, cast or entry: died, discarded, milled,
+    /// CR 603.6a: entered the battlefield, from the zone it came from; a token
+    /// comes from none. Any other move is a `LeftZone`.
+    EnteredBattlefield { from: Option<Zone> },
+    /// A move that is no draw, cast or entering the battlefield: died, discarded, milled,
     /// sacrificed, exiled, returned to a hand. `became` is the object the move
     /// made (CR 400.7), which "a card put into your graveyard this turn" reads.
     /// `from == to` is an act a replacement kept in its zone (CR 614.6).
@@ -91,7 +100,7 @@ impl RowFact {
             RowFact::Cast { .. } => RowKind::Cast,
             RowFact::Drew => RowKind::Drew,
             RowFact::GainedLife(_) | RowFact::LostLife(_) => RowKind::Life,
-            RowFact::Entered { .. } => RowKind::Entered,
+            RowFact::EnteredBattlefield { .. } => RowKind::EnteredBattlefield,
             RowFact::LeftZone { .. } => RowKind::LeftZone,
             RowFact::LeftTheGame { .. } => RowKind::LeftTheGame,
             RowFact::DealtDamage { .. } => RowKind::DealtDamage,
@@ -132,7 +141,7 @@ pub enum RowKind {
     Cast,
     Drew,
     Life,
-    Entered,
+    EnteredBattlefield,
     LeftZone,
     LeftTheGame,
     DealtDamage,
