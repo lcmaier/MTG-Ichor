@@ -112,8 +112,9 @@ impl GameState {
             let lki = self.hand_over_before_leaving(id, from, None);
             let unattached = self.unattached_by_leaving(id);
             self.remove_from_game(id)?;
+            let leaving_frame = lki.clone();
             self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki }, cause)?;
-            self.announce_unattached_by_leaving(unattached, cause)?;
+            self.announce_unattached_by_leaving(unattached, leaving_frame, cause)?;
         }
         Ok(())
     }

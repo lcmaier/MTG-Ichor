@@ -1669,7 +1669,7 @@ impl GameState {
                     // CR 701.3d: leaving the first host is becoming unattached
                     // from it, in the same event and ahead of the attach.
                     if let (Some(former), Some(moved)) = (unattached_from, self.object_ref(attachment)) {
-                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, ctx.cause)?;
+                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, None, ctx.cause)?;
                     }
                     self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
                 }
@@ -1690,7 +1690,7 @@ impl GameState {
                     return Ok(());
                 };
                 self.detach(attachment);
-                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, ctx.cause)
+                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, None, ctx.cause)
             }
 
             GameAction::Tap { object } => {
@@ -2052,8 +2052,9 @@ impl GameState {
         {
             self.aura_put_into_graveyard_by_the_check(aura);
         }
+        let leaving_frame = lki.clone();
         self.announce_zone_change(object, from, to, act, lki, applied, cause)?;
-        self.announce_unattached_by_leaving(unattached, cause)
+        self.announce_unattached_by_leaving(unattached, leaving_frame, cause)
     }
 
     /// CR 701.3d — what a permanent's leaving the battlefield unattaches,
@@ -2094,14 +2095,16 @@ impl GameState {
     }
 
     /// A leaving's unattaches (`unattached_by_leaving`), announced after its
-    /// own record by the performer that moved it, under the move's cause.
+    /// own record by the performer that moved it, under the move's cause, each
+    /// carrying the leaving object's frame, `leaving_frame`.
     pub(crate) fn announce_unattached_by_leaving(
         &mut self,
         unattached: Vec<(ObjectRef, ObjectRef, UnattachRoute)>,
+        leaving_frame: Option<Lki>,
         cause: EventCause,
     ) -> Result<(), String> {
         for (attachment, former_host, route) in unattached {
-            self.announce_unattached(attachment, former_host, route, cause)?;
+            self.announce_unattached(attachment, former_host, route, leaving_frame.clone(), cause)?;
         }
         Ok(())
     }
@@ -2137,9 +2140,10 @@ impl GameState {
         attachment: ObjectRef,
         former_host: ObjectRef,
         route: UnattachRoute,
+        lki: Option<Lki>,
         cause: EventCause,
     ) -> Result<(), String> {
-        self.emit_event(GameEvent::Unattached { attachment, former_host, route }, cause)?;
+        self.emit_event(GameEvent::Unattached { attachment, former_host, route, lki }, cause)?;
         Ok(())
     }
 

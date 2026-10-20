@@ -12,6 +12,8 @@
 //!    and by what was kept of it, and differ by their creators' X.
 //! 5. The damage, and its excess, a resolution's own effect dealt ("this
 //!    way"), which Goblin Negotiation reads after its damage's window.
+//! 6. A look-back record's frame as the ability triggers: a control change's,
+//!    and an unattach's end that left (CR 603.10c-d).
 
 use std::sync::Arc;
 
@@ -27,10 +29,10 @@ use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction,
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
-    fill_library, pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_dp, vanilla_creature,
+    equipment, fill_library, pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_dp, vanilla_creature,
     RecordingDecisionProvider,
 };
-use mtgsim::types::card_types::CardType;
+use mtgsim::types::card_types::{ArtifactType, CardType, Subtype};
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
@@ -710,19 +712,7 @@ fn the_damage_dealt_this_way_is_what_prevention_left() {
         ),
         Effect::Atom(Primitive::GainLife(AmountExpr::DamageDealtThisWay), EffectRecipient::Controller),
     ]);
-    let fixture = CardDataBuilder::new("Fixture Siphon")
-        .card_type(CardType::Sorcery)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: siphon,
-        })
-        .build();
+    let fixture = fixture_sorcery(siphon);
     let mut game = setup_two_player_game();
     let giant = put_on_battlefield(&mut game, vanilla_creature(7, 7, &[]), 1);
     resolve_spell(&mut game, mending_hands(), 1, vec![ResolvedTarget::Object(giant)]);
@@ -734,4 +724,83 @@ fn the_damage_dealt_this_way_is_what_prevention_left() {
 
     assert_eq!(game.battlefield[&giant].damage_marked, 2);
     assert_eq!(life(&game, 0), 22, "the 2 dealt, not the 6 proposed");
+}
+
+// ---------------------------------------------------------------------------
+// A look-back record's frame, as the ability triggers (item 290)
+// ---------------------------------------------------------------------------
+
+/// A sorcery for player 0 whose one ability is `effect`.
+fn fixture_sorcery(effect: Effect) -> Arc<CardData> {
+    CardDataBuilder::new("Fixture Sorcery")
+        .card_type(CardType::Sorcery)
+        .ability(AbilityDef {
+            rules_text: "".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect,
+        })
+        .build()
+}
+
+/// "Whenever this Equipment becomes unattached from a creature, you gain life
+/// equal to that creature's power": the creature died, so it is read as it
+/// last existed on the battlefield (CR 603.10c, 608.2h), with the
+/// Equipment's +3/+0, off the frame the unattach's record carries.
+#[test]
+fn an_unattach_from_a_creature_that_died_reads_it_as_it_left() {
+    let boost = static_ability(Effect::Atom(
+        Primitive::ModifyPowerToughness(AmountExpr::Fixed(3), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
+        EffectRecipient::Host,
+    ));
+    let gain = whenever(
+        TriggerEvent::BecomesUnattached { attachment: TriggerSubject::ThisObject, former_host: TriggerSubject::Any },
+        Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Host)), EffectRecipient::Controller),
+    );
+    let sword = CardDataBuilder::new("Fixture Sword")
+        .card_type(CardType::Artifact)
+        .subtype(Subtype::Artifact(ArtifactType::Equipment))
+        .ability(boost)
+        .ability(triggered_ability("", gain))
+        .build();
+    let mut game = setup_two_player_game();
+    let host = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let sword = put_on_battlefield(&mut game, sword, 0);
+    game.execute_action(GameAction::Attach { attachment: sword, host }, &ActionContext::new(&test_dp())).expect("it attaches");
+    assert_eq!(get_effective_power(&game, host), Some(5));
+
+    game.change_zone(host, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&test_dp())).expect("it dies");
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(life(&game, 0), 25, "its power as it left, 5, not the card's 2");
+}
+
+/// An Equipment's unattach, its host destroyed, carries the host's frame as
+/// it left (CR 603.10c), so a trigger reading the former host reads it as it
+/// was on the battlefield.
+#[test]
+fn an_unattach_whose_host_left_carries_the_hosts_frame() {
+    let mut game = setup_two_player_game();
+    let host = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let sword = put_on_battlefield(&mut game, equipment("Fixture Sword"), 0);
+    game.execute_action(GameAction::Attach { attachment: sword, host }, &ActionContext::new(&test_dp())).expect("it attaches");
+    let as_it_was = game.object_ref(host).expect("it is there");
+    let before = game.recorded_events().len();
+
+    game.change_zone(host, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&test_dp())).expect("it dies");
+
+    let recorded = game.recorded_events();
+    let frames: Vec<Option<ObjectRef>> = recorded
+        .events()
+        .skip(before)
+        .filter_map(|e| match e {
+            GameEvent::Unattached { lki, .. } => Some(lki.as_ref().map(|lki| lki.object())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(frames, vec![Some(as_it_was)]);
 }

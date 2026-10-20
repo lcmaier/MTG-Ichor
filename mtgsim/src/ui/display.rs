@@ -1133,7 +1133,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             ),
             None => format!("Attached: {} to {}", obj_name(game, *attachment), obj_name(game, *host)),
         },
-        Unattached { attachment, former_host, route } => format!(
+        Unattached { attachment, former_host, route, lki: _ } => format!(
             "Unattached: {} from {} ({:?})",
             obj_name(game, attachment.id), obj_name(game, former_host.id), route
         ),

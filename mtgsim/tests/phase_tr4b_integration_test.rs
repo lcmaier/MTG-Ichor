@@ -62,17 +62,21 @@ fn attach(game: &mut GameState, attachment: ObjectId, host: ObjectId) {
     game.execute_action(GameAction::Attach { attachment, host }, &test_ctx()).unwrap();
 }
 
-/// Every attach and unattach the game recorded, in order.
+/// Every attach and unattach the game recorded, in order, each unattach
+/// without the frame of an end that left, which TR-5d's tests read.
 fn attachment_records(game: &GameState) -> Vec<GameEvent> {
     game.recorded_events()
         .events()
         .filter(|e| matches!(e, GameEvent::Attached { .. } | GameEvent::Unattached { .. }))
-        .cloned()
+        .map(|e| match e {
+            GameEvent::Unattached { attachment, former_host, route, .. } => unattached(*attachment, *former_host, *route),
+            other => other.clone(),
+        })
         .collect()
 }
 
 fn unattached(attachment: ObjectRef, former_host: ObjectRef, route: UnattachRoute) -> GameEvent {
-    GameEvent::Unattached { attachment, former_host, route }
+    GameEvent::Unattached { attachment, former_host, route, lki: None }
 }
 
 fn existence(game: &GameState, id: ObjectId) -> ObjectRef {
