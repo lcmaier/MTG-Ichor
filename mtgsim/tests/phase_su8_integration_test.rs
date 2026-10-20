@@ -9,7 +9,7 @@ use mtgsim::cards::phase_tr1_cards::{felidar_sovereign, soul_warden};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::events::event::{DamageTarget, EventSeq};
+use mtgsim::events::event::{DamageTarget, EventId};
 use mtgsim::scenario::{BuiltScenario, Scenario, SetupDriver};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
@@ -43,9 +43,9 @@ fn has(answer: &Why, heading: &str, text: &str, rule: Option<&'static str>) -> b
 }
 
 /// The performed event whose words contain `words`, by its place in the stream.
-fn event(records: &[TraceRecord], words: &str) -> EventSeq {
+fn event(records: &[TraceRecord], words: &str) -> EventId {
     let found = records.iter().find(|r| r.kind == RecordKind::Event && r.str("text").is_some_and(|t| t.contains(words)));
-    EventSeq(found.and_then(|r| r.u64("index")).unwrap_or_else(|| panic!("no event says {words:?}")) as usize)
+    EventId(found.and_then(|r| r.u64("index")).unwrap_or_else(|| panic!("no event says {words:?}")) as usize)
 }
 
 fn named(game: &GameState, id: ObjectId) -> String {
@@ -171,7 +171,7 @@ fn a_trigger_refused_by_its_intervening_if_says_so() {
         let asked = records.iter().find(|r| {
             r.kind == RecordKind::Trigger && r.u64("source") == Some(felidar.raw()) && r.str("refused_by") != Some("condition")
         });
-        let upkeep = EventSeq(asked.and_then(|r| r.u64("record")).expect("the upkeep trigger was asked") as usize);
+        let upkeep = EventId(asked.and_then(|r| r.u64("record")).expect("the upkeep trigger was asked") as usize);
         let answer = why_from_trace(&game, WhyAbout::Event(upkeep), None, &records);
         let triggers = lines(&answer, "Triggered abilities asked about it");
         let head = (format!("{}: {verdict}", named(&game, felidar)), Some("603.2"));
@@ -280,7 +280,7 @@ fn every_question_kind_answers_a_why() {
     for kind in every_kind(bears) {
         let context = ChoiceContext::new(kind.clone());
         let question = OpenQuestion { player: 0, context: &context, options: &options };
-        for about in [WhyAbout::Object(card), WhyAbout::Object(bears), WhyAbout::Player(1), WhyAbout::Event(EventSeq(0))] {
+        for about in [WhyAbout::Object(card), WhyAbout::Object(bears), WhyAbout::Player(1), WhyAbout::Event(EventId(0))] {
             for answer in [why(&game, about, Some(&question)), why_from_trace(&game, about, Some(&question), &[])] {
                 assert!(!answer.sections.is_empty(), "{kind:?}, {about:?}");
             }
@@ -381,8 +381,8 @@ fn every_event_of_a_random_game_answers_from_its_trace() {
     }
 
     let records = trace.records();
-    let events: Vec<EventSeq> =
-        records.iter().filter(|r| r.kind == RecordKind::Event).filter_map(|r| r.u64("index")).map(|i| EventSeq(i as usize)).collect();
+    let events: Vec<EventId> =
+        records.iter().filter(|r| r.kind == RecordKind::Event).filter_map(|r| r.u64("index")).map(|i| EventId(i as usize)).collect();
     assert!(events.len() > 50, "a game's worth of events, {}", events.len());
     for event in events {
         let answer = why_from_trace(&game.state, WhyAbout::Event(event), None, &records);

@@ -16,7 +16,7 @@
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::replacement::{BatchMember, SubjectGroup};
 use crate::engine::targeting::TargetInstance;
-use crate::events::event::EventSeq;
+use crate::events::event::EventId;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::state::trace::{render_debug, Record, RecordKind};
 use crate::types::ids::{ObjectId, PlayerId};
@@ -165,7 +165,7 @@ pub(crate) fn decision(
 /// (CR 605.4a).
 pub(crate) fn trigger(
     game: &GameState,
-    record: EventSeq,
+    record: EventId,
     identity: &AbilityIdentity,
     zone: Zone,
     matched: bool,

@@ -169,7 +169,7 @@ impl GameHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::event::EventSeq;
+    use crate::events::event::EventId;
     use crate::state::history_log::RowFact;
 
     const DRAWN: TurnFact = TurnFact::CardsDrawn;
@@ -177,7 +177,7 @@ mod tests {
     /// `count` cards drawn by `player` on `turn`, as a scenario states them.
     fn drew(history: &mut GameHistory, player: PlayerId, turn: u32, count: u64) {
         let fact = RowFact::Stated { fact: DRAWN, count };
-        let seq = EventSeq(history.log.len());
+        let seq = EventId(history.log.len());
         history.log.push(HistoryRow { seq, turn, combat: 0, player: Some(player), object: None, frame: None, fact });
     }
 

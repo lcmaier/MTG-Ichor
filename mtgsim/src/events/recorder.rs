@@ -172,11 +172,11 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::event::{EventSeq, EventStamp};
+    use crate::events::event::{EventId, EventStamp};
 
     fn record(seq: usize) -> EventRecord {
         EventRecord {
-            seq: EventSeq(seq),
+            seq: EventId(seq),
             event: GameEvent::StateBasedActionPerformed,
             stamp: EventStamp { batch: None, cause: crate::events::cause::EventCause::Harness },
             names: None,

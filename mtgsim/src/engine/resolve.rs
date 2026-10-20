@@ -8,7 +8,7 @@ use crate::engine::layers::types::{
     Timestamp,
 };
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, DamageTarget, EventSeq, GameEvent, ResolutionStamp};
+use crate::events::event::{CounterSubject, DamageTarget, EventId, GameEvent, ResolutionStamp};
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, HeldFrame, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
@@ -162,7 +162,7 @@ struct ResolutionWalk {
     /// The records of the last instruction that took an action, from its
     /// first to the one after its last: CR 603.12's "that action", which a
     /// reflexive trigger made after it asks about.
-    last_action: Option<(EventSeq, EventSeq)>,
+    last_action: Option<(EventId, EventId)>,
 }
 
 impl ResolutionWalk {
@@ -2785,7 +2785,7 @@ impl GameState {
         primitive: &Primitive,
         acted_on: &[ResolvedTarget],
         ctx: &ResolutionContext,
-        mark: crate::events::event::EventSeq,
+        mark: crate::events::event::EventId,
     ) -> Referred {
         let players = acted_on
             .iter()
@@ -2826,7 +2826,7 @@ impl GameState {
     pub(crate) fn put_into_since(
         &self,
         stamp: ResolutionStamp,
-        mark: crate::events::event::EventSeq,
+        mark: crate::events::event::EventId,
     ) -> Vec<(ObjectRef, Option<Zone>)> {
         let mut put: Vec<(ObjectRef, Option<Zone>)> = Vec::new();
         for record in self.events.resolution_records(stamp, mark) {

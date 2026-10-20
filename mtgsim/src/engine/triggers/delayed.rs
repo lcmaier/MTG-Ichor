@@ -31,7 +31,7 @@ use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use super::binding::TriggeringEventView;
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
-use crate::events::event::{EventRecord, EventSeq, GameEvent};
+use crate::events::event::{EventRecord, EventId, GameEvent};
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
@@ -129,7 +129,7 @@ impl GameState {
     /// if none does. Queued and announced as a dispatch queues a delayed
     /// trigger.
     fn trigger_reflexive(&mut self, reflexive: &DelayedTrigger, form: ReflexiveForm, resolution: CreatingResolution) -> Result<(), String> {
-        let that_action: Vec<EventSeq> = match resolution.that_action {
+        let that_action: Vec<EventId> = match resolution.that_action {
             Some((from, to)) => {
                 self.events.resolution_records(resolution.stamp, from).filter(|r| r.seq < to).map(|r| r.seq).collect()
             }
@@ -237,7 +237,7 @@ impl GameState {
 
     /// CR 610.3 — take off `until_returns` every return whose event happened
     /// in `window`, oldest first.
-    pub(crate) fn take_returns_due(&mut self, window: &[EventSeq]) -> Vec<UntilReturn> {
+    pub(crate) fn take_returns_due(&mut self, window: &[EventId]) -> Vec<UntilReturn> {
         if self.until_returns.is_empty() {
             return Vec::new();
         }
@@ -252,7 +252,7 @@ impl GameState {
     /// exiling ability, and "that" is the target the "until" names (Calix's
     /// enchantment), both by identity. An event recorded before the return
     /// was made does not count.
-    fn is_due(&self, until: &UntilReturn, window: &[EventSeq]) -> bool {
+    fn is_due(&self, until: &UntilReturn, window: &[EventId]) -> bool {
         let referents = TriggerReferents {
             this: ThisObject::Remembered(until.source),
             controller: until.controller,
@@ -302,7 +302,7 @@ impl GameState {
     /// window. Read-only, like the objects' leg, and in creation order.
     pub(super) fn detect_delayed(
         &self,
-        window: &[EventSeq],
+        window: &[EventId],
         window_kinds: EventKindMask,
     ) -> Vec<DelayedMatch> {
         if self.delayed_triggers.is_empty() {
@@ -326,7 +326,7 @@ impl GameState {
     fn delayed_occurrences(
         &self,
         delayed: &DelayedTrigger,
-        window: &[EventSeq],
+        window: &[EventId],
     ) -> Vec<MatchedTrigger> {
         self.occurrences_among(delayed, window, |record| existed_before(delayed, record))
     }
@@ -339,7 +339,7 @@ impl GameState {
     fn occurrences_among(
         &self,
         delayed: &DelayedTrigger,
-        window: &[EventSeq],
+        window: &[EventId],
         reads: impl Fn(&EventRecord) -> bool,
     ) -> Vec<MatchedTrigger> {
         let referents = self.delayed_referents(delayed);
@@ -410,7 +410,7 @@ impl GameState {
 
     /// The trace's `trigger` record of an entry's verdict on record `seq`,
     /// under the zone its source is in; none once the store has no source.
-    fn trace_delayed_verdict(&self, delayed: &DelayedTrigger, seq: EventSeq, refusal: Option<Refusal>) {
+    fn trace_delayed_verdict(&self, delayed: &DelayedTrigger, seq: EventId, refusal: Option<Refusal>) {
         let Some(zone) = self.objects.get(&delayed.source.id).map(|o| o.zone) else { return };
         self.trace(|| {
             trace_records::trigger(self, seq, &delayed.identity(), zone, refusal.is_none(), refusal.map(Refusal::name), false)
@@ -469,7 +469,7 @@ impl GameState {
         &mut self,
         matched: Vec<DelayedMatch>,
         ctx: Option<&ActionContext>,
-        queued: &mut Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventSeq)>,
+        queued: &mut Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventId)>,
     ) {
         for DelayedMatch { id, occurrences } in matched {
             let Some(at) = self.delayed_triggers.iter().position(|d| d.id == id) else { continue };
@@ -497,7 +497,7 @@ impl GameState {
     fn queue_pending(
         &mut self,
         mut pending: PendingTrigger,
-        queued: &mut Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventSeq)>,
+        queued: &mut Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventId)>,
     ) {
         let identity = pending.origin.identity();
         if pending.binding.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn)
@@ -508,7 +508,7 @@ impl GameState {
         pending.seq = TriggerSeq(self.next_trigger_seq);
         self.next_trigger_seq += 1;
         // "When you don't" is caused by no record.
-        let caused_by = pending.binding.first_record().map_or(EventSeq(0), |r| r.seq);
+        let caused_by = pending.binding.first_record().map_or(EventId(0), |r| r.seq);
         queued.push((pending.seq, pending.origin, pending.controller, caused_by));
         self.pending_triggers.push(pending);
     }

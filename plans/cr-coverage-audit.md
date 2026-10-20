@@ -318,7 +318,7 @@ already planned for them.
 | Fact | Where it lives | Recorded when it exists? | The rules that watch it | Verdict |
 |---|---|---|---|---|
 | The trigger's controller (603.3a) and its ability as it triggered (113.7a) | `PendingTrigger.controller`; `TriggerBinding.def`, cloned out of the effective list | yes, at the dispatch | a later control change or Humility changes neither | no gap |
-| The event's facts: who, and how much (603.2c, 608.2c) | the records, by `EventSeq`; nothing prunes the log within a game | yes | one trigger per occurrence or per window (TR-1); "that many" sums the records | no gap |
+| The event's facts: who, and how much (603.2c, 608.2c) | the records, by `EventId`; nothing prunes the log within a game | yes | one trigger per occurrence or per window (TR-1); "that many" sums the records | no gap |
 | **The object a move made** (400.7e, 603.6c) | `TriggerBinding.subject`, the epoch **at dispatch**; the `ZoneChange` record has none | **no**: the move stamps it and the dispatch reads it later | a second move before the window's dispatch; a `OncePerEvent` "them" (59 cards) | item 177 |
 | The appearance before a departure (603.10a) | `LkiCapture`, then `ZoneChange.lki`; `LookBackSnapshot` for survivors | yes (TR-1, TR-1b) | status built in TR-4a (item 14); the other two classes are item 15's (TR-4c) | no gap beyond those |
 | **A source's last known information after it triggered** (113.7a, 608.2h) | planned: §6.1's `kept_lki`, typed `Lki`, which §3.11 widens | planned | **the cost decisions**: §3.11 carried `cast` only, and #181 moved kicked, bargained and evoked out of it. 72 "if it was kicked" triggers | item 169 sharpened; §3.11 amended |

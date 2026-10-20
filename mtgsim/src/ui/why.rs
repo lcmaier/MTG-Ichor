@@ -19,7 +19,7 @@ use crate::engine::layers::{explain, AppliedBy, LayerStep, StepResult};
 use crate::engine::replacement::{auxiliary_zone, not_auxiliary, NotAuxiliary};
 use crate::state::game_state::NotAnOpponent;
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{EventSeq, ResolutionStamp};
+use crate::events::event::{EventId, ResolutionStamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{get_effective_abilities, is_creature};
 use crate::oracle::legality::{can_attack, can_play_land};
@@ -52,7 +52,7 @@ pub enum WhyAbout {
     Object(ObjectId),
     Player(PlayerId),
     /// An event, by its place in the performed stream: the trace's `index`.
-    Event(EventSeq),
+    Event(EventId),
 }
 
 /// The question open where a why is asked: whom it asks, what, and the

@@ -12,7 +12,7 @@ use std::sync::Arc;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::events::event::{DamageTarget, EventSeq, GameEvent};
+use crate::events::event::{DamageTarget, EventId, GameEvent};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history_log::{HistoryRow, RowFact, RowKind};
 use crate::types::history::TurnFact;
@@ -24,7 +24,7 @@ use crate::state::layer_memo::GatedWalkInput;
 /// When a counted record happened, which each of its rows carries.
 #[derive(Clone, Copy)]
 struct RowStamp {
-    seq: EventSeq,
+    seq: EventId,
     turn: u32,
     /// Which of the turn's combats had begun, 0 before the first.
     combat: u32,
@@ -72,8 +72,8 @@ impl GameState {
     /// counted yet, and on each record where it falls in its turn and, for a
     /// draw, in its player's draw step (`EventRecord::place_in_turn`,
     /// `place_in_draw_step`).
-    pub(crate) fn advance_history(&mut self, window: &[EventSeq]) {
-        let updates: Vec<(EventSeq, Option<HistoryUpdate>)> = window
+    pub(crate) fn advance_history(&mut self, window: &[EventId]) {
+        let updates: Vec<(EventId, Option<HistoryUpdate>)> = window
             .iter()
             .filter(|&&seq| self.events.record(seq).is_some_and(|r| !r.counted()))
             .map(|&seq| (seq, self.history_update(seq)))
@@ -96,7 +96,7 @@ impl GameState {
             self.events.note_counted(seq, in_turn, in_draw_step);
         }
         // The rows read their objects as the window left them (CR 603.10).
-        let mut drafts: Vec<(EventSeq, RowDraft)> = Vec::new();
+        let mut drafts: Vec<(EventId, RowDraft)> = Vec::new();
         for stamp in &stamps {
             self.draft_history_rows(stamp.seq, window, &mut drafts);
         }
@@ -123,7 +123,7 @@ impl GameState {
         // left out the window's own rows, which the window left behind too:
         // take the frames again now that the log holds them.
         if self.layer_epoch() != epoch {
-            let mut redrafts: Vec<(EventSeq, RowDraft)> = Vec::new();
+            let mut redrafts: Vec<(EventId, RowDraft)> = Vec::new();
             for stamp in &stamps {
                 self.draft_history_rows(stamp.seq, window, &mut redrafts);
             }
@@ -198,7 +198,7 @@ impl GameState {
 
     /// The log's rows for record `seq` of `window`, each its object as the
     /// event left it, read before anything is written.
-    fn draft_history_rows(&self, seq: EventSeq, window: &[EventSeq], drafts: &mut Vec<(EventSeq, RowDraft)>) {
+    fn draft_history_rows(&self, seq: EventId, window: &[EventId], drafts: &mut Vec<(EventId, RowDraft)>) {
         let Some(record) = self.events.record(seq) else { return };
         let mut draft_history_row = |player: Option<PlayerId>, object: Option<ObjectRef>, frame, fact| {
             drafts.push((seq, RowDraft { player, object, frame, fact }));
@@ -325,7 +325,7 @@ impl GameState {
 
     /// What `seq` changes beside its rows, or `None` for a record that
     /// changes nothing else and has no place.
-    fn history_update(&self, seq: EventSeq) -> Option<HistoryUpdate> {
+    fn history_update(&self, seq: EventId) -> Option<HistoryUpdate> {
         let record = self.events.record(seq)?;
         Some(match &record.event {
             GameEvent::AbilityResolved { identity, .. } => HistoryUpdate::AbilityResolved { identity: *identity },

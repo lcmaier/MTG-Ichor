@@ -4,7 +4,7 @@ use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventSeq, GameEvent, UnattachRoute};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventId, GameEvent, UnattachRoute};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
@@ -837,7 +837,7 @@ impl GameState {
     fn dispatch_after_batch(
         &mut self,
         result: Result<Vec<GameAction>, String>,
-        mark: crate::events::event::EventSeq,
+        mark: crate::events::event::EventId,
         window: Option<crate::events::event::BatchId>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
@@ -904,7 +904,7 @@ impl GameState {
         // CR 121.2: this card's draw has ended, and the next is decided after
         // it, so the summaries count it now rather than at the window's close.
         if result.is_ok() {
-            let drawn: Vec<EventSeq> = self.events.records_since(mark).iter().map(|r| r.seq).collect();
+            let drawn: Vec<EventId> = self.events.records_since(mark).iter().map(|r| r.seq).collect();
             self.advance_history(&drawn);
         }
         self.dispatch_after_batch(result, mark, window, ctx)

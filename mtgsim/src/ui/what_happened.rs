@@ -9,7 +9,7 @@
 //! shows them (`plans/traces/viewer.html`), and a line links each object it
 //! writes as `#id`.
 
-use crate::events::event::EventSeq;
+use crate::events::event::EventId;
 use crate::oracle::characteristics::get_effective_abilities;
 use crate::state::game_state::GameState;
 use crate::state::trace::{FieldValue, RecordKind, TraceRecord};
@@ -22,7 +22,7 @@ pub(crate) const WHAT_HAPPENED: &str = "What happened";
 
 /// What `event` did: the batch it was performed in, a batch decided after it
 /// that performed nothing, and the triggered abilities asked about it.
-pub(crate) fn what_happened(game: &GameState, event: EventSeq, trace: &[TraceRecord]) -> Why {
+pub(crate) fn what_happened(game: &GameState, event: EventId, trace: &[TraceRecord]) -> Why {
     let index = event.0 as u64;
     let Some(at) = trace.iter().position(|r| r.kind == RecordKind::Event && r.u64("index") == Some(index)) else {
         let missing = WhyLine::new(format!("The trace holds no event {index}."));

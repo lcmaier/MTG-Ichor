@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::events::event::EventSeq;
+use crate::events::event::EventId;
 use crate::state::battlefield::AttackTarget;
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::card_types::CardType;
@@ -39,7 +39,7 @@ pub const CHUNK_ROWS: usize = 16;
 pub struct HistoryRow {
     /// The record it was written from, which orders the log: "the first",
     /// "the last", "for the first time each turn".
-    pub seq: EventSeq,
+    pub seq: EventId,
     pub turn: u32,
     /// Which of the turn's combats had begun, from 1; 0 before the first.
     pub combat: u32,
@@ -205,7 +205,7 @@ pub struct Targeting {
     /// Who controlled the spell or ability.
     pub controller: PlayerId,
     /// The record that said so.
-    pub seq: EventSeq,
+    pub seq: EventId,
 }
 
 /// How much of the turn a question about its combats spans: the whole turn,
@@ -453,7 +453,7 @@ mod tests {
     use super::*;
 
     fn drew(seq: usize, turn: u32) -> HistoryRow {
-        HistoryRow { seq: EventSeq(seq), turn, combat: 0, player: Some(0), object: None, frame: None, fact: RowFact::Drew }
+        HistoryRow { seq: EventId(seq), turn, combat: 0, player: Some(0), object: None, frame: None, fact: RowFact::Drew }
     }
 
     fn seqs(log: &HistoryLog) -> Vec<usize> {
@@ -524,7 +524,7 @@ mod tests {
     }
 
     fn row(log: &mut HistoryLog, object: ObjectRef, turn: u32, fact: RowFact) {
-        let seq = EventSeq(log.len());
+        let seq = EventId(log.len());
         let combat = log.combats_this_turn();
         log.push(HistoryRow { seq, turn, combat, player: Some(0), object: Some(object), frame: None, fact });
     }

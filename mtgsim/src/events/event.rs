@@ -234,7 +234,7 @@ pub enum GameEvent {
         seq: TriggerSeq,
         origin: TriggerOrigin,
         controller: PlayerId,
-        caused_by: EventSeq,
+        caused_by: EventId,
     },
     /// A delayed triggered ability was created (CR 603.7a), by
     /// `GameState::register_delayed_trigger`, ahead of any record it can
@@ -714,11 +714,12 @@ pub enum CounterSubject {
     Player(PlayerId),
 }
 
-/// A record's place in the performed stream: its monotonic sequence number,
-/// the trace's `index`, and never a position in a buffer. The window flushes
-/// and the recorder forks, and a record keeps its number through both.
+/// Which performed event a record is. Ids are handed out in the order events
+/// are performed, so a smaller id happened earlier, and the trace prints it
+/// as `index`. Never a position in a buffer: the window flushes and the
+/// recorder forks, and a record keeps its id through both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct EventSeq(pub usize);
+pub struct EventId(pub usize);
 
 /// Identifies a set of events performed as one.
 ///
@@ -792,7 +793,7 @@ pub struct EventStamp {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventRecord {
     /// Its place in the stream.
-    pub seq: EventSeq,
+    pub seq: EventId,
     /// What happened.
     pub event: GameEvent,
     /// See [`EventStamp`].
@@ -919,7 +920,7 @@ impl EventWindow {
     /// Record `event` under `stamp`.
     pub(crate) fn push(&mut self, event: GameEvent, stamp: EventStamp, names: NamesAsAnnounced) {
         self.records.push(EventRecord {
-            seq: EventSeq(self.next_seq),
+            seq: EventId(self.next_seq),
             event,
             stamp,
             names,
@@ -929,7 +930,7 @@ impl EventWindow {
     }
 
     /// Mark record `seq` counted by the summaries, with its places.
-    pub(crate) fn note_counted(&mut self, seq: EventSeq, in_turn: Option<u64>, in_draw_step: Option<u64>) {
+    pub(crate) fn note_counted(&mut self, seq: EventId, in_turn: Option<u64>, in_draw_step: Option<u64>) {
         let Some(first) = self.records.first().map(|r| r.seq) else { return };
         if let Some(record) = seq.0.checked_sub(first.0).and_then(|i| self.records.get_mut(i)) {
             record.places = RecordPlaces::counted(in_turn, in_draw_step);
@@ -937,7 +938,7 @@ impl EventWindow {
     }
 
     /// The record at `seq`, or `None` for one the window no longer holds.
-    pub fn record(&self, seq: EventSeq) -> Option<&EventRecord> {
+    pub fn record(&self, seq: EventId) -> Option<&EventRecord> {
         let first = self.records.first()?.seq;
         self.records.get(seq.0.checked_sub(first.0)?)
     }
@@ -945,7 +946,7 @@ impl EventWindow {
     /// The records from `mark` on — pass an earlier [`Self::next_seq`] to ask
     /// "what has been performed since". A dispatch's mark is taken inside the
     /// window it reads, so nothing it asks for has been flushed.
-    pub fn records_since(&self, mark: EventSeq) -> &[EventRecord] {
+    pub fn records_since(&self, mark: EventId) -> &[EventRecord] {
         let first = self.records.first().map_or(self.next_seq, |r| r.seq.0);
         debug_assert!(mark.0 >= first, "a mark from before the window's last flush");
         &self.records[mark.0.saturating_sub(first).min(self.records.len())..]
@@ -962,13 +963,13 @@ impl EventWindow {
     /// (`GameState::flush_window_unless_nested`), and a nested dispatch's
     /// records carry no stamp or another resolution's, so they are not
     /// among them.
-    pub fn resolution_records(&self, stamp: ResolutionStamp, mark: EventSeq) -> impl Iterator<Item = &EventRecord> {
+    pub fn resolution_records(&self, stamp: ResolutionStamp, mark: EventId) -> impl Iterator<Item = &EventRecord> {
         self.records_since(mark).iter().filter(move |r| r.resolution() == Some(stamp))
     }
 
     /// The sequence number the next emitted record will carry.
-    pub fn next_seq(&self) -> EventSeq {
-        EventSeq(self.next_seq)
+    pub fn next_seq(&self) -> EventId {
+        EventId(self.next_seq)
     }
 
     /// The batch the next emitted event joins — the trace sink's join key
@@ -1047,8 +1048,8 @@ mod tests {
         window.push(GameEvent::PhaseBegin { phase: PhaseType::Beginning, player: 0 }, window.stamp_caused_by(EventCause::Harness), None);
 
         assert_eq!(window.held().len(), 2);
-        assert_eq!(window.held()[1].seq, EventSeq(1));
-        assert_eq!(window.next_seq(), EventSeq(2));
+        assert_eq!(window.held()[1].seq, EventId(1));
+        assert_eq!(window.next_seq(), EventId(2));
     }
 
     #[test]
@@ -1058,8 +1059,8 @@ mod tests {
         window.push(GameEvent::PhaseBegin { phase: PhaseType::Beginning, player: 0 }, window.stamp_caused_by(EventCause::Harness), None);
         window.push(GameEvent::StepBegin { step: StepType::Untap, player: 0 }, window.stamp_caused_by(EventCause::Harness), None);
 
-        assert_eq!(window.records_since(EventSeq(1)).len(), 2);
-        assert_eq!(window.records_since(EventSeq(3)).len(), 0);
+        assert_eq!(window.records_since(EventId(1)).len(), 2);
+        assert_eq!(window.records_since(EventId(3)).len(), 0);
     }
 
     /// A flush empties the window and the numbering carries on, so a record
@@ -1071,12 +1072,12 @@ mod tests {
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
         window.flush();
         assert!(window.held().is_empty());
-        assert_eq!(window.record(EventSeq(1)), None, "a flushed record is gone");
+        assert_eq!(window.record(EventId(1)), None, "a flushed record is gone");
 
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
-        assert_eq!(window.held()[0].seq, EventSeq(2));
-        assert_eq!(window.record(EventSeq(2)).map(|r| r.seq), Some(EventSeq(2)));
-        assert_eq!(window.records_since(EventSeq(2)).len(), 1);
+        assert_eq!(window.held()[0].seq, EventId(2));
+        assert_eq!(window.record(EventId(2)).map(|r| r.seq), Some(EventId(2)));
+        assert_eq!(window.records_since(EventId(2)).len(), 1);
     }
 
     #[test]

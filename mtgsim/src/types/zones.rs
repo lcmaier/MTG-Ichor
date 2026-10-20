@@ -1,5 +1,5 @@
 use crate::events::cause::EventCause;
-use crate::events::event::EventSeq;
+use crate::events::event::EventId;
 use crate::types::effects::ReturnUnder;
 use crate::types::ids::{ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent};
@@ -31,7 +31,7 @@ pub struct UntilReturn {
     pub owner: PlayerId,
     /// The first record performed after it was made: an event before it is
     /// not the one it waits for.
-    pub created_at: EventSeq,
+    pub created_at: EventId,
     /// What the return is caused by: the exile's own effect, which CR 610.3
     /// makes the second one-shot effect's.
     pub cause: EventCause,

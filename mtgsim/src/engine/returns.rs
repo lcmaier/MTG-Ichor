@@ -5,7 +5,7 @@
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::cause::EventCause;
-use crate::events::event::{EventSeq, GameEvent, ResolutionStamp};
+use crate::events::event::{EventId, GameEvent, ResolutionStamp};
 use crate::oracle::characteristics::has_subtype;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{EnchantmentType, Subtype};
@@ -132,7 +132,7 @@ impl GameState {
     /// or in the public zone a replacement sent it to instead
     /// (`put_into_since`). A token it created came from no zone and is never
     /// returned (CR 111.8, 610.3).
-    pub(crate) fn exiled_since(&self, stamp: ResolutionStamp, mark: EventSeq) -> Vec<(ObjectRef, Zone)> {
+    pub(crate) fn exiled_since(&self, stamp: ResolutionStamp, mark: EventId) -> Vec<(ObjectRef, Zone)> {
         self.put_into_since(stamp, mark)
             .into_iter()
             .filter_map(|(object, from)| Some((object, from?)))

@@ -374,7 +374,7 @@ is the layer memo's own `Arc`, which the same PR made it:
 pub struct TriggerBinding {
     /// The records that matched, copied at dispatch: one for a
     /// `PerOccurrence` trigger, every matching record of the window for a
-    /// `OncePerEvent` one. Each carries its `EventSeq`, the stream's
+    /// `OncePerEvent` one. Each carries its `EventId`, the stream's
     /// monotonic number and never an index, and its `EventStamp`, which the
     /// reflexive check and CR 603.7h's "this ability" read.
     pub records: Vec<EventRecord>,
@@ -839,7 +839,7 @@ says it is checked once.
 /// One event a reader of the past can ask about, as it was then, kept for
 /// the whole game (`state::history_log`).
 pub struct HistoryRow {
-    pub seq: EventSeq,                    // the record it was written from
+    pub seq: EventId,                    // the record it was written from
     pub turn: u32,
     pub combat: u32,                      // which of the turn's combats had begun
     pub player: Option<PlayerId>,         // whose event
@@ -2957,7 +2957,7 @@ reading the bound facts back through the arm. `Effect::Triggered`,
 `EffectRecipient::{TriggeringObject, TriggeringPlayer}`,
 `AmountExpr::TriggeringAmount`, `StackEntry.trigger`,
 `ResolutionContext.trigger`, `AbilityIdentity`'s two fields,
-`PermanentState.cast`, `EventSeq`, item 10's three fields, item 18's three
+`PermanentState.cast`, `EventId`, item 10's three fields, item 18's three
 deletions, `AbilityTriggered`, CR 113.6k derived in `functioning_zones`, the
 `Triggers placed` row. Five cards; Soul Warden, Blood Artist and Wild Growth
 pooled (91 → 94). Fifty tests, §13's TR-1 row clean.
