@@ -2427,6 +2427,15 @@ impl GameState {
 
     // --- Helper: evaluate AmountExpr ---
 
+    /// The first record of the resolution in progress, which "dealt this
+    /// way" counts from.
+    fn resolution_began_at(&self) -> Result<crate::events::event::EventId, String> {
+        self.resolving
+            .as_ref()
+            .map(|resolving| resolving.began_at)
+            .ok_or_else(|| "damage dealt this way has no meaning outside a resolution".to_string())
+    }
+
     pub(crate) fn evaluate_amount(
         &self,
         expr: &AmountExpr,
@@ -2517,15 +2526,20 @@ impl GameState {
             AmountExpr::TargetToughness => {
                 Err("TargetToughness amount resolution not yet implemented".to_string())
             }
+            // The damage records this resolution performed, whichever object
+            // dealt them (Windswift Slice's creature); a rider's or a mana
+            // ability's are another resolution's. The window holds them
+            // until the resolution ends.
             AmountExpr::DamageDealtThisWay | AmountExpr::ExcessDamageDealtThisWay => {
-                let dealt = &self
-                    .resolving
-                    .as_ref()
-                    .ok_or_else(|| "damage dealt this way has no meaning outside a resolution".to_string())?
-                    .damage_dealt_this_way;
-                Ok(dealt
-                    .iter()
-                    .map(|damage| if matches!(expr, AmountExpr::ExcessDamageDealtThisWay) { damage.excess } else { damage.amount })
+                let excess_only = matches!(expr, AmountExpr::ExcessDamageDealtThisWay);
+                Ok(self
+                    .events
+                    .resolution_records(_ctx.stamp(), self.resolution_began_at()?)
+                    .map(|record| match &record.event {
+                        GameEvent::DamageDealt { excess, .. } if excess_only => *excess,
+                        GameEvent::DamageDealt { amount, .. } => *amount,
+                        _ => 0,
+                    })
                     .sum())
             }
             // CR 615.5's "that much"/"that many". Only a rider sets the field, so

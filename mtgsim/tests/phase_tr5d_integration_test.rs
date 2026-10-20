@@ -23,19 +23,22 @@ use mtgsim::cards::phase_tr5d_cards::{goblin_negotiation, selfless_squire};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::cause::EventCause;
+use mtgsim::events::cause::{EventCause, GeneratedBy};
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, StepType};
+use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::test_support::{
     equipment, fill_library, pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_dp, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, PlayerSet, Primitive, SelectionFilter,
+    TargetCount,
 };
+use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::history::ObjectFact;
 use mtgsim::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::mana::ManaType;
@@ -724,6 +727,51 @@ fn the_damage_dealt_this_way_is_what_prevention_left() {
 
     assert_eq!(game.battlefield[&giant].damage_marked, 2);
     assert_eq!(life(&game, 0), 22, "the 2 dealt, not the 6 proposed");
+}
+
+/// A rider acting during the resolution is its replacement's effect (CR
+/// 615.5), not this resolution's: player 1's shield prevents the fixture's 3,
+/// and its rider deals 2 to the replaced event's subject, player 1. Nothing
+/// was dealt this way.
+#[test]
+fn a_riders_damage_during_the_resolution_is_not_dealt_this_way() {
+    let at_a_player = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
+    let siphon = Effect::Sequence(vec![
+        Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false }, at_a_player.clone()),
+        Effect::Atom(Primitive::GainLife(AmountExpr::DamageDealtThisWay), EffectRecipient::Controller),
+    ]);
+    let mut game = setup_two_player_game();
+    let shield = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let turn = game.turn_number;
+    game.replacement_effects.add(RegisteredReplacementEffect {
+        id: 0,
+        source: shield,
+        controller: 1,
+        generated_by: GeneratedBy::Spell,
+        duration: Duration::UntilEndOfTurn,
+        created_on_turn: turn,
+        targets: Vec::new(),
+        def: ReplacementDef::new(
+            EventPattern::DealDamage { source: None, combat: None },
+            ObjectSet::NO_OBJECTS,
+            Rewrite::Amount(AmountRewrite::PreventRemaining),
+        )
+        .affecting_players(PlayerSet::You)
+        .next_damage(3)
+        .with_then(Effect::Atom(
+            Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
+            at_a_player.clone(),
+        )),
+    });
+
+    let id = put_in_hand(&mut game, fixture_sorcery(siphon), 0);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::SelectRecipients { recipient: at_a_player, spell_id: id }, vec![ChoiceOption::Player(1)]);
+    game.cast_spell(0, id, &dp).expect("it is castable");
+    game.resolve_top_of_stack(&dp).expect("it resolves");
+
+    assert_eq!(life(&game, 1), 18, "the rider dealt its 2");
+    assert_eq!(life(&game, 0), 20, "the fixture's 3 were prevented");
 }
 
 // ---------------------------------------------------------------------------

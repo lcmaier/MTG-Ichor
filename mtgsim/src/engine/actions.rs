@@ -6,7 +6,7 @@ use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup}
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
 use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventId, GameEvent, UnattachRoute};
-use crate::state::game_state::{DamageDealtThisWay, GameResult, GameState, Phase, PhaseType, StepType};
+use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
 use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectRef, PlayerId};
@@ -1489,13 +1489,6 @@ impl GameState {
                     }
                     DamageTarget::Player(_) => 0,
                 };
-                // The resolving object's own damage, which "dealt this way"
-                // reads once this batch's window has gone.
-                if let Some(resolving) = &mut self.resolving
-                    && ctx.cause.resolution().is_some_and(|resolution| resolution.source == resolving.id)
-                {
-                    resolving.damage_dealt_this_way.push(DamageDealtThisWay { to: target, amount, excess });
-                }
 
                 // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.

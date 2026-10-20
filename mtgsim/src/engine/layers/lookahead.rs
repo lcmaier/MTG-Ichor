@@ -228,7 +228,7 @@ mod tests {
             identity: None,
             trigger: None,
             kept_lki: Vec::new(),
-            damage_dealt_this_way: Vec::new(),
+            began_at: game.events.next_seq(),
         });
 
         let predicted = Lookahead::new(&game, card, 0, &mods).entity;

@@ -87,10 +87,9 @@ pub fn selfless_squire() -> Arc<CardData> {
 /// > 1/1 red Goblin creature tokens equal to the amount of excess damage dealt
 /// > to that creature this way.
 ///
-/// The damage is dealt in its own batch, whose window is dispatched before
-/// the tokens are created, so the resolution keeps its own damage as it goes
-/// (`ResolvingObject::damage_dealt_this_way`). It deals damage to one
-/// creature only, so the excess dealt this way is the excess dealt to it.
+/// The tokens read the damage record the resolution performed, which the
+/// window holds until the resolution ends. It deals damage to one creature
+/// only, so the excess dealt this way is the excess dealt to it.
 ///
 /// # The rulings, and where each is tested
 ///

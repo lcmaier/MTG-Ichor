@@ -78,7 +78,7 @@ impl GameState {
             // The resolution reads them here, where its own effect's moves
             // add to them too (CR 608.2h).
             kept_lki: std::mem::take(&mut entry.kept_lki),
-            damage_dealt_this_way: Vec::new(),
+            began_at: self.events.next_seq(),
         });
         // `resolving` is a layer-walk input (`compute::base_controller`'s
         // third arm), so both writes bump.
