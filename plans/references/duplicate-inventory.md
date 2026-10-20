@@ -601,10 +601,10 @@ characteristics, so it is `codebase-state.md` item 290.
   memory of the damage dealt.
 
 **Item 247's, beside T19–T21** (each older than #263): combat's lethal
-reading asks `has_keyword` where `deals_damage_with` reads a gone source's
-last known information; CR 120.6's toughness less damage in the SBA and in
-`lethal_damage_owed`; a damage record's source existence and frame derived
-in four places beside `CurrentOrLastKnown`, and its target as an
+reading asks `has_keyword` where `deals_damage_with_keyword` reads a gone
+source's last known information; CR 120.6's toughness less damage in the SBA
+and in `lethal_damage_owed`; a damage record's source existence and frame
+derived in four places beside `CurrentOrLastKnown`, and its target as an
 `ObjectOrPlayer` in two; `CountersOn`, `TargetSubject` and `DamageRecipient`,
 one shape with three matchers; `TriggeringEventObjects::get` beside
 `objects`; the arms' multiplicities, T7's; `zone_change_looks_back` beside

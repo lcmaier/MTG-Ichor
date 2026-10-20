@@ -90,6 +90,11 @@ impl TriggerBindingReads {
     }
 }
 
+// The facts and both runs of event-role bits fit the word: a new fact or
+// event role past it fails to compile, where an event role's shift would
+// otherwise wrap onto a fact's bit in a release build.
+const _: () = assert!(TriggerBindingReads::FIRST_NEEDS_ONE + EventRole::ALL.len() as u32 <= u32::BITS);
+
 impl BitOr for TriggerBindingReads {
     type Output = TriggerBindingReads;
     fn bitor(self, rhs: TriggerBindingReads) -> TriggerBindingReads {

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::engine::combat::keywords::lethal_damage_owed;
-use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_damage_with};
+use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_damage_with_keyword};
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
@@ -706,7 +706,7 @@ impl GameState {
             let GameAction::DealDamage { source, source_lki, target: DamageTarget::Object(id), amount, .. } = action else {
                 continue;
             };
-            let deathtouch = *amount > 0 && deals_damage_with(self, *source, source_lki.as_ref(), KeywordFlag::Deathtouch);
+            let deathtouch = *amount > 0 && deals_damage_with_keyword(self, *source, source_lki.as_ref(), KeywordFlag::Deathtouch);
             match recipients.iter_mut().find(|(recipient, _)| recipient == id) {
                 Some((_, any_deathtouch)) => *any_deathtouch |= deathtouch,
                 None => recipients.push((*id, deathtouch)),
@@ -730,13 +730,18 @@ impl GameState {
     }
 
     /// The part of `amount` dealt to `recipient` past the damage still lethal
-    /// to it in this batch (CR 120.10), which the batch's later damage to it
-    /// then no longer has to reach.
-    fn take_excess_damage(&mut self, recipient: ObjectId, amount: u64) -> u64 {
-        let Some((_, left)) = self.lethal_damage_left.iter_mut().find(|(id, _)| *id == recipient) else { return 0 };
-        let excess = amount.saturating_sub(*left);
-        *left = left.saturating_sub(amount);
-        excess
+    /// to it in this batch (CR 120.10); 0 for a permanent that is neither a
+    /// creature nor a planeswalker.
+    fn calculate_excess_damage(&self, recipient: ObjectId, amount: u64) -> u64 {
+        self.lethal_damage_left.iter().find(|(id, _)| *id == recipient).map_or(0, |(_, left)| amount.saturating_sub(*left))
+    }
+
+    /// Count `amount` toward the damage still lethal to `recipient`, so the
+    /// batch's later damage to it measures its excess against what is left.
+    fn reduce_lethal_damage_left(&mut self, recipient: ObjectId, amount: u64) {
+        if let Some((_, left)) = self.lethal_damage_left.iter_mut().find(|(id, _)| *id == recipient) {
+            *left = left.saturating_sub(amount);
+        }
     }
 }
 
@@ -1477,7 +1482,11 @@ impl GameState {
 
                 apply_deathtouch_flag(self, source, source_lki.as_ref(), &target);
                 let excess = match target {
-                    DamageTarget::Object(id) => self.take_excess_damage(id, amount),
+                    DamageTarget::Object(id) => {
+                        let excess = self.calculate_excess_damage(id, amount);
+                        self.reduce_lethal_damage_left(id, amount);
+                        excess
+                    }
                     DamageTarget::Player(_) => 0,
                 };
 
