@@ -1102,19 +1102,14 @@ impl TriggerEvent {
     /// trigger is one of, the counters' object or player, or the damage's
     /// recipient. `None` for every other arm and record.
     pub(crate) fn occurrence_subject(&self, record: &GameEvent) -> Option<EventSubject> {
-        let subject = match (self, record) {
+        match (self, record) {
             (TriggerEvent::CountersPutOn { .. }, GameEvent::CountersPutOn { subject, .. })
-            | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { subject, .. }) => match subject {
-                CounterSubject::Object(id) => EventSubject::Object(*id),
-                CounterSubject::Player(player) => EventSubject::Player(*player),
-            },
-            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. }) => match target {
-                DamageTarget::Object(id) => EventSubject::Object(*id),
-                DamageTarget::Player(player) => EventSubject::Player(*player),
-            },
-            _ => return None,
-        };
-        Some(subject)
+            | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { subject, .. }) => {
+                Some(EventSubject::from(*subject))
+            }
+            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. }) => Some(EventSubject::from(*target)),
+            _ => None,
+        }
     }
 
     /// Whether the arm watches an object a delayed trigger refers to (CR

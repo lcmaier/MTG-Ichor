@@ -717,9 +717,8 @@ impl GameState {
             .filter_map(|(id, deathtouch)| {
                 let results = DamageResults::for_object(self, id);
                 let as_creature = results.mark_damage.then(|| lethal_damage_owed(self, id, &[], deathtouch));
-                let as_planeswalker = results
-                    .remove_loyalty
-                    .then(|| self.battlefield.get(&id).map_or(0, |entry| u64::from(entry.counter_count(CounterType::Loyalty))));
+                let as_planeswalker =
+                    results.remove_loyalty.then(|| u64::from(self.counter_count_of(CounterSubject::Object(id), CounterType::Loyalty)));
                 let lethal = match (as_creature, as_planeswalker) {
                     (Some(creature), Some(planeswalker)) => creature.min(planeswalker),
                     (Some(lethal), None) | (None, Some(lethal)) => lethal,

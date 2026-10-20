@@ -18,7 +18,7 @@ use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, ObjectRef};
-use crate::types::triggers::{EventRole, Lki, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
+use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
@@ -123,8 +123,11 @@ impl GameState {
                 .collect()
         };
         // The source by identity, not the origin: a delayed trigger's origin
-        // is its own registry number, which no two share.
-        let same_source = a.origin.source_ref() == b.origin.source_ref() && kept_source_lki(a) == kept_source_lki(b);
+        // is its own registry number, which no two share. Two made on either
+        // side of the source leaving carry different information about it
+        // (CR 113.7a).
+        let source = a.origin.source_ref();
+        let same_source = source == b.origin.source_ref() && a.lki_of(source) == b.lki_of(source);
         (unread(TriggerBindingReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))
             && (unread(TriggerBindingReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
             && (unread(TriggerBindingReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))
@@ -212,12 +215,4 @@ impl GameState {
         self.announce_targeted_records(id, EventCause::GameRule(GameRule::TriggeredAbilityPutOnStack), dp)?;
         Ok(true)
     }
-}
-
-/// The last known information `entry` kept of its source, once the source
-/// has left (CR 113.7a): two delayed triggers made on either side of its
-/// leaving keep different information.
-fn kept_source_lki(entry: &PendingTrigger) -> Option<&Lki> {
-    let source = entry.origin.source_ref();
-    entry.kept_lki.iter().find(|lki| lki.object() == source)
 }

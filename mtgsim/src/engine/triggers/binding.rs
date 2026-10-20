@@ -15,7 +15,7 @@ use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{EventRole, Lki, TriggerBinding, TriggerEvent, TriggeringEventObjects};
+use crate::types::triggers::{EventRole, Lki, PendingTrigger, TriggerBinding, TriggerEvent, TriggeringEventObjects};
 
 /// The frame `record` carries for its object `id`, as `arm` reads it: a
 /// departure's CR 603.10a frame for an arm that looks back, and a source
@@ -73,6 +73,13 @@ impl ResolvingObject {
     /// The last known information it carries for `object` (`carried_lki`).
     pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
         carried_lki(object, self.trigger.as_ref(), &self.kept_lki)
+    }
+}
+
+impl PendingTrigger {
+    /// The last known information it carries for `object` (`carried_lki`).
+    pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
+        carried_lki(object, Some(&self.binding), &self.kept_lki)
     }
 }
 
