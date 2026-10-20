@@ -18,7 +18,8 @@ use crate::types::restriction::SourceFilter;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
-use crate::events::event::{BatchId, DamageTarget, EventRecord, EventId, GameEvent, ResolutionStamp};
+use crate::engine::replacement::EventSubject;
+use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
@@ -711,6 +712,11 @@ pub enum TriggerEvent {
         source: TriggerSubject,
         recipient: DamageRecipient,
         combat: Option<bool>,
+        /// "Is dealt excess damage" (CR 120.10): only damage past lethal, and
+        /// "that much" is the excess. Read once per permanent, whose records'
+        /// excess is the event's, so the registry refuses it read per record
+        /// or of a player.
+        excess: bool,
         multiplicity: Multiplicity,
     },
     /// "Whenever damage that would be dealt to you is prevented" (CR 615.13):
@@ -1053,19 +1059,21 @@ impl TriggerEvent {
     /// Whether this arm may be read once per subject: whether one event can
     /// make several of its records about one object or player, so that
     /// grouping them by it differs from reading each. Counters put on one
-    /// creature by two players, or of two kinds, are two records. A death is
-    /// one record per object, so per subject would be per record. The damage
-    /// arm is the next to join, for "one or more creatures deal combat damage
-    /// to a player" (`triggers-architecture.md` §4.4).
+    /// creature by two players, or of two kinds, are two records, and so is
+    /// damage to one creature from two sources, which "is dealt excess damage"
+    /// reads once ("one or more creatures deal combat damage to a player"
+    /// will too, `triggers-architecture.md` §4.4). A death is one record per
+    /// object, so per subject would be per record.
     pub fn supports_once_per_subject(&self) -> bool {
         match self {
-            TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } => true,
+            TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } | TriggerEvent::DamageDealt { .. } => {
+                true
+            }
             TriggerEvent::ZoneChange { .. }
             | TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
             | TriggerEvent::DrawsCard { .. }
             | TriggerEvent::ManaAdded { .. }
-            | TriggerEvent::DamageDealt { .. }
             | TriggerEvent::DamageIsPrevented { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
@@ -1091,13 +1099,22 @@ impl TriggerEvent {
 
     /// The object or player `record` is about, for an arm that may be read
     /// once per subject (`supports_once_per_subject`): what a once-per-subject
-    /// trigger is one of. `None` for every other arm and record.
-    pub fn occurrence_subject(&self, record: &GameEvent) -> Option<crate::events::event::CounterSubject> {
-        match (self, record) {
+    /// trigger is one of, the counters' object or player, or the damage's
+    /// recipient. `None` for every other arm and record.
+    pub(crate) fn occurrence_subject(&self, record: &GameEvent) -> Option<EventSubject> {
+        let subject = match (self, record) {
             (TriggerEvent::CountersPutOn { .. }, GameEvent::CountersPutOn { subject, .. })
-            | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { subject, .. }) => Some(*subject),
-            _ => None,
-        }
+            | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { subject, .. }) => match subject {
+                CounterSubject::Object(id) => EventSubject::Object(*id),
+                CounterSubject::Player(player) => EventSubject::Player(*player),
+            },
+            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. }) => match target {
+                DamageTarget::Object(id) => EventSubject::Object(*id),
+                DamageTarget::Player(player) => EventSubject::Player(*player),
+            },
+            _ => return None,
+        };
+        Some(subject)
     }
 
     /// Whether the arm watches an object a delayed trigger refers to (CR
@@ -1257,8 +1274,8 @@ impl TriggerEvent {
             // The player who got them; counters on an object name no player.
             (TriggerEvent::CountersPutOn { .. }, GameEvent::CountersPutOn { subject, .. })
             | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { subject, .. }) => match subject {
-                crate::events::event::CounterSubject::Player(player) => Some(*player),
-                crate::events::event::CounterSubject::Object(_) => None,
+                CounterSubject::Player(player) => Some(*player),
+                CounterSubject::Object(_) => None,
             },
             (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { controller, .. })
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { controller, .. }) => {
@@ -1312,7 +1329,8 @@ impl TriggerEvent {
     /// moved. `None` for an event with no quantity.
     pub fn amount_of(&self, record: &GameEvent) -> Option<u64> {
         match (self, record) {
-            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { amount, .. })
+            (TriggerEvent::DamageDealt { excess: true, .. }, GameEvent::DamageDealt { excess, .. }) => Some(*excess),
+            (TriggerEvent::DamageDealt { excess: false, .. }, GameEvent::DamageDealt { amount, .. })
             | (TriggerEvent::DamageIsPrevented { .. }, GameEvent::DamagePrevented { amount, .. }) => Some(*amount),
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { mana, .. }) => {
                 Some(mana.iter().map(|(_, n)| *n).sum())
@@ -1968,6 +1986,7 @@ mod tests {
                 source_id: id,
                 target: DamageTarget::Player(0),
                 amount: 1,
+                excess: 0,
                 is_combat: false,
                 source_lki: None,
             }),
@@ -2023,7 +2042,7 @@ mod tests {
             (TriggerEvent::DrawsCard { player: None, multiplicity: each, place: None }, &["CardDrawn"]),
             (TriggerEvent::ManaAdded { source: this.clone(), tapped_for_mana: None, mana: None }, &["ManaAdded"]),
             (
-                TriggerEvent::DamageDealt { source: this.clone(), recipient: DamageRecipient::Any, combat: None, multiplicity: each },
+                TriggerEvent::DamageDealt { source: this.clone(), recipient: DamageRecipient::Any, combat: None, excess: false, multiplicity: each },
                 &["DamageDealt"],
             ),
             (TriggerEvent::DamageIsPrevented { recipient: DamageRecipient::Any, multiplicity: each }, &["DamagePrevented"]),

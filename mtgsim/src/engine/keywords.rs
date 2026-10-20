@@ -14,7 +14,7 @@ use crate::types::triggers::Lki;
 /// Whether `source` deals damage with `keyword`: as it last existed when
 /// the damage carries its `source_lki` (CR 702.15c, 702.2e), and as it is
 /// otherwise.
-fn deals_damage_with(
+pub(crate) fn deals_damage_with(
     game: &GameState,
     source: ObjectId,
     lki: Option<&Lki>,

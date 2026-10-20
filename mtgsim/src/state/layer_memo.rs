@@ -439,6 +439,7 @@ mod tests {
             source_id: bears,
             target: DamageTarget::Object(wall),
             amount: 1,
+            excess: 0,
             is_combat: false,
             source_lki: None,
         };

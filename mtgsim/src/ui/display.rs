@@ -1021,17 +1021,19 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 if *tapped_for_mana { " tapped for mana" } else { "" },
             )
         }
-        DamageDealt { source_id, source_lki, target, amount, is_combat } => {
+        DamageDealt { source_id, source_lki, target, amount, excess, is_combat } => {
             let target_str = match target {
                 crate::events::event::DamageTarget::Player(pid) => format!("P{}", pid),
                 crate::events::event::DamageTarget::Object(oid) => obj_name(game, *oid),
             };
             let source = as_it_left(game, *source_id, source_lki.as_ref(), announced);
+            let excess = if *excess > 0 { format!(", {excess} excess") } else { String::new() };
             format!(
-                "DamageDealt: {} -> {} for {}{}",
+                "DamageDealt: {} -> {} for {}{}{}",
                 source,
                 target_str,
                 amount,
+                excess,
                 if *is_combat { " (combat)" } else { "" },
             )
         }

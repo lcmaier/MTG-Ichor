@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
+use crate::engine::combat::keywords::lethal_damage_owed;
+use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_damage_with};
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
@@ -9,6 +10,7 @@ use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
 use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates};
 use crate::types::triggers::Lki;
@@ -691,6 +693,55 @@ impl DamageResults {
 }
 
 impl GameState {
+    /// CR 120.10's lethal damage to each creature or planeswalker `decided`
+    /// deals damage to, in batch order: a creature's is `lethal_damage_owed`'s
+    /// reading, at most 1 once a deathtouch source deals it any (Aegar, the
+    /// Freezing Flame's fourth ruling); a planeswalker's is its loyalty, which
+    /// deathtouch does not touch; a creature planeswalker's the smaller, which
+    /// makes CR 120.10's greatest excess. A battle's joins with its defense
+    /// counters (CR 120.3h, `backlog.md` §2.23).
+    fn lethal_damage_to_recipients<'a>(&self, decided: impl Iterator<Item = &'a GameAction>) -> Vec<(ObjectId, u64)> {
+        let mut recipients: Vec<(ObjectId, bool)> = Vec::new();
+        for action in decided {
+            let GameAction::DealDamage { source, source_lki, target: DamageTarget::Object(id), amount, .. } = action else {
+                continue;
+            };
+            let deathtouch = *amount > 0 && deals_damage_with(self, *source, source_lki.as_ref(), KeywordFlag::Deathtouch);
+            match recipients.iter_mut().find(|(recipient, _)| recipient == id) {
+                Some((_, any_deathtouch)) => *any_deathtouch |= deathtouch,
+                None => recipients.push((*id, deathtouch)),
+            }
+        }
+        recipients
+            .into_iter()
+            .filter_map(|(id, deathtouch)| {
+                let results = DamageResults::for_object(self, id);
+                let as_creature = results.mark_damage.then(|| lethal_damage_owed(self, id, &[], deathtouch));
+                let as_planeswalker = results
+                    .remove_loyalty
+                    .then(|| self.battlefield.get(&id).map_or(0, |entry| u64::from(entry.counter_count(CounterType::Loyalty))));
+                let lethal = match (as_creature, as_planeswalker) {
+                    (Some(creature), Some(planeswalker)) => creature.min(planeswalker),
+                    (Some(lethal), None) | (None, Some(lethal)) => lethal,
+                    (None, None) => return None,
+                };
+                Some((id, lethal))
+            })
+            .collect()
+    }
+
+    /// The part of `amount` dealt to `recipient` past the damage still lethal
+    /// to it in this batch (CR 120.10), which the batch's later damage to it
+    /// then no longer has to reach.
+    fn take_excess_damage(&mut self, recipient: ObjectId, amount: u64) -> u64 {
+        let Some((_, left)) = self.lethal_damage_left.iter_mut().find(|(id, _)| *id == recipient) else { return 0 };
+        let excess = amount.saturating_sub(*left);
+        *left = left.saturating_sub(amount);
+        excess
+    }
+}
+
+impl GameState {
     /// Execute a game action: mutate state and emit the corresponding event.
     ///
     /// This is the central chokepoint for all game-state mutations that are
@@ -1086,6 +1137,11 @@ impl GameState {
         let mut decided: Vec<BatchMember> = groups.into_iter().flat_map(|g| g.members).collect();
         decided.sort_by_key(|m| m.place);
 
+        // CR 120.10's lethal damage, off the board the batch decided against:
+        // a member's damage marks and removes loyalty as it performs.
+        let lethal_damage = self.lethal_damage_to_recipients(decided.iter().filter_map(|m| m.event.as_ref()));
+        let outer_lethal_damage = std::mem::replace(&mut self.lethal_damage_left, lethal_damage);
+
         // CR 603.10's "immediately prior to the event": a survivor's abilities
         // change only if a decided member removes an ability-changing effect's
         // source, so then the lists are saved now (`LookBackSnapshot`).
@@ -1154,6 +1210,7 @@ impl GameState {
             }
         }
         self.lki_captures.truncate(frames_from);
+        self.lethal_damage_left = outer_lethal_damage;
         performed_ok?;
         self.trace(|| {
             trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
@@ -1420,6 +1477,10 @@ impl GameState {
                 }
 
                 apply_deathtouch_flag(self, source, source_lki.as_ref(), &target);
+                let excess = match target {
+                    DamageTarget::Object(id) => self.take_excess_damage(id, amount),
+                    DamageTarget::Player(_) => 0,
+                };
 
                 // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
@@ -1443,6 +1504,7 @@ impl GameState {
                     source_lki,
                     target,
                     amount,
+                    excess,
                     is_combat,
                 }, ctx.cause)?;
 

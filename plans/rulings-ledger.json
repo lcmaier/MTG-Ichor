@@ -20,6 +20,17 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Aegar, the Freezing Flame": {
+      "first_seen": "2026-10-19",
+      "rulings": [
+        {"n": 1, "published_at": "2023-04-14", "comment": "Aegar's ability won't trigger when a battle is dealt excess damage. It's not his fault. They didn't exist yet."},
+        {"n": 2, "published_at": "2021-02-05", "comment": "A creature has been dealt excess damage if one or more sources deal more damage to it than the minimum amount of damage required to be lethal damage. In most cases, this means damage greater than its toughness, but consider the damage already dealt to it that turn."},
+        {"n": 3, "published_at": "2021-02-05", "comment": "A planeswalker is dealt excess damage if it's dealt damage greater than its current loyalty."},
+        {"n": 4, "published_at": "2021-02-05", "comment": "Even 1 damage dealt to a creature from a source with deathtouch is considered lethal damage, so any amount greater than that will cause excess damage to be dealt, even if the total amount of damage isn't greater than the creature's toughness. Note that a source of damage having deathtouch has no effect on damage dealt to planeswalkers."},
+        {"n": 5, "published_at": "2021-02-05", "comment": "It doesn't matter whether a Giant, Wizard, or spell you control deals the excess damage, only that excess damage was dealt and that one of those three things dealt damage to the creature or planeswalker at some point during the turn. For example, if a 4/4 creature an opponent controls is dealt 2 damage by a spell you control and later that turn is dealt 3 damage by a spell another player controls, Aegar's ability will trigger."},
+        {"n": 6, "published_at": "2021-02-05", "comment": "If a permanent is both a creature and a planeswalker, the minimum amount of damage to be considered lethal damage is used to determine if excess damage has been dealt. For example, if a 5/5 creature that's also a planeswalker with three loyalty counters on it is dealt 4 damage, it's been dealt 1 excess damage and Aegar's ability may trigger."}
+      ]
+    },
     "Aggravated Assault": {
       "first_seen": "2026-09-17",
       "rulings": [

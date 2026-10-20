@@ -169,7 +169,7 @@ fn combat_damage_to_a_player(multiplicity: Multiplicity) -> TriggerEvent {
         source: TriggerSubject::Filter(creature_you_control()),
         recipient: DamageRecipient::Player(None),
         combat: Some(true),
-        multiplicity,
+        excess: false, multiplicity,
     }
 }
 
@@ -259,6 +259,7 @@ fn that_creature_is_the_recipient_when_the_instruction_names_it() {
         source: TriggerSubject::Any,
         recipient: DamageRecipient::Object(Some(ObjectFilter::ByType(CardType::Creature))),
         combat: None,
+        excess: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
     put_on_battlefield(&mut game, watcher("Fixture Wound Keeper", dealt_damage, destroy_it), 1);
@@ -303,6 +304,7 @@ fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
         source: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
         recipient: DamageRecipient::Player(Some(PlayerRef::You)),
         combat: None,
+        excess: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
     put_on_battlefield(&mut game, watcher("Fixture Leech", dealt_damage_by_a_creature, gains_its_power), 1);

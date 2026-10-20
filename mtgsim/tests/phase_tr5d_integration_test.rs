@@ -5,6 +5,9 @@
 //!    damage in a batch, however many sources the damage came from.
 //! 2. Selfless Squire, whose shield outlives it and whose growth reads any
 //!    prevention effect.
+//! 3. Excess damage, decided with the batch: each record's share of what the
+//!    batch dealt each creature or planeswalker past lethal, read once per
+//!    permanent by the damage arm and by "was dealt excess damage this turn".
 
 use std::sync::Arc;
 
@@ -16,16 +19,21 @@ use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_dp, vanilla_creature, RecordingDecisionProvider,
+    pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_dp, vanilla_creature,
+    RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{CounterType, Effect, EffectRecipient, ObjectFilter, Primitive};
+use mtgsim::types::effects::{AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive};
+use mtgsim::types::history::ObjectFact;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::triggers::{DamageRecipient, EventRole};
+use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::display::format_record;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -234,5 +242,276 @@ fn a_prevented_creatures_event_role_is_the_damage_recipient() {
 
     assert!(game.battlefield[&bears].tapped, "that creature");
     assert_eq!(game.battlefield[&bears].damage_marked, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Excess damage (CR 120.10)
+// ---------------------------------------------------------------------------
+
+/// "Whenever a [recipient] is dealt excess [noncombat] damage", read once per
+/// permanent.
+fn excess_arm(recipient: DamageRecipient, combat: Option<bool>) -> TriggerEvent {
+    TriggerEvent::DamageDealt { source: TriggerSubject::Any, recipient, combat, excess: true, multiplicity: Multiplicity::OncePerSubject }
+}
+
+fn a_creature() -> DamageRecipient {
+    DamageRecipient::Object(Some(ObjectFilter::ByType(CardType::Creature)))
+}
+
+/// An enchantment whose controller gains that much life off `arm`.
+fn gains_that_much(arm: TriggerEvent) -> Arc<CardData> {
+    CardDataBuilder::new("Fixture Gauge")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability(
+            "",
+            whenever(arm, Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Controller)),
+        ))
+        .build()
+}
+
+/// A planeswalker with printed loyalty 3 and nothing else.
+fn loyalty_three() -> Arc<CardData> {
+    CardDataBuilder::new("Fixture Walker").card_type(CardType::Planeswalker).loyalty(3).build()
+}
+
+/// The excess on each damage record since `from`, in order.
+fn excess_since(game: &GameState, from: usize) -> Vec<u64> {
+    game.recorded_events()
+        .events()
+        .skip(from)
+        .filter_map(|e| match e {
+            GameEvent::DamageDealt { excess, .. } => Some(*excess),
+            _ => None,
+        })
+        .collect()
+}
+
+fn life(game: &GameState, player: PlayerId) -> i64 {
+    game.players[player].life_total
+}
+
+// COVERS: ATOM-120.10-001
+#[test]
+fn a_two_two_dealt_five_is_dealt_three_excess() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, gains_that_much(excess_arm(a_creature(), None)), 0);
+    let source = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let before = game.recorded_events().len();
+
+    deal_together(&mut game, vec![damage(source, DamageTarget::Object(bears), 5)], &test_dp());
+    assert_eq!(excess_since(&game, before), vec![3]);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(life(&game, 0), 23);
+}
+
+// RULING: Aegar, the Freezing Flame #2 - lethal damage takes into account
+//   the damage already dealt to the creature that turn.
+#[test]
+fn damage_already_marked_counts_toward_lethal() {
+    let mut game = setup_two_player_game();
+    let source = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
+    let wall = put_on_battlefield(&mut game, vanilla_creature(0, 4, &[]), 0);
+    deal_together(&mut game, vec![damage(source, DamageTarget::Object(wall), 2)], &test_dp());
+    let before = game.recorded_events().len();
+
+    deal_together(&mut game, vec![damage(source, DamageTarget::Object(wall), 1)], &test_dp());
+    deal_together(&mut game, vec![damage(source, DamageTarget::Object(wall), 3)], &test_dp());
+
+    assert_eq!(excess_since(&game, before), vec![0, 2], "4 toughness, 3 marked, then 3 more past the 1 left");
+}
+
+// RULING: Aegar, the Freezing Flame #4 - 1 damage from a deathtouch source
+//   is lethal to a creature, and deathtouch does nothing to a planeswalker.
+#[test]
+fn deathtouch_makes_one_damage_lethal_to_a_creature_and_not_to_a_planeswalker() {
+    let mut game = setup_two_player_game();
+    let viper = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[KeywordFlag::Deathtouch]), 1);
+    let giant = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[]), 0);
+    let walker = reanimate(&mut game, loyalty_three(), 0);
+    let before = game.recorded_events().len();
+
+    deal_together(
+        &mut game,
+        vec![damage(viper, DamageTarget::Object(giant), 3), damage(viper, DamageTarget::Object(walker), 3)],
+        &test_dp(),
+    );
+
+    assert_eq!(excess_since(&game, before), vec![2, 0]);
+}
+
+/// CR 120.10's "those sources together": two sources into one creature in
+/// one event are one excess, read once for the permanent. A 3/3 dealt 2 and
+/// 2 is dealt 1 excess, all of it on the second record.
+#[test]
+fn two_sources_into_one_creature_make_one_excess_read_once() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, gains_that_much(excess_arm(a_creature(), None)), 0);
+    let first = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let second = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let centaur = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
+    let before = game.recorded_events().len();
+
+    deal_together(
+        &mut game,
+        vec![damage(first, DamageTarget::Object(centaur), 2), damage(second, DamageTarget::Object(centaur), 2)],
+        &test_dp(),
+    );
+    assert_eq!(excess_since(&game, before), vec![0, 1]);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(life(&game, 0), 21, "one trigger, that much is 1");
+}
+
+/// Once per permanent, not per event: two creatures each dealt excess in one
+/// event are two triggers, each with its own.
+#[test]
+fn two_creatures_dealt_excess_are_two_triggers() {
+    let mut game = setup_two_player_game();
+    let gauge = put_on_battlefield(&mut game, gains_that_much(excess_arm(a_creature(), None)), 0);
+    let source = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let elves = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+
+    deal_together(
+        &mut game,
+        vec![damage(source, DamageTarget::Object(bears), 3), damage(source, DamageTarget::Object(elves), 4)],
+        &test_dp(),
+    );
+    assert_eq!(waiting_from(&game, gauge), 2);
+    resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
+
+    assert_eq!(life(&game, 0), 24, "1 and 3");
+}
+
+// RULING: Aegar, the Freezing Flame #3 - a planeswalker is dealt excess
+//   damage past its loyalty.
+// RULING: Aegar, the Freezing Flame #6 - a creature planeswalker takes the
+//   smaller lethal amount: a 5/5 with three loyalty counters dealt 4 is dealt
+//   1 excess.
+#[test]
+fn a_creature_planeswalker_takes_the_smaller_lethal_amount() {
+    let mut game = setup_two_player_game();
+    let source = put_on_battlefield(&mut game, vanilla_creature(6, 6, &[]), 1);
+    let walker = reanimate(&mut game, loyalty_three(), 0);
+    let creature_walker = CardDataBuilder::new("Fixture Creature Walker")
+        .card_type(CardType::Creature)
+        .card_type(CardType::Planeswalker)
+        .power_toughness(5, 5)
+        .loyalty(3)
+        .build();
+    let both = reanimate(&mut game, creature_walker, 0);
+    let before = game.recorded_events().len();
+
+    deal_together(
+        &mut game,
+        vec![damage(source, DamageTarget::Object(walker), 5), damage(source, DamageTarget::Object(both), 4)],
+        &test_dp(),
+    );
+
+    assert_eq!(excess_since(&game, before), vec![2, 1]);
+}
+
+/// Prevented damage is never dealt (CR 615.6), so it is no excess: a 2/2
+/// under Mending Hands' 4, dealt 5, is dealt 1, none of it excess.
+#[test]
+fn prevented_damage_is_no_excess() {
+    let mut game = setup_two_player_game();
+    let source = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bears)]);
+    let before = game.recorded_events().len();
+
+    deal_together(&mut game, vec![damage(source, DamageTarget::Object(bears), 5)], &test_dp());
+
+    assert_eq!(excess_since(&game, before), vec![0]);
+    assert_eq!(game.battlefield[&bears].damage_marked, 1);
+}
+
+/// "Is dealt excess noncombat damage" (Fall of Cair Andros): combat damage
+/// past lethal triggers nothing.
+#[test]
+fn excess_noncombat_damage_reads_only_noncombat_damage() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, gains_that_much(excess_arm(a_creature(), Some(false))), 0);
+    let source = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let elves = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let in_combat = GameAction::DealDamage {
+        source,
+        target: DamageTarget::Object(bears),
+        amount: 5,
+        is_combat: true,
+        unpreventable: false,
+        source_lki: None,
+    };
+
+    deal_together(&mut game, vec![in_combat, damage(source, DamageTarget::Object(elves), 3)], &test_dp());
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(life(&game, 0), 22, "the elves' 2, not the bears' 3");
+}
+
+/// "Was dealt excess damage this turn" (Maarika, Brutal Gladiator) reads the
+/// damage rows' excess; a creature dealt exactly lethal was dealt none.
+#[test]
+fn was_dealt_excess_damage_this_turn_reads_the_rows_excess() {
+    let mut game = setup_two_player_game();
+    let banner = CardDataBuilder::new("Fixture Banner")
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Atom(
+            Primitive::ModifyPowerToughness(AmountExpr::Fixed(5), AmountExpr::Fixed(5), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredPermanents(ObjectFilter::ThisTurn(ObjectFact::WasDealtExcessDamage)),
+        )))
+        .build();
+    let source = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
+    let exact = put_on_battlefield(&mut game, vanilla_creature(0, 3, &[]), 0);
+    let past = put_on_battlefield(&mut game, vanilla_creature(0, 2, &[]), 0);
+    put_on_battlefield(&mut game, banner, 0);
+
+    deal_together(
+        &mut game,
+        vec![damage(source, DamageTarget::Object(exact), 3), damage(source, DamageTarget::Object(past), 3)],
+        &test_dp(),
+    );
+
+    assert_eq!(get_effective_power(&game, exact), Some(0), "dealt lethal, none past it");
+    assert_eq!(get_effective_power(&game, past), Some(5), "dealt 1 past lethal");
+}
+
+/// The registry refuses excess read per record, whose records each hold a
+/// share of the event's, and excess dealt to a player, who is dealt none.
+#[test]
+fn excess_read_per_record_or_of_a_player_is_refused() {
+    let refused = |arm: TriggerEvent| {
+        let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Controller);
+        whenever(arm, gain).readings_its_arms_cannot_give().len()
+    };
+    let per_record = TriggerEvent::DamageDealt {
+        source: TriggerSubject::Any,
+        recipient: a_creature(),
+        combat: None,
+        excess: true,
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    assert_eq!(refused(per_record), 1);
+    assert_eq!(refused(excess_arm(DamageRecipient::Player(None), None)), 1);
+    assert_eq!(refused(excess_arm(a_creature(), None)), 0);
+}
+
+/// The log line names the excess where there is some.
+#[test]
+fn the_damage_log_line_names_its_excess() {
+    let mut game = setup_two_player_game();
+    let source = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let before = game.recorded_events().len();
+
+    deal_together(&mut game, vec![damage(source, DamageTarget::Object(bears), 5)], &test_dp());
+
+    let recorded = game.recorded_events();
+    let lines: Vec<String> = recorded.records()[before..].iter().map(|record| format_record(&game, record)).collect();
+    assert!(lines.iter().any(|line| line.contains("for 5, 3 excess")), "{lines:?}");
 }
 

@@ -16,7 +16,9 @@ use crate::types::effects::{
     AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, Selector,
 };
-use crate::types::triggers::{BlockOccurrence, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
+use crate::types::triggers::{
+    BlockOccurrence, DamageRecipient, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
+};
 
 /// A set of the facts of an entry a def reads, each one a column the elision
 /// compares, and the event roles of its event it names. Built like
@@ -136,6 +138,17 @@ impl TriggerDef {
         let mut wrong = Vec::new();
         if arms.iter().any(|arm| arm.multiplicity() == Multiplicity::OncePerSubject && !arm.supports_once_per_subject()) {
             wrong.push("once per subject, on an arm that cannot be read that way");
+        }
+        // CR 120.10's excess is the event's, which a permanent's records sum
+        // to, and a player is dealt none.
+        for arm in arms {
+            let TriggerEvent::DamageDealt { excess: true, recipient, multiplicity, .. } = arm else { continue };
+            if *multiplicity == Multiplicity::PerOccurrence {
+                wrong.push("excess damage, read per record rather than once per permanent");
+            }
+            if matches!(recipient, DamageRecipient::Player(_)) {
+                wrong.push("excess damage, dealt to a player");
+            }
         }
         let puts_once_per_subject =
             |arm: &TriggerEvent| matches!(arm, TriggerEvent::CountersPutOn { multiplicity: Multiplicity::OncePerSubject, .. });
@@ -349,7 +362,12 @@ fn condition_reads(c: &Condition) -> TriggerBindingReads {
 
 fn object_fact_reads(f: &ObjectFact) -> TriggerBindingReads {
     match f {
-        ObjectFact::Attacked | ObjectFact::Blocked | ObjectFact::WasBlocked | ObjectFact::Entered | ObjectFact::WasDealtDamage => {
+        ObjectFact::Attacked
+        | ObjectFact::Blocked
+        | ObjectFact::WasBlocked
+        | ObjectFact::Entered
+        | ObjectFact::WasDealtDamage
+        | ObjectFact::WasDealtExcessDamage => {
             TriggerBindingReads::NONE
         }
         ObjectFact::DealtDamageTo { player, .. } => player.as_ref().map_or(TriggerBindingReads::NONE, player_ref_reads),

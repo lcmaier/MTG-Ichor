@@ -34,6 +34,7 @@ use crate::engine::targeting::HeldFrame;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
+use crate::engine::replacement::EventSubject;
 use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
@@ -1306,7 +1307,7 @@ impl GameState {
         let mut matches: Vec<MatchedTrigger> = Vec::new();
         // "One or more" accumulates across the window: (identity, event, and
         // for a once-per-subject arm the subject) -> index into `matches`.
-        let mut once: Vec<((AbilityIdentity, EventIndex, Option<CounterSubject>), usize)> = Vec::new();
+        let mut once: Vec<((AbilityIdentity, EventIndex, Option<EventSubject>), usize)> = Vec::new();
 
         // The window's newcomers: a window is one event (§4.1), so each was
         // somewhere else immediately before every record of it.
@@ -1658,8 +1659,8 @@ impl GameState {
                 triggering_event_if(self.mana_added_arm_matches(arm, producer, added, referents, seq))
             }
             (
-                TriggerEvent::DamageDealt { source, recipient, combat, .. },
-                GameEvent::DamageDealt { source_id, target, is_combat, .. },
+                TriggerEvent::DamageDealt { source, recipient, combat, excess, .. },
+                GameEvent::DamageDealt { source_id, target, is_combat, excess: dealt_excess, .. },
             ) => {
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
@@ -1667,6 +1668,7 @@ impl GameState {
                 triggering_event_if(
                     self.damage_recipient_matches(recipient, *target, referents, seq)
                         && combat.is_none_or(|c| c == *is_combat)
+                        && (!*excess || *dealt_excess > 0)
                         && self.subject_matches(source, Some(*source_id), referents, seq, source_read),
                 )
             }

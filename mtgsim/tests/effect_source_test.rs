@@ -487,6 +487,7 @@ fn a_trigger_on_the_damage_reads_a_source_that_left_as_it_last_was() {
         source: TriggerSubject::Filter(ObjectFilter::ByColor(Color::Red)),
         recipient: DamageRecipient::Player(Some(PlayerRef::You)),
         combat: None,
+        excess: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
     let gain_one = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);

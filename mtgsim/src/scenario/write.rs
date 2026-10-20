@@ -113,6 +113,7 @@ impl<'g> Writer<'g> {
             cost_modification_ability_sources: _,
             entry_selection: _,     // a batch's, empty at any prompt outside one
             prevention_allocations: _,
+            lethal_damage_left: _,
             nesting: _,
             rider_lineage: _,
             next_zone_change_epoch: _, // CR 704.6d's ticks, settled at rest

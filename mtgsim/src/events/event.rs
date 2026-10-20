@@ -122,6 +122,11 @@ pub enum GameEvent {
         source_id: ObjectId,
         target: DamageTarget,
         amount: u64,
+        /// CR 120.10: how much of `amount` was past the damage still lethal
+        /// to the permanent after the batch's earlier damage to it, so its
+        /// records' excess sums to the event's. 0 for a player, and for a
+        /// permanent that is neither a creature nor a planeswalker.
+        excess: u64,
         is_combat: bool,
         /// The proposal's `source_lki`: the source as it last existed, when
         /// it dealt the damage after leaving its zone, so a trigger asking
