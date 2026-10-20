@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-18",
+  "fetched": "2026-10-19",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -1176,6 +1176,13 @@
       "read": "2026-09-17",
       "rulings": [
         {"n": 1, "published_at": "2005-10-01", "comment": "You may choose the same creature as a target multiple times since the card says “target creature” multiple times. You may give three different creatures +1/+1 each, one creature +2/+2 and another creature +1/+1, or a single creature +3/+3."}
+      ]
+    },
+    "Selfless Squire": {
+      "first_seen": "2026-10-19",
+      "rulings": [
+        {"n": 1, "published_at": "2016-11-08", "comment": "Selfless Squire's first triggered ability prevents all damage that would be dealt to you this turn after the triggered ability resolves, even if Selfless Squire leaves the battlefield."},
+        {"n": 2, "published_at": "2016-11-08", "comment": "Selfless Squire's second triggered ability doesn't trigger only when damage is prevented by its first triggered ability's effect. Any effect that uses the word \"prevent\" will cause it to trigger."}
       ]
     },
     "Serra Angel": {
