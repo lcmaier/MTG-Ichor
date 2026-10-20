@@ -1113,10 +1113,27 @@ pub enum ReturnUnder {
 }
 
 /// How many targets/choices to select
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TargetCount {
     Exactly(u32),
     UpTo(u32),
+    /// "Up to X target creatures, where X is ..." (CR 601.2c, 603.3d): a
+    /// number of targets the text defines, read as the targets are
+    /// announced, off the trigger's binding or the X announced for the
+    /// spell or ability, and fixed from then on.
+    UpToAmount(AmountExpr),
+}
+
+impl TargetCount {
+    /// The fewest and most targets the instance may have, `amount` reading
+    /// a count the text defines as the announcement starts.
+    pub fn bounds(&self, amount: impl FnOnce(&AmountExpr) -> Result<u64, String>) -> Result<(usize, usize), String> {
+        Ok(match self {
+            TargetCount::Exactly(n) => (*n as usize, *n as usize),
+            TargetCount::UpTo(n) => (0, *n as usize),
+            TargetCount::UpToAmount(x) => (0, amount(x)? as usize),
+        })
+    }
 }
 
 /// Mana output from a mana ability or mana-producing spell.

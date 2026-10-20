@@ -183,7 +183,7 @@ impl GameState {
             source_lki: None,
             triggering_event: TriggeringEventView::Resolving { game: self, binding: &pending.binding },
         };
-        let targets = match self.announce_targets(controller, id, identity.source.id, &pending.instances, named, dp) {
+        let targets = match self.announce_targets(controller, id, identity.source.id, &pending.instances, named, pending.x_value, dp) {
             Ok(targets) => targets,
             Err(_) => {
                 self.ability_leaves_the_stack(id);

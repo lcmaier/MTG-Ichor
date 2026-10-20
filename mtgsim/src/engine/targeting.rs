@@ -209,6 +209,14 @@ pub(crate) enum HeldFrame<'a> {
     LastKnown(&'a Lki),
 }
 
+/// Check that the number of targets is within the bounds `count` announced.
+fn validate_target_count(count: &TargetCount, (fewest, most): (usize, usize), actual: usize) -> Result<(), String> {
+    if actual < fewest || actual > most {
+        return Err(format!("{count:?} allows {fewest} to {most} target(s), got {actual}"));
+    }
+    Ok(())
+}
+
 /// Whether a clause's criteria read an earlier instance of "target" —
 /// `ObjectFilter::OtherThanInstance`, the "another target" family.
 ///
@@ -377,6 +385,26 @@ impl GameState {
         you: PlayerId,
         identity: FilterIdentity<'_>,
     ) -> Result<(), String> {
+        let bounds = match recipient {
+            EffectRecipient::Target(_, count) | EffectRecipient::Choose(_, count) => {
+                count.bounds(|_| Err("a count of targets the text defines is read as the targets are announced".to_string()))?
+            }
+            _ => (0, 0),
+        };
+        self.validate_announced_targets(recipient, targets, bounds, you, identity)
+    }
+
+    /// [`Self::validate_targets`], with the count CR 601.2c announced:
+    /// `bounds` are the fewest and most targets an instance of "target" may
+    /// have.
+    pub(crate) fn validate_announced_targets(
+        &self,
+        recipient: &EffectRecipient,
+        targets: &[ResolvedTarget],
+        bounds: (usize, usize),
+        you: PlayerId,
+        identity: FilterIdentity<'_>,
+    ) -> Result<(), String> {
         match recipient {
             EffectRecipient::Implicit
             | EffectRecipient::ThisObject
@@ -427,7 +455,7 @@ impl GameState {
             // "Before card breadth" item 7, which is RS-2's.
             EffectRecipient::Target(filter, count)
             | EffectRecipient::Choose(filter, count) => {
-                self.validate_target_count(count, targets.len())?;
+                validate_target_count(count, bounds, targets.len())?;
                 // CR 601.2c's first sentence: one instance never picks a target twice
                 // (Victimize's two cards; Decimate's four instances may share one).
                 // `validate_pick_n` refuses a duplicate index already, but that is the
@@ -448,30 +476,6 @@ impl GameState {
         }
     }
 
-    /// Check that the number of targets matches the TargetCount spec.
-    fn validate_target_count(
-        &self,
-        count: &TargetCount,
-        actual: usize,
-    ) -> Result<(), String> {
-        match count {
-            TargetCount::Exactly(n) => {
-                if actual != *n as usize {
-                    return Err(format!(
-                        "Expected exactly {} target(s), got {}", n, actual
-                    ));
-                }
-            }
-            TargetCount::UpTo(n) => {
-                if actual > *n as usize {
-                    return Err(format!(
-                        "Expected up to {} target(s), got {}", n, actual
-                    ));
-                }
-            }
-        }
-        Ok(())
-    }
 
     /// Whether Aura `aura`, whose enchant ability is `filter`, may enchant
     /// `host` (CR 303.4a), its "you" being `you` (CR 109.5): what CR 704.5m

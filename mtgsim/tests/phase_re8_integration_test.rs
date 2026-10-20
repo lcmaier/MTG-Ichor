@@ -545,12 +545,10 @@ fn test_scry_four_orders_both_groups() {
 }
 
 // COVERS-PARTIAL: ATOM-701.22b-001
-// The atom's board has a "whenever you scry" trigger on the battlefield and
-// asserts it does not fire. Triggered abilities are critical-path item 6 and
-// nothing fires today, so what is proved here is the half the rule is written
-// about — *"no scry event occurs"*: nothing is looked at, nobody is asked, and
-// the log holds no `Scried` line for a trigger to read. The trigger half is
-// claimable the day critical-path item 6 lands, against this same board.
+// The half the rule is written about, *"no scry event occurs"*: nothing is
+// looked at, nobody is asked, and the log holds no `Scried` line. The
+// atom's trigger half is `phase_tr5g_integration_test`'s
+// `a_scry_zero_triggers_nothing`, over a "whenever you scry" trigger.
 /// CR 701.22b — a scry 0 is not a small scry, it is no scry.
 #[test]
 fn test_scry_zero_is_no_event_at_all() {

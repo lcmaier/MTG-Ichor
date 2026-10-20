@@ -8,7 +8,9 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{another, creates_a_token, dies, enters, is_sacrificed, triggered_ability, when_you_do, whenever, Whose};
+use mtgsim::cards::authoring::{
+    another, becomes_the_target_of, creates_a_token, dies, enters, is_sacrificed, scries, triggered_ability, when_you_do, whenever, Whose,
+};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::phase_cv_cards::cytoshape;
 use mtgsim::cards::phase_rc_cards::chainbreaker;
@@ -24,7 +26,8 @@ use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction,
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    creature_with_ability, put_in_graveyard, put_on_battlefield, registered, setup_two_player_game, static_ability, test_dp, vanilla_creature,
+    creature_with_ability, fill_library, put_in_graveyard, put_on_battlefield, registered, setup_two_player_game, static_ability, test_dp,
+    vanilla_creature,
 };
 use mtgsim::events::event::GameEvent;
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
@@ -33,11 +36,12 @@ use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive, SelectionFilter,
     Selector, TargetCount, TokenDef,
 };
+use mtgsim::types::history::CountIs;
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
-    TriggerMultiplierDef, TriggerSubject, TriggerTier,
+    TargetedBy, TriggerMultiplierDef, TriggerSubject, TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
@@ -557,7 +561,7 @@ fn place_each_at_the_opponent(game: &mut GameState, triggers: usize) {
     assert!(dp.is_empty(), "each target is chosen as its trigger goes on the stack");
 }
 
-// RULING: Ajani, Nacatl Avenger #7 - no target is chosen as the ability is activated; the reflexive ability's is chosen as it goes on the stack.
+// RULING: Ajani, Nacatl Pariah // Ajani, Nacatl Avenger #7 - no target is chosen as the ability is activated; the reflexive ability's is chosen as it goes on the stack.
 #[test]
 fn ajanis_reflexive_trigger_chooses_its_target_as_it_goes_on_the_stack() {
     let mut game = audited_game();
@@ -568,7 +572,7 @@ fn ajanis_reflexive_trigger_chooses_its_target_as_it_goes_on_the_stack() {
     assert_eq!(life(&game, 1), 20 - 2, "the Cat Warrior and the red creature");
 }
 
-// RULING: Ajani, Nacatl Avenger #8 - under Doubling Season the reflexive ability triggers once for each Cat Warrior.
+// RULING: Ajani, Nacatl Pariah // Ajani, Nacatl Avenger #8 - under Doubling Season the reflexive ability triggers once for each Cat Warrior.
 #[test]
 fn ajanis_reflexive_trigger_triggers_for_each_cat_warrior_doubling_season_makes() {
     let mut game = audited_game();
@@ -580,7 +584,7 @@ fn ajanis_reflexive_trigger_triggers_for_each_cat_warrior_doubling_season_makes(
     assert_eq!(life(&game, 1), 20 - 3 - 3, "two Cat Warriors and the red creature, twice");
 }
 
-// RULING: Ajani, Nacatl Avenger #8 - tokens a replacement creates instead, as Divine Visitation's Angels, don't trigger it.
+// RULING: Ajani, Nacatl Pariah // Ajani, Nacatl Avenger #8 - tokens a replacement creates instead, as Divine Visitation's Angels, don't trigger it.
 #[test]
 fn ajanis_reflexive_trigger_ignores_the_angels_divine_visitation_makes_instead() {
     let mut game = audited_game();
@@ -615,4 +619,178 @@ fn one_or_more_tokens_triggers_once_for_a_creation_of_several() {
     game.pending_triggers.clear();
     game.resolve_effect(&three, &ResolutionContext::untargeted(once, 1, GeneratedBy::Spell), &test_dp()).unwrap();
     assert_eq!((waiting_from(&game, once), waiting_from(&game, each)), (0, 0));
+}
+
+// ---------------------------------------------------------------------------
+// Scry, and a count of targets the text defines (CR 701.22, 601.2c)
+// ---------------------------------------------------------------------------
+
+/// Elrond, Master of Healing, both abilities: "Whenever you scry, put a
+/// +1/+1 counter on each of up to X target creatures, where X is the number
+/// of cards looked at while scrying this way. Whenever a creature you
+/// control with a +1/+1 counter on it becomes the target of a spell or
+/// ability an opponent controls, you may draw a card."
+fn elrond_master_of_healing() -> Arc<CardData> {
+    let up_to_x = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpToAmount(AmountExpr::TriggeringAmount));
+    let counter = Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You };
+    let yours_with_a_counter = ObjectFilter::And(
+        Box::new(ObjectFilter::And(Box::new(a_creature()), Box::new(ObjectFilter::ByController(PlayerRef::You)))),
+        Box::new(ObjectFilter::WithCounters { kind: Some(CounterType::PlusOnePlusOne), count: CountIs::AtLeast(1) }),
+    );
+    let draw = Effect::Optional {
+        chooser: PlayerRef::You,
+        effect: Box::new(Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller)),
+    };
+    let targeted = becomes_the_target_of(TriggerSubject::Filter(yours_with_a_counter), TargetedBy::SpellOrAbility, Some(PlayerRef::Opponent));
+    CardDataBuilder::new("Elrond, Master of Healing")
+        .card_type(CardType::Creature)
+        .supertype(Supertype::Legendary)
+        .power_toughness(4, 4)
+        .ability(triggered_ability("", whenever(scries(Whose::Yours), Effect::Atom(counter, up_to_x))))
+        .ability(triggered_ability("", whenever(targeted, draw)))
+        .build()
+}
+
+const PICK_SCRY: ChoiceKind = ChoiceKind::Scry { source: None, n: 0 };
+
+/// `player` scries `n`, keeping every card on top in the order it was.
+fn scry(game: &mut GameState, player: PlayerId, n: u64) {
+    let dp = ScriptedDecisionProvider::new();
+    let looked_at = game.players[player].library.len().min(n as usize);
+    if looked_at > 0 {
+        dp.expect_pick_n(PICK_SCRY, Vec::new());
+    }
+    if looked_at > 1 {
+        dp.expect_ordering(ChoiceKind::ScryOrder { source: None, bottom: false }, (0..looked_at).collect());
+    }
+    game.execute_action(GameAction::Scry { player, n }, &ActionContext::new(&dp)).expect("the scry is performed");
+}
+
+/// Elrond's scry trigger on the stack, `targets` its chosen creatures.
+fn place_choosing(game: &mut GameState, targets: Vec<ObjectId>) {
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
+        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        targets.into_iter().map(ChoiceOption::Object).collect(),
+    );
+    game.perform_sba_and_triggers(&dp).unwrap();
+}
+
+fn plus_one_counters(game: &GameState, id: ObjectId) -> u32 {
+    game.battlefield[&id].counter_count(CounterType::PlusOnePlusOne)
+}
+
+/// A scry 3 from a library of two, with three creatures to target.
+fn elrond_scries_three_from_two(game: &mut GameState) -> (ObjectId, Vec<ObjectId>) {
+    let elrond = put_on_battlefield(game, elrond_master_of_healing(), 0);
+    let bears: Vec<ObjectId> = (0..3).map(|_| put_on_battlefield(game, vanilla_creature(2, 2, &[]), 0)).collect();
+    game.players[0].library.truncate(0);
+    fill_library(game, 0, 2);
+    scry(game, 0, 3);
+    (elrond, bears)
+}
+
+// RULING: Elrond, Master of Healing #1 - X is the number of cards actually looked at: a scry 3 with two cards in the library makes X 2.
+#[test]
+fn elronds_x_is_the_cards_looked_at() {
+    let mut game = audited_game();
+    let (elrond, bears) = elrond_scries_three_from_two(&mut game);
+    assert_eq!(waiting_from(&game, elrond), 1);
+    place_choosing(&mut game, bears[..2].to_vec());
+    resolve_all(&mut game, &test_dp());
+    let counters: Vec<u32> = bears.iter().map(|&bear| plus_one_counters(&game, bear)).collect();
+    assert_eq!(counters, vec![1, 1, 0]);
+}
+
+/// The count bounds the announcement (CR 601.2c): up to 2, so a third
+/// target is never offered as a legal answer.
+#[test]
+#[should_panic(expected = "expected 0-2")]
+fn elrond_cannot_target_more_creatures_than_x() {
+    let mut game = audited_game();
+    let (_, bears) = elrond_scries_three_from_two(&mut game);
+    place_choosing(&mut game, bears);
+}
+
+/// "Up to": fewer than X, none included.
+#[test]
+fn elrond_may_choose_fewer_targets_than_x() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, elrond_master_of_healing(), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    fill_library(&mut game, 0, 3);
+    scry(&mut game, 0, 3);
+    place_choosing(&mut game, vec![bear]);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(plus_one_counters(&game, bear), 1);
+}
+
+/// A scry from an empty library is still a scry (CR 701.22d), with nothing
+/// looked at: X is 0, so the trigger has no target to choose and asks for
+/// none.
+#[test]
+fn a_scry_that_looks_at_nothing_makes_x_zero() {
+    let mut game = audited_game();
+    let elrond = put_on_battlefield(&mut game, elrond_master_of_healing(), 0);
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.players[0].library.truncate(0);
+    scry(&mut game, 0, 2);
+    assert_eq!(waiting_from(&game, elrond), 1);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(plus_one_counters(&game, elrond), 0);
+}
+
+// COVERS: ATOM-701.22b-001
+/// CR 701.22b: a scry 0 is no scry, so "whenever you scry" does not trigger.
+#[test]
+fn a_scry_zero_triggers_nothing() {
+    let mut game = audited_game();
+    let elrond = put_on_battlefield(&mut game, elrond_master_of_healing(), 0);
+    fill_library(&mut game, 0, 3);
+    let effect = Effect::Atom(Primitive::Scry(AmountExpr::Fixed(0)), EffectRecipient::Controller);
+    game.resolve_effect(&effect, &ResolutionContext::untargeted(elrond, 0, GeneratedBy::Spell), &test_dp()).unwrap();
+    assert_eq!(waiting_from(&game, elrond), 0);
+}
+
+/// "Whenever you scry": an opponent's scry is theirs.
+#[test]
+fn an_opponents_scry_does_not_trigger_elrond() {
+    let mut game = audited_game();
+    let elrond = put_on_battlefield(&mut game, elrond_master_of_healing(), 0);
+    fill_library(&mut game, 1, 3);
+    scry(&mut game, 1, 1);
+    assert_eq!(waiting_from(&game, elrond), 0);
+}
+
+// RULING: Elrond, Master of Healing #2 - two creatures you control with counters targeted by one opponent's spell or ability trigger the last ability twice.
+#[test]
+fn two_of_elronds_creatures_targeted_by_one_ability_trigger_it_twice() {
+    let mut game = audited_game();
+    let elrond = put_on_battlefield(&mut game, elrond_master_of_healing(), 0);
+    let bears: Vec<ObjectId> = (0..2).map(|_| put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0)).collect();
+    let plain = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    for &bear in &bears {
+        let timestamp = game.allocate_timestamp();
+        game.battlefield.get_mut(&bear).unwrap().add_counters(CounterType::PlusOnePlusOne, 1, timestamp);
+    }
+    game.bump_layer_epoch();
+    let tap_two = AbilityDef {
+        rules_text: "".into(),
+        id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
+        ability_type: AbilityType::Activated,
+        costs: Vec::new(),
+        effect: Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpTo(3))),
+        is_characteristic_defining: false,
+        activation_restriction: ActivationRestriction::None,
+    };
+    let wand = put_on_battlefield(&mut game, CardDataBuilder::new("Wand").card_type(CardType::Artifact).ability(tap_two).build(), 1);
+    resolve_all(&mut game, &test_dp());
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
+        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![ChoiceOption::Object(bears[0]), ChoiceOption::Object(bears[1]), ChoiceOption::Object(plain)],
+    );
+    game.activate_ability(1, wand, 0, &dp).expect("the opponent's ability targets three creatures");
+    assert_eq!(waiting_from(&game, elrond), 2, "the two with a counter, each once");
 }
