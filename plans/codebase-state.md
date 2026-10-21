@@ -7896,6 +7896,19 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      reading is 53, its turn 40. **B10's design moved up to right after
      TR-5g** (the owner, 2026-10-20); its first instrument is a clone at
      every decision, not only between turns.
+     **Read at a token wipe (2026-10-20).** A throwaway probe, four seats at
+     10,000,000 life, W death watchers ("whenever a creature dies, target
+     player loses 1 life and you gain 1 life") spread over the seats, T
+     goblin tokens, one batch destroying every creature, release: W40 T160
+     is 8,000 waiting triggers. Detection holds — the wipe's dispatch is
+     5 ms — and the clone is this item's: 24,014 allocations and 4.3 MB
+     waiting, 32,014 and 10 MB stacked. Two time costs grew with the turn
+     and were not B10's, and #265 took both out: a record's place in its
+     turn counted the turn's rows each time (a resolution and the check
+     after it, 9 µs at 500 stacked and 91 µs at 8,000; now 12 µs, 7.6 of
+     them item 293's), and placement took each trigger from the middle of
+     the queue (112 ms for 8,000; now 20 ms). Item 293 is the third, the
+     state-based check's two walks of every object.
      **Slotted:** B10, the clone's structural sharing: per-object state shared
      between forks, copied on write, which also settles `FitOnClone`'s rule.
      Its design follows TR-5g.
@@ -9629,3 +9642,21 @@ Number 277 was withdrawn in #260 and is not reused.
      answer that does nothing: ~60–80 lines over the resolver and its 13
      callers, and a fixture for each board, shown failing first.
      **Slotted:** A6e (the owner, 2026-10-20), beside item 291.
+
+293. **Every state-based check walks every object twice.** CR 704.5d's
+     tokens outside the battlefield and CR 704.6d's commanders moved since
+     the last check are each found by a walk of `GameState::objects`
+     (`engine/sba.rs`, `moved_since` and the token sweep), and an ability on
+     the stack is an object, so after a wipe stacks 8,000 death triggers each
+     check between resolutions walks 8,000 objects twice: 7.6 µs a check
+     against 1.2 µs at 1,200, 60 ms over the stack. Both read only what
+     changed zones since the last check, whose epoch `arrive_in_zone` is the
+     one writer of. Found by item 183's wipe reading.
+     **Reachability (2026-10-20):** reachable, and right — every check finds
+     what it should; only its cost grows, with every object in every zone.
+     **Sized:** a list of the objects that arrived in a zone since the last
+     check, pushed by `arrive_in_zone`, taken by each check, so a clone at a
+     grant of priority copies an empty list; both readers on it, and a debug
+     walk asserting it missed none: ~40–60 lines and a test.
+     **Slotted:** the PR after #265, ahead of B10's design (proposed;
+     the owner's call).
