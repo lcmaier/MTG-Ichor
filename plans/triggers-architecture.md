@@ -3685,7 +3685,7 @@ waiting, an allocation each (82 against floor 2's 64), and cloned at 77 at a
 28-trigger ordering prompt: B10's batch of triggers, not the multiplier. A
 finished game now drops waiting triggers (CR 104.1), and reads 50.
 
-**What it leaves.** B10's design is next (the owner), then TR-6.
+**What it leaves.** B10's design is next (the owner), then its build CL-1 (the owner, 2026-10-21), then TR-6.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-5g".
 

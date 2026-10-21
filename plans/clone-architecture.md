@@ -1,9 +1,10 @@
 # The clone — what a fork shares, and what it copies
 
-> **Status:** design, 2026-10-21, for `roadmap-v2.md` B10; no code. The
-> decisions in §3 wait on the owner's review, and the build's slot is decision
-> 8. Every number in §2 was measured on 2026-10-21 on `b86c59c1` (#265's
-> merge), and §2.0 says how.
+> **Status:** design, 2026-10-21, for `roadmap-v2.md` B10; no code. At #266's
+> first review the owner took decisions 3, 4, 6 and 8 (CL-1 next). Decision 1
+> is re-measured with B built (§2.8), and decisions 2, 5 and 7 are rewritten;
+> those four wait on the owner. Every number in §2 was measured on 2026-10-21
+> on `b86c59c1` (#265's merge), and §2.0 says how.
 > **Authority:** how `GameState` holds per-object state so that a clone shares
 > it, namely the object store, the battlefield's entries, the stack's entries
 > and order, the triggers waiting to be put on the stack, and the layer memo's
@@ -146,7 +147,8 @@ the store, plus the form's store. No engine code changed.
 
 The forms (decision 1): **A**, an `Arc` per entry in today's map; **C**, an
 id-indexed table in chunks of 32, each chunk and each entry behind an `Arc`;
-**B**, a persistent map, priced by its root (an `Arc` over a whole store).
+**B**, a persistent map: `imbl` 7.0.2's two, fetched into the probe crate
+only (§2.8).
 
 ### 2.1 The board's floors, re-read first
 
@@ -269,6 +271,52 @@ not the engine's mix; the budget's arm reads the engine (§4).
 checkpoints' 6.7–7.6 µs whole clone; chunked they are 0.11–0.14 µs, so the
 slowest checkpoint's clone reads about 2.7 µs and the median 1.9.
 
+### 2.8 B against C, both built
+
+Each form of three stores, built from the entries of three states: the clone
+test's worst checkpoint (`performance` 12353, turn 40: 48 permanents, 227
+objects), the token board (200 permanents) and the wipe (8,040 objects, 8,000
+stack entries). B is `imbl` 7.0.2: its `HashMap`, a hash array mapped trie of
+32-way nodes keyed by the engine's hasher, and its `OrdMap`, a B-tree of
+16-entry nodes keyed by the id's integer, since `ObjectId` has no `Ord`. Every
+entry is behind its own `Arc` in every form. Best of five means; the wipe's
+figures in parentheses.
+
+| | A | C | B, `imbl::HashMap` | B, `imbl::OrdMap` |
+|---|---|---|---|---|
+| clone, one store | 0.18–1.26 µs, 1 allocation (46–47 µs, 272 KB) | 0.04–0.06 µs, 1 allocation (1.0 µs, 2.0 KB) | **0** (0) | **0** (0) |
+| a lookup | 1.4–1.6 ns (2.2–2.4) | **0.6–0.7** (0.8) | 3.1–3.3 (6.2) | 6.6–11.3 (23) |
+| an unshared write | 2.7–3.4 ns (4.9–5.4) | 3.3–3.8 (4.4–4.8) | 8.3–9.5 (16–18) | 13–21 (37) |
+| a fork's first write to 1 entry | 0.02–0.12 µs, 1 allocation | 0.11–0.19 µs, 2 | 0.21–0.38 µs, 2–3 | 0.18–0.24 µs, 3–4 |
+| … to 18 entries, §2.6's p99 | 0.55–1.79 µs, 18–30 | 1.6–2.3 µs, 24–40 | 1.9–2.5 µs, 32–40 | 2.2–2.7 µs, 36–40 |
+| … to 18 entries at the wipe | 0.7–5.7 µs, 18–90 | 4.0–7.4 µs, 36–108 | 6.0–9.8 µs, 51–125 | 5.4–8.1 µs, 67–139 |
+| an insert and a remove | 34–72 ns, 1 allocation | 31–76, 1 | 65–104, 1 | 84–123, 2 |
+| a walk of every entry | 0.02–0.14 µs (8.1–9.3) | 0.04–0.08 (3.8–4.0) | 0.15–0.68 (35–37) | 0.14–0.59 (23–41) |
+
+**What it says.**
+- **B's one win is the clone**, and on the pooled board C's clone of a store
+  is already 0.04–0.06 µs. B's gap opens only with depth: C copies about 1 µs
+  a store at 8,000 ids, so about 6 µs for its four stack stores past 15,000.
+- **Everything a game does between clones, B does 2–5 times slower than C**:
+  every lookup, unshared write and walk, in every game whether it forks or
+  not. These are the engine's hot paths (92 battlefield and 110 object lookup
+  sites in the engine, §1.2), so B would spend floor 1, decisions per core-second,
+  to buy floor 2 where C already holds it.
+- **A fork's own writes cost about the same in every form.** At §2.6's mean
+  of about two entries between decisions, a fork pays 0.2–0.5 µs whichever
+  form holds the store, so a fork's whole cost (clone and writes) is about
+  0.5 µs in both B and C.
+- **C's sparse walk.** The battlefield is sparse in the id space (48
+  permanents over ids to 501), and C walks it in 0.07 µs against A's 0.02.
+  With a mask of live slots per chunk the walk reads 0.026 µs. On a dense
+  store the mask is slower (0.106 against 0.04), so it is the battlefield's
+  alone.
+- **Upkeep.** B is nine crates (`imbl`, `imbl-sized-chunks`, `archery`,
+  `wide`, `safe_arch`, `bytemuck`, `equivalent`, `rand_xoshiro`,
+  `version_check`) where the engine has one, `rand`, and about 11,500 lines of
+  maps and nodes. Its `HashMap` iterates in the hasher's order, today's rule;
+  its `OrdMap` needs an ordered key, which `ObjectId` refuses on purpose.
+
 ---
 
 ## 3. The decisions
@@ -285,11 +333,11 @@ entry, one per chunk of entries, or one per store.
 | | Code | Clone: allocations / KB, between turns 4 seats · 2 seats; every decision 4 · 2 | The wipe, 8,000 stacked | Upkeep |
 |---|---|---|---|---|
 | **A. An `Arc` per entry in today's map** | `battlefield: FitOnClone<IdMap<ObjectId, Arc<PermanentState>>>`; a write, `Arc::make_mut(game.battlefield.get_mut(&id)?)` | 34 / 21.5 · 26 / 11.0; 37 / 22.6 · 28 / 11.1 | ~620 KB, ~95 µs: floor 3 five times over, floor 2's time ten | least code; the map keeps hashing, a table of 17 bytes a slot, and `FitOnClone` stays (decision 4) |
-| **B. A persistent map** | an external crate (`imbl`'s hash array mapped trie, `rpds`), or the same shape written here as a trie keyed by id; `battlefield: imbl::HashMap<ObjectId, Arc<PermanentState>, IdHash>` | C's, less one allocation per non-empty store, and about C's KB: 32 · 24; 34 · 26 (projected) | ~9 KB, ~2 µs (projected) | a clone is one count at any size (0.003 µs measured on an `Arc` over a store); a read is the hash and 2–3 node hops; a fork's first write copies a path of 2–3 nodes. A dependency (the crate has one, `rand`; the hasher is written here on purpose, `plans/id-hasher.md`), or about 400 lines of persistent structure to own. Iterates in hash order |
+| **B. A persistent map** | an external crate (`imbl`, measured in §2.8), or the same shape written here as a trie keyed by id; `battlefield: imbl::GenericHashMap<ObjectId, Arc<PermanentState>, IdHash, _>` | C's, less one allocation per non-empty store, and about C's KB: 32 · 24; 34 · 26 | ~9 KB, ~2 µs | a clone is one count at any size. A lookup is 3.1–3.3 ns against C's 0.6–0.7 and today's ~1.5, an unshared write 2–3 times C's, a walk 2–9 times (§2.8). Nine crates and ~11,500 lines (the engine has one dependency, `rand`; the hasher is written here on purpose, `plans/id-hasher.md`), or about 400 lines of persistent structure to own. Iterates in hash order |
 | **C. Chunks, like the history log** | ids are a per-game counter, so `ObjectId(n)` lives in chunk n/32 at slot n%32: `objects: ObjectTable<GameObject>`, each chunk behind an `Arc`; a write copies the chunk if a fork shares it, then the entry | 34 / 12.1 · 26 / 5.7; 37 / 12.2 · 28 / 5.8 | ~15 KB, ~5 µs | one generic table, about 300 lines with tests. Reads hash nothing (§2.7). Iterates in id order. The outer vector spans every id minted, 8 bytes per 32 ids: 2 KB after the 8,000-trigger wipe, 250 KB after a million ids |
 
-Not measured: B's reads and writes. No such crate is in the local cache, and
-adding one is the owner's call.
+B's whole-clone counts are additive estimates from §2.8's per-store clones,
+as A's and C's are from §2.2–§2.4.
 
 **How an entry is held, under C.** A chunk is copied whole on a fork's first
 write to it. So small entries with no heap of their own sit **inline** in the
@@ -302,33 +350,48 @@ take the history log's own shape: chunks of 32 in order, a fork's first write
 copying the last.
 
 **Recommended: C.**
-- It is the only form measured to hold both floors on every board here.
-- Its reads are cheaper than today's.
-- It is the history log's idea, which the tree already owns.
-- B's advantage over C, a clone of one count at any depth, shows only past
-  about 15,000 objects on the stack, where C's four stores reach about 6 µs.
-  It costs a dependency or a persistent structure.
-- The outer vector's growth with ids minted is C's one bound past the board.
-  If a board ever mints enough ids for it to matter, the step is a second level
-  of chunks: 8 bytes per 1,024 ids, one more load per read.
+- **Against B (§2.8).** B and C both hold floors 2 and 3 on every board
+  here, and a fork's whole cost (its clone and its writes to the next
+  decision) is about the same in each, 0.5 µs. Where they part is everything
+  a game does between clones: B looks up, writes and walks 2–5 times slower
+  than C, and 2 times slower than today's map, in every game, forked or not.
+  That is floor 1's budget spent to buy a clone C already makes cheap.
+- **Against A.** A is the only form that breaks a floor on the boards
+  measured: floor 2's time from about 700 stack objects, floor 3's bytes from
+  about 1,800.
+- **Its reads are cheaper than today's**, and it is the history log's idea,
+  which the tree already owns.
+- **What B would win.** B's clone is one count at any depth, and C's grows by
+  about 1 µs a store per 8,000 ids, so C's four stack stores reach about 6 µs
+  past 15,000 objects on the stack. The same step closes it, and the outer
+  vector's growth with ids minted too: a second level of chunks, 8 bytes per
+  1,024 ids, one more load per read. It is built when a fixture needs it.
 
 ### Decision 2 — which stores
 
-**The problem.** A clone grows with four things the floors forbid it to grow
-with: the stack (`stack_entries`, `stack`, and the stack's own objects in
-`objects`), the waiting queue (`pending_triggers`), the board (`battlefield`,
-`objects`), and the game's history (the memo's frames, §2.5). Item 183's
-breach was the second (31 waiting triggers), its spike the first, and §2.4's
-token board the third.
+**The problem.** The floors say a clone may grow with nothing but the
+board's high-water mark. Today it grows with four things: the stack, the
+triggers waiting to go on it, the number of permanents, and the game's
+history. Each store below grows with one or two of them, and decision 2 is
+which stores the build shares.
 
-| Store | What it costs today, worst read | Under C | Why it is in |
+**How to read the table.** One row per store. "Its worst reading" is the board
+where that store cost the most, from §2.2 to §2.5, in allocations and bytes
+for that store alone, not the whole clone. The next column is the same store on
+the same board under C. A row is in the build if its store is the largest part
+of some reading the floors bound.
+
+| Store | Grows with | Its worst reading today | The same store under C |
 |---|---|---|---|
-| `stack_entries` | 32,001 allocations, 9.1 MB at 8,000 stacked | 2.0 KB, 0.94 µs | the deep stack (§2.4) |
-| `stack` (the order) | 62.5 KB at 8,000 stacked | 2.0 KB | half of floor 3 on the same board |
-| `pending_triggers` | 45 allocations at a 22-trigger ordering; 24,001 at 8,000 | one per non-empty list | the mid-turn breach (§2.3) |
-| `objects` | 28.5 KB at both worst four-seat checkpoints; 912 KB at 8,000 stacked | 0.1 KB; 2.0 KB | a third of every clone's bytes, and every stack ability is an object |
-| `battlefield` | 30 allocations at the worst checkpoint; 102 KB at 200 permanents | 0.1 KB | the worst between-turn reading, and token boards |
-| the memo's frames | 101 KB with no objects left (§2.5) | bounded by the store | the only store that grows with the game's history |
+| `stack_entries` | the stack | 32,001 allocations, 9.1 MB: the wipe, 8,000 stacked | 1 allocation, 2.0 KB |
+| `stack`, the stack's order | the stack | 1 allocation, 62.5 KB: the same board | 1 allocation, 2.0 KB |
+| `pending_triggers` | the triggers waiting | 24,001 allocations, 4.2 MB: the wipe, 8,000 waiting. On the pooled board, 45 allocations at the worst decision (§2.3) | 1 allocation, 2.0 KB; on the pooled board, 1 allocation, 0.1 KB |
+| `objects` | the stack (each ability on it is an object), and the cards and tokens in the game | 1 allocation, 912 KB: the wipe, 8,000 stacked. On the pooled board, 28.5 KB at both worst checkpoints, a third of the clone | 1 allocation, 2.0 KB; on the pooled board, 0.1 KB |
+| `battlefield` | the permanents | 1 allocation, 102.3 KB: 200 tokens. On the pooled board, 30 allocations at the worst checkpoint, its counters' and attachments' heap | 1 allocation, 0.1 KB |
+| the layer memo's frames | the game's history: every object ever walked | about 100 KB of a 101.3 KB clone, with no objects left after 2,000 tokens came and went (§2.5) | nothing for an object that is gone, once `remove_object` evicts it |
+
+Item 183's spike was the stack, TR-5g's breach the triggers waiting, §2.4's
+token board the permanents, and §2.5's churn the history.
 
 **The memo takes two changes.** `remove_object` evicts the object's frame: an
 id is never reused, so the frame can never be served again, and the memo is
@@ -371,7 +434,8 @@ stops a wrong write and what it costs to keep.
 | **(b) `Arc`s in today's maps, `make_mut` at each site** | form A's `Arc::make_mut(entry)` at the 54 engine write sites of §1.2 | a forgotten copy does not compile either, but `Arc::get_mut(..).unwrap()` does, and passes every unforked test: it fails only in a fork | needs a gate rule refusing `Arc::get_mut` on the stores |
 | **(c) (a) with a gate** | `check_invariants.py` also refuses `make_mut` outside the table's file | as (a) | a rule refusing what the type already makes impossible |
 
-**Recommended: (a), and no new gate rule.** The type refuses a raw write at
+**Taken: (a), and no new gate rule** (the owner, 2026-10-21, at #266's
+review). The type refuses a raw write at
 compile time, which is stronger than a grep. What remains is cost: a `get_mut`
 that writes nothing, or a walk of shape 4. That is a copy, not a wrong answer,
 and decision 6's fork-copies test reads it. The eight walks become a read, then
@@ -400,18 +464,48 @@ table's slots at a clone.
   after sharing: 272 KB at 8,000 objects, rebuilt to about 8.5 KB at 400. The
   three costs shrink by the slot's size, from 400 bytes to 17, and stay.
 
-**Recommended:** drop it, with C.
+**Taken: drop it** (the owner, 2026-10-21, at #266's review), with C.
 
 ### Decision 5 — item 293's list of objects moved since the last check
 
-**The problem.** CR 704.5d's sweep (a token in a zone other than the
-battlefield ceases to exist) and CR 704.6d's (a commander put into a graveyard
-or exile since the last check) each walk every object at every check
-(`engine/sba.rs:137` and `:295`). An ability on the stack is an object, so after
-a wipe stacks 8,000 death triggers, each check between resolutions walks 8,000
-objects twice: 7.6 µs of a 12 µs check. Both read only what arrived in a zone
-since the last check, and `arrive_in_zone` (`engine/zones.rs:250`) is the one
-writer of the epoch that says when.
+**What the check does today.** Two state-based actions look for objects that
+have just moved:
+- CR 704.5d removes a token that is anywhere but the battlefield: one that
+  died, was exiled or was returned to a hand;
+- CR 704.6d offers the owner of a commander put into a graveyard or exile
+  since the last check the choice of the command zone.
+
+Neither knows where to look, so each check walks every object in the game to
+find the few that moved (`engine/sba.rs:137` and `:295`). That is every card
+in every library, hand and graveyard, and every ability on the stack. A
+four-seat board is 300–400 objects, walked twice a check. After a wipe that
+stacks 8,000 death triggers it is 8,000 objects twice a check, with a check
+after every resolution: 7.6 µs of each 12 µs check, 60 ms over the stack
+(item 293).
+
+**The list.** Every move into a zone goes through one function,
+`arrive_in_zone` (`engine/zones.rs:250`), which already stamps each move with
+its epoch. It notes the moves the two rules could match on a list. Each check
+takes the list, emptying it, and its two rules read only that. The list holds
+exactly what the walk would have found.
+
+**Why it is B10's.** The list is state on `GameState`, so a clone copies it.
+At every grant of priority the last check has just emptied it, so a fork
+copies nothing for it.
+
+**Not a cache.** Nothing on the list is computed and kept for reuse: it is a
+record of moves that the next check reads once. The two kind-keyed mechanisms
+in the tree relate to it differently:
+- **The dispatcher's event-kind mask** (`trigger_sources`) is the same move.
+  The writer files a change under what its readers can ask about, so a reader
+  looks only where it could match.
+- **The layer memo's gate by kind of row** (TR-5h) is the cache: a frame that
+  read one kind of history row survives a write of another kind.
+
+Item 293 changes neither. For the floors it is a floor 1 lever more than a
+clone one. A check on the pooled board walks 300–400 objects twice, about
+0.4 µs at item 293's rate of 1.2 µs per 1,200 objects, against about 64 µs a
+decision. On a deep stack it is most of the check.
 
 | | Shape | Clone | Upkeep |
 |---|---|---|---|
@@ -447,16 +541,25 @@ reading also cannot see the cost decision 1 moves to the writes (§2.6).
 | (c) **The fork-copies test**: at each decision of a few games, fork, answer, run to the next decision, and count the chunks the fork no longer shares with its parent (by pointer, in a test) | the write side: a walk of shape 4 shows as a copy of every chunk | about 1 s | with CL-1 |
 | (d) **Time**, at the readiness pass: the median of five means of 2,000 at the 20 worst decisions by bytes and at the fixture boards | floor 2's own bound | none in CI | at A6e's readiness pass |
 
-**Recommended: all four.** Floors 2 and 3 are then read at every decision and
+**Taken: all four** (the owner, 2026-10-21, at #266's review; CI's time is
+not the bottleneck). Floors 2 and 3 are then read at every decision and
 on the fixture boards, not only between turns. `engineering-practices.md`
 §3.1's definitions change in the build that makes them pass, not here.
 
-### Decision 7 — determinism
+### Decision 7 — determinism: what a fork shares never changes the game
 
-**The problem.** Sharing adds things a game could observe that do not belong
-to the game: whether an entry is shared, where it lives, and how many forks
-hold it. None may reach a choice, a log or a count (`CLAUDE.md`, "Determinism
-at the decision boundary").
+**The problem.** Nothing new tracks forks, and the harness reports none.
+Copy-on-write needs to know whether a chunk is shared, and Rust's `Arc` keeps
+that itself: inside each shared chunk sits a count of how many holders point
+at it, which is how `make_mut` decides whether to copy. That count exists
+whether we read it or not. So do the chunk's address and, under C, the order
+the table walks its entries in. The count and the address differ between a
+game that was forked and one that was not, and between two processes. If
+engine code read either, a game would play differently because a search had
+cloned it. So this decision is four rules, held by the existing gates and
+review; none of them is a new mechanism. Their source is
+`CLAUDE.md`'s "Determinism at the decision boundary": nothing that is not the
+game reaches a choice, a log or a count.
 
 1. **Order.** C iterates in id order, which is the same in every process, so
    the hasher can no longer leak through these stores. It is not the rules'
@@ -498,9 +601,9 @@ is gated on. Three things bear on the slot:
 | (b) After TR-7, before A6e | the triggers track closes unbroken; A6e's readiness pass reads the new instrument | two phases that write the queue and the stack land without a mid-turn reading |
 | (c) Where it is, after CV-7 | nothing clones in play until Phase 10's harness | about 30 steps of the route without a mid-turn reading, each adding writers |
 
-**Recommended: (a).** It moves "B10's builds" on `CLAUDE.md`'s critical path
-to beside "B10's design", and puts CL-1 after it in `roadmap-v2.md`'s A6d row.
-Either edit is the review's, not this draft's.
+**Taken: (a), CL-1 next** (the owner, 2026-10-21, at #266's review: one PR).
+`CLAUDE.md`'s critical path puts the build beside the design, and
+`roadmap-v2.md`'s A6d row lists CL-1 between B10's design and TR-6.
 
 ---
 
