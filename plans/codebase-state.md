@@ -9658,5 +9658,6 @@ Number 277 was withdrawn in #260 and is not reused.
      check, pushed by `arrive_in_zone`, taken by each check, so a clone at a
      grant of priority copies an empty list; both readers on it, and a debug
      walk asserting it missed none: ~40–60 lines and a test.
-     **Slotted:** the PR after #265, ahead of B10's design (proposed;
-     the owner's call).
+     **Slotted:** B10's builds (the owner, 2026-10-21): the list is state a
+     clone copies, so its shape is decided with the clone's, and a clone at
+     a grant of priority copies it empty.
