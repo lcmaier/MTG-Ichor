@@ -14,7 +14,7 @@ use crate::state::replacement_effects::{
     EntrySelectionScope, PreventionAllocationScope, ReplacementEffectRegistry,
 };
 use crate::state::restrictions::RestrictionRegistry;
-use crate::state::shared_stores::{InlineEntry, ObjectTable, SharedEntry, SharedList};
+use crate::state::shared_stores::{CopiedWithChunk, ObjectTable, CopiedAlone, SharedList};
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
@@ -317,16 +317,16 @@ pub(crate) struct NestingGuards {
 pub struct GameState {
     // --- Central object store ---
     /// All game objects indexed by ID
-    pub objects: ObjectTable<InlineEntry<GameObject>>,
+    pub objects: ObjectTable<CopiedWithChunk<GameObject>>,
 
     // --- Players ---
     pub players: Vec<PlayerState>,
 
     // --- Global zones (player zones are in PlayerState) ---
     /// The stack — LIFO order (last element = top of stack)
-    pub stack: SharedList<InlineEntry<ObjectId>>,
+    pub stack: SharedList<CopiedWithChunk<ObjectId>>,
     /// Stack entry metadata — keyed by ObjectId
-    pub stack_entries: ObjectTable<SharedEntry<StackEntry>>,
+    pub stack_entries: ObjectTable<CopiedAlone<StackEntry>>,
     /// The stack object currently resolving, if any.
     ///
     /// A rules question, not an engine artifact: `default_enter_controller`
@@ -340,7 +340,7 @@ pub struct GameState {
     /// every exit path, including the error ones.
     pub(crate) resolving: Option<ResolvingObject>,
     /// Battlefield state — keyed by ObjectId
-    pub battlefield: ObjectTable<SharedEntry<PermanentState>>,
+    pub battlefield: ObjectTable<CopiedAlone<PermanentState>>,
 
     /// How much work the engine has done this game — see
     /// [`Diagnostics`].
@@ -688,10 +688,10 @@ pub struct GameState {
     /// and what moves while the check performs is the next check's. Empty at
     /// every grant of priority, so a fork there copies nothing for it
     /// (`clone-architecture.md` decision 5).
-    pub(crate) sba_arrivals: Vec<ObjectRef>,
+    pub(crate) arrivals_since_last_sba_check: Vec<ObjectRef>,
 
     /// The tick as of the start of the previous check: the window the debug
-    /// walk asserts `sba_arrivals` against.
+    /// walk asserts `arrivals_since_last_sba_check` against.
     #[cfg(debug_assertions)]
     pub(crate) last_sba_check_epoch: ZoneChangeEpoch,
 
@@ -702,7 +702,7 @@ pub struct GameState {
     /// state and nowhere else (item 40): the drain removes each entry as it
     /// places it, so a clone taken at the ordering prompt resumes by running
     /// the drain again.
-    pub pending_triggers: SharedList<SharedEntry<crate::types::triggers::PendingTrigger>>,
+    pub pending_triggers: SharedList<CopiedAlone<crate::types::triggers::PendingTrigger>>,
     pub(crate) next_trigger_seq: u64,
     /// CR 603.7's delayed triggered abilities waiting for their events, in
     /// the order they were created: the dispatcher asks every one at every
@@ -1051,7 +1051,7 @@ impl GameState {
             tokens_being_created: Vec::new(),
             lethal_damage_left: Vec::new(),
             next_zone_change_epoch: 1,
-            sba_arrivals: Vec::new(),
+            arrivals_since_last_sba_check: Vec::new(),
             #[cfg(debug_assertions)]
             last_sba_check_epoch: 1,
             pending_triggers: SharedList::default(),

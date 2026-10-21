@@ -193,7 +193,7 @@ impl GameState {
         // CR 704.5d reads a token off the battlefield however it got there; a
         // commander created in a zone was not put into it (CR 704.6d).
         if is_token {
-            self.sba_arrivals.push(ObjectRef { id, zone_change_epoch });
+            self.arrivals_since_last_sba_check.push(ObjectRef { id, zone_change_epoch });
         }
         Ok(id)
     }
@@ -266,7 +266,7 @@ impl GameState {
         let state_based_check_reads = (obj.is_token && zone != Zone::Battlefield)
             || (obj.is_commander && matches!(zone, Zone::Graveyard | Zone::Exile));
         if state_based_check_reads {
-            self.sba_arrivals.push(ObjectRef { id, zone_change_epoch: epoch });
+            self.arrivals_since_last_sba_check.push(ObjectRef { id, zone_change_epoch: epoch });
         }
         self.set_object_timestamp(id, timestamp);
         self.register_off_the_battlefield(id, zone)?;

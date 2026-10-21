@@ -23,7 +23,7 @@ use crate::engine::layers::board::RowNote;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::mana_supply::ManaProductionWatchers;
 use crate::state::history_log::RowKind;
-use crate::state::shared_stores::{InlineEntry, ObjectTable};
+use crate::state::shared_stores::{CopiedWithChunk, ObjectTable};
 use crate::types::ids::ObjectId;
 
 /// Per-object frames, each stamped with the epoch it was computed at.
@@ -43,7 +43,7 @@ use crate::types::ids::ObjectId;
 /// walk copies the chunks it stores into (`clone-architecture.md` decision 2).
 #[derive(Debug, Clone, Default)]
 pub struct LayerMemo {
-    frames: RefCell<ObjectTable<InlineEntry<(u64, Arc<EffectiveCharacteristics>)>>>,
+    frames: RefCell<ObjectTable<CopiedWithChunk<(u64, Arc<EffectiveCharacteristics>)>>>,
     /// The notes of the pass that filled `frames`, stamped with its epoch as
     /// each frame is: what that pass noted about each row reaching a zone it
     /// leaves out, which a card there is walked with (`layers-architecture.md`

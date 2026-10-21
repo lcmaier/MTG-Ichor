@@ -805,7 +805,7 @@ clone tests hold in CI at every decision. → `events::recorder`, `DurationRegis
 **chunk** — of a store a fork shares (`state::shared_stores`): 32 consecutive
 ids of an `ObjectTable`, or 32 items of a `SharedList`, behind one `Arc`. A
 clone copies a pointer per chunk; a fork's first write into one copies it,
-and an entry in it held as a `SharedEntry` is copied only when written. Not
+and an item in it held as `CopiedAlone` is copied only when written. Not
 the history log's chunk of rows, which is the same idea over a log of events.
 → `clone-architecture.md`.
 

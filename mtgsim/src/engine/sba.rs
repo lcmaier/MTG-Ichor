@@ -120,15 +120,21 @@ impl CollapsedResult {
 /// [`GameState::check_state_based_actions_loop`] count as CR 104.4b's loop.
 const MANDATORY_LOOP_CHECKS: usize = 500;
 
-/// The objects `GameState::sba_arrivals` names that are still the existences
-/// that arrived, in the order they arrived: an object that moved again since
-/// is read at its last arrival, or not at all if that one was no candidate.
-fn still_arrived(game: &GameState) -> impl Iterator<Item = (ObjectId, &crate::objects::object::GameObject)> + '_ {
-    game.sba_arrivals.iter().filter_map(|&arrival| Some((arrival.id, game.find(arrival)?)))
+/// The arrivals noted since the last check whose objects are still where they
+/// arrived, in the order they arrived, each with its object as it is now.
+///
+/// The list notes every arrival a rule here could match, but an object can
+/// move again before the check reads it: a token that died and was then
+/// exiled from the graveyard has two arrivals noted, and only the second says
+/// where it is. An object that left the game has none. So each noted arrival
+/// counts only while its object is still that existence (CR 400.7), which is
+/// what `GameState::find` answers.
+fn arrivals_still_in_their_zone(game: &GameState) -> impl Iterator<Item = (ObjectId, &crate::objects::object::GameObject)> + '_ {
+    game.arrivals_since_last_sba_check.iter().filter_map(|&arrival| Some((arrival.id, game.find(arrival)?)))
 }
 
 /// The objects that changed zones at or after `since`, in the order they
-/// moved: the walk of every object `sba_arrivals` replaced, kept in a debug
+/// moved: the walk of every object `arrivals_since_last_sba_check` replaced, kept in a debug
 /// build to assert the list missed nothing. Every pregame object carries
 /// epoch 0, so the `since` filter, which starts at 1, leaves no tie.
 #[cfg(debug_assertions)]
@@ -168,7 +174,7 @@ impl GameState {
         let mut any_performed = false;
 
         // CR 704.6d's "since the last time state-based actions were checked" is
-        // `sba_arrivals`, cleared before this check performs. The debug walk's
+        // `arrivals_since_last_sba_check`, cleared before this check performs. The debug walk's
         // boundary, reopened at the *top*: a commander CR 704.5g moves during
         // the check falls after it.
         #[cfg(debug_assertions)]
@@ -187,9 +193,10 @@ impl GameState {
         // since the last check, read here and cleared, so an indestructible
         // creature that survives this check is not destroyed by a later one
         // for the same damage (`codebase-state.md` item 198).
-        // ORDER-FREE: each flag is read into a set. Read first, so a fork
-        // copies only the permanents whose flag is set (`clone-architecture.md`
-        // decision 3).
+        // ORDER-FREE: each flag is read into a set. Read first and clear only
+        // the permanents whose flag is set: a write copies the permanent if a
+        // search's fork shares it (`state::shared_stores`), and this runs at
+        // every check, where the flag is almost always clear.
         let dealt_deathtouch_damage: crate::types::ids::IdSet<ObjectId> =
             self.battlefield.iter().filter(|(_, entry)| entry.damaged_by_deathtouch).map(|(id, _)| id).collect();
         // NOT REPLACEABLE: deathtouch's memory of damage already announced.
@@ -235,7 +242,7 @@ impl GameState {
         // earlier acceptance changed. `since`, read at the top, is the epoch boundary.
         let commander_moves: Vec<(GameAction, StateBasedAction)> = {
             let mut to_offer: Vec<(ObjectId, PlayerId, Zone)> = Vec::new();
-            for (id, obj) in still_arrived(self) {
+            for (id, obj) in arrivals_still_in_their_zone(self) {
                 if !obj.is_commander {
                     continue;
                 }
@@ -252,7 +259,7 @@ impl GameState {
                     .map(|(id, _)| id)
                     .collect();
                 let listed: Vec<ObjectId> = to_offer.iter().map(|&(id, _, _)| id).collect();
-                debug_assert_eq!(walked, listed, "CR 704.6d: `sba_arrivals` missed a commander the walk finds");
+                debug_assert_eq!(walked, listed, "CR 704.6d: `arrivals_since_last_sba_check` missed a commander the walk finds");
             }
             // CR 101.4 — two owners offered in one check are choosing at the
             // same time, so the active player is asked first. Stable, so one
@@ -304,7 +311,7 @@ impl GameState {
         // ceases at the next. In the order the tokens arrived, which the
         // members announce in.
         let tokens_outside: Vec<ObjectId> =
-            still_arrived(self).filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield).map(|(id, _)| id).collect();
+            arrivals_still_in_their_zone(self).filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield).map(|(id, _)| id).collect();
         #[cfg(debug_assertions)]
         {
             // ORDER-FREE: sorted by epoch next.
@@ -316,7 +323,7 @@ impl GameState {
                 .collect();
             walked.sort_by_key(|&(_, epoch)| epoch);
             let walked: Vec<ObjectId> = walked.into_iter().map(|(id, _)| id).collect();
-            debug_assert_eq!(walked, tokens_outside, "CR 704.5d: `sba_arrivals` missed a token the walk finds");
+            debug_assert_eq!(walked, tokens_outside, "CR 704.5d: `arrivals_since_last_sba_check` missed a token the walk finds");
         }
         for object in tokens_outside {
             batch.push((GameAction::TokenCeasesToExist { object }, StateBasedAction::TokenOutsideTheBattlefield));
@@ -521,7 +528,7 @@ impl GameState {
 
         // Read: the next check's window starts here, since nothing moved
         // between this check's top and its performance.
-        self.sba_arrivals.clear();
+        self.arrivals_since_last_sba_check.clear();
         if !batch.is_empty() {
             // **What the game recorded, not the proposal**: CR 704.3 repeats only "if
             // any state-based actions are performed", and an indestructible creature's
@@ -720,17 +727,17 @@ mod tests {
         let card = crate::test_support::put_in_hand(&mut game, vanilla_creature_card(), 0);
 
         game.move_object(card, Zone::Stack).unwrap();
-        assert!(game.sba_arrivals.is_empty(), "a nontoken card's move is no candidate");
+        assert!(game.arrivals_since_last_sba_check.is_empty(), "a nontoken card's move is no candidate");
         game.change_zone(token, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&dp)).unwrap();
         game.change_zone(commander, Zone::Exile, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
-        let arrived: Vec<_> = game.sba_arrivals.iter().map(|arrival| arrival.id).collect();
+        let arrived: Vec<_> = game.arrivals_since_last_sba_check.iter().map(|arrival| arrival.id).collect();
         assert_eq!(arrived, [token, commander], "in the order they arrived");
 
         dp.expect_pick_n(ChoiceKind::CommanderToCommandZoneSba { commander }, vec![0]);
         assert!(game.check_state_based_actions(&dp).unwrap());
         assert!(!game.objects.contains_key(&token), "CR 704.5d");
         assert_eq!(game.objects[&commander].zone, Zone::Command, "CR 704.6d, offered and taken");
-        assert!(game.sba_arrivals.is_empty(), "the check read the list and cleared it");
+        assert!(game.arrivals_since_last_sba_check.is_empty(), "the check read the list and cleared it");
     }
 
     fn vanilla_creature_card() -> std::sync::Arc<crate::objects::card_data::CardData> {

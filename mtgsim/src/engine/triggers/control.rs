@@ -59,8 +59,15 @@ impl GameState {
         }
         for id in self.battlefield_ids_ordered() {
             let frame = compute_characteristics(self, id);
-            // Read first: a fork copies only the permanents whose kept frame
-            // moves (`clone-architecture.md` decision 3).
+            // Write only a permanent whose kept frame changes. A search's
+            // fork shares each permanent with the game it was cloned from
+            // until it writes to it, and a write copies the permanent then
+            // (`state::shared_stores`). While a control-changing effect
+            // exists, this sweep runs before every continuous effect a
+            // resolution or an expiry adds or removes, and most frames have
+            // not changed, so rewriting each one would copy the whole
+            // battlefield into every fork. Equal by value is enough:
+            // what a change of control looks back to is the frame's contents.
             let kept = self.battlefield.get(&id).map(|entry| entry.frame_before_control_change.as_deref());
             if kept.is_none_or(|kept| kept == frame.as_deref()) {
                 continue;
@@ -113,10 +120,13 @@ impl GameState {
             let frame = if rows { compute_characteristics(self, id) } else { None };
             let Some(entry) = self.battlefield.get(&id) else { continue };
             let now = frame.as_ref().map_or(entry.controller, |frame| frame.controller);
-            // Read first: a permanent whose kept frame and announced controller
-            // would not move is not written, so a fork does not copy it
-            // (`clone-architecture.md` decision 3). Its kept frame is the one
-            // the change looks back to either way.
+            // Write only a permanent whose kept frame or announced controller
+            // would change: a write copies the permanent if a search's fork
+            // shares it (`state::shared_stores`), and this sweep visits every
+            // permanent after each batch that moved the layers while a
+            // control-changing effect exists.
+            // An unchanged permanent hands back its kept frame unwritten, which
+            // is equal in value to the one it would have replaced.
             if now == entry.announced_controller && entry.frame_before_control_change.as_deref() == frame.as_deref() {
                 if let Some(kept) = &entry.frame_before_control_change {
                     sweep.frames_before.push((id, Arc::clone(kept)));

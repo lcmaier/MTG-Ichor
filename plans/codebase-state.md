@@ -9522,7 +9522,7 @@ Number 277 was withdrawn in #260 and is not reused.
 293. **~~Every state-based check walks every object twice.~~ — ✅ CLOSED 2026-10-21 (PR
      #267, CL-1).** — archived.
      The doors into a zone note what CR 704.5d or 704.6d can match on
-     `GameState::sba_arrivals`, which each check reads in place of the two
+     `GameState::arrivals_since_last_sba_check`, which each check reads in place of the two
      walks and clears before it performs (`clone-architecture.md`
      decision 5).
      **Reachability (2026-10-21):** closed — PR #267.

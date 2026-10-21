@@ -616,7 +616,7 @@ is derivable; where each name was read is not, and the gate needs the names.
     token copies (CV-3) will make their definition from the copiable values,
     which a row can hold as it holds any other.
 - **Added by CL-1 (2026-10-21)**:
-  - `sba_arrivals`: what CR 704.5d and 704.6d can match since the last
+  - `arrivals_since_last_sba_check`: what CR 704.5d and 704.6d can match since the last
     state-based check, each object by the existence that arrived (CR 400.7):
     a token arriving anywhere but the battlefield, a commander arriving in a
     graveyard or exile. CR 704.5d reads any token outside the battlefield

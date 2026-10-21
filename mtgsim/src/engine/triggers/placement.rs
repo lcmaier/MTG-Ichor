@@ -40,8 +40,9 @@ impl GameState {
         // CR 800.4d's second sentence — a trigger a departed player would
         // control is not put onto the stack. One read, at the head, before
         // any tier or order is asked.
-        // Read first: the queue is rebuilt only when a player has gone, so a
-        // fork copies no waiting trigger it does not place.
+        // Read first, and rebuild the queue only when a player has gone: a
+        // rebuild copies every waiting trigger a search's fork shares
+        // (`state::shared_stores`), most of them for nothing.
         let departed: Vec<PendingTrigger> = if self.pending_triggers.iter().any(|t| !self.in_game(t.controller)) {
             let (gone, stay): (Vec<_>, Vec<_>) =
                 std::mem::take(&mut self.pending_triggers).into_iter().partition(|t| !self.in_game(t.controller));

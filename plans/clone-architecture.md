@@ -656,11 +656,11 @@ is gated on. Three things bear on the slot:
 ### CL-1 — the board and the stack shared between forks — ✅ landed 2026-10-21
 
 #267; items 183 and 293 closed. `state::shared_stores` holds `ObjectTable`
-and `SharedList`, generic over how an entry is held (`InlineEntry`,
-`SharedEntry`). `objects` sits inline; `battlefield`, `stack_entries` and
-`pending_triggers` hold each entry behind its own `Arc`; the stack's order is
-a `SharedList`; the layer memo's frames sit in a table and leave with their
-object. The archive's "CL-1" keeps the build as sized.
+and `SharedList`, generic over how an item is held (`ForkCopy`):
+`CopiedWithChunk` for `objects`, the stack's order and the memo's frames,
+`CopiedAlone` (its own `Arc`) for `battlefield`, `stack_entries` and
+`pending_triggers`. The memo's frames leave with their object. The
+archive's "CL-1" keeps the build as sized.
 
 **Where it built otherwise than designed.**
 - The holding is a type parameter, so a typed read (`&PermanentState`) and

@@ -1,23 +1,40 @@
-//! The stores a fork shares (`clone-architecture.md`, CL-1): a clone of the
-//! state copies a pointer per chunk of entries, and a fork copies a chunk, and
-//! an entry in it, only when it first writes one.
+//! Containers for the game state's per-object stores, built so that copying
+//! the whole `GameState` is cheap however much is on the board or the stack.
 //!
-//! Two shapes, each in chunks of 32 behind `Arc`s, the history log's idea
-//! (`state::history_log`):
-//! - [`ObjectTable`], keyed by object: an object's id is a per-game counter,
-//!   so `ObjectId(n)` lives in chunk n/32 at slot n%32, and a lookup hashes
-//!   nothing;
-//! - [`SharedList`], in order: the stack's objects, the triggers waiting.
+//! **Why.** An AI search copies the game at each decision and plays a
+//! candidate answer on the copy (a *fork*), many times over. With ordinary
+//! maps and lists, a copy duplicates every permanent, every card's record,
+//! every stack entry and every waiting trigger, so it costs as much as the
+//! board is big: 10 MB and 8 ms with 8,000 triggers on the stack. Floors 2
+//! and 3 (`engineering-practices.md` §3.1) cap it at 10 µs and 128 KB.
 //!
-//! **A write goes through `get_mut`, and only there** (decision 3): it copies
-//! the chunk if a fork shares it, then the entry if the entry is a
-//! [`SharedEntry`]. Neither type offers a mutable walk, since a walk that
-//! takes `&mut` of every entry copies every entry in a fork whether or not it
-//! writes one.
+//! **How.** The items sit in *chunks* of 32, each chunk behind an `Arc`, a
+//! pointer with a count of who holds it. Copying a store copies the list of
+//! chunk pointers and nothing else, so the copy and the original share every
+//! chunk. The first time either one writes into a shared chunk, it copies
+//! that chunk for itself (`Arc::make_mut`) and writes the copy; the other
+//! side keeps the original. So a fork pays for what it changes, a few chunks
+//! between two decisions, not for what the board holds.
 //!
-//! **Sharing is never observed** (decision 7): nothing outside this file asks
-//! whether a chunk is shared, where it lives or how many hold it, so a game
-//! plays the same whether or not a search cloned it.
+//! Two containers, both in chunks:
+//! - [`ObjectTable`], keyed by object, in place of a `HashMap<ObjectId, _>`.
+//!   An object's id is a per-game counter, so object 70 lives in chunk 2 at
+//!   slot 6 (70 = 2 × 32 + 6): a lookup is arithmetic, with no hashing.
+//! - [`SharedList`], in order, in place of a `Vec`: the stack's objects, the
+//!   triggers waiting to go on it.
+//!
+//! What a write copies depends on how a store holds its items ([`ForkCopy`]):
+//! a small item sits in its chunk and is copied with it ([`CopiedWithChunk`]),
+//! and a large one sits behind its own `Arc` and is copied alone, only when
+//! written ([`CopiedAlone`]).
+//!
+//! **Every write goes through `get_mut`**, which makes those copies. Neither
+//! container offers a way to take `&mut` to every item at once, since that
+//! would copy every chunk of a shared store whether or not anything changed.
+//!
+//! **Nothing outside this file asks whether a chunk is shared**, so a game
+//! plays the same whether or not a search copied it (`clone-architecture.md`
+//! decision 7).
 
 use std::fmt;
 use std::ops::Index;
@@ -28,27 +45,28 @@ use crate::types::ids::ObjectId;
 /// How many ids a table's chunk spans, and how many items a list's chunk holds.
 const CHUNK: usize = 32;
 
-/// How a store holds one entry. A chunk is copied whole on a fork's first
-/// write to it, so a small entry with no heap of its own sits inline, and a
-/// large one sits behind its own `Arc`, where a chunk's copy is a count.
-pub trait StoreEntry: Clone {
+/// How a store holds each item, which decides what a fork's first write to
+/// the item copies. One of the two types below.
+pub trait ForkCopy: Clone {
     type Value;
     fn hold(value: Self::Value) -> Self;
     fn value(&self) -> &Self::Value;
-    /// The value to write: a [`SharedEntry`] copies it first if a fork
+    /// The value to write: a [`CopiedAlone`] copies it first if a fork
     /// shares it.
     fn value_mut(&mut self) -> &mut Self::Value;
     fn release(self) -> Self::Value;
 }
 
-/// An entry held in its chunk: an object, a memo frame, a stack position.
+/// An item held directly in its chunk, so a fork's first write into the
+/// chunk copies all 32 items with it. For small items with no heap of their
+/// own: an object's record (48 bytes), a memo frame, a stack position.
 #[derive(Clone, PartialEq)]
-pub struct InlineEntry<T>(T);
+pub struct CopiedWithChunk<T>(T);
 
-impl<T: Clone> StoreEntry for InlineEntry<T> {
+impl<T: Clone> ForkCopy for CopiedWithChunk<T> {
     type Value = T;
     fn hold(value: T) -> Self {
-        InlineEntry(value)
+        CopiedWithChunk(value)
     }
     fn value(&self) -> &T {
         &self.0
@@ -61,16 +79,18 @@ impl<T: Clone> StoreEntry for InlineEntry<T> {
     }
 }
 
-/// An entry behind its own `Arc`: a permanent, a stack entry, a waiting
-/// trigger, each a few hundred bytes with heap of its own. A chunk of 32 of
-/// them inline would cost a fork that writes one all 32.
+/// An item behind its own `Arc`, so copying its chunk copies only a pointer
+/// to it, and the item itself is copied only when it is written. For large
+/// items with heap of their own: a permanent's state, a stack entry, a
+/// waiting trigger, each about 400 bytes. Copied with the chunk, all 32 of
+/// them would be copied for a fork that writes one.
 #[derive(Clone, PartialEq)]
-pub struct SharedEntry<T>(Arc<T>);
+pub struct CopiedAlone<T>(Arc<T>);
 
-impl<T: Clone> StoreEntry for SharedEntry<T> {
+impl<T: Clone> ForkCopy for CopiedAlone<T> {
     type Value = T;
     fn hold(value: T) -> Self {
-        SharedEntry(Arc::new(value))
+        CopiedAlone(Arc::new(value))
     }
     fn value(&self) -> &T {
         &self.0
@@ -83,16 +103,16 @@ impl<T: Clone> StoreEntry for SharedEntry<T> {
     }
 }
 
-/// One table chunk: the entries of 32 consecutive ids, and which are there.
+/// One table chunk: the items of 32 consecutive ids, and which are there.
 #[derive(Clone)]
 struct TableChunk<E> {
     slots: [Option<E>; CHUNK],
-    /// Bit `i` set when `slots[i]` holds an entry: a walk of a sparse table,
+    /// Bit `i` set when `slots[i]` holds an item: a walk of a sparse table,
     /// the battlefield's among every object's ids, visits only those.
     live: u32,
 }
 
-/// Entries keyed by object, in chunks a fork shares (the module's doc). Walked
+/// Items keyed by object, in chunks a copy shares (the module's doc). Walked
 /// in id order, which is the same in every process but is not the rules'
 /// order: a choice, a log or a count still sorts by timestamp (`CLAUDE.md`,
 /// "Determinism at the decision boundary").
@@ -119,7 +139,7 @@ fn place(id: ObjectId) -> (usize, usize) {
     (raw / CHUNK, raw % CHUNK)
 }
 
-impl<E: StoreEntry> ObjectTable<E> {
+impl<E: ForkCopy> ObjectTable<E> {
     pub fn len(&self) -> usize {
         self.len
     }
@@ -137,7 +157,7 @@ impl<E: StoreEntry> ObjectTable<E> {
         self.get(id).is_some()
     }
 
-    /// The entry to write, its chunk and the entry copied first if a fork
+    /// The item to write, its chunk and the item copied first if a fork
     /// shares them. A miss copies nothing.
     pub fn get_mut(&mut self, id: &ObjectId) -> Option<&mut E::Value> {
         let (chunk, slot) = place(*id);
@@ -164,7 +184,7 @@ impl<E: StoreEntry> ObjectTable<E> {
         old.map(E::release)
     }
 
-    /// Take `id`'s entry out. A chunk left empty is dropped, and the chunks
+    /// Take `id`'s item out. A chunk left empty is dropped, and the chunks
     /// past the last live one with it.
     pub fn remove(&mut self, id: &ObjectId) -> Option<E::Value> {
         let (index, slot) = place(*id);
@@ -183,7 +203,7 @@ impl<E: StoreEntry> ObjectTable<E> {
         taken.map(E::release)
     }
 
-    /// Every entry, in id order.
+    /// Every item, in id order.
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = (ObjectId, &E::Value)> + '_ {
         self.chunks.iter().enumerate().filter_map(|(index, chunk)| Some((index, chunk.as_ref()?))).flat_map(|(index, chunk)| {
             LiveSlots(chunk.live).map(move |slot| {
@@ -244,7 +264,7 @@ impl DoubleEndedIterator for LiveSlots {
     }
 }
 
-impl<E: StoreEntry> Index<&ObjectId> for ObjectTable<E> {
+impl<E: ForkCopy> Index<&ObjectId> for ObjectTable<E> {
     type Output = E::Value;
     /// `HashMap`'s contract: a missing id is the caller's error.
     fn index(&self, id: &ObjectId) -> &E::Value {
@@ -255,7 +275,7 @@ impl<E: StoreEntry> Index<&ObjectId> for ObjectTable<E> {
     }
 }
 
-impl<E: StoreEntry> fmt::Debug for ObjectTable<E>
+impl<E: ForkCopy> fmt::Debug for ObjectTable<E>
 where
     E::Value: fmt::Debug,
 {
@@ -297,7 +317,7 @@ impl<E> Default for SharedList<E> {
     }
 }
 
-impl<E: StoreEntry> SharedList<E> {
+impl<E: ForkCopy> SharedList<E> {
     pub fn len(&self) -> usize {
         self.len
     }
@@ -340,10 +360,6 @@ impl<E: StoreEntry> SharedList<E> {
             return None;
         }
         Arc::make_mut(chunk).0.get_mut(index % CHUNK).map(E::value_mut)
-    }
-
-    pub fn first(&self) -> Option<&E::Value> {
-        self.get(0)
     }
 
     pub fn last(&self) -> Option<&E::Value> {
@@ -394,7 +410,11 @@ impl<E> SharedList<E> {
     }
 }
 
-impl<E: StoreEntry> Extend<E::Value> for SharedList<E> {
+// What the `Vec`s this replaces gave their callers, each still used: `extend`
+// and `collect` (placement rebuilds the queue), a by-value walk (its
+// partition), an index and a comparison with a `Vec` (the tests), and `Debug`
+// (`GameState` derives it).
+impl<E: ForkCopy> Extend<E::Value> for SharedList<E> {
     fn extend<I: IntoIterator<Item = E::Value>>(&mut self, items: I) {
         for item in items {
             self.push(item);
@@ -402,7 +422,7 @@ impl<E: StoreEntry> Extend<E::Value> for SharedList<E> {
     }
 }
 
-impl<E: StoreEntry> FromIterator<E::Value> for SharedList<E> {
+impl<E: ForkCopy> FromIterator<E::Value> for SharedList<E> {
     fn from_iter<I: IntoIterator<Item = E::Value>>(items: I) -> Self {
         let mut list = SharedList::default();
         list.extend(items);
@@ -410,7 +430,7 @@ impl<E: StoreEntry> FromIterator<E::Value> for SharedList<E> {
     }
 }
 
-impl<E: StoreEntry> IntoIterator for SharedList<E> {
+impl<E: ForkCopy> IntoIterator for SharedList<E> {
     type Item = E::Value;
     type IntoIter = std::vec::IntoIter<E::Value>;
     /// Each item by value: a fork that shares a chunk copies its items out.
@@ -423,15 +443,7 @@ impl<E: StoreEntry> IntoIterator for SharedList<E> {
     }
 }
 
-impl<'a, E: StoreEntry> IntoIterator for &'a SharedList<E> {
-    type Item = &'a E::Value;
-    type IntoIter = Box<dyn DoubleEndedIterator<Item = &'a E::Value> + 'a>;
-    fn into_iter(self) -> Self::IntoIter {
-        Box::new(self.iter())
-    }
-}
-
-impl<E: StoreEntry> Index<usize> for SharedList<E> {
+impl<E: ForkCopy> Index<usize> for SharedList<E> {
     type Output = E::Value;
     /// `Vec`'s contract: an index past the end is the caller's error.
     fn index(&self, index: usize) -> &E::Value {
@@ -442,16 +454,7 @@ impl<E: StoreEntry> Index<usize> for SharedList<E> {
     }
 }
 
-impl<E: StoreEntry> PartialEq for SharedList<E>
-where
-    E::Value: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.len == other.len && self.iter().eq(other.iter())
-    }
-}
-
-impl<E: StoreEntry> PartialEq<Vec<E::Value>> for SharedList<E>
+impl<E: ForkCopy> PartialEq<Vec<E::Value>> for SharedList<E>
 where
     E::Value: PartialEq,
 {
@@ -460,7 +463,7 @@ where
     }
 }
 
-impl<E: StoreEntry> fmt::Debug for SharedList<E>
+impl<E: ForkCopy> fmt::Debug for SharedList<E>
 where
     E::Value: fmt::Debug,
 {
@@ -477,7 +480,7 @@ mod tests {
         ObjectId::from_table_slot(raw)
     }
 
-    fn table(ids: impl IntoIterator<Item = u64>) -> ObjectTable<SharedEntry<u64>> {
+    fn table(ids: impl IntoIterator<Item = u64>) -> ObjectTable<CopiedAlone<u64>> {
         let mut table = ObjectTable::default();
         for raw in ids {
             table.insert(id(raw), raw);
@@ -517,7 +520,7 @@ mod tests {
     }
 
     /// A clone shares every chunk; a write copies the one chunk it lands in
-    /// and the entry, and the other side reads what it had.
+    /// and the item, and the other side reads what it had.
     #[test]
     fn a_fork_copies_only_the_chunk_and_the_entry_it_writes() {
         let mut parent = table(1..=64);
@@ -527,9 +530,9 @@ mod tests {
         assert!(!same_chunk(&parent, &fork, 0), "the written chunk is the fork's own");
         assert!(same_chunk(&parent, &fork, 1) && same_chunk(&parent, &fork, 2));
         assert_eq!((parent[&id(3)], fork[&id(3)]), (3, 99));
-        // Within the copied chunk, the entries not written are still shared.
+        // Within the copied chunk, the items not written are still shared.
         let (Some(a), Some(b)) = (&parent.chunks[0], &fork.chunks[0]) else { unreachable!() };
-        let entry = |chunk: &TableChunk<SharedEntry<u64>>, slot: usize| chunk.slots[slot].clone().map(|entry| entry.0);
+        let entry = |chunk: &TableChunk<CopiedAlone<u64>>, slot: usize| chunk.slots[slot].clone().map(|entry| entry.0);
         assert!(Arc::ptr_eq(&entry(a, 4).unwrap(), &entry(b, 4).unwrap()));
         assert!(!Arc::ptr_eq(&entry(a, 3).unwrap(), &entry(b, 3).unwrap()));
         // The parent writes its own copy and leaves the fork as it was.
@@ -547,10 +550,10 @@ mod tests {
 
     #[test]
     fn a_list_keeps_its_order_through_pushes_pops_and_removals() {
-        let mut list: SharedList<InlineEntry<u32>> = (0..70).collect();
+        let mut list: SharedList<CopiedWithChunk<u32>> = (0..70).collect();
         let mut model: Vec<u32> = (0..70).collect();
         assert_eq!(list, model);
-        assert_eq!((list.first(), list.last(), list.get(40)), (Some(&0), Some(&69), Some(&40)));
+        assert_eq!((list.get(0), list.last(), list.get(40)), (Some(&0), Some(&69), Some(&40)));
         assert_eq!(list.remove(5), Some(model.remove(5)));
         assert_eq!(list.remove(64), Some(model.remove(64)));
         assert_eq!(list.remove(500), None);
@@ -566,7 +569,7 @@ mod tests {
     /// A push or a pop at the end copies the last chunk and no other.
     #[test]
     fn a_fork_of_a_list_copies_only_the_chunk_it_writes() {
-        let parent: SharedList<SharedEntry<u32>> = (0..64).collect();
+        let parent: SharedList<CopiedAlone<u32>> = (0..64).collect();
         let mut fork = parent.clone();
         fork.push(64);
         assert!(parent.chunks.iter().zip(&fork.chunks).all(|(a, b)| Arc::ptr_eq(a, b)), "a push into a new chunk");
