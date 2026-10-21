@@ -497,8 +497,12 @@ def identify(names):
         Path(payload).unlink(missing_ok=True)
         data = json.loads(proc.stdout.decode("utf-8"))
         # Scryfall answers with the card's own name, which is not always the
-        # spelling that was asked for, and in its own order.
+        # spelling that was asked for, and in its own order. A double-faced
+        # card answers to either face's name and comes back as "A // B".
         by_name = {c["name"]: c for c in data.get("data", [])}
+        for c in data.get("data", []):
+            for face in c.get("card_faces", []):
+                by_name.setdefault(face["name"], c)
         lower = {k.lower(): k for k in by_name}
         for n in batch:
             c = by_name.get(n) or by_name.get(lower.get(n.lower(), ""))

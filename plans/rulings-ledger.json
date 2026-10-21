@@ -38,6 +38,26 @@
         {"n": 2, "published_at": "2004-10-04", "comment": "If you have enough mana, the ability may be activated more than once in a turn."}
       ]
     },
+    "Ajani, Nacatl Avenger": {
+      "first_seen": "2026-10-20",
+      "rulings": [
+        {"n": 1, "published_at": "2024-06-07", "comment": "Each face of a transforming double-faced card has its own set of characteristics: name, types, subtypes, abilities, and so on. While a transforming double-faced permanent is on the battlefield, consider only the characteristics of the face that's currently up. The other set of characteristics is ignored."},
+        {"n": 2, "published_at": "2024-06-07", "comment": "Each transforming double-faced card in this set is cast with its front face up. In every zone other than the battlefield, consider only the characteristics of its front face. If it is on the battlefield, consider only the characteristics of the face that's up; the other face's characteristics are ignored."},
+        {"n": 3, "published_at": "2024-06-07", "comment": "The mana value of a transforming double-faced card is the mana value of its front face, no matter which face is up."},
+        {"n": 4, "published_at": "2024-06-07", "comment": "The back face of a transforming double-faced card usually has a color indicator that defines its color. Colorless back faces, such as lands, do not."},
+        {"n": 5, "published_at": "2024-06-07", "comment": "In some rare cases, a spell or ability may cause Ajani, Nacatl Pariah to transform while it's a creature (front face up) on the battlefield. If this happens, Ajani, Nacatl Avenger won't have any loyalty counters on him and will subsequently be put into his owner's graveyard."},
+        {"n": 6, "published_at": "2024-06-07", "comment": "You can activate one of Ajani, Nacatl Avenger's loyalty abilities the turn he enters the battlefield. However, you may do so only during one of your main phases when the stack is empty. For example, if Ajani, Nacatl Avenger enters the battlefield during combat, there will be an opportunity for your opponent to remove him before you can activate one of his abilities."},
+        {"n": 7, "published_at": "2024-06-07", "comment": "You don't choose a target for Ajani, Nacatl Avenger's second ability when you activate it. Rather, if you control a red permanent other than Ajani, Nacatl Avenger, a second \"reflexive\" ability triggers when you create a Cat Warrior creature token this way. You choose a target for that ability as it goes on the stack. Each player may respond to this triggered ability as normal."},
+        {"n": 8, "published_at": "2024-06-07", "comment": "In a case where you create more than one Cat Warrior creature token with Ajani, Nacatl Avenger's second ability (for example, because of the effect of Doubling Season), the reflexive ability will trigger once for each Cat Warrior you made this way. If a replacement effect causes you to create different tokens instead (for example, the effect of Divine Visitation), the creation of those tokens won't cause the reflexive ability to trigger."},
+        {"n": 9, "published_at": "2024-06-07", "comment": "When Ajani, Nacatl Avenger's last ability resolves, starting with the next opponent in turn order, each opponent in turn order chooses permanents they control. Each opponent will know the choices made by players who chose before them. They then sacrifice all of their unchosen nonland permanents simultaneously."},
+        {"n": 10, "published_at": "2024-06-07", "comment": "A permanent with more than one type may be chosen as any of its types. For example, an artifact creature may be chosen as the artifact, the creature, or both. Choosing the same permanent twice this way has the same result as choosing it once."},
+        {"n": 11, "published_at": "2024-06-07", "comment": "Lands can't be chosen and won't be sacrificed, even if they have any of the types referenced by Ajani, Nacatl Avenger's last ability."},
+        {"n": 12, "published_at": "2024-06-07", "comment": "If an opponent doesn't control any permanents of one of the types, they'll still choose the permanents of the types they do control."},
+        {"n": 13, "published_at": "2024-06-07", "comment": "In the Commander variant, a double-faced card's color identity is determined by the mana costs and mana symbols in the rules text of both faces combined. If either face has a color indicator or basic land type, those are also considered. For example, Ral, Monsoon Mage's color identity is blue and red, since its front face is red and its back face has a blue and red color indicator."},
+        {"n": 14, "published_at": "2024-06-07", "comment": "A transforming double-faced card enters the battlefield with its front face up by default, unless a spell or ability instructs you to put it onto the battlefield transformed or allows you to cast it transformed, in which case it enters with its back face up."},
+        {"n": 15, "published_at": "2024-06-07", "comment": "If you are instructed to put a card that isn't a double-faced card onto the battlefield transformed, it will not enter the battlefield at all. In that case, it stays in the zone it was previously in. For example, if a single-faced card is a copy of Ral, Monsoon Mage, choosing to exile that permanent during the resolution of its triggered ability will cause it to remain in exile."}
+      ]
+    },
     "Alhammarret's Archive": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -428,6 +448,13 @@
         {"n": 7, "published_at": "2020-11-10", "comment": "You can choose two commanders with partner that are the same color or colors. In Commander Draft, you can even choose two of the same commander with partner if you drafted them. If you do this, make sure you keep the number of times you've cast each from the command zone clear for \"commander tax\" purposes."}
       ]
     },
+    "Elrond, Master of Healing": {
+      "first_seen": "2026-10-20",
+      "rulings": [
+        {"n": 1, "published_at": "2023-06-16", "comment": "Elrond, Master of Healing's first ability cares about the number of cards you actually looked at. For example, if you were supposed to scry 3 but only had two cards in your library, X would be 2."},
+        {"n": 2, "published_at": "2023-06-16", "comment": "If two creatures you control with +1/+1 counters on them become the target of the same spell or ability an opponent controls, Elrond, Master of Healing's last ability will trigger twice."}
+      ]
+    },
     "Elvish Archers": {
       "first_seen": "2026-09-17",
       "rulings": []
@@ -539,6 +566,21 @@
         {"n": 3, "published_at": "2004-10-04", "comment": "The trample rules cause damage to be divided before it is doubled."},
         {"n": 4, "published_at": "2004-10-04", "comment": "If you have two of these on the battlefield, the damage is multiplied by 4."},
         {"n": 5, "published_at": "2004-10-04", "comment": "The multiplied damage counts in all ways as if it came from the original source. Furnace of Rath is not the source."}
+      ]
+    },
+    "Gandalf the White": {
+      "first_seen": "2026-10-20",
+      "rulings": [
+        {"n": 1, "published_at": "2023-06-16", "comment": "The second ability applies only to casting spells. It does not, for example, change when you may activate abilities that can be activated \"only as a sorcery.\""},
+        {"n": 2, "published_at": "2023-06-16", "comment": "Gandalf the White affects a permanent's own enters-the-battlefield and leaves-the-battlefield triggered abilities as well as other triggered abilities that trigger when that permanent enters or leaves the battlefield. Such triggered abilities start with \"when\" or \"whenever.\""},
+        {"n": 3, "published_at": "2023-06-16", "comment": "Replacement effects are unaffected by Gandalf the White's ability. For example, a legendary creature that enters the battlefield with one +1/+1 counter on it won't receive an additional +1/+1 counter."},
+        {"n": 4, "published_at": "2023-06-16", "comment": "Abilities that apply \"as [this permanent] enters the battlefield,\" such as choosing a color with Gauntlet of Power, are also unaffected."},
+        {"n": 5, "published_at": "2023-06-16", "comment": "You don't need to control the permanent entering or leaving the battlefield, only the permanent that has the triggered ability."},
+        {"n": 6, "published_at": "2023-06-16", "comment": "Gandalf the White's effect doesn't copy the triggered ability; it just causes the ability to trigger twice. Any choices made as you put the ability onto the stack, such as modes and targets, are made separately for each instance of the ability. Any choices made on resolution, such as whether to put counters on a permanent, are also made individually."},
+        {"n": 7, "published_at": "2023-06-16", "comment": "If you somehow control two copies of Gandalf the White, a legendary permanent or an artifact entering or leaving the battlefield causes abilities to trigger three times, not four. A third Gandalf the White causes abilities to trigger four times, a fourth causes abilities to trigger five times, and so on."},
+        {"n": 8, "published_at": "2023-06-16", "comment": "If a legendary permanent or an artifact entering or leaving the battlefield at the same time as Gandalf the White (including Gandalf the White itself) causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time."},
+        {"n": 9, "published_at": "2023-06-16", "comment": "The trigger event doesn't have to specifically refer to legendary permanents or to artifacts, nor does it have to specifically refer to when something \"leaves the battlefield.\" For example, an ability that triggers \"whenever a creature dies\" would trigger twice if a legendary creature or an artifact creature dies while Gandalf the White is on the battlefield, as would an ability that triggers \"whenever a permanent is put into a graveyard from the battlefield.\""},
+        {"n": 10, "published_at": "2023-06-16", "comment": "Look at each legendary permanent and each artifact as it exists on the battlefield, taking into account continuous effects, to determine whether any triggered abilities will trigger multiple times. For example, if a nonlegendary creature that has become legendary (probably because it's a player's Ring-bearer) dies, an ability that triggers when it leaves the battlefield triggers twice."}
       ]
     },
     "Ghosts of the Innocent": {
@@ -988,6 +1030,20 @@
       "rulings": [
         {"n": 1, "published_at": "2012-10-01", "comment": "Applying this redirection effect doesn’t change whether the damage is combat damage."},
         {"n": 2, "published_at": "2012-10-01", "comment": "If you control more than one Palisade Giant, you choose which redirection effect to apply. You can’t divide damage dealt by one source. For example, if an attacking creature would deal 8 damage to you and you control two Palisade Giants, you may have that damage dealt to either of the Palisade Giants. You can’t have 4 damage dealt to each Giant or choose to have the 8 damage dealt to you."}
+      ]
+    },
+    "Panharmonicon": {
+      "first_seen": "2026-10-20",
+      "rulings": [
+        {"n": 1, "published_at": "2021-03-19", "comment": "Panharmonicon affects a permanent's own enters-the-battlefield triggered abilities as well as other triggered abilities that trigger when that permanent enters the battlefield. Such triggered abilities start with \"when\" or \"whenever.\""},
+        {"n": 2, "published_at": "2021-03-19", "comment": "Replacement effects are unaffected by Panharmonicon's ability. For example, a creature that enters the battlefield with one +1/+1 counter on it won't receive an additional +1/+1 counter."},
+        {"n": 3, "published_at": "2021-03-19", "comment": "Abilities that apply \"as [this artifact or creature] enters the battlefield,\" such as choosing a color with Gauntlet of Power, are also unaffected."},
+        {"n": 4, "published_at": "2021-03-19", "comment": "You don't need to control the permanent entering the battlefield, only the permanent that has the triggered ability."},
+        {"n": 5, "published_at": "2021-03-19", "comment": "Panharmonicon's effect doesn't copy the triggered ability; it just causes the ability to trigger twice. Any choices made as you put the ability onto the stack, such as modes and targets, are made separately for each instance of the ability. Any choices made on resolution, such as whether to put counters on a permanent, are also made individually."},
+        {"n": 6, "published_at": "2021-03-19", "comment": "If you control two Panharmonicons, an artifact or creature entering the battlefield causes abilities to trigger three times, not four. A third Panharmonicon causes abilities to trigger four times, a fourth causes abilities to trigger five times, and so on."},
+        {"n": 7, "published_at": "2021-03-19", "comment": "If an artifact or creature entering the battlefield at the same time as Panharmonicon (including Panharmonicon itself) causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time."},
+        {"n": 8, "published_at": "2021-03-19", "comment": "If a triggered ability is linked to a second ability, additional instances of that triggered ability are also linked to that second ability. If the second ability refers to \"the exiled card,\" it refers to all cards exiled by instances of the triggered ability.", "disposition": {"kind": "not-expressible", "facility": "CR 607's linked abilities: no registered card links a triggered ability to another, so an additional instance has nothing to be linked to.", "owner": "backlog.md §2.2"}},
+        {"n": 9, "published_at": "2021-03-19", "comment": "In some cases involving linked abilities, an ability requires information about \"the exiled card.\" When this happens, the ability gets multiple answers. If these answers are being used to determine the value of a variable, the sum is used. For example, if Elite Arcanist's enters-the-battlefield ability triggers twice, two cards are exiled. The value of X in the activation cost of Elite Arcanist's other ability is the sum of the two cards' mana values. As the ability resolves, you create copies of both cards and can cast none, one, or both of the copies in any order.", "disposition": {"kind": "not-expressible", "facility": "CR 607's linked abilities, as #8: 'the exiled card' answered by several instances, their values summed.", "owner": "backlog.md §2.2"}}
       ]
     },
     "Parallel Lives": {

@@ -561,7 +561,7 @@ fn place_each_at_the_opponent(game: &mut GameState, triggers: usize) {
     assert!(dp.is_empty(), "each target is chosen as its trigger goes on the stack");
 }
 
-// RULING: Ajani, Nacatl Pariah // Ajani, Nacatl Avenger #7 - no target is chosen as the ability is activated; the reflexive ability's is chosen as it goes on the stack.
+// RULING: Ajani, Nacatl Avenger #7 - no target is chosen as the ability is activated; the reflexive ability's is chosen as it goes on the stack.
 #[test]
 fn ajanis_reflexive_trigger_chooses_its_target_as_it_goes_on_the_stack() {
     let mut game = audited_game();
@@ -572,7 +572,7 @@ fn ajanis_reflexive_trigger_chooses_its_target_as_it_goes_on_the_stack() {
     assert_eq!(life(&game, 1), 20 - 2, "the Cat Warrior and the red creature");
 }
 
-// RULING: Ajani, Nacatl Pariah // Ajani, Nacatl Avenger #8 - under Doubling Season the reflexive ability triggers once for each Cat Warrior.
+// RULING: Ajani, Nacatl Avenger #8 - under Doubling Season the reflexive ability triggers once for each Cat Warrior.
 #[test]
 fn ajanis_reflexive_trigger_triggers_for_each_cat_warrior_doubling_season_makes() {
     let mut game = audited_game();
@@ -584,7 +584,7 @@ fn ajanis_reflexive_trigger_triggers_for_each_cat_warrior_doubling_season_makes(
     assert_eq!(life(&game, 1), 20 - 3 - 3, "two Cat Warriors and the red creature, twice");
 }
 
-// RULING: Ajani, Nacatl Pariah // Ajani, Nacatl Avenger #8 - tokens a replacement creates instead, as Divine Visitation's Angels, don't trigger it.
+// RULING: Ajani, Nacatl Avenger #8 - tokens a replacement creates instead, as Divine Visitation's Angels, don't trigger it.
 #[test]
 fn ajanis_reflexive_trigger_ignores_the_angels_divine_visitation_makes_instead() {
     let mut game = audited_game();
@@ -684,7 +684,6 @@ fn plus_one_counters(game: &GameState, id: ObjectId) -> u32 {
 fn elrond_scries_three_from_two(game: &mut GameState) -> (ObjectId, Vec<ObjectId>) {
     let elrond = put_on_battlefield(game, elrond_master_of_healing(), 0);
     let bears: Vec<ObjectId> = (0..3).map(|_| put_on_battlefield(game, vanilla_creature(2, 2, &[]), 0)).collect();
-    game.players[0].library.truncate(0);
     fill_library(game, 0, 2);
     scry(game, 0, 3);
     (elrond, bears)
@@ -733,7 +732,7 @@ fn a_scry_that_looks_at_nothing_makes_x_zero() {
     let mut game = audited_game();
     let elrond = put_on_battlefield(&mut game, elrond_master_of_healing(), 0);
     put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    game.players[0].library.truncate(0);
+    assert!(game.players[0].library.is_empty());
     scry(&mut game, 0, 2);
     assert_eq!(waiting_from(&game, elrond), 1);
     resolve_all(&mut game, &test_dp());
