@@ -124,10 +124,7 @@ const MANDATORY_LOOP_CHECKS: usize = 500;
 /// that arrived, in the order they arrived: an object that moved again since
 /// is read at its last arrival, or not at all if that one was no candidate.
 fn still_arrived(game: &GameState) -> impl Iterator<Item = (ObjectId, &crate::objects::object::GameObject)> + '_ {
-    game.sba_arrivals.iter().filter_map(|arrival| {
-        let obj = game.objects.get(&arrival.id)?;
-        (obj.zone_change_epoch == arrival.zone_change_epoch).then_some((arrival.id, obj))
-    })
+    game.sba_arrivals.iter().filter_map(|&arrival| Some((arrival.id, game.find(arrival)?)))
 }
 
 /// The objects that changed zones at or after `since`, in the order they
