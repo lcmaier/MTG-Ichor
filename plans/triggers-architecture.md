@@ -3992,7 +3992,7 @@ since RH:
 | **code**, ~715 as sized | **1,070–1,430** |
 | tests, 16: the 2 atoms; the Crocodile's 2 rulings and one cast from hand; the Coil's rulings 4–6, the Angel registered; the Coil beside a seat that passes holding an instant (decision 3's B), and beside one that casts removal on the Angel; Lich's Mirror's loop through the new arm (item 263); a 2,000-trigger decision-free pile that does not draw (decision 1's B); a target chosen each iteration, which resets; a placement loop; the nesting bound's draw; the harness bound | **710–910** |
 | **code and tests** | **1,780–2,340** |
-| docs: these amendments (~190); the close-out — the stub and archive, the record block, the items, the 37 deferred Phase 7 atoms given their owners in the session files (13 are ticketed NEW, which is what `owed` reads), `trigger-survey.py` deleted | ~550 |
+| docs: these amendments (290); the close-out — the stub and archive, the record block, the items, the 37 deferred Phase 7 atoms given their owners in the session files (13 are ticketed NEW, which is what `owed` reads), `trigger-survey.py` deleted | ~650 |
 
 Inside the 1,500–2,500 band, in its upper half. The 2026-09-24 row missed these
 facilities, a count inside the 3–11 every earlier re-count found:
