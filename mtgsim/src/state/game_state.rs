@@ -1206,14 +1206,26 @@ impl GameState {
             return;
         }
         let survivors: Vec<PlayerId> = self.players_in_game().collect();
-        self.result = match survivors.as_slice() {
+        match survivors.as_slice() {
             // 104.4a — "all the players remaining in a game lose
             // simultaneously".
-            [] => Some(GameResult::Draw),
+            [] => self.end_game(GameResult::Draw),
             // 104.2a — "that player's opponents have all left the game".
-            [winner] => Some(GameResult::Winner(*winner)),
-            _ => None,
-        };
+            [winner] => self.end_game(GameResult::Winner(*winner)),
+            _ => {}
+        }
+    }
+
+    /// CR 104.1 — the game ends immediately with `result`, unless it already
+    /// has one, which is never overwritten. The one writer of the result. A
+    /// triggered ability still waiting to be put on the stack never will be,
+    /// since no player receives priority again (CR 117.5), so a finished
+    /// game keeps none.
+    pub(crate) fn end_game(&mut self, result: GameResult) {
+        if self.result.is_none() {
+            self.result = Some(result);
+            self.pending_triggers.clear();
+        }
     }
 
     /// The turn on which `player`'s most recent turn began, or `None` if they

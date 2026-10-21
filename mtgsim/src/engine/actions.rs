@@ -1949,9 +1949,7 @@ impl GameState {
                 if !self.in_game(player) {
                     return Err(format!("player {} has left the game and cannot win it", player));
                 }
-                if self.result.is_none() {
-                    self.result = Some(GameResult::Winner(player));
-                }
+                self.end_game(GameResult::Winner(player));
                 self.emit_event(GameEvent::PlayerWon { player_id: player }, ctx.cause)?;
                 Ok(())
             }

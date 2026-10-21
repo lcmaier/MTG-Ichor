@@ -24,12 +24,12 @@ use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
-use mtgsim::state::game_state::GameState;
+use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::test_support::{
     creature_with_ability, fill_library, put_in_graveyard, put_on_battlefield, registered, setup_two_player_game, static_ability, test_dp,
     vanilla_creature,
 };
-use mtgsim::events::event::GameEvent;
+use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
@@ -40,7 +40,7 @@ use mtgsim::types::history::CountIs;
 use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
-    DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
+    DamageRecipient, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
     TargetedBy, TriggerMultiplierDef, TriggerSubject, TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
@@ -851,4 +851,35 @@ fn a_granted_multiplier_counts_on_the_board_before_its_granter_left() {
     game.execute_action(GameAction::Destroy { object: granter }, &ActionContext::new(&test_dp())).unwrap();
     assert!(!game.continuous_effects.summary().any_granted_trigger_multiplier, "the grant ended with its granter");
     assert_eq!(waiting_from(&game, mourner), 2);
+}
+
+// ---------------------------------------------------------------------------
+// The game's end (CR 104.1)
+// ---------------------------------------------------------------------------
+
+/// A trigger that is waiting when the game ends is never put on the stack,
+/// since no player receives priority again (CR 104.1, 117.5), so the
+/// finished game holds none: here the damage that triggers it is the damage
+/// whose state-based check ends the game.
+#[test]
+fn a_game_that_ends_drops_the_triggers_still_waiting() {
+    let mut game = audited_game();
+    let damage_to_a_player = TriggerEvent::DamageDealt {
+        source: TriggerSubject::Filter(a_creature()),
+        recipient: DamageRecipient::Player(None),
+        combat: None,
+        excess: false,
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    let grid = put_on_battlefield(&mut game, watcher("Grid", whenever(damage_to_a_player, gain_one())), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    resolve_all(&mut game, &test_dp());
+    game.players[1].life_total = 2;
+    let hit = GameAction::DealDamage { source: bear, target: DamageTarget::Player(1), amount: 2, is_combat: false, unpreventable: false, source_lki: None };
+    game.execute_action(hit, &ActionContext::new(&test_dp())).unwrap();
+    assert_eq!(waiting_from(&game, grid), 1, "the damage triggered it");
+
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(game.result, Some(GameResult::Winner(0)));
+    assert!(game.pending_triggers.is_empty() && game.stack.is_empty(), "nothing waits in a finished game");
 }

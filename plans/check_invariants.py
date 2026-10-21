@@ -114,7 +114,7 @@ STORE_WRITERS = (
     "move_object", "attach", "detach", "add_counters", "remove_counters",
     "remove_from_combat", "clear_combat_state", "insert_battlefield_entity",
     "add_object", "remove_object", "set_stack_entry", "take_stack_entry",
-    "shuffle_library", "settle_game_result",
+    "shuffle_library", "settle_game_result", "end_game",
 )
 MUTATING_METHOD = (
     r"(insert|remove|push|pop|retain|retain_mut|clear|extend|drain|truncate|swap_remove|append|"
@@ -158,7 +158,7 @@ PERFORMERS = {
 
 #: Known violations, by `codebase-state.md` item: (check, file, name) -> (item, owner).
 KNOWN = {
-    ("write", "engine/sba.rs", "result"): (263, "TR-6: CR 104.4b's draw, set directly"),
+    ("write", "engine/sba.rs", "end_game"): (263, "TR-6: CR 104.4b's draw, ended directly"),
 }
 
 
