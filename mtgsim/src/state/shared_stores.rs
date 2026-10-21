@@ -203,6 +203,21 @@ impl<E: StoreEntry> ObjectTable<E> {
     }
 }
 
+/// For the fork-copies test alone: no engine code may ask whether a chunk is
+/// shared (`clone-architecture.md` decision 7).
+#[cfg(any(test, feature = "test-support"))]
+impl<E> ObjectTable<E> {
+    /// The chunks this table holds that `other` does not hold, the same chunk
+    /// and not a copy: what a fork that began as `other` has copied or made
+    /// since.
+    pub fn chunks_not_shared_with(&self, other: &Self) -> usize {
+        let shared = |index: usize, chunk: &Arc<TableChunk<E>>| {
+            other.chunks.get(index).and_then(Option::as_ref).is_some_and(|theirs| Arc::ptr_eq(chunk, theirs))
+        };
+        self.chunks.iter().enumerate().filter(|(index, chunk)| chunk.as_ref().is_some_and(|chunk| !shared(*index, chunk))).count()
+    }
+}
+
 /// The set bits of a chunk's `live` mask, lowest first.
 struct LiveSlots(u32);
 
@@ -366,6 +381,16 @@ impl<E: StoreEntry> SharedList<E> {
     pub fn clear(&mut self) {
         self.chunks.clear();
         self.len = 0;
+    }
+}
+
+/// For the fork-copies test alone, as [`ObjectTable::chunks_not_shared_with`].
+#[cfg(any(test, feature = "test-support"))]
+impl<E> SharedList<E> {
+    /// The chunks this list holds that `other` does not hold, the same chunk
+    /// at the same place.
+    pub fn chunks_not_shared_with(&self, other: &Self) -> usize {
+        self.chunks.iter().enumerate().filter(|(index, chunk)| !other.chunks.get(*index).is_some_and(|theirs| Arc::ptr_eq(chunk, theirs))).count()
     }
 }
 

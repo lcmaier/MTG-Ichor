@@ -1,5 +1,9 @@
 //! Floors 2 and 3 in CI: what one clone of a Commander game allocates, at item
-//! 143's checkpoints through the game's end (`engineering-practices.md` §3.1).
+//! 143's checkpoints through the game's end and **at every decision**
+//! (`engineering-practices.md` §3.1; `clone-architecture.md` decision 6). A
+//! search clones mid-turn too, where the stack and the triggers waiting hold
+//! what between turns they do not: TR-5g's games reached 78 allocations at a
+//! 22-trigger ordering prompt while every checkpoint read under 64.
 //!
 //! A search that stores states clones one at every iteration, so a clone has
 //! to stay cheap and small however long the game runs
@@ -35,6 +39,7 @@
 //! frame for every card in the game, and its `And` filter's two boxes are cloned
 //! with the registry, so it is the heavier clone of item 181's two fixtures.
 
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use rand::rngs::StdRng;
@@ -46,7 +51,11 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
+use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::put_on_battlefield;
+use mtgsim::types::ids::PlayerId;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -66,13 +75,78 @@ const CHECKPOINTS: [u32; 10] = [1, 10, 20, 30, 40, 50, 60, 80, 100, 150];
 /// `fuzz_games`' turn limit.
 const MAX_TURNS: u32 = 200;
 
+/// A clone's cost at each prompt with two or more answers: what reaches the
+/// agent under `ManaWindowStop`, so it sits inside it. The game's answers are
+/// the inner provider's, so the games are `fuzz_games`' still.
+struct CloneAtEachDecision<D> {
+    inner: D,
+    /// The decisions read, and the worst: (allocations, bytes, where).
+    decisions: RefCell<usize>,
+    worst: RefCell<(u64, u64, String)>,
+    over: RefCell<Vec<String>>,
+}
+
+impl<D> CloneAtEachDecision<D> {
+    fn at(&self, game: &GameState, answers: usize, prompt: &str) {
+        if answers < 2 {
+            return;
+        }
+        let (allocations, bytes) = clone_cost(game);
+        *self.decisions.borrow_mut() += 1;
+        let at = || format!("turn {} {prompt}: {allocations} allocations, {:.1} KB", game.turn_number, bytes as f64 / 1024.0);
+        if allocations > MAX_ALLOCATIONS || bytes > MAX_BYTES {
+            self.over.borrow_mut().push(at());
+        }
+        let mut worst = self.worst.borrow_mut();
+        if allocations > worst.0 || (allocations == worst.0 && bytes > worst.1) {
+            *worst = (allocations, bytes, at());
+        }
+    }
+}
+
+/// The prompt's kind, short.
+fn named(context: &ChoiceContext) -> String {
+    format!("{:?}", context.kind).chars().take(48).collect()
+}
+
+impl<D: DecisionProvider> DecisionProvider for CloneAtEachDecision<D> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+        self.at(game, options.len(), &named(context));
+        self.inner.pick_n(game, player, context, options, bounds)
+    }
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+        self.at(game, (max - min + 1) as usize, &named(context));
+        self.inner.pick_number(game, player, context, min, max)
+    }
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.at(game, buckets.len(), &named(context));
+        self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        self.at(game, items.len(), &named(context));
+        self.inner.choose_ordering(game, player, context, items)
+    }
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.inner.seat_mode(player)
+    }
+}
+
 /// `fuzz_games`' game `game_seed` on the Commander board, set up, with `row`'s
 /// card on the battlefield under player 0 if there is one.
 fn commander_game(
     registry: &CardRegistry,
     game_seed: u64,
     row: Option<Arc<CardData>>,
-) -> (Game, ManaWindowStop<RandomDecisionProvider>) {
+) -> (Game, ManaWindowStop<CloneAtEachDecision<RandomDecisionProvider>>) {
     let mut deck_rng = StdRng::seed_from_u64(game_seed);
     let shuffle_seed = game_seed ^ 0x9E37_79B9_7F4A_7C15;
     let dp_seed = game_seed ^ 0xD1B5_4A32_D192_ED03;
@@ -81,7 +155,12 @@ fn commander_game(
     config.starting_life = 40;
     let mut game = Game::new(config, decks).expect("game creation");
     game.reseed(shuffle_seed);
-    let dp = ManaWindowStop::new(RandomDecisionProvider::seeded(dp_seed));
+    let dp = ManaWindowStop::new(CloneAtEachDecision {
+        inner: RandomDecisionProvider::seeded(dp_seed),
+        decisions: RefCell::new(0),
+        worst: RefCell::new((0, 0, String::new())),
+        over: RefCell::new(Vec::new()),
+    });
     game.setup(&dp).expect("setup");
     if let Some(card) = row {
         put_on_battlefield(&mut game.state, card, 0);
@@ -103,6 +182,7 @@ fn a_commander_clone_stays_under_the_allocation_and_byte_floors() {
     let performance = CardRegistry::performance_pool();
     let mut readings = Vec::new();
     let mut over = Vec::new();
+    let mut decision_count = 0;
     let mut games: Vec<(&str, &CardRegistry, u64, Option<fn() -> Arc<CardData>>)> = vec![
         ("stress", &stress, 12345, None),
         ("stress", &stress, 777, None),
@@ -131,7 +211,16 @@ fn a_commander_clone_stays_under_the_allocation_and_byte_floors() {
             turns += 1;
         }
         read(&game, format!("end, {turns} turns"));
+        let decisions = dp.inner();
+        let (allocations, bytes, at) = decisions.worst.borrow().clone();
+        decision_count += *decisions.decisions.borrow();
+        if allocations > 0 {
+            readings.push(format!("{pool} {seed}{with}, worst of its decisions, {at}"));
+        }
+        let _ = bytes;
+        over.extend(decisions.over.borrow().iter().map(|line| format!("{pool} {seed}{with}, {line}")));
     }
+    readings.push(format!("{decision_count} decisions read"));
     println!("{}", readings.join("\n"));
     assert!(
         over.is_empty(),
