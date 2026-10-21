@@ -68,7 +68,7 @@ impl Yields {
         if until == Yield::UntilStackChanges && game.stack.is_empty() {
             return false;
         }
-        *self.0.borrow_mut() = Some(Held { until, turn: game.turn_number, stack: game.stack.clone() });
+        *self.0.borrow_mut() = Some(Held { until, turn: game.turn_number, stack: game.stack.iter().copied().collect() });
         true
     }
 

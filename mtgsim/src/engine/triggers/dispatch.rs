@@ -132,6 +132,16 @@ struct LkiKeeper<'a> {
     trigger: Option<&'a TriggerBinding>,
 }
 
+/// Which keeper (`lki_keepers`'): a waiting trigger by its place in the queue,
+/// a stack entry, the resolving object, or a delayed trigger by its place.
+#[derive(Clone, Copy)]
+enum KeeperAt {
+    Waiting(usize),
+    Stacked(ObjectId),
+    Resolving,
+    Delayed(usize),
+}
+
 impl LkiKeeper<'_> {
     /// The objects it keeps last known information for: its source, then its
     /// triggering event's objects.
@@ -849,20 +859,34 @@ impl GameState {
     /// waiting triggers on its enchanted permanent leaving finds it there. They
     /// are pending, or on the stack at the latest: the check follows the
     /// leaving before anyone receives priority.
+    /// Read first, then written: a fork copies only the triggers that find it.
     pub(crate) fn aura_put_into_graveyard_by_the_check(&mut self, aura: ObjectRef) {
         let Some(found) = self.object_ref(aura.id) else { return };
-        let finds = |source: ObjectRef, binding: &mut TriggerBinding| {
-            if source == aura && binding.event().watches_its_host_leave() && binding.source_found_in_graveyard.is_none() {
-                binding.source_found_in_graveyard = Some(found);
-            }
+        let finds = |source: ObjectRef, binding: &TriggerBinding| {
+            source == aura && binding.event().watches_its_host_leave() && binding.source_found_in_graveyard.is_none()
         };
-        for pending in &mut self.pending_triggers {
-            finds(pending.origin.source_ref(), &mut pending.binding);
+        let waiting: Vec<usize> = (0..self.pending_triggers.len())
+            .filter(|&at| self.pending_triggers.get(at).is_some_and(|pending| finds(pending.origin.source_ref(), &pending.binding)))
+            .collect();
+        for at in waiting {
+            if let Some(pending) = self.pending_triggers.get_mut(at) {
+                pending.binding.source_found_in_graveyard = Some(found);
+            }
         }
-        for id in &self.stack {
-            let Some(entry) = self.stack_entries.get_mut(id) else { continue };
-            if let (Some(identity), Some(binding)) = (entry.ability_identity, entry.trigger.as_mut()) {
-                finds(identity.source, binding);
+        let stacked: Vec<ObjectId> = self
+            .stack
+            .iter()
+            .copied()
+            .filter(|id| {
+                self.stack_entries.get(id).is_some_and(|entry| match (entry.ability_identity, entry.trigger.as_ref()) {
+                    (Some(identity), Some(binding)) => finds(identity.source, binding),
+                    _ => false,
+                })
+            })
+            .collect();
+        for id in stacked {
+            if let Some(binding) = self.stack_entries.get_mut(&id).and_then(|entry| entry.trigger.as_mut()) {
+                binding.source_found_in_graveyard = Some(found);
             }
         }
     }
@@ -1022,39 +1046,51 @@ impl GameState {
 
     /// The objects some keeper keeps last known information for
     /// (`for_each_lki_keeper`), each once. Empty or short on the common board.
-    fn objects_lki_is_kept_for(&mut self) -> Vec<ObjectRef> {
+    fn objects_lki_is_kept_for(&self) -> Vec<ObjectRef> {
         let mut kept_for: Vec<ObjectRef> = Vec::new();
-        self.for_each_lki_keeper(|keeper, _| {
+        for (_, keeper) in self.lki_keepers() {
             for object in keeper.objects() {
                 if !kept_for.contains(&object) {
                     kept_for.push(object);
                 }
             }
-        });
+        }
         kept_for
     }
 
-    /// Every keeper, with where it keeps the frame of an object it reads that
-    /// leaves. The one list of keepers, so the capture
-    /// (`objects_lki_is_kept_for`) and the hand-over cannot disagree.
-    fn for_each_lki_keeper(&mut self, mut each: impl FnMut(LkiKeeper<'_>, KeptLkiSlot<'_>)) {
-        for pending in &mut self.pending_triggers {
-            let keeper = LkiKeeper { source: Some(pending.origin.source_ref()), trigger: Some(&pending.binding) };
-            each(keeper, KeptLkiSlot::List(&mut pending.kept_lki));
-        }
+    /// Every keeper, where it is and what it reads. The one list of keepers,
+    /// so the capture (`objects_lki_is_kept_for`) and the hand-over cannot
+    /// disagree. A read: a keeper's list is written through
+    /// [`Self::kept_lki_slot`], for the keepers that keep an object, so a fork
+    /// copies those and no other (`clone-architecture.md` decision 3).
+    fn lki_keepers(&self) -> impl Iterator<Item = (KeeperAt, LkiKeeper<'_>)> + '_ {
+        let waiting = self.pending_triggers.iter().enumerate().map(|(at, pending)| {
+            (KeeperAt::Waiting(at), LkiKeeper { source: Some(pending.origin.source_ref()), trigger: Some(&pending.binding) })
+        });
         // In stack order, never the map's: a capture is a layer walk, which
         // writes a trace record.
-        for id in &self.stack {
-            let Some(entry) = self.stack_entries.get_mut(id) else { continue };
-            let keeper = LkiKeeper { source: entry.ability_identity.map(|identity| identity.source), trigger: entry.trigger.as_ref() };
-            each(keeper, KeptLkiSlot::List(&mut entry.kept_lki));
-        }
-        if let Some(resolving) = &mut self.resolving {
-            let keeper = LkiKeeper { source: resolving.identity.map(|identity| identity.source), trigger: resolving.trigger.as_ref() };
-            each(keeper, KeptLkiSlot::List(&mut resolving.kept_lki));
-        }
-        for delayed in &mut self.delayed_triggers {
-            each(LkiKeeper { source: Some(delayed.source), trigger: None }, KeptLkiSlot::Source(&mut delayed.source_lki));
+        let stacked = self.stack.iter().filter_map(|&id| {
+            let entry = self.stack_entries.get(&id)?;
+            Some((KeeperAt::Stacked(id), LkiKeeper { source: entry.ability_identity.map(|identity| identity.source), trigger: entry.trigger.as_ref() }))
+        });
+        let resolving = self.resolving.iter().map(|resolving| {
+            (KeeperAt::Resolving, LkiKeeper { source: resolving.identity.map(|identity| identity.source), trigger: resolving.trigger.as_ref() })
+        });
+        let delayed = self
+            .delayed_triggers
+            .iter()
+            .enumerate()
+            .map(|(at, delayed)| (KeeperAt::Delayed(at), LkiKeeper { source: Some(delayed.source), trigger: None }));
+        waiting.chain(stacked).chain(resolving).chain(delayed)
+    }
+
+    /// Where the keeper at `at` keeps the frames of the objects it reads.
+    fn kept_lki_slot(&mut self, at: KeeperAt) -> Option<KeptLkiSlot<'_>> {
+        match at {
+            KeeperAt::Waiting(at) => self.pending_triggers.get_mut(at).map(|pending| KeptLkiSlot::List(&mut pending.kept_lki)),
+            KeeperAt::Stacked(id) => self.stack_entries.get_mut(&id).map(|entry| KeptLkiSlot::List(&mut entry.kept_lki)),
+            KeeperAt::Resolving => self.resolving.as_mut().map(|resolving| KeptLkiSlot::List(&mut resolving.kept_lki)),
+            KeeperAt::Delayed(at) => self.delayed_triggers.get_mut(at).map(|delayed| KeptLkiSlot::Source(&mut delayed.source_lki)),
         }
     }
 
@@ -1125,15 +1161,15 @@ impl GameState {
             },
         };
         let object = lki.object();
-        self.for_each_lki_keeper(|keeper, slot| {
-            if !keeper.objects().any(|kept_for| kept_for == object) {
-                return;
+        let keepers: Vec<KeeperAt> =
+            self.lki_keepers().filter(|(_, keeper)| keeper.objects().any(|kept_for| kept_for == object)).map(|(at, _)| at).collect();
+        for at in keepers {
+            match self.kept_lki_slot(at) {
+                Some(KeptLkiSlot::List(list)) => list.push(lki.clone()),
+                Some(KeptLkiSlot::Source(source_lki)) => *source_lki = Some(lki.clone()),
+                None => {}
             }
-            match slot {
-                KeptLkiSlot::List(list) => list.push(lki.clone()),
-                KeptLkiSlot::Source(source_lki) => *source_lki = Some(lki.clone()),
-            }
-        });
+        }
     }
 
     /// The last known information a kept-for mover's batch took for it, if any:

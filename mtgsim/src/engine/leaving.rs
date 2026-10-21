@@ -90,7 +90,7 @@ impl GameState {
             }
         }
         for (zone, ids) in [
-            (Zone::Stack, self.stack.clone()),
+            (Zone::Stack, self.stack.iter().copied().collect()),
             (Zone::Exile, self.exile.clone()),
             (Zone::Command, self.command.clone()),
         ] {

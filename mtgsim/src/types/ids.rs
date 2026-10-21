@@ -84,6 +84,12 @@ impl ObjectId {
     pub(crate) fn from_trace(raw: u64) -> ObjectId {
         ObjectId(raw)
     }
+
+    /// The id an object table files at `raw` (`state::shared_stores`), read
+    /// back from where it sits.
+    pub(crate) fn from_table_slot(raw: u64) -> ObjectId {
+        ObjectId(raw)
+    }
 }
 
 impl std::fmt::Display for ObjectId {

@@ -391,7 +391,8 @@ impl GameState {
                 }
             }
             Zone::Stack => {
-                if let Some(pos) = self.stack.iter().position(|&x| x == id) {
+                let on_the_stack = self.stack.iter().position(|&x| x == id);
+                if let Some(pos) = on_the_stack {
                     self.stack.remove(pos);
                     self.stack_entries.remove(&id);
                     Ok(())

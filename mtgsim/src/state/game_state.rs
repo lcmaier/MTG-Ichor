@@ -14,6 +14,7 @@ use crate::state::replacement_effects::{
     EntrySelectionScope, PreventionAllocationScope, ReplacementEffectRegistry,
 };
 use crate::state::restrictions::RestrictionRegistry;
+use crate::state::shared_stores::{InlineEntry, ObjectTable, SharedEntry, SharedList};
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
@@ -323,9 +324,9 @@ pub struct GameState {
 
     // --- Global zones (player zones are in PlayerState) ---
     /// The stack — LIFO order (last element = top of stack)
-    pub stack: Vec<ObjectId>,
+    pub stack: SharedList<InlineEntry<ObjectId>>,
     /// Stack entry metadata — keyed by ObjectId
-    pub stack_entries: FitOnClone<IdMap<ObjectId, StackEntry>>,
+    pub stack_entries: ObjectTable<SharedEntry<StackEntry>>,
     /// The stack object currently resolving, if any.
     ///
     /// A rules question, not an engine artifact: `default_enter_controller`
@@ -689,7 +690,7 @@ pub struct GameState {
     /// state and nowhere else (item 40): the drain removes each entry as it
     /// places it, so a clone taken at the ordering prompt resumes by running
     /// the drain again.
-    pub pending_triggers: Vec<crate::types::triggers::PendingTrigger>,
+    pub pending_triggers: SharedList<SharedEntry<crate::types::triggers::PendingTrigger>>,
     pub(crate) next_trigger_seq: u64,
     /// CR 603.7's delayed triggered abilities waiting for their events, in
     /// the order they were created: the dispatcher asks every one at every
@@ -982,8 +983,8 @@ impl GameState {
         GameState {
             objects: FitOnClone::default(),
             players,
-            stack: Vec::new(),
-            stack_entries: FitOnClone::default(),
+            stack: SharedList::default(),
+            stack_entries: ObjectTable::default(),
             resolving: None,
             battlefield: FitOnClone::default(),
             diagnostics: Diagnostics::default(),
@@ -1039,7 +1040,7 @@ impl GameState {
             lethal_damage_left: Vec::new(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
-            pending_triggers: Vec::new(),
+            pending_triggers: SharedList::default(),
             next_trigger_seq: 0,
             delayed_triggers: Vec::new(),
             until_returns: Vec::new(),
@@ -1397,7 +1398,7 @@ impl GameState {
     pub fn zone_ids_ordered(&self, zone: Zone) -> Vec<ObjectId> {
         match zone {
             Zone::Battlefield => self.battlefield_ids_ordered(),
-            Zone::Stack => self.stack.clone(),
+            Zone::Stack => self.stack.iter().copied().collect(),
             Zone::Exile => self.exile.clone(),
             Zone::Command => self.command.clone(),
             Zone::Library | Zone::Hand | Zone::Graveyard => {

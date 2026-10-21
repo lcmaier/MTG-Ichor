@@ -262,7 +262,10 @@ impl GameState {
     /// the stack, its entry taken if it still has one, and out of the store.
     /// Returns the entry, which a countering announces.
     pub(crate) fn ability_leaves_the_stack(&mut self, ability: ObjectId) -> Option<StackEntry> {
-        self.stack.retain(|&id| id != ability);
+        let on_the_stack = self.stack.iter().position(|&id| id == ability);
+        if let Some(at) = on_the_stack {
+            self.stack.remove(at);
+        }
         let entry = self.take_stack_entry(ability);
         self.remove_object(ability);
         entry
