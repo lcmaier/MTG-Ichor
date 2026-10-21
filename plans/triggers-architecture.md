@@ -1946,6 +1946,46 @@ detected where computed values are re-read. Its gate is
 (`control_effects_at_last_sweep`), since the summary is rebuilt as rows go,
 and its points are TR-4d's rather than this check's.
 
+**Amended 2026-10-21 (TR-6's design, read against #267's tree).** Five things
+the sketch above leaves out or gets wrong.
+- **Who is asked.** A state trigger reads no record, so its `record_kinds` is
+  empty and `trigger_sources` never files its permanent. The check reads the
+  dispatcher's own gate, all three legs of it (printed, granted, copied), through
+  one reserved bit of `EventKindMask` that a `State` condition sets. A board with
+  no state trigger then pays one mask test at each schedule. A granted or copied
+  state trigger is found on the leg that finds a granted "whenever", which is
+  `CLAUDE.md`'s rule for a new reader of the effective list. Leg 3
+  (`zone_trigger_sources`) takes the bit the same way. The dispatch audit
+  (§4.10) gains a state leg: every candidate's every `State` def asked with the
+  gate off, and compared with the gated answer.
+- **One re-arm site, not four.** Resolution (`stack.rs:118`, `:241`), fizzle
+  (`:299`), countering (`resolve.rs:2370`) and CR 603.3d's removal
+  (`placement.rs:201`) already share `GameState::ability_leaves_the_stack`
+  (`stack.rs:264`). The re-arm is one line there, keyed on the entry's
+  `TriggerOrigin` identity, and `trigger_left_stack` is not written. The sixth
+  caller, an activation's rollback (`put_on_stack.rs:740`), only ever holds an
+  activated ability, so it re-arms nothing. "If the object with the ability is
+  still in the same zone" needs no code: the identity carries the source's
+  `ObjectRef`, and a source that moved is a new object (CR 400.7) whose identity
+  was never armed off.
+- **Armed off when queued, not when placed.** CR 603.8's "doesn't trigger again
+  until the ability has ... left the stack" holds while the trigger waits in the
+  queue too. ATOM-603.8-001 asks it on the stack; every dispatch between the
+  check and placement asks it of the queue.
+- **What the check queues.** A `PendingTrigger` bound to no record, whose event
+  roles are empty as a "when you don't" reflexive's are (§4.6). It is announced
+  by `AbilityTriggered` after the check, so a tier-2 watcher sees it as it sees
+  any other trigger (§4.8).
+- **What the cards need besides the check.** `Condition::Not`, for Emperor
+  Crocodile's "you control no other creatures" and Immortal Coil's "there are no
+  cards in your graveyard". "Controls" is a `PlayerFact`, not a `Condition` arm,
+  so the Crocodile's condition is `Not(Player { You, ControlsPermanent(creature
+  and NotSource) })`. `PlayerFact::HandEmpty`, for CR 603.8's own example
+  ("whenever you have no cards in hand", the board of both atoms; hellbent prints
+  the same fact). And "then draw that many", read off the discards the
+  resolution performed so far through `resolution_records` (§4.6), as
+  `DamageDealtThisWay` reads damage, for ATOM-603.8-002's spell.
+
 ### 4.6 Delayed and reflexive (CR 603.7, 603.12; questions 1 and 14)
 
 The registry's entries are candidates at every dispatch. A `Once` entry
@@ -2094,6 +2134,26 @@ rather than a second number.
 genuine engine invariant — CR 614.5 bounds every replacement chain — so it
 stays an `Err`.
 
+**Amended 2026-10-21 (TR-6's design, decision 5 — open): two numbers, one
+performer.** The 2026-09-22 call stands: at the bound the answer is the draw.
+The part reopened is "the threshold knob rather than a second number". §4.9's
+decision 1 puts the loop detector's threshold at 500, and the two bound
+different things:
+- `DISPATCH_NESTING_LIMIT` (16, now `dispatch.rs:62`) bounds a **call depth**.
+  Each level is a `dispatch` frame nested inside the one that queued it, on the
+  thread the game runs on, and `fuzz_games` plays each game on one.
+- The detector's threshold is a **count of actions** taken one after another.
+  The stack does not grow with it.
+
+One number would put the dispatcher's depth at 500 nested frames, or the
+detector's count at 16, where it would draw legal games (§4.9). So both stay,
+and both end the game through one performer (§4.9, decision 4). At the bound the
+dispatcher proposes that action, caused `GameRule::MandatoryLoop`, instead of
+returning the `Err`. Its two doc comments (now `dispatch.rs:58–61` and
+`game_state.rs:300–304`) lose "the engine's mistake". The answer moves from
+`Err` to the draw, so item 262's error path loses this one producer.
+`BATCH_NESTING_LIMIT` is unchanged.
+
 ### 4.9 The mandatory loop (CR 104.4b, 731; P5; `backlog.md` §2.28)
 
 The state-tracking doc's Tier 1 survives unchanged and lands here because
@@ -2112,6 +2172,202 @@ Tiers 2 and 3 need the state hash item 40's discipline
 makes possible and stay in `backlog.md` §2.28 with the fork harness; the voluntary
 shortcut (D26) stays there too. `fuzz_games`' turn limit keeps standing in
 for what Tier 1 cannot see.
+
+**Amended 2026-10-21 (TR-6's design; decisions 1–4 open, for review before
+the build).** The paragraph above leaves four things unsaid: what an "engine
+action" is, what resets the run, where the count lives, and how the draw is
+performed. Read against #267's tree, with a probe arm for the numbers.
+
+**The probe.** #267's merge with five counters added, reset at decisions; 2,000
+games a sitting at seed 12345; both pools at two seats and four, and both pools
+on the Commander board (four seats, 100-card decks, 40 life). 12,000 games, all
+legal and all finite. Each cell is median / p99 / max of the game's longest
+decision-free run:
+
+| Sitting | Every resolution and performing check | Refills only (decision 1, B) |
+|---|---|---|
+| performance, 2 seats | 2 / 9 / 19 | 2 / 5 / 6 |
+| performance, 4 seats | 3 / 15 / **1,570** | 2 / 5 / 11 |
+| stress, 2 seats | 2 / 10 / 19 | 2 / 4 / 6 |
+| stress, 4 seats | 3 / 13 / 34 | 3 / 5 / 14 |
+| Commander, performance | 4 / 19 / 44 | 3 / 6 / 13 |
+| Commander, stress | 4 / 20 / 164 | 3 / 5 / 45 |
+
+At a threshold of 15, the left column draws 139 of the 12,000 legal games; at
+50, three; at 500, one. The right column draws one at 15 and none at 50. The
+1,570 is seed 12587, the performance pool at four seats. A Protean Hydra at
+1,569 +1/+1 counters ("Whenever a +1/+1 counter is removed from this creature,
+put two +1/+1 counters on it at the beginning of the next end step") had
+prevented 1,570 damage in one turn. Its 1,570 delayed triggers then resolved
+one by one at the end step, with nothing to choose. The Hydra doubles each
+turn, so no threshold bounds the left column in pooled play. A third reading,
+the left column reset at every step's beginning as well, moved one tail (19 to
+14, performance at two seats) and none of the others: the long runs are inside
+one step.
+
+**Decision 1 — what the run counts, and the threshold.** Today's bound counts
+something else: 500 performing state-based checks within one CR 704.3
+repetition (`MANDATORY_LOOP_CHECKS`, `sba.rs:121`). Any count stands in for
+CR 104.4b's "repeating a sequence of events", which no count can see. So the
+question is which work a finite game does in bulk.
+- **A — every decision-free resolution and performing check.** Code: two
+  increments and a reset. Performance: an add per resolution. It draws a legal
+  game whenever a finite pile outgrows the threshold. The pool already does
+  that (the left column), so A is wrong for some game at any threshold.
+- **B — refills only.** Three clauses:
+  - a resolution counts when the stack is at least as deep as at the run's
+    previous resolution;
+  - a performing check counts from the second in one CR 704.3 repetition;
+  - a placement pass (CR 117.5's "then triggered abilities are put on the
+    stack") counts when no resolution came between it and the previous one.
+
+  **Every infinite decision-free run reaches any threshold.** Such a run does
+  one of the three things infinitely often. A stack's depth cannot fall
+  forever, so infinitely many resolutions include infinitely many refills. A
+  finite pile resolving counts once, however deep: the Hydra's 1,570 count 1.
+
+  Code: one `usize` for the last depth, and a third site, in
+  `perform_sba_and_triggers`. Performance: a compare per resolution.
+  Maintainability: the argument goes in the field's doc comment. Engine work
+  that could repeat without doing one of the three needs a leg of its own;
+  none is known, and the residual below is the turn structure's. The probe
+  counted every performing check, an over-count of the second clause, and no
+  placement passes.
+
+  The third clause is the CR's, not the pool's. A trigger whose placement
+  triggers another of its kind places forever without resolving: "whenever a
+  creature becomes the target of an ability", beside a targeted trigger that
+  fires on that targeting. Nothing bounds that loop today.
+
+*Recommended: B, threshold 500.* That is eleven times the largest refill run
+measured, a Commander stress game's 108 Simic Ascendancy triggers in one turn
+(seed 13407, turn 59), whose run counted 45. It is also today's number, so item
+263's Lich's Mirror board draws where it does now. The threshold is a
+`GameConfig` field, so a test can set it.
+
+**Decision 2 — where the count lives.** A decision is visible only in `ui::ask`,
+and its four validators (`ask.rs:162`, `:238`, `:333`, `:398`) hold
+`&GameState`.
+- **A — read `Diagnostics`' decision count** (the paragraph above: "already
+  counted"). It adds no field. But a rule that ends the game would then read a
+  measurement row, and `diagnostics.rs` promises its rows to the fixtures table
+  ("reset per game", "monotonic"), not to a rule. A fork that someday resets its
+  diagnostics would change its game's result.
+- **B — a `LoopRun` on `GameState`:** the run's length and the last depth, in
+  `Cell`s because the validators hold `&GameState`, as `Diagnostics`' do. It is
+  bookkeeping the CR names nothing of, like `nesting`, and is cloned with the
+  state. The validators reset it from the `only_pick(..).is_none()` they already
+  count with, so the definition of a decision is shared and the counter is not.
+  Decision 3 narrows which answers reset it. Clone cost: two words, no
+  allocation, so floors 2 and 3 do not move at two seats or four.
+
+*Recommended: B.* Item 40 keeps outcome-bearing state on `GameState`.
+
+**Decision 3 — what resets the run, and a step that never ends.** Two facts
+first.
+- **Priority offers no mana abilities.** `can_begin_to_activate` refuses them
+  (`mana_helpers.rs:298`), so a seat with only untapped lands is offered
+  `[Pass]`, which is forced. A castable instant or a payable activated ability
+  does make every priority window a decision.
+- **CR 731.4–731.5 and Immortal Coil's sixth ruling** ("Unless a player
+  disrupts it, the game will end in a draw") keep a player who could break a
+  mandatory loop, and passes, inside it. No player can be forced to end a loop
+  with an object outside it.
+
+The options:
+- **A — any decision resets the run** (item 138's definition, the paragraph
+  above). Beside a seat holding an instant, the Coil and the Angel never draw.
+  The trigger is placed before every priority grant, so the stack never
+  empties and the step never ends. `fuzz_games`' only guard is `max_turns`
+  (`fuzz_games.rs:123`), so it hangs inside one `run_turn`, and "the turn limit
+  keeps standing in" fails there.
+- **B — a priority prompt answered `Pass` does not reset the run; any other
+  answer does:** a cast, an activation, a target among several, an order, a
+  "may". The probe: decision 1's B has the same tail either way (45). A's
+  grows, 1,570 to 3,135, on the Hydra's game. Code: one reset in
+  `ask_choose_priority_action` for a non-`Pass` answer; a priority prompt does
+  not reset at the validator.
+
+**The residual, either way.** A mandatory loop whose every iteration asks a
+real choice resets each time, since Tier 1 cannot tell whether the choice could
+break it: "target opponent" at four seats with every opponent behind a Platinum
+Angel. It never draws. Tier 2's repetition test answers it (`backlog.md`
+§2.28). A loop through the turn structure is the other residual: every turn
+alike, nobody able to act, so none of decision 1's three counts. Tier 2's hash
+at a quiescent point answers that one, and the turn limit stands in.
+
+**The fuzz agent's stop exists already.** `RandomDecisionProvider` picks
+uniformly among a window's actions that have not been rejected, and `Pass` is
+always one of them. So it leaves an optional loop, TR-7's persist loop among
+them, with probability at least 1/k a window, where k is the number of
+actions. No agent bounds the first residual. So the harness gets a bound of its
+own: a middleware that counts prompts within one step and raises the existing
+`Stop` (`Game::until_stopped`) past a bound. `fuzz_games` reports it as a "stuck
+in a step" row beside "Hit turn limit", never as a result. The bound is set at
+the build, well above the measured maximum of prompts in one step.
+
+*Recommended: B, and the harness bound, with no new agent code.* TR-7's "a
+fuzz agent that does" is the uniform pick, and TR-7 measures it on the persist
+loop.
+
+**Decision 4 — the draw goes through the chokepoint (`codebase-state.md`
+item 263).** The paragraph above settles the draw "through the same batch
+settlement CR 104.4a uses". It cannot. 104.4a's draw is read off performed
+losses (`settle_game_result`), and a loop's draw has no performed event to be
+read off. A settlement would be the direct write item 263 is about.
+
+Proposed: `GameAction::GameEndsInADraw`, caused
+`EventCause::GameRule(GameRule::MandatoryLoop)`.
+- **The performer** is `end_game(GameResult::Draw)`, which announces
+  `GameEvent::GameEndedInADraw`, so the log, the trace and the dev GUI say why
+  the game ended. `PlayerWins`' performer is the precedent (`actions.rs:1948`).
+- **No `EventPattern` arm,** as `ShuffleLibrary` and `Attach` have none: nothing
+  printed replaces a draw. Platinum Angel's fourth ruling says an effect that
+  makes the game a draw still works beside it, so no `is_prohibited` row
+  refuses one either.
+- **A draw is no loss,** so CR 603.9's "whenever a player loses the game" does
+  not trigger ("unless that player leaves the game as the result of a draw").
+- **A later "the game is a draw" effect** proposes the same arm with its
+  effect's cause.
+
+The state-based bound's branch moves into the detector:
+`MANDATORY_LOOP_CHECKS` goes, its unit becomes decision 1's second clause, and
+item 263 and `check_invariants.py:164`'s entry close.
+
+Cost: about 17 exhaustive arms, 10 on `GameAction` and 7 on `GameEvent`,
+counted from `PlayerWins`' and `PlayerWon`'s. The names are for review:
+`GameEndsInADraw` takes `PlayerWins`' shape, a subject and a present verb,
+since "draw" alone reads as drawing a card.
+
+*Recommended: the arm as proposed.* The alternative is the direct write.
+
+**The shortcut (D26) and this detector.** CR 731.2's procedure is
+`backlog.md` §2.28's second half, with `GameNumber`. A player runs a loop and
+proposes "N more times", and the others accept or shorten it. Its design is
+`plans/atomic-tests/supplemental-docs/state-tracking-architecture.md`'s D26 and
+`decision-provider-refactor.md` §9: run two iterations, declare a count. The
+engine compares the two iterations' performed actions by structure, with
+relative object references and no ids, and applies the net change N times.
+Three seams with this phase, none of them built here:
+- **The count stands in for D26's comparison.** That design's Tier 1 *flagged*
+  a potential loop (`PotentialMandatoryLoop`). It routed a mandatory loop that
+  accumulates to "fast-forward to termination or draw", which is D26's validator
+  run on two iterations nobody declared. Sanguine Bond and Exquisite Blood beside
+  the opponent's Platinum Angel are that loop: each iteration moves two life
+  totals, so no state repeats, and it never ends. §4.9 draws on the count alone.
+  Once §2.28's comparison exists, a run past the threshold is the cue to compare
+  its last two iterations, and the draw needs them to match with no net change
+  toward an end. Decision 1's refill rule is the part of that termination check
+  the stack alone can answer.
+- **A declared shortcut is an action.** `decision-provider-refactor.md` §9.7
+  makes it `PriorityAction::ProposeShortcut`, a priority answer other than
+  `Pass`, so decision 3 resets the run on it with no new code.
+- **The fuzz agent's leaving is CR 731.2a's "a loop that repeats a specified
+  number of times", decided one window at a time.** With D26 an agent names the
+  number once, through `DeclareLoopCount`.
+
+CR 731.3's fragmented loop and 731.5's involved objects need the comparison
+too, and stay in §2.28.
 
 ### 4.10 The dispatch audit — the dispatcher again, with its shortcuts off (TR-1b)
 
@@ -3718,7 +3974,40 @@ ahead of both, TR-5h.
 | **TR-5g — the multiplier, tokens and scry** — ✅ landed 2026-10-20, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5g" | | | | +1,781 |
 | *TR-5d as sized at TR-5c's review (2026-10-18), kept for the record* | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; excess damage per recipient over the batch, and the "this turn" damage facts ("was dealt damage", "dealt damage to"), moved from TR-5c at its review (TR-5c's piece 11 and part (a)); item 275, moved with them; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001, ATOM-120.10-001 | ~610 (915–1,220) | ~1,080 | 1,995–2,300 |
 
-### TR-6 — state triggers, the loop, and the rule-owned arm (935–1,360)
+### TR-6 — state triggers, the loop, and the rule-owned arm (1,780–2,340)
+
+**Re-counted 2026-10-21, at its design** (§4.5, §4.8 and §4.9's amendments),
+card by card against #267's tree. Code at 1.5–2× plus tests, the band's measure
+since RH:
+
+| Piece | ~additions |
+|---|---|
+| the state check: the gate's reserved bit on all three legs and on leg 3, the sweep through `settled_holds`, a trigger queued with no record and announced by `AbilityTriggered`, its trace record, the armed-off set and its one re-arm (§4.5); the three schedules; the dispatch audit's state leg | ~255 |
+| `Condition::Not`; `PlayerFact::HandEmpty`; "then draw that many" over the resolution's discards | ~85 |
+| the loop detector: `LoopRun`, its three counting sites and their resets (§4.9, decisions 1–3), the threshold on `GameConfig`; the state-based bound's branch moved in (item 263) | ~100 |
+| the draw: `GameAction::GameEndsInADraw` and its event, the performer, `GameRule::MandatoryLoop`, about 17 exhaustive arms; the nesting bound's draw and its two doc comments (§4.8, decision 5) | ~95 |
+| `TriggerOrigin::Rule` with `InherentAbility` uninhabited | ~20 |
+| `fuzz_games`' per-step bound and its row (decision 3) | ~50 |
+| cards and fixtures: **Emperor Crocodile**, registered after its stress distortion is measured; the Coil's third ability, a fixture beside the registered Platinum Angel; CR 603.8's example permanent and its discard spell; a flicker and an ability counter for the rulings' boards (Adaptive Shimmerer, registered, is the second Crocodile ruling's arrival) | ~110 |
+| **code**, ~715 as sized | **1,070–1,430** |
+| tests, 16: the 2 atoms; the Crocodile's 2 rulings and one cast from hand; the Coil's rulings 4–6, the Angel registered; the Coil beside a seat that passes holding an instant (decision 3's B), and beside one that casts removal on the Angel; Lich's Mirror's loop through the new arm (item 263); a 2,000-trigger decision-free pile that does not draw (decision 1's B); a target chosen each iteration, which resets; a placement loop; the nesting bound's draw; the harness bound | **710–910** |
+| **code and tests** | **1,780–2,340** |
+| docs: these amendments (~190); the close-out — the stub and archive, the record block, the items, the 37 deferred Phase 7 atoms given their owners in the session files (13 are ticketed NEW, which is what `owed` reads), `trigger-survey.py` deleted | ~550 |
+
+Inside the 1,500–2,500 band, in its upper half. The 2026-09-24 row missed these
+facilities, a count inside the 3–11 every earlier re-count found:
+- the gate's bit, and the audit's state leg;
+- `PlayerFact::HandEmpty`;
+- the "that many" leaf;
+- the refill depth and the third counting site;
+- decision 3's reset;
+- the exhaustive arms;
+- the harness bound;
+- two fixtures for the rulings' boards.
+
+Its tests come to more than twice their row's ~300, as before.
+
+*As sized on 2026-09-24, kept for the record:*
 
 | Piece | ~additions |
 |---|---|
