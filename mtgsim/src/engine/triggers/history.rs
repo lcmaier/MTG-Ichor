@@ -82,14 +82,20 @@ impl GameState {
         // first rows carry its number.
         let mut stamps: Vec<RowStamp> = Vec::with_capacity(updates.len());
         // Records of this window already placed, whose rows are written after
-        // the loop: a second gain in one event is the second (CR 119.9).
-        let mut placed: Vec<(PlayerId, TurnFact)> = Vec::new();
+        // the loop: a second gain in one event is the second (CR 119.9). How
+        // many, by player and fact.
+        let mut placed: Vec<((PlayerId, TurnFact), u64)> = Vec::new();
         for (seq, update) in updates {
             let (mut in_turn, mut in_draw_step) = (None, None);
             if let Some(update) = update {
                 self.count(&update);
                 in_turn = self.place_in_turn(&update, &placed);
-                placed.extend(update.placed_among());
+                if let Some(key) = update.placed_among() {
+                    match placed.iter_mut().find(|(earlier, _)| *earlier == key) {
+                        Some((_, count)) => *count += 1,
+                        None => placed.push((key, 1)),
+                    }
+                }
                 in_draw_step = self.place_in_draw_step(&update);
             }
             stamps.push(RowStamp { seq, turn: self.turn_number, combat: self.history.log.combats_this_turn() });
@@ -115,7 +121,7 @@ impl GameState {
                 fact: draft.fact,
             };
             kinds_written[row.fact.kind() as usize] = true;
-            self.history.log.push(row);
+            self.history.push_row(row);
         }
         let epoch = self.layer_epoch();
         self.bump_rows_written(&kinds_written);
@@ -171,13 +177,13 @@ impl GameState {
     /// The counted record's place among its player's records of its kind this
     /// turn, 1 for the first, for the kinds a trigger reads by place: the
     /// log's rows of the turn, this window's earlier records, then it.
-    fn place_in_turn(&self, update: &HistoryUpdate, placed_this_window: &[(PlayerId, TurnFact)]) -> Option<u64> {
+    fn place_in_turn(&self, update: &HistoryUpdate, placed_this_window: &[((PlayerId, TurnFact), u64)]) -> Option<u64> {
         let (player, fact) = update.placed_among()?;
         if self.turn_number == 0 {
             return None;
         }
-        let logged = self.history.count(player, fact, self.turn_number..=self.turn_number);
-        let earlier = placed_this_window.iter().filter(|&&placed| placed == (player, fact)).count() as u64;
+        let logged = self.history.count_in_turn(player, fact, self.turn_number);
+        let earlier = placed_this_window.iter().find(|(placed, _)| *placed == (player, fact)).map_or(0, |&(_, count)| count);
         Some(logged.saturating_add(earlier).saturating_add(1))
     }
 

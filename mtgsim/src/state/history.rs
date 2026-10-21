@@ -14,7 +14,7 @@ use std::ops::RangeInclusive;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::state::game_state::AbilityIdentity;
-use crate::state::history_log::{HistoryLog, HistoryRow};
+use crate::state::history_log::{HistoryLog, HistoryRow, added_to_count};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
 use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
@@ -30,12 +30,57 @@ pub struct PlayerHistory {
     /// The cards drawn since this player's draw step in progress began (CR
     /// 504), read only while it is in progress.
     this_draw_step: u64,
+    /// This player's count of each fact a record is placed by, on the newest
+    /// turn the log has a row of.
+    turn_tally: TurnTally,
+}
+
+/// The facts a record's place in its turn is counted among (CR 119.9's
+/// second gain this turn, a second spell, a third draw): each player's
+/// [`TurnTally`] keeps them, so placing a record does not walk the turn.
+const PLACED_FACTS: [TurnFact; 4] = [TurnFact::SpellsCast, TurnFact::CardsDrawn, TurnFact::LifeGainEvents, TurnFact::LifeLossEvents];
+
+/// One player's [`PLACED_FACTS`] summed over the rows of turn `turn`, the
+/// newest turn written, as [`HistoryLog::count`] sums them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TurnTally {
+    turn: u32,
+    counts: [u64; PLACED_FACTS.len()],
+}
+
+impl TurnTally {
+    const NONE: TurnTally = TurnTally { turn: 0, counts: [0; PLACED_FACTS.len()] };
+
+    /// Add `row` for `player`. A row of a later turn starts the tally over;
+    /// one of an earlier turn adds nothing, since rows are written in turn
+    /// order.
+    fn add(&mut self, row: &HistoryRow, player: PlayerId) {
+        if row.turn > self.turn {
+            *self = TurnTally { turn: row.turn, ..TurnTally::NONE };
+        }
+        if row.turn == self.turn {
+            for (count, fact) in self.counts.iter_mut().zip(PLACED_FACTS) {
+                *count = count.saturating_add(added_to_count(fact, row, &|whose| whose == player));
+            }
+        }
+    }
+
+    /// The count of `fact` on turn `turn`; `None` for a fact it does not keep
+    /// or a turn before the one it holds.
+    fn count(&self, fact: TurnFact, turn: u32) -> Option<u64> {
+        let at = PLACED_FACTS.iter().position(|&placed| placed == fact)?;
+        match turn.cmp(&self.turn) {
+            std::cmp::Ordering::Equal => Some(self.counts[at]),
+            std::cmp::Ordering::Greater => Some(0),
+            std::cmp::Ordering::Less => None,
+        }
+    }
 }
 
 impl PlayerHistory {
     /// A player's history before the game's first turn.
     pub fn before_any_turn() -> Self {
-        PlayerHistory { own_turn: None, previous_own_turn: None, this_draw_step: 0 }
+        PlayerHistory { own_turn: None, previous_own_turn: None, this_draw_step: 0, turn_tally: TurnTally::NONE }
     }
 
     pub(crate) fn record_own_turn(&mut self, turn: u32) {
@@ -115,6 +160,26 @@ impl GameHistory {
         self.log.count(fact, turns, &|counted| counted == player, &mut |_| true, &|_| {})
     }
 
+    /// `player`'s count of `fact` on turn `turn`, which a record's place in
+    /// its turn starts from: off the player's tally where it keeps the fact,
+    /// so a turn of thousands of life changes does not read the turn once for
+    /// each.
+    pub fn count_in_turn(&self, player: PlayerId, fact: TurnFact, turn: u32) -> u64 {
+        self.players
+            .get(player)
+            .and_then(|history| history.turn_tally.count(fact, turn))
+            .unwrap_or_else(|| self.count(player, fact, turn..=turn))
+    }
+
+    /// Write `row`, the newest event, into the log and each player's tally:
+    /// the one way a row is written.
+    pub(crate) fn push_row(&mut self, row: HistoryRow) {
+        for (player, history) in self.players.iter_mut().enumerate() {
+            history.turn_tally.add(&row, player);
+        }
+        self.log.push(row);
+    }
+
     /// `history` totalled over `span` for `you` on turn `now`: the rows of the
     /// players it names, narrowed by its filter over each row's frame, which
     /// `filter_matches` asks in its reader's context, a layer walk's or a
@@ -178,7 +243,7 @@ mod tests {
     fn drew(history: &mut GameHistory, player: PlayerId, turn: u32, count: u64) {
         let fact = RowFact::Stated { fact: DRAWN, count };
         let seq = EventId(history.log.len());
-        history.log.push(HistoryRow { seq, turn, combat: 0, player: Some(player), object: None, frame: None, fact });
+        history.push_row(HistoryRow { seq, turn, combat: 0, player: Some(player), object: None, frame: None, fact });
     }
 
     /// A turn's count is its rows, whoever's turn it was; a turn with none
@@ -193,6 +258,31 @@ mod tests {
         assert_eq!(history.count(0, DRAWN, 5..=5), 1);
         assert_eq!(history.count(0, DRAWN, 1..=5), 3);
         assert_eq!(history.count(1, DRAWN, 1..=5), 0, "the rows are player 0's");
+    }
+
+    /// A record's place starts from the tally, which counts what the log's
+    /// count counts: a stated count, each row after it, each player's own,
+    /// and a new turn starting over. A turn before the tally's is the log's.
+    #[test]
+    fn the_turn_tally_counts_what_the_log_counts() {
+        let mut history = GameHistory::new(2);
+        drew(&mut history, 0, 3, 2);
+        drew(&mut history, 1, 3, 1);
+        for gained in [3, 1] {
+            let seq = EventId(history.log.len());
+            let fact = RowFact::GainedLife(gained);
+            history.push_row(HistoryRow { seq, turn: 3, combat: 0, player: Some(1), object: None, frame: None, fact });
+        }
+        for (player, fact) in [(0, DRAWN), (1, DRAWN), (0, TurnFact::LifeGainEvents), (1, TurnFact::LifeGainEvents)] {
+            assert_eq!(history.count_in_turn(player, fact, 3), history.count(player, fact, 3..=3), "{fact:?} for player {player}");
+        }
+        assert_eq!(history.count_in_turn(1, TurnFact::LifeGainEvents, 3), 2, "two gains, whatever their amounts");
+
+        drew(&mut history, 0, 4, 5);
+        assert_eq!(history.count_in_turn(0, DRAWN, 4), 5);
+        assert_eq!(history.count_in_turn(1, DRAWN, 4), 0, "the new turn starts over");
+        assert_eq!(history.count_in_turn(0, DRAWN, 3), 2, "an earlier turn, read off the log");
+        assert_eq!(history.count_in_turn(0, DRAWN, 6), 0, "a turn with no rows yet");
     }
 
     /// "Since your last turn" for player 0, read off player 1's counts: the

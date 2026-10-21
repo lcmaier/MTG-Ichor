@@ -456,7 +456,7 @@ impl<'s> Loader<'s> {
                     let seq = self.state.events.next_seq();
                     let fact = RowFact::Stated { fact, count };
                     let row = HistoryRow { seq, turn: t, combat: 0, player: Some(player), object: None, frame: None, fact };
-                    self.state.history.log.push(row);
+                    self.state.history.push_row(row);
                     self.state.bump_layer_epoch_if_read(GatedWalkInput::Rows(fact.kind()));
                 }
             }
@@ -466,7 +466,7 @@ impl<'s> Loader<'s> {
                 let frame = Some(Arc::new(seed_frame(&cast.card, cast.player, t)));
                 let seq = self.state.events.next_seq();
                 let fact = RowFact::Cast { from: Zone::Hand };
-                self.state.history.log.push(HistoryRow { seq, turn: t, combat: 0, player: Some(cast.player), object: None, frame, fact });
+                self.state.history.push_row(HistoryRow { seq, turn: t, combat: 0, player: Some(cast.player), object: None, frame, fact });
                 self.state.bump_layer_epoch_if_read(GatedWalkInput::Rows(fact.kind()));
             }
         }
