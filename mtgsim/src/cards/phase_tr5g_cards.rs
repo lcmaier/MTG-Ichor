@@ -45,8 +45,9 @@ use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerEvent, Trigg
 /// - *Each instance is its own trigger, with its own choices* (#5) →
 ///   `each_doubled_instance_chooses_its_own_target`.
 /// - *Two make three, not four* (#6) → `two_panharmonicons_make_three`.
-/// - *Entering beside Panharmonicon, Panharmonicon included, is doubled*
-///   (#7) → `a_creature_entering_beside_panharmonicon_is_doubled`.
+/// - *A trigger on entering beside Panharmonicon, Panharmonicon included,
+///   triggers an additional time* (#7) →
+///   `a_trigger_on_entering_beside_panharmonicon_triggers_twice`.
 /// - *A linked ability's additional instances are linked too* (#8, #9): not
 ///   yet expressible; CR 607's linked abilities are `backlog.md` §2.2's.
 pub fn panharmonicon() -> Arc<CardData> {

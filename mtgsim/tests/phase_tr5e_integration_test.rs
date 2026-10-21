@@ -546,7 +546,7 @@ fn any_defending_player_is_each_opponent_of_the_attacking_player_in_combat() {
     let legal = |game: &GameState| -> Vec<bool> {
         creatures
             .iter()
-            .map(|&id| game.validate_targets(&target, &[ResolvedTarget::Object(id)], 1, FilterIdentity::NONE).is_ok())
+            .map(|&id| game.validate_targets(&target, &[ResolvedTarget::Object(id)], mtgsim::test_support::fixed_target_bounds(&target), 1, FilterIdentity::NONE).is_ok())
             .collect()
     };
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) });

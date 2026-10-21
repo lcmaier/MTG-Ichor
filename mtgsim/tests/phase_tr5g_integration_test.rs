@@ -8,9 +8,12 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::artifacts::sol_ring;
 use mtgsim::cards::authoring::{
-    another, becomes_the_target_of, creates_a_token, dies, enters, is_sacrificed, scries, triggered_ability, when_you_do, whenever, Whose,
+    another, becomes_the_target_of, creates_a_token, dies, enters, is_sacrificed, leaves_the_battlefield, scries, triggered_ability, when_you_do,
+    whenever, Whose,
 };
+use mtgsim::cards::phase_ld_cards::march_of_the_machines;
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::phase_cv_cards::cytoshape;
 use mtgsim::cards::phase_rc_cards::chainbreaker;
@@ -26,8 +29,8 @@ use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction,
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::test_support::{
-    creature_with_ability, fill_library, put_in_graveyard, put_on_battlefield, registered, setup_two_player_game, static_ability, test_dp,
-    vanilla_creature,
+    creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_two_player_game, static_ability,
+    test_dp, vanilla_creature,
 };
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
@@ -38,7 +41,8 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::history::CountIs;
 use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, PlayerId};
-use mtgsim::types::mana::ManaType;
+use mtgsim::oracle::x_values::LegalXValues;
+use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::triggers::{
     DamageRecipient, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
     TargetedBy, TriggerMultiplierDef, TriggerSubject, TriggerTier,
@@ -247,6 +251,7 @@ fn an_opponents_panharmonicon_doubles_nothing_of_yours() {
 }
 
 // RULING: Panharmonicon #5 - choices made on resolution are made individually for each instance.
+// RULING: Teysa Karlov #2 - the same, for her count: each instance makes its own choices.
 #[test]
 fn each_doubled_instance_makes_its_own_choice() {
     let mut game = audited_game();
@@ -272,9 +277,9 @@ fn two_panharmonicons_make_three() {
     assert_eq!(waiting_from(&game, healer), 3);
 }
 
-// RULING: Panharmonicon #7 - a creature entering at the same time as Panharmonicon, Panharmonicon included, is doubled.
+// RULING: Panharmonicon #7 - a trigger on an artifact or creature entering at the same time as Panharmonicon, Panharmonicon included, triggers an additional time.
 #[test]
-fn a_creature_entering_beside_panharmonicon_is_doubled() {
+fn a_trigger_on_entering_beside_panharmonicon_triggers_twice() {
     let mut game = audited_game();
     let warden = put_on_battlefield(&mut game, soul_warden(), 0);
     let artifacts_enter = whenever(enters(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Artifact))), gain_one());
@@ -882,4 +887,193 @@ fn a_game_that_ends_drops_the_triggers_still_waiting() {
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert_eq!(game.result, Some(GameResult::Winner(0)));
     assert!(game.pending_triggers.is_empty() && game.stack.is_empty(), "nothing waits in a finished game");
+}
+
+// ---------------------------------------------------------------------------
+// Teysa Karlov: a death, and the events that cause one
+// ---------------------------------------------------------------------------
+
+/// Teysa Karlov's first ability, on a 2/4 legendary creature: "If a creature
+/// dying causes a triggered ability of a permanent you control to trigger,
+/// that ability triggers an additional time." Her second, creature tokens
+/// you control having vigilance and lifelink, has no part in the count.
+fn teysa_karlov() -> Arc<CardData> {
+    let multiplier = TriggerMultiplierDef {
+        caused_by: Some(TriggerCondition::Event(dies(a_creature()).into())),
+        abilities_of: ObjectFilter::ByController(PlayerRef::You),
+        additional: 1,
+    };
+    CardDataBuilder::new("Teysa Karlov")
+        .card_type(CardType::Creature)
+        .supertype(Supertype::Legendary)
+        .power_toughness(2, 4)
+        .ability(multiplier.into_ability(""))
+        .build()
+}
+
+fn destroy(game: &mut GameState, objects: &[ObjectId]) {
+    let destroys = objects.iter().map(|&object| GameAction::Destroy { object }).collect();
+    game.execute_actions(destroys, &ActionContext::new(&test_dp())).unwrap();
+}
+
+/// "Whenever [subject] is put into a graveyard from the battlefield"
+/// without the word "dies": the arm is the same.
+fn put_into_a_graveyard_from_the_battlefield(subject: ObjectFilter) -> TriggerDef {
+    whenever(dies(TriggerSubject::Filter(subject)), gain_one())
+}
+
+// RULING: Teysa Karlov #1 - a creature's own dies trigger is doubled, as are other triggers on that creature dying.
+#[test]
+fn teysa_doubles_a_creatures_own_dies_trigger_and_one_watching_it() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, teysa_karlov(), 0);
+    let own = put_on_battlefield(&mut game, watcher("Martyr", whenever(dies(TriggerSubject::ThisObject), gain_one())), 0);
+    let mourner = put_on_battlefield(&mut game, watcher("Mourner", whenever(dies(another(a_creature())), gain_one())), 0);
+    resolve_all(&mut game, &test_dp());
+    destroy(&mut game, &[own]);
+    assert_eq!((waiting_from(&game, own), waiting_from(&game, mourner)), (2, 2));
+}
+
+// RULING: Teysa Karlov #3 - an artifact put into a graveyard from the battlefield triggers twice if it was a creature.
+// RULING: Teysa Karlov #6 - each permanent is looked at as it was on the battlefield: an animated artifact dying is a creature dying.
+#[test]
+fn teysa_doubles_an_artifact_trigger_when_the_artifact_was_a_creature() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, teysa_karlov(), 0);
+    let scrap = put_on_battlefield(&mut game, watcher("Scrapper", put_into_a_graveyard_from_the_battlefield(ObjectFilter::ByType(CardType::Artifact))), 0);
+    let golem = put_on_battlefield(&mut game, artifact_creature("Golem"), 0);
+    let ring = put_on_battlefield(&mut game, sol_ring(), 0);
+    resolve_all(&mut game, &test_dp());
+    destroy(&mut game, &[ring]);
+    assert_eq!(waiting_from(&game, scrap), 1, "a noncreature artifact does not die");
+    game.pending_triggers.clear();
+
+    put_on_battlefield(&mut game, march_of_the_machines(), 1);
+    let ring = put_on_battlefield(&mut game, sol_ring(), 0);
+    resolve_all(&mut game, &test_dp());
+    destroy(&mut game, &[ring, golem]);
+    assert_eq!(waiting_from(&game, scrap), 4, "a Sol Ring March of the Machines animated, and a Golem: each was a creature");
+}
+
+// RULING: Teysa Karlov #4 - a creature leaving the battlefield by dying triggers a leaves-the-battlefield ability twice.
+#[test]
+fn teysa_doubles_a_leaving_by_dying_and_not_by_exile() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, teysa_karlov(), 0);
+    let leaving = put_on_battlefield(&mut game, watcher("Watcher", whenever(leaves_the_battlefield(another(a_creature())), gain_one())), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let other = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    resolve_all(&mut game, &test_dp());
+    destroy(&mut game, &[bear]);
+    assert_eq!(waiting_from(&game, leaving), 2, "it died");
+    game.pending_triggers.clear();
+    game.change_zone(other, Zone::Exile, ZoneChangeAct::Put, &ActionContext::new(&test_dp())).unwrap();
+    assert_eq!(waiting_from(&game, leaving), 1, "it was exiled, which is no death");
+}
+
+// RULING: Teysa Karlov #5 - an ability that triggers on an event that causes a creature to die, "whenever you sacrifice a creature", triggers only once.
+#[test]
+fn teysa_leaves_a_sacrifice_trigger_alone() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, teysa_karlov(), 0);
+    let altar = put_on_battlefield(&mut game, watcher("Altar Keeper", whenever(is_sacrificed(another(a_creature())), gain_one())), 0);
+    let mourner = put_on_battlefield(&mut game, watcher("Mourner", whenever(dies(another(a_creature())), gain_one())), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    resolve_all(&mut game, &test_dp());
+    game.change_zone(bear, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ActionContext::new(&test_dp())).unwrap();
+    assert_eq!(waiting_from(&game, altar), 1, "the sacrifice is its own event");
+    assert_eq!(waiting_from(&game, mourner), 2, "the death it caused is doubled");
+}
+
+// RULING: Teysa Karlov #7 - a creature dying at the same time another permanent you control leaves doubles that permanent's trigger.
+#[test]
+fn teysa_doubles_a_trigger_of_a_permanent_leaving_beside_the_creature() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, teysa_karlov(), 0);
+    let pact = CardDataBuilder::new("Pact").card_type(CardType::Enchantment).ability(triggered_ability("", whenever(dies(a_creature()), gain_one()))).build();
+    let pact = put_on_battlefield(&mut game, pact, 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    resolve_all(&mut game, &test_dp());
+    destroy(&mut game, &[pact, bear]);
+    assert_eq!(waiting_from(&game, pact), 2, "read off the enchantment's frame as it left");
+}
+
+// RULING: Teysa Karlov #8 - a creature dying at the same time as Teysa, Teysa included, is doubled.
+#[test]
+fn teysa_dying_beside_a_creature_doubles_both_deaths() {
+    let mut game = audited_game();
+    let teysa = put_on_battlefield(&mut game, teysa_karlov(), 0);
+    let mourner = put_on_battlefield(&mut game, watcher("Mourner", whenever(dies(another(a_creature())), gain_one())), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    resolve_all(&mut game, &test_dp());
+    destroy(&mut game, &[teysa, bear]);
+    assert_eq!(waiting_from(&game, mourner), 4);
+}
+
+// RULING: Teysa Karlov #9 - two Teysas make three, not four, so a Teysa dying to the legend rule beside another triggers three times.
+#[test]
+fn two_teysas_make_three_as_the_legend_rule_kills_one() {
+    let mut game = audited_game();
+    let mourner = put_on_battlefield(&mut game, watcher("Mourner", whenever(dies(a_creature()), gain_one())), 0);
+    put_on_battlefield(&mut game, teysa_karlov(), 0);
+    resolve_all(&mut game, &test_dp());
+    put_on_battlefield(&mut game, teysa_karlov(), 0);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(ChoiceKind::LegendRule { legend_name: "Teysa Karlov".into() }, vec![0]);
+    game.perform_sba_and_triggers(&dp).unwrap();
+    assert!(dp.is_empty(), "the legend rule chose");
+    let stacked = game.stack.iter().filter(|id| game.stack_entries[*id].ability_identity.is_some_and(|i| i.source.id == mourner)).count();
+    assert_eq!(stacked, 3, "the dying Teysa is read as it was, beside the other");
+}
+
+// ---------------------------------------------------------------------------
+// "X target creatures" (CR 601.2b-c)
+// ---------------------------------------------------------------------------
+
+/// {X}{U} sorcery: "Tap X target creatures."
+fn tap_x() -> Arc<CardData> {
+    let spell = AbilityDef {
+        rules_text: "".into(),
+        id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
+        ability_type: AbilityType::Spell,
+        costs: Vec::new(),
+        effect: Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::ExactlyAmount(AmountExpr::X))),
+        is_characteristic_defining: false,
+        activation_restriction: ActivationRestriction::None,
+    };
+    CardDataBuilder::new("Tap X")
+        .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Blue)]))
+        .card_type(CardType::Sorcery)
+        .ability(spell)
+        .build()
+}
+
+/// X is announced before the targets (CR 601.2b), and then exactly X are
+/// chosen: X = 2 taps two of three, and X = 0 asks for none.
+#[test]
+fn x_target_creatures_takes_exactly_the_announced_x() {
+    let mut game = audited_game();
+    let bears: Vec<ObjectId> = (0..3).map(|_| put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1)).collect();
+    resolve_all(&mut game, &test_dp());
+    game.players[0].mana_pool.add(ManaType::Blue, 3);
+    let card = put_in_hand(&mut game, tap_x(), 0);
+    let seat = ScriptedDecisionProvider::new();
+    seat.expect_number(ChoiceKind::ChooseXValue { spell_id: card, values: Box::new(LegalXValues::zero_through(2)) }, 2);
+    seat.expect_choice(
+        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: card },
+        vec![ChoiceOption::Object(bears[0]), ChoiceOption::Object(bears[1])],
+    );
+    game.cast_spell(0, card, &seat).expect("castable");
+    assert!(seat.is_empty());
+    resolve_all(&mut game, &test_dp());
+    let tapped: Vec<bool> = bears.iter().map(|b| game.battlefield[b].tapped).collect();
+    assert_eq!(tapped, vec![true, true, false]);
+
+    // One blue mana pays X = 0 only, which is no choice; a scripted seat with
+    // nothing queued fails on any prompt, so none is asked.
+    game.players[0].mana_pool.add(ManaType::Blue, 1);
+    let card = put_in_hand(&mut game, tap_x(), 0);
+    game.cast_spell(0, card, &ScriptedDecisionProvider::new()).expect("castable with no target");
+    assert_eq!(game.stack_entries[&card].x_value, Some(0));
 }

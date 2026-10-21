@@ -792,7 +792,7 @@ fn add_mana_produced(game: &GameState, effect: &Effect, resolution: &ResolutionC
                 if matches!(amount, AmountExpr::UnspentMana(_)) {
                     return None;
                 }
-                made[slot(*mana_type)] += game.evaluate_amount(amount, resolution).ok()?;
+                made[slot(*mana_type)] += game.evaluate_amount(amount, resolution, None).ok()?;
             }
             // `output.special` is restricted mana, which no payment spends until
             // item 33's pass, so it is not counted (§3.6).
@@ -1000,7 +1000,7 @@ fn trigger_mana(
             }
             let resolution = ResolutionContext::for_mana_ability(game, source, receives, GeneratedBy::TriggeredAbility);
             for (mana_type, amount) in &output.mana {
-                match game.evaluate_amount(amount, &resolution) {
+                match game.evaluate_amount(amount, &resolution, None) {
                     Ok(n) => adds[slot(*mana_type)] += n,
                     Err(_) => return false,
                 }

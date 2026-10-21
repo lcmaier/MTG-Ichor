@@ -11,6 +11,7 @@
 //! evaluators the pass calls — filters, amounts, and a modification's
 //! resolution against the board before it is written to a frame.
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::oracle::characteristics::CurrentOrLastKnown;
@@ -888,7 +889,7 @@ pub(super) fn evaluate_amount(
     board: &Board<'_>,
     origin: Option<&ContinuousEffect>,
 ) -> Option<i32> {
-    use crate::types::effects::{AmountExpr, PlayerRef, Selector};
+    use crate::types::effects::{AmountExpr, ObjectFilter, PlayerRef, Selector};
 
     match expr {
         AmountExpr::Fixed(n) => Some(*n as i32),
@@ -930,13 +931,20 @@ pub(super) fn evaluate_amount(
         }
 
         AmountExpr::CountOf(selector) => {
-            let Some(filter) = selector.permanent_filter() else {
-                debug_assert!(
-                    false,
-                    "CountOf({:?}) has no static-context evaluator yet (on '{}')",
-                    selector, chars.name
-                );
-                return None;
+            let filter: Cow<'_, ObjectFilter> = match selector {
+                Selector::PermanentsMatching(filter) => Cow::Borrowed(filter),
+                Selector::ControlledCreatures => Cow::Owned(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(crate::types::card_types::CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                )),
+                other => {
+                    debug_assert!(
+                        false,
+                        "CountOf({:?}) has no static-context evaluator yet (on '{}')",
+                        other, chars.name
+                    );
+                    return None;
+                }
             };
             let mut players = amount_players(origin, object_id, chars, game, board, layer_index);
             let mut count = 0;

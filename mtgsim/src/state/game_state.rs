@@ -598,9 +598,9 @@ pub struct GameState {
     /// Objects that entered the battlefield with a static ability, printed or
     /// an entry copy's, whose body is an `Effect::TriggerMultiplier`, through
     /// an "as long as" wrapper or not: the printed leg of the dispatch's
-    /// count (CR 603.2d, `triggers-architecture.md` §12, TR-5g), whose granted
-    /// and copied legs are the registry summary's two flags. The fourth such
-    /// set, under the three above's rule.
+    /// count of additional triggers (CR 603.2d), whose granted and copied legs
+    /// are the registry summary's two flags. The fourth such set, under the
+    /// three above's rule.
     ///
     /// **Engine-maintained. Read it; do not write it.** `perform_entry`
     /// inserts and `cleanup_zone_state` removes.

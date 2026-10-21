@@ -9576,7 +9576,12 @@ Number 277 was withdrawn in #260 and is not reused.
        `PermanentsMatching(f)` is `f` on the battlefield, `CardsInHand(p)` the
        cards in `p`'s hand, `CardsInGraveyard(None)` every graveyard's.
        `AmountExpr::CountOf` and `CardTypesAmong` take an `ObjectSet`, and
-       `Selector` goes.
+       `Selector` goes. TR-5g gave the resolution a `CountOf` (Ajani,
+       Nacatl Avenger's damage), a fourth reader that matches the two
+       permanent selectors as the layer pass does (the owner, at #264's
+       review: no helper on `Selector` while it is going). The layer pass
+       counts a hand by its size and reads no card's frame (CR 402.3), which
+       an `ObjectSet` over the hand must keep.
      - **An object or a player, by id,** is four enums, each `Object(ObjectId)
        | Player(PlayerId)`: `ResolvedTarget` (391 references), `DamageTarget`
        (359), `CounterSubject` (89) and `EventSubject` (78), which TR-5d's

@@ -97,7 +97,7 @@ impl TriggerCondition {
 /// CR 603.2d — "if [an event] causes a triggered ability of [a permanent] to
 /// trigger, that ability triggers an additional time": the body of a static
 /// ability, read off its source's effective ability list as the dispatch
-/// queues what a window triggered (`triggers-architecture.md` §12, TR-5g).
+/// queues what a window triggered.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TriggerMultiplierDef {
     /// "If an artifact or creature entering causes": the event a triggering
@@ -1018,7 +1018,40 @@ impl TriggerEvent {
     /// writes a sacrifice and the death it causes as one record, and CR
     /// 603.2d's count tells them apart by this (Teysa Karlov's fifth ruling).
     pub fn named_act(&self) -> Option<ZoneChangeAct> {
-        if let TriggerEvent::ZoneChange { change, .. } = self { change.act } else { None }
+        match self {
+            TriggerEvent::ZoneChange { change, .. } => change.act,
+            // Every other arm, by name, so a new one says whether it names
+            // an act: none of these records holds two events.
+            TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::DrawsCard { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::DamageDealt { .. }
+            | TriggerEvent::DamageIsPrevented { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::GainsLife { .. }
+            | TriggerEvent::LosesLife { .. }
+            | TriggerEvent::EntersBattlefield { .. }
+            | TriggerEvent::Attacks { .. }
+            | TriggerEvent::Blocks { .. }
+            | TriggerEvent::BecomesTarget { .. }
+            | TriggerEvent::ActivatesAbility { .. }
+            | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::CountersPutOn { .. }
+            | TriggerEvent::CountersRemovedFrom { .. }
+            | TriggerEvent::BecomesAttached { .. }
+            | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::CreatesToken { .. }
+            | TriggerEvent::Scries { .. } => None,
+        }
     }
 
     /// The kinds of record this arm can match — the discriminant half of

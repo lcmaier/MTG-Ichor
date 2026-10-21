@@ -164,21 +164,6 @@ pub enum Selector {
     CardsInGraveyard(Option<PlayerRef>),
 }
 
-impl Selector {
-    /// The filter over permanents a selector of permanents is, "you" left to
-    /// the reader; `None` for one that selects cards elsewhere.
-    pub fn permanent_filter(&self) -> Option<std::borrow::Cow<'_, ObjectFilter>> {
-        match self {
-            Selector::PermanentsMatching(filter) => Some(std::borrow::Cow::Borrowed(filter)),
-            Selector::ControlledCreatures => Some(std::borrow::Cow::Owned(ObjectFilter::And(
-                Box::new(ObjectFilter::ByType(crate::types::card_types::CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
-            ))),
-            Selector::CreaturesInGraveyard(_) | Selector::CardsInHand(_) | Selector::CardsInGraveyard(_) => None,
-        }
-    }
-}
-
 /// Reference to a player in an effect context
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlayerRef {
@@ -1122,24 +1107,43 @@ pub enum TargetCount {
     /// announced, off the trigger's binding or the X announced for the
     /// spell or ability, and fixed from then on.
     UpToAmount(AmountExpr),
+    /// "X target creatures" (CR 601.2c): exactly as many targets as the
+    /// amount, read the same way. Every printed one is the X announced
+    /// before its targets (CR 601.2b).
+    ExactlyAmount(AmountExpr),
+}
+
+/// The fewest and most targets an instance of "target" may have, once its
+/// count is read (CR 601.2c).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetBounds {
+    pub fewest: usize,
+    pub most: usize,
 }
 
 impl TargetCount {
-    /// The fewest and most targets the instance may have, `amount` reading
-    /// a count the text defines as the announcement starts.
-    pub fn bounds(&self, amount: impl FnOnce(&AmountExpr) -> Result<u64, String>) -> Result<(usize, usize), String> {
-        Ok(match self {
+    /// The bounds the instance announces, `amount` reading a count the text
+    /// defines as the announcement starts.
+    pub fn bounds(&self, amount: impl FnOnce(&AmountExpr) -> Result<u64, String>) -> Result<TargetBounds, String> {
+        let (fewest, most) = match self {
             TargetCount::Exactly(n) => (*n as usize, *n as usize),
             TargetCount::UpTo(n) => (0, *n as usize),
             TargetCount::UpToAmount(x) => (0, amount(x)? as usize),
-        })
+            TargetCount::ExactlyAmount(x) => {
+                let n = amount(x)? as usize;
+                (n, n)
+            }
+        };
+        Ok(TargetBounds { fewest, most })
     }
 
-    /// The fewest targets the instance must have, which no amount changes.
+    /// The fewest targets the instance must have before its amount is read:
+    /// none for a count the text defines, whose X may be 0, and which an
+    /// announcement that cannot meet it rewinds (CR 601.2c, 732.1).
     pub fn fewest(&self) -> usize {
         match self {
             TargetCount::Exactly(n) => *n as usize,
-            TargetCount::UpTo(_) | TargetCount::UpToAmount(_) => 0,
+            TargetCount::UpTo(_) | TargetCount::UpToAmount(_) | TargetCount::ExactlyAmount(_) => 0,
         }
     }
 }

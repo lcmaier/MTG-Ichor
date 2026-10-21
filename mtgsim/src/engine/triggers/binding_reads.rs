@@ -258,7 +258,9 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
         // How many targets, where the text defines it: "where X is the number
         // of cards looked at while scrying this way".
         EffectRecipient::Target(_, count) | EffectRecipient::Choose(_, count) => match count {
-            crate::types::effects::TargetCount::UpToAmount(amount) => amount_reads(amount),
+            crate::types::effects::TargetCount::UpToAmount(amount) | crate::types::effects::TargetCount::ExactlyAmount(amount) => {
+                amount_reads(amount)
+            }
             crate::types::effects::TargetCount::Exactly(_) | crate::types::effects::TargetCount::UpTo(_) => TriggerBindingReads::NONE,
         },
         EffectRecipient::ThisObject | EffectRecipient::Host => TriggerBindingReads::SOURCE,

@@ -330,8 +330,9 @@ impl TriggerCandidateFrame<'_> {
         }
     }
 
-    /// The list as a filter reads its object: the frame it was read
-    /// through, which for an object that left says who controlled it then.
+    /// How a filter reads the candidate's object through this frame: off its
+    /// last known information for an object that left, which says who
+    /// controlled it then, and off these characteristics otherwise.
     fn held(&self) -> HeldFrame<'_> {
         match self {
             TriggerCandidateFrame::LastKnown { lki, .. } => HeldFrame::LastKnown(lki),
@@ -420,6 +421,9 @@ enum AnsweredArms {
 }
 
 impl AnsweredArms {
+    /// Whether a list of this kind answers `arm` (CR 603.10): an arm that
+    /// looks back reads the list from before the event, and every other arm
+    /// the list after it.
     fn admits(self, arm: &TriggerEvent) -> bool {
         match self {
             AnsweredArms::All => true,
@@ -1278,8 +1282,8 @@ impl GameState {
             .filter_map(|seq| self.events.record(*seq).map(|r| (*seq, r)))
             .collect();
 
-        // Leg 2: the frames the window carries (CR 603.10a) — the list each
-        // object that left had, asked look-back conditions only.
+        // The frames the window's departures carry (CR 603.10a): the list each
+        // object that left had, asked the arms that look back only.
         let frames: Vec<(&Lki, Zone)> = records.iter().filter_map(|(_, r)| r.event.lki()).map(|(lki, from, _)| (lki, from)).collect();
 
         let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
@@ -1355,8 +1359,9 @@ impl GameState {
         }
     }
 
-    /// Leg 2's candidate: the list an object that left had, off the CR
-    /// 603.10a frame its record carries.
+    /// An object that left in the window, as a candidate: its ability list
+    /// from just before it left, off the CR 603.10a frame its record carries,
+    /// which answers only the arms that look back.
     fn departure_candidate<'a>(&self, lki: &'a Lki, from: Zone) -> TriggerCandidate<'a> {
         // The card of an object that left: in the store for a zone change,
         // gone for a `LeftTheGame` — then the frame's own list is all
@@ -2612,8 +2617,8 @@ impl GameState {
         }
     }
 
-    /// The window's newcomers: a window is one event (§4.1), so each was
-    /// somewhere else immediately before every record of it.
+    /// The window's newcomers: a window is one event, so each was somewhere
+    /// else immediately before every record of it.
     fn window_newcomers(&self, records: &[(EventId, &EventRecord)]) -> Vec<ObjectRef> {
         records.iter().filter_map(|(_, record)| self.newcomer_from(&record.event)).collect()
     }

@@ -369,12 +369,12 @@ impl GameState {
             let legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
             // CR 601.2c: "the number of targets will be defined by the
             // spell's text", and once determined it does not change.
-            let bounds = count.bounds(|amount| self.announced_amount(amount, player_id, this_object, named_objects, x_value))?;
+            let bounds = count.bounds(|amount| self.announced_target_count(amount, player_id, this_object, named_objects, x_value))?;
             let chosen = ask_select_recipients(
                 decisions, self, player_id, recipient, source_id,
-                &legal, bounds.0, bounds.1,
+                &legal, bounds.fewest, bounds.most,
             );
-            self.validate_announced_targets(recipient, &chosen, bounds, player_id, identity)?;
+            self.validate_targets(recipient, &chosen, bounds, player_id, identity)?;
             announced.push(TargetInstance::from_announcement(self, recipient.clone(), &chosen)?);
             earlier_targets.push(chosen);
         }
@@ -384,7 +384,7 @@ impl GameState {
     /// A count of targets the text defines, read as the announcement starts:
     /// "where X is" off the trigger's binding, or the X announced for the
     /// spell or ability (CR 601.2b), or what the board says now.
-    fn announced_amount(
+    fn announced_target_count(
         &self,
         amount: &crate::types::effects::AmountExpr,
         controller: PlayerId,
@@ -394,7 +394,7 @@ impl GameState {
     ) -> Result<u64, String> {
         let mut ctx = crate::engine::resolve::ResolutionContext::untargeted(this_object, controller, crate::events::cause::GeneratedBy::Spell);
         ctx.trigger = named_objects.triggering_event.binding().cloned();
-        self.amount_with_announced_x(amount, &ctx, x_value)
+        self.evaluate_amount(amount, &ctx, x_value)
     }
 
     /// `GameEvent::Targeted` for each distinct object or player the stack

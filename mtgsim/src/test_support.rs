@@ -832,6 +832,19 @@ pub fn registered_source_only(
 // Layer 6 helpers
 // ---------------------------------------------------------------------------
 
+/// The bounds a fixed count of targets announces, for a test that validates
+/// a choice without announcing it; none for a recipient that is no instance
+/// of "target", or a count only an announcement can read.
+pub fn fixed_target_bounds(recipient: &EffectRecipient) -> crate::types::effects::TargetBounds {
+    let none = crate::types::effects::TargetBounds { fewest: 0, most: 0 };
+    match recipient {
+        EffectRecipient::Target(_, count) | EffectRecipient::Choose(_, count) => {
+            count.bounds(|_| Err(String::new())).unwrap_or(none)
+        }
+        _ => none,
+    }
+}
+
 /// A static [`AbilityDef`] carrying `effect`, with a fresh id and the CDA flag
 /// clear.
 ///

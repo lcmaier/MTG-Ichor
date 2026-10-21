@@ -17,7 +17,7 @@ use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Antecedent, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
-    SelectionFilter, TargetCount,
+    SelectionFilter, Selector, TargetCount,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -545,7 +545,7 @@ impl GameState {
             // (`CLAUDE.md`). `FilteredPermanents` is "every permanent matching this
             // **now**", resolved here and ordered for the CR 616.1 prompt and the log.
             Primitive::DealDamage { amount: amount_expr, unpreventable } => {
-                let amount = self.evaluate_amount(amount_expr, ctx)?;
+                let amount = self.evaluate_amount(amount_expr, ctx, None)?;
                 let targets: Vec<DamageTarget> = match recipient {
                     // CR 120.1 — damage is dealt to permanents and players, so
                     // a zone-reaching recipient has nothing to be dealt to.
@@ -622,7 +622,7 @@ impl GameState {
             }
 
             Primitive::DrawCards(amount_expr) => {
-                let count = self.evaluate_amount(amount_expr, ctx)?;
+                let count = self.evaluate_amount(amount_expr, ctx, None)?;
                 // **One instruction per player, whatever `count` is** (CR 121.2a;
                 // Alms Collector's ruling counts the word "draw"), its performer
                 // doing the draws. Players draw in `players_in`'s APNAP order (CR 121.2c).
@@ -641,7 +641,7 @@ impl GameState {
             // card is its own event for Leyline of the Void (CR 614.5). A short
             // library mills what it has (CR 701.17b), every card taken before any moves.
             Primitive::Mill(amount_expr) => {
-                let count = self.evaluate_amount(amount_expr, ctx)? as usize;
+                let count = self.evaluate_amount(amount_expr, ctx, None)? as usize;
                 let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 let batch: Vec<GameAction> = self
                     .get_player(player_id)?
@@ -665,7 +665,7 @@ impl GameState {
             // graveyard: one batch, the cards taken before any moves, so a short
             // library gives as many as there are and an empty one gives nothing.
             Primitive::PutTopCardsIntoHand(amount_expr) => {
-                let count = self.evaluate_amount(amount_expr, ctx)? as usize;
+                let count = self.evaluate_amount(amount_expr, ctx, None)? as usize;
                 let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 let batch: Vec<GameAction> = self
                     .get_player(player_id)?
@@ -689,7 +689,7 @@ impl GameState {
             // card is a CR 616.1 decision of its own (Library of Leng's ruling). CR
             // 701.9b's chooser: `Affected` asks the player, `AtRandom` reads `rng`.
             Primitive::Discard(amount_expr, chooser) => {
-                let count = self.evaluate_amount(amount_expr, ctx)? as usize;
+                let count = self.evaluate_amount(amount_expr, ctx, None)? as usize;
                 let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 let hand = self.get_player(player_id)?.hand.clone();
                 let chosen = match chooser {
@@ -718,14 +718,14 @@ impl GameState {
 
             // CR 701.22 — the instruction, and the performer does the rest.
             Primitive::Scry(amount_expr) => {
-                let n = self.evaluate_amount(amount_expr, ctx)?;
+                let n = self.evaluate_amount(amount_expr, ctx, None)?;
                 let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 self.execute_action(GameAction::Scry { player: player_id, n }, &actx)?;
                 Ok(())
             }
 
             Primitive::GainLife(amount_expr) => {
-                let amount = self.evaluate_amount(amount_expr, ctx)?;
+                let amount = self.evaluate_amount(amount_expr, ctx, None)?;
                 let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 self.execute_action(GameAction::GainLife {
                     player: player_id,
@@ -738,7 +738,7 @@ impl GameState {
             // "Each opponent loses 1 life" is one event, a member each, in the
             // APNAP order `players_in` gave them.
             Primitive::LoseLife(amount_expr) => {
-                let amount = self.evaluate_amount(amount_expr, ctx)?;
+                let amount = self.evaluate_amount(amount_expr, ctx, None)?;
                 let players = self.each_player_acted_on(recipient, targets, ctx);
                 let batch = players
                     .into_iter()
@@ -754,7 +754,7 @@ impl GameState {
             // a Skullcrack refuses. Equal totals propose nothing; a 0 gain is a
             // non-event (CR 119.10) and a 0 loss a no-op.
             Primitive::SetLifeTotal(amount_expr) => {
-                let target = self.evaluate_amount(amount_expr, ctx)? as i64;
+                let target = self.evaluate_amount(amount_expr, ctx, None)? as i64;
                 let player = self.resolve_player_for_self(recipient, targets, ctx);
                 let current = self.get_player(player)?.life_total;
                 if target > current {
@@ -1058,8 +1058,8 @@ impl GameState {
             // === Continuous effect primitives ===
 
             Primitive::ModifyPowerToughness(power_expr, toughness_expr, duration) => {
-                let power = self.evaluate_amount(power_expr, ctx)? as i32;
-                let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
+                let power = self.evaluate_amount(power_expr, ctx, None)? as i32;
+                let toughness = self.evaluate_amount(toughness_expr, ctx, None)? as i32;
                 // CR 608.2h — a resolving spell locks its value in as it
                 // resolves, so this is `Fixed` even though the card text
                 // said "X". Static abilities are the ones that stay live.
@@ -1074,8 +1074,8 @@ impl GameState {
             }
 
             Primitive::SetPowerToughness(power_expr, toughness_expr, duration) => {
-                let power = self.evaluate_amount(power_expr, ctx)? as i32;
-                let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
+                let power = self.evaluate_amount(power_expr, ctx, None)? as i32;
+                let toughness = self.evaluate_amount(toughness_expr, ctx, None)? as i32;
                 self.add_resolution_effect(
                     ctx,
                     Layer::Layer7bSetPT,
@@ -1217,7 +1217,7 @@ impl GameState {
             // def repeated `count` times lets a doubler repeat each def in place
             // (`replacement-architecture.md` §3.1).
             Primitive::CreateToken(token_def, amount_expr) => {
-                let count = self.evaluate_amount(amount_expr, ctx)?;
+                let count = self.evaluate_amount(amount_expr, ctx, None)?;
                 let controller = self.resolve_player_for_self(recipient, targets, ctx);
                 // CR 800.4b — no token is created for a player who has left — and
                 // CR 800.4d's first sentence at the same line, since CR 111.2 makes the
@@ -1561,7 +1561,7 @@ impl GameState {
             // so Winding Constrictor's "if you would get one or more counters"
             // watches it through the one arm.
             Primitive::GetCounters { counter, amount, by } => {
-                let n = self.evaluate_amount(amount, ctx)? as u32;
+                let n = self.evaluate_amount(amount, ctx, None)? as u32;
                 let player = self.resolve_player_for_self(recipient, targets, ctx);
                 let by = self.resolve_player_ref(by, targets, ctx)?;
                 self.execute_action(
@@ -2220,7 +2220,7 @@ impl GameState {
                     }
                 }
                 let count = match &pick.count {
-                    PickCount::Exactly(amount) => self.evaluate_amount(amount, ctx)? as usize,
+                    PickCount::Exactly(amount) => self.evaluate_amount(amount, ctx, None)? as usize,
                 };
                 let n = count.min(candidates.len());
                 let asked = EffectRecipient::Choose(
@@ -2277,7 +2277,7 @@ impl GameState {
                 true => Some(GameAction::AddCounters {
                     subject: CounterSubject::Object(object),
                     counter: *counter,
-                    n: self.evaluate_amount(amount, ctx)? as u32,
+                    n: self.evaluate_amount(amount, ctx, None)? as u32,
                     by: self.resolve_player_ref(by, targets, ctx)?,
                 }),
             },
@@ -2287,7 +2287,7 @@ impl GameState {
                 true => Some(GameAction::RemoveCounters {
                     subject: CounterSubject::Object(object),
                     counter: *counter,
-                    n: self.evaluate_amount(amount, ctx)? as u32,
+                    n: self.evaluate_amount(amount, ctx, None)? as u32,
                     by: Some(ctx.controller),
                 }),
             },
@@ -2476,18 +2476,11 @@ impl GameState {
             .ok_or_else(|| "damage dealt this way has no meaning outside a resolution".to_string())
     }
 
+    /// An amount's value. `announced_x` is the X announced for a spell or
+    /// ability that is not resolving yet (CR 601.2b), which a count of
+    /// targets reads as its targets are announced (CR 601.2c); `None` reads
+    /// the X of the object resolving.
     pub(crate) fn evaluate_amount(
-        &self,
-        expr: &AmountExpr,
-        ctx: &ResolutionContext,
-    ) -> Result<u64, String> {
-        self.amount_with_announced_x(expr, ctx, None)
-    }
-
-    /// [`Self::evaluate_amount`], with the X announced for a spell or ability
-    /// not yet resolving (CR 601.2b), which a count of targets reads as its
-    /// targets are announced (CR 601.2c): one evaluator for both moments.
-    pub(crate) fn amount_with_announced_x(
         &self,
         expr: &AmountExpr,
         _ctx: &ResolutionContext,
@@ -2506,16 +2499,21 @@ impl GameState {
             // "you" the resolution's controller: Ajani, Nacatl Avenger's "the
             // number of creatures you control".
             AmountExpr::CountOf(selector) => {
-                let filter = selector
-                    .permanent_filter()
-                    .ok_or_else(|| format!("CountOf({selector:?}) resolution not yet implemented"))?;
+                let filter = match selector {
+                    Selector::PermanentsMatching(filter) => std::borrow::Cow::Borrowed(filter),
+                    Selector::ControlledCreatures => std::borrow::Cow::Owned(ObjectFilter::And(
+                        Box::new(ObjectFilter::ByType(crate::types::card_types::CardType::Creature)),
+                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    )),
+                    other => return Err(format!("CountOf({other:?}) resolution not yet implemented")),
+                };
                 let counted = self.battlefield_ids_ordered().into_iter().filter(|&id| self.matches_for_effect(id, &filter, _ctx));
                 Ok(counted.count() as u64)
             }
             AmountExpr::CardTypesAmong(_selector) => {
                 Err("CardTypesAmong amount resolution not yet implemented".to_string())
             }
-            AmountExpr::Plus(inner, n) => Ok(self.amount_with_announced_x(inner, _ctx, announced_x)? + n),
+            AmountExpr::Plus(inner, n) => Ok(self.evaluate_amount(inner, _ctx, announced_x)? + n),
             // "You" is the controller, and the text's "this" its source: the
             // permanent whose ability it is (CR 113.7a), not the ability.
             AmountExpr::History(span, history) => {
@@ -2622,7 +2620,7 @@ impl GameState {
             // number and the factor is printed on a card, and a debug panic or a
             // release wrap is not an answer. `AmountRewrite::Multiplier` saturates too.
             AmountExpr::Multiply(inner, n) => {
-                Ok(self.amount_with_announced_x(inner, _ctx, announced_x)?.saturating_mul(*n))
+                Ok(self.evaluate_amount(inner, _ctx, announced_x)?.saturating_mul(*n))
             }
             // CR 103.4's number is the game's, and never below zero.
             AmountExpr::StartingLifeTotal => Ok(self.starting_life.max(0) as u64),
@@ -3043,8 +3041,8 @@ mod tests {
         let game = GameState::new(2, 20);
         let ctx = ResolutionContext::untargeted(crate::types::ids::ObjectId::UNASSIGNED, 0, GeneratedBy::Spell);
         let twice_x_plus_one = AmountExpr::Plus(Box::new(AmountExpr::Multiply(Box::new(AmountExpr::X), 2)), 1);
-        assert_eq!(game.amount_with_announced_x(&twice_x_plus_one, &ctx, Some(3)), Ok(7));
-        assert!(game.evaluate_amount(&AmountExpr::X, &ctx).is_err());
+        assert_eq!(game.evaluate_amount(&twice_x_plus_one, &ctx, Some(3)), Ok(7));
+        assert!(game.evaluate_amount(&AmountExpr::X, &ctx, None).is_err());
     }
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
