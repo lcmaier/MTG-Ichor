@@ -536,7 +536,7 @@ impl GameState {
             // owned, with ten poison counters) is proposed, replaced and re-proposed
             // at every check. No legitimate chain comes near the limit.
             if checks >= MANDATORY_LOOP_CHECKS && self.result.is_none() {
-                self.result = Some(GameResult::Draw);
+                self.end_game(GameResult::Draw);
                 break;
             }
         }

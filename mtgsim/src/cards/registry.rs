@@ -34,6 +34,7 @@ use super::phase_tr5a_cards;
 use super::phase_tr5b_cards;
 use super::phase_tr5c_cards;
 use super::phase_tr5d_cards;
+use super::phase_tr5g_cards;
 use super::phase_ma2_cards;
 use super::phase_tr5e_cards;
 use super::phase_tr5f_cards;
@@ -68,7 +69,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 120] = [
+const PERFORMANCE_POOL: [&str; 121] = [
     "Plains",
     "Island",
     "Swamp",
@@ -567,6 +568,12 @@ const PERFORMANCE_POOL: [&str; 120] = [
     // read in the same resolution after its damage's window, and X. Any
     // creature it hits for more than its toughness makes Goblins.
     "Goblin Negotiation",
+    // TR-5g's: CR 603.2d's count, asked of every window that triggers
+    // something while one is on the battlefield. No agent choice: it doubles
+    // what its controller's permanents trigger on an artifact or creature
+    // entering. Registered alone it moved `stress` games by about a turn
+    // either way and no game ended differently in kind.
+    "Panharmonicon",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -1011,6 +1018,11 @@ impl CardRegistry {
         // The damage and excess a resolution dealt "this way": Goblin
         // Negotiation makes a Goblin for each point past lethal.
         registry.register("Goblin Negotiation", phase_tr5d_cards::goblin_negotiation);
+
+        // TR-5g: CR 603.2d's count. Panharmonicon doubles every triggered
+        // ability of its controller's permanents that an artifact or
+        // creature entering causes, its own entry and one beside it included.
+        registry.register("Panharmonicon", phase_tr5g_cards::panharmonicon);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,
@@ -1308,6 +1320,29 @@ mod tests {
         }
     }
 
+    /// Every registered trigger multiplier is one the count can read (CR
+    /// 603.2d): an event or none, and at least one more time.
+    #[test]
+    fn every_trigger_multiplier_names_an_event_and_a_count() {
+        use crate::objects::card_data::AbilityDef;
+        let registry = CardRegistry::default_registry();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            let mut copy = (*card).clone();
+            for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
+                let check = |def: &AbilityDef| {
+                    if let Some((_, multiplier)) = def.effect.as_trigger_multiplier() {
+                        assert_eq!(multiplier.refusal(), None, "{name} ability #{i}");
+                    }
+                };
+                check(ability);
+                ability.effect.for_each_ability_def_mut(&mut |def: &mut AbilityDef| check(def));
+            }
+        }
+    }
+
     /// Every event role a registered trigger names is one every arm of its
     /// condition has (TR-5a's decision 2): "that creature" after a dies
     /// trigger is the card that moved, and no dies record has a recipient. A
@@ -1352,7 +1387,8 @@ mod tests {
                 Effect::Atom(..)
                 | Effect::Replacement(_)
                 | Effect::Restriction(_)
-                | Effect::CostModification(_) => {}
+                | Effect::CostModification(_)
+                | Effect::TriggerMultiplier(_) => {}
             }
         }
 
@@ -1468,7 +1504,8 @@ mod instance_references {
                     Effect::Triggered(def) => stack.push(&def.effect),
                     Effect::Replacement(_)
                     | Effect::Restriction(_)
-                    | Effect::CostModification(_) => {}
+                    | Effect::CostModification(_)
+                    | Effect::TriggerMultiplier(_) => {}
                 }
             }
         }

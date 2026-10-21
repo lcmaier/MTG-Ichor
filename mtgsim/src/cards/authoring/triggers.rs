@@ -13,7 +13,7 @@
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
 use crate::state::game_state::StepType;
 use crate::types::effects::{
-    Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder,
+    Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, TokenDef,
 };
 use crate::types::history::CountIs;
 use crate::types::replacement::EntryCounters;
@@ -203,7 +203,8 @@ impl CountableEvent {
             | TriggerEvent::Blocks { multiplicity, .. }
             | TriggerEvent::BecomesTarget { multiplicity, .. }
             | TriggerEvent::CountersPutOn { multiplicity, .. }
-            | TriggerEvent::CountersRemovedFrom { multiplicity, .. } => {
+            | TriggerEvent::CountersRemovedFrom { multiplicity, .. }
+            | TriggerEvent::CreatesToken { multiplicity, .. } => {
                 *multiplicity = Multiplicity::OncePerEvent
             }
             TriggerEvent::BecomesTapped { .. }
@@ -221,7 +222,8 @@ impl CountableEvent {
             | TriggerEvent::ControlChanges { .. }
             | TriggerEvent::ActivatesAbility { .. }
             | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. } => {
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::Scries { .. } => {
                 unreachable!("only an arm with a multiplicity becomes a CountableEvent")
             }
         }
@@ -330,6 +332,23 @@ fn reflexive(form: ReflexiveForm, event: TriggerEvent, effect: Effect, rules_tex
         turn: DelayedTurn::NoneNamed,
         rules_text: rules_text.into(),
     }
+}
+
+/// "Whenever [whose player] create[s] a token" (CR 111.2, 701.7a), one
+/// trigger per token, or "one or more tokens". After "create [a token]",
+/// "when you do" names the instruction's `definition`, which a replacement
+/// that made another token instead does not match.
+pub fn creates_a_token(whose: Whose, definition: Option<TokenDef>) -> CountableEvent {
+    CountableEvent(TriggerEvent::CreatesToken {
+        owner: whose.player_ref(),
+        definition: definition.map(Box::new),
+        multiplicity: Multiplicity::PerOccurrence,
+    })
+}
+
+/// "Whenever [whose player] scr[y/ies]" (CR 701.22).
+pub fn scries(whose: Whose) -> TriggerEvent {
+    TriggerEvent::Scries { player: whose.player_ref() }
 }
 
 /// "Whenever [whose player] draw[s] a card" (CR 121.1): one trigger per card

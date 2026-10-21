@@ -4939,3 +4939,362 @@ the phase as designed: the review's items 289 and 290 and Goblin
 Negotiation took it into the 1,500–2,500 band. Twenty-six integration tests
 in `phase_tr5d_integration_test`, and a unit test in
 `engine::triggers::binding`.
+
+#### TR-5g — the multiplier, tokens and scry — ✅ landed 2026-10-20
+
+*Evicted 2026-10-20 from `plans/triggers-architecture.md` §12, where the heading and a stub remain.*
+
+### The plan as designed (TR-5g, as §12 carried it on 2026-10-20)
+
+*Split from TR-5d at its design (2026-10-18), now in the archive's
+"TR-5d", and designed with it for one review. It reads nothing TR-5h or
+TR-5d builds, and is built after them. Nothing built.*
+
+**Where it sits.** Three readers, of two records and one static ability.
+`TokenCreated` has no arm, and does not say which definition made its token
+(§3.12a's `TokenCreated` row). `Scried` has no arm. And CR 603.2d's
+"triggers an additional time" changes how many triggers one match makes,
+after the dispatch has matched and before it queues
+(`engine/triggers/dispatch.rs:703`). §4.4 holds the multiplier's design, and
+this re-reads it against the rulings and the tree.
+
+**What the re-read found**
+
+*The multiplier* (CR 603.2d and 603.10; the rulings of Panharmonicon,
+Gandalf the White, Teysa Karlov, Yarok, the Desecrated and Elesh Norn,
+Mother of Machines; 38 cards, `o:"triggers an additional time"`)
+- **What one says.** An event that causes the trigger (Panharmonicon's "an
+  artifact or creature entering", Teysa's "a creature dying", Gandalf's "a
+  legendary permanent or an artifact entering or leaving the battlefield"),
+  whose triggered ability it doubles ("of a permanent you control", Roaming
+  Throne's "of another creature you control of the chosen type"), and how
+  many more times ("an additional time"). Some name no event: Roaming Throne,
+  Twinflame Travelers, Delney.
+- **The trigger event, not the arm's words.** "The trigger event doesn't
+  have to specifically refer to legendary permanents or to artifacts"
+  (Gandalf #9; Teysa #3): "whenever a creature dies" triggers twice when an
+  artifact creature dies. And the object is read as it was on the battlefield
+  (Gandalf #10, Teysa #6). So the multiplier asks its own event of each
+  triggering record, with the frames its own arm reads. A leaving is read off
+  the departure's frame, even where the doubled arm, "from anywhere", reads
+  the object after the move (item 251; §3.12a's note on Compost).
+- **An act is a different event.** "An ability that triggers 'whenever you
+  sacrifice a creature' triggers only once" (Teysa #5). The engine writes a
+  sacrifice and the death it causes as one `ZoneChange` record, whose act is
+  `Sacrifice`, so a record that matches the multiplier's event is not
+  enough: the doubled arm must not name an act the multiplier's arm does not.
+- **When the multiplier must exist.** A permanent entering with Panharmonicon,
+  Panharmonicon included, is doubled (#7; Yarok #3, Elesh Norn #7). A creature
+  dying with Teysa, Teysa included, is doubled (Teysa #8), and so is the
+  trigger of a permanent that leaves with it (#7). CR 603.10 says which board
+  is read: the continuous effects after the event for an ordinary trigger,
+  and the abilities as they existed immediately before for one that looks
+  back. So the multiplier is read off the board the doubled arm reads.
+- **The rest of §4.4 holds.** Only an object's own triggered abilities, never
+  a delayed or reflexive one (CR 603.2d's last sentence), a replacement
+  (#2) or an "as enters" (#3). Additive (#6). Each instance is its own
+  trigger, with its own choices, targets and "may" (#5). "This ability
+  triggers only once each turn" is read before the multiplier, and "do this
+  only once each turn" after. Linked abilities (#8, #9) are `backlog.md`
+  §2.2's.
+- **A triggered mana ability is multiplied too.** CR 605.1b makes a trigger
+  on a mana ability's activation or resolution that could add mana a mana
+  ability, which resolves at once rather than queuing (§4.7). Vorinclex,
+  Voice of Hunger's "whenever you tap a land for mana, add one mana of any
+  type that land produced" is one, and so is Kinnan, Bonder Prodigy's for a
+  nonland permanent. A multiplier that names no event reaches one: Roaming
+  Throne naming Praetor beside Vorinclex makes a Forest tap for three, and
+  Delney, Streetwise Lookout doubles Kinnan, a 2/2. So the count reaches
+  that path as well as the queue. Birgi, God of Storytelling's "whenever you
+  cast a spell, add {R}" triggers on a cast, not a mana ability, and "uses
+  the stack" (its first ruling): Roaming Throne naming God doubles it
+  through the queue.
+
+*Tokens* (CR 111.2, 111.13, 701.7 and 603.12; Ajani, Nacatl Avenger's rulings)
+- **Ajani's "when you do" asks for the definition.** Under Doubling Season the
+  reflexive trigger triggers once for each Cat Warrior; under Divine
+  Visitation, which creates Angels instead, not at all (#8). Both creations
+  announce `TokenCreated` records that look alike, so the record says which
+  definition made the token (§3.12a's `TokenCreated` row). The 47 "when you
+  do" creations (`o:"when you do" o:create o:token`) read the same way.
+- **Few triggers read creation itself**: "whenever you create one or more
+  tokens" (2 cards) and "whenever you create a [kind] token" (3). "Whenever one
+  or more tokens you control enter" (9) is the entry arm over `Token`, never
+  this (item 8). A copy of a permanent spell is no creation (CR 111.13) and
+  writes no record already.
+- **The definition does not reach the emitter.** `announce_token_created`
+  (`engine/actions.rs:2074`) has two callers, the entry's token arm and
+  `CreateTokenIn`, and neither has it: `create_tokens` lowered it to the
+  object's printed `CardData` and proposed the entries
+  (`engine/actions.rs:2174`).
+
+*Scry* (CR 701.22; Elrond, Master of Healing's rulings)
+- **X is what was looked at.** A scry 3 with two cards in the library makes
+  X 2 (#1), which `Scried.looked_at` holds. A scry 0 is no event (CR 701.22b)
+  and writes no record already. 21 cards say "whenever you scry"; Celeborn
+  the Wise, Elminster, Elrond and Elvish Mariner read the cards looked at.
+- **Elrond's X is a count of targets**: "each of up to X target creatures".
+  CR 601.2c lets a spell, and through CR 603.3d a triggered ability, have a
+  variable number of targets, "defined by the spell's text", and
+  `TargetCount` holds only fixed ones (`Exactly(u32)`, `UpTo(u32)`). 26 cards
+  say "up to X target ... where X" (`o:"up to X target" o:"where X"`), Elvish
+  Mariner among the scry four. A fixture that put X counters on one target
+  would test the arm and not the card.
+- Elrond #2 is about its second ability, TR-5c's targeting arm, and is
+  tested on the same fixture.
+
+**The pieces**
+1. **`Effect::TriggerMultiplier`**, the fourth static shape with no layer
+   rows, beside `Replacement`, `Restriction` and `CostModification`:
+   ```rust
+   /// CR 603.2d — "triggers an additional time". Read off the source's
+   /// effective ability list as the dispatch queues what a window triggered.
+   TriggerMultiplier(Box<TriggerMultiplierDef>),
+
+   pub struct TriggerMultiplierDef {
+       /// "If an artifact or creature entering causes": the event a
+       /// triggering event must be, or any of several ("entering or
+       /// leaving"). `None` for one that names no event (Roaming Throne).
+       pub caused_by: Option<TriggerCondition>,
+       /// "A triggered ability of a permanent you control": the permanent
+       /// whose ability it is, whose "you" is this ability's controller.
+       pub abilities_of: ObjectFilter,
+       /// "An additional time" is 1.
+       pub additional: u32,
+   }
+   ```
+   - **Three legs**, `cost_modifications_for`'s
+     (`engine/cost_determination/gather.rs:56`). Printed is a source set that
+     `register_static_effects` files on the battlefield and a permanent
+     leaving empties. Granted and copied are two summary flags
+     (`state/continuous_effects.rs:311`). About ten exhaustive matches over
+     `Effect` take the variant.
+   - The registry refuses a `State` condition and an `additional` of 0.
+2. **The count at the queue.** `queue_matches` asks, of each object's match,
+   how many more times it triggers, and queues one `PendingTrigger` more for
+   each, with its own `TriggerSeq` and `AbilityTriggered` record. A
+   multiplier adds its `additional` when all three hold:
+   - **It is on the board the matched arm reads**: the battlefield now; or,
+     for an arm that looks back, the battlefield as the window's frames had
+     it before the event, through the frames the dispatch reads a look-back
+     candidate through (each permanent that left in the window, off its
+     departure's frame, and none that entered in it).
+   - **The trigger's source is a permanent `abilities_of` admits**, read as
+     the candidate frame the dispatch read it through: on the battlefield, or
+     off its frame from the battlefield (Teysa #1 and #7). A card's ability
+     in another zone is no permanent's.
+   - **`caused_by` is `None`, or one of the match's triggering records
+     matches it**, through `triggering_events_in` with the multiplier's own
+     referents, and the matched arm names no act its arm does not (Teysa #5).
+   - **The gate.** A window with no match asks nothing, and a match asks only
+     while the source set is non-empty, a flag is set, or a departure frame
+     in the window carries the ability. So a board with none pays one set
+     check per window that triggered something.
+   - **The mana path.** A match that `is_mana_ability` makes a mana ability
+     resolves at once, as many times as it triggered (§4.7).
+   - **Delayed and reflexive triggers are queued by `queue_delayed`**, which
+     the count never reaches (CR 603.2d).
+   - **The audit leg** (§4.10). The audit re-derives each match's count with
+     every object that could carry the ability swept and no set or flag
+     consulted, and the two counts must agree.
+3. **Panharmonicon**, registered and pooled. {4} artifact: `caused_by:
+   Some(Event(EntersBattlefield { subject: Filter(Or(ByType(Artifact),
+   ByType(Creature))), .. }))`, `abilities_of: ByController(You)`,
+   `additional: 1`. **Gandalf the White, a fixture**: its third ability, its
+   `caused_by` the entering and the leaving (`ZoneChange { from: Battlefield,
+   to: None }`) of `Or(BySupertype(Legendary), ByType(Artifact))`. Its flash
+   and its permission to cast as though with flash are PM's.
+4. **The token arm**, §3.3's row:
+   ```rust
+   /// "Whenever you create one or more tokens" (CR 111.2, 701.7a). A
+   /// reflexive "when you do" after "create a [token]" names its definition,
+   /// so a creation a replacement changed to another is not "that action"
+   /// (Ajani, Nacatl Avenger's eighth ruling).
+   CreatesToken { owner: Option<PlayerRef>, definition: Option<Box<TokenDef>>, multiplicity: Multiplicity },
+   ```
+   - **The record carries its definition**: `TokenCreated { object_id, owner,
+     zone, definition: Arc<TokenDef> }`, 8 bytes inside the 72
+     `the_event_keeps_its_size` pins. `create_tokens` keeps each object's
+     definition on `GameState` while its entries perform, saved and restored
+     for a nested creation as `prevention_allocations` is, and
+     `announce_token_created` takes it from there. 17 sites, most of them a
+     match with `..`.
+   - *Set aside:* the token object keeping its definition, which every clone
+     would carry for every token, for a fact read once, at the creation; and
+     the definition on the entry proposal, which would grow `GameAction`.
+   - `zone` leaves §3.3's row, since no printed trigger asks where a token
+     was created. The event role is `Object`, the token, and "that many" is
+     one a record.
+   - **Ajani, Nacatl Avenger, a fixture**: its 0 ability as an activated
+     ability, since loyalty abilities are CP-2's (item 283). Create a 2/1
+     white Cat Warrior; then a reflexive `CreatesToken { owner: Some(You),
+     definition: Some(cat_warrior), .. }`, with the intervening "if you
+     control a red permanent other than" this, deals damage equal to the
+     number of creatures you control to any target.
+5. **The scry arm**:
+   ```rust
+   /// "Whenever you scry" (CR 701.22): one record per scry, and none for a
+   /// scry 0 (CR 701.22b). "The number of cards looked at while scrying this
+   /// way" is the record's `looked_at` (Elrond, Master of Healing's first
+   /// ruling).
+   Scries { player: Option<PlayerRef> },
+   ```
+   "That many" is `looked_at`. A scry names no object, so it has no event
+   role.
+6. **A count of targets the text defines** (CR 601.2c, 603.3d):
+   ```rust
+   /// "Up to X target creatures, where X is ...": read as the targets are
+   /// announced, off the trigger's binding or the spell's announced X.
+   UpToAmount(AmountExpr),
+   ```
+   `TargetCount` stops being `Copy`. Its two consumers
+   (`engine/put_on_stack.rs:368`, `engine/targeting.rs:465`) read the amount
+   as the announcement starts, and the validation reads the count announced.
+   **Elrond, Master of Healing, a fixture**: both abilities, each with its
+   ruling.
+   - *Set aside:* Elrond's fixture with X as a count of counters on one
+     target, about 100 lines less, which tests the arm and leaves the count
+     to its first registered card.
+
+**Planned shapes corrected here, with no decision**
+- **§4.4's `TriggerMultiplierDef { caused_by: TriggerEvent, source:
+  ObjectFilter, additional }`.** `caused_by` takes a `TriggerCondition`, for
+  Gandalf's two events, and is optional. `source` is named `abilities_of`,
+  since it filters the doubled ability's permanent and not the multiplier's.
+- **§3.3's `CreatesToken { owner, zone, kind: Option<TokenKind>,
+  multiplicity }`** drops `zone`, and names `kind` `definition`, which the G2
+  amendment says it is.
+
+**Not in this phase**
+- A token arm over the token's characteristics ("whenever you create an
+  artifact token", 3 cards), with its first card.
+- Strict Proctor's `AbilityTriggers.caused_by` asks only the record's kind
+  (`engine/triggers/dispatch.rs:1846`). The multiplier's reading would serve
+  it, and CP-1 builds the card.
+- Elesh Norn, Mother of Machines' "permanents entering don't cause abilities
+  of permanents your opponents control to trigger" is a "can't" on
+  triggering (CR 101.2), not a multiplier, with its first card.
+
+**Sized**
+
+| Piece | Code | Tests |
+|---|---|---|
+| 1. The variant, its def, ~10 matches, the three legs | ~55 | — |
+| 2. The count: the board each arm reads, the three tests, the sum, the instances, the mana path, the audit leg | ~110 | — |
+| 3. Panharmonicon; Gandalf's fixture; 1–3 tested | ~25 | ~460: ATOM-603.2d-001; Panharmonicon #1–#7; Gandalf #9 against a "from anywhere" arm, and #8 dying beside an artifact; a sacrifice (Teysa #5's shape); a capped trigger; "do this only once" doubled; a delayed trigger not; a triggered mana ability; the granted and copied legs; an opponent's Panharmonicon |
+| 4. The token arm, the record's definition, the creation's table; Ajani's fixture | ~75 | ~160: Ajani #7 and #8 (Doubling Season, Divine Visitation); the "if" failing; "one or more tokens" once |
+| 5. The scry arm; Elrond's fixture | ~40 | ~130: Elrond #1 and #2; a scry 0; an opponent's scry |
+| 6. The count of targets | ~50 | ~50: fewer than X chosen; an X of 0 |
+| **Whole: 1,330–1,510** | ~355 (530–710) | ~800 |
+
+Docs at the close-out, about 350: the stub and the archive,
+`fuzz-record.md`'s block, §3.3's two rows, and §4.4's paragraph.
+
+**Predictions for the close-out** (re-stated before `close_out.py`)
+- *The engine arm, against `main`.* Every gameplay row identical, both pools,
+  two seats and four: no registered card names a multiplier, a token's
+  definition or a scry until the registrations. Instructions per decision
+  within ±0.3%, from one set check per window that triggered.
+- *The shipped arm.* Every dealt game moves once Panharmonicon is pooled, and
+  its stress distortion is reported. It doubles every entering trigger its
+  controller's permanents have, so more triggers per game are expected.
+
+**The three together.** TR-5h, TR-5d, then TR-5g, at 1,630–1,920, 880–1,000
+and 1,330–1,510. TR-5d and TR-5g built as one would be 2,210–2,510, at the
+band's edge, and TR-5c landed 11% past its sizing's top, TR-5b 14% and TR-5f
+28%. So they stay apart, and each tracks the band at each commit and stops
+at 2,500 to say so. Item 275 goes with TR-5d, the first to move the random
+agent's stream, since TR-5h registers nothing. The brief's cards split with
+them: Selfless Squire and ATOM-120.10-001 are TR-5d's, and Panharmonicon
+and ATOM-603.2d-001 TR-5g's.
+
+### As landed (2026-10-20)
+
+**Built as designed.** Five engine commits on #264, then Panharmonicon's
+registration and its pooling as two, so its stress distortion was read
+registered and unpooled first: the variant and its three legs, the count at
+the queue, Panharmonicon unregistered with the count's tests, the token and
+scry arms with the record's definition, and the count of targets with
+Elrond's fixture.
+
+**What the build corrected.**
+- **The count reads the dispatch's own candidates.** `match_candidates` now
+  says which candidate each match is of, and the count reads the trigger's
+  source through it: on the battlefield, or off its frame from it (Teysa
+  Karlov's first and seventh rulings). `find_matches`' candidate building is
+  split into `lists_before`, `push_live_candidates` and
+  `departure_candidate`, which the multiplier candidates share, and
+  `AnsweredArms::admits` is the one test the match and the board read. A
+  look-back snapshot holds the multipliers too, so a survivor's is read as
+  it was before the batch.
+- **A capped ability queues once, whatever the count**, and "do this only
+  once" doubled acts once and asks nothing the second time.
+- **The resolution's `CountOf` was never built.** "The number of creatures
+  you control" errored at resolution; the layer pass alone counted it. Both
+  now read `Selector::permanent_filter`.
+- **A token's entry has one maker.** Two fixtures (`phase_rc4`'s Containment
+  Priest, `phase_rc`'s token entry) proposed a token's entry by hand; each
+  now creates it, with the claim it made.
+- **A reflexive trigger needs a resolution**, so Ajani's fixture is an
+  activated ability resolved off the stack, its loyalty CP-2's.
+- **The ask enforces the announced bound**: a provider that returns more
+  targets than X breaks its contract, so "more than X" is a `should_panic`
+  test on the bound rather than a refusal.
+- **`check_rulings.py` matched a card only by its full name**, so no
+  double-faced card could be cited by a face's; it now maps each face's name
+  to its card.
+
+**At the close-out.** Two sittings, the second after the review's code.
+The engine arm read IDENTICAL on both pools at two seats and four in both,
+at +0.21% and then +0.18% instructions per decision; the shipped arm before
+and after the review played the same games, cost rows included. The audited
+smoke ran clean. `history_held_test` read 3,877 B a turn. The release clone
+test failed on shipped's decks: `performance` 12353 at four seats ends with
+31 Sphere Grid triggers waiting, one allocation each, 82 in all against 64,
+and the same game clones at 68 and 77 at two trigger-ordering prompts
+mid-turn. A pending trigger's binding holds its events in a `Vec`; no
+multiplier is involved, and `roadmap-v2.md` B10 names the class.
+
+**The model pass** (`plans/references/duplicate-inventory.md` §3.10) named
+12 facts and a mirror. Four already disagreed, all in the branch's new code,
+and were fixed (T31-T34), with the mirror; four were merged (T35-T38); the
+rest are kept there with their reasons.
+
+**What the review changed** (the owner, 2026-10-20). The clone reading is
+B10's, a batch of triggers mid-turn, and storm's copies are the same shape,
+so keeping one triggering event inline would have fixed one board and not
+the class. A finished game drops its waiting triggers instead (CR 104.1:
+nobody receives priority to put them on the stack), through
+`GameState::end_game`, which became the result's one writer; the test's end
+checkpoint then reads the board, 50 allocations for 12353. The readings and
+the per-object costs went to `codebase-state.md` item 183, and B10's design
+moved up to right after TR-5g.
+
+**Review round 1** (the owner, 2026-10-20, on #264).
+- `evaluate_amount` takes the announced X itself, where a second entry point
+  had to be known to be called; `TargetBounds { fewest, most }` names the
+  bounds' pair, and `validate_targets` is one function taking them.
+- `Selector::permanent_filter` came out: item 291 retires `Selector` for
+  `ObjectSet` at A6e, and a helper on it grew what is going. The
+  resolution's `CountOf` matches its two permanent selectors itself.
+- `TargetCount::ExactlyAmount`, "X target creatures": 85 printed cards
+  (`o:"X target" -o:"up to X target"`), each with X paid, the sibling of
+  `UpToAmount`, so it shipped with the type.
+- Teysa Karlov became a fixture, her rulings #1 and #3 to #9 tested on her
+  own board, #5's sacrifice among them. `named_act` was made an exhaustive
+  match and put back at round 2 (the owner: a smell): a keyword action is
+  defined as the move it makes (CR 701), so only a zone change carries an
+  act, and the act rule needs no second record.
+- A trace page, `plans/traces/tr-5g-a-multiplier-is-read-where-its-trigger-looks.html`:
+  the three kinds of ability list, which arms each answers, and the count
+  reading multipliers through them, on three traced boards.
+
+**What it leaves.** B10's design, next; no new item, and the intake list was
+empty.
+
+**Size.** +1,781/−251 in code and tests (code +905/−201, of it
+Panharmonicon and its registration +140; tests +876/−50), against
+1,330–1,510 as designed: the review's four fixes and the resolution's
+`CountOf` took it past the design and inside the 1,500–2,500 band.
+Thirty-two integration tests in `phase_tr5g_integration_test`, four unit
+tests, and two fixtures moved onto the creation.

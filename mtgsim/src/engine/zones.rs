@@ -519,6 +519,9 @@ impl GameState {
             self.restriction_ability_sources.remove(&id);
             // And the cost-effect sweep's, for the same reason again.
             self.cost_modification_ability_sources.remove(&id);
+            // And the count's (CR 603.2d). A multiplier that left in the
+            // window is read off its departure's frame, never this set.
+            self.trigger_multiplier_sources.remove(&id);
             // And the trigger dispatcher's. Its look-back conditions read the
             // CR 603.10a frame the record carries, never this set.
             self.trigger_sources.remove(&id);

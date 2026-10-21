@@ -138,7 +138,7 @@ impl GameState {
     ) -> Result<(), String> {
         let mut mana = Vec::with_capacity(output.mana.len());
         for (mana_type, amount) in &output.mana {
-            mana.push((*mana_type, self.evaluate_amount(amount, resolution)?));
+            mana.push((*mana_type, self.evaluate_amount(amount, resolution, None)?));
         }
         let ManaProducer { id: source, tapped_for_mana, lki } = producer;
         let special = output.special.clone();

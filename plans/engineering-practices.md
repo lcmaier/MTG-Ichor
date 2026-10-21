@@ -1591,7 +1591,9 @@ no library the moment a Colossus is in one, which is this section's own
 trigger — a question the diff could not answer), RG ✓ (decided *no* at its
 close and reversed at its review, 2026-09-29, the same way: the design and the
 new code in `pipeline.rs` could not be linked from the diff),
-**RS-2, critical-path item 6**. Budget
+TR-5g ✓ (decided at its review, 2026-10-20, the same way: the owner asked
+how the dispatcher's candidate lists work, and the count reads multipliers
+through them), **RS-2, critical-path item 6**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 

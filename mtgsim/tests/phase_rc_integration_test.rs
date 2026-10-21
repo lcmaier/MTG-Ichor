@@ -25,7 +25,7 @@ use mtgsim::types::effects::{ObjectSet, CounterType, Effect, ObjectFilter};
 use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{
-    EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite,
+    EnterModsTemplate, EventPattern, ReplacementDef, Rewrite,
 };
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
@@ -618,36 +618,21 @@ fn test_zone_change_is_announced_before_the_entry() {
     assert_eq!(batches[0], batches[1], "one event, one batch");
 }
 
-/// A token's entry, built by hand: no `from`, because the object was created
-/// in the battlefield zone — the shape `Primitive::CreateToken` proposes
-/// through `propose_entry`.
+/// A token's entry: no `from`, because the object was created in the
+/// battlefield zone. Its creation proposes it (`GameAction::CreateTokens`, the
+/// only maker of one, whose definition the creation's record carries), and
+/// the token's own entry ability is gathered and applied.
 #[test]
-fn test_direct_enter_battlefield_action_still_performs() {
+fn test_a_tokens_entry_gathers_its_own_ability() {
     let mut game = setup_two_player_game();
+    let mut definition = mtgsim::cards::phase_re_cards::goblin_token();
+    definition.abilities = enters_with("Token-ish", 2, 2, EnterModsTemplate::tapped()).abilities.to_vec();
 
-    // The one shape a caller may build by hand: a token, created directly on
-    // the battlefield, which `Primitive::CreateToken` does through
-    // `propose_entry`.
-    let data = enters_with("Token-ish", 2, 2, EnterModsTemplate::tapped());
-    let obj = mtgsim::objects::object::GameObject::new(data, 0, Zone::Battlefield);
-    let id = game.add_object(obj);
+    let create = GameAction::CreateTokens { defs: vec![definition], controller: 0, attacking: None };
+    game.execute_action(create, &ActionContext::new(&test_dp())).expect("it performs");
 
-    game.execute_action(
-        GameAction::EnterBattlefield {
-            object: id,
-            from: None,
-            controller: 0,
-            mods: EnterMods::NONE,
-            act: None,
-        },
-        &ActionContext::new(&test_dp()),
-    )
-    .expect("it performs");
-
-    assert!(
-        game.battlefield.get(&id).unwrap().tapped,
-        "its own ability was gathered and applied"
-    );
+    let token = game.battlefield_ids_ordered()[0];
+    assert!(game.battlefield[&token].tapped, "its own ability was gathered and applied");
 }
 
 // ---------------------------------------------------------------------------

@@ -208,7 +208,7 @@ impl GameState {
         // `OtherThanInstance` clause reads the instances already announced —
         // Incremental Growth's second creature has to know the first.
         let targets = match self.announce_targets(
-            player_id, card_id, card_id, instances, ConditionReferents::NONE, decisions,
+            player_id, card_id, card_id, instances, ConditionReferents::NONE, has_x.then_some(x_value), decisions,
         ) {
             Ok(targets) => targets,
             Err(e) => {
@@ -336,7 +336,8 @@ impl GameState {
     /// `source_id` is the object on the stack, which CR 115.5 makes no target
     /// of its own; `this_object` is the object the text's "this" names (CR
     /// 113.7a), which "another target" excludes — the spell itself, or the
-    /// permanent whose ability is announced.
+    /// permanent whose ability is announced. `x_value` is the X announced
+    /// before the targets (CR 601.2b), which a count of targets may read.
     pub(crate) fn announce_targets(
         &self,
         player_id: PlayerId,
@@ -344,6 +345,7 @@ impl GameState {
         this_object: ObjectId,
         instances: &[EffectRecipient],
         named_objects: crate::engine::layers::condition::ConditionReferents<'_>,
+        x_value: Option<u64>,
         decisions: &dyn DecisionProvider,
     ) -> Result<Vec<TargetInstance>, String> {
         let mut announced = Vec::with_capacity(instances.len());
@@ -365,19 +367,34 @@ impl GameState {
             )
             .naming(named_objects);
             let legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
-            let (min_sel, max_sel) = match count {
-                crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
-                crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
-            };
+            // CR 601.2c: "the number of targets will be defined by the
+            // spell's text", and once determined it does not change.
+            let bounds = count.bounds(|amount| self.announced_target_count(amount, player_id, this_object, named_objects, x_value))?;
             let chosen = ask_select_recipients(
                 decisions, self, player_id, recipient, source_id,
-                &legal, min_sel, max_sel,
+                &legal, bounds.fewest, bounds.most,
             );
-            self.validate_targets(recipient, &chosen, player_id, identity)?;
+            self.validate_targets(recipient, &chosen, bounds, player_id, identity)?;
             announced.push(TargetInstance::from_announcement(self, recipient.clone(), &chosen)?);
             earlier_targets.push(chosen);
         }
         Ok(announced)
+    }
+
+    /// A count of targets the text defines, read as the announcement starts:
+    /// "where X is" off the trigger's binding, or the X announced for the
+    /// spell or ability (CR 601.2b), or what the board says now.
+    fn announced_target_count(
+        &self,
+        amount: &crate::types::effects::AmountExpr,
+        controller: PlayerId,
+        this_object: ObjectId,
+        named_objects: crate::engine::layers::condition::ConditionReferents<'_>,
+        x_value: Option<u64>,
+    ) -> Result<u64, String> {
+        let mut ctx = crate::engine::resolve::ResolutionContext::untargeted(this_object, controller, crate::events::cause::GeneratedBy::Spell);
+        ctx.trigger = named_objects.triggering_event.binding().cloned();
+        self.evaluate_amount(amount, &ctx, x_value)
     }
 
     /// `GameEvent::Targeted` for each distinct object or player the stack
@@ -512,7 +529,7 @@ impl GameState {
         // CR 602.2b routes an activation through 601.2c, so an ability
         // announces its instances exactly as a spell does.
         let targets = match self.announce_targets(
-            player_id, ability_obj_id, source_id, instances, ConditionReferents::NONE, decisions,
+            player_id, ability_obj_id, source_id, instances, ConditionReferents::NONE, None, decisions,
         ) {
             Ok(targets) => targets,
             Err(e) => {

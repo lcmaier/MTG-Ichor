@@ -29,12 +29,12 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
    zone-reaching `ObjectSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
-   TR-1–TR-7 in `triggers-architecture.md` §12, MA-2 between TR-5b and TR-5c, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
+   TR-1–TR-7 in `triggers-architecture.md` §12, MA-2 between TR-5b and TR-5c, B10's design after TR-5g, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
    (`codebase-state.md` items 42 and 179) before TR-2b; then the information-model design, reviewed before any build
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
 the route review, A6s; four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
 information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-7, MA-3–MA-6; B9; B13, the Ironworks loop; PM's
-later builds; CV-5 with the other characteristic sets; CV-3, CV-4; CV-6; CV-7; B10; A4l. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
+later builds; CV-5 with the other characteristic sets; CV-3, CV-4; CV-6; CV-7; B10's builds; A4l. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
 
@@ -132,6 +132,7 @@ is derived.
 | 2026-10-18 | Blocks, targeting and activation | `TR-5c` | `triggers-architecture.md` |
 | 2026-10-19 | One history of what happened | `TR-5h` | `triggers-architecture.md` |
 | 2026-10-19 | Prevention and excess damage | `TR-5d` | `triggers-architecture.md` |
+| 2026-10-20 | The multiplier, tokens and scry | `TR-5g` | `triggers-architecture.md` |
 
 ### Named, not yet landed
 
@@ -158,7 +159,6 @@ and no ✅ heading records, in the docs' order.
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
-| The multiplier, tokens and scry | `TR-5g` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
 | State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
 | The persist loop, the track's capstone | `TR-7` | `triggers-architecture.md` |
@@ -167,9 +167,9 @@ and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 210 |
-| …of them in `PERFORMANCE_POOL` | 120 |
-| `#[test]` functions | 2664 |
+| Cards registered | 211 |
+| …of them in `PERFORMANCE_POOL` | 121 |
+| `#[test]` functions | 2708 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 

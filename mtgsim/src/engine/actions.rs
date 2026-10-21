@@ -1949,9 +1949,7 @@ impl GameState {
                 if !self.in_game(player) {
                     return Err(format!("player {} has left the game and cannot win it", player));
                 }
-                if self.result.is_none() {
-                    self.result = Some(GameResult::Winner(player));
-                }
+                self.end_game(GameResult::Winner(player));
                 self.emit_event(GameEvent::PlayerWon { player_id: player }, ctx.cause)?;
                 Ok(())
             }
@@ -2144,7 +2142,7 @@ impl GameState {
     /// of which performed the placement it announces: the `EnterBattlefield`
     /// arm for a token entering, and the `CreateTokenIn` arm for a token
     /// created anywhere else. `owner` is CR 111.2's — the player who created
-    /// it.
+    /// it — and the definition is the one its creation made it from.
     pub(crate) fn announce_token_created(
         &mut self,
         object: ObjectId,
@@ -2152,7 +2150,13 @@ impl GameState {
         cause: EventCause,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
-        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone }, cause)?;
+        let definition = self
+            .tokens_being_created
+            .iter()
+            .find(|(id, _)| *id == object)
+            .map(|(_, definition)| Arc::clone(definition))
+            .ok_or_else(|| format!("{object} is announced as a token no creation made"))?;
+        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone, definition }, cause)?;
         Ok(())
     }
 
@@ -2281,19 +2285,21 @@ impl GameState {
         attacking: Option<&EntersAttackingCandidates>,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        // One `Arc<CardData>` per run of equal defs: a doubled creation
-        // repeats each def in place, and the repeats share one printed text.
-        let mut lowered: Option<(&TokenDef, std::sync::Arc<crate::objects::card_data::CardData>)> =
+        // One `Arc<CardData>` and one definition per run of equal defs: a
+        // doubled creation repeats each def in place, and the repeats share
+        // one printed text.
+        let mut lowered: Option<(&TokenDef, std::sync::Arc<crate::objects::card_data::CardData>, Arc<TokenDef>)> =
             None;
         let mut ids = Vec::with_capacity(defs.len());
+        let mut definitions = Vec::with_capacity(defs.len());
         let mut entries = Vec::with_capacity(defs.len());
         for def in defs {
-            let data = match &lowered {
-                Some((seen, data)) if *seen == def => data.clone(),
+            let (data, definition) = match &lowered {
+                Some((seen, data, definition)) if *seen == def => (data.clone(), Arc::clone(definition)),
                 _ => {
-                    let data = def.card_data();
-                    lowered = Some((def, data.clone()));
-                    data
+                    let (data, definition) = (def.card_data(), Arc::new(def.clone()));
+                    lowered = Some((def, data.clone(), Arc::clone(&definition)));
+                    (data, definition)
                 }
             };
             // CR 111.2 — a token's owner is the controller of the effect that created
@@ -2304,6 +2310,7 @@ impl GameState {
             obj.is_token = true;
             let id = self.add_object(obj);
             ids.push(id);
+            definitions.push((id, definition));
             if let Some(mut entry) = self.entry_proposal(id, None, controller, None) {
                 // "Create a tapped …" is the creating effect's own word on
                 // how the token enters, so it joins what the rules give the
@@ -2325,8 +2332,10 @@ impl GameState {
                 entries.push(entry);
             }
         }
-        let performed = self.execute_actions(entries, ctx)?;
-        let created: IdSet<ObjectId> = performed
+        let outer = std::mem::replace(&mut self.tokens_being_created, definitions);
+        let performed = self.execute_actions(entries, ctx);
+        self.tokens_being_created = outer;
+        let created: IdSet<ObjectId> = performed?
             .iter()
             .filter_map(|a| match a {
                 GameAction::EnterBattlefield { object, .. }

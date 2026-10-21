@@ -357,20 +357,18 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
     assert!(
         game.validate_targets(
             &two_creatures,
-            &[ResolvedTarget::Object(a), ResolvedTarget::Object(b)],
+            &[ResolvedTarget::Object(a), ResolvedTarget::Object(b)], mtgsim::test_support::fixed_target_bounds(&two_creatures),
             0,
-            mtgsim::engine::targeting::FilterIdentity::NONE,
-        )
+            mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_ok(),
         "two different creatures"
     );
     assert!(
         game.validate_targets(
             &two_creatures,
-            &[ResolvedTarget::Object(a), ResolvedTarget::Object(a)],
+            &[ResolvedTarget::Object(a), ResolvedTarget::Object(a)], mtgsim::test_support::fixed_target_bounds(&two_creatures),
             0,
-            mtgsim::engine::targeting::FilterIdentity::NONE,
-        )
+            mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_err(),
         "the same creature twice for one instance (CR 601.2c)"
     );
@@ -382,13 +380,12 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
     assert!(
         game.validate_targets(
             &one_creature,
-            &[ResolvedTarget::Object(a)],
+            &[ResolvedTarget::Object(a)], mtgsim::test_support::fixed_target_bounds(&one_creature),
             0,
             mtgsim::engine::targeting::FilterIdentity {
                 earlier_targets: mtgsim::engine::object_filter::EarlierTargets::Chosen(&earlier_targets),
                 ..mtgsim::engine::targeting::FilterIdentity::NONE
-            },
-        )
+            })
             .is_ok(),
         "CR 601.2c's second sentence"
     );

@@ -7864,8 +7864,41 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      stack's, shared between forks and copied on write, since clone time read
      8.9–9.5 µs against floor 2's 10 and a token-heavy board grows every
      clone. It moves up if A6e's readiness pass reads less than 10% room.
+     **Read mid-turn at TR-5g (2026-10-20), and moved up.** Pooling
+     Panharmonicon gave `clone_bound_test`'s `performance` 12353 a game that
+     ends with 31 Sphere Grid triggers waiting: 82 allocations against floor
+     2's CI proxy of 64. A provider cloning at every prompt of that game read
+     68 and 77 at two trigger-ordering prompts, 24 and 28 waiting, so the
+     breach is at a decision and not only at the end. A throwaway probe, four
+     seats and 25 creatures with N tokens entering under a "whenever another
+     creature enters" trigger, release, allocations and bytes exact, time the
+     median of five 400-clone means:
+
+     | | allocations | KB | µs |
+     |---|---:|---:|---:|
+     | 125 permanents, nothing waiting | 9 | 124 | ~6 |
+     | + 100 triggers waiting, no target | 111 | 169 | ~20 |
+     | + those 100 on the stack | 111 | 210 | ~21 |
+     | + 100 triggers waiting, one target each | 211 | 177 | ~19 |
+     | + those 100 on the stack | 311 | 223 | ~22 |
+
+     A waiting trigger costs one allocation, its binding's events, and about
+     450 bytes, with a second allocation for a target; a stack object about
+     0.9–1 KB, an allocation for a trigger's binding and two for each target
+     instance. A spell copy with one target, storm's, is two, so a storm count
+     of 50 is about 100 allocations and 50 KB, and each copy's resolution
+     reopens priority, about four decisions a copy at four seats, each
+     cloning what is left. Keeping one triggering event inline takes an
+     allocation off a trigger and nothing off a spell copy; the sharing this
+     item names takes every stack object to a pointer. **A finished game no
+     longer holds waiting triggers** (`GameState::end_game`, CR 104.1), so the
+     test's end checkpoint reads the board: 12353 ends at 50, and the worst
+     reading is 53, its turn 40. **B10's design moved up to right after
+     TR-5g** (the owner, 2026-10-20); its first instrument is a clone at
+     every decision, not only between turns.
      **Slotted:** B10, the clone's structural sharing: per-object state shared
      between forks, copied on write, which also settles `FitOnClone`'s rule.
+     Its design follows TR-5g.
 
 184. **CR 613.6's lock carries one row's set to another row of the same
      effect in the same layer.** `row_affected` answers `Locked` for every row
@@ -9086,7 +9119,8 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
 
 263. **CR 104.4b's draw is written outside the chokepoint.**
      `perform_sba_and_triggers` (`engine/sba.rs`, the `MANDATORY_LOOP_CHECKS`
-     branch) sets `self.result = Some(GameResult::Draw)` directly. Every other
+     branch) ends the game itself, `end_game(GameResult::Draw)` (since TR-5g,
+     which made `end_game` the result's one writer). Every other
      ending of the game is performed by `PlayerLoses`' and `PlayerWins'`
      performers, or settled after a batch. So no replacement or record sees
      this one.
@@ -9542,7 +9576,12 @@ Number 277 was withdrawn in #260 and is not reused.
        `PermanentsMatching(f)` is `f` on the battlefield, `CardsInHand(p)` the
        cards in `p`'s hand, `CardsInGraveyard(None)` every graveyard's.
        `AmountExpr::CountOf` and `CardTypesAmong` take an `ObjectSet`, and
-       `Selector` goes.
+       `Selector` goes. TR-5g gave the resolution a `CountOf` (Ajani,
+       Nacatl Avenger's damage), a fourth reader that matches the two
+       permanent selectors as the layer pass does (the owner, at #264's
+       review: no helper on `Selector` while it is going). The layer pass
+       counts a hand by its size and reads no card's frame (CR 402.3), which
+       an `ObjectSet` over the hand must keep.
      - **An object or a player, by id,** is four enums, each `Object(ObjectId)
        | Player(PlayerId)`: `ResolvedTarget` (391 references), `DamageTarget`
        (359), `CounterSubject` (89) and `EventSubject` (78), which TR-5d's

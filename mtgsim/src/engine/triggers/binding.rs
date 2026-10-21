@@ -110,6 +110,14 @@ pub enum TriggeringEventView<'a> {
 }
 
 impl<'a> TriggeringEventView<'a> {
+    /// The binding, read as the ability is put on the stack or resolves.
+    pub fn binding(self) -> Option<&'a TriggerBinding> {
+        match self {
+            TriggeringEventView::Resolving { binding, .. } => Some(binding),
+            TriggeringEventView::None | TriggeringEventView::AtTrigger { .. } => None,
+        }
+    }
+
     /// The object that played `role`, as it is read here.
     pub fn object(self, role: EventRole) -> Option<CurrentOrLastKnown<'a>> {
         match self {

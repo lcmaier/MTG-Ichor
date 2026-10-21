@@ -23,10 +23,10 @@ use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, E
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
-use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef};
+use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, TokenDef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::zones::{DrawFilter, Zone, ZoneChangePattern};
+use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
 
 /// CR 603.1 — "[When/Whenever/At] [trigger condition or event], [effect]".
 #[derive(Debug, Clone, PartialEq)]
@@ -90,6 +90,53 @@ impl TriggerCondition {
             TriggerTier::Second
         } else {
             TriggerTier::First
+        }
+    }
+}
+
+/// CR 603.2d — "if [an event] causes a triggered ability of [a permanent] to
+/// trigger, that ability triggers an additional time": the body of a static
+/// ability, read off its source's effective ability list as the dispatch
+/// queues what a window triggered.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TriggerMultiplierDef {
+    /// "If an artifact or creature entering causes": the event a triggering
+    /// event must be, or any of several ("entering or leaving"), asked of
+    /// the record with this ability's own referents and the frames its own
+    /// arm reads. `None` names no event (Roaming Throne).
+    pub caused_by: Option<TriggerCondition>,
+    /// "A triggered ability of a permanent you control": the permanent whose
+    /// ability triggers, whose "you" is this ability's controller.
+    pub abilities_of: ObjectFilter,
+    /// "An additional time" is 1.
+    pub additional: u32,
+}
+
+impl TriggerMultiplierDef {
+    /// The static ability whose body this is, which a card file writes.
+    pub fn into_ability(self, rules_text: &'static str) -> crate::objects::card_data::AbilityDef {
+        crate::objects::card_data::AbilityDef {
+            rules_text: rules_text.into(),
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: crate::objects::card_data::AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::TriggerMultiplier(Box::new(self)),
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            is_characteristic_defining: false,
+        }
+    }
+
+    /// What the count cannot read, which the registry refuses: a state for
+    /// the event, since CR 603.2d counts the triggers an event causes and a
+    /// state trigger has none (CR 603.8), and no additional time.
+    pub fn refusal(&self) -> Option<&'static str> {
+        if matches!(self.caused_by, Some(TriggerCondition::State(_))) {
+            Some("a state is no event that causes an ability to trigger")
+        } else if self.additional == 0 {
+            Some("it adds no time")
+        } else {
+            None
         }
     }
 }
@@ -495,7 +542,7 @@ pub struct TriggeringEvent {
 counted_enum! {
     /// The kind of record a trigger arm reads - one variant per `GameEvent`
     /// variant any [`TriggerEvent`] can match, and none for the records no arm
-    /// can (`Scried`, `TokenCreated`, ...).
+    /// can (`AbilityCountered`, `TokenCeasedToExist`, ...).
     ///
     /// **The one table the matcher's discriminant test is written from.**
     /// [`TriggerEvent::reads`] and the dispatcher's source mask
@@ -533,6 +580,8 @@ counted_enum! {
         ControlChanged,
         CountersPutOn,
         CountersRemovedFrom,
+        TokenCreated,
+        Scried,
     }
 }
 
@@ -577,16 +626,16 @@ impl EventKind {
             GameEvent::ControlChanged { .. } => EventKind::ControlChanged,
             GameEvent::CountersPutOn { .. } => EventKind::CountersPutOn,
             GameEvent::CountersRemovedFrom { .. } => EventKind::CountersRemovedFrom,
+            GameEvent::TokenCreated { .. } => EventKind::TokenCreated,
+            GameEvent::Scried { .. } => EventKind::Scried,
             GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
             | GameEvent::DelayedTriggerCreated { .. }
             | GameEvent::PlayerWon { .. }
             | GameEvent::RemovedFromCombat { .. }
-            | GameEvent::Scried { .. }
             | GameEvent::SpellFizzled { .. }
             | GameEvent::StateBasedActionPerformed
             | GameEvent::TokenCeasedToExist { .. }
-            | GameEvent::TokenCreated { .. }
             | GameEvent::UntilReturnMade { .. } => return None,
         })
     }
@@ -869,6 +918,18 @@ pub enum TriggerEvent {
     /// third time this turn" is the creating resolution's condition, which
     /// creates it only then (§6.5).
     AbilityResolves { identity: IdentityRef },
+    /// "Whenever you create one or more tokens" (CR 111.2, 701.7a): one
+    /// record per token, so "one or more" is `OncePerEvent` and "that many"
+    /// is one a record. A reflexive "when you do" after "create a [token]"
+    /// names its definition, so a creation a replacement changed to another
+    /// is not "that action" (Ajani, Nacatl Avenger's eighth ruling). A copy
+    /// of a permanent spell is no creation (CR 111.13) and writes no record.
+    CreatesToken { owner: Option<PlayerRef>, definition: Option<Box<TokenDef>>, multiplicity: Multiplicity },
+    /// "Whenever you scry" (CR 701.22): one record per scry, and none for a
+    /// scry 0 (CR 701.22b). "The number of cards looked at while scrying this
+    /// way" is the record's `looked_at` (Elrond, Master of Healing's first
+    /// ruling).
+    Scries { player: Option<PlayerRef> },
 }
 
 /// Which ability an `AbilityResolves` arm watches.
@@ -940,7 +1001,9 @@ impl TriggerEvent {
             | TriggerEvent::CountersRemovedFrom { .. }
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. } => false,
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::CreatesToken { .. }
+            | TriggerEvent::Scries { .. } => false,
         }
     }
 
@@ -949,6 +1012,15 @@ impl TriggerEvent {
     /// the Aura's new object in a graveyard.
     pub fn watches_its_host_leave(&self) -> bool {
         matches!(self, TriggerEvent::ZoneChange { subject: TriggerSubject::Host, change, .. } if change.from == Some(Zone::Battlefield))
+    }
+
+    /// The act a zone-change arm names: "whenever you sacrifice". CR 701
+    /// defines a keyword action as the move it makes (CR 701.8a, 701.21a), so
+    /// the act is written on the zone change's record and pattern and on no
+    /// other arm. CR 603.2d's count tells "whenever you sacrifice" from
+    /// "whenever a creature dies" by it (Teysa Karlov's fifth ruling).
+    pub fn named_act(&self) -> Option<ZoneChangeAct> {
+        if let TriggerEvent::ZoneChange { change, .. } = self { change.act } else { None }
     }
 
     /// The kinds of record this arm can match — the discriminant half of
@@ -1000,6 +1072,8 @@ impl TriggerEvent {
             }
             TriggerEvent::AbilityTriggers { .. } => EventKindMask::of(EventKind::AbilityTriggered),
             TriggerEvent::AbilityResolves { .. } => EventKindMask::of(EventKind::AbilityResolved),
+            TriggerEvent::CreatesToken { .. } => EventKindMask::of(EventKind::TokenCreated),
+            TriggerEvent::Scries { .. } => EventKindMask::of(EventKind::Scried),
         }
     }
 
@@ -1052,7 +1126,9 @@ impl TriggerEvent {
             | TriggerEvent::PlayerLoses { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. } => None,
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::CreatesToken { .. }
+            | TriggerEvent::Scries { .. } => None,
         }
     }
 
@@ -1093,7 +1169,9 @@ impl TriggerEvent {
             | TriggerEvent::BecomesUnattached { .. }
             | TriggerEvent::ControlChanges { .. }
             | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. } => false,
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::CreatesToken { .. }
+            | TriggerEvent::Scries { .. } => false,
         }
     }
 
@@ -1132,7 +1210,8 @@ impl TriggerEvent {
             | TriggerEvent::Blocks { multiplicity, .. }
             | TriggerEvent::BecomesTarget { multiplicity, .. }
             | TriggerEvent::CountersPutOn { multiplicity, .. }
-            | TriggerEvent::CountersRemovedFrom { multiplicity, .. } => *multiplicity,
+            | TriggerEvent::CountersRemovedFrom { multiplicity, .. }
+            | TriggerEvent::CreatesToken { multiplicity, .. } => *multiplicity,
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
             | TriggerEvent::ManaAdded { .. }
@@ -1148,7 +1227,8 @@ impl TriggerEvent {
             | TriggerEvent::ControlChanges { .. }
             | TriggerEvent::ActivatesAbility { .. }
             | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. } => Multiplicity::PerOccurrence,
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::Scries { .. } => Multiplicity::PerOccurrence,
         }
     }
 
@@ -1205,7 +1285,8 @@ impl TriggerEvent {
             | TriggerEvent::ControlChanges { .. }
             | TriggerEvent::ActivatesAbility { .. }
             | TriggerEvent::CountersPutOn { subject: CountersOn::Object(_), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(_), .. } => &[EventRole::Object],
+            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(_), .. }
+            | TriggerEvent::CreatesToken { .. } => &[EventRole::Object],
             TriggerEvent::DamageDealt { .. } => &[EventRole::DamageSource, EventRole::DamageRecipient],
             TriggerEvent::DamageIsPrevented { .. } => &[EventRole::DamageRecipient],
             TriggerEvent::Attacks { .. } => &[EventRole::Attacker, EventRole::Attacked],
@@ -1229,7 +1310,8 @@ impl TriggerEvent {
             | TriggerEvent::CountersPutOn { subject: CountersOn::Player(_), .. }
             | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Player(_), .. }
             | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. } => &[],
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::Scries { .. } => &[],
         }
     }
 
@@ -1276,6 +1358,9 @@ impl TriggerEvent {
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { controller, .. }) => {
                 Some(*controller)
             }
+            // Who created it, its owner (CR 111.2); who scried.
+            (TriggerEvent::CreatesToken { .. }, GameEvent::TokenCreated { owner, .. }) => Some(*owner),
+            (TriggerEvent::Scries { .. }, GameEvent::Scried { player_id, .. }) => Some(*player_id),
             (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
             | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { .. })
             | (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { .. })
@@ -1314,7 +1399,9 @@ impl TriggerEvent {
                 | TriggerEvent::BecomesUnattached { .. }
                 | TriggerEvent::ControlChanges { .. }
                 | TriggerEvent::AbilityTriggers { .. }
-                | TriggerEvent::AbilityResolves { .. },
+                | TriggerEvent::AbilityResolves { .. }
+                | TriggerEvent::CreatesToken { .. }
+                | TriggerEvent::Scries { .. },
                 _,
             ) => None,
         }
@@ -1345,13 +1432,17 @@ impl TriggerEvent {
             (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { old, new, .. }) => {
                 Some((old - new).max(0) as u64)
             }
+            // The cards looked at, which a short library makes fewer than
+            // the scry's number (Elrond, Master of Healing's first ruling).
+            (TriggerEvent::Scries { .. }, GameEvent::Scried { looked_at, .. }) => Some(*looked_at),
             // One card or object a record, so "that many" over a "one or more"
             // binding is the cards drawn, or the objects moved: "the number of
             // cards milled" counts a Darksteel Colossus kept in its library.
             (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { .. })
             | (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { .. })
             | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { .. })
-            | (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { .. }) => Some(1),
+            | (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { .. })
+            | (TriggerEvent::CreatesToken { .. }, GameEvent::TokenCreated { .. }) => Some(1),
             (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
             | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { .. })
             | (TriggerEvent::PhaseBegins { .. }, GameEvent::PhaseBegin { .. })
@@ -1403,7 +1494,9 @@ impl TriggerEvent {
                 | TriggerEvent::BecomesUnattached { .. }
                 | TriggerEvent::ControlChanges { .. }
                 | TriggerEvent::AbilityTriggers { .. }
-                | TriggerEvent::AbilityResolves { .. },
+                | TriggerEvent::AbilityResolves { .. }
+                | TriggerEvent::CreatesToken { .. }
+                | TriggerEvent::Scries { .. },
                 _,
             ) => None,
         }
@@ -1950,12 +2043,11 @@ impl PendingTrigger {
 mod tests {
     use super::*;
     use crate::events::event::EventId;
-    use crate::types::zones::ZoneChangeAct;
     use crate::state::game_state::AbilityIdentity;
     use crate::types::ids::{AbilityId, ObjectRef};
 
     /// One record of every kind a trigger arm can read, named, plus one
-    /// (`Scried`) that no arm reads.
+    /// (`TokenCeasedToExist`) that no arm reads.
     fn sample_records() -> Vec<(&'static str, GameEvent)> {
         let id = ObjectId::UNASSIGNED;
         let identity = AbilityIdentity {
@@ -2014,6 +2106,13 @@ mod tests {
                 by: crate::engine::replacement::ReplacementInstanceId::StaticAbility(identity.source, identity.ability),
             }),
             ("Scried", GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 }),
+            ("TokenCreated", GameEvent::TokenCreated {
+                object_id: id,
+                owner: 0,
+                zone: Zone::Battlefield,
+                definition: Arc::new(crate::cards::phase_re_cards::goblin_token()),
+            }),
+            ("TokenCeasedToExist", GameEvent::TokenCeasedToExist { object_id: id }),
         ]
     }
 
@@ -2064,6 +2163,8 @@ mod tests {
                 TriggerEvent::BecomesUnattached { attachment: TriggerSubject::Any, former_host: TriggerSubject::Any },
                 &["Unattached"],
             ),
+            (TriggerEvent::CreatesToken { owner: None, definition: None, multiplicity: each }, &["TokenCreated"]),
+            (TriggerEvent::Scries { player: None }, &["Scried"]),
         ];
         let records = sample_records();
         for (arm, reads) in &expected {

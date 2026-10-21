@@ -1098,10 +1098,54 @@ pub enum ReturnUnder {
 }
 
 /// How many targets/choices to select
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TargetCount {
     Exactly(u32),
     UpTo(u32),
+    /// "Up to X target creatures, where X is ..." (CR 601.2c, 603.3d): a
+    /// number of targets the text defines, read as the targets are
+    /// announced, off the trigger's binding or the X announced for the
+    /// spell or ability, and fixed from then on.
+    UpToAmount(AmountExpr),
+    /// "X target creatures" (CR 601.2c): exactly as many targets as the
+    /// amount, read the same way. Every printed one is the X announced
+    /// before its targets (CR 601.2b).
+    ExactlyAmount(AmountExpr),
+}
+
+/// The fewest and most targets an instance of "target" may have, once its
+/// count is read (CR 601.2c).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetBounds {
+    pub fewest: usize,
+    pub most: usize,
+}
+
+impl TargetCount {
+    /// The bounds the instance announces, `amount` reading a count the text
+    /// defines as the announcement starts.
+    pub fn bounds(&self, amount: impl FnOnce(&AmountExpr) -> Result<u64, String>) -> Result<TargetBounds, String> {
+        let (fewest, most) = match self {
+            TargetCount::Exactly(n) => (*n as usize, *n as usize),
+            TargetCount::UpTo(n) => (0, *n as usize),
+            TargetCount::UpToAmount(x) => (0, amount(x)? as usize),
+            TargetCount::ExactlyAmount(x) => {
+                let n = amount(x)? as usize;
+                (n, n)
+            }
+        };
+        Ok(TargetBounds { fewest, most })
+    }
+
+    /// The fewest targets the instance must have before its amount is read:
+    /// none for a count the text defines, whose X may be 0, and which an
+    /// announcement that cannot meet it rewinds (CR 601.2c, 732.1).
+    pub fn fewest(&self) -> usize {
+        match self {
+            TargetCount::Exactly(n) => *n as usize,
+            TargetCount::UpTo(_) | TargetCount::UpToAmount(_) | TargetCount::ExactlyAmount(_) => 0,
+        }
+    }
 }
 
 /// Mana output from a mana ability or mana-producing spell.
@@ -2308,6 +2352,15 @@ pub enum Effect {
     /// this carries none of (`cost-architecture.md` §3.10).
     CostModification(Box<crate::types::cost_modification::CostModificationDef>),
 
+    /// CR 603.2d — "triggers an additional time". A static shape with no
+    /// layer rows, as the three above are: it applies to no object but to
+    /// how many times a triggered ability triggers, so
+    /// `register_static_effects` skips it and the dispatch reads it off the
+    /// source's effective ability list as it queues what a window
+    /// triggered. Through an "as long as" wrapper too, which
+    /// [`Self::as_trigger_multiplier`] peels.
+    TriggerMultiplier(Box<crate::types::triggers::TriggerMultiplierDef>),
+
     /// CR 603 — this ability is a triggered ability: a condition, an optional
     /// intervening "if", an optional once-per-turn limit, and the effect.
     ///
@@ -2366,7 +2419,7 @@ impl Effect {
             Effect::Atom(Primitive::CreateDelayedTrigger(template), _) => {
                 std::sync::Arc::make_mut(&mut template.def).effect.for_each_ability_def_mut(f);
             }
-            Effect::Atom(..) | Effect::Restriction(_) | Effect::CostModification(_) => {}
+            Effect::Atom(..) | Effect::Restriction(_) | Effect::CostModification(_) | Effect::TriggerMultiplier(_) => {}
             Effect::Sequence(effects) | Effect::Modal { modes: effects, .. } => {
                 for effect in effects {
                     effect.for_each_ability_def_mut(f);
@@ -2537,6 +2590,17 @@ impl Effect {
     pub fn as_restriction(&self) -> Option<(Option<&Condition>, &crate::types::restriction::RestrictionDef)> {
         match self.with_its_condition() {
             (condition, Effect::Restriction(def)) => Some((condition, def)),
+            _ => None,
+        }
+    }
+
+    /// The trigger multiplier a static body is (CR 603.2d), with the "as long
+    /// as" clause wrapped around it if there is one: the same peel, asked by
+    /// every leg of the dispatch's count and by the count itself, which alone
+    /// evaluates the condition.
+    pub fn as_trigger_multiplier(&self) -> Option<(Option<&Condition>, &crate::types::triggers::TriggerMultiplierDef)> {
+        match self.with_its_condition() {
+            (condition, Effect::TriggerMultiplier(def)) => Some((condition, def)),
             _ => None,
         }
     }

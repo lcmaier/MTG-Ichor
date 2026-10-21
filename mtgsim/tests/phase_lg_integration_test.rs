@@ -641,20 +641,18 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
     assert!(
         game.validate_targets(
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
-            &[ResolvedTarget::Object(creature)],
+            &[ResolvedTarget::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
             0,
-            mtgsim::engine::targeting::FilterIdentity::NONE,
-        )
+            mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_ok(),
         "P0 controls it"
     );
     assert!(
         game.validate_targets(
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
-            &[ResolvedTarget::Object(creature)],
+            &[ResolvedTarget::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
             1,
-            mtgsim::engine::targeting::FilterIdentity::NONE,
-        )
+            mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_err(),
         "P1 does not"
     );
@@ -664,20 +662,18 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
     assert!(
         game.validate_targets(
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
-            &[ResolvedTarget::Object(creature)],
+            &[ResolvedTarget::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
             1,
-            mtgsim::engine::targeting::FilterIdentity::NONE,
-        )
+            mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_ok(),
         "CR 613.1b: and now P1 does"
     );
     assert!(
         game.validate_targets(
             &EffectRecipient::Target(filter, TargetCount::Exactly(1)),
-            &[ResolvedTarget::Object(creature)],
+            &[ResolvedTarget::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
             0,
-            mtgsim::engine::targeting::FilterIdentity::NONE,
-        )
+            mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_err(),
         "and P0 does not"
     );

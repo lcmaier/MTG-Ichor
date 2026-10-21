@@ -37,6 +37,109 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-20 for TR-5g** (#264: the multiplier, tokens and
+scry). Panharmonicon joins the registry and the pool (210 → 211 registered,
+120 → 121 pooled), so both §3 columns are new baselines. Two `close_out.py`
+sittings against **main** `477e5e4` (#263's merge), the second after review
+fixed the model pass's four defects; this block is the first's, with the
+second's where it differs. **engine** `97d740ea` and then `9b4a8607`, every
+engine commit with Panharmonicon unregistered, throwaway commits cut for the
+sittings and never pushed; **shipped** `f42667c` and then `3089fda`. Panharmonicon's
+stress distortion was read first, registered and unpooled against the
+engine arm, as the brief asked before pooling.
+
+**Predictions, before any arm of the sitting ran** (the PR body): engine
+identical to `main` everywhere, within ±0.3% instructions per decision;
+shipped moving every game, since every seed builds new decks, its stress
+distortion small; the clone
+floors as before on the same board.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,057 / 171,731 | 339,366 / 358,393 |
+| gameplay rows, shipped vs `main`, performance / stress | differ / differ | differ / differ |
+| audit, shipped, dispatches agreed, performance / stress | 170,344 / 180,970 | 344,016 / 364,613 |
+| `stress` avg turns, engine → registered, 400 games, seeds 12345 / 777 | 25.2 → 25.4 / 27.2 → 26.1 | 50.1 → 50.7 / 51.7 → 50.6 |
+| `stress` triggers placed a game, engine → registered, the same games | 3.9 → 4.5 / 5.1 → 4.5 | 12.0 → 11.7 / 13.0 → 12.4 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7932 M → 0.7949 M, **+0.21%** |
+| the same, second sitting, after the review's code | | 0.7935 M → 0.7949 M, **+0.18%** |
+| shipped before vs after the review, outside timing, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+
+**Every prediction held but the clone floor's.** The budget is read at
+identical counters, which the engine arm has: +0.21%, one set check per
+window that triggered and a kind for `TokenCreated` and `Scried`. The
+distortion moves average turns by about one either way and leaves the
+outcomes the same in kind; the triggers placed move both ways because the
+decks change.
+
+**Reachability**, shipped, 200 games forced: Panharmonicon cast 158 times
+in 108 games at two seats (54%) and 104 in 90 at four (45%).
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
+shipped: 0 errors, 0 panics and 0 turn-limit games everywhere, every
+dispatch agreed (864,914 / 911,703 at two seats, 1,691,489 / 1,845,268 at
+four).
+
+**Memory.** `history_held_test` reads 3,877 B a turn over 1,625 turns, every
+game together, against TR-5d's 3,923. **The release clone test fails on
+shipped**, the one prediction that did not hold: `performance` 12353 at four
+seats, a new game since the pool grew, ends with 31 Sphere Grid triggers waiting,
+queued in the combat damage step whose state-based check ended the game, at
+one allocation each (a pending trigger's binding keeps its events in a
+`Vec`): 82 allocations and 63 KB against 64 and 128. A provider that clones
+at every prompt of the same game reads 68 and 77 at two trigger-ordering
+prompts mid-turn, so the board passes floor 2's proxy at a decision and not
+only at the end. No multiplier is on the battlefield; it is the batch of
+triggers mid-turn `roadmap-v2.md` B10 names, which the between-turns
+checkpoints had not dealt before. **At review** (the owner): a finished game
+drops its waiting triggers (CR 104.1), so the checkpoint reads the board,
+50 allocations and 49.5 KB, the worst reading 53 at 12353's turn 40 and the
+largest 90.6 KB; the per-object costs went to `codebase-state.md` item 183,
+and B10's design moved up to right after TR-5g.
+
+**Copies** (`close_out.py`'s report against `main`, and the model pass,
+`plans/references/duplicate-inventory.md` §3.10): the report's twelve
+compositions are the candidate building `find_matches` was split into beside
+the audit's deliberate re-derivation, and two merges (a match's arm, a
+functioning static ability). The model pass named four defects in the
+branch's new code, fixed at review, and four merges; the shipped arm before
+and after them plays the same games.
+
+**§3 fixture rows, shipped `f42667c`, two seats, 50 games / seed 12345.**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 25 (50.0%) / 25 (50.0%) | 28 (56.0%) / 21 (42.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 25.1 | 26.0 |
+| Spells cast | 20.2 | 19.9 |
+| Lands played | 15.0 | 15.7 |
+| Combat w/ atk | 9.1 | 8.7 |
+| Creatures died | 6.9 | 4.9 |
+| Damage events | 21.5 | 19.4 |
+| Total damage | 59.2 | 53.8 |
+| Life changes | 15.3 | 14.2 |
+| **Layer walks** | **367** | **414** |
+| **Board walks** | **206** | **223** |
+| **Memo hits** | **44,921** | **61,415** |
+| **Layer frames** | **3,475** | **4,107** |
+| **Frames/walk** | **9.47** | **9.92** |
+| **Dependency checks** | **3** | **13** |
+| **Replacement gathers** | **867** | **960** |
+| **Restriction queries** | **869** | **962** |
+| Mana productions | 63 | 78 |
+| Prevention allocations | 0.00 | 0.02 |
+| Replacement prompts | 0.14 | 0.44 |
+| Max batch depth | 4 | 5 |
+| Decisions | 172 | 225 |
+| Priority decisions | 64 | 90 |
+| Actions reversed | 0.0 | 0.0 |
+| Triggers placed | 6.3 | 4.4 |
+| Windows past gate | 58.4 | 61.5 |
+| Candidate visits | 87.9 | 80.6 |
+| Trigger matches | 7.0 | 4.3 |
+
 **Re-recorded 2026-10-20 for TR-5d** (#263: prevention and excess damage;
 items 16, 275, 289 and 290). Selfless Squire and Goblin Negotiation join
 the registry and the pool (208 → 210 registered, 118 → 120 pooled), so both

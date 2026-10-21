@@ -595,6 +595,17 @@ pub struct GameState {
     /// inserts and `cleanup_zone_state` removes.
     pub cost_modification_ability_sources: IdSet<ObjectId>,
 
+    /// Objects that entered the battlefield with a static ability, printed or
+    /// an entry copy's, whose body is an `Effect::TriggerMultiplier`, through
+    /// an "as long as" wrapper or not: the printed leg of the dispatch's
+    /// count of additional triggers (CR 603.2d), whose granted and copied legs
+    /// are the registry summary's two flags. The fourth such set, under the
+    /// three above's rule.
+    ///
+    /// **Engine-maintained. Read it; do not write it.** `perform_entry`
+    /// inserts and `cleanup_zone_state` removes.
+    pub trigger_multiplier_sources: IdSet<ObjectId>,
+
     /// CR 614.13a/b — the two sets an auxiliary zone change is chosen against,
     /// scoped to the batch whose entries are being decided.
     ///
@@ -620,6 +631,13 @@ pub struct GameState {
     /// across their own prompts (`codebase-state.md` item 40). Saved and
     /// restored by `execute_batch_inner` with `entry_selection`.
     pub(crate) prevention_allocations: PreventionAllocationScope,
+
+    /// The definition each token of the creation being performed was made
+    /// from, which its `TokenCreated` record carries (CR 111.2). On
+    /// `GameState` because the entry that announces the creation is a member
+    /// of a batch `create_tokens` proposes, which carries no definition.
+    /// Saved and restored by `create_tokens` for a nested creation.
+    pub(crate) tokens_being_created: Vec<(ObjectId, Arc<crate::types::effects::TokenDef>)>,
 
     /// CR 120.10's lethal damage, for the batch being performed: each
     /// creature or planeswalker its decided damage is dealt to, and how much
@@ -1012,10 +1030,12 @@ impl GameState {
             restrictions: RestrictionRegistry::new(),
             restriction_ability_sources: IdSet::default(),
             cost_modification_ability_sources: IdSet::default(),
+            trigger_multiplier_sources: IdSet::default(),
             entry_selection: EntrySelectionScope::default(),
             nesting: NestingGuards::default(),
             rider_lineage: None,
             prevention_allocations: PreventionAllocationScope::default(),
+            tokens_being_created: Vec::new(),
             lethal_damage_left: Vec::new(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
@@ -1186,14 +1206,26 @@ impl GameState {
             return;
         }
         let survivors: Vec<PlayerId> = self.players_in_game().collect();
-        self.result = match survivors.as_slice() {
+        match survivors.as_slice() {
             // 104.4a — "all the players remaining in a game lose
             // simultaneously".
-            [] => Some(GameResult::Draw),
+            [] => self.end_game(GameResult::Draw),
             // 104.2a — "that player's opponents have all left the game".
-            [winner] => Some(GameResult::Winner(*winner)),
-            _ => None,
-        };
+            [winner] => self.end_game(GameResult::Winner(*winner)),
+            _ => {}
+        }
+    }
+
+    /// CR 104.1 — the game ends immediately with `result`, unless it already
+    /// has one, which is never overwritten. The one writer of the result. A
+    /// triggered ability still waiting to be put on the stack never will be,
+    /// since no player receives priority again (CR 117.5), so a finished
+    /// game keeps none.
+    pub(crate) fn end_game(&mut self, result: GameResult) {
+        if self.result.is_none() {
+            self.result = Some(result);
+            self.pending_triggers.clear();
+        }
     }
 
     /// The turn on which `player`'s most recent turn began, or `None` if they
@@ -2029,6 +2061,11 @@ impl GameState {
                 self.cost_modification_ability_sources.insert(id);
             }
 
+            // CR 603.2d — and the count's, for the same reasons.
+            if zone == Zone::Battlefield && ability.effect.as_trigger_multiplier().is_some() {
+                self.trigger_multiplier_sources.insert(id);
+            }
+
             // CR 604.3a(3) — a CDA affects only the object that has it, so it needs no
             // `ObjectSet` and no row; `engine::layers::cda` applies it off the object's
             // own effective ability list, in every zone (CR 604.3) and after Layer 6 has
@@ -2258,6 +2295,10 @@ impl GameState {
             // `engine::cost_determination::cost_modifications_for` reads it off this object's
             // *effective* ability list when a cost is determined.
             Effect::CostModification(_) => Vec::new(),
+            // CR 603.2d — the same again: a multiplier applies to how many
+            // times an ability triggers, which the dispatch reads off this
+            // object's effective ability list as it queues.
+            Effect::TriggerMultiplier(_) => Vec::new(),
             // CR 603 — the fourth static shape with no rows; the dispatcher
             // reads it off the effective list.
             Effect::Triggered(_) => Vec::new(),

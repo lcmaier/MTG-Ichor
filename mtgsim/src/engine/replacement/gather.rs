@@ -32,10 +32,10 @@ use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
-use crate::engine::zone_function::functions_in;
+use crate::engine::zone_function::functions_as_static;
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
-use crate::objects::card_data::{AbilityDef, AbilityType};
+use crate::objects::card_data::AbilityDef;
 use crate::oracle::characteristics::{controller_or_owner, CurrentOrLastKnown};
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
@@ -580,7 +580,7 @@ pub(crate) fn functioning_replacement<'a>(
     types: &CardTypes,
     zone: Zone,
 ) -> Option<(&'a ReplacementDef, Option<&'a Condition>)> {
-    if ability.ability_type != AbilityType::Static || !functions_in(ability, types, zone) {
+    if !functions_as_static(ability, types, zone) {
         return None;
     }
     replacement_of(ability)

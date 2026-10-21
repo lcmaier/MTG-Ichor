@@ -10,7 +10,7 @@ use crate::oracle::mana_supply::{ManaSupply, NonManaCosts};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
-use crate::types::effects::{EffectRecipient, TargetCount};
+use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::engine::costs::CannotPay;
@@ -440,10 +440,10 @@ fn every_instance_has_a_choice(
         // exclude the wrong one. Pushing nothing is the honest content: an
         // instance that announces nothing excludes nothing.
         let mut feed = Vec::new();
-        if let EffectRecipient::Target(f, TargetCount::Exactly(n))
-            | EffectRecipient::Choose(f, TargetCount::Exactly(n)) = recipient
+        if let EffectRecipient::Target(f, count) | EffectRecipient::Choose(f, count) = recipient
+            && count.fewest() > 0
         {
-            let n = *n as usize;
+            let n = count.fewest();
             let view = crate::engine::targeting::FilterIdentity::for_text_of(
                 this_object,
                 crate::engine::object_filter::EarlierTargets::Chosen(&earlier_targets),
@@ -452,7 +452,8 @@ fn every_instance_has_a_choice(
             // enumeration answers the check and the feed-forward together. Any `n`
             // distinct legal choices exclude the same number, which is all the next
             // clause reads; feeding nothing would let an "another target" chain
-            // always pass. `UpTo` never reaches here (CR 115.6).
+            // always pass. An instance that may have none never reaches here
+            // (CR 115.6).
             if feed_until.is_some_and(|last| ix < last) {
                 feed = crate::oracle::legality::enumerate_legal_selections_upto(
                     game, f, None, player_id, view, n,

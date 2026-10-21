@@ -20,7 +20,7 @@
 //! 113.6n has no deck-construction pass to modify, and 113.6p has no emblem.
 
 
-use crate::objects::card_data::AbilityDef;
+use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::types::card_types::{CardType, CardTypes};
 use crate::types::effects::{Condition, Effect};
 use crate::types::triggers::{TriggerDef, TriggerEvent, TriggerSubject};
@@ -104,7 +104,8 @@ fn zones_its_text_states(effect: &Effect) -> Option<ZoneSet> {
         | Effect::Repeat(..)
         | Effect::Replacement(_)
         | Effect::Restriction(_)
-        | Effect::CostModification(_) => None,
+        | Effect::CostModification(_)
+        | Effect::TriggerMultiplier(_) => None,
     }
 }
 
@@ -190,6 +191,13 @@ pub fn condition_functions_in(def: &TriggerDef, arm: &TriggerEvent, types: &Card
 /// names one zone today, which is exactly when the bug would be introduced and
 /// not noticed. `engineering-practices.md` §2a is the general rule this is an
 /// instance of.
+/// Whether `ability` is a static ability that functions in `zone` for an
+/// object of `types` (CR 113.6): what a gather of static effects asks before
+/// it reads one's body.
+pub(crate) fn functions_as_static(ability: &AbilityDef, types: &CardTypes, zone: Zone) -> bool {
+    ability.ability_type == AbilityType::Static && functions_in(ability, types, zone)
+}
+
 pub fn functions_in(ability: &AbilityDef, types: &CardTypes, zone: Zone) -> bool {
     functioning_zones(ability, types).contains(zone)
 }

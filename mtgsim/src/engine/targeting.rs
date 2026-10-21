@@ -6,7 +6,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetCount};
+use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::Lki;
 
@@ -209,6 +209,14 @@ pub(crate) enum HeldFrame<'a> {
     LastKnown(&'a Lki),
 }
 
+/// Check that the number of targets is within the bounds `count` announced.
+fn validate_target_count(count: &TargetCount, bounds: TargetBounds, actual: usize) -> Result<(), String> {
+    if actual < bounds.fewest || actual > bounds.most {
+        return Err(format!("{count:?} allows {} to {} target(s), got {actual}", bounds.fewest, bounds.most));
+    }
+    Ok(())
+}
+
 /// Whether a clause's criteria read an earlier instance of "target" —
 /// `ObjectFilter::OtherThanInstance`, the "another target" family.
 ///
@@ -370,10 +378,14 @@ impl GameState {
     /// `ObjectFilter::OtherThanInstance` reads — empty for a spell whose
     /// clauses name no earlier instance, which is all but the "another target"
     /// family.
+    ///
+    /// `bounds` are the count of targets the announcement read (CR 601.2c),
+    /// since a count the text defines has no value outside it.
     pub fn validate_targets(
         &self,
         recipient: &EffectRecipient,
         targets: &[ResolvedTarget],
+        bounds: TargetBounds,
         you: PlayerId,
         identity: FilterIdentity<'_>,
     ) -> Result<(), String> {
@@ -427,7 +439,7 @@ impl GameState {
             // "Before card breadth" item 7, which is RS-2's.
             EffectRecipient::Target(filter, count)
             | EffectRecipient::Choose(filter, count) => {
-                self.validate_target_count(count, targets.len())?;
+                validate_target_count(count, bounds, targets.len())?;
                 // CR 601.2c's first sentence: one instance never picks a target twice
                 // (Victimize's two cards; Decimate's four instances may share one).
                 // `validate_pick_n` refuses a duplicate index already, but that is the
@@ -448,30 +460,6 @@ impl GameState {
         }
     }
 
-    /// Check that the number of targets matches the TargetCount spec.
-    fn validate_target_count(
-        &self,
-        count: &TargetCount,
-        actual: usize,
-    ) -> Result<(), String> {
-        match count {
-            TargetCount::Exactly(n) => {
-                if actual != *n as usize {
-                    return Err(format!(
-                        "Expected exactly {} target(s), got {}", n, actual
-                    ));
-                }
-            }
-            TargetCount::UpTo(n) => {
-                if actual > *n as usize {
-                    return Err(format!(
-                        "Expected up to {} target(s), got {}", n, actual
-                    ));
-                }
-            }
-        }
-        Ok(())
-    }
 
     /// Whether Aura `aura`, whose enchant ability is `filter`, may enchant
     /// `host` (CR 303.4a), its "you" being `you` (CR 109.5): what CR 704.5m
@@ -862,7 +850,7 @@ mod tests {
         let (game, land_id) = setup_game_with_land();
         let targets = vec![ResolvedTarget::Object(land_id)];
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_ok());
+        assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_ok());
     }
 
     #[test]
@@ -873,7 +861,7 @@ mod tests {
             ObjectFilter::ByType(CardType::Land)),
             TargetCount::Exactly(1),
         );
-        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_ok());
+        assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_ok());
     }
 
     #[test]
@@ -884,7 +872,7 @@ mod tests {
             ObjectFilter::ByType(CardType::Creature)),
             TargetCount::Exactly(1),
         );
-        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_err());
+        assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_err());
     }
 
     #[test]
@@ -892,7 +880,7 @@ mod tests {
         let game = GameState::new(2, 20);
         let targets = vec![ResolvedTarget::Player(1)];
         let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_ok());
+        assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_ok());
     }
 
     #[test]
@@ -900,7 +888,7 @@ mod tests {
         let game = GameState::new(2, 20);
         let targets = vec![ResolvedTarget::Player(5)];
         let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_err());
+        assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_err());
     }
 
     #[test]
@@ -909,15 +897,15 @@ mod tests {
         let fake_id = crate::types::ids::new_object_id();
         let targets = vec![ResolvedTarget::Object(fake_id)];
         let spec = EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_err());
+        assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_err());
     }
 
     #[test]
     fn test_validate_no_targets() {
         let game = GameState::new(2, 20);
         let spec = EffectRecipient::Implicit;
-        assert!(game.validate_targets(&spec, &[], 0, FilterIdentity::NONE).is_ok());
-        assert!(game.validate_targets(&spec, &[ResolvedTarget::Player(0)], 0, FilterIdentity::NONE).is_err());
+        assert!(game.validate_targets(&spec, &[], crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_ok());
+        assert!(game.validate_targets(&spec, &[ResolvedTarget::Player(0)], crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_err());
     }
 
     #[test]
@@ -928,7 +916,7 @@ mod tests {
             ResolvedTarget::Object(land_id),
         ];
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_err());
+        assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_err());
     }
 
     #[test]
