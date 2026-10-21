@@ -139,7 +139,7 @@ fn counterspell_is_not_offered_an_activated_ability_on_the_stack() {
         Zone::Hand,
         "CR 601.2's rewind puts the card back where it was",
     );
-    assert_eq!(game.stack, vec![ability], "the stack is untouched");
+    assert_eq!(game.stack.iter().copied().collect::<Vec<_>>(), [ability], "the stack is untouched");
 
     // The ability resolves as it was always going to: 1/2 switched to 2/1, and
     // no card anywhere. The phantom was a second Merfolk Thaumaturgist in
@@ -179,7 +179,7 @@ fn counterspell_takes_the_spell_beside_the_ability_without_a_prompt() {
     let ability = activate_the_switch(&mut game, 1, thaum, &dp);
     game.cast_spell(1, growth, &dp)
         .expect("an instant, and the Thaumaturgist is its only legal target");
-    assert_eq!(game.stack, vec![ability, growth], "ability, then spell");
+    assert_eq!(game.stack.iter().copied().collect::<Vec<_>>(), [ability, growth], "ability, then spell");
 
     game.cast_spell(0, counter, &dp)
         .expect("one legal target on the stack, so the choice is forced");
@@ -197,7 +197,7 @@ fn counterspell_takes_the_spell_beside_the_ability_without_a_prompt() {
         Zone::Graveyard,
         "CR 701.6a — a countered spell goes to its owner's graveyard",
     );
-    assert_eq!(game.stack, vec![ability], "the ability is untouched");
+    assert_eq!(game.stack.iter().copied().collect::<Vec<_>>(), [ability], "the ability is untouched");
 
     game.resolve_top_of_stack(&dp).expect("the ability resolves");
     assert_eq!(

@@ -78,12 +78,15 @@ jobs:
         run: cargo build --release --bin fuzz_games
 
       # Floors 2 and 3 (`plans/engineering-practices.md` §3.1): what one clone
-      # of a Commander game allocates, at item 143's checkpoints, against 64
-      # allocations and 128 KB. Release, because a debug build's layer-memo
-      # audit re-walks every hit: 675 s there against 0.26 s here, and about
-      # 15 s of build beside the harness's.
+      # of a Commander game allocates, against 64 allocations and 128 KB, at
+      # item 143's checkpoints and every decision, and on the fixture boards no
+      # seed reaches (an 8,000-trigger stack, a token churn); and what a fork
+      # copies between two decisions (`plans/clone-architecture.md` decision
+      # 6). Release, because a debug build's layer-memo audit re-walks every
+      # hit: 675 s there against about a second here, and about 15 s of build
+      # beside the harness's.
       - name: Clone bound — allocations and bytes per clone
-        run: cargo test --release --test clone_bound_test
+        run: cargo test --release --test clone_bound_test --test clone_fixture_test --test fork_copies_test
 
       # The scenario writer's round trip over played boards
       # (`plans/setup-architecture.md` §4.3): 32 games, about 1.5 s here and

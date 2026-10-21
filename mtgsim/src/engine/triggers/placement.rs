@@ -40,11 +40,16 @@ impl GameState {
         // CR 800.4d's second sentence — a trigger a departed player would
         // control is not put onto the stack. One read, at the head, before
         // any tier or order is asked.
-        let departed: Vec<PendingTrigger> = {
+        // Read first, and rebuild the queue only when a player has gone: a
+        // rebuild copies every waiting trigger a search's fork shares
+        // (`state::shared_stores`), most of them for nothing.
+        let departed: Vec<PendingTrigger> = if self.pending_triggers.iter().any(|t| !self.in_game(t.controller)) {
             let (gone, stay): (Vec<_>, Vec<_>) =
                 std::mem::take(&mut self.pending_triggers).into_iter().partition(|t| !self.in_game(t.controller));
-            self.pending_triggers = stay;
+            self.pending_triggers = stay.into_iter().collect();
             gone
+        } else {
+            Vec::new()
         };
         for t in &departed {
             self.trace(|| trace_records::pending(self, t, None, Some("departed"), &[]));
@@ -69,8 +74,8 @@ impl GameState {
                 self.queue_last_placed_first(tier, player, &order);
                 for i in order {
                     let seq = mine[i];
-                    let Some(at) = self.pending_triggers.iter().rposition(|t| t.seq == seq) else { continue };
-                    let pending = self.pending_triggers.remove(at);
+                    let Some(from_end) = self.pending_triggers.iter().rev().position(|t| t.seq == seq) else { continue };
+                    let Some(pending) = self.pending_triggers.remove(self.pending_triggers.len() - 1 - from_end) else { continue };
                     if self.place_one(pending, dp)? {
                         placed += 1;
                     }
@@ -90,7 +95,7 @@ impl GameState {
     fn queue_last_placed_first(&mut self, tier: TriggerTier, player: PlayerId, order: &[usize]) {
         let (block, rest): (Vec<PendingTrigger>, Vec<PendingTrigger>) =
             std::mem::take(&mut self.pending_triggers).into_iter().partition(|t| t.tier() == tier && t.controller == player);
-        self.pending_triggers = rest;
+        self.pending_triggers = rest.into_iter().collect();
         let mut slots: Vec<Option<PendingTrigger>> = block.into_iter().map(Some).collect();
         let last_placed_first: Vec<PendingTrigger> = order.iter().rev().filter_map(|&i| slots.get_mut(i)?.take()).collect();
         self.pending_triggers.extend(slots.into_iter().flatten());

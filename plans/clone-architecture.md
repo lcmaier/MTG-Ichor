@@ -3,8 +3,8 @@
 > **Status:** design, 2026-10-21, for `roadmap-v2.md` B10; no code. Every
 > decision is taken (the owner, 2026-10-21, #266): 3, 4, 6 and 8 at the first
 > review, CL-1 next; 1, 2, 5 and 7 at the second, once B was measured (§2.8)
-> and 2, 5 and 7 rewritten. Every number in §2 was measured on 2026-10-21 on
-> `b86c59c1` (#265's merge), and §2.0 says how.
+> and 2, 5 and 7 rewritten. CL-1 landed 2026-10-21 (§7). Every number in §2
+> was measured on 2026-10-21 on `b86c59c1` (#265's merge), and §2.0 says how.
 > **Authority:** how `GameState` holds per-object state so that a clone shares
 > it, namely the object store, the battlefield's entries, the stack's entries
 > and order, the triggers waiting to be put on the stack, and the layer memo's
@@ -609,30 +609,9 @@ is gated on. Three things bear on the slot:
 
 ## 4. The build, sized
 
-One PR, in the band (`engineering-practices.md` §4), its commits in decision
-2's order. Sizes are code plus tests.
-
 | PR | Shape | Size | Consumer | Closes |
 |---|---|---|---|---|
-| **CL-1, the board and the stack shared between forks** | The chunked table, entries inline or behind their own `Arc`, and the chunked list, each with its tests. `stack_entries`, `stack` and `pending_triggers` first, then `objects`, then `battlefield`, and `FitOnClone` deleted. The eight walks of shape 4 as reads, then writes. The memo's eviction at `remove_object`, and its frames in the table. Item 293's list (decision 5(b)), with its debug walk. Decision 6's (a), (b) and (c) | table ~300 and list ~200, each half tests; the five stores' fields, constructors and the scenario writer's destructure ~150; the eight walks ~100; the memo ~80; item 293 ~110; the three instruments ~350; iteration sites whose item type changes ~50: **1,350–1,750** | the wipe, the churn and every decision of the 24 games, under floor 2's proxy and floor 3 | items 183 and 293 |
-
-**If the first ticket's count passes 2,500**, the seam is the board: the stack's
-three stores, item 293 and the instruments first, then `objects`,
-`battlefield`, `FitOnClone` and the memo as a second PR. Each half carries a
-consumer: the wipe for the first, the churn and the token board for the
-second.
-
-**Predictions** (the probe's model, §2.0):
-
-| Reading | Today | After CL-1 |
-|---|---|---|
-| `clone_bound_test` between turns, 4 seats | 53 allocations, 90.8 KB, 8.1 µs | 34, 12.1 KB, about 2.7 µs |
-| every decision, 4 seats | 78, 94.2 KB | 37, 12.2 KB |
-| every decision, 2 seats | 38, 47.5 KB | 28, 5.8 KB |
-| the wipe, 8,000 stacked | 32,014, 10 MB, 8.2 ms | about 15 allocations, 15 KB, 5 µs |
-| the churn, no objects left | 101.3 KB | under 8 KB |
-| instructions per decision, the budget's board | | within ±2.5 points. Reads lose the hasher (§2.7); each write checks a count, and each permanent, stack entry or waiting trigger made allocates its `Arc`, under one a decision (§2.6). The direction is the arm's to read |
-| gameplay rows, both pools | | **IDENTICAL**: no rule reads the change |
+| **CL-1, the board and the stack shared between forks** | Landed 2026-10-21 (#267): §7, and the archive's "CL-1" for the build as sized and its predictions | | | items 183 and 293 |
 
 ---
 
@@ -669,3 +648,46 @@ second.
   floors on a deep stack. The goal C meets is a pointer per chunk of objects.
 - **A `StackEntry` is 408 bytes on today's tree**, where item 183 and the
   brief say 360, the size after TR-2b's shared effect (2026-09-27).
+
+---
+
+## 7. Landed
+
+### CL-1 — the board and the stack shared between forks — ✅ landed 2026-10-21
+
+#267; items 183 and 293 closed. `state::shared_stores` holds `ObjectTable`
+and `SharedList`, generic over the item type. Each stored type says once,
+by implementing `ForkCopy`, how its chunk holds it: `CopiedWithChunk` for an
+object's record, a stack position and a memo frame, `CopiedAlone` (its own
+`Arc`) for a permanent's state, a stack entry and a waiting trigger. The
+memo's frames leave with their object. The archive's "CL-1" keeps the build
+as sized.
+
+**Where it built otherwise than designed.**
+- The holding is a type parameter, so a typed read (`&PermanentState`) and
+  the tests' field writes after `get_mut` kept their call sites.
+- Every table chunk keeps a mask of its live slots, so a walk visits only
+  those: the sparse battlefield needed it, and one rule is simpler than two.
+- Item 293's list stays on the state through the check's prompts (item 40)
+  and is cleared just before the check performs, not taken at its top;
+  `create_in_zone` notes a token too; a debug-only `last_sba_check_epoch`
+  keeps the old walk's window for its assertion.
+- The control sweeps skip a permanent whose kept frame is equal in value, so
+  no pointer is compared (decision 7).
+- `clone_fixture_test`'s churn is 4,000 tokens: 2,000 read 101.5 KB before
+  the memo's eviction, under the bar.
+
+**What it read**, against §4's predictions (the archive):
+
+| | Before | Predicted | Read |
+|---|---|---|---|
+| between turns, worst | 53 allocations, 90.8 KB, 8.1 µs | 34, 12.1 KB, ~2.7 µs | 34, 6.0 KB, 1.8 µs |
+| every decision, worst, 4 seats | 78, 94.2 KB | 37, 12.2 KB | 37, 6.7 KB |
+| the wipe, 8,000 stacked | 32,014, 10 MB, 8.2 ms | ~15, ~15 KB, ~5 µs | 14, 8.7 KB, 4.5–4.7 µs |
+| the churn, no objects left | 201.5 KB | under 8 KB | 1.5 KB |
+| a fork's chunks between decisions | | ~2.2 | 2.45, 15 at most |
+| instructions per decision | 0.7648 M | ±2.5 points | 0.7644 M, −0.05% |
+| gameplay rows, both pools, 2 and 4 seats | | IDENTICAL | IDENTICAL |
+
+Bytes read under the prediction: the probe priced the memo and the objects
+as hash tables, and both moved into chunks.

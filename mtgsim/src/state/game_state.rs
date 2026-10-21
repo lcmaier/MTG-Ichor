@@ -14,12 +14,13 @@ use crate::state::replacement_effects::{
     EntrySelectionScope, PreventionAllocationScope, ReplacementEffectRegistry,
 };
 use crate::state::restrictions::RestrictionRegistry;
+use crate::state::shared_stores::{ObjectTable, SharedList};
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
 use crate::types::mana::ManaSpent;
 use crate::types::ids::{
-    AbilityId, ExtraTurnId, FitOnClone, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
+    AbilityId, ExtraTurnId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
 };
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates, ReplacementDef};
@@ -316,16 +317,16 @@ pub(crate) struct NestingGuards {
 pub struct GameState {
     // --- Central object store ---
     /// All game objects indexed by ID
-    pub objects: FitOnClone<IdMap<ObjectId, GameObject>>,
+    pub objects: ObjectTable<GameObject>,
 
     // --- Players ---
     pub players: Vec<PlayerState>,
 
     // --- Global zones (player zones are in PlayerState) ---
     /// The stack — LIFO order (last element = top of stack)
-    pub stack: Vec<ObjectId>,
+    pub stack: SharedList<ObjectId>,
     /// Stack entry metadata — keyed by ObjectId
-    pub stack_entries: FitOnClone<IdMap<ObjectId, StackEntry>>,
+    pub stack_entries: ObjectTable<StackEntry>,
     /// The stack object currently resolving, if any.
     ///
     /// A rules question, not an engine artifact: `default_enter_controller`
@@ -339,7 +340,7 @@ pub struct GameState {
     /// every exit path, including the error ones.
     pub(crate) resolving: Option<ResolvingObject>,
     /// Battlefield state — keyed by ObjectId
-    pub battlefield: FitOnClone<IdMap<ObjectId, PermanentState>>,
+    pub battlefield: ObjectTable<PermanentState>,
 
     /// How much work the engine has done this game — see
     /// [`Diagnostics`].
@@ -672,14 +673,26 @@ pub struct GameState {
     /// zone changes.
     pub(crate) next_zone_change_epoch: ZoneChangeEpoch,
 
-    /// The tick as of the **start of the previous** state-based-action check.
+    /// What arrived since the last state-based check that CR 704.5d or 704.6d
+    /// can match: a token arriving anywhere but the battlefield, a commander
+    /// arriving in a graveyard or exile, each by the existence it arrived as.
+    /// The check reads these and walks nothing else (`codebase-state.md` item
+    /// 293). Pushed, in epoch order, by the doors into a zone: `arrive_in_zone`,
+    /// the one writer of the epoch, and `create_in_zone` for a token.
     ///
-    /// CR 704.6d's window is "since the last time state-based actions were
-    /// checked", and the boundary has to be read at the *start* of a check
-    /// rather than at its end. A commander that CR 704.5g puts into a graveyard
-    /// does so during a check, so an end-of-check boundary would place the move
-    /// before the boundary it is supposed to be after, and the commander would
-    /// never be offered its command zone at all.
+    /// **On the state, and cleared just before the check performs**, not
+    /// taken at its top: the check's prompts (CR 704.6d's offer, the legend
+    /// rule) are decisions a fork may be taken at (`codebase-state.md` item
+    /// 40). Nothing moves between the top and the perform, so the window is
+    /// CR 704.6d's "since the last time state-based actions were checked",
+    /// and what moves while the check performs is the next check's. Empty at
+    /// every grant of priority, so a fork there copies nothing for it
+    /// (`clone-architecture.md` decision 5).
+    pub(crate) arrivals_since_last_sba_check: Vec<ObjectRef>,
+
+    /// The tick as of the start of the previous check: the window the debug
+    /// walk asserts `arrivals_since_last_sba_check` against.
+    #[cfg(debug_assertions)]
     pub(crate) last_sba_check_epoch: ZoneChangeEpoch,
 
     // --- Triggered abilities (CR 603) ---
@@ -689,7 +702,7 @@ pub struct GameState {
     /// state and nowhere else (item 40): the drain removes each entry as it
     /// places it, so a clone taken at the ordering prompt resumes by running
     /// the drain again.
-    pub pending_triggers: Vec<crate::types::triggers::PendingTrigger>,
+    pub pending_triggers: SharedList<crate::types::triggers::PendingTrigger>,
     pub(crate) next_trigger_seq: u64,
     /// CR 603.7's delayed triggered abilities waiting for their events, in
     /// the order they were created: the dispatcher asks every one at every
@@ -980,12 +993,12 @@ impl GameState {
         }
 
         GameState {
-            objects: FitOnClone::default(),
+            objects: ObjectTable::default(),
             players,
-            stack: Vec::new(),
-            stack_entries: FitOnClone::default(),
+            stack: SharedList::default(),
+            stack_entries: ObjectTable::default(),
             resolving: None,
-            battlefield: FitOnClone::default(),
+            battlefield: ObjectTable::default(),
             diagnostics: Diagnostics::default(),
             layer_epoch: 0,
             layer_memo: LayerMemo::default(),
@@ -1038,8 +1051,10 @@ impl GameState {
             tokens_being_created: Vec::new(),
             lethal_damage_left: Vec::new(),
             next_zone_change_epoch: 1,
+            arrivals_since_last_sba_check: Vec::new(),
+            #[cfg(debug_assertions)]
             last_sba_check_epoch: 1,
-            pending_triggers: Vec::new(),
+            pending_triggers: SharedList::default(),
             next_trigger_seq: 0,
             delayed_triggers: Vec::new(),
             until_returns: Vec::new(),
@@ -1358,7 +1373,7 @@ impl GameState {
     pub fn battlefield_ordered(&self) -> Vec<(ObjectId, &PermanentState)> {
         // ORDER-FREE: sorted by timestamp next.
         let mut entries: Vec<(ObjectId, &PermanentState)> =
-            self.battlefield.iter().map(|(&id, e)| (id, e)).collect();
+            self.battlefield.iter().collect();
         entries.sort_by_key(|(_, e)| e.timestamp);
         entries
     }
@@ -1374,7 +1389,7 @@ impl GameState {
         // ORDER-FREE: sorted by timestamp next.
         let mut pairs: Vec<(Timestamp, ObjectId)> = self.battlefield
             .iter()
-            .map(|(&id, e)| (e.timestamp, id))
+            .map(|(id, e)| (e.timestamp, id))
             .collect();
         pairs.sort_by_key(|&(ts, _)| ts);
         pairs.into_iter().map(|(_, id)| id).collect()
@@ -1397,7 +1412,7 @@ impl GameState {
     pub fn zone_ids_ordered(&self, zone: Zone) -> Vec<ObjectId> {
         match zone {
             Zone::Battlefield => self.battlefield_ids_ordered(),
-            Zone::Stack => self.stack.clone(),
+            Zone::Stack => self.stack.iter().copied().collect(),
             Zone::Exile => self.exile.clone(),
             Zone::Command => self.command.clone(),
             Zone::Library | Zone::Hand | Zone::Graveyard => {
@@ -2505,6 +2520,7 @@ impl GameState {
     /// memo still answering for a deleted object would say it existed.
     pub fn remove_object(&mut self, id: ObjectId) -> Option<GameObject> {
         let removed = self.objects.remove(&id);
+        self.layer_memo.forget(id);
         self.bump_layer_epoch();
         removed
     }

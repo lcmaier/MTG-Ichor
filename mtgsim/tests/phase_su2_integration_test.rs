@@ -95,7 +95,7 @@ fn each_verb_builds_the_stack_its_lines_describe() {
     }
     let state = &game.state;
     let bears = ResolvedTarget::Object(permanent(state, "Grizzly Bears"));
-    assert_eq!(state.stack[..2], [object(state, Zone::Stack, "Lightning Bolt"), object(state, Zone::Stack, "Giant Growth")]);
+    assert_eq!(state.stack.iter().take(2).copied().collect::<Vec<_>>(), [object(state, Zone::Stack, "Lightning Bolt"), object(state, Zone::Stack, "Giant Growth")]);
     let ability = state.stack_entries[&state.stack[2]].ability_identity.expect("an activated ability");
     assert_eq!(ability.source.id, permanent(state, "Merfolk Thaumaturgist"));
     assert_eq!(targets_on_the_stack(state), [[[bears]], [[bears]], [[bears]]]);

@@ -2180,7 +2180,7 @@ mod tests {
             let seeded: IdSet<ObjectId> = Board::seed(game, None, None, HiddenCards::LeftOut).members.into_iter().collect();
             let left_out = left_out_zones(game);
             // ORDER-FREE: each object is asked alone.
-            for (&id, obj) in game.objects.iter() {
+            for (id, obj) in game.objects.iter() {
                 let membership = pass_membership(game, id);
                 let member = matches!(membership, PassMembership::Member);
                 assert_eq!(seeded.contains(&id), member, "{name}: {} in the {:?}", obj.card_data.name, obj.zone);

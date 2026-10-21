@@ -87,7 +87,10 @@ PRINTED = {
 
 # --- unordered ---------------------------------------------------------------
 
-HASH_TYPE = re.compile(r"\b(IdMap|IdSet|HashMap|HashSet)\b")
+#: A field whose walk order is no rule's: a hash-keyed one, whose order the
+#: hasher's seed sets, or an `ObjectTable`, which walks in id order, the same
+#: in every process and still not the CR's (`clone-architecture.md` decision 7).
+HASH_TYPE = re.compile(r"\b(IdMap|IdSet|HashMap|HashSet|ObjectTable)\b")
 ITERATING_METHOD = r"(iter|iter_mut|keys|values|values_mut|into_iter|into_keys|into_values|drain|retain|extract_if)"
 
 #: Another type's field that shares a name with a field read here, by the name

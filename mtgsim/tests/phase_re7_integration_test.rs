@@ -270,7 +270,7 @@ fn every_object_a_departing_player_owns_leaves_the_game_from_every_zone() {
     assert!(game.players[1].library.is_empty());
     assert!(game.players[1].graveyard.is_empty());
     assert_eq!(game.battlefield_ids_ordered(), vec![others_permanent]);
-    assert_eq!(game.stack, vec![others_spell]);
+    assert_eq!(game.stack.iter().copied().collect::<Vec<_>>(), [others_spell]);
     assert!(game.exile.is_empty());
     assert!(game.command.is_empty());
 

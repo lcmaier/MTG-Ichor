@@ -49,7 +49,7 @@ impl Held {
     fn holds(&self, game: &GameState, player: PlayerId) -> bool {
         match self.until {
             Yield::UntilEndOfTurn => game.turn_number == self.turn,
-            Yield::UntilStackChanges => game.stack == self.stack,
+            Yield::UntilStackChanges => game.stack.iter().eq(self.stack.iter()),
             Yield::UntilYourNextTurn => game.turn_number == self.turn || game.active_player != player,
         }
     }
@@ -68,7 +68,7 @@ impl Yields {
         if until == Yield::UntilStackChanges && game.stack.is_empty() {
             return false;
         }
-        *self.0.borrow_mut() = Some(Held { until, turn: game.turn_number, stack: game.stack.clone() });
+        *self.0.borrow_mut() = Some(Held { until, turn: game.turn_number, stack: game.stack.iter().copied().collect() });
         true
     }
 

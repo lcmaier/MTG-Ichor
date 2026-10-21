@@ -21,11 +21,11 @@ pub fn permanents_controlled_by(game: &GameState, player_id: PlayerId) -> Vec<Ob
     let mut mine: Vec<(Timestamp, ObjectId)> = game
         .battlefield
         .iter()
-        .filter(|&(&id, entry)| {
+        .filter(|&(id, entry)| {
             debug_assert_eq!(entry.controller == player_id, controls(game, id, player_id));
             entry.controller == player_id
         })
-        .map(|(&id, entry)| (entry.timestamp, id))
+        .map(|(id, entry)| (entry.timestamp, id))
         .collect();
     mine.sort_unstable_by_key(|&(timestamp, _)| timestamp);
     mine.into_iter().map(|(_, id)| id).collect()

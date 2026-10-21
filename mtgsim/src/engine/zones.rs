@@ -14,7 +14,7 @@ use crate::events::event::GameEvent;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StepType};
 use crate::types::history::TurnFact;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::EventPattern;
 use crate::types::zones::{DrawOrdinals, Zone};
 use crate::ui::decision::DecisionProvider;
@@ -186,9 +186,15 @@ impl GameState {
                 obj.card_data.name
             ));
         }
+        let (is_token, zone_change_epoch) = (obj.is_token, obj.zone_change_epoch);
         let id = self.add_object(obj);
         self.add_to_zone_collection(id, zone)?;
         self.register_off_the_battlefield(id, zone)?;
+        // CR 704.5d reads a token off the battlefield however it got there; a
+        // commander created in a zone was not put into it (CR 704.6d).
+        if is_token {
+            self.arrivals_since_last_sba_check.push(ObjectRef { id, zone_change_epoch });
+        }
         Ok(id)
     }
 
@@ -257,6 +263,11 @@ impl GameState {
         let obj = self.get_object_mut(id)?;
         obj.zone = zone;
         obj.zone_change_epoch = epoch;
+        let state_based_check_reads = (obj.is_token && zone != Zone::Battlefield)
+            || (obj.is_commander && matches!(zone, Zone::Graveyard | Zone::Exile));
+        if state_based_check_reads {
+            self.arrivals_since_last_sba_check.push(ObjectRef { id, zone_change_epoch: epoch });
+        }
         self.set_object_timestamp(id, timestamp);
         self.register_off_the_battlefield(id, zone)?;
 
@@ -391,7 +402,8 @@ impl GameState {
                 }
             }
             Zone::Stack => {
-                if let Some(pos) = self.stack.iter().position(|&x| x == id) {
+                let on_the_stack = self.stack.iter().position(|&x| x == id);
+                if let Some(pos) = on_the_stack {
                     self.stack.remove(pos);
                     self.stack_entries.remove(&id);
                     Ok(())

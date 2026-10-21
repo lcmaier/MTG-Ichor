@@ -37,6 +37,37 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-21 for CL-1** (#267: the board and the stack shared
+between forks, B10's build). No pool change, so no new baselines: one
+`close_out.py` sitting against **main** `906dbb0` (#266's merge), **engine**
+`7299533`.
+
+**Predictions** (`clone-architecture.md` §4, before any arm ran): gameplay
+rows identical on both pools at two seats and four, since no rule reads the
+change; instructions per decision within ±2.5 points; floors 2 and 3 at 34
+allocations and 12.1 KB between turns, 37 and 12.2 KB at every decision.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 170,344 / 180,970 | 344,016 / 364,613 |
+| instructions / decision, callgrind, the budget's board | | 0.7648 M → 0.7644 M, **−0.05%** |
+
+**Every prediction held.** Floors 2 and 3 are read at every decision now
+(decision 6): 37 allocations and 6.7 KB at worst over `clone_bound_test`'s
+10,253 decisions, 34 and 6.0 KB between turns, and 1.8 µs at the worst
+checkpoint by the means method (three runs: 1.75, 1.69, 1.73). On
+`clone_fixture_test`'s boards: 14 allocations, 8.7 KB and 4.5–4.7 µs at
+8,000 stacked triggers, and 1.5 KB after 4,000 tokens came and went. A fork
+copies 2.45 chunks between decisions on average (`fork_copies_test`). Bytes
+read under the prediction, which priced the memo and the object store as
+hash tables. The checked sitting (release with debug assertions, 50 `stress`
+games at two seats and four) played the arrivals list's debug walks with no
+error and no panic. The copies the branch made: the arrivals list's
+existence test, merged onto `GameState::find`; `create_in_zone` and
+`create_tokens` both read `is_token` beside `add_object`, one to note a
+token's arrival and one to make it, so kept.
+
 **Floors 2 and 3 re-read 2026-10-21 for B10's design**, on #265's tree
 (`b86c59c1`), before anything else was measured: the board still carried
 TR-5d's readings, and TR-5g's own run (53 allocations, 90.6 KB) had not

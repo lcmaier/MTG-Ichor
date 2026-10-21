@@ -17,7 +17,7 @@ use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype,
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::engine::replacement::{subject_of, EventSubject};
 use crate::types::effects::CounterType;
-use crate::types::ids::{ObjectId, PlayerId, ZoneChangeEpoch};
+use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::ui::ask::{ask_choose_legend_to_keep, ask_take_or_leave};
 use crate::ui::choice_types::ChoiceKind;
@@ -120,30 +120,33 @@ impl CollapsedResult {
 /// [`GameState::check_state_based_actions_loop`] count as CR 104.4b's loop.
 const MANDATORY_LOOP_CHECKS: usize = 500;
 
-/// The objects that changed zones at or after `since`, in the order they moved.
+/// The arrivals noted since the last check whose objects are still where they
+/// arrived, in the order they arrived, each with its object as it is now.
 ///
-/// `GameState.objects` is a `HashMap` and CR 704.6d reaches a decision per
-/// commander, so its iteration order is part of that decision. The zone-change
-/// epoch is monotone and unique per move — the same reasoning as
-/// `battlefield_ids_ordered`'s timestamp, applied to a collection that has no
-/// battlefield entity to read one from — so it is a total order on its own.
-///
-/// **The `since` filter is inside this function because it is what makes that
-/// true.** Every pregame object carries epoch 0, so a sort over *all* objects
-/// has as many ties as the game has cards, and the only key available to break
-/// them is `ObjectId`, the one key the determinism rule forbids (it is a
-/// counter now, but it is still not an order). `last_sba_check_epoch` starts at 1,
-/// so the filter discards every epoch-0 object and no tie survives it.
+/// The list notes every arrival a rule here could match, but an object can
+/// move again before the check reads it: a token that died and was then
+/// exiled from the graveyard has two arrivals noted, and only the second says
+/// where it is. An object that left the game has none. So each noted arrival
+/// counts only while its object is still that existence (CR 400.7), which is
+/// what `GameState::find` answers.
+fn arrivals_still_in_their_zone(game: &GameState) -> impl Iterator<Item = (ObjectId, &crate::objects::object::GameObject)> + '_ {
+    game.arrivals_since_last_sba_check.iter().filter_map(|&arrival| Some((arrival.id, game.find(arrival)?)))
+}
+
+/// The objects that changed zones at or after `since`, in the order they
+/// moved: the walk of every object `arrivals_since_last_sba_check` replaced, kept in a debug
+/// build to assert the list missed nothing. Every pregame object carries
+/// epoch 0, so the `since` filter, which starts at 1, leaves no tie.
+#[cfg(debug_assertions)]
 fn moved_since(
     game: &GameState,
-    since: ZoneChangeEpoch,
+    since: crate::types::ids::ZoneChangeEpoch,
 ) -> Vec<(ObjectId, &crate::objects::object::GameObject)> {
     // ORDER-FREE: sorted by epoch next, a total order (asserted).
     let mut moved: Vec<(ObjectId, &crate::objects::object::GameObject)> = game
         .objects
         .iter()
         .filter(|(_, obj)| obj.zone_change_epoch >= since)
-        .map(|(id, obj)| (*id, obj))
         .collect();
     moved.sort_by_key(|(_, obj)| obj.zone_change_epoch);
     debug_assert!(
@@ -170,11 +173,12 @@ impl GameState {
 
         let mut any_performed = false;
 
-        // CR 704.6d's "since the last time state-based actions were checked",
-        // reopened at the *top*: a commander CR 704.5g moves during the check must
-        // fall after the boundary, or the command zone is never offered.
-        let since = self.last_sba_check_epoch;
-        self.last_sba_check_epoch = self.next_zone_change_epoch;
+        // CR 704.6d's "since the last time state-based actions were checked" is
+        // `arrivals_since_last_sba_check`, cleared before this check performs. The debug walk's
+        // boundary, reopened at the *top*: a commander CR 704.5g moves during
+        // the check falls after it.
+        #[cfg(debug_assertions)]
+        let since = std::mem::replace(&mut self.last_sba_check_epoch, self.next_zone_change_epoch);
 
         // CR 704.5b's window, the same sentence: read into the batch and cleared
         // **whether or not the loss then happens**, since a replaced or refused loss
@@ -189,13 +193,19 @@ impl GameState {
         // since the last check, read here and cleared, so an indestructible
         // creature that survives this check is not destroyed by a later one
         // for the same damage (`codebase-state.md` item 198).
+        // ORDER-FREE: each flag is read into a set. Read first and clear only
+        // the permanents whose flag is set: a write copies the permanent if a
+        // search's fork shares it (`state::shared_stores`), and this runs at
+        // every check, where the flag is almost always clear.
+        let dealt_deathtouch_damage: crate::types::ids::IdSet<ObjectId> =
+            self.battlefield.iter().filter(|(_, entry)| entry.damaged_by_deathtouch).map(|(id, _)| id).collect();
         // NOT REPLACEABLE: deathtouch's memory of damage already announced.
-        // ORDER-FREE: each entry's flag is read and cleared alone, into a set.
-        let dealt_deathtouch_damage: crate::types::ids::IdSet<ObjectId> = self
-            .battlefield
-            .iter_mut()
-            .filter_map(|(id, entry)| std::mem::take(&mut entry.damaged_by_deathtouch).then_some(*id))
-            .collect();
+        // ORDER-FREE: each flag is cleared alone.
+        for id in &dealt_deathtouch_damage {
+            if let Some(entry) = self.battlefield.get_mut(id) {
+                entry.damaged_by_deathtouch = false;
+            }
+        }
 
         // --- CR 704.5a–c: the losses, as batch members ---------------------
         //
@@ -232,7 +242,7 @@ impl GameState {
         // earlier acceptance changed. `since`, read at the top, is the epoch boundary.
         let commander_moves: Vec<(GameAction, StateBasedAction)> = {
             let mut to_offer: Vec<(ObjectId, PlayerId, Zone)> = Vec::new();
-            for (id, obj) in moved_since(self, since) {
+            for (id, obj) in arrivals_still_in_their_zone(self) {
                 if !obj.is_commander {
                     continue;
                 }
@@ -241,9 +251,19 @@ impl GameState {
                 }
                 to_offer.push((id, obj.owner, obj.zone));
             }
+            #[cfg(debug_assertions)]
+            {
+                let walked: Vec<ObjectId> = moved_since(self, since)
+                    .into_iter()
+                    .filter(|(_, obj)| obj.is_commander && matches!(obj.zone, Zone::Graveyard | Zone::Exile))
+                    .map(|(id, _)| id)
+                    .collect();
+                let listed: Vec<ObjectId> = to_offer.iter().map(|&(id, _, _)| id).collect();
+                debug_assert_eq!(walked, listed, "CR 704.6d: `arrivals_since_last_sba_check` missed a commander the walk finds");
+            }
             // CR 101.4 — two owners offered in one check are choosing at the
             // same time, so the active player is asked first. Stable, so one
-            // player's two commanders keep `moved_since`'s order between them.
+            // player's two commanders keep the order they arrived in.
             to_offer.sort_by_key(|(_, owner, _)| self.apnap_index(*owner));
             let mut accepted: Vec<(GameAction, StateBasedAction)> = Vec::new();
             for (id, owner, from) in to_offer {
@@ -288,16 +308,24 @@ impl GameState {
 
         // 704.5d — a token in a zone other than the battlefield ceases to exist:
         // one there as the check begins, so a token that dies in this check
-        // ceases at the next. Ordered by its last move's epoch (`move_object`'s,
-        // monotone; a token made off the battlefield carries one too), since
-        // `objects` is a `HashMap` and the members announce.
-        // ORDER-FREE: sorted by epoch next.
-        let mut tokens_outside: Vec<(ObjectId, ZoneChangeEpoch)> = self.objects.iter()
-            .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
-            .map(|(&id, obj)| (id, obj.zone_change_epoch))
-            .collect();
-        tokens_outside.sort_by_key(|&(_, epoch)| epoch);
-        for (object, _) in tokens_outside {
+        // ceases at the next. In the order the tokens arrived, which the
+        // members announce in.
+        let tokens_outside: Vec<ObjectId> =
+            arrivals_still_in_their_zone(self).filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield).map(|(id, _)| id).collect();
+        #[cfg(debug_assertions)]
+        {
+            // ORDER-FREE: sorted by epoch next.
+            let mut walked: Vec<(ObjectId, crate::types::ids::ZoneChangeEpoch)> = self
+                .objects
+                .iter()
+                .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
+                .map(|(id, obj)| (id, obj.zone_change_epoch))
+                .collect();
+            walked.sort_by_key(|&(_, epoch)| epoch);
+            let walked: Vec<ObjectId> = walked.into_iter().map(|(id, _)| id).collect();
+            debug_assert_eq!(walked, tokens_outside, "CR 704.5d: `arrivals_since_last_sba_check` missed a token the walk finds");
+        }
+        for object in tokens_outside {
             batch.push((GameAction::TokenCeasesToExist { object }, StateBasedAction::TokenOutsideTheBattlefield));
         }
 
@@ -498,6 +526,9 @@ impl GameState {
             CollapsedResult::of(action).is_none_or(|result| seen.insert((subject_of(action), result)))
         });
 
+        // Read: the next check's window starts here, since nothing moved
+        // between this check's top and its performance.
+        self.arrivals_since_last_sba_check.clear();
         if !batch.is_empty() {
             // **What the game recorded, not the proposal**: CR 704.3 repeats only "if
             // any state-based actions are performed", and an indestructible creature's
@@ -681,6 +712,38 @@ mod tests {
         assert_eq!(entry.counter_count(crate::types::effects::CounterType::MinusOneMinusOne), 0);
     }
 
+    /// Item 293: the check reads the arrivals either rule can match, not every
+    /// object. A token leaving the battlefield and a commander put into exile
+    /// are noted; a card cast onto the stack is not, so a decision during a
+    /// cast clones no list; and the check leaves the list empty.
+    #[test]
+    fn the_check_reads_only_the_arrivals_its_rules_can_match() {
+        let mut game = GameState::new(2, 20);
+        let dp = ScriptedDecisionProvider::new();
+        let token = crate::test_support::place_vanilla_creature(&mut game, 0, 1, 1, &[]);
+        game.objects.get_mut(&token).unwrap().is_token = true;
+        let commander = crate::test_support::place_vanilla_creature(&mut game, 1, 2, 2, &[]);
+        game.objects.get_mut(&commander).unwrap().is_commander = true;
+        let card = crate::test_support::put_in_hand(&mut game, vanilla_creature_card(), 0);
+
+        game.move_object(card, Zone::Stack).unwrap();
+        assert!(game.arrivals_since_last_sba_check.is_empty(), "a nontoken card's move is no candidate");
+        game.change_zone(token, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&dp)).unwrap();
+        game.change_zone(commander, Zone::Exile, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
+        let arrived: Vec<_> = game.arrivals_since_last_sba_check.iter().map(|arrival| arrival.id).collect();
+        assert_eq!(arrived, [token, commander], "in the order they arrived");
+
+        dp.expect_pick_n(ChoiceKind::CommanderToCommandZoneSba { commander }, vec![0]);
+        assert!(game.check_state_based_actions(&dp).unwrap());
+        assert!(!game.objects.contains_key(&token), "CR 704.5d");
+        assert_eq!(game.objects[&commander].zone, Zone::Command, "CR 704.6d, offered and taken");
+        assert!(game.arrivals_since_last_sba_check.is_empty(), "the check read the list and cleared it");
+    }
+
+    fn vanilla_creature_card() -> std::sync::Arc<crate::objects::card_data::CardData> {
+        CardDataBuilder::new("Bear").card_type(CardType::Creature).power_toughness(2, 2).build()
+    }
+
     #[test]
     fn test_sba_token_ceases_to_exist_in_graveyard() {
         // Token in graveyard is removed from the game entirely
@@ -693,8 +756,7 @@ mod tests {
             .build();
         let mut obj = GameObject::new(data, 0, Zone::Graveyard);
         obj.is_token = true;
-        let id = game.add_object(obj);
-        game.players[0].graveyard.push(id);
+        let id = game.create_in_zone(obj).unwrap();
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);

@@ -1407,7 +1407,7 @@ fn tokens(game: &GameState) -> Vec<String> {
         .battlefield
         .keys()
         .filter_map(|id| {
-            let obj = game.objects.get(id)?;
+            let obj = game.objects.get(&id)?;
             obj.is_token.then(|| obj.card_data.name.clone())
         })
         .collect();

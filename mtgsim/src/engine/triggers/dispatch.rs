@@ -132,6 +132,23 @@ struct LkiKeeper<'a> {
     trigger: Option<&'a TriggerBinding>,
 }
 
+/// Where one keeper is held, so the hand-over can write to it after reading
+/// every keeper (`GameState::lki_keepers`). An index is read and used with
+/// nothing between that could move the list.
+#[derive(Clone, Copy)]
+enum KeeperLocation {
+    /// A triggered ability waiting to be put on the stack, by its index in
+    /// `GameState::pending_triggers`.
+    WaitingTrigger(usize),
+    /// A spell or ability on the stack, by its object.
+    StackEntry(ObjectId),
+    /// The spell or ability resolving now.
+    ResolvingObject,
+    /// A delayed trigger waiting for its event, by its index in
+    /// `GameState::delayed_triggers`.
+    DelayedTrigger(usize),
+}
+
 impl LkiKeeper<'_> {
     /// The objects it keeps last known information for: its source, then its
     /// triggering event's objects.
@@ -849,20 +866,40 @@ impl GameState {
     /// waiting triggers on its enchanted permanent leaving finds it there. They
     /// are pending, or on the stack at the latest: the check follows the
     /// leaving before anyone receives priority.
+    ///
+    /// The triggers that find it are read first and only those are written:
+    /// a write copies the trigger if a fork shares it (`state::shared_stores`).
     pub(crate) fn aura_put_into_graveyard_by_the_check(&mut self, aura: ObjectRef) {
         let Some(found) = self.object_ref(aura.id) else { return };
-        let finds = |source: ObjectRef, binding: &mut TriggerBinding| {
-            if source == aura && binding.event().watches_its_host_leave() && binding.source_found_in_graveyard.is_none() {
-                binding.source_found_in_graveyard = Some(found);
-            }
+        let finds = |source: ObjectRef, binding: &TriggerBinding| {
+            source == aura && binding.event().watches_its_host_leave() && binding.source_found_in_graveyard.is_none()
         };
-        for pending in &mut self.pending_triggers {
-            finds(pending.origin.source_ref(), &mut pending.binding);
+        let waiting_that_find_it: Vec<usize> = self
+            .pending_triggers
+            .iter()
+            .enumerate()
+            .filter(|(_, pending)| finds(pending.origin.source_ref(), &pending.binding))
+            .map(|(queue_index, _)| queue_index)
+            .collect();
+        for queue_index in waiting_that_find_it {
+            if let Some(pending) = self.pending_triggers.get_mut(queue_index) {
+                pending.binding.source_found_in_graveyard = Some(found);
+            }
         }
-        for id in &self.stack {
-            let Some(entry) = self.stack_entries.get_mut(id) else { continue };
-            if let (Some(identity), Some(binding)) = (entry.ability_identity, entry.trigger.as_mut()) {
-                finds(identity.source, binding);
+        let stacked: Vec<ObjectId> = self
+            .stack
+            .iter()
+            .copied()
+            .filter(|id| {
+                self.stack_entries.get(id).is_some_and(|entry| match (entry.ability_identity, entry.trigger.as_ref()) {
+                    (Some(identity), Some(binding)) => finds(identity.source, binding),
+                    _ => false,
+                })
+            })
+            .collect();
+        for id in stacked {
+            if let Some(binding) = self.stack_entries.get_mut(&id).and_then(|entry| entry.trigger.as_mut()) {
+                binding.source_found_in_graveyard = Some(found);
             }
         }
     }
@@ -1021,40 +1058,74 @@ impl GameState {
     }
 
     /// The objects some keeper keeps last known information for
-    /// (`for_each_lki_keeper`), each once. Empty or short on the common board.
-    fn objects_lki_is_kept_for(&mut self) -> Vec<ObjectRef> {
+    /// (`lki_keepers`), each once. Empty or short on the common board.
+    fn objects_lki_is_kept_for(&self) -> Vec<ObjectRef> {
         let mut kept_for: Vec<ObjectRef> = Vec::new();
-        self.for_each_lki_keeper(|keeper, _| {
+        for (_, keeper) in self.lki_keepers() {
             for object in keeper.objects() {
                 if !kept_for.contains(&object) {
                     kept_for.push(object);
                 }
             }
-        });
+        }
         kept_for
     }
 
-    /// Every keeper, with where it keeps the frame of an object it reads that
-    /// leaves. The one list of keepers, so the capture
-    /// (`objects_lki_is_kept_for`) and the hand-over cannot disagree.
-    fn for_each_lki_keeper(&mut self, mut each: impl FnMut(LkiKeeper<'_>, KeptLkiSlot<'_>)) {
-        for pending in &mut self.pending_triggers {
+    /// Every keeper in the game, with where it is held and what it reads.
+    ///
+    /// A keeper is anything that will read an object later and so must keep
+    /// that object's last known information if the object leaves first (CR
+    /// 113.7a, 608.2h): a triggered ability waiting to be put on the stack, a
+    /// spell or ability on the stack, the one resolving, and a delayed trigger
+    /// waiting for its event. Each reads its source; a trigger also reads the
+    /// objects of the event that triggered it. When one of those objects is
+    /// about to leave, its frame is captured (`objects_lki_is_kept_for` asks
+    /// which objects anyone keeps) and handed to each keeper that reads it
+    /// (`hand_over_lki`). Both ask this one list, so they cannot disagree
+    /// about who the keepers are.
+    ///
+    /// **Read, then write only the keepers that keep the object.** The
+    /// waiting triggers and the stack entries live in stores a fork shares
+    /// (`state::shared_stores`), where a write copies what it touches. A walk
+    /// that took `&mut` of every keeper, as this one did before CL-1, copied
+    /// every waiting trigger and stack entry in a fork whether or not it wrote
+    /// to them: the whole stack, on a board with 8,000 triggers. So this walk
+    /// only reads, and the hand-over writes through [`Self::kept_lki_slot`] to
+    /// the few keepers that matched.
+    fn lki_keepers(&self) -> impl Iterator<Item = (KeeperLocation, LkiKeeper<'_>)> + '_ {
+        let waiting = self.pending_triggers.iter().enumerate().map(|(queue_index, pending)| {
             let keeper = LkiKeeper { source: Some(pending.origin.source_ref()), trigger: Some(&pending.binding) };
-            each(keeper, KeptLkiSlot::List(&mut pending.kept_lki));
-        }
+            (KeeperLocation::WaitingTrigger(queue_index), keeper)
+        });
         // In stack order, never the map's: a capture is a layer walk, which
         // writes a trace record.
-        for id in &self.stack {
-            let Some(entry) = self.stack_entries.get_mut(id) else { continue };
+        let stacked = self.stack.iter().filter_map(|&id| {
+            let entry = self.stack_entries.get(&id)?;
             let keeper = LkiKeeper { source: entry.ability_identity.map(|identity| identity.source), trigger: entry.trigger.as_ref() };
-            each(keeper, KeptLkiSlot::List(&mut entry.kept_lki));
-        }
-        if let Some(resolving) = &mut self.resolving {
+            Some((KeeperLocation::StackEntry(id), keeper))
+        });
+        let resolving = self.resolving.iter().map(|resolving| {
             let keeper = LkiKeeper { source: resolving.identity.map(|identity| identity.source), trigger: resolving.trigger.as_ref() };
-            each(keeper, KeptLkiSlot::List(&mut resolving.kept_lki));
-        }
-        for delayed in &mut self.delayed_triggers {
-            each(LkiKeeper { source: Some(delayed.source), trigger: None }, KeptLkiSlot::Source(&mut delayed.source_lki));
+            (KeeperLocation::ResolvingObject, keeper)
+        });
+        let delayed = self.delayed_triggers.iter().enumerate().map(|(index, delayed)| {
+            (KeeperLocation::DelayedTrigger(index), LkiKeeper { source: Some(delayed.source), trigger: None })
+        });
+        waiting.chain(stacked).chain(resolving).chain(delayed)
+    }
+
+    /// Where the keeper at `location` keeps the frames of the objects it reads,
+    /// to write one into: the keeper is copied first if a fork shares it.
+    fn kept_lki_slot(&mut self, location: KeeperLocation) -> Option<KeptLkiSlot<'_>> {
+        match location {
+            KeeperLocation::WaitingTrigger(queue_index) => {
+                self.pending_triggers.get_mut(queue_index).map(|pending| KeptLkiSlot::List(&mut pending.kept_lki))
+            }
+            KeeperLocation::StackEntry(id) => self.stack_entries.get_mut(&id).map(|entry| KeptLkiSlot::List(&mut entry.kept_lki)),
+            KeeperLocation::ResolvingObject => self.resolving.as_mut().map(|resolving| KeptLkiSlot::List(&mut resolving.kept_lki)),
+            KeeperLocation::DelayedTrigger(index) => {
+                self.delayed_triggers.get_mut(index).map(|delayed| KeptLkiSlot::Source(&mut delayed.source_lki))
+            }
         }
     }
 
@@ -1125,15 +1196,18 @@ impl GameState {
             },
         };
         let object = lki.object();
-        self.for_each_lki_keeper(|keeper, slot| {
-            if !keeper.objects().any(|kept_for| kept_for == object) {
-                return;
+        let keepers_reading_it: Vec<KeeperLocation> = self
+            .lki_keepers()
+            .filter(|(_, keeper)| keeper.objects().any(|kept_for| kept_for == object))
+            .map(|(location, _)| location)
+            .collect();
+        for location in keepers_reading_it {
+            match self.kept_lki_slot(location) {
+                Some(KeptLkiSlot::List(list)) => list.push(lki.clone()),
+                Some(KeptLkiSlot::Source(source_lki)) => *source_lki = Some(lki.clone()),
+                None => {}
             }
-            match slot {
-                KeptLkiSlot::List(list) => list.push(lki.clone()),
-                KeptLkiSlot::Source(source_lki) => *source_lki = Some(lki.clone()),
-            }
-        });
+        }
     }
 
     /// The last known information a kept-for mover's batch took for it, if any:
