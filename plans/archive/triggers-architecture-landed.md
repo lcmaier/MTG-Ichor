@@ -5281,8 +5281,10 @@ moved up to right after TR-5g.
   (`o:"X target" -o:"up to X target"`), each with X paid, the sibling of
   `UpToAmount`, so it shipped with the type.
 - Teysa Karlov became a fixture, her rulings #1 and #3 to #9 tested on her
-  own board, #5's sacrifice among them; `named_act` became an exhaustive
-  match.
+  own board, #5's sacrifice among them. `named_act` was made an exhaustive
+  match and put back at round 2 (the owner: a smell): a keyword action is
+  defined as the move it makes (CR 701), so only a zone change carries an
+  act, and the act rule needs no second record.
 - A trace page, `plans/traces/tr-5g-a-multiplier-is-read-where-its-trigger-looks.html`:
   the three kinds of ability list, which arms each answers, and the count
   reading multipliers through them, on three traced boards.

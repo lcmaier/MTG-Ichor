@@ -1014,44 +1014,13 @@ impl TriggerEvent {
         matches!(self, TriggerEvent::ZoneChange { subject: TriggerSubject::Host, change, .. } if change.from == Some(Zone::Battlefield))
     }
 
-    /// The act a zone-change arm names: "whenever you sacrifice". The engine
-    /// writes a sacrifice and the death it causes as one record, and CR
-    /// 603.2d's count tells them apart by this (Teysa Karlov's fifth ruling).
+    /// The act a zone-change arm names: "whenever you sacrifice". CR 701
+    /// defines a keyword action as the move it makes (CR 701.8a, 701.21a), so
+    /// the act is written on the zone change's record and pattern and on no
+    /// other arm. CR 603.2d's count tells "whenever you sacrifice" from
+    /// "whenever a creature dies" by it (Teysa Karlov's fifth ruling).
     pub fn named_act(&self) -> Option<ZoneChangeAct> {
-        match self {
-            TriggerEvent::ZoneChange { change, .. } => change.act,
-            // Every other arm, by name, so a new one says whether it names
-            // an act: none of these records holds two events.
-            TriggerEvent::BecomesTapped { .. }
-            | TriggerEvent::BecomesUntapped { .. }
-            | TriggerEvent::DrawsCard { .. }
-            | TriggerEvent::ManaAdded { .. }
-            | TriggerEvent::DamageDealt { .. }
-            | TriggerEvent::DamageIsPrevented { .. }
-            | TriggerEvent::PhaseBegins { .. }
-            | TriggerEvent::StepBegins { .. }
-            | TriggerEvent::TurnBegins { .. }
-            | TriggerEvent::GainsLife { .. }
-            | TriggerEvent::LosesLife { .. }
-            | TriggerEvent::EntersBattlefield { .. }
-            | TriggerEvent::Attacks { .. }
-            | TriggerEvent::Blocks { .. }
-            | TriggerEvent::BecomesTarget { .. }
-            | TriggerEvent::ActivatesAbility { .. }
-            | TriggerEvent::CastsSpell { .. }
-            | TriggerEvent::IsCountered { .. }
-            | TriggerEvent::PlayerLoses { .. }
-            | TriggerEvent::ShufflesLibrary { .. }
-            | TriggerEvent::CountersPutOn { .. }
-            | TriggerEvent::CountersRemovedFrom { .. }
-            | TriggerEvent::BecomesAttached { .. }
-            | TriggerEvent::BecomesUnattached { .. }
-            | TriggerEvent::ControlChanges { .. }
-            | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. }
-            | TriggerEvent::CreatesToken { .. }
-            | TriggerEvent::Scries { .. } => None,
-        }
+        if let TriggerEvent::ZoneChange { change, .. } = self { change.act } else { None }
     }
 
     /// The kinds of record this arm can match — the discriminant half of
