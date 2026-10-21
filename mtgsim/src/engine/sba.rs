@@ -143,7 +143,6 @@ fn moved_since(
         .objects
         .iter()
         .filter(|(_, obj)| obj.zone_change_epoch >= since)
-        .map(|(id, obj)| (*id, obj))
         .collect();
     moved.sort_by_key(|(_, obj)| obj.zone_change_epoch);
     debug_assert!(
@@ -189,13 +188,18 @@ impl GameState {
         // since the last check, read here and cleared, so an indestructible
         // creature that survives this check is not destroyed by a later one
         // for the same damage (`codebase-state.md` item 198).
+        // ORDER-FREE: each flag is read into a set. Read first, so a fork
+        // copies only the permanents whose flag is set (`clone-architecture.md`
+        // decision 3).
+        let dealt_deathtouch_damage: crate::types::ids::IdSet<ObjectId> =
+            self.battlefield.iter().filter(|(_, entry)| entry.damaged_by_deathtouch).map(|(id, _)| id).collect();
         // NOT REPLACEABLE: deathtouch's memory of damage already announced.
-        // ORDER-FREE: each entry's flag is read and cleared alone, into a set.
-        let dealt_deathtouch_damage: crate::types::ids::IdSet<ObjectId> = self
-            .battlefield
-            .iter_mut()
-            .filter_map(|(id, entry)| std::mem::take(&mut entry.damaged_by_deathtouch).then_some(*id))
-            .collect();
+        // ORDER-FREE: each flag is cleared alone.
+        for id in &dealt_deathtouch_damage {
+            if let Some(entry) = self.battlefield.get_mut(id) {
+                entry.damaged_by_deathtouch = false;
+            }
+        }
 
         // --- CR 704.5a–c: the losses, as batch members ---------------------
         //
@@ -294,7 +298,7 @@ impl GameState {
         // ORDER-FREE: sorted by epoch next.
         let mut tokens_outside: Vec<(ObjectId, ZoneChangeEpoch)> = self.objects.iter()
             .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
-            .map(|(&id, obj)| (id, obj.zone_change_epoch))
+            .map(|(id, obj)| (id, obj.zone_change_epoch))
             .collect();
         tokens_outside.sort_by_key(|&(_, epoch)| epoch);
         for (object, _) in tokens_outside {

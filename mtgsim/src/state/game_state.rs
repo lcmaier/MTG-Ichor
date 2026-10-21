@@ -20,7 +20,7 @@ use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
 use crate::types::mana::ManaSpent;
 use crate::types::ids::{
-    AbilityId, ExtraTurnId, FitOnClone, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
+    AbilityId, ExtraTurnId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
 };
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates, ReplacementDef};
@@ -317,7 +317,7 @@ pub(crate) struct NestingGuards {
 pub struct GameState {
     // --- Central object store ---
     /// All game objects indexed by ID
-    pub objects: FitOnClone<IdMap<ObjectId, GameObject>>,
+    pub objects: ObjectTable<InlineEntry<GameObject>>,
 
     // --- Players ---
     pub players: Vec<PlayerState>,
@@ -340,7 +340,7 @@ pub struct GameState {
     /// every exit path, including the error ones.
     pub(crate) resolving: Option<ResolvingObject>,
     /// Battlefield state — keyed by ObjectId
-    pub battlefield: FitOnClone<IdMap<ObjectId, PermanentState>>,
+    pub battlefield: ObjectTable<SharedEntry<PermanentState>>,
 
     /// How much work the engine has done this game — see
     /// [`Diagnostics`].
@@ -981,12 +981,12 @@ impl GameState {
         }
 
         GameState {
-            objects: FitOnClone::default(),
+            objects: ObjectTable::default(),
             players,
             stack: SharedList::default(),
             stack_entries: ObjectTable::default(),
             resolving: None,
-            battlefield: FitOnClone::default(),
+            battlefield: ObjectTable::default(),
             diagnostics: Diagnostics::default(),
             layer_epoch: 0,
             layer_memo: LayerMemo::default(),
@@ -1359,7 +1359,7 @@ impl GameState {
     pub fn battlefield_ordered(&self) -> Vec<(ObjectId, &PermanentState)> {
         // ORDER-FREE: sorted by timestamp next.
         let mut entries: Vec<(ObjectId, &PermanentState)> =
-            self.battlefield.iter().map(|(&id, e)| (id, e)).collect();
+            self.battlefield.iter().collect();
         entries.sort_by_key(|(_, e)| e.timestamp);
         entries
     }
@@ -1375,7 +1375,7 @@ impl GameState {
         // ORDER-FREE: sorted by timestamp next.
         let mut pairs: Vec<(Timestamp, ObjectId)> = self.battlefield
             .iter()
-            .map(|(&id, e)| (e.timestamp, id))
+            .map(|(id, e)| (e.timestamp, id))
             .collect();
         pairs.sort_by_key(|&(ts, _)| ts);
         pairs.into_iter().map(|(_, id)| id).collect()

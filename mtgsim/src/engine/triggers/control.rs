@@ -59,6 +59,12 @@ impl GameState {
         }
         for id in self.battlefield_ids_ordered() {
             let frame = compute_characteristics(self, id);
+            // Read first: a fork copies only the permanents whose kept frame
+            // moves (`clone-architecture.md` decision 3).
+            let kept = self.battlefield.get(&id).map(|entry| entry.frame_before_control_change.as_deref());
+            if kept.is_none_or(|kept| kept == frame.as_deref()) {
+                continue;
+            }
             if let Some(entry) = self.battlefield.get_mut(&id) {
                 entry.frame_before_control_change = frame;
             }
@@ -105,8 +111,19 @@ impl GameState {
             // With no control-changing effect, a permanent's controller is the
             // one it entered under, and there is nothing to walk.
             let frame = if rows { compute_characteristics(self, id) } else { None };
-            let Some(entry) = self.battlefield.get_mut(&id) else { continue };
+            let Some(entry) = self.battlefield.get(&id) else { continue };
             let now = frame.as_ref().map_or(entry.controller, |frame| frame.controller);
+            // Read first: a permanent whose kept frame and announced controller
+            // would not move is not written, so a fork does not copy it
+            // (`clone-architecture.md` decision 3). Its kept frame is the one
+            // the change looks back to either way.
+            if now == entry.announced_controller && entry.frame_before_control_change.as_deref() == frame.as_deref() {
+                if let Some(kept) = &entry.frame_before_control_change {
+                    sweep.frames_before.push((id, Arc::clone(kept)));
+                }
+                continue;
+            }
+            let Some(entry) = self.battlefield.get_mut(&id) else { continue };
             if let Some(before) = std::mem::replace(&mut entry.frame_before_control_change, frame) {
                 sweep.frames_before.push((id, before));
             }

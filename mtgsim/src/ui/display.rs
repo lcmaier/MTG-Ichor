@@ -1450,8 +1450,8 @@ mod tests {
         let lines = TypeLines::new(&game);
         // ORDER-FREE: each object is asked alone.
         for id in game.objects.keys() {
-            let now = compute_characteristics(&game, *id).unwrap();
-            assert_eq!(lines.of(&game, *id, &now), type_line_now(&game, *id), "{}", named(&game, *id));
+            let now = compute_characteristics(&game, id).unwrap();
+            assert_eq!(lines.of(&game, id, &now), type_line_now(&game, id), "{}", named(&game, id));
         }
     }
 

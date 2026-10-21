@@ -405,12 +405,21 @@ impl GameState {
                 // Rule 514.1 (discard to hand size) needs a DecisionProvider, so it
                 // lives one level up in `Game::process_turn_based_actions`, not here.
 
+                // ORDER-FREE: the permanents with damage to clear, read first so
+                // a fork copies only those (`clone-architecture.md` decision 3).
+                let damaged: Vec<ObjectId> = self
+                    .battlefield
+                    .iter()
+                    .filter(|(_, entry)| entry.damage_marked != 0 || entry.damaged_by_deathtouch)
+                    .map(|(id, _)| id)
+                    .collect();
                 // NOT REPLACEABLE: CR 514.2's damage wearing off. The cards that
                 // stop it are "can't"s, not replacements.
-                // ORDER-FREE: each entry is cleared alone, and nothing is announced.
-                for entry in self.battlefield.values_mut() {
-                    entry.damage_marked = 0;
-                    entry.damaged_by_deathtouch = false;
+                for id in damaged {
+                    if let Some(entry) = self.battlefield.get_mut(&id) {
+                        entry.damage_marked = 0;
+                        entry.damaged_by_deathtouch = false;
+                    }
                 }
                 // Rule 514.2: End "until end of turn" continuous effects, the
                 // frames kept first for a change of control they make.

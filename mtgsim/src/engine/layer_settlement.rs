@@ -57,7 +57,7 @@ impl GameState {
             .battlefield
             .iter()
             .filter(|(_, entry)| entry.attacking.is_some() || entry.blocking.is_some())
-            .map(|(&id, entry)| (entry.timestamp, id))
+            .map(|(id, entry)| (entry.timestamp, id))
             .collect();
         combatants.sort_by_key(|&(timestamp, _)| timestamp);
         let changed: Vec<ObjectId> = combatants
