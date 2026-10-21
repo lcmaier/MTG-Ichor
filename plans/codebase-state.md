@@ -7909,7 +7909,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      them item 293's), and placement took each trigger from the middle of
      the queue (112 ms for 8,000; now 20 ms). Item 293 is the third, the
      state-based check's two walks of every object.
-     **Designed 2026-10-21** (`clone-architecture.md`, in review). Read at
+     **Designed 2026-10-21** (`clone-architecture.md`, decided at #266's review). Read at
      every decision of the clone test's games, the pooled board reaches 78
      allocations at a 22-trigger ordering, three decisions over 64, none of
      which CI reads; a pointer per object passes floor 2's time at about 700

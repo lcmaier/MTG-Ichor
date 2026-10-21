@@ -1,10 +1,10 @@
 # The clone — what a fork shares, and what it copies
 
-> **Status:** design, 2026-10-21, for `roadmap-v2.md` B10; no code. At #266's
-> first review the owner took decisions 3, 4, 6 and 8 (CL-1 next). Decision 1
-> is re-measured with B built (§2.8), and decisions 2, 5 and 7 are rewritten;
-> those four wait on the owner. Every number in §2 was measured on 2026-10-21
-> on `b86c59c1` (#265's merge), and §2.0 says how.
+> **Status:** design, 2026-10-21, for `roadmap-v2.md` B10; no code. Every
+> decision is taken (the owner, 2026-10-21, #266): 3, 4, 6 and 8 at the first
+> review, CL-1 next; 1, 2, 5 and 7 at the second, once B was measured (§2.8)
+> and 2, 5 and 7 rewritten. Every number in §2 was measured on 2026-10-21 on
+> `b86c59c1` (#265's merge), and §2.0 says how.
 > **Authority:** how `GameState` holds per-object state so that a clone shares
 > it, namely the object store, the battlefield's entries, the stack's entries
 > and order, the triggers waiting to be put on the stack, and the layer memo's
@@ -349,7 +349,7 @@ one trigger. The stack's order and the waiting queue are lists, not maps, and
 take the history log's own shape: chunks of 32 in order, a fork's first write
 copying the last.
 
-**Recommended: C.**
+**Taken: C** (the owner, 2026-10-21, at #266's second review).
 - **Against B (§2.8).** B and C both hold floors 2 and 3 on every board
   here, and a fork's whole cost (its clone and its writes to the next
   decision) is about the same in each, 0.5 µs. Where they part is everything
@@ -415,7 +415,7 @@ allocations:
 **At every decision**, sharing the stack's three stores alone reads 59
 allocations at four seats and 35 at two; all six, 37 and 28 (§2.3).
 
-**Recommended:** the six rows above. Within the build the stack's stores go
+**Taken: the six rows above** (the owner, 2026-10-21, at #266's second review). Within the build the stack's stores go
 first, as the brief orders, then the board's, then the memo.
 
 ### Decision 3 — how writes go through the copy
@@ -520,7 +520,7 @@ token there at a check's top arrived since the previous check's top. That is als
 CR 704.6d's window as the code reads it today: since the start of the previous
 check, so a commander CR 704.5g moves during a check is offered at the next.
 
-**Recommended: (b).** Both readers then walk only their candidates, in epoch
+**Taken: (b)** (the owner, 2026-10-21, at #266's second review). Both readers then walk only their candidates, in epoch
 order by construction, so their two `ORDER-FREE:` walks and sorts go. A debug
 build keeps the old walk and asserts the list missed nothing. On the wipe the
 check's 7.6 µs goes. Under C the list costs one allocation and 16 bytes per
@@ -580,7 +580,7 @@ game reaches a choice, a log or a count.
    `a_fork_reading_a_left_out_card_leaves_the_originals_memo_as_it_was`
    already asserts for today's map.
 
-**Recommended:** the four as rules, the first enforced by the existing gate,
+**Taken: the four as rules** (the owner, 2026-10-21, at #266's second review), the first enforced by the existing gate,
 the second by review and §11's "what the gate does not see".
 
 ### Decision 8 — the builds' slot
