@@ -86,7 +86,7 @@
 
 <h1>A Multiplier Is Read Where Its Trigger Looks</h1>
 <p class="lede">TR-5g counts how many times a matched trigger triggers (CR 603.2d). The count could only be right by reading multipliers through the same machinery the dispatcher already used to read triggers: three kinds of ability list, and a rule for which list answers which arm. This page walks that machinery on three traced boards, so the functions the review asked about (<code>lists_before</code>, <code>push_live_candidates</code>, <code>AnsweredArms::admits</code>, <code>trigger_multiplier_candidates</code>) have a board under each.</p>
-<p class="meta"><span class="pin">triggers/tr-5g-multiplier</span><span class="pin">CR tmnt</span><span class="pin">2026-10-20, at review</span> Design: <code>plans/triggers-architecture.md</code> §4.2, §4.3, §4.4 and TR-5g's archive entry. Tests: <code>mtgsim/tests/phase_tr5g_integration_test.rs</code>. Step numbers below are the traces' own record numbers where a record exists.</p>
+<p class="meta"><span class="pin">triggers/tr-5g-multiplier</span><span class="pin">CR tmnt</span><span class="pin">2026-10-20, at review</span> Design: <code>plans/triggers-architecture.md</code> §4.2, §4.3, §4.4 and TR-5g's archive entry. Tests: <code>mtgsim/tests/phase_tr5g_integration_test.rs</code>. Two numberings appear below: <b>record N</b> is an event's place in the game's event log (its <code>EventId</code>), which is what a trigger line in the trace cites as <code>record</code>; <b>seq N</b> is the trace line itself.</p>
 
 <h2>The map</h2>
 <div class="prose">
@@ -147,7 +147,7 @@ flowchart TD
 </div>
 <ol class="trace">
 <li><span class="fn">execute_actions</span><span class="read state">state</span> the batch opens with one member, <code>EnterBattlefield { object: #3, from: Graveyard }</code> (trace seq 2).</li>
-<li><span class="fn">perform</span><span class="read log">log</span> two records: index 2 <code>ZoneChange</code> graveyard to battlefield, index 3 the entry (seq 6, 7). Neither carries a frame: an entry from a graveyard is no departure CR 603.10a frames for a battlefield ability.</li>
+<li><span class="fn">perform</span><span class="read log">log</span> two records: record 2 <code>ZoneChange</code> graveyard to battlefield, record 3 the entry (seq 6, 7). Neither carries a frame: an entry from a graveyard is no departure CR 603.10a frames for a battlefield ability.</li>
 <li><span class="fn">detect · the gate</span><span class="read state">state</span> the window's kinds are <code>ZoneChange</code> and <code>EnteredBattlefield</code>. <code>trigger_sources</code> files Soul Warden under <code>EnteredBattlefield</code>, so it is a reader. Panharmonicon is no reader: it has no triggered ability.</li>
 <li><span class="fn">find_matches</span><span class="read board">board</span> <code>candidates_now</code> is [#2]. <code>lists_before</code> is empty (no batch removed an ability-list source, so there is no snapshot). <code>push_live_candidates</code> makes one Live candidate. No record carries a frame, so no <code>departure_candidate</code>.</li>
 <li><span class="fn">match_candidates</span><span class="read board">board</span> Soul Warden against record 2: refused, <code>condition</code> (seq 10, its arm reads entries). Against record 3: matched (seq 11). One match, from candidate 0.</li>
@@ -163,7 +163,7 @@ flowchart TD
 </div>
 <ol class="trace">
 <li><span class="fn">execute_actions · capture_lki</span><span class="read frame">frame</span> before anything moves, each leaving permanent is framed as it is (CR 603.10a): Gandalf's frame walked fresh (seq 3), the Golem's a memo hit. The frames ride on the two departure records.</li>
-<li><span class="fn">perform</span><span class="read log">log</span> index 3: Gandalf battlefield to graveyard; index 4: the Golem (seq 8, 9). <code>cleanup_zone_state</code> takes Gandalf out of <code>trigger_multiplier_sources</code>: the set holds permanents, and Gandalf is a card in a graveyard now.</li>
+<li><span class="fn">perform</span><span class="read log">log</span> record 3: Gandalf battlefield to graveyard; record 4: the Golem (seq 8, 9). <code>cleanup_zone_state</code> takes Gandalf out of <code>trigger_multiplier_sources</code>: the set holds permanents, and Gandalf is a card in a graveyard now.</li>
 <li><span class="fn">find_matches</span><span class="read board">board</span> the Mourner is the one Live candidate. No snapshot: Gandalf's ability grants nothing to anything, so its leaving changes no survivor's list. Two <code>departure_candidate</code>s, Gandalf's and the Golem's LastKnown lists, which carry no triggered ability and so add no rows to match.</li>
 <li><span class="fn">match_candidates</span><span class="read board">board</span> the Mourner's dies arm looks back. Its Live list answers <code>All</code> (it was there before and after, and no snapshot holds another list), so it answers for records 3 and 4: both matched (seq 12, 13). Two matches.</li>
 <li class="new"><span class="fn">trigger_multiplier_candidates</span><span class="read frame">frame</span> the printed set is empty now. But the window's departure frames are scanned for a multiplier, and record 3's frame carries Gandalf's: one LastKnown multiplier list.</li>
@@ -178,7 +178,7 @@ flowchart TD
 </div>
 <ol class="trace">
 <li><span class="fn">execute_actions · departs_an_ability_list_source</span><span class="read state">state</span> the Granter is the source of a row that grants an ability, so its leaving changes a survivor's list. The batch takes a <code>LookBackSnapshot</code> before it performs: <code>look_back_frames</code> holds the trigger candidates and, since TR-5g, the multiplier sources; the grant flag is on, so that is every permanent, the carrier among them, its list holding the granted multiplier.</li>
-<li><span class="fn">perform</span><span class="read log">log</span> index 3: the Granter to the graveyard (seq 6). The row ends with its source, and the registry summary's grant flag goes off.</li>
+<li><span class="fn">perform</span><span class="read log">log</span> record 3: the Granter to the graveyard (seq 6). The row ends with its source, and the registry summary's grant flag goes off.</li>
 <li><span class="fn">lists_before</span><span class="read frame">frame</span> from the one snapshot, a list from before for each object still here: the carrier and the Mourner. The Granter has left and is a departure candidate instead.</li>
 <li><span class="fn">push_live_candidates(Mourner)</span><span class="read board">board</span> two candidates: the Mourner's Live list, marked as having a list in snapshot 0, and right behind it its Before list for snapshot 0.</li>
 <li><span class="fn">match_candidates · the Live list</span><span class="read board">board</span> record 3 was performed by the snapshotting batch, so the Live list answers <code>AllButLookBack</code>: the dies arm looks back and is not admitted. Refused, <code>condition</code> (seq 9).</li>
