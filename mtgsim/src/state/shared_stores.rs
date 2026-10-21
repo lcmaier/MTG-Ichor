@@ -23,10 +23,11 @@
 //! - [`SharedList`], in order, in place of a `Vec`: the stack's objects, the
 //!   triggers waiting to go on it.
 //!
-//! What a write copies depends on how a store holds its items ([`ForkCopy`]):
-//! a small item sits in its chunk and is copied with it ([`CopiedWithChunk`]),
-//! and a large one sits behind its own `Arc` and is copied alone, only when
-//! written ([`CopiedAlone`]).
+//! What a write copies depends on the item's type, which says so once
+//! ([`ForkCopy`]): a small item sits in its chunk and is copied with it
+//! ([`CopiedWithChunk`]), and a large one sits behind its own `Arc` and is
+//! copied alone, only when written ([`CopiedAlone`]). A store's field names
+//! only the item type: `ObjectTable<PermanentState>`.
 //!
 //! **Every write goes through `get_mut`**, which makes those copies. Neither
 //! container offers a way to take `&mut` to every item at once, since that
@@ -45,33 +46,39 @@ use crate::types::ids::ObjectId;
 /// How many ids a table's chunk spans, and how many items a list's chunk holds.
 const CHUNK: usize = 32;
 
-/// How a store holds each item, which decides what a fork's first write to
-/// the item copies. One of the two types below.
+/// A type a store holds, and what a fork's first write to one of its items
+/// copies: the whole chunk the item sits in, or the item alone. The choice is
+/// the type's, made once in the list below, and every store of that type
+/// follows it; nothing is decided per item or at run time.
 pub trait ForkCopy: Clone {
-    type Value;
-    fn hold(value: Self::Value) -> Self;
-    fn value(&self) -> &Self::Value;
-    /// The value to write: a [`CopiedAlone`] copies it first if a fork
-    /// shares it.
-    fn value_mut(&mut self) -> &mut Self::Value;
-    fn release(self) -> Self::Value;
+    /// How a chunk holds the item: [`CopiedWithChunk`] or [`CopiedAlone`].
+    type Held: Holding<Item = Self>;
 }
 
-/// An item held directly in its chunk, so a fork's first write into the
-/// chunk copies all 32 items with it. For small items with no heap of their
-/// own: an object's record (48 bytes), a memo frame, a stack position.
-#[derive(Clone, PartialEq)]
+/// The two ways a chunk holds an item.
+pub trait Holding: Clone {
+    type Item;
+    fn hold(item: Self::Item) -> Self;
+    fn item(&self) -> &Self::Item;
+    /// The item to write: [`CopiedAlone`] copies it first if a fork shares it.
+    fn item_mut(&mut self) -> &mut Self::Item;
+    fn release(self) -> Self::Item;
+}
+
+/// The item sits directly in its chunk, so a fork's first write into the
+/// chunk copies all 32 items with it.
+#[derive(Clone)]
 pub struct CopiedWithChunk<T>(T);
 
-impl<T: Clone> ForkCopy for CopiedWithChunk<T> {
-    type Value = T;
-    fn hold(value: T) -> Self {
-        CopiedWithChunk(value)
+impl<T: Clone> Holding for CopiedWithChunk<T> {
+    type Item = T;
+    fn hold(item: T) -> Self {
+        CopiedWithChunk(item)
     }
-    fn value(&self) -> &T {
+    fn item(&self) -> &T {
         &self.0
     }
-    fn value_mut(&mut self) -> &mut T {
+    fn item_mut(&mut self) -> &mut T {
         &mut self.0
     }
     fn release(self) -> T {
@@ -79,28 +86,63 @@ impl<T: Clone> ForkCopy for CopiedWithChunk<T> {
     }
 }
 
-/// An item behind its own `Arc`, so copying its chunk copies only a pointer
-/// to it, and the item itself is copied only when it is written. For large
-/// items with heap of their own: a permanent's state, a stack entry, a
-/// waiting trigger, each about 400 bytes. Copied with the chunk, all 32 of
-/// them would be copied for a fork that writes one.
-#[derive(Clone, PartialEq)]
+/// The item sits behind its own `Arc`, so copying its chunk copies a pointer
+/// to it, and the item itself is copied only when it is written. Each item
+/// costs one more allocation when it is stored.
+#[derive(Clone)]
 pub struct CopiedAlone<T>(Arc<T>);
 
-impl<T: Clone> ForkCopy for CopiedAlone<T> {
-    type Value = T;
-    fn hold(value: T) -> Self {
-        CopiedAlone(Arc::new(value))
+impl<T: Clone> Holding for CopiedAlone<T> {
+    type Item = T;
+    fn hold(item: T) -> Self {
+        CopiedAlone(Arc::new(item))
     }
-    fn value(&self) -> &T {
+    fn item(&self) -> &T {
         &self.0
     }
-    fn value_mut(&mut self) -> &mut T {
+    fn item_mut(&mut self) -> &mut T {
         Arc::make_mut(&mut self.0)
     }
     fn release(self) -> T {
         Arc::unwrap_or_clone(self.0)
     }
+}
+
+// Every type the game state stores this way. A type's size is fixed: every
+// permanent's state is 400 bytes however little is set on it, so the choice
+// is the type's. Small, with no heap of their own: copied with the chunk.
+// Large, with heap of their own: copied alone, since a chunk of 32 of them
+// copied whole would cost a fork that wrote one about 13 KB and up to 128
+// allocations (`clone-architecture.md` decision 1).
+
+/// 48 bytes, with no heap but a count on its card's data.
+impl ForkCopy for crate::objects::object::GameObject {
+    type Held = CopiedWithChunk<Self>;
+}
+
+/// A position on the stack, 8 bytes.
+impl ForkCopy for ObjectId {
+    type Held = CopiedWithChunk<Self>;
+}
+
+/// The layer memo's frame: an epoch and a pointer, 16 bytes.
+impl ForkCopy for crate::state::layer_memo::StoredFrame {
+    type Held = CopiedWithChunk<Self>;
+}
+
+/// 400 bytes, with its counters and its attachment and combat lists on the heap.
+impl ForkCopy for crate::state::battlefield::PermanentState {
+    type Held = CopiedAlone<Self>;
+}
+
+/// 408 bytes, with its targets and a trigger's binding on the heap.
+impl ForkCopy for crate::state::game_state::StackEntry {
+    type Held = CopiedAlone<Self>;
+}
+
+/// 264 bytes, with its binding's events and its targets on the heap.
+impl ForkCopy for crate::types::triggers::PendingTrigger {
+    type Held = CopiedAlone<Self>;
 }
 
 /// One table chunk: the items of 32 consecutive ids, and which are there.
@@ -116,18 +158,18 @@ struct TableChunk<E> {
 /// in id order, which is the same in every process but is not the rules'
 /// order: a choice, a log or a count still sorts by timestamp (`CLAUDE.md`,
 /// "Determinism at the decision boundary").
-pub struct ObjectTable<E> {
-    chunks: Vec<Option<Arc<TableChunk<E>>>>,
+pub struct ObjectTable<T: ForkCopy> {
+    chunks: Vec<Option<Arc<TableChunk<T::Held>>>>,
     len: usize,
 }
 
-impl<E> Clone for ObjectTable<E> {
+impl<T: ForkCopy> Clone for ObjectTable<T> {
     fn clone(&self) -> Self {
         ObjectTable { chunks: self.chunks.clone(), len: self.len }
     }
 }
 
-impl<E> Default for ObjectTable<E> {
+impl<T: ForkCopy> Default for ObjectTable<T> {
     fn default() -> Self {
         ObjectTable { chunks: Vec::new(), len: 0 }
     }
@@ -139,7 +181,7 @@ fn place(id: ObjectId) -> (usize, usize) {
     (raw / CHUNK, raw % CHUNK)
 }
 
-impl<E: ForkCopy> ObjectTable<E> {
+impl<T: ForkCopy> ObjectTable<T> {
     pub fn len(&self) -> usize {
         self.len
     }
@@ -148,9 +190,9 @@ impl<E: ForkCopy> ObjectTable<E> {
         self.len == 0
     }
 
-    pub fn get(&self, id: &ObjectId) -> Option<&E::Value> {
+    pub fn get(&self, id: &ObjectId) -> Option<&T> {
         let (chunk, slot) = place(*id);
-        self.chunks.get(chunk)?.as_ref()?.slots[slot].as_ref().map(E::value)
+        self.chunks.get(chunk)?.as_ref()?.slots[slot].as_ref().map(Holding::item)
     }
 
     pub fn contains_key(&self, id: &ObjectId) -> bool {
@@ -159,15 +201,15 @@ impl<E: ForkCopy> ObjectTable<E> {
 
     /// The item to write, its chunk and the item copied first if a fork
     /// shares them. A miss copies nothing.
-    pub fn get_mut(&mut self, id: &ObjectId) -> Option<&mut E::Value> {
+    pub fn get_mut(&mut self, id: &ObjectId) -> Option<&mut T> {
         let (chunk, slot) = place(*id);
         let chunk = self.chunks.get_mut(chunk)?.as_mut()?;
         chunk.slots[slot].as_ref()?;
-        Arc::make_mut(chunk).slots[slot].as_mut().map(E::value_mut)
+        Arc::make_mut(chunk).slots[slot].as_mut().map(Holding::item_mut)
     }
 
     /// File `value` under `id`, returning what was there.
-    pub fn insert(&mut self, id: ObjectId, value: E::Value) -> Option<E::Value> {
+    pub fn insert(&mut self, id: ObjectId, value: T) -> Option<T> {
         debug_assert!(id.raw() < 1 << 40, "{id} is no id a store minted: an object table is indexed by the counter");
         let (chunk, slot) = place(id);
         if self.chunks.len() <= chunk {
@@ -176,17 +218,17 @@ impl<E: ForkCopy> ObjectTable<E> {
         let chunk = Arc::make_mut(
             self.chunks[chunk].get_or_insert_with(|| Arc::new(TableChunk { slots: std::array::from_fn(|_| None), live: 0 })),
         );
-        let old = chunk.slots[slot].replace(E::hold(value));
+        let old = chunk.slots[slot].replace(T::Held::hold(value));
         if old.is_none() {
             chunk.live |= 1 << slot;
             self.len += 1;
         }
-        old.map(E::release)
+        old.map(Holding::release)
     }
 
     /// Take `id`'s item out. A chunk left empty is dropped, and the chunks
     /// past the last live one with it.
-    pub fn remove(&mut self, id: &ObjectId) -> Option<E::Value> {
+    pub fn remove(&mut self, id: &ObjectId) -> Option<T> {
         let (index, slot) = place(*id);
         let chunk = self.chunks.get_mut(index)?.as_mut()?;
         chunk.slots[slot].as_ref()?;
@@ -200,14 +242,14 @@ impl<E: ForkCopy> ObjectTable<E> {
                 self.chunks.pop();
             }
         }
-        taken.map(E::release)
+        taken.map(Holding::release)
     }
 
     /// Every item, in id order.
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = (ObjectId, &E::Value)> + '_ {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = (ObjectId, &T)> + '_ {
         self.chunks.iter().enumerate().filter_map(|(index, chunk)| Some((index, chunk.as_ref()?))).flat_map(|(index, chunk)| {
             LiveSlots(chunk.live).map(move |slot| {
-                let entry = chunk.slots[slot].as_ref().map(E::value);
+                let entry = chunk.slots[slot].as_ref().map(Holding::item);
                 (ObjectId::from_table_slot((index * CHUNK + slot) as u64), entry)
             })
         })
@@ -218,7 +260,7 @@ impl<E: ForkCopy> ObjectTable<E> {
         self.iter().map(|(id, _)| id)
     }
 
-    pub fn values(&self) -> impl DoubleEndedIterator<Item = &E::Value> + '_ {
+    pub fn values(&self) -> impl DoubleEndedIterator<Item = &T> + '_ {
         self.iter().map(|(_, value)| value)
     }
 }
@@ -226,12 +268,12 @@ impl<E: ForkCopy> ObjectTable<E> {
 /// For the fork-copies test alone: no engine code may ask whether a chunk is
 /// shared (`clone-architecture.md` decision 7).
 #[cfg(any(test, feature = "test-support"))]
-impl<E> ObjectTable<E> {
+impl<T: ForkCopy> ObjectTable<T> {
     /// The chunks this table holds that `other` does not hold, the same chunk
     /// and not a copy: what a fork that began as `other` has copied or made
     /// since.
     pub fn chunks_not_shared_with(&self, other: &Self) -> usize {
-        let shared = |index: usize, chunk: &Arc<TableChunk<E>>| {
+        let shared = |index: usize, chunk: &Arc<TableChunk<T::Held>>| {
             other.chunks.get(index).and_then(Option::as_ref).is_some_and(|theirs| Arc::ptr_eq(chunk, theirs))
         };
         self.chunks.iter().enumerate().filter(|(index, chunk)| chunk.as_ref().is_some_and(|chunk| !shared(*index, chunk))).count()
@@ -264,10 +306,10 @@ impl DoubleEndedIterator for LiveSlots {
     }
 }
 
-impl<E: ForkCopy> Index<&ObjectId> for ObjectTable<E> {
-    type Output = E::Value;
+impl<T: ForkCopy> Index<&ObjectId> for ObjectTable<T> {
+    type Output = T;
     /// `HashMap`'s contract: a missing id is the caller's error.
-    fn index(&self, id: &ObjectId) -> &E::Value {
+    fn index(&self, id: &ObjectId) -> &T {
         match self.get(id) {
             Some(value) => value,
             None => panic!("{id} is not in the table"),
@@ -275,9 +317,9 @@ impl<E: ForkCopy> Index<&ObjectId> for ObjectTable<E> {
     }
 }
 
-impl<E: ForkCopy> fmt::Debug for ObjectTable<E>
+impl<T: ForkCopy> fmt::Debug for ObjectTable<T>
 where
-    E::Value: fmt::Debug,
+    T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.iter()).finish()
@@ -288,7 +330,7 @@ where
 /// the chunk, so its later pushes do not reallocate.
 struct ListChunk<E>(Vec<E>);
 
-impl<E: Clone> Clone for ListChunk<E> {
+impl<H: Clone> Clone for ListChunk<H> {
     fn clone(&self) -> Self {
         let mut items = Vec::with_capacity(CHUNK);
         items.extend(self.0.iter().cloned());
@@ -300,24 +342,24 @@ impl<E: Clone> Clone for ListChunk<E> {
 /// top, and the triggers waiting to be put on it. Every chunk but the last
 /// is full and none is empty, so a push or a pop at the end copies at most
 /// the last chunk in a fork.
-pub struct SharedList<E> {
-    chunks: Vec<Arc<ListChunk<E>>>,
+pub struct SharedList<T: ForkCopy> {
+    chunks: Vec<Arc<ListChunk<T::Held>>>,
     len: usize,
 }
 
-impl<E> Clone for SharedList<E> {
+impl<T: ForkCopy> Clone for SharedList<T> {
     fn clone(&self) -> Self {
         SharedList { chunks: self.chunks.clone(), len: self.len }
     }
 }
 
-impl<E> Default for SharedList<E> {
+impl<T: ForkCopy> Default for SharedList<T> {
     fn default() -> Self {
         SharedList { chunks: Vec::new(), len: 0 }
     }
 }
 
-impl<E: ForkCopy> SharedList<E> {
+impl<T: ForkCopy> SharedList<T> {
     pub fn len(&self) -> usize {
         self.len
     }
@@ -326,60 +368,60 @@ impl<E: ForkCopy> SharedList<E> {
         self.len == 0
     }
 
-    pub fn push(&mut self, value: E::Value) {
+    pub fn push(&mut self, value: T) {
         match self.chunks.last_mut() {
-            Some(last) if last.0.len() < CHUNK => Arc::make_mut(last).0.push(E::hold(value)),
+            Some(last) if last.0.len() < CHUNK => Arc::make_mut(last).0.push(T::Held::hold(value)),
             _ => {
                 let mut items = Vec::with_capacity(CHUNK);
-                items.push(E::hold(value));
+                items.push(T::Held::hold(value));
                 self.chunks.push(Arc::new(ListChunk(items)));
             }
         }
         self.len += 1;
     }
 
-    pub fn pop(&mut self) -> Option<E::Value> {
+    pub fn pop(&mut self) -> Option<T> {
         let last = self.chunks.last_mut()?;
         let popped = Arc::make_mut(last).0.pop();
         if last.0.is_empty() {
             self.chunks.pop();
         }
         self.len -= 1;
-        popped.map(E::release)
+        popped.map(Holding::release)
     }
 
-    pub fn get(&self, index: usize) -> Option<&E::Value> {
-        self.chunks.get(index / CHUNK)?.0.get(index % CHUNK).map(E::value)
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.chunks.get(index / CHUNK)?.0.get(index % CHUNK).map(Holding::item)
     }
 
     /// The item to write, its chunk and the item copied first if a fork
     /// shares them.
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut E::Value> {
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         let chunk = self.chunks.get_mut(index / CHUNK)?;
         if index % CHUNK >= chunk.0.len() {
             return None;
         }
-        Arc::make_mut(chunk).0.get_mut(index % CHUNK).map(E::value_mut)
+        Arc::make_mut(chunk).0.get_mut(index % CHUNK).map(Holding::item_mut)
     }
 
-    pub fn last(&self) -> Option<&E::Value> {
-        self.chunks.last()?.0.last().map(E::value)
+    pub fn last(&self) -> Option<&T> {
+        self.chunks.last()?.0.last().map(Holding::item)
     }
 
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &E::Value> + '_ {
-        self.chunks.iter().flat_map(|chunk| chunk.0.iter().map(E::value))
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &T> + '_ {
+        self.chunks.iter().flat_map(|chunk| chunk.0.iter().map(Holding::item))
     }
 
-    pub fn contains(&self, value: &E::Value) -> bool
+    pub fn contains(&self, value: &T) -> bool
     where
-        E::Value: PartialEq,
+        T: PartialEq,
     {
         self.iter().any(|item| item == value)
     }
 
     /// Take out the item at `index`, closing the gap: the items after it are
     /// taken and put back, so the cost is the tail's. `None` past the end.
-    pub fn remove(&mut self, index: usize) -> Option<E::Value> {
+    pub fn remove(&mut self, index: usize) -> Option<T> {
         if index >= self.len {
             return None;
         }
@@ -402,7 +444,7 @@ impl<E: ForkCopy> SharedList<E> {
 
 /// For the fork-copies test alone, as [`ObjectTable::chunks_not_shared_with`].
 #[cfg(any(test, feature = "test-support"))]
-impl<E> SharedList<E> {
+impl<T: ForkCopy> SharedList<T> {
     /// The chunks this list holds that `other` does not hold, the same chunk
     /// at the same place.
     pub fn chunks_not_shared_with(&self, other: &Self) -> usize {
@@ -412,41 +454,40 @@ impl<E> SharedList<E> {
 
 // What the `Vec`s this replaces gave their callers, each still used: `extend`
 // and `collect` (placement rebuilds the queue), a by-value walk (its
-// partition), an index and a comparison with a `Vec` (the tests), and `Debug`
-// (`GameState` derives it).
-impl<E: ForkCopy> Extend<E::Value> for SharedList<E> {
-    fn extend<I: IntoIterator<Item = E::Value>>(&mut self, items: I) {
+// partition), an index (the tests), and `Debug` (`GameState` derives it).
+impl<T: ForkCopy> Extend<T> for SharedList<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, items: I) {
         for item in items {
             self.push(item);
         }
     }
 }
 
-impl<E: ForkCopy> FromIterator<E::Value> for SharedList<E> {
-    fn from_iter<I: IntoIterator<Item = E::Value>>(items: I) -> Self {
+impl<T: ForkCopy> FromIterator<T> for SharedList<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(items: I) -> Self {
         let mut list = SharedList::default();
         list.extend(items);
         list
     }
 }
 
-impl<E: ForkCopy> IntoIterator for SharedList<E> {
-    type Item = E::Value;
-    type IntoIter = std::vec::IntoIter<E::Value>;
+impl<T: ForkCopy> IntoIterator for SharedList<T> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<T>;
     /// Each item by value: a fork that shares a chunk copies its items out.
     fn into_iter(self) -> Self::IntoIter {
         let mut items = Vec::with_capacity(self.len);
         for chunk in self.chunks {
-            items.extend(Arc::unwrap_or_clone(chunk).0.into_iter().map(E::release));
+            items.extend(Arc::unwrap_or_clone(chunk).0.into_iter().map(Holding::release));
         }
         items.into_iter()
     }
 }
 
-impl<E: ForkCopy> Index<usize> for SharedList<E> {
-    type Output = E::Value;
+impl<T: ForkCopy> Index<usize> for SharedList<T> {
+    type Output = T;
     /// `Vec`'s contract: an index past the end is the caller's error.
-    fn index(&self, index: usize) -> &E::Value {
+    fn index(&self, index: usize) -> &T {
         match self.get(index) {
             Some(value) => value,
             None => panic!("index {index} past a list of {}", self.len),
@@ -454,18 +495,9 @@ impl<E: ForkCopy> Index<usize> for SharedList<E> {
     }
 }
 
-impl<E: ForkCopy> PartialEq<Vec<E::Value>> for SharedList<E>
+impl<T: ForkCopy> fmt::Debug for SharedList<T>
 where
-    E::Value: PartialEq,
-{
-    fn eq(&self, other: &Vec<E::Value>) -> bool {
-        self.len == other.len() && self.iter().eq(other.iter())
-    }
-}
-
-impl<E: ForkCopy> fmt::Debug for SharedList<E>
-where
-    E::Value: fmt::Debug,
+    T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.iter()).finish()
@@ -480,7 +512,15 @@ mod tests {
         ObjectId::from_table_slot(raw)
     }
 
-    fn table(ids: impl IntoIterator<Item = u64>) -> ObjectTable<CopiedAlone<u64>> {
+    /// The tests' items: a `u32` copied with its chunk, a `u64` alone.
+    impl ForkCopy for u32 {
+        type Held = CopiedWithChunk<u32>;
+    }
+    impl ForkCopy for u64 {
+        type Held = CopiedAlone<u64>;
+    }
+
+    fn table(ids: impl IntoIterator<Item = u64>) -> ObjectTable<u64> {
         let mut table = ObjectTable::default();
         for raw in ids {
             table.insert(id(raw), raw);
@@ -489,7 +529,7 @@ mod tests {
     }
 
     /// Whether two tables hold the same chunk at `index`, not a copy.
-    fn same_chunk<E>(a: &ObjectTable<E>, b: &ObjectTable<E>, index: usize) -> bool {
+    fn same_chunk<T: ForkCopy>(a: &ObjectTable<T>, b: &ObjectTable<T>, index: usize) -> bool {
         match (&a.chunks[index], &b.chunks[index]) {
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
             _ => false,
@@ -550,9 +590,9 @@ mod tests {
 
     #[test]
     fn a_list_keeps_its_order_through_pushes_pops_and_removals() {
-        let mut list: SharedList<CopiedWithChunk<u32>> = (0..70).collect();
+        let mut list: SharedList<u32> = (0..70).collect();
         let mut model: Vec<u32> = (0..70).collect();
-        assert_eq!(list, model);
+        assert!(list.iter().eq(model.iter()));
         assert_eq!((list.get(0), list.last(), list.get(40)), (Some(&0), Some(&69), Some(&40)));
         assert_eq!(list.remove(5), Some(model.remove(5)));
         assert_eq!(list.remove(64), Some(model.remove(64)));
@@ -560,7 +600,7 @@ mod tests {
         assert_eq!(list.pop(), model.pop());
         list.push(1000);
         model.push(1000);
-        assert_eq!(list, model);
+        assert!(list.iter().eq(model.iter()));
         assert_eq!(list.iter().rev().copied().collect::<Vec<_>>(), model.iter().rev().copied().collect::<Vec<_>>());
         assert!(list.chunks.iter().rev().skip(1).all(|chunk| chunk.0.len() == CHUNK), "every chunk but the last is full");
         assert_eq!(list.into_iter().collect::<Vec<_>>(), model);
@@ -569,7 +609,7 @@ mod tests {
     /// A push or a pop at the end copies the last chunk and no other.
     #[test]
     fn a_fork_of_a_list_copies_only_the_chunk_it_writes() {
-        let parent: SharedList<CopiedAlone<u32>> = (0..64).collect();
+        let parent: SharedList<u64> = (0..64).collect();
         let mut fork = parent.clone();
         fork.push(64);
         assert!(parent.chunks.iter().zip(&fork.chunks).all(|(a, b)| Arc::ptr_eq(a, b)), "a push into a new chunk");

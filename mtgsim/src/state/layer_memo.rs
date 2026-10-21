@@ -23,7 +23,7 @@ use crate::engine::layers::board::RowNote;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::mana_supply::ManaProductionWatchers;
 use crate::state::history_log::RowKind;
-use crate::state::shared_stores::{CopiedWithChunk, ObjectTable};
+use crate::state::shared_stores::ObjectTable;
 use crate::types::ids::ObjectId;
 
 /// Per-object frames, each stamped with the epoch it was computed at.
@@ -43,7 +43,7 @@ use crate::types::ids::ObjectId;
 /// walk copies the chunks it stores into (`clone-architecture.md` decision 2).
 #[derive(Debug, Clone, Default)]
 pub struct LayerMemo {
-    frames: RefCell<ObjectTable<CopiedWithChunk<(u64, Arc<EffectiveCharacteristics>)>>>,
+    frames: RefCell<ObjectTable<StoredFrame>>,
     /// The notes of the pass that filled `frames`, stamped with its epoch as
     /// each frame is: what that pass noted about each row reaching a zone it
     /// leaves out, which a card there is walked with (`layers-architecture.md`
@@ -67,6 +67,14 @@ pub struct LayerMemo {
     /// `GameState::audit_each_frame_once`.
     #[cfg(debug_assertions)]
     audit_scope: AuditScope,
+}
+
+/// One object's frame in the memo, and the epoch it was computed at: it is
+/// served only at that epoch.
+#[derive(Debug, Clone)]
+pub(crate) struct StoredFrame {
+    epoch: u64,
+    frame: Arc<EffectiveCharacteristics>,
 }
 
 /// A walk input whose write moves the layer epoch only when a frame stored at
@@ -250,13 +258,13 @@ impl LayerMemo {
         self.frames
             .borrow()
             .get(&id)
-            .filter(|(stored, _)| *stored == epoch)
-            .map(|(_, frame)| Arc::clone(frame))
+            .filter(|stored| stored.epoch == epoch)
+            .map(|stored| Arc::clone(&stored.frame))
     }
 
     /// Store `frame` for `id` as of `epoch`, replacing whatever was there.
     pub(crate) fn insert(&self, id: ObjectId, epoch: u64, frame: Arc<EffectiveCharacteristics>) {
-        self.frames.borrow_mut().insert(id, (epoch, frame));
+        self.frames.borrow_mut().insert(id, StoredFrame { epoch, frame });
     }
 
     /// Drop `id`'s frame: the store took the object out, and no later read

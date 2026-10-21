@@ -49,7 +49,7 @@ impl Held {
     fn holds(&self, game: &GameState, player: PlayerId) -> bool {
         match self.until {
             Yield::UntilEndOfTurn => game.turn_number == self.turn,
-            Yield::UntilStackChanges => game.stack == self.stack,
+            Yield::UntilStackChanges => game.stack.iter().eq(self.stack.iter()),
             Yield::UntilYourNextTurn => game.turn_number == self.turn || game.active_player != player,
         }
     }

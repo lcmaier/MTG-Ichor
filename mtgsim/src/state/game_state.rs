@@ -14,7 +14,7 @@ use crate::state::replacement_effects::{
     EntrySelectionScope, PreventionAllocationScope, ReplacementEffectRegistry,
 };
 use crate::state::restrictions::RestrictionRegistry;
-use crate::state::shared_stores::{CopiedWithChunk, ObjectTable, CopiedAlone, SharedList};
+use crate::state::shared_stores::{ObjectTable, SharedList};
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
@@ -317,16 +317,16 @@ pub(crate) struct NestingGuards {
 pub struct GameState {
     // --- Central object store ---
     /// All game objects indexed by ID
-    pub objects: ObjectTable<CopiedWithChunk<GameObject>>,
+    pub objects: ObjectTable<GameObject>,
 
     // --- Players ---
     pub players: Vec<PlayerState>,
 
     // --- Global zones (player zones are in PlayerState) ---
     /// The stack — LIFO order (last element = top of stack)
-    pub stack: SharedList<CopiedWithChunk<ObjectId>>,
+    pub stack: SharedList<ObjectId>,
     /// Stack entry metadata — keyed by ObjectId
-    pub stack_entries: ObjectTable<CopiedAlone<StackEntry>>,
+    pub stack_entries: ObjectTable<StackEntry>,
     /// The stack object currently resolving, if any.
     ///
     /// A rules question, not an engine artifact: `default_enter_controller`
@@ -340,7 +340,7 @@ pub struct GameState {
     /// every exit path, including the error ones.
     pub(crate) resolving: Option<ResolvingObject>,
     /// Battlefield state — keyed by ObjectId
-    pub battlefield: ObjectTable<CopiedAlone<PermanentState>>,
+    pub battlefield: ObjectTable<PermanentState>,
 
     /// How much work the engine has done this game — see
     /// [`Diagnostics`].
@@ -702,7 +702,7 @@ pub struct GameState {
     /// state and nowhere else (item 40): the drain removes each entry as it
     /// places it, so a clone taken at the ordering prompt resumes by running
     /// the drain again.
-    pub pending_triggers: SharedList<CopiedAlone<crate::types::triggers::PendingTrigger>>,
+    pub pending_triggers: SharedList<crate::types::triggers::PendingTrigger>,
     pub(crate) next_trigger_seq: u64,
     /// CR 603.7's delayed triggered abilities waiting for their events, in
     /// the order they were created: the dispatcher asks every one at every
