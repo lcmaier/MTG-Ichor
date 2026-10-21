@@ -7778,148 +7778,16 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by LL (2026-09-25)
 
-183. **A state's maps keep their high-water capacity, so one deep stack holds
-     floor 3 over its bound for the rest of the game.** On `stress` 12351
-     under Teferi's clause, a game item 182 changed (the clause now gives
-     player 0's creature cards flash), the stack held more than 28 objects at
-     once during turn 79. `stack_entries` grew to a table of 64 slots of
-     664-byte `StackEntry`s, room for 56, and the battlefield, past 56
-     permanents at turn 72, to 128 slots of 360 bytes, room for 112. Neither
-     shrinks:
-     - the clone reads 138.3 KB at turn 80 and 150.4 KB at the game's end, 89
-       turns, against floor 3's 128 KB; the same seed without the clause
-       reads 75.1 and 76.9 KB;
-     - of the 63 KB between them, the two maps are 54.5 and LL's memo about
-       9, from a throwaway that cloned each public field alone;
-     - allocations stay at 27–29, under floor 2's CI proxy.
-
-     **Reachability (2026-09-25):** reachable — not wrong; a floor 3 breach on
-     a fixture board, `clone_bound_test.rs`'s fourth game.
-
-     **The owner's call (2026-09-26): the floors hold a deep stack.** A
-     29-deep stack is ordinary: a cEDH turn can put a whole winning line on
-     the stack at once, storm copies and a batch of triggers go on together
-     even in two-player games, and some decks win by putting a very large
-     number of triggers or activations on the stack. **Hard back-stopped
-     before Phase 8's breadth, possibly sooner** (`roadmap-v2.md` B10).
-
-     **Half closed at PR #191's review (2026-09-26): what a clone copies after
-     the spike.** `types::ids::FitOnClone` wraps `objects`, `battlefield` and
-     `stack_entries`: a clone of a map whose capacity is past twice its
-     length is rebuilt at its length. Over `clone_bound_test`'s 210 readings,
-     `MTGSIM_HASH_SEED=1`:
-     - this game reads 73.2 KB at turn 80 and 71.0 at its end, from 138.3
-       and 150.4;
-     - the worst reading is 90.7 KB, from 150.4, and 99.9 without the clause;
-     - allocations are at most 39, from 40.
-     Nothing in play clones a state, so no counter moved.
-
-     **Open: a clone during the spike — the back-stop.** Floors 2 and 3 are
-     read between turns, where the stack is empty, and a search clones
-     mid-turn as well. A clone copies every stack object: a thousand of them
-     is 360 KB of `StackEntry` alone, with their `GameObject`s and whatever
-     each holds on the heap, where the floors are 10 µs and 128 KB. The
-     shape to design is objects shared between forks, copied on write, so a
-     clone copies a pointer per stack object. The design also reads the layer
-     memo: stale frames are overwritten, never evicted, so every object ever
-     asked about keeps one.
-
-     **Sized:** small (2026-09-26). `stack_entries` is written at one
-     `get_mut` and nine inserts, and `objects` at three `get_mut`s. Whether a
-     clone then meets floor 2 with a thousand objects on the stack, at one
-     count bump each, is the design's first measurement.
-
-     **B10's design also settles `FitOnClone`'s rule** (the owner,
-     2026-09-26). Its bar, capacity past twice the length, is derived from
-     hashbrown's doubling, not measured. It leaves three costs:
-     - every clone of one state rebuilds again, where shrinking the
-       original once, when the stack empties or at a turn's end, would pay
-       once;
-     - a rebuilt fork has no headroom, so its first inserts in play
-       reallocate;
-     - tombstones can hide a bloated table from `capacity`.
-     None binds a floor today (the worst clone went from 6.8 µs to 7.8),
-     and shared stack objects make a spare slot 16 bytes instead of 360,
-     so the design reads the rule after its own change.
-
-     **Found at TR-2b's review (2026-09-27), and shipped the same day
-     (`state/shared-stack-effects`): a fork shares each stacked effect.**
-     `StackEntry.effect` was an owned `Effect`, so a clone copied every
-     stacked effect's tree, and an edict's `ChosenBy` is a box and a pick
-     list: 2 allocations and 120 bytes per entry. It is an `Arc<Effect>`
-     now, and a clone bumps a count. `tests/stacked_effect_clone_test.rs`
-     clones eight stacked Diabolic Edicts and eight heap-free instants of
-     the same cost and target: `main` read 42 allocations and 16,227 bytes
-     against 26 and 15,267, and both read 26 and 10,019 since. The 336-byte
-     inline `Effect` became a pointer, so a `StackEntry`, and each spare
-     slot of `stack_entries`, is 360 bytes rather than 688.
-     **Not shared from the def**, as this note first said. Each push still
-     copies the def's tree once, and a trigger's entry holds that copy
-     beside the def its `trigger` already shares. Sharing from the def makes
-     `AbilityDef.effect` and `TriggerDef.effect` `Arc`s, about 250 sites,
-     for a copy paid once per push rather than once per fork. **B10 stays
-     open:** the entry and its `GameObject` are still copied per fork.
-     **Widened at TR-5d's design review (the owner, 2026-10-19):** the design
-     takes the battlefield's and the object store's per-object state with the
-     stack's, shared between forks and copied on write, since clone time read
-     8.9–9.5 µs against floor 2's 10 and a token-heavy board grows every
-     clone. It moves up if A6e's readiness pass reads less than 10% room.
-     **Read mid-turn at TR-5g (2026-10-20), and moved up.** Pooling
-     Panharmonicon gave `clone_bound_test`'s `performance` 12353 a game that
-     ends with 31 Sphere Grid triggers waiting: 82 allocations against floor
-     2's CI proxy of 64. A provider cloning at every prompt of that game read
-     68 and 77 at two trigger-ordering prompts, 24 and 28 waiting, so the
-     breach is at a decision and not only at the end. A throwaway probe, four
-     seats and 25 creatures with N tokens entering under a "whenever another
-     creature enters" trigger, release, allocations and bytes exact, time the
-     median of five 400-clone means:
-
-     | | allocations | KB | µs |
-     |---|---:|---:|---:|
-     | 125 permanents, nothing waiting | 9 | 124 | ~6 |
-     | + 100 triggers waiting, no target | 111 | 169 | ~20 |
-     | + those 100 on the stack | 111 | 210 | ~21 |
-     | + 100 triggers waiting, one target each | 211 | 177 | ~19 |
-     | + those 100 on the stack | 311 | 223 | ~22 |
-
-     A waiting trigger costs one allocation, its binding's events, and about
-     450 bytes, with a second allocation for a target; a stack object about
-     0.9–1 KB, an allocation for a trigger's binding and two for each target
-     instance. A spell copy with one target, storm's, is two, so a storm count
-     of 50 is about 100 allocations and 50 KB, and each copy's resolution
-     reopens priority, about four decisions a copy at four seats, each
-     cloning what is left. Keeping one triggering event inline takes an
-     allocation off a trigger and nothing off a spell copy; the sharing this
-     item names takes every stack object to a pointer. **A finished game no
-     longer holds waiting triggers** (`GameState::end_game`, CR 104.1), so the
-     test's end checkpoint reads the board: 12353 ends at 50, and the worst
-     reading is 53, its turn 40. **B10's design moved up to right after
-     TR-5g** (the owner, 2026-10-20); its first instrument is a clone at
-     every decision, not only between turns.
-     **Read at a token wipe (2026-10-20).** A throwaway probe, four seats at
-     10,000,000 life, W death watchers ("whenever a creature dies, target
-     player loses 1 life and you gain 1 life") spread over the seats, T
-     goblin tokens, one batch destroying every creature, release: W40 T160
-     is 8,000 waiting triggers. Detection holds — the wipe's dispatch is
-     5 ms — and the clone is this item's: 24,014 allocations and 4.3 MB
-     waiting, 32,014 and 10 MB stacked. Two time costs grew with the turn
-     and were not B10's, and #265 took both out: a record's place in its
-     turn counted the turn's rows each time (a resolution and the check
-     after it, 9 µs at 500 stacked and 91 µs at 8,000; now 12 µs, 7.6 of
-     them item 293's), and placement took each trigger from the middle of
-     the queue (112 ms for 8,000; now 20 ms). Item 293 is the third, the
-     state-based check's two walks of every object.
-     **Designed 2026-10-21** (`clone-architecture.md`, decided at #266's review). Read at
-     every decision of the clone test's games, the pooled board reaches 78
-     allocations at a 22-trigger ordering, three decisions over 64, none of
-     which CI reads; a pointer per object passes floor 2's time at about 700
-     stack objects, and ids in chunks of 32 hold both floors at 8,000
-     (§2.4). Two more costs found there: the check's deathtouch sweep
-     writes every permanent at every check, and the layer memo keeps a
-     frame for every object ever walked, 101 KB a clone after 2,000 tokens
-     came and went (§2.5).
-     **Slotted:** B10's builds, CL-1 (`clone-architecture.md` §4), which also
-     settles `FitOnClone`'s rule (decision 4).
+183. **~~A state's maps keep their high-water capacity, so one deep stack holds
+     floor 3 over its bound for the rest of the game.~~ — ✅ CLOSED 2026-10-21 (PR
+     #267, CL-1).** — archived.
+     A clone shares the board and the stack between forks in chunks of 32
+     (`clone-architecture.md`, CL-1), so a deep stack, a waiting batch or a
+     token board no longer grows a clone, and `FitOnClone` is gone
+     (decision 4). An 8,000-trigger stack clones at 14 allocations and
+     8.7 KB, from 32,014 and 10 MB.
+     **Reachability (2026-10-21):** closed — PR #267.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 183".
 
 184. **CR 613.6's lock carries one row's set to another row of the same
      effect in the same layer.** `row_affected` answers `Locked` for every row
@@ -9651,22 +9519,11 @@ Number 277 was withdrawn in #260 and is not reused.
      callers, and a fixture for each board, shown failing first.
      **Slotted:** A6e (the owner, 2026-10-20), beside item 291.
 
-293. **Every state-based check walks every object twice.** CR 704.5d's
-     tokens outside the battlefield and CR 704.6d's commanders moved since
-     the last check are each found by a walk of `GameState::objects`
-     (`engine/sba.rs`, `moved_since` and the token sweep), and an ability on
-     the stack is an object, so after a wipe stacks 8,000 death triggers each
-     check between resolutions walks 8,000 objects twice: 7.6 µs a check
-     against 1.2 µs at 1,200, 60 ms over the stack. Both read only what
-     changed zones since the last check, whose epoch `arrive_in_zone` is the
-     one writer of. Found by item 183's wipe reading.
-     **Reachability (2026-10-20):** reachable, and right — every check finds
-     what it should; only its cost grows, with every object in every zone.
-     **Sized:** a list of the objects that arrived in a zone since the last
-     check, pushed by `arrive_in_zone`, taken by each check, so a clone at a
-     grant of priority copies an empty list; both readers on it, and a debug
-     walk asserting it missed none: ~40–60 lines and a test.
-     **Slotted:** B10's builds (the owner, 2026-10-21): the list is state a
-     clone copies, so its shape is decided with the clone's, and a clone at
-     a grant of priority copies it empty. Designed as CL-1's
-     (`clone-architecture.md` decision 5).
+293. **~~Every state-based check walks every object twice.~~ — ✅ CLOSED 2026-10-21 (PR
+     #267, CL-1).** — archived.
+     The doors into a zone note what CR 704.5d or 704.6d can match on
+     `GameState::sba_arrivals`, which each check reads in place of the two
+     walks and clears before it performs (`clone-architecture.md`
+     decision 5).
+     **Reachability (2026-10-21):** closed — PR #267.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 293".

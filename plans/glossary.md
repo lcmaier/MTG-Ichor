@@ -794,11 +794,20 @@ the *argument*, and stay authored. → `engineering-practices.md` §7.1.
 same point: a search forks at a decision and plays an answer on the fork, and
 from then on neither side sees what the other does. A search takes one per
 decision, so most of a fork is shared rather than copied: each card's data and
-ability list, each registry row until one side writes it (`Arc::make_mut`), and
+ability list, each registry row until one side writes it (`Arc::make_mut`), the
+object store, the battlefield and the stack a chunk at a time, and
 the event recorder's stream up to the fork, after which each side records its
 own. `Game::resume_turn_at_priority` finishes the turn a fork was taken in. What a
 fork may cost is floors 2 and 3 (`engineering-practices.md` §3.1), which the
-clone test holds in CI. → `events::recorder`, `DurationRegistry`.
+clone tests hold in CI at every decision. → `events::recorder`, `DurationRegistry`,
+`shared_stores`.
+
+**chunk** — of a store a fork shares (`state::shared_stores`): 32 consecutive
+ids of an `ObjectTable`, or 32 items of a `SharedList`, behind one `Arc`. A
+clone copies a pointer per chunk; a fork's first write into one copies it,
+and an entry in it held as a `SharedEntry` is copied only when written. Not
+the history log's chunk of rows, which is the same idea over a log of events.
+→ `clone-architecture.md`.
 
 **branch** — of a trace, which fork of a game a record was written by, the
 number every record carries beside `seq`. `TraceHandle`'s hand-written `Clone`

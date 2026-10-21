@@ -615,6 +615,17 @@ is derivable; where each name was read is not, and the gate needs the names.
     copy of a permanent spell is no creation and has no row; CR 707.2's
     token copies (CV-3) will make their definition from the copiable values,
     which a row can hold as it holds any other.
+- **Added by CL-1 (2026-10-21)**:
+  - `sba_arrivals`: what CR 704.5d and 704.6d can match since the last
+    state-based check, each object by the existence that arrived (CR 400.7):
+    a token arriving anywhere but the battlefield, a commander arriving in a
+    graveyard or exile. CR 704.5d reads any token outside the battlefield
+    however it got there, so both doors into a zone note one; CR 704.6d's
+    "put into that zone since the last time state-based actions were
+    checked" is the list's own window. A rule that reads another arrival is
+    a new filter at the doors (`clone-architecture.md` decision 5).
+    `last_sba_check_epoch` stays, in a debug build only, as the window the
+    old walk's assertion reads.
 
 ---
 

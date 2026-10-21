@@ -133,6 +133,7 @@ is derived.
 | 2026-10-19 | One history of what happened | `TR-5h` | `triggers-architecture.md` |
 | 2026-10-19 | Prevention and excess damage | `TR-5d` | `triggers-architecture.md` |
 | 2026-10-20 | The multiplier, tokens and scry | `TR-5g` | `triggers-architecture.md` |
+| 2026-10-21 | The board and the stack shared between forks | `CL-1` | `clone-architecture.md` |
 
 ### Named, not yet landed
 
@@ -145,7 +146,6 @@ and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `RS-3a` | `cant-effects-architecture.md` |
 | Combat, the solver half | `RS-3b` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `RS-4` | `cant-effects-architecture.md` |
-| The board and the stack shared between forks | `CL-1` | `clone-architecture.md` |
 | Token copies | `CV-3` | `copy-effects-architecture.md` |
 | Spell copies | `CV-4` | `copy-effects-architecture.md` |
 | Double-faced cards | `CV-5` | `copy-effects-architecture.md` |
@@ -170,7 +170,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 211 |
 | …of them in `PERFORMANCE_POOL` | 121 |
-| `#[test]` functions | 2709 |
+| `#[test]` functions | 2718 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -183,22 +183,22 @@ is bolded.
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
 | 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 57% | 2026-10-06 |
-| 2. Allocations per clone | ≤ 64 | 53 | 21% | 2026-10-21 |
-| 2. Microseconds per clone | ≤ 10 | 8.1 | 23% | 2026-10-21 |
-| 3. Kilobytes per clone | ≤ 128 | 90.8 | 41% | 2026-10-21 |
+| 2. Allocations per clone | ≤ 64 | 37 | 73% | 2026-10-21 |
+| 2. Microseconds per clone | ≤ 10 | 1.8 | 456% | 2026-10-21 |
+| 3. Kilobytes per clone | ≤ 128 | 8.7 | 1371% | 2026-10-21 |
 
 ## Debt — `codebase-state.md`'s Deferred Migrations
 
 | | |
 |---|---:|
 | Numbered items | 344 |
-| …closed, still recorded | 193 |
+| …closed, still recorded | 195 |
 | …open — unreachable, and says why | 100 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 31 |
+| …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 149 of 151 |
+| …open, carrying an explicit `**Sized:**` | 147 of 149 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -212,7 +212,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 86 |
+| …slotted to a phase or roadmap row still to come | 84 |
 | …slotted to the first registered card that needs it | 53 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
