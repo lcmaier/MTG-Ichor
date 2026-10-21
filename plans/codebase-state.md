@@ -7909,9 +7909,17 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      them item 293's), and placement took each trigger from the middle of
      the queue (112 ms for 8,000; now 20 ms). Item 293 is the third, the
      state-based check's two walks of every object.
-     **Slotted:** B10, the clone's structural sharing: per-object state shared
-     between forks, copied on write, which also settles `FitOnClone`'s rule.
-     Its design follows TR-5g.
+     **Designed 2026-10-21** (`clone-architecture.md`, decided at #266's review). Read at
+     every decision of the clone test's games, the pooled board reaches 78
+     allocations at a 22-trigger ordering, three decisions over 64, none of
+     which CI reads; a pointer per object passes floor 2's time at about 700
+     stack objects, and ids in chunks of 32 hold both floors at 8,000
+     (§2.4). Two more costs found there: the check's deathtouch sweep
+     writes every permanent at every check, and the layer memo keeps a
+     frame for every object ever walked, 101 KB a clone after 2,000 tokens
+     came and went (§2.5).
+     **Slotted:** B10's builds, CL-1 (`clone-architecture.md` §4), which also
+     settles `FitOnClone`'s rule (decision 4).
 
 184. **CR 613.6's lock carries one row's set to another row of the same
      effect in the same layer.** `row_affected` answers `Locked` for every row
@@ -9658,5 +9666,7 @@ Number 277 was withdrawn in #260 and is not reused.
      check, pushed by `arrive_in_zone`, taken by each check, so a clone at a
      grant of priority copies an empty list; both readers on it, and a debug
      walk asserting it missed none: ~40–60 lines and a test.
-     **Slotted:** the PR after #265, ahead of B10's design (proposed;
-     the owner's call).
+     **Slotted:** B10's builds (the owner, 2026-10-21): the list is state a
+     clone copies, so its shape is decided with the clone's, and a clone at
+     a grant of priority copies it empty. Designed as CL-1's
+     (`clone-architecture.md` decision 5).
