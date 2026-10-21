@@ -673,14 +673,26 @@ pub struct GameState {
     /// zone changes.
     pub(crate) next_zone_change_epoch: ZoneChangeEpoch,
 
-    /// The tick as of the **start of the previous** state-based-action check.
+    /// What arrived since the last state-based check that CR 704.5d or 704.6d
+    /// can match: a token arriving anywhere but the battlefield, a commander
+    /// arriving in a graveyard or exile, each by the existence it arrived as.
+    /// The check reads these and walks nothing else (`codebase-state.md` item
+    /// 293). Pushed, in epoch order, by the doors into a zone: `arrive_in_zone`,
+    /// the one writer of the epoch, and `create_in_zone` for a token.
     ///
-    /// CR 704.6d's window is "since the last time state-based actions were
-    /// checked", and the boundary has to be read at the *start* of a check
-    /// rather than at its end. A commander that CR 704.5g puts into a graveyard
-    /// does so during a check, so an end-of-check boundary would place the move
-    /// before the boundary it is supposed to be after, and the commander would
-    /// never be offered its command zone at all.
+    /// **On the state, and cleared just before the check performs**, not
+    /// taken at its top: the check's prompts (CR 704.6d's offer, the legend
+    /// rule) are decisions a fork may be taken at (`codebase-state.md` item
+    /// 40). Nothing moves between the top and the perform, so the window is
+    /// CR 704.6d's "since the last time state-based actions were checked",
+    /// and what moves while the check performs is the next check's. Empty at
+    /// every grant of priority, so a fork there copies nothing for it
+    /// (`clone-architecture.md` decision 5).
+    pub(crate) sba_arrivals: Vec<ObjectRef>,
+
+    /// The tick as of the start of the previous check: the window the debug
+    /// walk asserts `sba_arrivals` against.
+    #[cfg(debug_assertions)]
     pub(crate) last_sba_check_epoch: ZoneChangeEpoch,
 
     // --- Triggered abilities (CR 603) ---
@@ -1039,6 +1051,8 @@ impl GameState {
             tokens_being_created: Vec::new(),
             lethal_damage_left: Vec::new(),
             next_zone_change_epoch: 1,
+            sba_arrivals: Vec::new(),
+            #[cfg(debug_assertions)]
             last_sba_check_epoch: 1,
             pending_triggers: SharedList::default(),
             next_trigger_seq: 0,
@@ -2506,6 +2520,7 @@ impl GameState {
     /// memo still answering for a deleted object would say it existed.
     pub fn remove_object(&mut self, id: ObjectId) -> Option<GameObject> {
         let removed = self.objects.remove(&id);
+        self.layer_memo.forget(id);
         self.bump_layer_epoch();
         removed
     }

@@ -23,7 +23,8 @@ use crate::engine::layers::board::RowNote;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::mana_supply::ManaProductionWatchers;
 use crate::state::history_log::RowKind;
-use crate::types::ids::{IdMap, ObjectId};
+use crate::state::shared_stores::{InlineEntry, ObjectTable};
+use crate::types::ids::ObjectId;
 
 /// Per-object frames, each stamped with the epoch it was computed at.
 ///
@@ -34,11 +35,15 @@ use crate::types::ids::{IdMap, ObjectId};
 /// and the two epochs then move independently.
 ///
 /// A stale entry is ignored, not evicted: the epoch comparison on read is the
-/// whole invalidation, and the next miss overwrites it. Size is bounded by the
-/// objects ever queried — a few hundred per game.
+/// whole invalidation, and the next miss overwrites it. An object taken out of
+/// the store takes its frame with it ([`Self::forget`]): its id is never
+/// reused, so the frame could never be served, and the memo is bounded by the
+/// store rather than by every object the game ever walked. Kept in an
+/// [`ObjectTable`], so a clone copies a pointer per chunk of frames and a fork's
+/// walk copies the chunks it stores into (`clone-architecture.md` decision 2).
 #[derive(Debug, Clone, Default)]
 pub struct LayerMemo {
-    frames: RefCell<IdMap<ObjectId, (u64, Arc<EffectiveCharacteristics>)>>,
+    frames: RefCell<ObjectTable<InlineEntry<(u64, Arc<EffectiveCharacteristics>)>>>,
     /// The notes of the pass that filled `frames`, stamped with its epoch as
     /// each frame is: what that pass noted about each row reaching a zone it
     /// leaves out, which a card there is walked with (`layers-architecture.md`
@@ -252,6 +257,12 @@ impl LayerMemo {
     /// Store `frame` for `id` as of `epoch`, replacing whatever was there.
     pub(crate) fn insert(&self, id: ObjectId, epoch: u64, frame: Arc<EffectiveCharacteristics>) {
         self.frames.borrow_mut().insert(id, (epoch, frame));
+    }
+
+    /// Drop `id`'s frame: the store took the object out, and no later read
+    /// can name it.
+    pub(crate) fn forget(&self, id: ObjectId) {
+        self.frames.borrow_mut().remove(&id);
     }
 
     /// The notes stored at exactly `epoch`, if the pass that filled the memo
@@ -583,6 +594,20 @@ mod tests {
         let obj = GameObject::new(vanilla_creature(1, 1, &[]), 0, Zone::Hand);
         let other = game.add_object(obj);
         assert_eq!(power(&game, other), (Some(1), false));
+    }
+
+    /// An object out of the store takes its frame with it: its id is never
+    /// reused, so a memo that kept it would grow with every token the game
+    /// ever walked (`clone-architecture.md` §2.5).
+    #[test]
+    fn a_removed_objects_frame_is_dropped() {
+        let mut game = GameState::new(2, 20);
+        let card = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);
+        assert!(query(&game, card).0.is_some());
+        assert!(game.layer_memo.frames.borrow().get(&card).is_some(), "the walk stored its frame");
+
+        game.remove_object(card);
+        assert!(game.layer_memo.frames.borrow().get(&card).is_none());
     }
 
     #[test]

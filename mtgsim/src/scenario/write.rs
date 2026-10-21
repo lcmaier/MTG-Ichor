@@ -119,6 +119,8 @@ impl<'g> Writer<'g> {
             nesting: _,
             rider_lineage: _,
             next_zone_change_epoch: _, // CR 704.6d's ticks, settled at rest
+            sba_arrivals: _, // empty at rest
+            #[cfg(debug_assertions)]
             last_sba_check_epoch: _,
             pending_triggers,
             next_trigger_seq: _,
