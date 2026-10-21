@@ -2034,7 +2034,22 @@ mechanic rather than a migration, which is why it is here and not in
   for both halves until then. `GameNumber` is wanted outside loops too: a
   board of token doublers asks for about a million identical tokens, which
   only a symbolic count holds (`codebase-state.md` item 264).
-- **Owner** — none; raised at RE-4's review (R21).
+- **Read at TR-6's design review (2026-10-21, #268).** Half (1) becomes a phase
+  of its own, and TR-6 builds only the draw it ends in (`GameAction::GameEndsInADraw`),
+  with today's two counts proposing it. The principle set there: **the engine
+  draws only when it has proved a loop cannot end.** A loop whose iterations
+  repeat with a constant change can be proved either way, by comparing two
+  iterations and asking whether anything that reads what they change would ever
+  answer differently. A run that never repeats cannot be decided in general
+  (Churchill, Biderman and Herrick's forced-move Turing machine), and only
+  there does a count decide. The review's record is `triggers-architecture.md`
+  §4.9's amendment: a probe of 12,000 fuzz games, six counts set against two
+  properties, the reset rule (CR 731.5: a pass with a way out stays inside a
+  mandatory loop), a work stack that removes `DISPATCH_NESTING_LIMIT`, D26's
+  seams, and the census of printed mandatory loops by shape that the design
+  starts with.
+- **Owner** — the loop phase, decided at TR-6's design review; this entry
+  graduates when its slot on the route is set. Raised at RE-4's review (R21).
 
 ### 2.29 The suppression predicate as a commutation table — ✅ graduated 2026-09-14 (RE-5's review, theme B)
 
