@@ -32,11 +32,11 @@ use crate::engine::object_filter::{player_ref_names, EarlierTargets, FilterRefer
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::targeting::HeldFrame;
 use crate::engine::trace_records;
-use crate::engine::zone_function::{condition_functions_in, functions_in};
+use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::engine::replacement::EventSubject;
 use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent};
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData};
+use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
@@ -499,6 +499,13 @@ pub(super) struct MatchedTrigger {
     pub(super) additional: u32,
 }
 
+impl MatchedTrigger {
+    /// The arm of its condition that matched.
+    pub(super) fn arm(&self) -> &TriggerEvent {
+        &self.def.condition.events()[self.event.0]
+    }
+}
+
 /// One registry entry's matches in a window (`delayed.rs`): every event
 /// that triggers it, which its duration then queues all of or chooses one of.
 pub(super) struct DelayedMatch {
@@ -821,7 +828,7 @@ impl GameState {
     /// trigger is queued.
     fn aura_put_into_graveyard_beside_its_host(&self, matched: &MatchedTrigger) -> Option<ObjectRef> {
         let aura = matched.identity.source;
-        if !matched.def.condition.events()[matched.event.0].watches_its_host_leave() || self.find(aura).is_some() {
+        if !matched.arm().watches_its_host_leave() || self.find(aura).is_some() {
             return None;
         }
         // `aura-found-in-graveyard`'s switch (`engineering-practices.md`
@@ -1382,7 +1389,15 @@ impl GameState {
         snapshots: &'a [LookBackSnapshot],
     ) -> Vec<TriggerCandidate<'a>> {
         let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
-        let sources = self.trigger_multiplier_sources_now();
+        let mut sources = self.trigger_multiplier_sources_now();
+        // A survivor whose multiplier only a list from before holds: one a
+        // granter gave it, the granter gone in the window.
+        for frame in snapshots.iter().flat_map(|snapshot| &snapshot.frames) {
+            let object = frame.lki.object();
+            if carries_a_trigger_multiplier(frame.lki.chars()) && self.find(object).is_some() && !sources.contains(&object.id) {
+                sources.push(object.id);
+            }
+        }
         if !sources.is_empty() {
             self.push_live_candidates(sources, &mut self.lists_before(snapshots), &mut candidates);
         }
@@ -1429,7 +1444,7 @@ impl GameState {
         if multipliers.is_empty() {
             return;
         }
-        let newcomers: Vec<ObjectRef> = records.iter().filter_map(|(_, record)| self.newcomer_from(&record.event)).collect();
+        let newcomers = self.window_newcomers(records);
         for (each, &candidate) in matches.iter_mut().zip(matched) {
             let source = &candidates[candidate];
             each.additional = multipliers
@@ -1460,7 +1475,7 @@ impl GameState {
         if source.zone != Zone::Battlefield || multiplier.zone != Zone::Battlefield {
             return 0;
         }
-        let arm = &matched.def.condition.events()[matched.event.0];
+        let arm = matched.arm();
         let chars = multiplier.frame.chars();
         let referents = TriggerReferents {
             this: ThisObject::Candidate(multiplier.object.id),
@@ -1473,7 +1488,7 @@ impl GameState {
         let mut additional = 0;
         for ability in chars.abilities.iter() {
             let Some((condition, def)) = ability.effect.as_trigger_multiplier() else { continue };
-            if ability.ability_type != AbilityType::Static || !functions_in(ability, &chars.types, Zone::Battlefield) {
+            if !functions_as_static(ability, &chars.types, Zone::Battlefield) {
                 continue;
             }
             let as_long_as = ConditionReferents { source_lki: multiplier.frame.lki(), triggering_event: TriggeringEventView::None };
@@ -1525,9 +1540,7 @@ impl GameState {
         // for a once-per-subject arm the subject) -> index into `matches`.
         let mut once: Vec<((AbilityIdentity, EventIndex, Option<EventSubject>), usize)> = Vec::new();
 
-        // The window's newcomers: a window is one event (§4.1), so each was
-        // somewhere else immediately before every record of it.
-        let newcomers: Vec<ObjectRef> = records.iter().filter_map(|(_, record)| self.newcomer_from(&record.event)).collect();
+        let newcomers = self.window_newcomers(records);
         let is_newcomer: Vec<bool> = candidates.iter().map(|candidate| newcomers.contains(&candidate.object)).collect();
 
         // One row per triggered ability, so the records loop below pays
@@ -2597,6 +2610,12 @@ impl GameState {
             Some(made) if made.id == id => Some(made),
             _ => self.object_ref(id),
         }
+    }
+
+    /// The window's newcomers: a window is one event (§4.1), so each was
+    /// somewhere else immediately before every record of it.
+    fn window_newcomers(&self, records: &[(EventId, &EventRecord)]) -> Vec<ObjectRef> {
+        records.iter().filter_map(|(_, record)| self.newcomer_from(&record.event)).collect()
     }
 
     /// The newcomer `event` brought, if any: the object it put where it is

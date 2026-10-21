@@ -2479,7 +2479,19 @@ impl GameState {
     pub(crate) fn evaluate_amount(
         &self,
         expr: &AmountExpr,
+        ctx: &ResolutionContext,
+    ) -> Result<u64, String> {
+        self.amount_with_announced_x(expr, ctx, None)
+    }
+
+    /// [`Self::evaluate_amount`], with the X announced for a spell or ability
+    /// not yet resolving (CR 601.2b), which a count of targets reads as its
+    /// targets are announced (CR 601.2c): one evaluator for both moments.
+    pub(crate) fn amount_with_announced_x(
+        &self,
+        expr: &AmountExpr,
         _ctx: &ResolutionContext,
+        announced_x: Option<u64>,
     ) -> Result<u64, String> {
         match expr {
             AmountExpr::Fixed(n) => Ok(*n),
@@ -2487,9 +2499,8 @@ impl GameState {
             // its stack entry carried since the cast, and a delayed trigger's
             // its creator's (107.3n). A rider resolves no stack object, and has
             // none.
-            AmountExpr::X => self
-                .resolving_for(_ctx)
-                .and_then(|resolving| resolving.x_value)
+            AmountExpr::X => announced_x
+                .or_else(|| self.resolving_for(_ctx).and_then(|resolving| resolving.x_value))
                 .ok_or_else(|| format!("{} resolves with no X chosen for AmountExpr::X to read", _ctx.source)),
             // The permanents a selector names, as they are now (CR 608.2h),
             // "you" the resolution's controller: Ajani, Nacatl Avenger's "the
@@ -2498,17 +2509,17 @@ impl GameState {
                 let filter = selector
                     .permanent_filter()
                     .ok_or_else(|| format!("CountOf({selector:?}) resolution not yet implemented"))?;
-                let (you, source) = (_ctx.controller, _ctx.source);
-                let counted = self.battlefield_ids_ordered().into_iter().filter(|&id| self.object_matches_filter_of_source(id, &filter, you, source, None));
+                let counted = self.battlefield_ids_ordered().into_iter().filter(|&id| self.matches_for_effect(id, &filter, _ctx));
                 Ok(counted.count() as u64)
             }
             AmountExpr::CardTypesAmong(_selector) => {
                 Err("CardTypesAmong amount resolution not yet implemented".to_string())
             }
-            AmountExpr::Plus(inner, n) => Ok(self.evaluate_amount(inner, _ctx)? + n),
-            // "You" is the controller, and the text's "this" its source.
+            AmountExpr::Plus(inner, n) => Ok(self.amount_with_announced_x(inner, _ctx, announced_x)? + n),
+            // "You" is the controller, and the text's "this" its source: the
+            // permanent whose ability it is (CR 113.7a), not the ability.
             AmountExpr::History(span, history) => {
-                let (you, source) = (_ctx.controller, _ctx.source);
+                let (you, source) = (_ctx.controller, _ctx.effect_source());
                 let mut filter_matches = |filter: &ObjectFilter, id, frame: &EffectiveCharacteristics| {
                     self.object_matches_filter_of_source(id, filter, you, source, Some(HeldFrame::Characteristics(frame)))
                 };
@@ -2611,7 +2622,7 @@ impl GameState {
             // number and the factor is printed on a card, and a debug panic or a
             // release wrap is not an answer. `AmountRewrite::Multiplier` saturates too.
             AmountExpr::Multiply(inner, n) => {
-                Ok(self.evaluate_amount(inner, _ctx)?.saturating_mul(*n))
+                Ok(self.amount_with_announced_x(inner, _ctx, announced_x)?.saturating_mul(*n))
             }
             // CR 103.4's number is the game's, and never below zero.
             AmountExpr::StartingLifeTotal => Ok(self.starting_life.max(0) as u64),
@@ -3024,6 +3035,17 @@ fn restriction_scope(def: &RestrictionDef) -> (&ObjectSet, &PlayerSet) {
 
 #[cfg(test)]
 mod tests {
+    /// The X announced for a count of targets, before anything resolves, is
+    /// read through the evaluator's own arithmetic (CR 601.2b-c); with
+    /// nothing announced and nothing resolving there is no X.
+    #[test]
+    fn an_announced_x_is_read_through_the_amounts_arithmetic() {
+        let game = GameState::new(2, 20);
+        let ctx = ResolutionContext::untargeted(crate::types::ids::ObjectId::UNASSIGNED, 0, GeneratedBy::Spell);
+        let twice_x_plus_one = AmountExpr::Plus(Box::new(AmountExpr::Multiply(Box::new(AmountExpr::X), 2)), 1);
+        assert_eq!(game.amount_with_announced_x(&twice_x_plus_one, &ctx, Some(3)), Ok(7));
+        assert!(game.evaluate_amount(&AmountExpr::X, &ctx).is_err());
+    }
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;

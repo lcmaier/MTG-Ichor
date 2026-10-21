@@ -253,10 +253,14 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
         // entries the elision compares.
         EffectRecipient::Implicit
         | EffectRecipient::Controller
-        | EffectRecipient::Target(..)
-        | EffectRecipient::Choose(..)
         | EffectRecipient::SameInstanceAs(_)
         | EffectRecipient::EachOf(_) => TriggerBindingReads::NONE,
+        // How many targets, where the text defines it: "where X is the number
+        // of cards looked at while scrying this way".
+        EffectRecipient::Target(_, count) | EffectRecipient::Choose(_, count) => match count {
+            crate::types::effects::TargetCount::UpToAmount(amount) => amount_reads(amount),
+            crate::types::effects::TargetCount::Exactly(_) | crate::types::effects::TargetCount::UpTo(_) => TriggerBindingReads::NONE,
+        },
         EffectRecipient::ThisObject | EffectRecipient::Host => TriggerBindingReads::SOURCE,
         EffectRecipient::Triggering(p) => TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*p),
         EffectRecipient::TriggeringPlayer => TriggerBindingReads::PLAYER,
@@ -493,6 +497,18 @@ mod tests {
                 EffectRecipient::Triggering(EventRole::Object),
             ),
         )
+    }
+
+    /// "Each of up to X target creatures, where X is the number of cards
+    /// looked at": two occurrences that differ in X differ in what their
+    /// targets may be, so the count reads the binding's amount.
+    #[test]
+    fn a_count_of_targets_reads_what_its_amount_reads() {
+        use crate::types::effects::{AmountExpr, CounterType, PlayerRef, SelectionFilter, TargetCount};
+        let up_to_x = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpToAmount(AmountExpr::TriggeringAmount));
+        let counter = Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You };
+        let def = whenever(enters(TriggerSubject::ThisObject), Effect::Atom(counter, up_to_x));
+        assert!(def.trigger_binding_reads().contains(TriggerBindingReads::AMOUNT));
     }
 
     #[test]

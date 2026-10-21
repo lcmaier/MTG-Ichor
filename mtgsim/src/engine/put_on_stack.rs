@@ -208,7 +208,7 @@ impl GameState {
         // `OtherThanInstance` clause reads the instances already announced —
         // Incremental Growth's second creature has to know the first.
         let targets = match self.announce_targets(
-            player_id, card_id, card_id, instances, ConditionReferents::NONE, Some(x_value), decisions,
+            player_id, card_id, card_id, instances, ConditionReferents::NONE, has_x.then_some(x_value), decisions,
         ) {
             Ok(targets) => targets,
             Err(e) => {
@@ -392,16 +392,9 @@ impl GameState {
         named_objects: crate::engine::layers::condition::ConditionReferents<'_>,
         x_value: Option<u64>,
     ) -> Result<u64, String> {
-        use crate::types::effects::AmountExpr;
-        match amount {
-            AmountExpr::X => x_value.ok_or_else(|| format!("{this_object} announces a count of X targets with no X announced")),
-            AmountExpr::Plus(inner, n) => Ok(self.announced_amount(inner, controller, this_object, named_objects, x_value)? + n),
-            other => {
-                let mut ctx = crate::engine::resolve::ResolutionContext::untargeted(this_object, controller, crate::events::cause::GeneratedBy::Spell);
-                ctx.trigger = named_objects.triggering_event.binding().cloned();
-                self.evaluate_amount(other, &ctx)
-            }
-        }
+        let mut ctx = crate::engine::resolve::ResolutionContext::untargeted(this_object, controller, crate::events::cause::GeneratedBy::Spell);
+        ctx.trigger = named_objects.triggering_event.binding().cloned();
+        self.amount_with_announced_x(amount, &ctx, x_value)
     }
 
     /// `GameEvent::Targeted` for each distinct object or player the stack

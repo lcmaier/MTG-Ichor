@@ -1134,6 +1134,14 @@ impl TargetCount {
             TargetCount::UpToAmount(x) => (0, amount(x)? as usize),
         })
     }
+
+    /// The fewest targets the instance must have, which no amount changes.
+    pub fn fewest(&self) -> usize {
+        match self {
+            TargetCount::Exactly(n) => *n as usize,
+            TargetCount::UpTo(_) | TargetCount::UpToAmount(_) => 0,
+        }
+    }
 }
 
 /// Mana output from a mana ability or mana-producing spell.

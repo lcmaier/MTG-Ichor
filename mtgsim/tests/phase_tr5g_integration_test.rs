@@ -18,7 +18,7 @@ use mtgsim::cards::phase_re_cards::{divine_visitation, doubling_season};
 use mtgsim::cards::phase_tr1_cards::{soul_warden, wild_growth};
 use mtgsim::cards::phase_tr5g_cards::panharmonicon;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use mtgsim::engine::layers::types::{EffectModification, Layer};
+use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
@@ -33,11 +33,11 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive, SelectionFilter,
-    Selector, TargetCount, TokenDef,
+    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive,
+    SelectionFilter, Selector, TargetCount, TokenDef,
 };
 use mtgsim::types::history::CountIs;
-use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
@@ -792,4 +792,63 @@ fn two_of_elronds_creatures_targeted_by_one_ability_trigger_it_twice() {
     );
     game.activate_ability(1, wand, 0, &dp).expect("the opponent's ability targets three creatures");
     assert_eq!(waiting_from(&game, elrond), 2, "the two with a counter, each once");
+}
+
+/// "The number of other creatures you control", counted as an ability
+/// resolves: "other" is other than the permanent whose ability it is, not
+/// the ability on the stack (CR 113.7a, 603.6a's "another").
+#[test]
+fn a_count_of_other_creatures_leaves_out_the_abilitys_own_permanent() {
+    let mut game = audited_game();
+    let others = AmountExpr::CountOf(Selector::PermanentsMatching(another(ObjectFilter::And(
+        Box::new(a_creature()),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    ))));
+    let ping = AbilityDef {
+        rules_text: "".into(),
+        id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
+        ability_type: AbilityType::Activated,
+        costs: Vec::new(),
+        effect: Effect::Atom(Primitive::LoseLife(others), EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))),
+        is_characteristic_defining: false,
+        activation_restriction: ActivationRestriction::None,
+    };
+    let pinger = put_on_battlefield(&mut game, creature_with_ability("Counter", 1, 1, ping), 0);
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    resolve_all(&mut game, &test_dp());
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
+        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![ChoiceOption::Player(1)],
+    );
+    game.activate_ability(0, pinger, 0, &dp).expect("it is activated");
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(life(&game, 1), 20 - 2, "the two others, not the counter itself");
+}
+
+/// A multiplier a granter gave a creature, the granter dying in the event:
+/// a leaving is read on the board from before it (CR 603.10), where the
+/// creature still had the ability, so the granter's own death is doubled.
+/// Only a list from before the batch holds it, which the count asks of a
+/// survivor no source set reaches now.
+#[test]
+fn a_granted_multiplier_counts_on_the_board_before_its_granter_left() {
+    let mut game = audited_game();
+    let carrier = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let granter = put_on_battlefield(&mut game, legendary_creature("Granter"), 0);
+    let mourner = put_on_battlefield(&mut game, watcher("Mourner", whenever(dies(a_creature()), gain_one())), 0);
+    resolve_all(&mut game, &test_dp());
+    let mut gandalfs = gandalf_the_white().abilities[0].clone();
+    gandalfs.id = new_ability_id();
+    let ts = game.allocate_timestamp();
+    game.continuous_effects.add(ContinuousEffect {
+        duration: Duration::WhileSourceOnBattlefield,
+        affected_objects: ObjectSet::Fixed(vec![carrier]),
+        ..registered(granter, Layer::Layer6Ability, ts, EffectModification::GrantAbility(Arc::new(gandalfs)))
+    });
+    game.execute_action(GameAction::Destroy { object: granter }, &ActionContext::new(&test_dp())).unwrap();
+    assert!(!game.continuous_effects.summary().any_granted_trigger_multiplier, "the grant ended with its granter");
+    assert_eq!(waiting_from(&game, mourner), 2);
 }
