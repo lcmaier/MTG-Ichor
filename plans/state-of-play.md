@@ -132,6 +132,7 @@ is derived.
 | 2026-10-18 | Blocks, targeting and activation | `TR-5c` | `triggers-architecture.md` |
 | 2026-10-19 | One history of what happened | `TR-5h` | `triggers-architecture.md` |
 | 2026-10-19 | Prevention and excess damage | `TR-5d` | `triggers-architecture.md` |
+| 2026-10-20 | The multiplier, tokens and scry | `TR-5g` | `triggers-architecture.md` |
 
 ### Named, not yet landed
 
@@ -158,7 +159,6 @@ and no ✅ heading records, in the docs' order.
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
-| The multiplier, tokens and scry | `TR-5g` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
 | State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
 | The persist loop, the track's capstone | `TR-7` | `triggers-architecture.md` |
@@ -167,9 +167,9 @@ and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 210 |
-| …of them in `PERFORMANCE_POOL` | 120 |
-| `#[test]` functions | 2664 |
+| Cards registered | 211 |
+| …of them in `PERFORMANCE_POOL` | 121 |
+| `#[test]` functions | 2699 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 

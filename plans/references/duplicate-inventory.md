@@ -617,6 +617,60 @@ one shape with three matchers; `TriggeringEventObjects::get` beside
 `looks_back`'s zone-change arm; the placed kinds, as §3.8 keeps them; and
 `TurnFact::COUNT` counted by hand.
 
+### 3.10 Found by TR-5g's model pass (2026-10-20)
+
+§2a's prompt over the engine files #264 changed, its report unseen. It named
+12 facts and a mirror; four already disagreed, each in the branch's new code,
+and `close_out.py`'s report named two of the merges. #264 fixed the four and
+the mirror, merged four, and kept the rest with their reasons.
+
+**Fixed in #264, each with its test where a board shows it.**
+- **T31. "Another" in a count at resolution:** the new `CountOf` measured
+  it against the ability on the stack, where `matches_for_effect` measures it
+  against the permanent whose ability it is (CR 113.7a); the `History` arm
+  beside it, TR-5h's, read `ctx.source` too and reads `effect_source()`.
+- **T32. An announced X:** a second evaluator for a count of targets knew X
+  and `Plus` and not `Multiply`; `amount_with_announced_x` is the one.
+- **T33. A spell's X at announcement and on its stack entry:** 0 for a
+  spell without X at one, none at the other; one answer for both.
+- **T34. The survivors a look-back count asks:** `find_matches` asks a
+  survivor only a list from before reaches; the multipliers' candidates did
+  not, so a granted multiplier whose granter left in the batch went unasked.
+- The mirror: `binding_reads::recipient_reads` read nothing off a count of
+  targets, which reads the binding's amount.
+
+**Merged in #264, no game moved** (the shipped arm before and after the
+review, both pools, two seats and four, audited).
+- **T35. The window's newcomers:** `window_newcomers`, read by the match and
+  the count.
+- **T36. A static ability that functions where it is (CR 113.6):**
+  `functions_as_static`, the replacement gather's and the count's.
+- **T37. A match's arm:** `MatchedTrigger::arm`.
+- **T38. The fewest targets an instance must have:** `TargetCount::fewest`,
+  which the castability check reads where it had matched `Exactly`.
+
+**Kept, each with its reason.**
+- Whether a static effect exists now, CR 604.2's "as long as": the cost and
+  restriction gathers read the board now, while the count also reads a
+  frame's controller and last known information, since it asks departures
+  and snapshots.
+- The sweep of a static ability's sources: the cost gather sorts by
+  `object_timestamp`, the object's, where the count sorts by
+  `PermanentState::timestamp` (`CLAUDE.md`'s key, which CR 613.7e
+  reassigns). Merging the two would reorder the cost gather, which is that
+  subsystem's to look at first.
+- The abilities a registry row puts on its objects, walked inline by
+  `RegistryScopeSummary::of` beside `triggered_ability_kinds` and
+  `puts_a_replacement_ability`: the branch extended the inline walk in
+  place.
+- `Selector::ControlledCreatures` spelled out by the layer memo's and the
+  binding's readers, each over its own channels; `permanent_filter` is the
+  two evaluators' meaning.
+- `replacement_of`'s "as long as" peel, older than `with_its_condition`.
+- `queue_matches` beside `queue_pending`: only an object's match is counted
+  and may resolve as a mana ability at once, and its "caused by" agrees with
+  `first_record`, since it always has a record.
+
 ## 4. The rename: "departed frame" to LKI
 
 **Decided (the owner, 2026-10-10, at #240's review): its own mechanical PR,
