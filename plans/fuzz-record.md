@@ -37,6 +37,23 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Floors 2 and 3 re-read 2026-10-21 for B10's design**, on #265's tree
+(`b86c59c1`), before anything else was measured: the board still carried
+TR-5d's readings, and TR-5g's own run (53 allocations, 90.6 KB) had not
+reached it.
+
+- **Allocations and bytes**, `cargo test --release --test clone_bound_test --
+  --nocapture`, exact over 188 checkpoints: at most **53** allocations
+  (`performance` 12353 at turn 40; its end reads 50) and **90.8 KB**
+  (`stress` 12351 under Teferi's clause, turn 80).
+- **Time**, a scratchpad probe replaying the same 24 games under the System
+  allocator, at each checkpoint the median of five means of 2,000
+  clone-and-drops. The worst checkpoint of each of three runs read 6.91, 6.93
+  and 8.10 µs; the 8.10 was `stress` 12351 under the clause at turn 60, which
+  read 6.61 in the next run, so two more runs were taken: 7.44 and 7.50. The
+  median checkpoint read 5.1–5.2 µs in every run. The board takes 8.1, the
+  worst. The same method read #225's tree at 8.9–9.5 µs on 2026-10-14.
+
 **Re-recorded 2026-10-20 for TR-5g** (#264: the multiplier, tokens and
 scry). Panharmonicon joins the registry and the pool (210 → 211 registered,
 120 → 121 pooled), so both §3 columns are new baselines. Two `close_out.py`

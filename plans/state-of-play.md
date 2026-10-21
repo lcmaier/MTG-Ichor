@@ -182,9 +182,9 @@ is bolded.
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
 | 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 57% | 2026-10-06 |
-| 2. Allocations per clone | ≤ 64 | 41 | 56% | 2026-10-20 |
-| 2. Microseconds per clone | ≤ 10 | 6.9 | 45% | 2026-10-06 |
-| 3. Kilobytes per clone | ≤ 128 | 91.3 | 40% | 2026-10-20 |
+| 2. Allocations per clone | ≤ 64 | 53 | 21% | 2026-10-21 |
+| 2. Microseconds per clone | ≤ 10 | 8.1 | 23% | 2026-10-21 |
+| 3. Kilobytes per clone | ≤ 128 | 90.8 | 41% | 2026-10-21 |
 
 ## Debt — `codebase-state.md`'s Deferred Migrations
 
