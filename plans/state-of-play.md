@@ -145,6 +145,7 @@ and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `RS-3a` | `cant-effects-architecture.md` |
 | Combat, the solver half | `RS-3b` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `RS-4` | `cant-effects-architecture.md` |
+| The board and the stack shared between forks | `CL-1` | `clone-architecture.md` |
 | Token copies | `CV-3` | `copy-effects-architecture.md` |
 | Spell copies | `CV-4` | `copy-effects-architecture.md` |
 | Double-faced cards | `CV-5` | `copy-effects-architecture.md` |
