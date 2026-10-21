@@ -17,7 +17,7 @@ use crate::events::cause::{EventCause, GameRule};
 use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
-use crate::types::ids::{ObjectId, ObjectRef};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
@@ -54,28 +54,22 @@ impl GameState {
         let seats = self.players_in_game_apnap();
         for tier in [TriggerTier::First, TriggerTier::Second] {
             for &player in &seats {
-                let mine: Vec<TriggerSeq> = self
-                    .pending_triggers
-                    .iter()
-                    .filter(|t| t.tier() == tier && t.controller == player)
-                    .map(|t| t.seq)
-                    .collect();
-                if mine.is_empty() {
+                let entries: Vec<&PendingTrigger> =
+                    self.pending_triggers.iter().filter(|t| t.tier() == tier && t.controller == player).collect();
+                if entries.is_empty() {
                     continue;
                 }
-                let order: Vec<usize> = if mine.len() >= 2 && !self.trigger_order_cannot_change_outcome(&mine) {
-                    let sources: Vec<ObjectId> = mine
-                        .iter()
-                        .filter_map(|seq| self.pending_triggers.iter().find(|t| t.seq == *seq))
-                        .map(|t| t.origin.source())
-                        .collect();
+                let mine: Vec<TriggerSeq> = entries.iter().map(|t| t.seq).collect();
+                let order: Vec<usize> = if entries.len() >= 2 && !self.trigger_order_cannot_change_outcome(&entries) {
+                    let sources: Vec<ObjectId> = entries.iter().map(|t| t.origin.source()).collect();
                     ask_order_triggers(dp, self, player, tier, &sources)
                 } else {
                     (0..mine.len()).collect()
                 };
+                self.queue_last_placed_first(tier, player, &order);
                 for i in order {
                     let seq = mine[i];
-                    let Some(at) = self.pending_triggers.iter().position(|t| t.seq == seq) else { continue };
+                    let Some(at) = self.pending_triggers.iter().rposition(|t| t.seq == seq) else { continue };
                     let pending = self.pending_triggers.remove(at);
                     if self.place_one(pending, dp)? {
                         placed += 1;
@@ -86,16 +80,29 @@ impl GameState {
         Ok(placed > 0)
     }
 
+    /// Move `player`'s entries of `tier`, about to be placed in `order`, to
+    /// the queue's end with the last to be placed first. Each then leaves the
+    /// queue from behind only the entries that triggered while it was placed,
+    /// where taking each from among the others shifts the rest of the queue
+    /// once per entry, thousands of times over after a board wipe. The other
+    /// entries keep their order, and so did these until their ordering
+    /// prompt, which has been asked.
+    fn queue_last_placed_first(&mut self, tier: TriggerTier, player: PlayerId, order: &[usize]) {
+        let (block, rest): (Vec<PendingTrigger>, Vec<PendingTrigger>) =
+            std::mem::take(&mut self.pending_triggers).into_iter().partition(|t| t.tier() == tier && t.controller == player);
+        self.pending_triggers = rest;
+        let mut slots: Vec<Option<PendingTrigger>> = block.into_iter().map(Some).collect();
+        let last_placed_first: Vec<PendingTrigger> = order.iter().rev().filter_map(|&i| slots.get_mut(i)?.take()).collect();
+        self.pending_triggers.extend(slots.into_iter().flatten());
+        self.pending_triggers.extend(last_placed_first);
+    }
+
     /// Whether one player's entries give the same game in whatever order
     /// they go on the stack, so the ordering prompt is not asked.
     /// `triggers-architecture.md` §5.2 gives the reason for each condition.
     /// Compared by def rather than by id, since two grants of one ability
     /// carry two ids.
-    fn trigger_order_cannot_change_outcome(&self, seqs: &[TriggerSeq]) -> bool {
-        let entries: Vec<&PendingTrigger> = seqs
-            .iter()
-            .filter_map(|seq| self.pending_triggers.iter().find(|t| t.seq == *seq))
-            .collect();
+    fn trigger_order_cannot_change_outcome(&self, entries: &[&PendingTrigger]) -> bool {
         let Some(first) = entries.first() else { return true };
         let reads = first.binding.def.trigger_binding_reads();
         entries.iter().all(|t| {

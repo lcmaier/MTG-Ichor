@@ -258,8 +258,9 @@ impl Drop for Chunk {
 }
 
 impl HistoryLog {
-    /// Append `row`, the newest event.
-    pub(crate) fn push(&mut self, row: HistoryRow) {
+    /// Append `row`, the newest event: `GameHistory::push_row`'s, which keeps
+    /// each player's tally with it.
+    pub(super) fn push(&mut self, row: HistoryRow) {
         match self.newest.as_mut() {
             Some(open) if open.rows.len() < CHUNK_ROWS => Arc::make_mut(open).rows.push(row),
             _ => {
