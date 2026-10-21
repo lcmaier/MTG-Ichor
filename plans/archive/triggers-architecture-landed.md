@@ -5260,8 +5260,18 @@ multiplier is involved, and `roadmap-v2.md` B10 names the class.
 and were fixed (T31-T34), with the mirror; four were merged (T35-T38); the
 rest are kept there with their reasons.
 
-**What it leaves.** The clone reading, the owner's call at review; no new
-item, and the intake list was empty.
+**What the review changed** (the owner, 2026-10-20). The clone reading is
+B10's, a batch of triggers mid-turn, and storm's copies are the same shape,
+so keeping one triggering event inline would have fixed one board and not
+the class. A finished game drops its waiting triggers instead (CR 104.1:
+nobody receives priority to put them on the stack), through
+`GameState::end_game`, which became the result's one writer; the test's end
+checkpoint then reads the board, 50 allocations for 12353. The readings and
+the per-object costs went to `codebase-state.md` item 183, and B10's design
+moved up to right after TR-5g.
+
+**What it leaves.** B10's design, next; no new item, and the intake list was
+empty.
 
 **Size.** +1,781/−251 in code and tests (code +905/−201, of it
 Panharmonicon and its registration +140; tests +876/−50), against

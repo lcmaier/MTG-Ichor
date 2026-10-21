@@ -92,8 +92,11 @@ at every prompt of the same game reads 68 and 77 at two trigger-ordering
 prompts mid-turn, so the board passes floor 2's proxy at a decision and not
 only at the end. No multiplier is on the battlefield; it is the batch of
 triggers mid-turn `roadmap-v2.md` B10 names, which the between-turns
-checkpoints had not dealt before. How the PR answers it is the owner's
-call.
+checkpoints had not dealt before. **At review** (the owner): a finished game
+drops its waiting triggers (CR 104.1), so the checkpoint reads the board,
+50 allocations and 49.5 KB, the worst reading 53 at 12353's turn 40 and the
+largest 90.6 KB; the per-object costs went to `codebase-state.md` item 183,
+and B10's design moved up to right after TR-5g.
 
 **Copies** (`close_out.py`'s report against `main`, and the model pass,
 `plans/references/duplicate-inventory.md` §3.10): the report's twelve

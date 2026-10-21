@@ -3680,12 +3680,12 @@ four defects in the new code, each fixed (`duplicate-inventory.md` §3.10).
 instructions per decision. The shipped arm moves every game and the
 audit agrees on every dispatch, 1,000 games a table included; Panharmonicon
 moved `stress` games by about a turn either way. `history_held_test` reads
-3,877 B a turn. **The release clone test does not hold on shipped**:
-one Commander game ends with 31 Sphere Grid triggers waiting, an allocation
-each (82 against 64), and clones at 77 at a 28-trigger ordering prompt. No
-multiplier is involved; it is `roadmap-v2.md` B10's batch of triggers.
+3,877 B a turn. One Commander game ended with 31 Sphere Grid triggers
+waiting, an allocation each (82 against floor 2's 64), and cloned at 77 at a
+28-trigger ordering prompt: B10's batch of triggers, not the multiplier. A
+finished game now drops waiting triggers (CR 104.1), and reads 50.
 
-**What it leaves.** The clone reading, the owner's call. TR-6 is next.
+**What it leaves.** B10's design is next (the owner), then TR-6.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-5g".
 
