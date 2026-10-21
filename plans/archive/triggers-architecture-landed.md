@@ -5270,6 +5270,23 @@ checkpoint then reads the board, 50 allocations for 12353. The readings and
 the per-object costs went to `codebase-state.md` item 183, and B10's design
 moved up to right after TR-5g.
 
+**Review round 1** (the owner, 2026-10-20, on #264).
+- `evaluate_amount` takes the announced X itself, where a second entry point
+  had to be known to be called; `TargetBounds { fewest, most }` names the
+  bounds' pair, and `validate_targets` is one function taking them.
+- `Selector::permanent_filter` came out: item 291 retires `Selector` for
+  `ObjectSet` at A6e, and a helper on it grew what is going. The
+  resolution's `CountOf` matches its two permanent selectors itself.
+- `TargetCount::ExactlyAmount`, "X target creatures": 85 printed cards
+  (`o:"X target" -o:"up to X target"`), each with X paid, the sibling of
+  `UpToAmount`, so it shipped with the type.
+- Teysa Karlov became a fixture, her rulings #1 and #3 to #9 tested on her
+  own board, #5's sacrifice among them; `named_act` became an exhaustive
+  match.
+- A trace page, `plans/traces/tr-5g-a-multiplier-is-read-where-its-trigger-looks.html`:
+  the three kinds of ability list, which arms each answers, and the count
+  reading multipliers through them, on three traced boards.
+
 **What it leaves.** B10's design, next; no new item, and the intake list was
 empty.
 
