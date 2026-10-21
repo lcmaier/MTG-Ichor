@@ -1952,7 +1952,9 @@ the sketch above leaves out or gets wrong.
   empty and `trigger_sources` never files its permanent. The check reads the
   dispatcher's own gate, all three legs of it (printed, granted, copied), through
   one reserved bit of `EventKindMask` that a `State` condition sets. A board with
-  no state trigger then pays one mask test at each schedule. A granted or copied
+  no state trigger then pays one mask test each time the check runs: after every
+  dispatch, on every pass of `perform_sba_and_triggers`, and in the cleanup
+  probe (the three schedules above). A granted or copied
   state trigger is found on the leg that finds a granted "whenever", which is
   `CLAUDE.md`'s rule for a new reader of the effective list. Leg 3
   (`zone_trigger_sources`) takes the bit the same way. The dispatch audit
@@ -1976,6 +1978,17 @@ the sketch above leaves out or gets wrong.
   roles are empty as a "when you don't" reflexive's are (§4.6). It is announced
   by `AbilityTriggered` after the check, so a tier-2 watcher sees it as it sees
   any other trigger (§4.8).
+- **The predicate is the "as long as" evaluator, not a new one.** The check
+  asks `condition::settled_holds` (`engine/layers/condition.rs:299`), which is
+  `holds` at the walk's last layer. `holds` is what a conditional static's "as
+  long as" is asked through inside the layer walk (LI-3), and `settled_holds`
+  is what the replacement and restriction gathers, CR 613.11's cost effects and
+  an intervening "if" ask outside it. Every one of those askers is a reader
+  that already needs the answer: a static's "as long as" is asked when the
+  object is read, a gather's when an event is proposed. Nothing reads a state
+  trigger's condition, so the check is its asker, at the three schedules. The
+  schedules are new; the evaluator is not. The leaves below are written once, in `holds`, so
+  a static's "as long as you have no cards in hand" gets them too.
 - **What the cards need besides the check.** `Condition::Not`, for Emperor
   Crocodile's "you control no other creatures" and Immortal Coil's "there are no
   cards in your graveyard". "Controls" is a `PlayerFact`, not a `Condition` arm,
@@ -2134,25 +2147,40 @@ rather than a second number.
 genuine engine invariant — CR 614.5 bounds every replacement chain — so it
 stays an `Err`.
 
-**Amended 2026-10-21 (TR-6's design, decision 5 — open): two numbers, one
-performer.** The 2026-09-22 call stands: at the bound the answer is the draw.
-The part reopened is "the threshold knob rather than a second number". §4.9's
-decision 1 puts the loop detector's threshold at 500, and the two bound
-different things:
-- `DISPATCH_NESTING_LIMIT` (16, now `dispatch.rs:62`) bounds a **call depth**.
-  Each level is a `dispatch` frame nested inside the one that queued it, on the
-  thread the game runs on, and `fuzz_games` plays each game on one.
-- The detector's threshold is a **count of actions** taken one after another.
-  The stack does not grow with it.
+**Amended 2026-10-21 (TR-6's design, decision 5 — open; revised at review): no
+second number.** The 2026-09-22 call stands: when a tier-2 chain has no end, the
+answer is the draw. The review asked why a bound is needed at all. The answer is
+that `DISPATCH_NESTING_LIMIT` (16, now `dispatch.rs:62`) bounds a **call
+depth**, not a loop. Each `AbilityTriggered` is dispatched inside the `dispatch`
+that queued its trigger (`emit_record` → `dispatch_unbatched` → `dispatch`), so a
+chain of tier-2 triggers is a chain of nested frames on the thread the game runs
+on. The bound is there so that a chain with no end fails before the thread's
+stack does. The deepest nesting the review's probe saw in 12,000 fuzz games is 3.
+- **A — keep the recursion: two numbers** (this amendment's first version). The
+  dispatcher draws at 16 and the detector at 500, both through one performer
+  (§4.9, decision 4). One number would put 500 nested frames on the stack, or
+  draw legal games at 16 (§4.9's table).
+- **B — take the recursion out.** Step 5 of `dispatch_inner` pushes its queued
+  triggers onto a work stack that the outermost dispatch drains. The drain pops
+  one, emits and dispatches its `AbilityTriggered`, and pushes what that
+  dispatch queued on top, which is the order the recursion visits them in.
+  Nesting stops at two frames whatever the chain. A chain with no end is then a
+  decision-free run the detector counts (§4.9, decision 1's fourth clause) under
+  its one threshold. `DISPATCH_NESTING_LIMIT`, its `Err` and its two doc
+  comments (now `dispatch.rs:58–61` and `game_state.rs:300–304`) go.
 
-One number would put the dispatcher's depth at 500 nested frames, or the
-detector's count at 16, where it would draw legal games (§4.9). So both stay,
-and both end the game through one performer (§4.9, decision 4). At the bound the
-dispatcher proposes that action, caused `GameRule::MandatoryLoop`, instead of
-returning the `Err`. Its two doc comments (now `dispatch.rs:58–61` and
-`game_state.rs:300–304`) lose "the engine's mistake". The answer moves from
-`Err` to the draw, so item 262's error path loses this one producer.
-`BATCH_NESTING_LIMIT` is unchanged.
+  The order matches the recursion's except where a dispatch nests inside
+  another's step 4: a triggered mana ability's batch (CR 605.4a), whose tier-2
+  triggers then wait for the outer dispatch's step 5. That moves their `seq`s,
+  not their tier. Code: about 50 lines in `dispatch.rs`. Test: a fixture pair
+  of triggers that each watch the other's triggering, drawn by the detector.
+
+*Recommended: B.* It removes a number and a way to overflow the stack, and it is
+what the 2026-09-22 call asked for: one number, the detector's.
+
+`BATCH_NESTING_LIMIT` stays an `Err`, and is a different kind of number. No
+legal board reaches it, since CR 614.5 bounds every replacement chain, so it is
+an assertion about the engine, not a bound on play.
 
 ### 4.9 The mandatory loop (CR 104.4b, 731; P5; `backlog.md` §2.28)
 
@@ -2173,25 +2201,27 @@ makes possible and stay in `backlog.md` §2.28 with the fork harness; the volunt
 shortcut (D26) stays there too. `fuzz_games`' turn limit keeps standing in
 for what Tier 1 cannot see.
 
-**Amended 2026-10-21 (TR-6's design; decisions 1–4 open, for review before
-the build).** The paragraph above leaves four things unsaid: what an "engine
+**Amended 2026-10-21 (TR-6's design; decisions 1, 3 and 5 open, 2 and 4 taken
+at review).** The paragraph above leaves four things unsaid: what an "engine
 action" is, what resets the run, where the count lives, and how the draw is
 performed. Read against #267's tree, with a probe arm for the numbers.
 
-**The probe.** #267's merge with five counters added, reset at decisions; 2,000
+**The probe.** #267's merge with counters added, reset at decisions; 2,000
 games a sitting at seed 12345; both pools at two seats and four, and both pools
 on the Commander board (four seats, 100-card decks, 40 life). 12,000 games, all
-legal and all finite. Each cell is median / p99 / max of the game's longest
-decision-free run:
+legal and all finite. Each cell is the max (p99) of the game's longest
+decision-free run. The right column is decision 1's B exactly, its first three
+clauses, as the review's second probe measured it; it reads the same under
+either of decision 3's reset rules:
 
-| Sitting | Every resolution and performing check | Refills only (decision 1, B) |
+| Sitting | Every resolution and performing check (A) | Refills (B) |
 |---|---|---|
-| performance, 2 seats | 2 / 9 / 19 | 2 / 5 / 6 |
-| performance, 4 seats | 3 / 15 / **1,570** | 2 / 5 / 11 |
-| stress, 2 seats | 2 / 10 / 19 | 2 / 4 / 6 |
-| stress, 4 seats | 3 / 13 / 34 | 3 / 5 / 14 |
-| Commander, performance | 4 / 19 / 44 | 3 / 6 / 13 |
-| Commander, stress | 4 / 20 / 164 | 3 / 5 / 45 |
+| performance, 2 seats | 19 (9) | 6 (4) |
+| performance, 4 seats | **1,570** (15) | 11 (5) |
+| stress, 2 seats | 19 (10) | 6 (4) |
+| stress, 4 seats | 34 (13) | 14 (4) |
+| Commander, performance | 44 (19) | 12 (6) |
+| Commander, stress | 164 (20) | 45 (5) |
 
 At a threshold of 15, the left column draws 139 of the 12,000 legal games; at
 50, three; at 500, one. The right column draws one at 15 and none at 50. The
@@ -2205,45 +2235,94 @@ the left column reset at every step's beginning as well, moved one tail (19 to
 14, performance at two seats) and none of the others: the long runs are inside
 one step.
 
-**Decision 1 — what the run counts, and the threshold.** Today's bound counts
-something else: 500 performing state-based checks within one CR 704.3
-repetition (`MANDATORY_LOOP_CHECKS`, `sba.rs:121`). Any count stands in for
-CR 104.4b's "repeating a sequence of events", which no count can see. So the
-question is which work a finite game does in bulk.
-- **A — every decision-free resolution and performing check.** Code: two
-  increments and a reset. Performance: an add per resolution. It draws a legal
-  game whenever a finite pile outgrows the threshold. The pool already does
-  that (the left column), so A is wrong for some game at any threshold.
-- **B — refills only.** Three clauses:
-  - a resolution counts when the stack is at least as deep as at the run's
-    previous resolution;
-  - a performing check counts from the second in one CR 704.3 repetition;
-  - a placement pass (CR 117.5's "then triggered abilities are put on the
-    stack") counts when no resolution came between it and the previous one.
+**Decision 1 — what the run counts, and the threshold.** *Walked through at
+review (2026-10-21).*
 
-  **Every infinite decision-free run reaches any threshold.** Such a run does
-  one of the three things infinitely often. A stack's depth cannot fall
-  forever, so infinitely many resolutions include infinitely many refills. A
-  finite pile resolving counts once, however deep: the Hydra's 1,570 count 1.
+*The problem.* CR 104.4b's draw is for a run "repeating a sequence of events
+with no way to stop". The engine sees only a finite prefix of a run, and
+whether a run stops cannot in general be read off one. Sanguine Bond ("Whenever
+you gain life, target opponent loses that much life") and Exquisite Blood
+("Whenever an opponent loses life, you gain that much life") drain a 40-life
+opponent in 40 iterations. Behind that opponent's Platinum Angel they never
+stop, and the first 40 iterations of the two look alike. So Tier 1 counts
+something and draws past a threshold, and a count is judged on two properties:
+- **complete:** every infinite decision-free run passes the threshold, or that
+  game never ends;
+- **quiet:** every legal finite run stays far below it, or a legal game is
+  drawn.
 
-  Code: one `usize` for the last depth, and a third site, in
-  `perform_sba_and_triggers`. Performance: a compare per resolution.
-  Maintainability: the argument goes in the field's doc comment. Engine work
-  that could repeat without doing one of the three needs a leg of its own;
-  none is known, and the residual below is the turn structure's. The probe
-  counted every performing check, an over-count of the second clause, and no
-  placement passes.
+Its cost is the work per resolution, and what it adds to `GameState`, which
+every fork copies. Today's bound is one half of A below: 500 performing
+state-based checks in one CR 704.3 repetition (`MANDATORY_LOOP_CHECKS`,
+`sba.rs:121`).
 
-  The third clause is the CR's, not the pool's. A trigger whose placement
-  triggers another of its kind places forever without resolving: "whenever a
-  creature becomes the target of an ability", beside a targeted trigger that
-  fires on that targeting. Nothing bounds that loop today.
+| | What counts | Complete | Quiet (longest legal run, 12,000 games) | Cost |
+|---|---|---|---|---|
+| **A** | every decision-free resolution and performing check | no: a placement loop does neither | **no**: 1,570, with no ceiling | an add per resolution |
+| **B** | refills, the four clauses below | **yes**, by the argument below | **yes**: 45 | a compare per resolution, one `usize` |
+| **C** | a resolution of an ability that has already resolved in the run | by object, no: a loop that makes a new object or delayed trigger each iteration never repeats one; by definition, yes | by object, yes: the Hydra's 1,570 delayed triggers are 1,570 registry entries; by definition, no: they are one definition | a set per run, which a fork copies |
+| **D** | B, counting an iteration only when its records' kinds match the previous iteration's | for a loop of period one; a loop of two alternating iterations needs both kept | B's, less any refill chain whose iterations differ; Sanguine Bond's still counts | a `Vec` of kinds per iteration: an allocation per refill, and a clone cost |
+| **E** | a cheap fingerprint (life totals, zone sizes, counters, stack depth) seen before in the run | no: an accumulating loop never repeats a fingerprint | no: two states with one fingerprint draw a legal game | a hash per refill |
+| **F** | Tier 2 and 3, and D26's comparison: the whole game state repeated, or two iterations that match | for an exact repeat, with no threshold at all; an accumulating loop still needs one, as the cue to compare | yes | a hash over all of `GameState`; `backlog.md` §2.28 |
 
-*Recommended: B, threshold 500.* That is eleven times the largest refill run
-measured, a Commander stress game's 108 Simic Ascendancy triggers in one turn
-(seed 13407, turn 59), whose run counted 45. It is also today's number, so item
-263's Lich's Mirror board draws where it does now. The threshold is a
-`GameConfig` field, so a test can set it.
+A, C and E each fail a property outright. D buys a little quiet for an
+allocation per refill. F is the real answer, and is out of scope (§16). B is the
+cheapest count with both properties.
+
+**B, clause by clause.** A refill is:
+1. **a resolution** at which the stack is at least as deep as at the run's
+   previous resolution. The depth is the stack's alone: the pending queue is
+   empty at every resolution, since placement comes before every priority
+   grant;
+2. **a performing state-based check** after the first in one CR 704.3
+   repetition. Lich's Mirror's loop, item 263's board, is all checks and no
+   resolutions;
+3. **a placement pass** with no resolution since the previous pass. A trigger
+   whose placement triggers another of its kind places forever without
+   resolving: "whenever a creature becomes the target of an ability", beside a
+   targeted trigger that fires on that targeting. Nothing bounds that loop
+   today;
+4. **a tier-2 dispatch** of an `AbilityTriggered` record whose trigger was
+   itself queued from one: a trigger watching abilities triggering, set off by
+   another such trigger. This clause exists if decision 5's B is taken; under
+   its A the nesting bound stops that chain.
+
+*Complete.* An infinite decision-free run does one of the four things
+infinitely often. A stack's depth is a natural number and cannot fall forever,
+so infinitely many resolutions include infinitely many refills. The other
+clauses count every repetition after the first.
+
+*Quiet.* A finite pile resolving counts once however deep: the Hydra's 1,570
+count 1. What B still counts is a refill chain, where each resolution puts the
+next trigger on the stack, and such a chain spends something each iteration: a
+life total, a card, a creature. The probe measured clauses 1–3 exactly, the
+right column above.
+
+*Where B is wrong.* A refill chain that would have ended, but runs longer than
+the threshold: Sanguine Bond and Exquisite Blood at two seats against an
+opponent with more life than the threshold, or "whenever a creature dies,
+destroy target creature" through a bigger board. The CR's answer is that the
+chain ends; B draws it. A loop through the turn structure (every turn alike,
+nobody able to act) does none of the four, and the turn limit stands in
+(decision 3). F answers both.
+
+*Code.* `LoopRun` (decision 2) gains the last depth. The sites are
+`resolve_top_of_stack`, `check_state_based_actions_loop`,
+`perform_sba_and_triggers` and, with decision 5's B, the dispatcher's tier-2
+drain. The completeness argument goes in `LoopRun`'s doc comment, because
+engine work that can repeat without doing one of the four needs a clause, and
+that comment is where its author will look.
+
+*The threshold* is the one number Tier 1 cannot do without, since no finite
+count separates the two Sanguine Bond boards. 500 is eleven times the longest
+refill run measured: a Commander stress game's 108 Simic Ascendancy triggers in
+one turn (seed 13407, turn 59), whose run counted 45. It is also today's
+`MANDATORY_LOOP_CHECKS`, so item 263's board draws where it does now. It is a
+`GameConfig` field, so a test can set it, with this measurement in its doc
+comment. When F lands, the threshold stops being the verdict and becomes the cue
+to compare two iterations.
+
+*Recommended: B, all four clauses, threshold 500.*
 
 **Decision 2 — where the count lives.** A decision is visible only in `ui::ask`,
 and its four validators (`ask.rs:162`, `:238`, `:333`, `:398`) hold
@@ -2262,6 +2341,7 @@ and its four validators (`ask.rs:162`, `:238`, `:333`, `:398`) hold
   allocation, so floors 2 and 3 do not move at two seats or four.
 
 *Recommended: B.* Item 40 keeps outcome-bearing state on `GameState`.
+**Taken at review (2026-10-21): B.**
 
 **Decision 3 — what resets the run, and a step that never ends.** Two facts
 first.
@@ -2275,8 +2355,11 @@ first.
   with an object outside it.
 
 The options:
-- **A — any decision resets the run** (item 138's definition, the paragraph
-  above). Beside a seat holding an instant, the Coil and the Angel never draw.
+- **A — any decision resets the run:** any prompt with two or more legal
+  answers, the definition the paragraph above borrows from the performance
+  floors' unit (`codebase-state.md` item 138, where "decisions per core-second"
+  is the throughput target, and `Diagnostics::record_decision`, which counts
+  them). Beside a seat holding an instant, the Coil and the Angel never draw.
   The trigger is placed before every priority grant, so the stack never
   empties and the step never ends. `fuzz_games`' only guard is `max_turns`
   (`fuzz_games.rs:123`), so it hangs inside one `run_turn`, and "the turn limit
@@ -2303,8 +2386,11 @@ them, with probability at least 1/k a window, where k is the number of
 actions. No agent bounds the first residual. So the harness gets a bound of its
 own: a middleware that counts prompts within one step and raises the existing
 `Stop` (`Game::until_stopped`) past a bound. `fuzz_games` reports it as a "stuck
-in a step" row beside "Hit turn limit", never as a result. The bound is set at
-the build, well above the measured maximum of prompts in one step.
+in a step" row beside "Hit turn limit", never as a result. The bound is a
+harness flag beside `--max-turns`, not an engine number: no rule reads it, and
+a game it stops is reported, not ended. The review's second probe read the most
+decisions asked in one step at 539 over the 12,000 games (the Mirrorweave game
+again), with p99 at most 140 a sitting. The default sits well above that.
 
 *Recommended: B, and the harness bound, with no new agent code.* TR-7's "a
 fuzz agent that does" is the uniform pick, and TR-7 measures it on the persist
@@ -2340,6 +2426,8 @@ counted from `PlayerWins`' and `PlayerWon`'s. The names are for review:
 since "draw" alone reads as drawing a card.
 
 *Recommended: the arm as proposed.* The alternative is the direct write.
+**Taken at review (2026-10-21): a typed `GameAction` arm.** Its names are
+reviewed with the build.
 
 **The shortcut (D26) and this detector.** CR 731.2's procedure is
 `backlog.md` §2.28's second half, with `GameNumber`. A player runs a loop and
@@ -3974,7 +4062,7 @@ ahead of both, TR-5h.
 | **TR-5g — the multiplier, tokens and scry** — ✅ landed 2026-10-20, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5g" | | | | +1,781 |
 | *TR-5d as sized at TR-5c's review (2026-10-18), kept for the record* | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; excess damage per recipient over the batch, and the "this turn" damage facts ("was dealt damage", "dealt damage to"), moved from TR-5c at its review (TR-5c's piece 11 and part (a)); item 275, moved with them; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001, ATOM-120.10-001 | ~610 (915–1,220) | ~1,080 | 1,995–2,300 |
 
-### TR-6 — state triggers, the loop, and the rule-owned arm (1,780–2,340)
+### TR-6 — state triggers, the loop, and the rule-owned arm (1,835–2,410)
 
 **Re-counted 2026-10-21, at its design** (§4.5, §4.8 and §4.9's amendments),
 card by card against #267's tree. Code at 1.5–2× plus tests, the band's measure
@@ -3985,14 +4073,15 @@ since RH:
 | the state check: the gate's reserved bit on all three legs and on leg 3, the sweep through `settled_holds`, a trigger queued with no record and announced by `AbilityTriggered`, its trace record, the armed-off set and its one re-arm (§4.5); the three schedules; the dispatch audit's state leg | ~255 |
 | `Condition::Not`; `PlayerFact::HandEmpty`; "then draw that many" over the resolution's discards | ~85 |
 | the loop detector: `LoopRun`, its three counting sites and their resets (§4.9, decisions 1–3), the threshold on `GameConfig`; the state-based bound's branch moved in (item 263) | ~100 |
-| the draw: `GameAction::GameEndsInADraw` and its event, the performer, `GameRule::MandatoryLoop`, about 17 exhaustive arms; the nesting bound's draw and its two doc comments (§4.8, decision 5) | ~95 |
+| the draw: `GameAction::GameEndsInADraw` and its event, the performer, `GameRule::MandatoryLoop`, about 17 exhaustive arms | ~80 |
+| the tier-2 work stack in place of the recursion, `DISPATCH_NESTING_LIMIT` and its two doc comments gone, decision 1's fourth clause (§4.8, decision 5's B) | ~50 |
 | `TriggerOrigin::Rule` with `InherentAbility` uninhabited | ~20 |
 | `fuzz_games`' per-step bound and its row (decision 3) | ~50 |
 | cards and fixtures: **Emperor Crocodile**, registered after its stress distortion is measured; the Coil's third ability, a fixture beside the registered Platinum Angel; CR 603.8's example permanent and its discard spell; a flicker and an ability counter for the rulings' boards (Adaptive Shimmerer, registered, is the second Crocodile ruling's arrival) | ~110 |
-| **code**, ~715 as sized | **1,070–1,430** |
-| tests, 16: the 2 atoms; the Crocodile's 2 rulings and one cast from hand; the Coil's rulings 4–6, the Angel registered; the Coil beside a seat that passes holding an instant (decision 3's B), and beside one that casts removal on the Angel; Lich's Mirror's loop through the new arm (item 263); a 2,000-trigger decision-free pile that does not draw (decision 1's B); a target chosen each iteration, which resets; a placement loop; the nesting bound's draw; the harness bound | **710–910** |
-| **code and tests** | **1,780–2,340** |
-| docs: these amendments (290); the close-out — the stub and archive, the record block, the items, the 37 deferred Phase 7 atoms given their owners in the session files (13 are ticketed NEW, which is what `owed` reads), `trigger-survey.py` deleted | ~650 |
+| **code**, ~750 as sized | **1,125–1,500** |
+| tests, 16: the 2 atoms; the Crocodile's 2 rulings and one cast from hand; the Coil's rulings 4–6, the Angel registered; the Coil beside a seat that passes holding an instant (decision 3's B), and beside one that casts removal on the Angel; Lich's Mirror's loop through the new arm (item 263); a 2,000-trigger decision-free pile that does not draw (decision 1's B); a target chosen each iteration, which resets; a placement loop; a tier-2 chain with no end, drawn by the detector; the harness bound | **710–910** |
+| **code and tests** | **1,835–2,410** |
+| docs: these amendments (about 380); the close-out — the stub and archive, the record block, the items, the 37 deferred Phase 7 atoms given their owners in the session files (13 are ticketed NEW, which is what `owed` reads), `trigger-survey.py` deleted | ~740 |
 
 Inside the 1,500–2,500 band, in its upper half. The 2026-09-24 row missed these
 facilities, a count inside the 3–11 every earlier re-count found:
