@@ -766,8 +766,9 @@ impl GameState {
             let origin = TriggerOrigin::Object(m.identity);
             let kept_lki: Vec<Lki> = m.source_lki.into_iter().collect();
             // Each time it triggers is its own trigger, with its own choices
-            // and targets (Panharmonicon's fifth ruling).
-            for _ in 0..times {
+            // and targets (Panharmonicon's fifth ruling). The last time takes
+            // the binding, so a trigger counted once copies nothing.
+            for (binding, kept_lki) in std::iter::repeat_n((binding, kept_lki), times as usize) {
                 let seq = TriggerSeq(self.next_trigger_seq);
                 self.next_trigger_seq += 1;
                 let pending = PendingTrigger {
@@ -776,9 +777,9 @@ impl GameState {
                     controller: m.controller,
                     source_card: Arc::clone(&m.source_card),
                     instances: m.instances.clone(),
-                    binding: binding.clone(),
+                    binding,
                     is_state_trigger: false,
-                    kept_lki: kept_lki.clone(),
+                    kept_lki,
                     x_value: None,
                 };
                 if m.mana {
