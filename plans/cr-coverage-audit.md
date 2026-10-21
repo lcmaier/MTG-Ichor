@@ -602,6 +602,19 @@ is derivable; where each name was read is not, and the gate needs the names.
     outside a batch, saved for a nested one as `prevention_allocations` is.
     A battle's lethal amount is its defense, which joins with CR 120.3h's
     counters (`backlog.md` §2.23); nothing else in CR 120.10 is unasked.
+- **Added by TR-5g (2026-10-20)**:
+  - `trigger_multiplier_sources`: the printed leg of CR 603.2d's count, a
+    fast-path gate over the permanents a multiplier is printed on, the
+    granted and copied legs being the registry summary's flags; an index,
+    no fact about the game, under `CLAUDE.md`'s gate rule as
+    `cost_modification_ability_sources` is.
+  - `tokens_being_created`: the definition each token of the creation
+    being performed was made from (CR 111.2, 701.7a), which its
+    `TokenCreated` record carries, after any replacement substituted
+    another. Empty outside a creation, saved for a nested one. CR 111.13's
+    copy of a permanent spell is no creation and has no row; CR 707.2's
+    token copies (CV-3) will make their definition from the copiable values,
+    which a row can hold as it holds any other.
 
 ---
 

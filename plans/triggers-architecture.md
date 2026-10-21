@@ -314,14 +314,14 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `SpellFizzled` / `AbilityFizzled` | **no arm.** CR 608.2b's "doesn't resolve" is not "countered" under the baseline CR, and no printed trigger reads it. An ability's is its own record since #231, named by its identity as `AbilityResolved` is | — | — |
 | `PlayerLost` | `PlayerLoses { player }` — 603.9's "regardless of the reason", so no reason field: why is the record's cause, and `LossReason` folded into it at RH-2. Its "unless as the result of a draw": a draw is `GameResult::Draw`, not a `PlayerLost`. The loser's permanents leave in the same window and are asked off their departure frames; one the loser controlled is kept off the stack (CR 800.4d), and one another player controlled triggers for that player | yes (603.10f) | TR-4d |
 | `PlayerWon` | **no arm** — no printed trigger; recorded so the projection stays one-to-one | — | — |
-| `Scried` | `Scries { player }` — Elrond's X is `TriggerBinding.amount = looked_at` | no | TR-5 (fixture) |
+| `Scried` | `Scries { player }` — "that many" is the record's `looked_at`, the cards a scry looked at, which a short library makes fewer than its number (Elrond, Master of Healing's first ruling); a scry 0 writes no record (CR 701.22b) | no | built in TR-5g (fixture) |
 | `LibraryShuffled` | `ShufflesLibrary { player }` — two printed watchers, Cosi's Trickster and Psychic Surgery ("whenever an opponent shuffles their library"; the survey's 168 on this row is the substring over-count); one record per shuffle, an empty or one-card library included, and never for cascade's random bottom (Cosi's Trickster's rulings) | no | TR-2b |
 | `CountersPutOn` / `CountersRemovedFrom` | `CountersPutOn { subject: CountersOn, counter_type, by, multiplicity }` / `CountersRemovedFrom { .. }`, over two records since TR-5b split `CountersChanged` by direction: a put always has a putter (CR 122.6a, 120.3d), a removal has a remover only where a player removed them. An occurrence is a counter by default (Protean Hydra's fourth ruling), `OncePerSubject` is "one or more ... on a creature" (Enduring Scalelord's second), `OncePerEvent` "on one or more". Counters a permanent enters with are put on it (CR 122.6). CR 122.7's "the Nth counter" is no field: it is the ability's intervening "if", `Condition::CounterCountReached`, reading the count each record left (`now`), as CR 714.2b words a Saga's chapter | no | TR-5b |
 | `CountersAnnihilated` | **deleted in TR-5b**: CR 704.5q is two `RemoveCounters` members of the state-based batch, so its removals are `CountersRemovedFrom` records the removal arm reads (Protean Hydra's fifth ruling) | — | TR-5b |
 | `Attached` | `BecomesAttached { attachment, host }`, each a `TriggerSubject`, read after the event (Siona, Captain of the Pyleas' fourth ruling) — transition-only (701.3b), so re-equipping the same creature announces nothing (603.2e-002), and an Aura entering attached is one (CR 303.4f; item 228). "That creature" is the host | no | TR-4b |
 | `Unattached` (was `EquipmentDetached`) | `BecomesUnattached { attachment, former_host }` — one record for CR 701.3d's four routes (question 5), named by `UnattachRoute`, the cause on the stamp (§3.12a). Both ends are `ObjectRef`s, and "that permanent" is the existence the record names (CR 400.7) | yes (603.10c): each end as it was, off its departure's frame when it left in the window; an attached ability-list source's move snapshots the lists before it (§4.3) | TR-4b |
 | `LeftTheGame` | folded into `ZoneChange`'s leaves-the-battlefield reading: a `LeftTheGame` from the battlefield matches `from: Battlefield, to: None` and nothing narrower, which is CR 603.6c's own sentence; the phased-in qualifier is item 6's and waits for phasing | yes (the record carries the frame since RE-7) | TR-1 |
-| `TokenCreated` | `CreatesToken { owner, zone: Option<Zone>, kind: Option<TokenKind>, multiplicity }` — keyed here and never on `is_token` at entry (item 8; CR 111.13). **Amended 2026-09-23 (the rulings pass, G2):** a reflexive "when you do" on a creation asks whether each token is of the definition the instruction named — Ajani, Nacatl Avenger's ruling triggers once per Cat Warrior under Doubling Season and not at all for the Angels Divine Visitation makes instead — so `kind` matches the instructed definition, not a token type | no | TR-5 (fixture) |
+| `TokenCreated` | `CreatesToken { owner, definition: Option<Box<TokenDef>>, multiplicity }` — keyed here and never on `is_token` at entry (item 8; CR 111.13). A reflexive "when you do" on a creation asks whether each token is of the definition the instruction named, which the record carries after any replacement: Ajani, Nacatl Avenger's eighth ruling triggers once per Cat Warrior under Doubling Season and not at all for the Angels Divine Visitation makes instead. *Corrected at TR-5g:* this row named `zone`, which no printed trigger asks, and `kind: Option<TokenKind>`, which the G2 amendment (2026-09-23) said was the definition | no | built in TR-5g (fixture) |
 | `TokenCeasedToExist` | **no arm** — CR 704.5d names no trigger event, and what cards observe is the *absence*: Flickerwisp's ruling has an exiled token "cease to exist and won't return", which is a delayed trigger's `ObjectRef` finding nothing (§3.9), not an event to match | — | — |
 | `StateBasedActionPerformed` | **no arm** | — | — |
 | `Targeted` (item 12; the record since #231) | `BecomesTarget { target: TargetSubject (an object or a player), by: TargetedBy (a spell, an ability, either; "an Aura spell"), controller: Option<PlayerRef>, multiplicity }` — once per spell or ability, however many instances (question 11), one window per spell or ability (CR 601.2c). "For the first time each turn" is `TriggerDef::limit`'s, read off the turn's targeting rows | no | TR-5c |
@@ -1198,7 +1198,7 @@ from a known item, so the calibration also bought two findings.
 | `CountersAnnihilated` | deleted in TR-5b (item 6) | — | — | — | — |
 | `Attached` | holds | holds | holds | holds (item 228: an Aura entering attached "becomes attached", Siona, Captain of the Pyleas' first ruling → TR-4b) | holds |
 | `EquipmentDetached` | becomes `Unattached` in TR-4b, its field renamed below | — | — | — | holds (CR 603.10c's frame, item 14) |
-| `TokenCreated` | holds: the token by id, in the zone it was made (CR 111.8) | holds | the definition it was made from, which a substitution changes (Divine Visitation) → TR-5d | holds | holds |
+| `TokenCreated` | holds: the token by id, in the zone it was made (CR 111.8) | holds | the definition it was made from, which a substitution changes (Divine Visitation): built in TR-5g | holds | holds |
 | `TokenCeasedToExist` | holds: no reader | holds | holds | holds | holds |
 | `DelayedTriggerCreated`, `UntilReturnMade` | holds: records for a log | holds | holds | holds | holds |
 | `StateBasedActionPerformed` | holds: no reader | holds | holds | holds | holds |
@@ -1419,7 +1419,7 @@ it. Its phase builds the corrected one.
   is the one record emitted while a batch decides, and its doc says so. Built
   with #260, its stamp's cause the prevention's own (`caused_by_replacement`).
 - **`TokenCreated` carries the definition it was made from** (§3.3's
-  `TokenCreated` row, TR-5d). Divine Visitation's substitution yields a
+  `TokenCreated` row, built in TR-5g). Divine Visitation's substitution yields a
   creation that looks the same as an instructed one. So Ajani, Nacatl
   Avenger's "when you do" needs the record to say which definition made the
   token.
@@ -1879,17 +1879,29 @@ gives. The *occurrence* it counts is one triggering event
   performer off the stack entry the proposal's zone change came from;
   Coal Stoker reads "from your hand", Prized Amalgam "from your
   graveyard"), and a token has neither. No field is added to the entry record (question 9).
-- **CR 603.2d's count modifier** is a static ability, discovered off the
-  effective list at dispatch behind the same gate: `Effect::TriggerMultiplier
-  (TriggerMultiplierDef { caused_by: TriggerEvent, source: ObjectFilter,
-  additional: u32 })`. Panharmonicon's rulings are the edges: only the
+- **CR 603.2d's count** is a static ability, discovered off the effective
+  list as the dispatch queues what a window triggered, behind its own gate:
+  `Effect::TriggerMultiplier(Box<TriggerMultiplierDef { caused_by:
+  Option<TriggerCondition>, abilities_of: ObjectFilter, additional: u32 }>)`.
+  `caused_by` is a condition for Gandalf the White's two events and `None`
+  for Roaming Throne's none; `abilities_of` names the doubled ability's
+  permanent, its "you" the multiplier's controller. A multiplier adds when it
+  is on the board the matched arm reads (after the event, or before it for an
+  arm that looks back, through the frames the dispatch reads a trigger's
+  source through), the source is a permanent it names as the dispatch read
+  it, and a triggering record is its event, asked with its own referents and
+  frames; an arm naming an act its event does not is another event (Teysa
+  Karlov's fifth ruling). Panharmonicon's rulings are the edges: only the
   object's own triggered abilities, never 603.6d's entry statics or a
   replacement, never a delayed or reflexive trigger it creates; two
   Panharmonicons make three, not four (additive); each instance is its own
-  `PendingTrigger` with its own `seq`, choices and targets. The gate
-  `TriggersOnlyOnceEachTurn` is read before the multiplier, so a capped ability triggers
-  once under Panharmonicon (the survey's judge-literature note); `DoThisOnlyOnceEachTurn`
-  is read after, so both doubled instances go on the stack and one acts.
+  `PendingTrigger` with its own `seq`, choices and targets, and a triggered
+  mana ability resolves as many times. `TriggersOnlyOnceEachTurn` is read
+  before the count, so a capped ability triggers once under Panharmonicon
+  (the survey's judge-literature note); `DoThisOnlyOnceEachTurn` is read at
+  the trigger and as each instance resolves, so both go on the stack and one
+  acts. *Corrected at TR-5g:* this paragraph named `caused_by: TriggerEvent`
+  and `source: ObjectFilter`.
 
 ### 4.5 State triggers (CR 603.8; P1; question 7)
 
@@ -3633,7 +3645,7 @@ together. The two cards' stress distortion is small. TR-5h's held-memory
 gate is asserted over every game together (the owner, 2026-10-20): 3,923 B
 a turn.
 
-**What it leaves.** Item 288, at A6s. TR-5g is next, designed below.
+**What it leaves.** Item 288, at A6s. TR-5g followed it.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-5d".
 
