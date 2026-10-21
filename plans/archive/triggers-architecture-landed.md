@@ -5249,7 +5249,7 @@ The engine arm read IDENTICAL on both pools at two seats and four in both,
 at +0.21% and then +0.18% instructions per decision; the shipped arm before
 and after the review played the same games, cost rows included. The audited
 smoke ran clean. `history_held_test` read 3,877 B a turn. The release clone
-test failed on the shipped deal: `performance` 12353 at four seats ends with
+test failed on shipped's decks: `performance` 12353 at four seats ends with
 31 Sphere Grid triggers waiting, one allocation each, 82 in all against 64,
 and the same game clones at 68 and 77 at two trigger-ordering prompts
 mid-turn. A pending trigger's binding holds its events in a `Vec`; no

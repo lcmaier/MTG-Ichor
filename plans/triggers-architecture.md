@@ -3677,10 +3677,10 @@ four defects in the new code, each fixed (`duplicate-inventory.md` §3.10).
 
 **Measured** (`fuzz-record.md`, TR-5g's block). The engine arm plays
 `main`'s games on every table, both pools, two seats and four, at +0.18%
-instructions per decision. The shipped arm moves every dealt game and the
+instructions per decision. The shipped arm moves every game and the
 audit agrees on every dispatch, 1,000 games a table included; Panharmonicon
 moved `stress` games by about a turn either way. `history_held_test` reads
-3,877 B a turn. **The release clone test does not hold on the new deal**:
+3,877 B a turn. **The release clone test does not hold on shipped**:
 one Commander game ends with 31 Sphere Grid triggers waiting, an allocation
 each (82 against 64), and clones at 77 at a 28-trigger ordering prompt. No
 multiplier is involved; it is `roadmap-v2.md` B10's batch of triggers.

@@ -50,7 +50,8 @@ engine arm, as the brief asked before pooling.
 
 **Predictions, before any arm of the sitting ran** (the PR body): engine
 identical to `main` everywhere, within ±0.3% instructions per decision;
-shipped moving every dealt game, its stress distortion small; the clone
+shipped moving every game, since every seed builds new decks, its stress
+distortion small; the clone
 floors as before on the same board.
 
 | | 2 seats | 4 seats |
@@ -83,7 +84,7 @@ four).
 **Memory.** `history_held_test` reads 3,877 B a turn over 1,625 turns, every
 game together, against TR-5d's 3,923. **The release clone test fails on
 shipped**, the one prediction that did not hold: `performance` 12353 at four
-seats, a game the new deal made, ends with 31 Sphere Grid triggers waiting,
+seats, a new game since the pool grew, ends with 31 Sphere Grid triggers waiting,
 queued in the combat damage step whose state-based check ended the game, at
 one allocation each (a pending trigger's binding keeps its events in a
 `Vec`): 82 allocations and 63 KB against 64 and 128. A provider that clones
