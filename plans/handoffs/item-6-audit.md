@@ -127,7 +127,8 @@ sessions are ordinary ones, one PR at a time in the main folder:
 | 3. Eviction | plain; a script and a reader for doubtful citations | 2 | 1 |
 | 4. Hygiene and CI | plain | 3's sweep | 1–2 |
 | 5. The docs audit's fixes | plain | 5 | 2–4 |
-| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup | 3–6 |
+| 5b. The card-homed triage | plain; a single verifier at most | the triage (§4) | 1, docs |
+| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 3–6, and 1–2 for the builds |
 | 7. Readiness | plain; measurement | 4 | 2 |
 | 8. Scheduling | plain | 6 | 1 |
 
@@ -161,8 +162,10 @@ As §9 and the post-RE audit set it:
 ## 4. The passes
 
 Order: the close-out gates the rest; the eviction opens second; hygiene and
-the docs audit commute; A6e's cleanup follows hygiene's model pass;
-readiness reads the tree the cleanup leaves; scheduling is last.
+the docs audit commute; the card-homed triage follows hygiene's sweep;
+A6e's cleanup follows hygiene's model pass and the triage, and takes the
+triage's builds; readiness reads the tree the cleanup leaves; scheduling is
+last.
 
 ### Pass 1 — the close-out
 
@@ -760,6 +763,41 @@ refuted eighteen, as different facts on purpose or copies with different
 jobs. The test lens alone let them stand. All three lenses refuted A#8. The
 workflow's journal keeps their texts.
 
+### The card-homed triage
+
+**Added by the owner at #272's review (2026-10-22).** 51 open items, by the
+board's count on 2026-10-22, are slotted "with the first registered card"
+that needs them. Card breadth would meet each inside a card's PR, unannounced:
+engine work, and often a bug on a path no registered card has driven. Fuzz
+cannot see those paths. §15.4's bug lived through every `stress` run with
+Ray of Command pooled, because no registered card read the victim's side of
+the change.
+
+**Goal:** each card-homed item read once and given one of three dispositions:
+1. **Build before breadth.** A fixture test of the CR's answer (the CR is
+   the customer, not a printed card). Where the item writes a record, also a
+   consistency check on it that a debug test or an `--audit` run trips. That
+   kind of check is what would have caught §15.4 with no reader: with "a
+   change looks back to a frame its loser controlled" asserted, all four of
+   TR-4d's Ray of Command tests fail on the pre-fix tree.
+2. **A route row**, for an item that needs a design: re-slotted to the row
+   whose work it is. Items 273 and 274 to B13, which builds the first filter
+   that reads a mana value, is the first candidate.
+3. **Stays card-homed**, with the reason a card, not the CR, decides its
+   shape.
+
+**Whether to register fixtures** in a fuzz pool is the triage's question to
+price: fuzz drives a registered fixture, but it flags only loud failures, so
+a fixture earns its place in a pool through the consistency checks above.
+The cost is in the readings: a third pool beside `performance` and `stress`
+keeps the real-card numbers clean.
+
+**Sizes.** The read is one docs PR. About 25 of the items are sized at 60
+lines or less, so building them is about 1,000–1,500 lines with their tests,
+one or two band-sized PRs that ride A6e's cleanup sessions. The ones that
+need a design go to rows and build nothing here. Item 284's check, in the
+cleanup, then guards whatever stays card-homed.
+
 ### Pass 4 — readiness
 
 **Goal:** is the engine on track for the harness use case? Two PRs.
@@ -1242,7 +1280,7 @@ decides. One PR, which writes §3's two records and deletes this file.
 |---|---|---|
 | 96 | promote `BOUNDARY-DEF-615.1a-001` | 1 — closed by #272 |
 | 138, 142, 143 | the throughput target, the panic-surface baseline, the clone table | 4 |
-| 137, 7d, 215 (its two cleanups), 239, 247, 269, 284, 285, 291, 292, 296, 297 | the cleanup; 297 is pass 3's row 57, filed by pass 1 | 3 |
+| 137, 7d, 215 (its two cleanups), 239, 247, 269, 284, 285, 291, 292, 296, 297, 300 | the cleanup; 297 is pass 3's row 57 and 300 the owner's at #272's review, both filed by pass 1 | 3 |
 
 A6h's are 185 and 188 (pass 5). A6s's, 264 and 288, stay with A6s.
 
@@ -1295,6 +1333,7 @@ changed.
 | 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
 | 2. Eviction (1) | | |
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | | |
+| The card-homed triage (1, then its builds in the cleanup) | | added at #272's review |
 | 4. Readiness (2) | | |
 | 5. Docs audit, A6h (2–4) | | |
 | 6. Scheduling (1) | | |
