@@ -263,6 +263,28 @@ an ordering of work over time, which `backlog.md` is explicitly **not** ("an
 inventory, not a schedule") and which a `T##` label in
 `cards-unlocked-ledger.md` never is. → `engine::turns`; `backlog.md` §0.
 
+**multiplier** — three, each a thing that makes a count larger by a factor.
+**(1)** A *trigger multiplier*: CR 603.2d's effect that has a triggered ability
+trigger additional times (Panharmonicon), found by
+`trigger_multiplier_sources_now` and counted on the board the window was
+performed on. **(2)** A *pool multiplier*: an ability that multiplies the mana a
+pool holds (Doubling Cube), which the random agent activates once nothing else
+is offered (`ui/random.rs`). **(3)** A commutation class of CR 616.1's ordering
+table, `Commuting::Multiplier`: an amount rewrite by n ≥ 1, which commutes with
+another on any kind. → `triggers-architecture.md` §4.4; `replacement-architecture.md`
+§4.1.
+
+**audit** — three. **(1)** The *dispatch audit*: every dispatch answered twice,
+by the dispatcher and again with its shortcuts off, and the two asserted equal,
+in a game that asks for it (`fuzz_games --audit`). → `engine/triggers/audit.rs`,
+`triggers-architecture.md` §4.10. **(2)** A *debug audit*: a guard a release
+build compiles out that re-derives a kept answer the slow way and asserts it —
+the layer memo's, which re-walks every hit fresh, the mana watcher's and the
+pipeline's; CI's checked sitting is what plays them (`engineering-practices.md`
+§11.5). **(3)** In `plans/`, a *spine-phase audit*: the passes that read,
+measure and disposition a critical-path item at its close
+(`engineering-practices.md` §9).
+
 ## The action pipeline (CR 614–616)
 
 **proposal** — a `GameAction` handed to `execute_action` or `execute_actions`,
@@ -815,3 +837,33 @@ is the fork marker: a `GameState` clone takes a fresh branch and writes one
 `fork` record naming both. Not *lineage*, which is which CR 614.5 applied set
 a proposed event starts from, and not the verb the quadrant map uses for what
 the engine does with a keyword. → `state::trace`.
+
+**newcomer** — an object a window brought to where it is: somewhere else
+immediately before the window's event, since a window is one event
+(`window_newcomers`). One off the battlefield whose every functioning trigger
+is on itself moving is filed in `newcomer_trigger_sources`, since only the
+window that brought it can trigger it, so the dispatch gate asks it then and
+not after. → `triggers-architecture.md` §4.2.
+
+**settlement** — of the layers: what their output changed since the last one,
+announced — each change of control (CR 603.10d), then each combatant removed
+that can no longer be in combat (CR 506.4) — at an outermost batch's head and
+close, at each pass of the state-based check and in the cleanup step, gated on
+the layer epoch. Not `settled_holds`, a condition asked of the finished board
+outside the walk, and not `settle_game_result`. → `engine/layer_settlement.rs`.
+
+**scenario** — a board written as text, a `.scenario` file: the loader builds a
+game from one (`scenario::build`), the save writes a game as one
+(`scenario::write`), and `fuzz_games --scenario` starts every game from one.
+→ `setup-architecture.md`.
+
+**replay** — a game played again from its decision log, every seat stopping at
+every priority point and asked each line's question in turn. A line names what
+it chose rather than where the option sat, so a later build replays a record
+until the game itself differs. → `state/decision_log/mod.rs`,
+`setup-architecture.md` §7.2.
+
+**outlet** / **fodder** — a mana ability whose cost sacrifices ("Sacrifice a
+[filter]: Add mana"), and the permanents its filter matches: the mana check
+uses an outlet once for each piece of its fodder (CR 701.21a), and outlets of
+one ability share theirs. → `oracle/mana_supply.rs`.
