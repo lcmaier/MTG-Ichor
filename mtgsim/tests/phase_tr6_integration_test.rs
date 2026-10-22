@@ -2,20 +2,68 @@
 //! arm (`triggers-architecture.md` §4.5, §4.8, §4.9 and §12).
 
 use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
+use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_re_cards::platinum_angel;
+use mtgsim::cards::phase_tr6_cards::{
+    destroy_your_others_then_a_token, discard_your_hand_then_draw_that_many, draws_on_an_empty_hand, emperor_crocodile,
+    immortal_coils_state_trigger,
+};
 use mtgsim::engine::actions::ZoneChangeAct;
-use mtgsim::events::cause::{EventCause, GameRule};
+use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy};
 use mtgsim::events::event::GameEvent;
 use mtgsim::state::game_state::{GameResult, GameState};
-use mtgsim::test_support::{creature_with_ability, put_in_hand, put_on_battlefield, setup_game, test_ctx};
+use mtgsim::test_support::{
+    creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game,
+    setup_two_player_game, test_ctx, test_dp,
+};
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive};
-use mtgsim::types::ids::new_ability_id;
+use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter, TargetCount};
+use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
+use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 fn gain_one() -> Effect {
     Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+}
+
+/// A game whose every dispatch, and every state check, is answered twice:
+/// by the gate, and by every object that may trigger (`engine::triggers::audit`).
+fn audited_game() -> GameState {
+    let mut game = setup_two_player_game();
+    game.enable_dispatch_audit();
+    game
+}
+
+/// CR 117.5's loop, then the stack resolved to empty, the loop after each.
+fn resolve_all(game: &mut GameState, dp: &dyn DecisionProvider) {
+    game.perform_sba_and_triggers(dp).expect("SBAs and triggers");
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(dp).expect("it resolves");
+        game.perform_sba_and_triggers(dp).expect("SBAs and triggers");
+    }
+}
+
+/// How many times `source`'s abilities triggered, by the records announcing it.
+fn triggered(game: &GameState, source: ObjectId) -> usize {
+    game.recorded_events()
+        .events()
+        .filter(|event| matches!(event, GameEvent::AbilityTriggered { origin, .. } if origin.source() == source))
+        .count()
+}
+
+/// Whether one of `source`'s triggered abilities is waiting or on the stack.
+fn has_not_left_the_stack(game: &GameState, source: ObjectId) -> bool {
+    game.pending_triggers.iter().any(|pending| pending.origin.source() == source)
+        || game.stack.iter().any(|id| game.stack_entries.get(id).and_then(|entry| entry.ability_identity).is_some_and(|i| i.source.id == source))
+}
+
+fn hand_size(game: &GameState, player: PlayerId) -> usize {
+    game.players[player].hand.len()
 }
 
 /// Each draw the game recorded, by its cause: the end of the game as a
@@ -38,6 +86,8 @@ fn draws(game: &GameState) -> Vec<EventCause> {
 /// with no end, and CR 104.4b makes the game a draw: performed, so the move
 /// that started the chain completes. Beside Platinum Angel, whose fourth
 /// ruling is that "effects that say the game is a draw ... are not affected".
+// RULING: Platinum Angel #4 - effects that say the game is a draw are not
+//   affected by Platinum Angel.
 #[test]
 fn a_trigger_chain_at_the_nesting_bound_is_a_draw_beside_platinum_angel() {
     let mut game = setup_game(2);
@@ -58,4 +108,187 @@ fn a_trigger_chain_at_the_nesting_bound_is_a_draw_beside_platinum_angel() {
     assert_eq!(game.result, Some(GameResult::Draw));
     assert_eq!(draws(&game), vec![EventCause::GameRule(GameRule::MandatoryLoop)]);
     assert!(game.pending_triggers.is_empty(), "a finished game keeps no waiting trigger (CR 104.1)");
+}
+
+// ---------------------------------------------------------------------------
+// State triggers (CR 603.8)
+// ---------------------------------------------------------------------------
+
+/// CR 603.8's example: "whenever you have no cards in hand, draw a card"
+/// triggers once and not again while it waits or is on the stack, though the
+/// hand is still empty. Once it has left the stack, an empty hand triggers it
+/// again.
+// COVERS: ATOM-603.8-001
+#[test]
+fn a_state_trigger_triggers_once_until_it_has_left_the_stack() {
+    let mut game = audited_game();
+    fill_library(&mut game, 0, 5);
+    game.players[0].hand.clear();
+    let source = put_on_battlefield(&mut game, draws_on_an_empty_hand(), 0);
+
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(triggered(&game, source), 1, "the empty hand triggers it");
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(triggered(&game, source), 1, "on the stack, it does not trigger again (CR 603.8)");
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(hand_size(&game, 0), 1);
+    assert_eq!(triggered(&game, source), 1, "a hand with a card in it matches nothing");
+
+    let card = game.players[0].hand[0];
+    game.change_zone(card, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx()).unwrap();
+    assert_eq!(triggered(&game, source), 2, "it left the stack, and the hand is empty again");
+}
+
+/// CR 603.8's second sentence of its example: "Discard your hand, then draw
+/// that many cards" leaves the hand empty for a moment, between its two
+/// instructions, and the state trigger triggers then. It goes on the stack
+/// after the spell has resolved, and draws one more.
+// COVERS: ATOM-603.8-002
+#[test]
+fn a_state_true_for_a_moment_of_a_resolution_triggers() {
+    let mut game = audited_game();
+    fill_library(&mut game, 0, 10);
+    game.players[0].hand.clear();
+    for _ in 0..3 {
+        put_in_hand(&mut game, grizzly_bears(), 0);
+    }
+    let source = put_on_battlefield(&mut game, draws_on_an_empty_hand(), 0);
+    let spell = put_in_hand(&mut game, discard_your_hand_then_draw_that_many(), 0);
+    game.cast_spell(0, spell, &test_dp()).expect("it costs nothing");
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.players[0].graveyard.len(), 4, "three discarded, and the spell");
+    assert_eq!(hand_size(&game, 0), 3, "three discarded, then that many drawn");
+    assert_eq!(triggered(&game, source), 1, "the hand was empty between the two");
+    assert!(game.stack.is_empty() && game.pending_triggers.len() == 1, "waiting, not yet on the stack");
+
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(hand_size(&game, 0), 4);
+    assert_eq!(triggered(&game, source), 1);
+}
+
+// RULING: Emperor Crocodile #1 - it triggers if you control no other creature
+//   even for a brief moment during a resolution.
+#[test]
+fn emperor_crocodile_triggers_for_a_moment_in_the_middle_of_a_resolution() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let crocodile = put_on_battlefield(&mut game, emperor_crocodile(), 0);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(triggered(&game, crocodile), 0, "the Bears are another creature");
+
+    let spell = put_in_hand(&mut game, destroy_your_others_then_a_token(), 0);
+    game.cast_spell(0, spell, &test_dp()).expect("it costs nothing");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(triggered(&game, crocodile), 1, "between the destruction and the Soldier");
+    assert_eq!(game.battlefield.len(), 2, "the Crocodile and the Soldier");
+
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(zone_of(&game, crocodile), Some(Zone::Graveyard), "sacrificed beside the Soldier");
+}
+
+// RULING: Emperor Crocodile #2 - it checks only as it triggers, so gaining a
+//   creature before it resolves does not save it.
+#[test]
+fn emperor_crocodile_is_sacrificed_whatever_arrives_before_it_resolves() {
+    let mut game = audited_game();
+    let crocodile = put_on_battlefield(&mut game, emperor_crocodile(), 0);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(game.stack.len(), 1, "alone, it triggers");
+
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(zone_of(&game, crocodile), Some(Zone::Graveyard));
+    assert_eq!(zone_of(&game, bears), Some(Zone::Battlefield));
+    assert_eq!(triggered(&game, crocodile), 1);
+}
+
+/// Cast from hand, paid with exactly its cost: alone on its controller's side
+/// of the battlefield, it sacrifices itself.
+#[test]
+fn emperor_crocodile_cast_from_hand_alone_sacrifices_itself() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    game.players[0].mana_pool.add(ManaType::Green, 4);
+    let card = put_in_hand(&mut game, emperor_crocodile(), 0);
+    let seat = ManaWindowStop::new(test_dp());
+
+    game.cast_spell(0, card, &seat).expect("castable with {3}{G}");
+    resolve_all(&mut game, &seat);
+
+    assert_eq!(game.players[0].graveyard.len(), 1, "it entered, triggered and was sacrificed");
+    assert!(game.battlefield.values().all(|entry| entry.controller == 1), "the opponent's Bears are not another creature of yours");
+}
+
+/// Immortal Coil's state trigger checks as it triggers: a card put into the
+/// graveyard after that does not save its controller.
+// RULING: Immortal Coil #4 - the third ability checks whether your graveyard
+//   is empty only at the time it triggers.
+#[test]
+fn immortal_coil_checks_its_graveyard_only_as_it_triggers() {
+    let mut game = audited_game();
+    let coil = put_on_battlefield(&mut game, immortal_coils_state_trigger(), 0);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(triggered(&game, coil), 1);
+
+    put_in_graveyard(&mut game, grizzly_bears(), 0);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(game.result, Some(GameResult::Winner(1)));
+}
+
+// RULING: Immortal Coil #5 - if the third ability is countered but your
+//   graveyard is still empty, it immediately triggers again.
+#[test]
+fn immortal_coil_countered_triggers_again_at_once() {
+    let mut game = audited_game();
+    let coil = put_on_battlefield(&mut game, immortal_coils_state_trigger(), 0);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    let ability = *game.stack.last().unwrap();
+
+    counter(&mut game, ability);
+
+    assert!(game.stack.is_empty() || !game.stack.contains(&ability), "countered (CR 701.6a)");
+    assert_eq!(triggered(&game, coil), 2, "its leaving the stack lets it trigger, and it does");
+    assert!(has_not_left_the_stack(&game, coil));
+    assert_eq!(game.result, None);
+}
+
+// RULING: Immortal Coil #6 - if the third ability resolves but you don't lose
+//   (Platinum Angel), it immediately triggers again.
+#[test]
+fn immortal_coil_resolved_without_the_loss_triggers_again() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, platinum_angel(), 0);
+    let coil = put_on_battlefield(&mut game, immortal_coils_state_trigger(), 0);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+
+    assert_eq!(game.result, None, "Platinum Angel: you can't lose the game");
+    assert_eq!(triggered(&game, coil), 2);
+    assert_eq!(game.stack.len(), 1, "on the stack again, and its controller has priority");
+}
+
+/// Counter the ability `ability` on the stack, as Stifle does.
+fn counter(game: &mut GameState, ability: ObjectId) {
+    let source = put_in_hand(game, grizzly_bears(), 1);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 1,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(ability)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    let stifle = Effect::Atom(Primitive::CounterAbility, EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)));
+    game.resolve_effect(&stifle, &ctx, &test_dp()).expect("countering");
+}
+
+fn zone_of(game: &GameState, id: ObjectId) -> Option<Zone> {
+    game.objects.get(&id).map(|object| object.zone)
 }

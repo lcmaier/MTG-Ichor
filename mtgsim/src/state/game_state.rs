@@ -742,8 +742,10 @@ pub struct GameState {
     /// Objects off the battlefield with a printed triggered ability that
     /// functions where they are (CR 113.6k, derived by
     /// `zone_function::functioning_zones`) — Guile's "from anywhere" in a
-    /// graveyard. Kept by the same doors as `zone_replacement_ability_sources`.
-    pub zone_trigger_sources: IdMap<ObjectId, Vec<AbilityId>>,
+    /// graveyard. Kept by the same doors as `zone_replacement_ability_sources`,
+    /// and filed by kind as `trigger_sources` is, so the state check asks only
+    /// the objects with a state trigger.
+    pub zone_trigger_sources: IdMap<ObjectId, EventKindMask>,
     /// Objects off the battlefield whose printed triggered ability that
     /// functions where they are triggers only on the object itself moving
     /// (`TriggerDef::triggers_only_on_this_object_moving`): Guerrilla Tactics in
@@ -2027,7 +2029,7 @@ impl GameState {
                     } else if def.triggers_only_on_this_object_moving() {
                         self.newcomer_trigger_sources.insert(id);
                     } else {
-                        self.zone_trigger_sources.entry(id).or_default().push(ability.id);
+                        *self.zone_trigger_sources.entry(id).or_default() |= def.record_kinds();
                     }
                 }
                 continue;

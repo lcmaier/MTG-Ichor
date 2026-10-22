@@ -233,9 +233,15 @@ impl Game {
                 // in the same breath ("and/or any triggered abilities are
                 // waiting to be put onto the stack"). A trigger from the
                 // step's own discard or damage removal is the reachable case.
-                while self.state.check_state_based_actions(decisions)?
-                    || !self.state.pending_triggers.is_empty()
-                {
+                loop {
+                    let performed = self.state.check_state_based_actions(decisions)?;
+                    // A state trigger is waiting too once the check finds it
+                    // true (CR 603.8), as "at the beginning of the next
+                    // cleanup step" is once its step begins.
+                    self.state.check_state_triggers()?;
+                    if !performed && self.state.pending_triggers.is_empty() {
+                        break;
+                    }
                     self.state.check_state_based_actions_loop(decisions)?;
                     self.state.run_priority_loop(decisions)?;
 

@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-20",
+  "fetched": "2026-10-21",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -468,6 +468,13 @@
         {"n": 3, "published_at": "2021-02-05", "comment": "The activated ability affects only Elves you control as the ability resolves. Elves you begin to control later in the turn won't get the bonuses. Creatures you control that become Elves later in the turn won't get the bonuses, and Elves you control that got the bonuses that stop being Elves later in the turn won't lose them."}
       ]
     },
+    "Emperor Crocodile": {
+      "first_seen": "2026-10-21",
+      "rulings": [
+        {"n": 1, "published_at": "2016-06-08", "comment": "Emperor Crocodile’s ability will trigger if you don’t control another creature, even if it’s only for a brief moment during the resolution of another spell or ability (such as that of Brago, King Eternal)."},
+        {"n": 2, "published_at": "2016-06-08", "comment": "The ability only checks if you control no other creatures at the time it triggers. It does not check again on resolution, so gaining control of a creature before then will not save Emperor Crocodile."}
+      ]
+    },
     "Eon Hub": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -739,6 +746,17 @@
     "Idyllic Beachfront": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Immortal Coil": {
+      "first_seen": "2026-10-21",
+      "rulings": [
+        {"n": 1, "published_at": "2008-10-01", "comment": "The only difference between a colored artifact and a colorless artifact is, obviously, its color. Unlike most artifacts, a colored artifact requires colored mana to cast. Also unlike most artifacts, a colored artifact has a color in all zones. It will interact with cards that care about color. Other than that, a colored artifact behaves just like any other artifact. It will interact as normal with any card that cares about artifacts, such as Shatter or Arcbound Ravager."},
+        {"n": 2, "published_at": "2008-10-01", "comment": "The first ability exiles two cards in your graveyard as a cost. You can’t activate this ability unless you have at least two cards in your graveyard. Exiling those two cards can’t be responded to."},
+        {"n": 3, "published_at": "2008-10-01", "comment": "The second ability prevents all damage that would be dealt to you, regardless of how many cards are in your graveyard. For example, if you have three cards in your graveyard and would be dealt 5 damage, Immortal Coil prevents all 5 damage and exiles all the cards in your graveyard."},
+        {"n": 4, "published_at": "2008-10-01", "comment": "The third ability checks whether your graveyard is empty only at the time it triggers. Putting a card into your graveyard after that doesn’t help. You’ll lose the game when the ability resolves."},
+        {"n": 5, "published_at": "2008-10-01", "comment": "If the third ability is countered, but your graveyard is still empty, the ability will immediately trigger again."},
+        {"n": 6, "published_at": "2008-10-01", "comment": "Similarly, if the third ability resolves but you don’t lose the game for some reason (because you control Platinum Angel, perhaps), it will immediately trigger again if your graveyard is still empty. Immortal Coil + Platinum Angel + an empty graveyard is an involuntary infinite loop. Unless a player disrupts it, the game will end in a draw."}
+      ]
     },
     "Incremental Growth": {
       "first_seen": "2026-09-17",

@@ -56,7 +56,7 @@ pub(crate) fn read_at_trigger<'r>(arm: &TriggerEvent, record: &'r EventRecord, i
 pub(crate) fn record_frames(binding: &TriggerBinding) -> impl Iterator<Item = (ObjectRef, &Lki)> {
     let arm = binding.event();
     binding.triggering_event().into_iter().flat_map(move |event| {
-        event.objects.objects().filter_map(move |(_, object)| Some((object, record_frame(arm, &event.record, object.id)?)))
+        event.objects.objects().filter_map(move |(_, object)| Some((object, record_frame(arm?, &event.record, object.id)?)))
     })
 }
 
@@ -154,7 +154,7 @@ impl GameState {
     /// trigger finds the object it moved only in a public zone (CR 400.7e), so
     /// not in the hand or library it went to.
     pub fn bound_objects(&self, binding: &TriggerBinding, role: EventRole) -> Vec<ObjectId> {
-        let zone_change = matches!(binding.event(), TriggerEvent::ZoneChange { .. });
+        let zone_change = matches!(binding.event(), Some(TriggerEvent::ZoneChange { .. }));
         binding
             .triggering_objects(role)
             .into_iter()
@@ -165,14 +165,14 @@ impl GameState {
 
     /// "That player" — the matched event's `player_of` on the first record.
     pub fn bound_player(&self, binding: &TriggerBinding) -> Option<PlayerId> {
-        binding.event().player_of(&binding.first_record()?.event)
+        binding.event()?.player_of(&binding.first_record()?.event)
     }
 
     /// "That many" — the arm's `amount_of`, summed over the matched records
     /// (Simic Ascendancy's "that many" across a batch). `None` when the arm
     /// carries no quantity, so a card that asks is refused rather than told 0.
     pub fn bound_amount(&self, binding: &TriggerBinding) -> Option<u64> {
-        let event = binding.event();
+        let event = binding.event()?;
         let mut total: Option<u64> = None;
         for record in binding.records() {
             let n = event.amount_of(&record.event)?;
@@ -214,7 +214,7 @@ impl GameState {
         role: EventRole,
     ) -> Option<CurrentOrLastKnown<'a>> {
         let object = binding.triggering_object(role)?;
-        let lki = match record_frame(binding.event(), &binding.triggering_event()?.record, object.id) {
+        let lki = match record_frame(binding.event()?, &binding.triggering_event()?.record, object.id) {
             Some(lki) => Some(lki),
             None if self.find(object).is_some() => None,
             None => Some(self.lki_kept_by_resolving(object)?),

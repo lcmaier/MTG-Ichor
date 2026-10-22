@@ -64,12 +64,12 @@ impl TriggerDef {
     /// `trigger_sources` under the union of this over its printed triggers,
     /// and the dispatcher skips the permanent for any window whose records
     /// are none of these kinds (§11). A state trigger reads no record (CR
-    /// 603.8), so its set is empty.
+    /// 603.8): its set is `BoardState`, which only the state check asks.
     pub fn record_kinds(&self) -> EventKindMask {
-        self.condition
-            .events()
-            .iter()
-            .fold(EventKindMask::EMPTY, |mask, arm| mask | arm.record_kinds())
+        match &self.condition {
+            TriggerCondition::State(_) => EventKindMask::of(EventKind::BoardState),
+            condition => condition.events().iter().fold(EventKindMask::EMPTY, |mask, arm| mask | arm.record_kinds()),
+        }
     }
 }
 
@@ -582,6 +582,11 @@ counted_enum! {
         CountersRemovedFrom,
         TokenCreated,
         Scried,
+        /// No record: a state trigger's condition (CR 603.8), which reads the
+        /// board rather than an event. A state trigger's source is filed under
+        /// it, so the state check finds it on every leg the dispatcher's gate
+        /// has, and no window, whose kinds are its records', ever asks it.
+        BoardState,
     }
 }
 
@@ -1550,9 +1555,10 @@ pub struct TriggerBinding {
 }
 
 impl TriggerBinding {
-    /// The event the binding's projections read through.
-    pub fn event(&self) -> &TriggerEvent {
-        &self.def.condition.events()[self.event.0]
+    /// The event the binding's projections read through. `None` for a state
+    /// trigger, which no event triggered (CR 603.8).
+    pub fn event(&self) -> Option<&TriggerEvent> {
+        self.def.condition.events().get(self.event.0)
     }
 
     /// The triggering events' records, in the window's order.
@@ -1569,7 +1575,7 @@ impl TriggerBinding {
     /// a once-per-subject trigger's, whose events are all about its one
     /// subject. `None` for a "one or more" trigger, which has several.
     pub fn triggering_event(&self) -> Option<&TriggeringEvent> {
-        match self.event().multiplicity() {
+        match self.event()?.multiplicity() {
             Multiplicity::PerOccurrence | Multiplicity::OncePerSubject => self.triggering_events.first(),
             Multiplicity::OncePerEvent => None,
         }
@@ -1579,14 +1585,15 @@ impl TriggerBinding {
     /// one triggering event, as the existence the dispatch found. `None` for a
     /// "one or more" trigger, which has no single object.
     pub fn triggering_object(&self, role: EventRole) -> Option<ObjectRef> {
-        self.triggering_event()?.objects.get(self.event().role_as_recorded(role))
+        self.triggering_event()?.objects.get(self.event()?.role_as_recorded(role))
     }
 
     /// "That creature", "them": each object that played `role` in each
     /// triggering event. One for a `PerOccurrence` trigger, but for a
     /// defender's attackers.
     pub fn triggering_objects(&self, role: EventRole) -> Vec<ObjectRef> {
-        let role = self.event().role_as_recorded(role);
+        let Some(event) = self.event() else { return Vec::new() };
+        let role = event.role_as_recorded(role);
         self.triggering_events
             .iter()
             .flat_map(|event| event.objects.objects().filter(move |&(part, _)| part == role))
@@ -1596,8 +1603,7 @@ impl TriggerBinding {
 }
 
 /// Where a pending trigger came from (§3.8). A reflexive trigger is
-/// `Delayed`, since CR 603.12 has it follow the delayed rules; the rule-owned
-/// origin lands with TR-6.
+/// `Delayed`, since CR 603.12 has it follow the delayed rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TriggerOrigin {
     /// A printed, granted or copied ability of an object.
@@ -1607,13 +1613,25 @@ pub enum TriggerOrigin {
     /// (`AbilityId::delayed`). It is no ability of that object, and CR
     /// 603.2d's "triggers additional times" does not reach it.
     Delayed(AbilityIdentity),
+    /// A triggered ability a rule gives the game rather than an object has:
+    /// the monarch's "at the beginning of the monarch's end step, that player
+    /// draws a card" (CR 724.2), the initiative's (CR 725.2). An arm of its
+    /// own, never a fake source on `Object` (§14, question 6).
+    Rule(InherentAbility),
 }
+
+/// A triggered ability no object has, which a rule owns (CR 724.2, 725.2).
+/// No variant until its first designation, the monarch, lands with its
+/// format (Phase 9), so no trigger has `TriggerOrigin::Rule` yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InherentAbility {}
 
 impl TriggerOrigin {
     /// The ability that triggered, by what it is.
     pub fn identity(&self) -> AbilityIdentity {
         match self {
             TriggerOrigin::Object(identity) | TriggerOrigin::Delayed(identity) => *identity,
+            TriggerOrigin::Rule(inherent) => match *inherent {},
         }
     }
 
@@ -2019,8 +2037,6 @@ pub struct PendingTrigger {
     /// what placement announces (603.3d).
     pub instances: Vec<EffectRecipient>,
     pub binding: TriggerBinding,
-    /// CR 603.8's one-shot state trigger; armed by TR-6.
-    pub is_state_trigger: bool,
     /// The last known information of the objects it names that have left
     /// since it triggered.
     pub kept_lki: Vec<Lki>,
@@ -2088,7 +2104,7 @@ mod tests {
                 seq: TriggerSeq(0),
                 origin: TriggerOrigin::Object(identity),
                 controller: 0,
-                caused_by: EventId(0),
+                caused_by: Some(EventId(0)),
             }),
             ("SpellCast", GameEvent::SpellCast { spell_id: id, caster: 0 }),
             ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id }),
@@ -2194,7 +2210,8 @@ mod tests {
 
     /// A def's kinds are its arms' together — what `register_static_effects`
     /// files a source under. A state trigger reads no record (CR 603.8),
-    /// whatever its condition asks.
+    /// whatever its condition asks: it is filed under the one kind no record
+    /// carries, which no window meets.
     #[test]
     fn a_defs_record_kinds_are_its_arms_together() {
         let tapped_or_untapped = TriggerDef {
@@ -2215,6 +2232,7 @@ mod tests {
             condition: TriggerCondition::State(Condition::SpellWasKicked),
             ..tapped_or_untapped
         };
-        assert!(state.record_kinds().is_empty());
+        assert_eq!(state.record_kinds(), EventKindMask::of(EventKind::BoardState));
+        assert!(!state.record_kinds().intersects(kinds));
     }
 }

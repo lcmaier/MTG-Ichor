@@ -1166,7 +1166,7 @@ pub fn log_lines<'a>(game: &GameState, records: &'a [EventRecord]) -> Vec<&'a Ev
     let read: Vec<_> = all
         .iter()
         .filter_map(|record| match record.event {
-            GameEvent::AbilityTriggered { caused_by, .. } => Some(caused_by),
+            GameEvent::AbilityTriggered { caused_by, .. } => caused_by,
             _ => None,
         })
         .collect();

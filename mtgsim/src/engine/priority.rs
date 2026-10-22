@@ -260,8 +260,9 @@ impl GameState {
     /// 3. If any triggers were placed, go back to step 1.
     /// 4. Otherwise, the player who would receive priority does so.
     ///
-    /// Step 2 is where CR 603.8's state check will run first (TR-6); until
-    /// then the queue holds only what a dispatch put there.
+    /// Step 2 runs CR 603.8's state check first, which sees what changed
+    /// with no record to dispatch: a continuous effect that ended, a row the
+    /// state-based check dropped.
     pub fn perform_sba_and_triggers(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
         loop {
             // Step 1: Exhaust all SBAs (rule 704.3)
@@ -278,6 +279,7 @@ impl GameState {
             self.settle_layer_consequences(&ActionContext::game_rule(decisions, GameRule::ControlChanges))?;
 
             // Step 2: Place triggered abilities on the stack (rule 603.3)
+            self.check_state_triggers()?;
             let triggers_placed = self.place_pending_triggers(decisions)?;
 
             // Step 3: If no triggers were placed, we're stable

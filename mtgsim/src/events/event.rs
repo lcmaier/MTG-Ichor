@@ -234,12 +234,13 @@ pub enum GameEvent {
     /// **Unstamped**: it carries no batch and no resolution, because it is a
     /// consequence of the event and not part of it, and the dispatcher reads
     /// it like any unbatched record. `caused_by` is the record that matched
-    /// (the first of them, for a "one or more" trigger).
+    /// (the first of them, for a "one or more" trigger), and `None` for a
+    /// state trigger, which no record caused (CR 603.8).
     AbilityTriggered {
         seq: TriggerSeq,
         origin: TriggerOrigin,
         controller: PlayerId,
-        caused_by: EventId,
+        caused_by: Option<EventId>,
     },
     /// A delayed triggered ability was created (CR 603.7a), by
     /// `GameState::register_delayed_trigger`, ahead of any record it can

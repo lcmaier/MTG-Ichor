@@ -184,6 +184,20 @@ pub(crate) fn trigger(
     r
 }
 
+/// `trigger` for a state trigger (CR 603.8): the state check's decision. It
+/// names no record, since no event triggered it, and says `state`.
+pub(crate) fn state_trigger(game: &GameState, identity: &AbilityIdentity, zone: Zone, refused_by: Option<&str>) -> Record {
+    let mut r = Record::new(RecordKind::Trigger);
+    r.field_bool("state", true);
+    r.field_u64("source", identity.source.id.raw());
+    r.field_str("name", &crate::ui::display::printed_name(game, identity.source.id));
+    r.field_str("ability", &identity.ability.to_string());
+    r.field_str("zone", &format!("{:?}", zone));
+    r.field_bool("matched", refused_by.is_none());
+    r.field_opt_str("refused_by", refused_by);
+    r
+}
+
 /// `pending` — one entry leaving the queue at placement (CR 603.3): onto
 /// the stack as `object`, with the targets it announced, or refused with
 /// the reason — CR 800.4d's departed controller, or CR 603.3d's "no legal

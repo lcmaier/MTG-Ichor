@@ -146,7 +146,7 @@ impl GameState {
         }
         for (seq, origin, controller, caused_by) in queued {
             self.emit_event_unbatched(
-                GameEvent::AbilityTriggered { seq, origin, controller, caused_by },
+                GameEvent::AbilityTriggered { seq, origin, controller, caused_by: Some(caused_by) },
                 EventCause::GameRule(GameRule::AbilityTriggers),
             )?;
         }
@@ -591,7 +591,6 @@ fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
             referred: delayed.referred.clone(),
             source_found_in_graveyard: None,
         },
-        is_state_trigger: false,
         kept_lki: delayed.source_lki.iter().cloned().collect(),
         x_value: delayed.x_value,
     }
