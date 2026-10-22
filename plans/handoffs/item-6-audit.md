@@ -106,6 +106,28 @@ The workflows' rules:
   proposed disposition (fix here, merge in a cleanup PR, file an item, keep
   with a reason) and its size. The list goes into this file's pass section.
 
+**The sessions** (the owner's question at #270's review). Discovery is
+read-only, so all three workflows run first, in one session, before any
+fix: the passes then start from lists rather than each opening with a
+fan-out, and nothing a fix session writes is read mid-discovery. The fix
+sessions are ordinary ones, one PR at a time in the main folder:
+
+| Session | Kind | Passes | PRs |
+|---|---|---|---|
+| 1. Discovery | ultracode: the three workflows, and pass 2's citation script | 1, 3 and 5's lists, written into this file | 1, docs |
+| 2. Close-out | plain | 1 | 2–3 |
+| 3. Eviction | plain; a script and a reader for doubtful citations | 2 | 1 |
+| 4. Hygiene and CI | plain | 3's sweep | 1–2 |
+| 5. The docs audit's fixes | plain | 5 | 2–4 |
+| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup | 3–6 |
+| 7. Readiness | plain; measurement | 4 | 2 |
+| 8. Scheduling | plain | 6 | 1 |
+
+A fix session may still spawn a single verifier for a doubtful finding; it
+runs no fan-out of its own. Sessions 4 and 5 commute. A finding whose
+pointers a later fix moves is re-read by the session that fixes it, which
+re-reads what it touches anyway.
+
 **Then each fix is its own commit on a sequential branch** in the main
 folder, shown to fail first where it is a bug, one PR at a time through the
 owner's review. Readiness and scheduling are measurement and judgement and
@@ -355,6 +377,10 @@ decides. One PR, which writes §3's two records and deletes this file.
 A6h's are 185 and 188 (pass 5). A6s's, 264 and 288, stay with A6s.
 
 ## 6. Decisions for the owner
+
+**All five accepted as recommended (the owner, 2026-10-22, at #270's
+review).** Decision 4 is applied: A6e's row reads about 10–15 PRs and A6h's
+2–4.
 
 1. **The docs audit inside this audit.** A6h is its own row; the plan runs
    it as pass 5 under one handoff, since both rows close item 6 and the
