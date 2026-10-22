@@ -3786,7 +3786,7 @@ identical on both pools at two seats and four, and the audit agreeing on
 every dispatch; instructions per decision +0.32%. The 1,000-game audited
 smoke: no error, panic or turn-limit game, every dispatch agreed.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-4d". **Trace page:** owed — control is announced by a sweep, not a performer (§18).
+→ `plans/archive/triggers-architecture-landed.md`, "TR-4d". **Trace page:** owed, for the item 6 audit's pass 5 — control is announced by a sweep, not a performer.
 
 ### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
 
@@ -4034,7 +4034,8 @@ each fixed and shown failing first, and one copy.
 **What it leaves.** Items 286 and 287 (`codebase-state.md`, "Found by
 TR-5h"); item 279's other facts, each with its first card.
 
-**Trace page:** owed — every history read became a scan of one log (§18).
+**Trace page:** owed, for the item 6 audit's pass 5 — every history read
+became a scan of one log.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5h".
 
 ### TR-5d — prevention and excess damage — ✅ landed 2026-10-19
@@ -4723,7 +4724,8 @@ and MA-1 with MA-2.
 - §13: 37 atoms deferred, each with its owner; `owed` clean.
 - `codebase-state.md`'s wrong-today items: 59 (B7), 204 and 207 (beside
   C0), 211 (MA-6) and 297 (A6e).
-- The two owed trace pages, TR-4d's and TR-5h's.
+- The two owed trace pages, TR-4d's and TR-5h's, earmarked for the item 6
+  audit's pass 5, the docs audit (the owner, at #272's review).
 
 ### What comes next inherits
 

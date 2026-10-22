@@ -818,7 +818,8 @@ and is not audited. `roadmap-v2.md`'s rows are re-checked against the
 **Two trace pages, from pass 1.** The close-out decided each TR phase's
 trace page (`triggers-architecture.md` §12, each heading). TR-4d's control
 sweep and TR-5h's history log change how a read is answered, and neither
-has a page: they are owed, written in this pass's PRs at
+has a page: they are owed, and the owner earmarked both for this pass at
+#272's review. They are written in this pass's PRs at
 `engineering-practices.md` §7's budget, two to three hours each.
 
 #### Work-list (discovery, 2026-10-22)

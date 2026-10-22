@@ -1626,7 +1626,7 @@ TR-5g ✓ (decided at its review, 2026-10-20, the same way: the owner asked
 how the dispatcher's candidate lists work, and the count reads multipliers
 through them), critical-path item 6 ✓ (decided phase by phase at its close
 audit, 2026-10-22: TR-1's page and TR-5g's, and TR-4d's control sweep and
-TR-5h's history log owed; each heading in `triggers-architecture.md` §12
+TR-5h's history log owed, for the audit's pass 5; each heading in `triggers-architecture.md` §12
 says why), **RS-2**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
