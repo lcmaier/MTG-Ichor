@@ -9544,3 +9544,65 @@ Number 277 was withdrawn in #260 and is not reused.
      are rewritten, the evaluator's arm moves to the new home, and the other
      four readers lose theirs.
      **Slotted:** A6e (`roadmap-v2.md`), beside items 291 and 292.
+
+### Found by the item 6 audit, pass 1 — the close-out (2026-10-22)
+
+297. **The log names a departed copy by its card where the line above names
+     it as it left.** A record that carries last known information names its
+     object through it (`as_it_left`, `ui/display.rs`), so a Clone that left
+     as Blood Artist reads "Blood Artist (Clone, #61)". A record that carries
+     none, `Unattached`, `AbilityActivated`, `AbilityResolved` and
+     `ManaAdded` among them, names it through `name_with_id`, which falls
+     back to the card's printed name once the object has left and no name was
+     kept: "Clone (#61)" on the next line. Two answers to which frame names an
+     object in the log, the display's and the trigger binding's
+     (`record_frame`, `triggers/binding.rs`); pass 3's row 57 in the audit's
+     discovery, which found it.
+     **Reachability (2026-10-22):** reachable — wrong today, and the dev
+     GUI's log shows it. `fuzz_games --pool stress --require "Clone,Rancor,Holy
+     Strength,Bonesplitter,Angelic Destiny" --copies 3 --games 100 --seed 57
+     --dump-events <file>`, game 14: "621: ZoneChange: Blood Artist (Clone,
+     #61) … Battlefield -> Exile", then "622: Unattached: Angelic Destiny
+     (#30) from Clone (#61) (HostLeft)". Discovery also found
+     `AbilityActivated` and `AbilityResolved` lines for a Clone copying Samite
+     Censer-Bearer, and a `ManaAdded` line for one copying Krark-Clan
+     Ironworks under March of the Machines.
+     **Sized:** ~25 lines: one `GameEvent::frame_of(id)` that `record_frame`
+     and `as_it_left` both read, and the log fixtures it moves
+     (`event_log_test`, the trace pages).
+     **Slotted:** A6e, the cleanup of item 6's close audit, with the
+     duplicate rows it merges (`plans/handoffs/item-6-audit.md`, pass 3).
+
+298. **A cast that rewinds puts the card in its owner's hand, wherever it was
+     cast from.** CR 732.1: "If the action was casting a spell, the spell
+     returns to the zone it came from." `rollback_cast_to_hand`
+     (`engine/put_on_stack.rs`) moves the card to the hand at each of the six
+     sites a cast rewinds, though `cast_spell` captured `cast_from` before
+     CR 601.2a's move. Raised by a refuter of `triggers-architecture.md`
+     §15.3 in the audit's discovery.
+     **Reachability (2026-10-22):** unreachable — `can_begin_to_cast` refuses
+     a card outside its caster's hand (`CannotCast::NotInHand`), so every
+     rewound cast came from the hand.
+     **Sized:** ~10 lines: the rewind takes `cast_from` and its six call sites
+     pass it, and a test rewinds a cast from the first zone other than the
+     hand.
+     **Slotted:** PM-0, whose design sizes casting from a zone other than the
+     hand, with item 265.
+
+299. **"Equal to its power" is refused at resolution.** `AmountExpr::SourcePower`
+     is answered at an entry (CR 614.12's frame, `replacement/pipeline.rs`)
+     and in a cost (`layers/compute.rs`), and `evaluate_amount` returns `Err`
+     for it (`engine/resolve.rs`). CR 113.7a's case, "{T}: this creature
+     deals damage equal to its power" with its source sacrificed in response,
+     reads the last known information TR-2b hands every stack entry that
+     names its source, so the arm reads that kept frame, or the source's own
+     while it is still on the battlefield. ATOM-113.7a-001 proves only that
+     such an ability still resolves. Moved from `triggers-architecture.md`
+     §15.15.
+     **Reachability (2026-10-22):** unreachable — no registered resolving
+     effect names `SourcePower`; its two card uses are an entry's counters
+     and a cost reduction.
+     **Sized:** ~20 lines: the arm, and a test whose source is sacrificed
+     before its ability resolves.
+     **Slotted:** the first registered card whose resolving ability reads its
+     source's power.
