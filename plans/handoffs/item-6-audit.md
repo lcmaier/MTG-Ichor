@@ -434,10 +434,9 @@ the result.
 
 #### Work-list (discovery, 2026-10-22)
 
-From a script, not a workflow: `trigger_citations.py` in the discovery
-session's scratchpad
-(`C:\Users\maier\AppData\Local\Temp\claude\C--Users-maier--claude-spares-spare-LuYx40\a12fb4a0-15b6-4884-a945-db867decc928\scratchpad\`),
-run as `python trigger_citations.py <repo> --list`. It reads every tracked
+From a script, not a workflow: `plans/references/trigger-citations.py`,
+run as `python plans/references/trigger-citations.py . --list` from the
+repository root. It reads every tracked
 file under `plans/`, `mtgsim/src`, `mtgsim/tests` and `devgui/`. A citation
 is the file name closed by a backtick, then `§` and a token. It also counts
 follow-on tokens in the same phrase (`§4.2 and §4.3`) and, by heuristic,
@@ -457,6 +456,10 @@ classed against the table above.
 | Written without the backtick (`fuzz_games.rs:1178`, `phase_tr1b_integration_test.rs:169`, both `§4.10`) | 2 |
 | Follow-on tokens in the same phrase | 33 |
 | The doc's bare self-citations (heuristic; a few are other docs' sections) | ~295 |
+
+These work-lists add four more citations of their own, so a run after #271
+reads 113 outside the archive and 276 in all. The pass re-runs the script
+on its own tree before it moves anything.
 
 Counting both, §12 takes 85 + 12 follow-on. By the target's class, counting
 both (305) with self-citations apart:
