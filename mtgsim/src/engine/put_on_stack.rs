@@ -84,10 +84,10 @@ impl GameState {
     /// 2. Move to stack (601.2a) — silently; the move is announced at 601.2i
     /// 3. Choose alternative cost, additional costs, X value (601.2b)
     /// 4. Choose targets (601.2c)
-    /// 5. Distribution placeholder (601.2d — T18c)
+    /// 5. Division among targets (601.2d) — not asked, `backlog.md` §2.20
     /// 6. Post-proposal legality check with rollback (601.2e)
     /// 7. Assemble total cost (601.2f)
-    /// 8. Mana ability window placeholder (601.2g)
+    /// 8. The mana ability window (601.2g)
     /// 9. Pay total cost (601.2h)
     /// 10. Announce the 601.2a move and emit SpellCast (601.2i)
     pub fn cast_spell(
@@ -1000,7 +1000,7 @@ mod tests {
         assert!(game.stack.contains(&card_id));
     }
 
-    // --- T18a: X value, alternative cost, additional cost, rollback tests ---
+    // --- X, alternative and additional costs, and the rollback ---
 
     #[test]
     fn test_cast_x_spell_x_equals_3() {
@@ -1065,9 +1065,7 @@ mod tests {
     }
 
     /// Two red pay `{X}{R}` up to X = 1, and no further X is offered: the
-    /// prompt's range is what CR 601.2h can pay (`oracle::x_values`). Before
-    /// MA-2 the range ran to `u64::MAX`, and an X of 3 from two red was
-    /// offered, then reversed at the payment.
+    /// prompt's range is what CR 601.2h can pay (`oracle::x_values`).
     #[test]
     fn test_cast_x_spell_offers_only_the_x_the_mana_pays() {
         let mut game = GameState::new(2, 20);

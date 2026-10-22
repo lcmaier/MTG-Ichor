@@ -196,12 +196,12 @@ fn applies_to(
 /// The answer still comes from the effective list above; this only decides
 /// whether the frame is worth computing, and without it source 2 would put
 /// one `compute_characteristics` on every card in hand at every castability
-/// preview for a mechanic 364 printed cards have.
+/// preview for a mechanic 364 printed cards have (Scryfall, 2026-09-07).
 ///
 /// **Exact, because the two flags are the legs that keep it honest.** A card
 /// no row reaches has its printed ability list, and a Layer 6 grant or a
-/// Layer 1 copy that reaches a spell on the stack or a card in hand — LJ lets
-/// a row name either zone, and LL applies such a row to a card in a hand
+/// Layer 1 copy that reaches a spell on the stack or a card in hand — a row
+/// may name either zone, and one that reaches a card in a hand is applied
 /// from the pass's notes (`layers-architecture.md` §13e) — sets one of the
 /// summary flags, which is the caller's `widened` leg. That is why this is
 /// OR'd with them rather than consulted alone.

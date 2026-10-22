@@ -19,8 +19,8 @@
 //! - **Keyword abilities** (indestructible, and the largest source by card
 //!   count) are synthesized during that sweep, because nothing on the card
 //!   prints the CR 702.12b text.
-//! - **Static abilities functioning in other zones** are deferred on the same
-//!   terms as `gather`'s source 2.
+//! - **Static abilities functioning in other zones** are not swept yet;
+//!   `gather`'s source 2 is the walk the sweep would share (CR 113.6).
 //! - **Rules of the game** — CR 614.17b's derived cost prohibition, RS-4's.
 //!
 //! What lands here is source 4 alone: a row a resolution created, with the

@@ -9724,13 +9724,13 @@ row 57 is item 297.
      `DamageDealt`, `DamageIsPrevented` and `Attacks` declare
      `DamageRecipient` or `Attacked`, which an event about a player does not
      carry as an object, so a card naming the role on an arm that watches a
-     player passes the registry and finds nothing at resolution. The doc on
-     `triggering_event_objects` ("the arm says which event roles the event
-     has") states the declaration as if it were the event's. Row 11.
+     player passes the registry and finds nothing at resolution. Row 11; the
+     doc on `triggering_event_objects`, which stated the declaration as the
+     event's, was corrected in this pass's PR.
      **Reachability (2026-10-22):** unreachable — no registered card names
      `DamageRecipient` or `Attacked`.
-     **Sized:** ~20 lines: `event_roles` narrowed by the arm's fields, the doc
-     corrected, and a debug assert that a bound role is carried. One
+     **Sized:** ~20 lines: `event_roles` narrowed by the arm's fields, and a
+     debug assert that a bound role is carried. One
      declaration per arm, an `event_shape` type, is the design of the audit's
      §6 decision 2, ~60–100 lines, and nothing found calls for it.
      **Slotted:** A6e, the cleanup of item 6's close audit.

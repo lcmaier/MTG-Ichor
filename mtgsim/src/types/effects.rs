@@ -448,7 +448,7 @@ impl ObjectSet {
 /// about an object asks `ObjectSet`, an event about a player asks this one.
 /// The damage family is what makes it necessary — Furnace of Rath's "a
 /// permanent **or player**", Circle of Protection's "damage that would be
-/// dealt to **you**" (23 printed), Fog's "all combat damage"
+/// dealt to **you**" (23 printed, 2026-09-08), Fog's "all combat damage"
 /// (`replacement-architecture.md` §9, RD's decision 0).
 ///
 /// Resolved against the instance's controller exactly as

@@ -1781,7 +1781,7 @@ pub enum GameActionTemplate {
     ///
     /// **Why not `AmountRewrite::Plus` for Xorn**: "plus one" of *what* is a
     /// def, and the printed answer is a named token — a template's business,
-    /// not arithmetic's (RE-4's review).
+    /// not arithmetic's.
     CreateTokens {
         def: TokenDef,
         count: TemplateAmount,
@@ -2147,13 +2147,13 @@ mod tests {
     }
 
     // Gisela prevents half rounded *up*, so the event keeps the smaller half —
-    // and the prevented amount is what RD-2's rider and shield will read.
+    // and the prevented amount is what a rider and a shield read.
     #[test]
     fn prevent_half_reports_what_it_prevented_and_keeps_the_rest() {
         let gisela = AmountRewrite::PreventHalf(Rounding::Up);
         assert_eq!(gisela.prevented(5), 3);
         assert_eq!(gisela.apply(5), 2);
-        // Dark Sphere's direction, from the other side (RD-3): 5 becomes 3.
+        // Dark Sphere's direction, from the other side: 5 becomes 3.
         let sphere = AmountRewrite::PreventHalf(Rounding::Down);
         assert_eq!(sphere.prevented(5), 2);
         assert_eq!(sphere.apply(5), 3);
@@ -2201,7 +2201,7 @@ mod tests {
     // a `Prevent` that is **not** a prevention effect, because CR 615.1 is
     // about damage and regeneration's pattern is a destruction. Get that wrong
     // and CR 701.19c's "can't be regenerated" and CR 615.12's "damage can't be
-    // prevented" (RD-4) begin answering for each other, since both consult a
+    // prevented" begin answering for each other, since both consult a
     // `ReplacementKindFilter`. A doubler is the other negative: same pattern,
     // no "prevent" in its text.
     //
@@ -2266,7 +2266,7 @@ mod tests {
         assert!(opponents.contains(1, 2));
         assert!(PlayerSet::Everyone.contains(1, 1));
         assert!(PlayerSet::Everyone.contains(1, 2));
-        // What every effect written before Phase RD says.
+        // What an effect that names no player says.
         assert!(!PlayerSet::Nobody.contains(0, 0));
         // A resolution's captured set ignores the controller entirely.
         assert!(PlayerSet::Fixed(vec![2]).contains(0, 2));
@@ -2315,8 +2315,8 @@ mod tests {
         );
     }
 
-    // A `ReplacementDef` written the way every pre-RD card writes one names no
-    // player, so RD-1's second field cannot change any of their answers.
+    // A `ReplacementDef` built by `new` names no player, so a def that never
+    // sets `affected_players` answers as if the field did not exist.
     #[test]
     fn new_defs_name_no_player() {
         let def = ReplacementDef::new(

@@ -388,7 +388,7 @@ impl Hasher for IdHasher {
 /// a new object the reference cannot find.
 ///
 /// The pair every durable reference to an object is made of — [`AbilityIdentity`]'s
-/// source, a trigger's bound subject, TR-3's delayed registry — so it lives
+/// source, a trigger's bound subject, the delayed-trigger registry — so it lives
 /// beside the two halves rather than in the subsystem that needed it first.
 ///
 /// [`AbilityIdentity`]: crate::state::game_state::AbilityIdentity

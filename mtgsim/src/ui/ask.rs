@@ -1512,7 +1512,7 @@ mod tests {
     // pips claim all of it is offered zero, and a color with surplus beyond its
     // pips is still offered the surplus. `validate_allocation` names the number
     // in its panic, so the first half needs no instrumentation — the DP tries
-    // the split the old prompt allowed, and the message says what the max was.
+    // a split past the clamp, and the message says what the max was.
 
     /// `{1}{G}{U}` against one Green, one Blue and one Red: the Green is spoken
     /// for by the `{G}` pip, so putting the generic mana there is not on the
@@ -1805,7 +1805,7 @@ mod tests {
 
     /// Tamiyo, Compleated Sage's −X over cards of mana value 0, 1, 4, 6 and
     /// 7 (`mana-architecture.md` §3.7): a set with gaps, which only a rule
-    /// cuts. No rule MA-2 builds does, so the set is handed to the ask here.
+    /// cuts. No built rule does, so the set is handed to the ask here.
     fn tamiyo() -> LegalXValues {
         LegalXValues { offered: XOffer::Set(vec![0, 1, 4, 6, 7]), ..LegalXValues::zero_through(7) }
     }

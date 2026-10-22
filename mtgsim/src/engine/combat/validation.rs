@@ -54,14 +54,14 @@ impl std::fmt::Display for CombatError {
 }
 
 // ---------------------------------------------------------------------------
-// Attack constraints (skeleton — populated by Phase 4/5)
+// Attack constraints (every caller passes `none()` until RS-3)
 // ---------------------------------------------------------------------------
 
 /// Restrictions and requirements that apply to the set of declared attackers.
 ///
-/// Phase 3: always `AttackConstraints::none()`.
-/// Phase 4: Defender keyword adds `CantAttack` restrictions.
-/// Phase 5: Continuous effects populate restrictions/requirements.
+/// Every caller passes [`Self::none`]: the validator checks defender itself,
+/// and the "can't attack" and "attacks each combat if able" effects these
+/// would carry are `cant-effects-architecture.md`'s RS-3.
 pub struct AttackConstraints {
     pub restrictions: Vec<AttackRestriction>,
     pub requirements: Vec<AttackRequirement>,
@@ -86,7 +86,7 @@ pub enum AttackRequirement {
 }
 
 impl AttackConstraints {
-    /// No constraints — used in Phase 3 where no restriction/requirement effects exist.
+    /// No constraints: what every caller passes until RS-3.
     pub fn none() -> Self {
         AttackConstraints {
             restrictions: Vec::new(),
@@ -96,14 +96,14 @@ impl AttackConstraints {
 }
 
 // ---------------------------------------------------------------------------
-// Block constraints (skeleton — populated by Phase 4/5)
+// Block constraints (every caller passes `none()` until RS-3)
 // ---------------------------------------------------------------------------
 
 /// Restrictions, requirements, and blocking limits for declared blockers.
 ///
-/// Phase 3: always `BlockConstraints::none()`.
-/// Phase 4: Flying/reach adds evasion restrictions, menace adds min-blockers.
-/// Phase 5: Continuous effects populate blocking_limits (e.g. "can block additional creature").
+/// Every caller passes [`Self::none`]: the validator checks flying and reach
+/// itself, and menace, intimidate and the effects these would carry ("can
+/// block an additional creature") are `cant-effects-architecture.md`'s RS-3.
 pub struct BlockConstraints {
     pub restrictions: Vec<BlockRestriction>,
     pub requirements: Vec<BlockRequirement>,
@@ -128,7 +128,7 @@ pub enum BlockRequirement {
 }
 
 impl BlockConstraints {
-    /// No constraints — used in Phase 3.
+    /// No constraints: what every caller passes until RS-3.
     pub fn none() -> Self {
         BlockConstraints {
             restrictions: Vec::new(),
@@ -173,7 +173,8 @@ pub fn validate_attackers(
                 }
             }
             AttackTarget::Planeswalker(_) | AttackTarget::Battle(_) => {
-                // Phase 3: planeswalkers and battles not yet supported as attack targets
+                // Not declarable yet: the planeswalker and battle attack path,
+                // which `backlog.md` §2.23 shares (CR 506.2, 508.5).
                 return Err(CombatError::InvalidAttackTarget(*creature_id));
             }
         }
@@ -187,8 +188,8 @@ pub fn validate_attackers(
 
 /// Check set-level attack constraints (restrictions and requirements).
 ///
-/// Phase 3: this is a no-op when constraints is `AttackConstraints::none()`.
-/// Phase 4/5 will populate constraints from keywords and continuous effects.
+/// A no-op over [`AttackConstraints::none`], which every caller passes until
+/// RS-3 builds the "can't attack" and "must attack" effects.
 fn check_attack_set_constraints(
     proposed: &[(ObjectId, AttackTarget)],
     constraints: &AttackConstraints,
@@ -220,8 +221,8 @@ fn check_attack_set_constraints(
         }
     }
 
-    // Check requirements — Phase 4/5 will implement the requirement-maximizing logic.
-    // For now, just verify that required creatures are present if possible.
+    // Requirements: only that a required creature is present. CR 508.1d's
+    // maximum, as many requirements obeyed as possible, is RS-3's.
     for requirement in &constraints.requirements {
         match requirement {
             AttackRequirement::MustAttackIfAble(id) => {
@@ -326,7 +327,8 @@ pub fn validate_blockers(
 
 /// Check set-level block constraints.
 ///
-/// Phase 3: no-op with `BlockConstraints::none()`.
+/// A no-op over [`BlockConstraints::none`], which every caller passes until
+/// RS-3.
 fn check_block_set_constraints(
     proposed: &[(ObjectId, ObjectId)],
     constraints: &BlockConstraints,

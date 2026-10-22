@@ -127,15 +127,16 @@ pub enum EffectModification {
     // --- Layer 1a (CR 613.2a) ---
     /// CR 707 — the affected object becomes a copy of the captured values.
     ///
-    /// **Behind a pointer, and the numbers say why.** `CopiableValues` is 264
-    /// bytes (three `HashSet`s among them); behind one it is 8. Inline, this
-    /// arm would take `EffectModification` from 72 bytes to ~272 and
-    /// `ContinuousEffect` from 168 to ~368 — paid by *every* row, including the thousands that carry
-    /// two `i32`s, because `effects_in_layer` hands the walk a contiguous slice
-    /// it re-iterates per layer per object. Row size is the layer walk's memory
-    /// traffic. **An `Arc` rather than a `Box`** because the registry is cloned
-    /// with every fork and nothing writes the values after registration: a box
-    /// cost a clone ten or more allocations per copy row. `GrantAbility` is the
+    /// **Behind a pointer, and the numbers say why** (read 2026-10-22).
+    /// `CopiableValues` is 264 bytes (three `HashSet`s among them); behind one
+    /// it is 8. Inline, this arm would take `EffectModification` from 88 bytes
+    /// to ~272 and `ContinuousEffect` from 192 to ~376 — paid by *every* row,
+    /// including the thousands that carry two `i32`s, because
+    /// `effects_in_layer` hands the walk a contiguous slice it re-iterates per
+    /// layer per object. Row size is the layer walk's memory traffic. **An
+    /// `Arc` rather than a `Box`** because the registry is cloned with every
+    /// fork and nothing writes the values after registration: a box cost a
+    /// clone ten or more allocations per copy row (2026-09-25). `GrantAbility` is the
     /// same for both reasons.
     ///
     /// **Growth contract.** `EffectModification` grows one arm per

@@ -46,14 +46,13 @@ pub struct CardData {
     /// CR 601.2c's instances of "target" for this card cast as a spell, in
     /// printed order: those of [`spell_effect`], across all its spell
     /// abilities — except for an Aura, whose one instance is its enchant
-    /// ability (CR 303.4a) and sits in no effect tree. One field, one rule: the castability pre-check, the
-    /// announcement and CR 608.2b's re-check all read this, so all three see
-    /// `enchant_filter`.
+    /// ability (CR 303.4a) and sits in no effect tree. One field, one rule:
+    /// the castability pre-check, the announcement and CR 608.2b's re-check
+    /// all read this, so all three see `enchant_filter`.
     ///
     /// Written by `CardDataBuilder::build` and nothing else. A `CardData` is
     /// built once and shared behind an `Arc`, so this is computed once per card
-    /// rather than once per card in hand per priority pass, which is what it
-    /// replaced (`roadmap-v2.md` row A4n).
+    /// rather than once per card in hand per priority pass.
     pub spell_instances: Vec<EffectRecipient>,
     /// Alternative costs this card can be cast for (rule 118.9).
     /// A player may choose at most one when casting.

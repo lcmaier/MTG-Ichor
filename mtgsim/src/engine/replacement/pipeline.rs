@@ -101,7 +101,7 @@ pub(crate) struct Rider {
     /// by `AmountExpr::DamagePrevented` — CR 615.5's "the amount of damage
     /// that was prevented". 0 for a rider on anything but a prevention effect,
     /// and 0 for a prevention effect that prevented nothing, which is the
-    /// answer CR 615.12 needs from it (RD-4).
+    /// answer CR 615.12 needs from it.
     pub prevented: u64,
     pub effect: Effect,
 }
@@ -322,8 +322,8 @@ fn destination(action: &GameAction) -> Option<Zone> {
 /// of cards drawn" modifies — and performing it runs a loop zero times, so no
 /// `DrawCard` is proposed and no `CardDrawn` is emitted. What is being said is
 /// narrower than it looks: no rule states that an instruction of zero is not an
-/// event, where CR 120.8, 119.10 and now 701.22b each state exactly that about
-/// their own. RE-2 decision 3 made the call and it stands.
+/// event, where CR 120.8, 119.10 and 701.22b each state exactly that about
+/// their own (`replacement-architecture.md`, RE-2's decision 3).
 ///
 /// Scry 0 matters twice: an Eligeth would otherwise turn it into a draw of
 /// zero, and the performer would write a `Scried` line CR 701.22b says must
@@ -1038,7 +1038,7 @@ fn next_damage_shares(
 /// - *Multiplier by n ≥ 1*: multiplication commutes and leaves every kind on
 ///   "one or more"'s side, so no member falls out of applicability
 ///   (re-gather). Over an entry its filter must be mods-invariant, since
-///   +1/+1 counters feed power — item 47's condition (c), fired at RE-5.
+///   +1/+1 counters feed power — item 47's condition (c).
 /// - *Additive*: addition commutes with addition on any kind; with a
 ///   multiplier only on disjoint kinds (3 → 6 → 8 or 3 → 5 → 10, Torbran's
 ///   ruling); with an `EnterWith` only on kinds the mods already hold, since
@@ -2497,7 +2497,7 @@ fn counter_arithmetic(
 /// life total under it and nothing to prevent.
 ///
 /// **Why this is a second function and not `counter_arithmetic` widened to
-/// `u64`** (RE-8's review): the ceiling is the two `u32` call sites —
+/// `u64`**: the ceiling is the two `u32` call sites —
 /// `GameAction::AddCounters::n` and `EntryCounters::n`, because the counter
 /// maps are `u32` — so a `u64` helper would hand each a number it still had
 /// to narrow, with the same `try_from` and the same "which no permanent or

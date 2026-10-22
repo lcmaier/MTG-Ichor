@@ -48,9 +48,8 @@ pub struct TriggerDef {
 pub enum TriggerCondition {
     /// One performed record matches (§3.3).
     Event(TriggerEvent),
-    /// CR 603.8 — no event; a predicate over live state. Declared for the
-    /// shape; the state check that reads it is TR-6's, and the dispatcher
-    /// refuses it until then.
+    /// CR 603.8 — no event; a predicate over live state. The state check asks
+    /// it (`engine::triggers::state`); the dispatcher refuses it.
     State(Condition),
     /// "Whenever [A] or [B]" — each arm matched on its own; two arms matching
     /// one record trigger once.
@@ -1277,7 +1276,7 @@ impl TriggerEvent {
 
     /// The parts an object can play in this arm's triggering events: what an
     /// instruction may name, which a registry test checks every registered
-    /// card against (TR-5a).
+    /// card against.
     pub fn event_roles(&self) -> &'static [EventRole] {
         match self {
             TriggerEvent::ZoneChange { .. }

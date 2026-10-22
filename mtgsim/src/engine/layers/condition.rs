@@ -208,7 +208,7 @@ pub(super) fn holds(
             object_matches_filter(filter, host, &chars, &mut players)
         }
 
-        // A history count (TR-5h), for "you" as every leaf here reads it: the
+        // A history count, for "you" as every leaf here reads it: the
         // source's controller. The rows are off `GameState`.
         Condition::ThisTurn(history, count) => {
             history_holds(history, *count, HistorySpan::ThisTurn, game, board, &mut history_players())

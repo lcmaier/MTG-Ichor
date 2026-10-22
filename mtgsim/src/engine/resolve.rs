@@ -89,7 +89,7 @@ pub struct ResolutionContext {
 }
 
 impl ResolutionContext {
-    /// A resolution that names nothing — no targets: ChosenTargets::one(targets), no rider, and no
+    /// A resolution that names nothing — no targets, no rider, and no
     /// permanent distinct from `source`. What a mana ability's resolution uses.
     ///
     /// The two CR 615.5 numbers are one optional thing wearing two `Option`s;

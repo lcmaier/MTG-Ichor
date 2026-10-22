@@ -609,9 +609,8 @@ mod tests {
 
         plan_and_pay(&mut game, &[Cost::PayLife(3)], 0, forest_id, &test_ctx()).unwrap();
 
-        // CR 119.4: "the player loses that much life". Paying life used to be a
-        // silent subtraction — no event at all — so nothing watching life loss
-        // could see it. Bloodletter of Aclazotz doubles paid life precisely
+        // CR 119.4: "the player loses that much life", so paying life is a
+        // proposed loss. Bloodletter of Aclazotz doubles paid life precisely
         // because it *is* a loss, and it can only do that if this is proposed.
         let changes: Vec<(i64, i64)> = game.recorded_events().records_from(before).iter()
             .filter_map(|r| match &r.event {
@@ -629,7 +628,7 @@ mod tests {
         assert!(plan_and_pay(&mut game, &[Cost::PayLife(21)], 0, forest_id, &test_ctx()).is_err());
     }
 
-    // --- Cost::UntapSelf ({Q}) summoning sickness tests (T10 / E13) ---
+    // --- Cost::UntapSelf ({Q}) and summoning sickness ---
 
     fn setup_creature_on_turn(turn: u32, keywords: Vec<crate::types::keywords::KeywordFlag>) -> (GameState, crate::types::ids::ObjectId) {
         let mut game = GameState::new(2, 20);
@@ -712,7 +711,7 @@ mod tests {
         assert!(!game.battlefield.get(&creature_id).unwrap().tapped);
     }
 
-    // --- CR 601.2h payment order, and the CR 732.1 claim it buys (CM-3) ---
+    // --- CR 601.2h payment order, and the CR 732.1 claim it buys ---
 
     /// A creature `player` controls, on the battlefield.
     fn add_creature(game: &mut GameState, player: crate::types::ids::PlayerId, name: &str)
