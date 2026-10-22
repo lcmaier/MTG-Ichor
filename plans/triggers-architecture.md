@@ -4150,12 +4150,13 @@ fixtures. Loop detection is `roadmap-v2.md` B14's (§4.9).
 
 **What moved on the way in.** `TriggerBinding::event()` and
 `AbilityTriggered`'s cause became `Option`s, and `EventSubject::Game` is a
-draw's subject. Destroy now reaches "each" permanent, and a hand's size
-counts at resolution: two resolution gaps the fixtures found.
+draw's subject. Two resolution gaps the fixtures found are fixed: every
+primitive now reaches "each" permanent a filter names, resolved once in
+the walk, and a hand's size counts at resolution.
 
 **Measured** (`fuzz-record.md`, TR-6's block). The engine arm plays
-`main`'s games on both pools at two seats and four, at +0.24% instructions
-per decision. Every dispatch and state check agreed under the audit.
+`main`'s games on both pools at two seats and four, at +0.30% instructions
+per decision after review. Every dispatch and state check agreed under the audit.
 Emperor Crocodile moved `stress` games two turns shorter at two seats and
 one at four, and no game ended differently in kind. Code and tests landed
 at about 980 lines, under the sized 1,305–1,720.

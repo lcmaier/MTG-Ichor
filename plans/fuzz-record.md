@@ -62,8 +62,15 @@ is `9586ac2`.
 | `stress` avg turns, `main` → shipped, 200 games | 26.2 → 24.3 | 50.9 → 49.6 |
 | `performance` avg turns, `main` → shipped, 200 games | 27.3 → 27.4 | 52.1 → 51.8 |
 | instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7644 M → 0.7662 M, **+0.24%** |
+| the same, second sitting, after the review's code | | 0.7643 M → 0.7666 M, **+0.30%** |
 
-**Every prediction held.** The audit asked every state check again over
+**Every prediction held**, the second sitting at the edge of its ±0.3%.
+That sitting ran on the review's code, against a throwaway engine arm
+(`7d098ad`, the review's tree with the Crocodile unregistered) and
+shipped `03a8e8c`. The engine arm was IDENTICAL again on both pools at two
+seats and four, so "each [permanent]" reaching every primitive moved no
+game. The state check after every dispatch, not only the outermost, cost
+0.06 points and moved `Memo hits` alone. The audit asked every state check again over
 every object that may trigger, and agreed throughout. Emperor Crocodile's
 distortion: `stress` games run about two turns shorter at two seats and one
 at four, and no game ends differently in kind. It has no agent choice, so it
@@ -84,7 +91,7 @@ trigger's trace record beside the matcher's (0.70), which is it without a
 record. The compositions are the state check reusing the gate's legs and the
 audit's shape, by design.
 
-**§3 fixture rows, shipped `9586ac2`, two seats, 50 games / seed 12345.**
+**§3 fixture rows, shipped `03a8e8c` (the review's tree), two seats, 50 games / seed 12345.**
 
 | | performance | stress |
 |---|---|---|
@@ -100,7 +107,7 @@ audit's shape, by design.
 | Life changes | 16.1 | 12.9 |
 | **Layer walks** | **367** | **375** |
 | **Board walks** | **206** | **209** |
-| **Memo hits** | **49,031** | **49,163** |
+| **Memo hits** | **49,044** | **49,193** |
 | **Layer frames** | **3,632** | **3,721** |
 | **Frames/walk** | **9.89** | **9.92** |
 | **Dependency checks** | **4** | **17** |

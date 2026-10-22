@@ -9547,21 +9547,3 @@ Number 277 was withdrawn in #260 and is not reused.
      **Sized:** a variant and its condition per designation, inside each
      designation's own build.
      **Slotted:** Phase 9, with the monarch.
-
-296. **Exile, Tap, ReturnToHand and ShuffleIntoLibrary reach no "each"
-     permanent, and say nothing.** Each resolves only the instance of
-     "target" it is handed (`events_for`), so an `EffectRecipient::FilteredPermanents`
-     on one finds an empty slice and does nothing: "exile each creature",
-     "tap all creatures your opponents control", "return all creatures to
-     their owners' hands". `Destroy` had the same gap, which TR-6's Emperor
-     Crocodile fixture found and fixed, as `Untap` and `DealDamage` had
-     already.
-     **Reachability (2026-10-21):** unreachable — 32 registered uses of
-     `FilteredPermanents`, none on these four.
-     **Sized:** ~40 lines: each arm resolves the filter as `Destroy`'s and
-     `Untap`'s do, or the atom refuses the pair as `EachOf` refuses a
-     primitive not built for several players. A fixture each, shown failing
-     first.
-     **Slotted:** with the first registered card that exiles, taps, returns or
-     shuffles each permanent a filter names (Merciless Eviction, Sleep,
-     Evacuation).

@@ -5367,9 +5367,13 @@ Angel. They go with §4.9's record to the loop phase.
   the draw asks nothing, so the bound proposes it through a provider whose
   every answer its validator refuses.
 - **`PendingTrigger::is_state_trigger` is gone**: the def says it.
-- **Two resolution gaps** the fixtures found: Destroy read only an instance of
-  "target", so "destroy each" destroyed nothing and said nothing; and a hand's
-  size had no evaluator at resolution.
+- **Two resolution gaps** the fixtures found. The walk handed every non-target
+  recipient an empty slice, so a primitive that reads only its objects reached
+  nothing for "each": Destroy, Exile, Tap, ReturnToHand and ShuffleIntoLibrary
+  did nothing and said nothing. The walk resolves `FilteredPermanents` once now
+  (at review: the build first fixed Destroy alone and filed the rest as an
+  item, which the owner asked to fix in place). And a hand's size had no
+  evaluator at resolution.
 
 **Size.** About 980 lines of code and tests, against 1,305–1,720 sized: about
 640 of code at under 1.2× the ~570 sized, and 340 of tests across 10, where
@@ -5378,6 +5382,7 @@ had not found. This time the hunt found them, and the armed-off set and its
 writers were never built.
 
 **Measured** (`fuzz-record.md`, TR-6's block): the engine arm IDENTICAL to
-`main` on both pools at two seats and four, +0.24% instructions per decision,
+`main` on both pools at two seats and four, +0.24% instructions per decision
+(+0.30% after review),
 every dispatch and state check agreed under the audit; Emperor Crocodile
 reached in 54% and 44% of forced games.
