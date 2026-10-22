@@ -2599,6 +2599,13 @@ impl GameState {
                     })
                     .sum())
             }
+            // The discards this resolution performed, one record a card (CR
+            // 701.9a), as the damage above is this resolution's own.
+            AmountExpr::DiscardedThisWay => Ok(self
+                .events
+                .resolution_records(_ctx.stamp(), self.resolution_began_at()?)
+                .filter(|record| matches!(record.event, GameEvent::ZoneChange { act: ZoneChangeAct::Discarded, .. }))
+                .count() as u64),
             // CR 615.5's "that much"/"that many". Only a rider sets the field, so
             // outside a `ReplacementDef::then` this leaf asks a question its context
             // cannot answer, and a 0 would be silently wrong.

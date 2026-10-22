@@ -147,6 +147,7 @@ pub(super) fn holds(
         Condition::All(clauses) => clauses
             .iter()
             .all(|c| holds(c, game, board, source, layer_index, locked_you, referents)),
+        Condition::Not(clause) => !holds(clause, game, board, source, layer_index, locked_you, referents),
 
         // "As long as this artifact is untapped" — Trinisphere, Winter Orb,
         // Static Orb. A status (CR 110.5), read off the entity — under a
@@ -401,6 +402,7 @@ fn player_fact_holds(
             }
         }
         PlayerFact::LibraryEmpty => any_named(&|state| state.library.is_empty()),
+        PlayerFact::HandEmpty => any_named(&|state| state.hand.is_empty()),
         // A graveyard card may be a non-member of the pass, in which case its
         // frame is its own CDA walk at this ceiling (CR 604.3).
         PlayerFact::CardInGraveyard(filter) => {
@@ -480,6 +482,35 @@ mod tests {
 
     fn an_opponents(fact: PlayerFact) -> Condition {
         Condition::Player { players: PlayerSet::Opponents, fact }
+    }
+
+    /// Emperor Crocodile's "you control no other creatures": the positive fact
+    /// negated, read for "you" alone, so an opponent's creature leaves it true.
+    #[test]
+    fn a_negated_fact_holds_exactly_when_the_fact_does_not() {
+        use crate::types::effects::ObjectFilter;
+        let mut game = setup_two_player_game();
+        let crocodile = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let other_creature = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::NotSource));
+        let none_other = Condition::Not(Box::new(yours(PlayerFact::ControlsPermanent(other_creature))));
+        put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+        assert!(settled_holds(&none_other, &game, crocodile, None, ConditionReferents::NONE), "only the opponent has another creature");
+        put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        assert!(!settled_holds(&none_other, &game, crocodile, None, ConditionReferents::NONE));
+    }
+
+    /// CR 603.8's example board: "you have no cards in hand", asked of "you".
+    #[test]
+    fn an_empty_hand_is_the_named_players_hand() {
+        let mut game = setup_two_player_game();
+        let source = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        game.players[0].hand.clear();
+        game.players[1].hand.clear();
+        assert!(settled_holds(&yours(PlayerFact::HandEmpty), &game, source, None, ConditionReferents::NONE));
+        let card = game.add_object(crate::objects::object::GameObject::new(creatures::grizzly_bears(), 1, crate::types::zones::Zone::Hand));
+        game.players[1].hand.push(card);
+        assert!(settled_holds(&yours(PlayerFact::HandEmpty), &game, source, None, ConditionReferents::NONE), "the opponent's card is not yours");
+        assert!(!settled_holds(&an_opponents(PlayerFact::HandEmpty), &game, source, None, ConditionReferents::NONE));
     }
 
     #[test]
