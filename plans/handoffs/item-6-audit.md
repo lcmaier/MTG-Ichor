@@ -904,7 +904,10 @@ discovery logs name them, with line ranges, in the workflow's journal.
 **The survivors.** Paths are under `mtgsim/src/`. "The doc says" is the
 doc's own words or a close paraphrase, and the correction is the text as it
 would be rewritten in place. A `CLAUDE.md` correction must not add a line
-(the 200-line budget): each one stays on its line.
+(the 200-line budget): each one stays on its line. Many rows here are a
+stale count or pointer. A correction follows `engineering-practices.md`
+§2d (added in #271): it drops the number, or describes the thing, rather
+than writing today's value in.
 
 **`CLAUDE.md`, and `engine-map.md` §2.7** (6)
 

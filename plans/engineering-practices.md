@@ -376,6 +376,37 @@ keyed by `ObjectRef` for exactly this reason. A collection *derived* from
 another and dropped at once, such as `objects_lki_is_kept_for`, rebuilt for the one
 batch that needs it, is not a second copy, because nothing keeps it.
 
+## 2d. A count in a doc is generated, or it decides something
+
+Added 2026-10-22, at the item 6 audit's discovery (#271). A count or a
+`file:line` pointer written into prose is true the day it is written, and
+the next merge starts to make it false. Nothing checks it, so it rots
+silently. The audit's docs pass found 208 stale claims, and a large share
+of them were counts and pointers of this kind: a doc's length, an enum's
+variant count, a test total, a function's line.
+
+**A count earns its place in a doc in one of two ways:**
+
+1. **A script generates it.** `state-of-play.md`'s counts are regenerated,
+   and `check_state_of_play.py --check` fails when they go stale. A count
+   that belongs on the record goes there, or in a generated block like it.
+2. **It drives a decision or a gate**, and the doc says which. Examples:
+   the board's wrong-today row, `owed`'s count, `CLAUDE.md`'s 200 lines, a
+   PR's place in the 1,500–2,500 band, a sizing that decides one PR or
+   two. If it sizes work, round it ("about 2,700 lines") and date it.
+   Precision past what the decision needs only adds rot.
+
+**Anything else is described, not counted.** Write "every `GameAction`
+variant has an arm", not "the 26 variants". Write "the record carries its
+cause", not "`actions.rs:2141` sets it". Name the function and let a grep
+find it. A dated record that says when it was true ("at TR-2b, 34
+variants") is history, not a claim, and stays as written.
+
+**Where this bites:** an architecture doc's contract sections, a
+`codebase-state.md` item's body outside its `**Sized:**` line, and a
+module doc comment. A work-list or a handoff may carry exact counts,
+because it is consumed and deleted.
+
 ## 3. Two card pools
 
 `cards/registry.rs` builds two:
