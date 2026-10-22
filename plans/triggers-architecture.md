@@ -3435,6 +3435,8 @@ seat count and no shipped game's play. The review round is `IDENTICAL` to the
 first head on every row. The first Commander-scale callgrind reading: 95.96 G
 instructions, −3.97% against `main`.
 
+**Trace page:** no — the audit asks TR-1's reads again with the shortcuts
+off, and changes none.
 → `plans/archive/triggers-architecture-landed.md`, "TR-1b".
 
 ### TR-2a — the histories, the gates, and each player — ✅ landed 2026-09-24
@@ -3471,6 +3473,7 @@ fix moves none. CPU per decision +1.3% at four seats over five rounds (+2.9%
 over three). The four cards ×4 place 6.3 and 13.4 triggers a game, and a
 thousand-game audited smoke on every board agrees on 5.65 million dispatches.
 
+**Trace page:** no, decided at its close (the archive, "TR-2a").
 → `plans/archive/triggers-architecture-landed.md`, "TR-2a" (the plan as
 sized, the split, and why there is no trace page).
 
@@ -3508,6 +3511,7 @@ at an `OrderTriggers` prompt: 26 of one Soul Warden it no longer asks, one of
 two Warchiefs it now does. The shipped arm places 2.2 and 5.0 triggers a game
 on `performance`; Crawler places 0.7 of them at two seats.
 
+**Trace page:** no, decided at its close (the archive, "TR-2b").
 → `plans/archive/triggers-architecture-landed.md`, "TR-2b" (the design as
 reviewed, what landing and the code review changed, and no trace page).
 
@@ -3549,7 +3553,7 @@ four, and the audit agrees on every dispatch. `Candidate visits` fall from
 Instructions per decision: item 222 −1.21% against `main`, the registry
 −0.1% against item 222.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-3a".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-3a". **Trace page:** no — a delayed trigger is matched by TR-1's matcher.
 
 ### TR-3b — the returns and "until", with Flickerwisp and Banishing Light — ✅ landed 2026-10-08
 
@@ -3584,6 +3588,8 @@ gameplay row as `main` does on both pools at two seats and four, and the
 audit agrees on every dispatch. One cost row moved, by the look-back gate's
 narrowing. Instructions per decision +0.04%.
 
+**Trace page:** no — a return is an entry proposal, RC-4b's page, and
+"until" reads a leaving by identity.
 → `plans/archive/triggers-architecture-landed.md`, "TR-3b".
 
 ### TR-3c — the reflexive trigger, item 225 and item 99 — ✅ landed 2026-10-09
@@ -3621,6 +3627,7 @@ the same state-based check, fixed by item 103's frame half and pinned by a
 test. The `stress` games apart are CR 609.7a's widened choice. Every dispatch
 agreed; instructions per decision +0.17%.
 
+**Trace page:** no — a reflexive trigger is TR-3a's, registered at resolution.
 → `plans/archive/triggers-architecture-landed.md`, "TR-3c".
 
 ### TR-4a — the frame's facts and their readers — ✅ landed 2026-10-14
@@ -3659,6 +3666,7 @@ row outside timing as `main` does, cost rows included, on both pools at two
 seats and four, and the audit agrees on every dispatch. Instructions per
 decision +0.17%.
 
+**Trace page:** no — the frame gains facts, read where TR-1's page reads it.
 → `plans/archive/triggers-architecture-landed.md`, "TR-4a".
 
 ### TR-4b — attachment's records — ✅ landed 2026-10-14
@@ -3699,7 +3707,7 @@ audit agrees on every dispatch. Instructions per decision −1.69%: CR
 704.5n/p decided before the batch read frames the check already holds.
 Bramble Elemental pooled at the review, and both tables re-recorded with it.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-4b".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-4b". **Trace page:** no — unattach's routes are records their performers announce.
 
 ### TR-4c — the other two look-back classes and the zone statement — ✅ landed 2026-10-15
 
@@ -3737,6 +3745,7 @@ gameplay row as `main` does, on both pools at two seats and four, and the
 audit agrees on every dispatch. Instructions per decision +0.06% after the
 review (+0.39% before it, when a departing player's graveyard was framed).
 
+**Trace page:** no — a gate leg on the path TR-1's page walks.
 → `plans/archive/triggers-architecture-landed.md`, "TR-4c".
 
 ### TR-4d — control, countering, loss, and the records' missing facts — ✅ landed 2026-10-15
@@ -3777,7 +3786,7 @@ identical on both pools at two seats and four, and the audit agreeing on
 every dispatch; instructions per decision +0.32%. The 1,000-game audited
 smoke: no error, panic or turn-limit game, every dispatch agreed.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-4d".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-4d". **Trace page:** owed — control is announced by a sweep, not a performer (§18).
 
 ### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
 
@@ -3838,7 +3847,7 @@ first differing at a Ray of Command steal in combat (item 267). Every
 dispatch agreed, in the sitting and the 1,000-game smoke. Instructions per
 decision +0.02%.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-5a".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5a". **Trace page:** no — the roles are read where TR-1's page binds.
 
 ### TR-5e — the attack declaration — ✅ landed 2026-10-16
 
@@ -3872,6 +3881,7 @@ every gameplay row identical, both pools, two seats and four, and every
 dispatch agreed. Instructions per decision +0.05%. Hellrider moved `stress`'s
 average turns by +0.7 at two seats and −1.9 at four.
 
+**Trace page:** no — the declaration is one record, matched as any other.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5e".
 
 ### TR-5f — creatures put onto the battlefield attacking, and removal from combat — ✅ landed 2026-10-17
@@ -3912,7 +3922,7 @@ the budget and above the predicted +0.5%: the type half's frame reads after
 each layer-epoch move in a combat (+1.7% layer frames on the budget's
 board), and `GameAction`'s 8 bytes once the entry's attack was boxed.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-5f".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5f". **Trace page:** no — an attacking entry is an entry, RC-4b's page.
 
 ### TR-5b — counters, and one history struct — ✅ landed 2026-10-17
 
@@ -3946,6 +3956,7 @@ tests (code +946, tests +1,157), against 1,630–1,850.
 games on every table. +0.11% instructions per decision. The history commit
 read IDENTICAL and cut the worst clone from 41 to 38 allocations.
 
+**Trace page:** no — counters are records; its history struct is TR-5h's now.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5b".
 
 ### TR-5c — blocks, targeting and activation — ✅ landed 2026-10-18
@@ -3986,7 +3997,7 @@ written in one place and missed in another, both fixed, and eight copies.
 
 **What it leaves.** Items 278–283 (`codebase-state.md`, "Found by TR-5c").
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-5c".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5c". **Trace page:** no — blocks, targets and activations are records.
 
 ### TR-5h — one history of what happened — ✅ landed 2026-10-19
 
@@ -4023,6 +4034,7 @@ each fixed and shown failing first, and one copy.
 **What it leaves.** Items 286 and 287 (`codebase-state.md`, "Found by
 TR-5h"); item 279's other facts, each with its first card.
 
+**Trace page:** owed — every history read became a scan of one log (§18).
 → `plans/archive/triggers-architecture-landed.md`, "TR-5h".
 
 ### TR-5d — prevention and excess damage — ✅ landed 2026-10-19
@@ -4061,6 +4073,7 @@ a turn.
 
 **What it leaves.** Item 288, at A6s. TR-5g followed it.
 
+**Trace page:** no — excess is a fact the batch decides on its record.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5d".
 
 ### TR-5g — the multiplier, tokens and scry — ✅ landed 2026-10-20
@@ -4101,7 +4114,7 @@ finished game now drops waiting triggers (CR 104.1), and reads 50.
 
 **What it leaves.** B10's design is next (the owner), then its build CL-1 (the owner, 2026-10-21), then TR-6.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-5g".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5g". **Trace page:** `tr-5g-a-multiplier-is-read-where-its-trigger-looks.html`.
 
 ### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5g (8,690–10,010)
 
@@ -4166,6 +4179,8 @@ at about 980 lines, under the sized 1,305–1,720.
 
 **What it leaves.** TR-7, the persist loop.
 
+**Trace page:** no — a state trigger is TR-1's matcher at §4.5's three
+schedules.
 → `plans/archive/triggers-architecture-landed.md`, "TR-6".
 
 ### TR-7 — the persist loop, the track's capstone — ✅ landed 2026-10-22
@@ -4201,6 +4216,7 @@ lines, inside the sized 975–1,300.
 **What it leaves.** Item 6's close audit, A6e, then A6h and A6f
 (`roadmap-v2.md`).
 
+**Trace page:** no — the loop's cards read what TR-4 to TR-6 built.
 → `plans/archive/triggers-architecture-landed.md`, "TR-7".
 
 ### Re-counted 2026-09-24 — the splits, and why the plan keeps missing
@@ -4612,3 +4628,107 @@ Recorded here at authoring; a finding that becomes a code item moves to
 - `plans/references/trigger-survey.py` was deleted at TR-6's close
   (2026-10-21). The survey's document stays as a record, which live
   documents cite.
+
+---
+
+## 18. The track in hindsight — written 2026-10-22, at the item 6 audit
+
+Pointers, not prose. §15 holds the findings, the archive
+(`plans/archive/triggers-architecture-landed.md`) every phase body, and
+`fuzz-record.md` every number; this is the index a reader wants before any
+of those, written once at the close and not maintained (the item 6 audit's
+decision 5, `plans/handoffs/item-6-audit.md` §6).
+
+### What it was
+
+- **PRs #171–#269, 2026-09-18 → 2026-10-22.** The survey and this design
+  (#171, #172); TR-1 (#173, its review in #174–#178), TR-1b (#179), TR-2a
+  (#186), TR-2b (#193), TR-3a (#232), TR-3b (#234), TR-3c (#239), TR-4a–d
+  (#251–#254), TR-5a, TR-5e, TR-5f and TR-5b (#255–#258), TR-5c (#261),
+  TR-5h (#262), TR-5d (#263), TR-5g (#264), TR-6 (#268), TR-7 (#269). Between
+  them, on the same branches: the rulings pass and the cast facts (#180,
+  #181), the LKI rename (#241), RH's design (#242), the records' contract
+  (#246) and the fixes before TR-4 (#248).
+- **The shape that held from TR-1.** A batch's performed records are
+  matched at its close against the settled board, each look-back class
+  reading a frame the batch kept (§4.1, §4.3, question 8), and placement
+  drains a queue that lives on `GameState` (§5.2). Every later arm, record
+  and reader joined that path; TR-7's loop needed no engine code.
+- **Cards**: `cards-unlocked-ledger.md`'s TR rows; 215 registered and 124
+  pooled at TR-7's close.
+- **Cost**: `fuzz-record.md`, a block per phase; TR-7's is the last reading.
+  The placement's own cost was #265's fix.
+
+### The window around it
+
+The track's own size matched replacement's; the detours did not. Its 34 PRs
+added about 71,000 lines in 34 days, against replacement's 28 and about
+70,000 in 21. The window #171–#269 held 96 merged PRs and about 164,000
+lines: eleven prerequisites the trigger plan required (bounded state, CV-2a,
+RG, CV-2b, CV-1b, RH, MA-2, B10, CL-1), six fixes to older subsystems the
+trigger work exposed, the mana track's first phase, the dev GUI and the
+audits (`plans/handoffs/item-6-audit.md` §1 tables them). Five contracts
+other docs state moved in pieces on the way: RH, CV-1b, RG, LL with A6m,
+and MA-1 with MA-2.
+
+### What the building changed, against the design
+
+- **Six phases became seven and twenty-one build PRs.** The re-counts of
+  2026-09-24 and 2026-10-12 (§12) found tests running about twice their
+  estimate and each phase's cards needing facilities its row never listed;
+  the card-by-card gap hunt became a sizing step (`engineering-practices.md`
+  §4).
+- **The history was reshaped in TR-2a, TR-5b and TR-5h** before it was one
+  log kept the whole game (§3.10); one census of every reader before a
+  shared store is reshaped is the rule that came of it.
+- **RH landed mid-track** because TR-4's look-back needed the record to say
+  what moved, how and why (`replacement-architecture.md` §2b, #242–#245),
+  and **CV-1b** before TR-3's returns made new objects (CR 400.7).
+- **Control is derived, not performed**: a sweep announces it (TR-4d,
+  `engine/triggers/control.rs`), and its kept frames had one hole until the
+  close-out (§15.4).
+- **A prompt keeps what it decides on `GameState`** (§5.6, A6k's review);
+  three older prompts are `codebase-state.md` item 233's, and TR-5f's
+  defender prompt is item 40's.
+- **The dispatcher is audited with its shortcuts off** (TR-1b, §4.10), and
+  every later phase measured under it.
+
+### What was learned about the process
+
+- **Size against the tree, card by card.** §12's "Why the plan keeps
+  missing" is the paragraph to reread.
+- **A long item gets a midpoint audit** (A6k, `engineering-practices.md` §9),
+  and a model pass beside the script: A6l's found 11 copies
+  `similar_functions.py` did not.
+- **Discovery fans out; fixing stays sequential**
+  (`plans/handoffs/item-6-audit.md` §2). Refuters cut 37 changed verdicts to
+  15, and all four side findings they raised were real when reproduced: one
+  bug (§15.4), an item (298), a prompt item 40 now holds, and a dead seed
+  (item 264).
+- **A dated verdict is re-dated by reproducing it.** The four wrong-today
+  items matched their discovery counts exactly when run again; item 264's
+  seed had died with the pool changes, and a scenario stands in.
+- **Trace pages**: TR-1's and TR-5g's; TR-4d's and TR-5h's were decided
+  owed at the close. Each phase heading in §12 records its decision.
+- **The `owed` gate was armed at TR-6's close** and read clean through the
+  close-out; three atoms §13 deferred to owners that never named them went
+  to A6s, which does.
+
+### What stays open, and where each waits
+
+- §15: 9 (CV-7), 10 (`backlog.md` §2.9, B4), 11 (CP-2), 12 (§2.2, B7) and
+  13 (items 40 and 233); 5 is `backlog.md` §2.49 and 15 is item 299.
+- §16, each bullet with its owner; "unless [a player] pays" has none until
+  A6s.
+- §13: 37 atoms deferred, each with its owner; `owed` clean.
+- `codebase-state.md`'s wrong-today items: 59 (B7), 204 and 207 (beside
+  C0), 211 (MA-6) and 297 (A6e).
+- The two owed trace pages, TR-4d's and TR-5h's.
+
+### What comes next inherits
+
+A6s decides "unless [a player] pays", CR 607's linked abilities, modal
+triggers and the AI harness's type decisions before anything is built
+around them; A6f designs the information model, which §16's per-viewer
+visibility waits on. Items 40 and 233 are the debt a fork-based harness
+inherits.
