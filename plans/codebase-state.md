@@ -7819,8 +7819,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      is TR-1b's audit, and its ordering elision `triggers-architecture.md`
      §5.2. The forced choices and the fast-path gates outside the loops stay
      owed.
-     **Slotted:** A6h, the docs audit, which inventories the forced-choice and
-     fast-path elisions left, each with its premise and what holds it.
+     **Built, not only written (the owner, 2026-10-22, at #274's merge):**
+     beside the inventory, an engine record at each elision stating its
+     reason, kept in a game's log at the level of a land tapped for mana: in
+     the log, and not drawn in the dev GUI's.
+     **Slotted:** A6h, the docs audit's fourth PR
+     (`plans/handoffs/item-6-audit.md`, pass 5), which inventories the
+     forced-choice and fast-path elisions left, each with its premise and
+     what holds it, and writes the record.
 
 ### Found by CV-2a's review (2026-09-28)
 
@@ -7904,8 +7910,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      blocker's half of `can_block`.
 
      **Sized:** the candidates are unsized until each is confirmed.
-     **Slotted:** `roadmap-v2.md` A6h, the end-of-phase docs audit, beside item
-     185's inventory of elisions, which is the same kind of list.
+     **Slotted:** `roadmap-v2.md` A6s, the route review after triggers, which
+     places it among the rows before Phase 8's card breadth (the owner,
+     2026-10-22, at #274's merge: confirming a candidate is a read and a
+     merge, which is cleanup, so it left A6h's docs audit).
 
 ### Found by building CV-2b (2026-09-29)
 

@@ -137,8 +137,9 @@ sessions are ordinary ones, one PR at a time in the main folder:
 | 2. Close-out | plain | 1 | 2–3 |
 | 3. Eviction | plain; a script and a reader for doubtful citations | 2 | 1 |
 | 4. Hygiene and CI | plain | 3's sweep | 1–2 |
-| 5. The docs audit's fixes | plain | 5 | 2–4 |
+| 5. The docs audit's fixes | plain, a session per PR | 5 | 4 (pass 5, re-cut at #274's merge) |
 | 5b. The card-homed triage | plain; a single verifier at most | the triage (§4) | 1, docs |
+| 5c. The plans rename | plain; the design reviewed first | pass 5c | 1 design, then sweeps at the band |
 | 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 3–6, and 1–2 for the builds |
 | 7. Readiness | plain; measurement | 4 | 2 |
 | 8. Scheduling | plain | 6 | 1 |
@@ -173,8 +174,9 @@ As §9 and the post-RE audit set it:
 ## 4. The passes
 
 Order: the close-out gates the rest; the eviction opens second; hygiene and
-the docs audit commute; the card-homed triage follows hygiene's sweep;
-A6e's cleanup follows hygiene's model pass and the triage, and takes the
+the docs audit commute; the card-homed triage follows hygiene's sweep; the
+plans rename follows the docs audit and the triage; A6e's cleanup follows
+hygiene's model pass, the triage and the rename, and takes the
 triage's builds; readiness reads the tree the cleanup leaves; scheduling is
 last.
 
@@ -846,6 +848,23 @@ each sized.
 where it stands (A6h's row), with items 185 (the inventory of elisions)
 and 188 (two roads to one state). Two to four PRs.
 
+**Re-cut at #274's merge (the owner, 2026-10-22).** Four PRs, a session
+each: (1) the contracts — `CLAUDE.md`, `engine-map.md`, and every row the
+contract-change readers found, with `engine-map.md` §1.2's unread steps;
+(2) layers, replacement, cant-effects, copy and cost, with their contested
+rows and unread sections; (3) triggers, setup, permission, mana and clone,
+the registers (`codebase-state.md`, `backlog.md`, `roadmap-v2.md`,
+`engineering-practices.md`, the glossary, the censuses) and the source doc
+comments, with pass 3's six claims for this pass; (4) item 185 and the two
+trace pages, split in two if it passes the band. **Item 185 is built, not
+only written:** the inventory, each elision with its claim, its premise as a
+property and what holds it, and **an engine record at each elision stating
+its reason**, kept in a game's log at the level of a land tapped for mana —
+in the log, and not drawn in the dev GUI's (the owner's words). **Item 188
+left this pass** for A6s, the route review, which places it among the rows
+before Phase 8's card breadth: confirming a candidate is a read of the code
+and then a merge, which is cleanup work, not a doc fix.
+
 **Discovery workflow: the docs against the tree.** One reader per
 architecture doc for its stated contract — types, invariants, decisions a
 later phase reads — checked against the code; one reader per contract change
@@ -1275,6 +1294,48 @@ a dated record. Two were `CLAUDE.md` lines.
 
 The journal keeps every text.
 
+### Pass 5c — the plans rename
+
+**Added by the owner at #274's merge (2026-10-22):** the plans' naming
+scheme, before the audit ends, since the road to card breadth only adds to
+it. Today a reader meets twenty phase-code families (`TR-5h`, `CV-1b`,
+`RS-3a`, `CM-4`, `SU-8`, `MA-2`, `RH-3`, …), 37 A-rows and 15 B-rows in
+`roadmap-v2.md`, the archived plan's `T##`, `L##` and `D##`, and item numbers
+in five runs that share 1–65 ("main item 46", "'Before card breadth' item
+3"), beside the critical path's own numbers and each architecture doc's
+§11-style findings.
+
+**Counted on `ac23c8aa`** (`git grep`, live docs being `plans/` and
+`CLAUDE.md` and `README.md` with `plans/archive/` and the corpus out): about
+2,400 "item N" citations in the live docs and 474 comment lines in
+`mtgsim/src` and `mtgsim/tests`, and about 6,700 phase-code mentions, `TR-`
+alone 1,152.
+
+**What makes it a design first, then sweeps:**
+- **A citation is a reading, not a substitution** (`codebase-state.md`,
+  "Not done 2026-09-14"): a bare "item 6" has several meanings, and a `sed`
+  that guesses wrong points confidently at the wrong item. So each sweep
+  carries a human-checked table.
+- **The gates parse the codes.** `check_state_of_play.py` reads item
+  numbers and route tokens (`ITEM_RE`, `ROUTE_TOKEN_RE`) and the ✅
+  headings, `specdb.py` knows phases by name, and `check_engine_map.py`
+  and `check_glossary.py` resolve names. A scheme changes them in the same
+  PR as the docs they read.
+- **Landed codes live where nothing can be rewritten:** commit messages,
+  PR titles and bodies, and `plans/archive/`. The design says what a landed
+  code becomes (kept, or kept beside a mapping table), so `git log --grep`
+  still finds a phase.
+- **Source comments are not renamed.** By the comment rule
+  (`engineering-practices.md` §2) a source comment says the rule, not a
+  plans number, so the 474 lines are rewritten to the rule, by reading.
+  That is the naming sweep A6e's cleanup already owns, and the design says
+  which of the two takes it.
+
+**Order:** after pass 5's PRs and the card-homed triage, which edit the
+same lines, and before A6e's cleanup, so the cleanup and pass 6's
+scheduling table are written in the new names. One design PR, reviewed
+before anything is swept; then sweeps split at the band by doc family.
+
 ### Pass 6 — scheduling
 
 **Goal:** one table, §9's shape: each open track phase and lattice entry,
@@ -1346,5 +1407,6 @@ changed.
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | #274 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup is next |
 | The card-homed triage (1, then its builds in the cleanup) | | added at #272's review |
 | 4. Readiness (2) | | |
-| 5. Docs audit, A6h (2–4) | | |
+| 5. Docs audit, A6h (4) | | re-cut at #274's merge; item 188 to A6s |
+| 5c. The plans rename (1 design, then sweeps) | | added at #274's merge |
 | 6. Scheduling (1) | | |
