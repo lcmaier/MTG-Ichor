@@ -4206,9 +4206,10 @@ What one loop exercises:
   one check.
 - **The ordering** of persist and Blood Artist's trigger at each death (CR
   603.3b), with item 163's ordering decorator.
-- **An optional loop** its player must be able to stop, and a fuzz agent that
-  does. CR 731.4's draw is for a loop of mandatory actions only, and loop
-  detection is `roadmap-v2.md` B14's since TR-6's review (§4.9).
+- **An optional loop** its player must be able to stop, which the fuzz agent
+  never starts (decision 7 below). CR 731.4's draw is for a loop of
+  mandatory actions only, and loop detection is `roadmap-v2.md` B14's since
+  TR-6's review (§4.9).
 
 Persist itself is undying's mirror, built beside it in TR-4a (Kitchen Finks'
 rulings are its tests). Mikaeus, the Unhallowed's undying lord was the first
@@ -4252,9 +4253,10 @@ measurement:
 |---|---|
 | the three cards in `cards/phase_tr7_cards.rs`, each with its rulings in its doc comment; three registry lines and the pool's | ~190 |
 | `ui::AutoOrderTriggers` (decision 4), its module doc and its wiring | ~60 |
-| **code**, ~250 as sized, at 1.5–2× | **375–500** |
-| tests, about 20, listed below | **600–800** |
-| **code and tests** | **975–1,300** |
+| the random agent's rule (decision 7), in `ui/random.rs` | ~25 |
+| **code**, ~275 as sized, at 1.5–2× | **410–550** |
+| tests, about 21, listed below | **640–840** |
+| **code and tests** | **1,050–1,390** |
 | docs: this section; the close-out — the stub and the archive, the record block, item 163's last half, the A6d row, the ledger | ~600 |
 
 Under the band's floor, as TR-6 landed (about 980); the 2026-09-24 count was
@@ -4295,7 +4297,7 @@ items that could be (291, 292, 296).
 5. **Stopping the loop is its player's choice, and nothing is built for it.**
    Each turn of the loop is the Seer's activation, an action at priority. CR
    731.2's shortcut and loop detection are B14's (`backlog.md` §2.28). The
-   fuzz agent stops when it passes or sacrifices something else. The test
+   fuzz agent never starts it (decision 7). The test
    casts the four from hand with exact mana under `ManaWindowStop`,
    activates the Seer three times and passes, and its numbers come from
    those choices, not from a count: three drains, and the Scarecrow back
@@ -4306,21 +4308,37 @@ items that could be (291, 292, 296).
    one: ATOM-702.93a-001 on Strangleroot Geist's test, and COMP-9A-001 (CR
    704.5q beside lethal toughness, undying read off the frame before the
    batch) on the both-kinds test.
-7. **Pooling.** Grumgully and the Scarecrow ask the agent nothing, so both are
+7. **The random agent never activates an ability it could repeat without
+   bound** (the owner, 2026-10-22, at #269's review). A cost with {T}, {Q}
+   or mana is bounded each turn. One paid only in sacrifices, life,
+   discards, counters or nothing is not, and a uniform pick among priority
+   actions takes it at nearly every priority, so Viscera Seer would
+   sacrifice its controller's creatures until the board is bare.
+   `RandomDecisionProvider` drops those activations from a priority prompt's
+   options before its shuffle, as it drops rejected actions, and reads the
+   effective ability, so a granted one counts. Of the 18 activated abilities
+   on registered cards (a census, 2026-10-22), 12 do not tap and 10 of those
+   cost mana. The two that cost neither are Grafted Wargear's Equip {0},
+   whose re-equip sacrifices the creature it leaves, and Yawgmoth's
+   Bargain's "Pay 1 life: Draw a card"; the registry keeps both out of the
+   pool for this very misuse. Viscera Seer's is the third. People and tests
+   still activate all three, and the loop's activation is the tests'.
+   **Question 2:** a mana cost counts as bounded, so the 10 stay the agent's,
+   three of them pooled (Bonesplitter's equip, Elvish Warmaster's pump,
+   Simic Ascendancy's counter).
+
+   **Pooling.** Grumgully and the Scarecrow ask the agent nothing, so both are
    pooled and their distortion reported, as Hellrider was. The Scarecrow
    carries the phase's new path, a granted triggered ability asked off a
-   departed frame, which §3 has a phase add to the pool. Viscera Seer offers
-   an activation at every priority, and a random agent sacrifices its own
-   creatures with it, so it is measured on `stress` before pooling, forced
-   and unforced, on average turns and creatures died. **Question 2:** pool it
-   if it moves games no more than Emperor Crocodile did (two turns) and
-   register it unpooled otherwise, as Final Fortune is; or decide on the
-   number at the close-out.
+   departed frame, which §3 has a phase add to the pool. Viscera Seer is
+   registered and not pooled: to the agent it is a 1/1 for {B}, and it walks
+   no path the pool lacks.
 8. **Item 6 is not complete at TR-7.** It is A6d's last PR, and A6e, A6h and
    A6f are still on item 6's line, so the critical path is unchanged; it says
    nothing about progress besides.
 
-**Tests**, about 20, in `tests/phase_tr7_integration_test.rs`:
+**Tests**, about 21, in `tests/phase_tr7_integration_test.rs` and the two
+modules they name:
 - the twelve rulings, Blood Artist's aside (decision 3), and the flying
   clause's block;
 - the loop cast from hand and stopped by choice under `ManaWindowStop`, with
@@ -4335,13 +4353,20 @@ items that could be (291, 292, 296).
   and persist still triggers; the black creature leaving while persist waits
   on the stack, and the Scarecrow still returns (CR 113.7a);
 - `AutoOrderTriggers`' two unit tests: it answers the order and asks the
-  provider beneath it nothing; it passes every other prompt down.
+  provider beneath it nothing; it passes every other prompt down;
+- the agent's rule, in `ui/random.rs`: offered the Seer's activation, a
+  mana-costed one and `Pass`, it never takes the Seer's over many seeds, and
+  takes the mana-costed one.
 
 **Measured at the close-out, predicted now.**
 - The engine arm, a throwaway commit with the decorator and the cards written
-  but unregistered: IDENTICAL to `main` on both pools at two seats and four,
-  since no fuzz seat takes the decorator; instructions per decision within
-  ±0.3%.
+  but unregistered and no agent rule: IDENTICAL to `main` on both pools at
+  two seats and four, since no fuzz seat takes the decorator; instructions
+  per decision within ±0.3%.
+- The agent arm, the engine arm with decision 7's rule: IDENTICAL on
+  `performance`, where no pooled card has such an ability, and differing on
+  `stress` in the games that draw Grafted Wargear or Yawgmoth's Bargain,
+  whose average turns and creatures died are reported.
 - The shipped arm differs on both pools: three registrations move every
   `stress` game, and the pooling every `performance` game.
 - `--require` for each card, and for the four together under `--audit`: the
@@ -4363,7 +4388,7 @@ re-counts. Figures are code plus tests, the band `engineering-practices.md`
 | TR-4 | 2,000–2,460 | 2,640–3,460 | **TR-4a**: the frame, 1,360–1,620. **TR-4b**: the records, 1,430–1,790 |
 | TR-5 | 2,195–2,710 | 3,080–4,350 | **TR-5a**: combat, targeting, ability damage and excess damage, 1,200–2,050. **TR-5b**: counters, prevention, the multiplier, tokens and scry, 1,870–2,380 |
 | TR-6 | 740–1,030 | 935–1,360 | no split |
-| TR-7 | — | 1,020–1,420 | no split; 975–1,300 at its design (2026-10-21) |
+| TR-7 | — | 1,020–1,420 | no split; 1,050–1,390 at its design (2026-10-22) |
 
 Each half keeps the cards that read its facilities, so each half still
 carries a consumer.
