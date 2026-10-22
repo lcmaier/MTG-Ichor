@@ -2958,7 +2958,7 @@ function the tree defines. This is D2b-shaped work: a test written or a
 | 115 | 6 | target legality checking |
 | 506 | 5 | `AttackingInfo` / `BlockingInfo`, combat step structure |
 | 605 | 5 | `activate_mana_ability` and its casting-time window |
-| 400 | 3 | zone guards in `move_object`; ordered zone collections. **400.2 was wrong here — it is §2.9** |
+| 400 | 3 | 400.4a's zone guard at the entry proposal (`entry_proposal`, tested since the item 6 audit's close-out); ordered zone collections. **400.2 was wrong here — it is §2.9** |
 | 119 | 4 | `GameConfig.starting_life`, life gain/loss, life SBA |
 | 106 | 2 | `ManaSymbol::Colored`, colorless distinct from generic |
 | 121 | 2 | draw-from-empty SBA flag |
@@ -3086,7 +3086,7 @@ pass 1's (5 from 38), so "no doc mentions it" turned out to be a weak signal.
 | 703 | 3 | 703.3 TBA ordering and 703.4d draw step implemented; **703.4c untap restrictions is `owed` with a `NEW` ticket** |
 | 112 | 2 | spell controller — implemented |
 | 303 | 2 | Aura SBAs — beside 704.5m, already §3.1 |
-| 304 | 2 | instant zone guard and instant-speed timing — implemented |
+| 304 | 2 | instant zone guard (at the entry proposal since the item 6 audit's close-out) and instant-speed timing — implemented |
 | 402 | 2 | maximum hand size — `perform_cleanup_actions` / `handle_cleanup_discard` (402.3 is §2.9) |
 | 404 | 2 | graveyard ordering and empty start — implemented (404.2 is §2.9) |
 | 201 | 1 | 201.2a is audit §5.2's "an object with several names" near-miss — already recorded, needs Layer 3 |

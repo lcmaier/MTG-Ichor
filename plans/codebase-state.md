@@ -8093,26 +8093,15 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by SU-1, the scenario loader (2026-10-01)
 
-197. **Nothing on the entry path checks CR 304.4 and 307.4: "instants can't
+197. **~~Nothing on the entry path checks CR 304.4 and 307.4: "instants can't
      enter the battlefield", and sorceries likewise, "it remains in its
-     previous zone instead".** `place_on_battlefield` makes a permanent of
-     whatever it is handed. The scenario loader is the first to refuse one
-     (`Scenario::build`, `// PRE-LAYER ZONE:`), at construction rather than
-     in play.
-
-     **Reachability (2026-10-01):** unreachable — no registered effect puts a
-     card onto the battlefield without casting it (`Primitive::ReturnToBattlefield`
-     is a stub that errors), every registered zone-change redirect goes to exile
-     or a library, and a resolving spell enters only when `has_permanent_type`
-     says it is a permanent spell.
-
-     **Sized:** ~15–25 lines: the check where an entry is proposed, as a rule
-     ahead of the pipeline (CR 304.4's "remains in its previous zone" is no
-     replacement effect), and a fixture test that returns an instant.
-     **Slotted:** with the first registered card that puts a card onto the
-     battlefield without casting it, whose PR builds `Primitive::ReturnToBattlefield`
-     (`resolve.rs` files it under `backlog.md` §2.5): Phase 8's breadth,
-     `roadmap-v2.md` §C.
+     previous zone instead".~~ — ✅ CLOSED 2026-10-22 (PR #272, the item 6
+     audit's close-out).** — archived.
+     `entry_proposal`, where every road onto the battlefield is proposed,
+     refuses an instant or a sorcery, so the card stays where it was and a
+     token copy of one is never created (CR 111.5).
+     **Reachability (2026-10-22):** closed — PR #272.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 197".
 
 198. **~~A creature's deathtouch damage outlives the state-based-action check
      that read it.~~ — ✅ CLOSED 2026-10-01 (SU-2's PR).** — archived. Each

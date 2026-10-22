@@ -2744,7 +2744,8 @@ the save, `SU-*`).
    Whether a registered card can put a non-permanent card there
    (`ReturnToBattlefield` is the primitive to read) is checked in the build and
    filed as an item with its reachability and slot. **Answered by SU-1:** none
-   can, and the check is `codebase-state.md` item 197.
+   could then, and the check was `codebase-state.md` item 197, which the item 6
+   audit's close-out built at the entry proposal (2026-10-22).
 4. **`shuffle_library` cites CR 701.20 for shuffling.** In `tmnt.txt` 701.20 is
    Reveal and Shuffle is 701.24. A one-word fix that rides with the build.
    **Fixed in SU-1.**

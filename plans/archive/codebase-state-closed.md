@@ -7606,3 +7606,42 @@ B13.
      TR-7, whose persist loop asks an order at every death. CR 732.1's
      reversal prompt with its policy (row 9) goes to B13, the Ironworks loop,
      since it lives inside item 162's solver decorator, which lands beside B9.
+
+### Item 197 — closed 2026-10-22 by PR #272 (the item 6 audit's close-out)
+
+Closed by the item 6 audit's close-out. Discovery found the item's slot met
+and its check missing: TR-3b built the return (`7030a47c`, #234), and
+Flickerwisp, Banishing Light and Strangleroot Geist put cards onto the
+battlefield uncast, each a permanent card. The check went where every road
+meets, `entry_proposal` (`engine/actions.rs`), beside its CR 800.4b refusal:
+the effective types, through `get_effective_types`, and an instant or a
+sorcery is refused. Its three callers already read `None` as "remains where
+it was": a single entry is not performed, an until return skips the card,
+and a token creation removes the object it made, which is CR 111.5's "no
+token is created" for a token copy of one. The test failed first: a fixture
+that returns every card discarded put an instant onto the battlefield
+(`tests/phase_tr3b_integration_test.rs`, which covers ATOM-304.4-001,
+ATOM-307.4-001 and ATOM-400.4a-001).
+
+*Original entry:*
+
+197. **Nothing on the entry path checks CR 304.4 and 307.4: "instants can't
+     enter the battlefield", and sorceries likewise, "it remains in its
+     previous zone instead".** `place_on_battlefield` makes a permanent of
+     whatever it is handed. The scenario loader is the first to refuse one
+     (`Scenario::build`, `// PRE-LAYER ZONE:`), at construction rather than
+     in play.
+
+     **Reachability (2026-10-01):** unreachable — no registered effect puts a
+     card onto the battlefield without casting it (`Primitive::ReturnToBattlefield`
+     is a stub that errors), every registered zone-change redirect goes to exile
+     or a library, and a resolving spell enters only when `has_permanent_type`
+     says it is a permanent spell.
+
+     **Sized:** ~15–25 lines: the check where an entry is proposed, as a rule
+     ahead of the pipeline (CR 304.4's "remains in its previous zone" is no
+     replacement effect), and a fixture test that returns an instant.
+     **Slotted:** with the first registered card that puts a card onto the
+     battlefield without casting it, whose PR builds `Primitive::ReturnToBattlefield`
+     (`resolve.rs` files it under `backlog.md` §2.5): Phase 8's breadth,
+     `roadmap-v2.md` §C.

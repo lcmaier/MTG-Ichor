@@ -430,13 +430,13 @@ pub fn root_maze() -> Arc<CardData> {
 ///
 /// # Reachability — why Dryad Arbor is registered beside it
 ///
-/// No registered effect puts a creature card onto the battlefield without
-/// casting it (`Primitive::ReturnToBattlefield` is a stub), and the card
-/// excludes tokens. The one road a fuzz game has is a land drop, and a Land
-/// Creature played as a land "wasn't cast": Containment Priest's ruling on
-/// Dryad Arbor is exile. Both are in the stress pool and neither is in
-/// `PERFORMANCE_POOL` — the path they open is the *branch*, not a cost, and
-/// Keldon Warlord is RC-4's deliberate addition there.
+/// Flickerwisp, Banishing Light, undying and persist put creature cards onto
+/// the battlefield without casting them, and the card excludes tokens. A land
+/// drop is the other road: a Land Creature played as a land "wasn't cast", and
+/// Containment Priest's ruling on Dryad Arbor is exile. Both are in the
+/// stress pool and neither is in `PERFORMANCE_POOL` — the path they open is
+/// the *branch*, not a cost, and Keldon Warlord is RC-4's deliberate addition
+/// there.
 pub fn containment_priest() -> Arc<CardData> {
     CardDataBuilder::new("Containment Priest")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
