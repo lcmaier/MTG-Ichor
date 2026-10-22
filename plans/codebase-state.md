@@ -9547,3 +9547,42 @@ Number 277 was withdrawn in #260 and is not reused.
      **Sized:** a variant and its condition per designation, inside each
      designation's own build.
      **Slotted:** Phase 9, with the monarch.
+
+296. **`Condition` holds both CR 113.6b/c's zone statements and game
+     predicates, so `Not(SourceInZone(Z))` silently states no zone.** A static
+     ability's "as long as this card is in your graveyard" and a triggered
+     ability's "if this card is in your graveyard" are `SourceInZone` leaves,
+     and `stated_zones` (`engine/zone_function.rs`) reads one as the
+     ability's zones only at the top of the condition or as a direct clause of
+     a top-level `All`. Anywhere else the same leaf is an ordinary predicate.
+     So "functions everywhere but the battlefield" written as
+     `Not(SourceInZone(BATTLEFIELD))` functions where the card's type puts it
+     by default and reads false there, and nothing refuses it. A statement is
+     a fact about the ability and a predicate a fact about the game; the type
+     holds both, and a doc comment holds the line between them. Found at
+     TR-6's review (the owner, 2026-10-21), where that comment read as
+     confusing.
+     The census of `main` (2026-10-21):
+     - **6 card uses, all in statement positions**: Wonder (a clause of a
+       top-level `All`), Exiled Ancestor, Grist's Insect Clause, Pocket
+       Griffin, the shuffle-from-anywhere helper Darksteel Colossus and Nexus
+       of Fate share, and Bridge from Below's intervening "if", one closure
+       for its two abilities. None is under `Not`, nested, or a predicate.
+     - **16 test constructions**: 14 in-file (condition, zone function,
+       game state, gather) and 2 in `tests/` (RH-3, TR-4c).
+     - **5 readers** that match the leaf by name: the evaluator
+       (`layers/condition.rs`), the layer pass's reads (`layers/board.rs`),
+       the binding's reads (`triggers/binding_reads.rs`),
+       `Condition::reads_entry_state` and `stated_zones`. A sixth,
+       `reads_a_counter_threshold`, walks `All` and `Not` past it under a
+       wildcard.
+     **Reachability (2026-10-21):** unreachable — no card writes
+     `SourceInZone` under `Not` or below a top-level `All`; one zone-function
+     test builds the nested form on purpose, to show it states nothing.
+     **Sized:** ~100 lines: the statement moves to a home of its own beside
+     the condition, which `functioning_zones` and the resolution's CR 603.4
+     re-check both read (Bridge from Below's "gone from the graveyard makes
+     no token"), so `Condition` holds predicates only. The 22 constructions
+     are rewritten, the evaluator's arm moves to the new home, and the other
+     four readers lose theirs.
+     **Slotted:** A6e (`roadmap-v2.md`), beside items 291 and 292.
