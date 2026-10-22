@@ -4166,193 +4166,40 @@ at about 980 lines, under the sized 1,305–1,720.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-6".
 
-### TR-7 — the persist loop, the track's capstone
+### TR-7 — the persist loop, the track's capstone — ✅ landed 2026-10-22
 
-**Re-scoped 2026-10-13 (the owner, at #246's review).** The track ends with a
-loop built only from what TR-4 to TR-6 build. The Krark-Clan Ironworks loop it
-replaces moved to `roadmap-v2.md` B13, a capstone across triggers, mana and
-permission. Its graveyard targets, metalcraft's activation restriction and CR
-732.1's reverse-all belong to later rows, and it exercised little of TR-4 to
-TR-6: no control change, combat, counters or state trigger.
+*Body evicted 2026-10-22 to `plans/archive/triggers-architecture-landed.md`,
+"TR-7", with the plan as designed and what the build changed.*
 
-**The loop.** Four cards, each playable whole by then, their text read on
-Scryfall on 2026-10-21:
-- Grumgully, the Generous, {1}{R}{G}, a legendary Goblin Shaman: "Each other
-  non-Human creature you control enters with an additional +1/+1 counter on
-  it" (three rulings);
-- Wingrattle Scarecrow, {3}, an artifact creature: "This creature has flying
-  as long as you control a blue creature" and "This creature has persist as
-  long as you control a black creature" (seven rulings, Kitchen Finks'
-  seven word for word);
-- Viscera Seer, {B}: "Sacrifice a creature: Scry 1" (two rulings);
-- Blood Artist, {1}{B}, registered: "Whenever this creature or another
-  creature dies, target player loses 1 life and you gain 1 life" (one ruling,
-  in the ledger).
+**What shipped.** Three cards that, with Blood Artist, make the persist
+loop: Grumgully, the Generous, Wingrattle Scarecrow and Viscera Seer, all
+registered and the first two pooled (212 → 215, 122 → 124). Nothing in the
+engine changed for them: the re-count found every facility the loop reads
+already built by TR-4 to TR-6. `ui::AutoOrderTriggers`, item 163's decorator
+half, takes a person's trigger order as offered under full control's toggle,
+in `cli_play` and the dev GUI; a bot's agent orders for itself. The loop is
+tested cast from hand under the dispatch audit, run three times by choice and
+stopped by a pass. The twelve rulings are tests, persist's two atoms are
+claimed, and TR-4a's tests claim the two they always proved.
 
-Sacrifice the Scarecrow. Persist returns it with a -1/-1 counter, and
-Grumgully's +1/+1 counter enters with it. CR 704.5q annihilates the pair, so
-the new object has no counters and persists again. Blood Artist drains on
-every death.
+**What moved on the way in.** At review the random agent kept no rule for an
+activation it can repeat freely, since `stress` drives the engine every way
+it can be driven, so Viscera Seer is registered and not pooled. The
+authoring check that each ability carries its card's text accepts a granted
+keyword the card names (CR 702.1). The seventh ruling is asked on lethal
+damage, the board where the order inside one state-based check decides it.
 
-What one loop exercises:
-- **Persist's intervening "if"** read off the frame at both instants (TR-4a;
-  CR 603.4, 603.10a; the Scarecrow's second ruling).
-- **A conditionally granted triggered ability**, asked of a departed object's
-  frame: persist exists as long as a black creature does (§4.2's leg 2).
-- **Each return is a new object** (CR 400.7; its fifth ruling).
-- **An entry with two counter rows**, announced (item 17), and their
-  annihilation as two removals in the state-based batch (TR-5b). That includes
-  the seventh ruling's board, where the counters arrive and the creature dies in
-  one check.
-- **The ordering** of persist and Blood Artist's trigger at each death (CR
-  603.3b), with item 163's ordering decorator.
-- **An optional loop** its player must be able to stop, and a fuzz agent that
-  does. CR 731.4's draw is for a loop of mandatory actions only, and loop
-  detection is `roadmap-v2.md` B14's since TR-6's review (§4.9).
+**Measured** (`fuzz-record.md`, TR-7's block). The engine arm plays `main`'s
+games on both pools at two seats and four, at −0.28% instructions per
+decision, and every dispatch agreed under the audit, the four loop cards
+forced included. Viscera Seer forced into every `stress` deck lengthens games
+1.5 turns at two seats and 1.8 at four. Code and tests landed at about 1,100
+lines, inside the sized 975–1,300.
 
-Persist itself is undying's mirror, built beside it in TR-4a (Kitchen Finks'
-rulings are its tests). Mikaeus, the Unhallowed's undying lord was the first
-pick. It was set aside because its intimidate is a flag nothing reads until
-RS-3a (`cant-effects-architecture.md`), and a registered card may not carry a
-dead ability (`engineering-practices.md` §3).
+**What it leaves.** Item 6's close audit, A6e, then A6h and A6f
+(`roadmap-v2.md`).
 
-#### Re-counted 2026-10-21, at its design
-
-Card by card against #268's tree. Every clause of the three new cards was
-read against the code, and then run: a throwaway test, not committed, built
-the cards as they will be written and played the loop five times over, the
-Seer's activation beside Blood Artist, the only black creature dying beside
-the Scarecrow, the flying clause, and Grumgully under a Clone of a Human and
-of a non-Human. Every board answered as its rulings say. **The hunt found no
-facility missing**, where every earlier re-count found 3–11: TR-4a built
-persist, TR-5b the two counter rows and CR 704.5q's two removals, CV-2a CR
-616.1c's copy step, RC-4 and RC-5 the entry counter Master Biomancer adds,
-and `Cost::Sacrifice` pays with a chosen creature (`engine/costs.rs`). What
-each clause runs on:
-
-| Clause | Runs on |
-|---|---|
-| Grumgully's counter | an `EnterBattlefield` replacement over "creature you control, not a Human" with `Rewrite::EnterWith`, Master Biomancer's shape. "Other" needs no leaf: the gather sweeps the battlefield, where an entering Grumgully is not (its second ruling) |
-| its third ruling | CR 614.12's look-ahead after CR 616.1c's copy step: a Clone of Thalia gets no counter, a Clone of a non-Human gets one |
-| the Scarecrow's flying | a conditional static over `ThisObject`, Kird Ape's shape, with `GrantKeywordFlag` |
-| its persist | the same, with a Layer 6 `GrantAbility(persist())`. The dispatcher asks it off the departed frame (§4.2's leg 2), so it triggers when the only black creature dies beside it |
-| the Seer | `Cost::Sacrifice(creature, 1)`, whose candidates include the Seer (its first ruling), and `Primitive::Scry` |
-| the return | persist's `ReturnToBattlefield` with its -1/-1 row, Grumgully's +1/+1 row joining it, and the state-based batch removing the pair |
-| the ordering | `OrderTriggers`, asked at each death of persist and Blood Artist's trigger together, which the elision leaves alone (two defs) |
-
-Stopping is not a facility either. TR-6's two counts propose the draw only
-inside one state-based pass (`MANDATORY_LOOP_CHECKS`) or one nest of
-dispatches (`DISPATCH_NESTING_LIMIT`), and every turn of this loop passes
-through priority.
-
-What is left is three cards, item 163's decorator, the tests and the
-measurement:
-
-| Piece | ~additions |
-|---|---|
-| the three cards in `cards/phase_tr7_cards.rs`, each with its rulings in its doc comment; three registry lines and the pool's | ~190 |
-| `ui::AutoOrderTriggers` (decision 4), its module doc and its wiring | ~60 |
-| **code**, ~250 as sized, at 1.5–2× | **375–500** |
-| tests, about 20, listed below | **600–800** |
-| **code and tests** | **975–1,300** |
-| docs: this section; the close-out — the stub and the archive, the record block, item 163's last half, the A6d row, the ledger | ~600 |
-
-Under the band's floor, as TR-6 landed (about 980); the 2026-09-24 count was
-1,020–1,420. Nothing is folded in to fill it: A6e, the next PR, holds the
-items that could be (291, 292, 296).
-
-**Decisions.**
-
-1. **Nothing in the engine changes for the cards.** A gap the build finds that
-   the probe did not is fixed in place while the band holds
-   (`engineering-practices.md` §4) and named in the PR.
-2. **The Scarecrow's flying clause is built and tested**, since a registered
-   card carries no ability that does nothing (`engineering-practices.md` §3).
-   Its test is a block: without a blue creature a creature with neither
-   flying nor reach may block it, and with one it may not (CR 702.9b).
-3. **Each ruling is a test on its own card's board.** Kitchen Finks'
-   fixtures in `phase_tr4a_integration_test` prove printed persist. The
-   Scarecrow's is granted, so each of its seven is asked again with a black
-   creature beside it, and each board reads the grant through the frame. Its
-   third ruling's two instances are its own grant and a fixture's "creatures
-   you control have persist". Grumgully's third needs a Human that enters as
-   a copy, a fixture under an invented name. Blood Artist's one is linked
-   already.
-4. **`AutoOrderTriggers`, item 163's decorator half** (`backlog.md` §2.22
-   row 8). It answers `ChoiceKind::OrderTriggers` with the order the prompt
-   lists and passes every other prompt through. That order is trigger order,
-   which within one event is CR 613.7's timestamp order of the sources; the
-   first goes on the stack lowest (`ask_order_triggers`), so the newest
-   source's trigger resolves first. It sits on a person's seat inside
-   `FullControl`'s decorated stack, so full control is the toggle: off, the
-   order is chosen for them, and on, they are asked. `cli_play` stacks it on
-   both branches, since `--no-auto-pay` drops the payers and this is not one.
-   A bot's seat never takes it: its agent orders, today
-   `RandomDecisionProvider`'s shuffle, so `fuzz_games` is untouched. No other
-   decorator answers the prompt (§2.22's rule 3). The dev GUI's person seat
-   takes it too, one line in `devgui/src/bridge.rs`, since each engine PR's
-   cards are tried there before the dev GUI PR that follows.
-5. **Stopping the loop is its player's choice, and nothing is built for it.**
-   Each turn of the loop is the Seer's activation, an action at priority. CR
-   731.2's shortcut and loop detection are B14's (`backlog.md` §2.28). The
-   fuzz agent stops when it passes or sacrifices something else. The test
-   casts the four from hand with exact mana under `ManaWindowStop`,
-   activates the Seer three times and passes, and its numbers come from
-   those choices, not from a count: three drains, and the Scarecrow back
-   with no counters.
-6. **Atoms.** §13 gives TR-7 none, and its tests claim what they prove:
-   ATOM-702.79a-001 and -002, persist's, Phase 8's and uncovered, on the
-   Scarecrow. TR-4a's tests prove two more and carry no line, so each gains
-   one: ATOM-702.93a-001 on Strangleroot Geist's test, and COMP-9A-001 (CR
-   704.5q beside lethal toughness, undying read off the frame before the
-   batch) on the both-kinds test.
-7. **Pooling, and no rule for the random agent.** Viscera Seer offers its
-   activation at every priority, and a uniform pick takes it often, so the
-   agent sacrifices its own creatures far more than a player would and keeps
-   the board thin. In `stress` that is wanted: the pool exists to drive the
-   engine every way it can be driven, and a heuristic in the agent would cut
-   what it reaches (the owner, 2026-10-22, at #269's review). In
-   `performance`, which stands for a game, it is not. So the Seer is
-   registered and not pooled, as Grafted Wargear (its Equip {0} is free, and
-   moving it sacrifices the creature it leaves) and Yawgmoth's Bargain ("Pay
-   1 life: Draw a card") are for the same misuse, and its
-   distortion on `stress` is measured and reported. Grumgully and the
-   Scarecrow ask the agent nothing, so both are pooled and their distortion
-   reported, as Hellrider was. The Scarecrow carries the phase's new path, a
-   granted triggered ability asked off a departed frame, which §3 has a
-   phase add to the pool.
-8. **Item 6 is not complete at TR-7.** It is A6d's last PR, and A6e, A6h and
-   A6f are still on item 6's line, so the critical path is unchanged; it says
-   nothing about progress besides.
-
-**Tests**, about 20, in `tests/phase_tr7_integration_test.rs` and the
-decorator's module:
-- the twelve rulings, Blood Artist's aside (decision 3), and the flying
-  clause's block;
-- the loop cast from hand and stopped by choice under `ManaWindowStop`, with
-  the dispatch audit on (decision 5);
-- the ordering at each death: with full control off the person is never
-  asked and the stack holds timestamp order, and with it on they are asked
-  each time;
-- the entry's two counter rows announced, and their two removals in one
-  state-based batch (item 17, TR-5b);
-- each return a new object (CR 400.7): a reference to the last one ends;
-- the frame: the Scarecrow and the only black creature destroyed together,
-  and persist still triggers; the black creature leaving while persist waits
-  on the stack, and the Scarecrow still returns (CR 113.7a);
-- `AutoOrderTriggers`' two unit tests: it answers the order and asks the
-  provider beneath it nothing; it passes every other prompt down.
-
-**Measured at the close-out, predicted now.**
-- The engine arm, a throwaway commit with the decorator and the cards written
-  but unregistered: IDENTICAL to `main` on both pools at two seats and four,
-  since no fuzz seat takes the decorator; instructions per decision within
-  ±0.3%.
-- The shipped arm differs on both pools: three registrations move every
-  `stress` game, and the pooling every `performance` game.
-- `--require` for each card, and for the four together under `--audit`: the
-  Seer activated, the loop's games finishing, every dispatch and state check
-  agreeing.
+→ `plans/archive/triggers-architecture-landed.md`, "TR-7".
 
 ### Re-counted 2026-09-24 — the splits, and why the plan keeps missing
 
