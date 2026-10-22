@@ -4464,7 +4464,14 @@ Recorded here at authoring; a finding that becomes a code item moves to
    the trigger's (CR 603.3a), so it never matches. So the sweep keeps a frame
    per permanent while `any_control_changing` is set, and TR-4d prices it.
    TR-4d's re-read (§12) found that this keeps nothing for the first change
-   on a board with no control row; its decision 1 is the fix.
+   on a board with no control row; its decision 1 is the fix. **One hole
+   left, fixed at the item 6 audit's close-out (2026-10-22, #272):** every
+   later row a resolution wrote kept the frames again, so Ray of Command's
+   haste, written after its steal and before any batch announced it,
+   replaced the frame from before the steal with one from after, and the
+   owner's "when you lose control" never matched. A row keeps nothing now
+   while a change waits to be announced; the test is Ray of Command
+   stealing a Khârn-shaped fixture (`phase_tr4d_integration_test`).
 5. **Golgari Brownscale's dredge** does not fit `Rewrite` (re-counted
    2026-10-12): it needs a library-size condition and a CR 616.1 choice among
    dredges as well. So TR-4c's class is a fixture, and the card waits for

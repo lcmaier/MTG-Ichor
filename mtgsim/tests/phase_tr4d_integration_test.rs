@@ -938,6 +938,21 @@ fn ray_of_command_taps_the_creature_another_player_takes() {
     assert!(tapped(&game, bears), "Act of Treason untapped it, and Ray's trigger tapped it after");
 }
 
+/// Ray of Command untaps the creature, steals it and then grants it haste,
+/// and nothing announces the change between the steal and the haste. The
+/// change still looks back to the board before the steal (CR 603.10d), so the
+/// owner is the one who lost control, and draws.
+#[test]
+fn ray_of_command_steals_from_a_player_who_then_lost_control() {
+    let mut game = stocked(2);
+    let betrayer = put_on_battlefield(&mut game, kharn_shaped(), 1);
+    let owners = hand_size(&game, 1);
+
+    ray_at(&mut game, betrayer);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(hand_size(&game, 1), owners + 2, "CR 603.3a, off the frame from before the steal");
+}
+
 // RULING: Ray of Command #2 - "You may target an untapped creature with Ray of Command."
 #[test]
 fn ray_of_command_may_target_an_untapped_creature() {

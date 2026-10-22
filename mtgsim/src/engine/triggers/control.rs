@@ -15,8 +15,9 @@
 //! the comparison walks it anyway. Control moves only when the board does: in
 //! a batch, whose head is a sweep; or in a row a resolution writes, a
 //! static's registration, or an expiry, which keep the frames again just
-//! before they write. Before the first control-changing row there is no
-//! frame to keep, so writing that row keeps them first.
+//! before they write, unless a change is still waiting to be announced.
+//! Before the first control-changing row there is no frame to keep, so
+//! writing that row keeps them first.
 
 use std::sync::Arc;
 
@@ -57,8 +58,18 @@ impl GameState {
         if !sets_controller && !self.continuous_effects.summary().any_control_changing {
             return;
         }
-        for id in self.battlefield_ids_ordered() {
-            let frame = compute_characteristics(self, id);
+        let frames: Vec<(ObjectId, Option<Arc<EffectiveCharacteristics>>)> =
+            self.battlefield_ids_ordered().into_iter().map(|id| (id, compute_characteristics(self, id))).collect();
+        // A change no sweep has announced yet looks back to the frames kept
+        // before it, so a row written after it keeps nothing: Ray of
+        // Command's haste, written after its steal and before any batch.
+        let unannounced = frames.iter().any(|(id, frame)| {
+            frame.as_ref().zip(self.battlefield.get(id)).is_some_and(|(frame, entry)| frame.controller != entry.announced_controller)
+        });
+        if unannounced {
+            return;
+        }
+        for (id, frame) in frames {
             // Write only a permanent whose kept frame changes. A search's
             // fork shares each permanent with the game it was cloned from
             // until it writes to it, and a write copies the permanent then
