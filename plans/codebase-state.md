@@ -7839,8 +7839,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **The loops' elisions, read (A6i, 2026-10-06).** The feedback-loop
      census sets each loop's skipped work beside its guard
      (`plans/references/feedback-loops.md` §2–§5): loop 1's ordering elision
-     is the feeds table above; loop 2's pre-check is exhaustive over filter
-     and condition leaves and not over amounts (item 217); loop 3 skips
+     is the feeds table above; loop 2's pre-check is exhaustive over filter,
+     condition and amount leaves (amounts since item 217 closed); loop 3 skips
      nothing, and reads some results one check early (item 6); loop 4's gate
      is TR-1b's audit, and its ordering elision `triggers-architecture.md`
      §5.2. The forced choices and the fast-path gates outside the loops stay
@@ -8499,28 +8499,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by the feedback-loop census (2026-10-06)
 
-217. **`amount_reads` ends in a wildcard, where `condition_reads` lists
-     every arm.** CR 613.8a(b)'s static pre-check (`engine/layers/board.rs`)
-     reads what each application reads off three tables. `filter_reads` and
-     `condition_reads` match their enums exhaustively, so a new leaf is a
-     compile error until its channels are named, and `amount_reads` closes
-     with `_ => {}`. A new `AmountExpr` leaf that the walk's `evaluate_amount`
-     learns to answer, such as "the greatest power among creatures you
-     control" (`cost-architecture.md` §3.9's leaves), would read no channel:
-     the pre-check would call it independent and the exact test would never
-     run. That is a wrong order, not a wrong value, so a test of the leaf's
-     own answer passes.
-     **Reachability (2026-10-06):** unreachable — every arm the wildcard
-     covers reads nothing (`Fixed`) or is one `evaluate_amount` refuses (`X`,
-     `SourcePower`, `Multiply` and the resolution-time reads), so no layer
-     row carries one.
-     **Sized:** ~10 lines, the wildcard replaced by those arms, listed. Slot:
-     the first PR that gives `evaluate_amount` a new arm. The census's
-     `pt-amount` shape (`plans/references/feedback-loops.md` §6) would be its
-     first printed customer, and none prints as a static yet.
-     **Slotted:** with the first registered card that needs a new
-     `evaluate_amount` leaf (`cost-architecture.md` §3.7's "where X is"
-     leaves), whose PR lists the wildcard's arms.
+217. **~~`amount_reads` ends in a wildcard, where `condition_reads` lists
+     every arm.~~ — ✅ CLOSED 2026-10-22 (PR #272, the item 6 audit's
+     close-out).** — archived.
+     Every `AmountExpr` arm is listed, so a new leaf is a compile error in
+     the CR 613.8a pre-check, and `History` reads its source's "you".
+     **Reachability (2026-10-22):** closed — PR #272.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 217".
 
 ### Found by CV-1b (2026-10-06)
 

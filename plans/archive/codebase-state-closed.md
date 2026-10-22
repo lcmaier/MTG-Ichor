@@ -7645,3 +7645,41 @@ ATOM-307.4-001 and ATOM-400.4a-001).
      battlefield without casting it, whose PR builds `Primitive::ReturnToBattlefield`
      (`resolve.rs` files it under `backlog.md` §2.5): Phase 8's breadth,
      `roadmap-v2.md` §C.
+
+### Item 217 — closed 2026-10-22 by PR #272 (the item 6 audit's close-out)
+
+Closed by the item 6 audit's close-out. Discovery found the verdict's
+reason false: item 280's PR (#262, `c5d89ef8`) gave the layer walk's
+`evaluate_amount` a `History` arm, and `amount_reads`' `_ => {}` swallowed
+it, so a static counting the history read no channel. It stayed
+unreachable, since no registered static carries `AmountExpr::History`. The
+wildcard is gone: `History` reads the source's "you" (CR 109.5), as
+`condition_reads`' history arms do, and every other arm is listed as a
+number or a leaf `evaluate_amount` refuses. The unit test failed first
+(`a_history_amount_reads_the_sources_controller`, `layers/board.rs`): the
+wildcard read nothing.
+
+*Original entry:*
+
+217. **`amount_reads` ends in a wildcard, where `condition_reads` lists
+     every arm.** CR 613.8a(b)'s static pre-check (`engine/layers/board.rs`)
+     reads what each application reads off three tables. `filter_reads` and
+     `condition_reads` match their enums exhaustively, so a new leaf is a
+     compile error until its channels are named, and `amount_reads` closes
+     with `_ => {}`. A new `AmountExpr` leaf that the walk's `evaluate_amount`
+     learns to answer, such as "the greatest power among creatures you
+     control" (`cost-architecture.md` §3.9's leaves), would read no channel:
+     the pre-check would call it independent and the exact test would never
+     run. That is a wrong order, not a wrong value, so a test of the leaf's
+     own answer passes.
+     **Reachability (2026-10-06):** unreachable — every arm the wildcard
+     covers reads nothing (`Fixed`) or is one `evaluate_amount` refuses (`X`,
+     `SourcePower`, `Multiply` and the resolution-time reads), so no layer
+     row carries one.
+     **Sized:** ~10 lines, the wildcard replaced by those arms, listed. Slot:
+     the first PR that gives `evaluate_amount` a new arm. The census's
+     `pt-amount` shape (`plans/references/feedback-loops.md` §6) would be its
+     first printed customer, and none prints as a static yet.
+     **Slotted:** with the first registered card that needs a new
+     `evaluate_amount` leaf (`cost-architecture.md` §3.7's "where X is"
+     leaves), whose PR lists the wildcard's arms.
