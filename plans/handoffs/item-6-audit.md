@@ -28,6 +28,11 @@ pass re-reads what it touches: a number here is a starting point.
   `audit/item-6-close-out` (§9). Its work-list below is done; what each entry
   became is in the PR's body and in the places §3 names. The passes after it
   start from their own work-lists.
+- Pass 2, the eviction, ran in session 3 as one PR, #273, on
+  `audit/item-6-eviction` (§9); its body has the line counts section by
+  section. The board still lists TR-4 and TR-5 as named and not yet landed,
+  since their roll-up headings stayed byte-identical and carry no ✅: the
+  owner's call, put at #273's review.
 
 ## 1. Why this audit is bigger than the last
 
@@ -1331,7 +1336,7 @@ changed.
 | Plan | #270 | merged 2026-10-22 |
 | Discovery (session 1: Workflows A, B and C, pass 2's script) | #271 | the work-lists under passes 1, 2, 3 and 5 |
 | 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
-| 2. Eviction (1) | | |
+| 2. Eviction (1) | #273 | one PR: the whole sections and §4.9's B14 input moved, the 22 amendments collapsed into the text they overruled (−239 lines), 8 outside citations re-pointed; `triggers-architecture.md` 4,736 → 3,853, the archive 5,618 → 7,067 |
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | | |
 | The card-homed triage (1, then its builds in the cleanup) | | added at #272's review |
 | 4. Readiness (2) | | |
