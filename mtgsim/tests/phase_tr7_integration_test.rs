@@ -669,6 +669,13 @@ fn play_the_loop(game: &mut GameState, player: &LoopPlayer, seat: &dyn DecisionP
 /// each return is a new object, and each return's two counters are gone by the
 /// next priority. With full control off, the person is never asked the order
 /// of persist and Blood Artist's trigger.
+///
+/// What it cannot show yet: the engine sees three activations, not a loop.
+/// Nothing here recognizes the repeated state, offers CR 731.2's shortcut
+/// ("do this N times"), or tells this optional loop from a mandatory one (CR
+/// 731.4); the player stops by a count the test gave it. Loop detection is
+/// the half of the capstone still to come, and this board is its first
+/// optional loop.
 #[test]
 fn the_loop_cast_from_hand_runs_three_times_and_stops_by_choice() {
     let mut game = setup_two_player_game();
