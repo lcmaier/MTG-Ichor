@@ -5374,6 +5374,14 @@ Angel. They go with §4.9's record to the loop phase.
   (at review: the build first fixed Destroy alone and filed the rest as an
   item, which the owner asked to fix in place). And a hand's size had no
   evaluator at resolution.
+- **A state trigger's moment, for the why panel** (at review: a state trigger
+  had no "what triggered this"). The state check's trace record names the
+  newest record when the board was asked, `after`. An event's why lists the
+  state triggers that triggered after it, and the ordering's why gives each
+  state trigger's newest answer only, since the board is asked after every
+  event. The `pending` record names its ability, so a placement is found by
+  ability rather than by source. The moment is the trace's alone: the binding
+  and the game state are unchanged.
 
 **Size.** About 980 lines of code and tests, against 1,305–1,720 sized: about
 640 of code at under 1.2× the ~570 sized, and 340 of tests across 10, where

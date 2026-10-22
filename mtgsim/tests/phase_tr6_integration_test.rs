@@ -12,20 +12,23 @@ use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy};
-use mtgsim::events::event::GameEvent;
+use mtgsim::events::event::{EventId, GameEvent};
 use mtgsim::state::game_state::{GameResult, GameState};
+use mtgsim::state::trace::{RecordKind, TraceRecord};
 use mtgsim::test_support::{
-    creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game,
+    creature_with_ability, fill_library, install_trace, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game,
     setup_two_player_game, test_ctx, test_dp,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
-use mtgsim::types::triggers::{TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::Zone;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::ui::why::{why_from_trace, OpenQuestion, Why, WhyAbout};
 
 fn gain_one() -> Effect {
     Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
@@ -292,6 +295,68 @@ fn counter(game: &mut GameState, ability: ObjectId) {
 
 fn zone_of(game: &GameState, id: ObjectId) -> Option<Zone> {
     game.objects.get(&id).map(|object| object.zone)
+}
+
+/// Every line of `answer`'s section headed `heading`, as its text and rule.
+fn why_lines(answer: &Why, heading: &str) -> Vec<(String, Option<&'static str>)> {
+    let section = answer.sections.iter().find(|s| s.heading == heading);
+    let section = section.unwrap_or_else(|| panic!("no section {heading:?} in {answer:#?}"));
+    section.lines.iter().map(|line| (line.text.clone(), line.rule)).collect()
+}
+
+/// The newest performed event whose words contain `words`.
+fn newest_event(records: &[TraceRecord], words: &str) -> EventId {
+    let found = records.iter().rev().find(|r| r.kind == RecordKind::Event && r.str("text").is_some_and(|t| t.contains(words)));
+    EventId(found.and_then(|r| r.u64("index")).unwrap_or_else(|| panic!("no event says {words:?}")) as usize)
+}
+
+/// The why panel, from the trace. A state trigger names no event, so its
+/// record says when the board was asked. On the Crocodile's first-ruling
+/// board, the Bears' destruction shows the Crocodile that triggered after it,
+/// the one place the panel can say why a Crocodile beside a Soldier is
+/// sacrificed; once the ability is on the stack, it says so. At the ordering,
+/// the other Crocodile, beside its own Bears, says what it answered when the
+/// board was last asked, once, though it was asked after every event.
+#[test]
+fn the_why_panel_says_when_the_board_was_asked() {
+    let mut game = audited_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let crocodile = put_on_battlefield(&mut game, emperor_crocodile(), 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let theirs = put_on_battlefield(&mut game, emperor_crocodile(), 1);
+    resolve_all(&mut game, &test_dp());
+    let trace = install_trace(&mut game, "the board, asked");
+    let spell = put_in_hand(&mut game, destroy_your_others_then_a_token(), 0);
+    game.cast_spell(0, spell, &test_dp()).expect("it costs nothing");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(triggered(&game, crocodile), 1);
+    assert_eq!(zone_of(&game, bears), Some(Zone::Graveyard));
+
+    let records = trace.records();
+    let destroyed = newest_event(&records, "Grizzly Bears");
+    let after_it = "State triggers that triggered after it";
+    let said = why_lines(&why_from_trace(&game, WhyAbout::Event(destroyed), None, &records), after_it);
+    assert!(said.contains(&(format!("{}: triggered", named(&game, crocodile)), Some("603.8"))), "{said:#?}");
+    let waits = "It waits to be put on the stack the next time a player would receive priority";
+    assert!(said.contains(&(waits.to_string(), Some("603.3"))), "{said:#?}");
+
+    let context = ChoiceContext::new(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First });
+    let options = [ChoiceOption::Object(crocodile)];
+    let question = OpenQuestion { player: 0, context: &context, options: &options };
+    let said = why_lines(&why_from_trace(&game, WhyAbout::Object(theirs), Some(&question), &records), "At this question");
+    let asked = said.iter().filter(|(text, _)| text.starts_with("Asked of the board after: ")).count();
+    assert_eq!(asked, 1, "its newest answer only: {said:#?}");
+    assert!(said.contains(&(format!("{}: did not trigger", named(&game, theirs)), Some("603.8"))), "{said:#?}");
+    assert!(said.contains(&("Its state was not true of the board".to_string(), Some("603.8"))), "{said:#?}");
+
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    let records = trace.records();
+    let said = why_lines(&why_from_trace(&game, WhyAbout::Event(destroyed), None, &records), after_it);
+    assert!(said.iter().any(|(text, rule)| text.starts_with("Put on the stack as ") && *rule == Some("603.3")), "{said:#?}");
+}
+
+fn named(game: &GameState, id: ObjectId) -> String {
+    mtgsim::ui::display::named(game, id)
 }
 
 // ---------------------------------------------------------------------------

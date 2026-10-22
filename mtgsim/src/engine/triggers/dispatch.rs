@@ -540,7 +540,8 @@ pub(super) struct DelayedMatch {
 /// Why a candidate did not trigger — the `trigger` record's field.
 #[derive(Clone, Copy)]
 pub(super) enum Refusal {
-    /// The condition is a state trigger, which TR-6 checks.
+    /// The condition is a state trigger, which the state check asks of the
+    /// board instead (`triggers::state`, CR 603.8).
     StateTrigger,
     /// CR 603.2f.
     Visibility,

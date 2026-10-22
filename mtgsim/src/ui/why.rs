@@ -44,7 +44,7 @@ use crate::ui::display::{
     cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,
     mana_type_name, named, option_label, player_name, rejection_words, type_line, Declaring,
 };
-use crate::ui::what_happened::{cant_words, trigger_lines, what_happened, WHAT_HAPPENED};
+use crate::ui::what_happened::{cant_words, event_text, trigger_lines, what_happened, WHAT_HAPPENED};
 
 /// What a why is about: an object, a player, or a performed event.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -577,20 +577,47 @@ fn applied_already(game: &GameState, trace: &[TraceRecord], id: ObjectId) -> Vec
 }
 
 /// At CR 603.3b's ordering, from the trace: what `id`'s triggered abilities
-/// answered when asked about the events the queued abilities triggered on.
+/// answered when asked about the events the queued abilities triggered on,
+/// and what its state triggers answered when the board was last asked.
 fn asked_about_these_events(game: &GameState, trace: &[TraceRecord], id: ObjectId) -> Vec<WhyLine> {
     let bound: Vec<u64> =
         game.pending_triggers.iter().flat_map(|t| t.binding.records().map(|r| r.seq.0 as u64)).collect();
-    trace
+    let about_events = trace
         .iter()
         .filter(|r| r.kind == RecordKind::Trigger && r.u64("source") == Some(id.raw()))
         .filter(|r| r.u64("record").is_some_and(|record| bound.contains(&record)))
-        .flat_map(|r| {
-            let event = trace.iter().find(|e| e.kind == RecordKind::Event && e.u64("index") == r.u64("record"));
-            let asked = WhyLine::under(format!("Asked about: {}", event.and_then(|e| e.str("text")).unwrap_or("an event")));
-            std::iter::once(asked).chain(trigger_lines(game, trace, r).into_iter().map(|line| WhyLine { depth: line.depth + 1, ..line }))
+        .map(|r| (format!("Asked about: {}", r.u64("record").and_then(|i| event_text(trace, i)).unwrap_or("an event")), r));
+    let of_the_board = newest_state_answers(trace, id).into_iter().map(|r| {
+        let asked = match r.u64("after") {
+            Some(after) => format!("Asked of the board after: {}", event_text(trace, after).unwrap_or("an event")),
+            None => "Asked of the board before any event".to_string(),
+        };
+        (asked, r)
+    });
+    about_events
+        .chain(of_the_board)
+        .flat_map(|(asked, r)| {
+            let nested = trigger_lines(game, trace, r).into_iter().map(|line| WhyLine { depth: line.depth + 1, ..line });
+            std::iter::once(WhyLine::under(asked)).chain(nested)
         })
         .collect()
+}
+
+/// The last answer each of `id`'s state triggers gave the state check, in
+/// the trace's order: the board is asked after every event (CR 603.8), so
+/// only the newest says why it is or is not waiting now.
+fn newest_state_answers(trace: &[TraceRecord], id: ObjectId) -> Vec<&TraceRecord> {
+    let mut answered: Vec<Option<&str>> = Vec::new();
+    let mut newest: Vec<&TraceRecord> = Vec::new();
+    for r in trace.iter().rev() {
+        let mine = r.kind == RecordKind::Trigger && r.bool("state") == Some(true) && r.u64("source") == Some(id.raw());
+        if mine && !answered.contains(&r.str("ability")) {
+            answered.push(r.str("ability"));
+            newest.push(r);
+        }
+    }
+    newest.reverse();
+    newest
 }
 
 /// At a priority question: a card is played if it is a land and cast if it

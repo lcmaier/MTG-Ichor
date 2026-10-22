@@ -170,7 +170,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 212 |
 | …of them in `PERFORMANCE_POOL` | 122 |
-| `#[test]` functions | 2732 |
+| `#[test]` functions | 2733 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
