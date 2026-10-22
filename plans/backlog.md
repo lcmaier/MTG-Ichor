@@ -2048,8 +2048,9 @@ mechanic rather than a migration, which is why it is here and not in
   mandatory loop), a work stack that removes `DISPATCH_NESTING_LIMIT`, D26's
   seams, and the census of printed mandatory loops by shape that the design
   starts with.
-- **Owner** — the loop phase, decided at TR-6's design review; this entry
-  graduates when its slot on the route is set. Raised at RE-4's review (R21).
+- **Owner** — `roadmap-v2.md` B14, slotted last before Phase 8 at TR-6's design
+  review (the owner, 2026-10-21). This entry graduates to B14's architecture
+  doc when its design lands. Raised at RE-4's review (R21).
 
 ### 2.29 The suppression predicate as a commutation table — ✅ graduated 2026-09-14 (RE-5's review, theme B)
 
