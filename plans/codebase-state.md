@@ -3444,41 +3444,13 @@ half worth recording; two are deferred with a home and a size (`backlog.md`
 §2.24, "Before card breadth" item 11); and one closed item 65 while proving a
 claim in it false, which is item 97.
 
-96. **Two atoms moved in opposite directions, and the pair is the finding.**
-    `specdb` came out unchanged — 118 full, 50 partial — because one atom was
-    promoted and one demoted in the same pass, and the reasoning is the same
-    reasoning read from both ends.
-
-    **`COMP-614-616-DOUBLE-REPLACEMENT-001` was promoted to `COVERS`.** RD-2
-    had marked it partial on the grounds that "Player A chooses order" is a
-    half the engine deliberately does not build (§11 item 29's suppression).
-    The review's objection: *if the choice is provably immaterial, that points
-    at the atom rather than at the coverage*. Correct — and the atom now
-    carries an audit note saying so. CR 616.1e does give the player the
-    choice, and *because* multiplication commutes no rules-legal question
-    distinguishes the two orders: not the damage, not its source, not the
-    event log. An engine that asks and one that does not produce the same
-    game, so a test proving 2 → 4 → 8 with each doubler applying once covers
-    the atom. The clause that stays observable, and that a test here must not
-    drop, is CR 614.5's "each applies once".
-
-    **`BOUNDARY-DEF-615.1a-001` was demoted to `COVERS-PARTIAL`**, found while
-    answering a different question ("isn't that test tautological?" — half of
-    it was). The atom's out-of-set member is a *triggered ability*, and no type
-    in this engine can express one until critical-path item 6, so the test
-    substitutes the two nearest expressible non-members: a doubler, and
-    regeneration. Regeneration is the load-bearing one — a `Prevent` that is
-    **not** a prevention effect, because CR 615.1 is about damage and its
-    pattern is a destruction — and the test is now named for it.
-
-    **Reachability (2026-09-09):** nothing owed; `owed` is still 9 and neither
-    atom is in a shipped phase.
-
-    **Sized:** none. The out-of-set half of the boundary atom lands with
-    item 6.
-    **Slotted:** A6e, item 6's close audit: `BOUNDARY-DEF-615.1a-001`'s
-    out-of-set member is a `TriggerEvent::DamageDealt` ability now, so its
-    partial is promoted there.
+96. **~~Two atoms moved in opposite directions, and the pair is the
+    finding.~~ — ✅ CLOSED 2026-10-22 (PR #272, the item 6 audit's
+    close-out).** — archived.
+    `BOUNDARY-DEF-615.1a-001` is covered whole: its out-of-set member, a
+    trigger on damage dealt, is on a board beside Mending Hands.
+    **Reachability (2026-10-22):** closed — PR #272.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 96".
 
 97. **A stale claim written the same day it was found, and only a reader caught
     it.** — ✅ closed, archived.

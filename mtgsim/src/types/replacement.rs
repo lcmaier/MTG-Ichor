@@ -2205,11 +2205,11 @@ mod tests {
     // `ReplacementKindFilter`. A doubler is the other negative: same pattern,
     // no "prevent" in its text.
     //
-    // COVERS-PARTIAL: BOUNDARY-DEF-615.1a-001 — the atom's out-of-set member is
-    // a *triggered ability* ("whenever damage is dealt … you gain that much
-    // life"), which no type here can express until critical-path item 6; the
-    // two negatives below are the nearest members it can. The in-set member is
-    // built whole.
+    // COVERS-PARTIAL: BOUNDARY-DEF-615.1a-001 — the in-set member whole, and
+    // two non-members nearer the line than the atom's own. That one, a
+    // triggered ability ("whenever damage is dealt … you gain that much
+    // life"), is on a board in `phase_tr5d_integration_test`, which covers
+    // the atom whole.
     #[test]
     fn regeneration_is_a_prevent_that_is_not_a_prevention_effect() {
         let next_three = ReplacementDef::new(
