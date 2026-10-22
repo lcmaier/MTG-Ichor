@@ -86,6 +86,10 @@ pub enum CounterEffectKind {
 pub(crate) enum EventSubject {
     Object(ObjectId),
     Player(PlayerId),
+    /// An event about the game itself, a draw (CR 104.4): no player is
+    /// affected rather than another, so CR 616.1 has no chooser, and no
+    /// effect's affected set names it.
+    Game,
 }
 
 impl From<DamageTarget> for EventSubject {
@@ -142,6 +146,7 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         // CR 616.1's "the affected player": the one who would lose or win.
         GameAction::PlayerLoses { player, .. } => EventSubject::Player(*player),
         GameAction::PlayerWins { player } => EventSubject::Player(*player),
+        GameAction::GameEndsInADraw => EventSubject::Game,
         // CR 106.6a's mana enters a *player's* pool, and CR 616.1's chooser
         // is that player; a spell's production has no permanent to be about.
         GameAction::ProduceMana { player, .. } => EventSubject::Player(*player),
@@ -174,6 +179,7 @@ pub(crate) fn chooser_for(game: &GameState, action: &GameAction) -> Option<Playe
         other => match subject_of(other) {
             EventSubject::Player(pid) => Some(pid),
             EventSubject::Object(id) => controller_or_owner(game, id),
+            EventSubject::Game => None,
         },
     }
 }
@@ -741,6 +747,7 @@ pub(crate) fn set_affects(
         // which is exactly what `controller` is here — the sweep reads it off
         // the board on every gather rather than snapshotting it at ETB.
         EventSubject::Player(pid) => return affected_players.contains(controller, pid),
+        EventSubject::Game => return false,
     };
     match affected {
         ObjectSet::SourceOnly => source == id,

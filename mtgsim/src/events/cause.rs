@@ -226,4 +226,7 @@ pub enum GameRule {
     /// or became a battle, which a continuous effect did by starting or
     /// ending.
     CombatantTypeChanged,
+    /// CR 104.4b: the game entered a loop of mandatory actions with no way to
+    /// stop, and is a draw.
+    MandatoryLoop,
 }

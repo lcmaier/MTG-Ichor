@@ -12,7 +12,7 @@ use crate::oracle::characteristics::{
     get_effective_controller, get_effective_name, get_effective_toughness,
     has_subtype, has_supertype, has_type, is_creature,
 };
-use crate::state::game_state::{GameResult, GameState};
+use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::engine::replacement::{subject_of, EventSubject};
@@ -111,6 +111,7 @@ impl CollapsedResult {
             | GameAction::Scry { .. }
             | GameAction::ShuffleLibrary { .. }
             | GameAction::PlayerWins { .. }
+            | GameAction::GameEndsInADraw
             | GameAction::ProduceMana { .. } => None,
         }
     }
@@ -567,7 +568,10 @@ impl GameState {
             // owned, with ten poison counters) is proposed, replaced and re-proposed
             // at every check. No legitimate chain comes near the limit.
             if checks >= MANDATORY_LOOP_CHECKS && self.result.is_none() {
-                self.end_game(GameResult::Draw);
+                self.execute_actions(
+                    vec![GameAction::GameEndsInADraw],
+                    &ActionContext::game_rule(decisions, GameRule::MandatoryLoop),
+                )?;
                 break;
             }
         }

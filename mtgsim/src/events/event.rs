@@ -306,6 +306,11 @@ pub enum GameEvent {
     /// standing — is not an event: it is the outcome the losses imply, recorded
     /// on `GameState::result` when the batch that performed them settles.
     PlayerWon { player_id: PlayerId },
+    /// CR 104.4 — the game is a draw. Emitted by the
+    /// `GameAction::GameEndsInADraw` performer; a draw CR 104.4a's
+    /// simultaneous losses imply is recorded when their batch settles, as
+    /// CR 104.2a's win is.
+    GameEndedInADraw,
 
     // --- Scry ---
     /// A player scried (CR 701.22a). `n` is the instruction's number and
@@ -663,6 +668,7 @@ impl GameEvent {
             | TurnBegin { .. }
             | PlayerLost { .. }
             | PlayerWon { .. }
+            | GameEndedInADraw
             | Scried { .. }
             | LibraryShuffled { .. }
             | StateBasedActionPerformed => {}

@@ -214,6 +214,32 @@ pub trait DecisionProvider {
     }
 }
 
+/// The provider for an action a rule performs that asks nobody anything: the
+/// draw at the dispatcher's nesting bound (CR 104.4b), proposed from a
+/// dispatch that may have no provider of its own. Nothing reaches it, since no
+/// replacement reads a draw and the game it ends triggers nothing. Every
+/// answer it would give is one its validator refuses, so a prompt that did
+/// reach it stops the game instead of being answered.
+pub(crate) struct AsksNobody;
+
+impl DecisionProvider for AsksNobody {
+    fn pick_n(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, options: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+        vec![options.len()]
+    }
+
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, max: u64) -> u64 {
+        max.saturating_add(1)
+    }
+
+    fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, total: u64, buckets: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
+        vec![total.saturating_add(1); buckets.len().max(1)]
+    }
+
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        vec![items.len()]
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Scripted DecisionProvider for tests
 // ---------------------------------------------------------------------------

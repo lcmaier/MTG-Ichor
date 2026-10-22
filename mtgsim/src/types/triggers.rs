@@ -632,6 +632,7 @@ impl EventKind {
             | GameEvent::AbilityFizzled { .. }
             | GameEvent::DelayedTriggerCreated { .. }
             | GameEvent::PlayerWon { .. }
+            | GameEvent::GameEndedInADraw
             | GameEvent::RemovedFromCombat { .. }
             | GameEvent::SpellFizzled { .. }
             | GameEvent::StateBasedActionPerformed

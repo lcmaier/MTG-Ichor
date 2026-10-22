@@ -34,6 +34,7 @@ use crate::engine::targeting::HeldFrame;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
+use crate::ui::decision::AsksNobody;
 use crate::engine::replacement::EventSubject;
 use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
@@ -56,9 +57,11 @@ use super::binding::TriggeringEventView;
 use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
 
 /// Dispatches nested inside dispatches — a tier-2 trigger's `AbilityTriggered`
-/// dispatched from the dispatch that queued it, and so on. The recursion is
-/// bounded by the abilities present (no printed ability watches its own
-/// kind); a depth past this is the engine's mistake (§4.8).
+/// dispatched from the dispatch that queued it, and so on. No printed ability
+/// watches its own kind, so a chain this deep is taken for one with no end,
+/// each ability triggering on the last one's triggering, and the game is a
+/// draw (CR 104.4b): a count standing in for a proof that the chain cannot end
+/// (`triggers-architecture.md` §4.8, §4.9).
 pub const DISPATCH_NESTING_LIMIT: usize = 16;
 
 /// The ability lists surviving objects had just before a batch was
@@ -641,11 +644,9 @@ impl GameState {
             return Ok(());
         }
         if self.nesting.dispatch_depth >= DISPATCH_NESTING_LIMIT {
-            return Err(format!(
-                "trigger dispatches nested {} deep: an ability's triggering keeps triggering \
-                 another, which no printed ability does",
-                self.nesting.dispatch_depth
-            ));
+            // The draw asks nothing, and the dispatch may have no provider.
+            let rule = ActionContext::game_rule(&AsksNobody, GameRule::MandatoryLoop);
+            return self.execute_actions(vec![GameAction::GameEndsInADraw], &rule).map(|_| ());
         }
         // Every record, before the gate: what happened this turn is read by
         // cards that are not on the battlefield yet (§3.10).

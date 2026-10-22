@@ -237,7 +237,8 @@ fn event_amount(action: &GameAction) -> Option<u64> {
         // A game's end has no amount; Stunning Reversal's "draw seven" is a
         // number printed on the card, not one read off the loss.
         | GameAction::PlayerLoses { .. }
-        | GameAction::PlayerWins { .. } => None,
+        | GameAction::PlayerWins { .. }
+        | GameAction::GameEndsInADraw => None,
     }
 }
 
@@ -1942,7 +1943,7 @@ fn check_exempt_terminates(
 fn subject_object(subject: EventSubject) -> Option<ObjectId> {
     match subject {
         EventSubject::Object(id) => Some(id),
-        EventSubject::Player(_) => None,
+        EventSubject::Player(_) | EventSubject::Game => None,
     }
 }
 
@@ -2751,9 +2752,9 @@ fn substitute(
                     // source of what it substitutes.
                     source: chosen.source,
                 }),
-            EventSubject::Object(_) => Err(format!(
+            EventSubject::Object(_) | EventSubject::Game => Err(format!(
                 "replacement {:?} rewrites to a life gain but matched {:?}, whose subject \
-                 is an object, not a player. Its `EventPattern` and its `Rewrite` \
+                 is not a player. Its `EventPattern` and its `Rewrite` \
                  describe different events.",
                 chosen.id, event
             )),
@@ -2764,9 +2765,9 @@ fn substitute(
                     amount: template_amount(chosen, *amount, &event)?,
                     damage_source: None,
                 }),
-            EventSubject::Object(_) => Err(format!(
+            EventSubject::Object(_) | EventSubject::Game => Err(format!(
                 "replacement {:?} rewrites to a life loss but matched {:?}, whose subject \
-                 is an object, not a player. Its `EventPattern` and its `Rewrite` \
+                 is not a player. Its `EventPattern` and its `Rewrite` \
                  describe different events.",
                 chosen.id, event
             )),
@@ -2828,9 +2829,9 @@ fn substitute(
         // is no `player` field until a card prints one.
         (GameActionTemplate::PlayerWins, event) => match subject_of(&event) {
             EventSubject::Player(player) => Ok(GameAction::PlayerWins { player }),
-            EventSubject::Object(_) => Err(format!(
+            EventSubject::Object(_) | EventSubject::Game => Err(format!(
                 "replacement {:?} rewrites to a win but matched {:?}, whose subject is \
-                 an object, not a player. Its `EventPattern` and its `Rewrite` describe \
+                 not a player. Its `EventPattern` and its `Rewrite` describe \
                  different events.",
                 chosen.id, event
             )),

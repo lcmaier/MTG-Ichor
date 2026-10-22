@@ -299,9 +299,9 @@ pub(crate) struct NestingGuards {
     pub(crate) decomposition_depth: usize,
 
     /// Dispatches nested inside dispatches — a tier-2 trigger's
-    /// `AbilityTriggered` dispatched from the dispatch that queued it. Bounded
-    /// by the abilities present; past `engine::triggers::DISPATCH_NESTING_LIMIT`
-    /// the dispatcher stops, which is the engine's mistake and not a rules answer.
+    /// `AbilityTriggered` dispatched from the dispatch that queued it. At
+    /// `engine::triggers::DISPATCH_NESTING_LIMIT` the chain is taken for one with
+    /// no end, and the game is a draw (CR 104.4b).
     pub(crate) dispatch_depth: usize,
 }
 

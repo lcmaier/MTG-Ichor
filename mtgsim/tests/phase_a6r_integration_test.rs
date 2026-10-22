@@ -1,30 +1,30 @@
 //! A6r — the fixes before TR-4 (`roadmap-v2.md` A6r): a draw's place among
 //! its player's draws (`codebase-state.md` item 254), who caused a redirected
-//! move (item 261), and an unbatched dispatch's error (item 262).
+//! move (item 261), and an unbatched dispatch's error (item 262). Item 262's
+//! board, a trigger chain at the nesting bound, ends in a draw since TR-6 and
+//! is tested there.
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
+use mtgsim::cards::authoring::{triggered_ability, whenever};
 use mtgsim::cards::phase_re8_cards::opt;
 use mtgsim::cards::phase_re_cards::{notion_thief, teferis_ageless_insight, thought_reflection, words_of_worship};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::engine::triggers::DISPATCH_NESTING_LIMIT;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{spell_effect, CardData, CardDataBuilder};
 use mtgsim::scenario::Scenario;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
-    creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game, test_ctx, test_dp,
+    creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game, test_dp,
 };
-use mtgsim::types::card_types::CardType;
 use mtgsim::types::history::TurnFact;
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
+use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, PlayerRef, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
-use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
-use mtgsim::types::zones::{DrawFilter, Zone, ZoneChangeAct};
+use mtgsim::types::triggers::{Multiplicity, TriggerEvent};
+use mtgsim::types::zones::DrawFilter;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
@@ -290,30 +290,3 @@ fn the_draw_steps_count_is_a_word_of_the_save() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Item 262 — an unbatched dispatch's error reaches its emitter
-// ---------------------------------------------------------------------------
-
-/// A creature whose trigger watches a creature's ability triggering triggers
-/// on its own triggering, each `AbilityTriggered` dispatched inside the one
-/// that queued it. No printed ability does (`triggers-architecture.md` §4.8),
-/// and until TR-6 settles CR 104.4b's draw there, the limit is an `Err`: the
-/// move that started the chain is told.
-#[test]
-fn a_dispatch_past_the_nesting_limit_fails_the_move_that_started_it() {
-    let mut game = setup_game(2);
-    let mut echo = triggered_ability(
-        "",
-        whenever(TriggerEvent::AbilityTriggers { caused_by: None, source: Some(ObjectFilter::ByType(CardType::Creature)) }, gain_one()),
-    );
-    echo.id = new_ability_id();
-    put_on_battlefield(&mut game, creature_with_ability("Fixture: echo", 1, 1, echo), 0);
-    let mut arrives = triggered_ability("", whenever(enters(TriggerSubject::ThisObject), gain_one()));
-    arrives.id = new_ability_id();
-    let arriving = put_in_hand(&mut game, creature_with_ability("Fixture: arriving", 1, 1, arrives), 0);
-
-    let entered = game.change_zone(arriving, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx());
-
-    let err = entered.expect_err("the chain reaches the limit");
-    assert!(err.contains(&format!("nested {DISPATCH_NESTING_LIMIT} deep")), "{err}");
-}
