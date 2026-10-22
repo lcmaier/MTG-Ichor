@@ -9590,3 +9590,33 @@ Number 277 was withdrawn in #260 and is not reused.
      before its ability resolves.
      **Slotted:** the first registered card whose resolving ability reads its
      source's power.
+
+300. **Two control changes one resolution writes back to back are announced
+     as one.** A change of control is announced by the sweep at the head of
+     the next batch (`engine/triggers/control.rs`). So when a resolution
+     writes two Layer 2 rows with no action performed between them, two
+     instructions that each gain control (CR 608.2c orders them), one sweep
+     announces both, and both look back to the board before the first. The
+     second permanent's look-back should be the board after the first: steal
+     an enchantment that gives "creatures you control have 'when you lose
+     control of this, draw two'", then steal one of those creatures, and its
+     owner should draw nothing, since the creature had lost the ability
+     before it changed hands; merged, the owner draws two. A row of another
+     layer that ends a control effect (a Layer 6 row that strips Control
+     Magic's ability) merges the same way. Changes a batch performs between
+     are announced apart: two steal Auras that Calming Verse's two
+     instructions destroy are two events, each looking back to its own
+     board (`two_control_changes_in_one_resolution_are_two_events`). The
+     owner raised it at #272's review, from the §15.4 fix.
+     **Reachability (2026-10-22):** unreachable — the two registered cards
+     that write a control row, Act of Treason and Ray of Command, write one
+     each.
+     **Sized:** ~15 lines and a ~45-line test: before a resolution writes a
+     Layer 2 row while a change waits to be announced, it announces that
+     change first (`resolve_primitive` holds the provider), so each
+     instruction's change is its own event. Announcing before *every* row a
+     resolution writes also covers the Layer 6 case, but it moves Ray of
+     Command's announcement ahead of its delayed trigger's creation record,
+     a pooled stream, so that wider form carries a re-record.
+     **Slotted:** A6e, the cleanup of item 6's close audit
+     (`plans/handoffs/item-6-audit.md`, pass 3's cleanup).
