@@ -1915,7 +1915,8 @@ needs the close-out and readiness.
    gains it — a gate, so the phase is not closed until it is clean (§5); the
    doc's own findings list, its known-missing table and its out-of-scope list
    re-read against what landed since; the summaries — `codebase-state.md`'s
-   TL;DR and the CR row — rewritten in place, never appended to. Produces the
+   TL;DR and the CR row, and the README's status block, its implemented table
+   and its roadmap rows — rewritten in place, never appended to. Produces the
    retrospective in `replacement-architecture.md` §14's shape: pointers, under
    150 lines, written once and not maintained. A fix found here is shown to
    fail first; one that moves a pool is its own PR with a `fuzz-record.md`
