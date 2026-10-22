@@ -654,11 +654,10 @@ impl GameState {
         self.nesting.dispatch_depth += 1;
         let result = self.dispatch_inner(window, ctx, snapshots, audit);
         self.nesting.dispatch_depth -= 1;
-        // CR 603.8 — after the outermost dispatch, so a state true only for a
-        // moment of a resolution, between two of its instructions, triggers
-        // (Emperor Crocodile's first ruling). The dispatches nested in it
-        // carry `AbilityTriggered` records, which change no state.
-        if result.is_ok() && self.nesting.dispatch_depth == 0 {
+        // CR 603.8 — after every dispatch, so a state true only for a moment
+        // of a resolution, between two of its instructions, triggers (Emperor
+        // Crocodile's first ruling).
+        if result.is_ok() {
             self.check_state_triggers()?;
         }
         result

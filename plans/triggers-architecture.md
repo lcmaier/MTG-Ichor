@@ -4135,7 +4135,7 @@ ahead of both, TR-5h.
 "TR-6", with the plan as designed and what the build changed.*
 
 **What shipped.** CR 603.8's state check (`engine/triggers/state.rs`), asked
-after every outermost dispatch, on every pass of CR 117.5's loop before
+after every dispatch, on every pass of CR 117.5's loop before
 placement, and at the cleanup step's CR 514.3a probe. A state trigger's source
 is filed under `EventKind::BoardState`, a kind no record carries, so the
 check reads the dispatcher's gate on every leg and no window asks it. Its

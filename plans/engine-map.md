@@ -40,7 +40,7 @@ SETTLE    the outermost close → settle_layer_consequences: control, then comba
 DETECT    the outermost close → dispatch_batch → detect → find_matches            [triggers]
             ─── reads effective ability lists (a copy's at layer 1)               [layers]
 QUEUE     queue_matches → pending_triggers, AbilityTriggered (tier 2)             [triggers]
-STATE     the outermost dispatch's end → check_state_triggers (CR 603.8)      [triggers]
+STATE     each dispatch's end → check_state_triggers (CR 603.8)               [triggers]
             ─── the board, not a record; also before PLACE, and at cleanup     [layers]
 PLACE     perform_sba_and_triggers: SBAs ↺ (loop 3), then place_pending_triggers  [priority, triggers]
 RESOLVE   resolve_top_of_stack → resolve_effect → execute_action … ↺ (loop 4)     [stack, resolve]

@@ -575,7 +575,7 @@ const PERFORMANCE_POOL: [&str; 122] = [
     // entering. Registered alone it moved `stress` games by about a turn
     // either way and no game ended differently in kind.
     "Panharmonicon",
-    // TR-6's: CR 603.8's state check, asked after every outermost dispatch
+    // TR-6's: CR 603.8's state check, asked after every dispatch
     // and before placement. No agent choice: alone on its controller's side
     // it sacrifices itself, which in a random deck is often.
     "Emperor Crocodile",

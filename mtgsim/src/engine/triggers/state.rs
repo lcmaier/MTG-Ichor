@@ -4,7 +4,7 @@
 //!
 //! No record carries a state, so the dispatcher never finds one. This check
 //! is their asker, at the three moments a state can have changed: after every
-//! outermost dispatch, which is what catches a state true for a moment in
+//! dispatch, which is what catches a state true for a moment in
 //! the middle of a resolution (Emperor Crocodile's first ruling); on every
 //! pass of CR 117.5's loop before placement, which sees what changed with no
 //! record, a continuous effect ending among them; and at the cleanup step's
@@ -37,7 +37,7 @@ use crate::types::triggers::{
 use crate::types::zones::ZoneSet;
 
 /// A state trigger the check found true, before it is queued.
-pub(super) struct StateMatch {
+pub(super) struct StateTriggerMatch {
     identity: AbilityIdentity,
     controller: PlayerId,
     def: Arc<TriggerDef>,
@@ -55,7 +55,8 @@ impl GameState {
         if self.result.is_some() {
             return Ok(());
         }
-        let found = self.state_triggers_among(&self.state_trigger_candidates());
+        let found: Vec<StateTriggerMatch> =
+            self.state_trigger_candidates().into_iter().flat_map(|id| self.state_triggers_of(id)).collect();
         if self.dispatch_audit.is_some() {
             self.audit_state_check(&found);
         }
@@ -119,52 +120,50 @@ impl GameState {
         self.candidates_now(readers, named, Vec::new(), zones, elsewhere)
     }
 
-    /// Each state trigger among `candidates` that triggers now: one that
-    /// functions where its object is (CR 113.6), is not waiting or on the
-    /// stack already, and whose condition holds. Read-only, so the audit can
-    /// ask it of every object.
-    pub(super) fn state_triggers_among(&self, candidates: &[ObjectId]) -> Vec<StateMatch> {
+    /// Each of `id`'s state triggers that triggers now: one that functions
+    /// where the object is (CR 113.6), is not waiting or on the stack already,
+    /// and whose condition holds. Read-only, so the audit can ask it of every
+    /// object. Empty, and nothing allocated, for an object with none.
+    pub(super) fn state_triggers_of(&self, id: ObjectId) -> Vec<StateTriggerMatch> {
         let mut found = Vec::new();
-        for &id in candidates {
-            let Some(object) = self.objects.get(&id) else { continue };
-            // CR 603.2f — a hidden object's abilities trigger on nothing.
-            if !visible_to_all(self, id) {
+        let Some(object) = self.objects.get(&id) else { return found };
+        // CR 603.2f — a hidden object's abilities trigger on nothing.
+        if !visible_to_all(self, id) {
+            return found;
+        }
+        let Some(chars) = compute_characteristics(self, id) else { return found };
+        let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
+        let controller = controller_or_owner(self, id).unwrap_or(object.owner);
+        for ability in chars.abilities.iter() {
+            let Effect::Triggered(def) = &ability.effect else { continue };
+            let TriggerCondition::State(condition) = &def.condition else { continue };
+            if !functions_in(ability, &chars.types, object.zone) {
                 continue;
             }
-            let Some(chars) = compute_characteristics(self, id) else { continue };
-            let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
-            let controller = controller_or_owner(self, id).unwrap_or(object.owner);
-            for ability in chars.abilities.iter() {
-                let Effect::Triggered(def) = &ability.effect else { continue };
-                let TriggerCondition::State(condition) = &def.condition else { continue };
-                if !functions_in(ability, &chars.types, object.zone) {
-                    continue;
-                }
-                let identity = AbilityIdentity { source: existence, ability: ability.id };
-                let refused_by = if def.intervening_if.is_some() {
-                    // A state trigger checks its state at the trigger only
-                    // (Emperor Crocodile's second ruling), so it has no "if".
-                    Some("intervening_if")
-                } else if def.limit == Some(TriggerLimit::FirstTimeEachTurn) {
-                    // "For the first time each turn" is about an event.
-                    Some("limit")
-                } else if self.state_trigger_has_not_left_the_stack(identity) {
-                    Some("not_left_the_stack")
-                } else if !settled_holds(condition, self, id, None, ConditionReferents::NONE) {
-                    Some("condition")
-                } else {
-                    None
-                };
-                self.trace(|| trace_records::state_trigger(self, &identity, object.zone, refused_by));
-                if refused_by.is_none() {
-                    found.push(StateMatch {
-                        identity,
-                        controller,
-                        def: Arc::clone(def),
-                        source_card: Arc::clone(&object.card_data),
-                        instances: ability.instances.clone(),
-                    });
-                }
+            let identity = AbilityIdentity { source: existence, ability: ability.id };
+            let refused_by = if def.intervening_if.is_some() {
+                // A state trigger checks its state at the trigger only
+                // (Emperor Crocodile's second ruling), so it has no "if".
+                Some("intervening_if")
+            } else if def.limit == Some(TriggerLimit::FirstTimeEachTurn) {
+                // "For the first time each turn" is about an event.
+                Some("limit")
+            } else if self.state_trigger_has_not_left_the_stack(identity) {
+                Some("not_left_the_stack")
+            } else if !settled_holds(condition, self, id, None, ConditionReferents::NONE) {
+                Some("condition")
+            } else {
+                None
+            };
+            self.trace(|| trace_records::state_trigger(self, &identity, object.zone, refused_by));
+            if refused_by.is_none() {
+                found.push(StateTriggerMatch {
+                    identity,
+                    controller,
+                    def: Arc::clone(def),
+                    source_card: Arc::clone(&object.card_data),
+                    instances: ability.instances.clone(),
+                });
             }
         }
         found
@@ -185,11 +184,12 @@ impl GameState {
 
     /// The state check asked again of every object that may trigger, with no
     /// gate (`audit.rs`), whose answer must be the gated one's.
-    fn audit_state_check(&mut self, gated: &[StateMatch]) {
+    fn audit_state_check(&mut self, gated: &[StateTriggerMatch]) {
         let saved = self.save_observers();
-        let reference = self.state_triggers_among(&self.objects_that_may_trigger());
+        let reference: Vec<StateTriggerMatch> =
+            self.objects_that_may_trigger().into_iter().flat_map(|id| self.state_triggers_of(id)).collect();
         self.restore_observers(saved);
-        let describe = |matches: &[StateMatch]| -> Vec<String> {
+        let describe = |matches: &[StateTriggerMatch]| -> Vec<String> {
             matches
                 .iter()
                 .map(|m| format!("{} {}", crate::ui::display::printed_name(self, m.identity.source.id), m.identity.ability))
