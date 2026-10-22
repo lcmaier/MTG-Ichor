@@ -713,8 +713,9 @@ and the effect and the resolver fills provenance from `ResolutionContext`
 containing it is 603.7f: the rider's context carries the static ability's
 object and its controller *as the replacement applied*, which is
 `Rider`'s instance source and the chooser of that group (question 14). 603.7g
-has no producer until a static ability lets a player take a special action
-(`backlog.md` §2.8), and gets a fixture. CR 610.3's "until [event]" return is
+has no producer until a static ability lets a player take an action, CR
+103.6's opening-hand reveal (`codebase-state.md` item 119), and gets a
+fixture. CR 610.3's "until [event]" return is
 the registry's second kind, `DelayedDuration::UntilEvent`: the returning
 one-shot is created "immediately after" the event and does not use the
 stack, so it resolves at dispatch the way a mana trigger does (§4.7), with
@@ -2033,7 +2034,8 @@ none matched, the entry is dropped silently. Heart-Piercer Manticore's first rul
 stack without a target ... a second ability triggers and you pick a
 target") and its last is the count ("you can't sacrifice multiple creatures
 to deal damage multiple times"). 603.12a's "one or more times" is
-`OncePerEvent` over that window; its payment loop is CP-1's (§13).
+`OncePerEvent` over that window; its payment loop is a cost paid at
+resolution, which `roadmap-v2.md` A6s gives an owner (§13).
 
 **Amended 2026-09-23 (the rulings pass, G2).** The first text read the
 window "since `created.record`", which contradicts both CR 603.12 — the
@@ -2932,7 +2934,7 @@ written on `Does` alone (§6.4).
 order (CR 101.4) and is `Does` if any did; it is built with its first card.
 Item 24's sized `IfYouDo { did, didnt }` is not built, since two conditionals
 read one answer. "Unless [a player] pays [cost]" is a payment inside a
-resolution, `cost-architecture.md` §3.10's shape and CP-1's slot; Strict
+resolution with no owner yet: `roadmap-v2.md` A6s gives it one. Strict
 Proctor, Frost Titan and every ward wait for it (§13).
 
 The two amendments below are the design record this was built from.
@@ -3433,6 +3435,8 @@ seat count and no shipped game's play. The review round is `IDENTICAL` to the
 first head on every row. The first Commander-scale callgrind reading: 95.96 G
 instructions, −3.97% against `main`.
 
+**Trace page:** no — the audit asks TR-1's reads again with the shortcuts
+off, and changes none.
 → `plans/archive/triggers-architecture-landed.md`, "TR-1b".
 
 ### TR-2a — the histories, the gates, and each player — ✅ landed 2026-09-24
@@ -3469,6 +3473,7 @@ fix moves none. CPU per decision +1.3% at four seats over five rounds (+2.9%
 over three). The four cards ×4 place 6.3 and 13.4 triggers a game, and a
 thousand-game audited smoke on every board agrees on 5.65 million dispatches.
 
+**Trace page:** no, decided at its close (the archive, "TR-2a").
 → `plans/archive/triggers-architecture-landed.md`, "TR-2a" (the plan as
 sized, the split, and why there is no trace page).
 
@@ -3506,6 +3511,7 @@ at an `OrderTriggers` prompt: 26 of one Soul Warden it no longer asks, one of
 two Warchiefs it now does. The shipped arm places 2.2 and 5.0 triggers a game
 on `performance`; Crawler places 0.7 of them at two seats.
 
+**Trace page:** no, decided at its close (the archive, "TR-2b").
 → `plans/archive/triggers-architecture-landed.md`, "TR-2b" (the design as
 reviewed, what landing and the code review changed, and no trace page).
 
@@ -3547,7 +3553,7 @@ four, and the audit agrees on every dispatch. `Candidate visits` fall from
 Instructions per decision: item 222 −1.21% against `main`, the registry
 −0.1% against item 222.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-3a".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-3a". **Trace page:** no — a delayed trigger is matched by TR-1's matcher.
 
 ### TR-3b — the returns and "until", with Flickerwisp and Banishing Light — ✅ landed 2026-10-08
 
@@ -3582,6 +3588,8 @@ gameplay row as `main` does on both pools at two seats and four, and the
 audit agrees on every dispatch. One cost row moved, by the look-back gate's
 narrowing. Instructions per decision +0.04%.
 
+**Trace page:** no — a return is an entry proposal, RC-4b's page, and
+"until" reads a leaving by identity.
 → `plans/archive/triggers-architecture-landed.md`, "TR-3b".
 
 ### TR-3c — the reflexive trigger, item 225 and item 99 — ✅ landed 2026-10-09
@@ -3619,6 +3627,7 @@ the same state-based check, fixed by item 103's frame half and pinned by a
 test. The `stress` games apart are CR 609.7a's widened choice. Every dispatch
 agreed; instructions per decision +0.17%.
 
+**Trace page:** no — a reflexive trigger is TR-3a's, registered at resolution.
 → `plans/archive/triggers-architecture-landed.md`, "TR-3c".
 
 ### TR-4a — the frame's facts and their readers — ✅ landed 2026-10-14
@@ -3657,6 +3666,7 @@ row outside timing as `main` does, cost rows included, on both pools at two
 seats and four, and the audit agrees on every dispatch. Instructions per
 decision +0.17%.
 
+**Trace page:** no — the frame gains facts, read where TR-1's page reads it.
 → `plans/archive/triggers-architecture-landed.md`, "TR-4a".
 
 ### TR-4b — attachment's records — ✅ landed 2026-10-14
@@ -3697,7 +3707,7 @@ audit agrees on every dispatch. Instructions per decision −1.69%: CR
 704.5n/p decided before the batch read frames the check already holds.
 Bramble Elemental pooled at the review, and both tables re-recorded with it.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-4b".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-4b". **Trace page:** no — unattach's routes are records their performers announce.
 
 ### TR-4c — the other two look-back classes and the zone statement — ✅ landed 2026-10-15
 
@@ -3735,6 +3745,7 @@ gameplay row as `main` does, on both pools at two seats and four, and the
 audit agrees on every dispatch. Instructions per decision +0.06% after the
 review (+0.39% before it, when a departing player's graveyard was framed).
 
+**Trace page:** no — a gate leg on the path TR-1's page walks.
 → `plans/archive/triggers-architecture-landed.md`, "TR-4c".
 
 ### TR-4d — control, countering, loss, and the records' missing facts — ✅ landed 2026-10-15
@@ -3775,7 +3786,7 @@ identical on both pools at two seats and four, and the audit agreeing on
 every dispatch; instructions per decision +0.32%. The 1,000-game audited
 smoke: no error, panic or turn-limit game, every dispatch agreed.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-4d".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-4d". **Trace page:** owed, for the item 6 audit's pass 5 — control is announced by a sweep, not a performer.
 
 ### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
 
@@ -3836,7 +3847,7 @@ first differing at a Ray of Command steal in combat (item 267). Every
 dispatch agreed, in the sitting and the 1,000-game smoke. Instructions per
 decision +0.02%.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-5a".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5a". **Trace page:** no — the roles are read where TR-1's page binds.
 
 ### TR-5e — the attack declaration — ✅ landed 2026-10-16
 
@@ -3870,6 +3881,7 @@ every gameplay row identical, both pools, two seats and four, and every
 dispatch agreed. Instructions per decision +0.05%. Hellrider moved `stress`'s
 average turns by +0.7 at two seats and −1.9 at four.
 
+**Trace page:** no — the declaration is one record, matched as any other.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5e".
 
 ### TR-5f — creatures put onto the battlefield attacking, and removal from combat — ✅ landed 2026-10-17
@@ -3910,7 +3922,7 @@ the budget and above the predicted +0.5%: the type half's frame reads after
 each layer-epoch move in a combat (+1.7% layer frames on the budget's
 board), and `GameAction`'s 8 bytes once the entry's attack was boxed.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-5f".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5f". **Trace page:** no — an attacking entry is an entry, RC-4b's page.
 
 ### TR-5b — counters, and one history struct — ✅ landed 2026-10-17
 
@@ -3944,6 +3956,7 @@ tests (code +946, tests +1,157), against 1,630–1,850.
 games on every table. +0.11% instructions per decision. The history commit
 read IDENTICAL and cut the worst clone from 41 to 38 allocations.
 
+**Trace page:** no — counters are records; its history struct is TR-5h's now.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5b".
 
 ### TR-5c — blocks, targeting and activation — ✅ landed 2026-10-18
@@ -3984,7 +3997,7 @@ written in one place and missed in another, both fixed, and eight copies.
 
 **What it leaves.** Items 278–283 (`codebase-state.md`, "Found by TR-5c").
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-5c".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5c". **Trace page:** no — blocks, targets and activations are records.
 
 ### TR-5h — one history of what happened — ✅ landed 2026-10-19
 
@@ -4021,6 +4034,8 @@ each fixed and shown failing first, and one copy.
 **What it leaves.** Items 286 and 287 (`codebase-state.md`, "Found by
 TR-5h"); item 279's other facts, each with its first card.
 
+**Trace page:** owed, for the item 6 audit's pass 5 — every history read
+became a scan of one log.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5h".
 
 ### TR-5d — prevention and excess damage — ✅ landed 2026-10-19
@@ -4059,6 +4074,7 @@ a turn.
 
 **What it leaves.** Item 288, at A6s. TR-5g followed it.
 
+**Trace page:** no — excess is a fact the batch decides on its record.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5d".
 
 ### TR-5g — the multiplier, tokens and scry — ✅ landed 2026-10-20
@@ -4099,7 +4115,7 @@ finished game now drops waiting triggers (CR 104.1), and reads 50.
 
 **What it leaves.** B10's design is next (the owner), then its build CL-1 (the owner, 2026-10-21), then TR-6.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-5g".
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5g". **Trace page:** `tr-5g-a-multiplier-is-read-where-its-trigger-looks.html`.
 
 ### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5g (8,690–10,010)
 
@@ -4164,6 +4180,8 @@ at about 980 lines, under the sized 1,305–1,720.
 
 **What it leaves.** TR-7, the persist loop.
 
+**Trace page:** no — a state trigger is TR-1's matcher at §4.5's three
+schedules.
 → `plans/archive/triggers-architecture-landed.md`, "TR-6".
 
 ### TR-7 — the persist loop, the track's capstone — ✅ landed 2026-10-22
@@ -4199,6 +4217,7 @@ lines, inside the sized 975–1,300.
 **What it leaves.** Item 6's close audit, A6e, then A6h and A6f
 (`roadmap-v2.md`).
 
+**Trace page:** no — the loop's cards read what TR-4 to TR-6 built.
 → `plans/archive/triggers-architecture-landed.md`, "TR-7".
 
 ### Re-counted 2026-09-24 — the splits, and why the plan keeps missing
@@ -4329,7 +4348,7 @@ their trigger half lands.
 | **TR-4** | TR-4a: 603.6e-002; 122.8-001; 122.9-001. TR-4b: 603.10c-001, -002, -003; 603.2e-002. TR-4c: 603.6e-001; 400.7f-001. TR-4d: 603.10d-001; 603.10e-001; 603.9-001 (2026-10-12, §12) | 12 |
 | **TR-5** | TR-5e: 508.2a-001, moved from TR-5a at its design (2026-10-16). TR-5b: 122.7-001. TR-5d: 120.10-001, moved from TR-5c at its review (2026-10-18). TR-5g: 603.2d-001 (2026-10-12, §12), split from TR-5d at its design (2026-10-18) | 4 |
 | **TR-6** | 603.8-001, -002 (both covered at its close) | 2 |
-| **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
+| **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001, BOUNDARY-707.7-001 (linked — §2.2, B7); 603.12a-001 and 605.3a-002 (a cost paid at resolution, "unless [a player] pays" — no owner until `roadmap-v2.md` A6s gives it one; 702.21a-001, -002 (ward = TR-5's event and that payment), Strict Proctor and Frost Titan wait with them); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (convoke's payment — MA-5; a grant at cast that outlives its source — A6s gives it an owner); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
 
 Ninety-three of the 133 Phase 7 atoms are owed across the six phases and RH-3 (plus
 the two from outside the phase TR-1 claims, 121.2c-001, which TR-2a claims,
@@ -4344,8 +4363,11 @@ then is claimed there.
 "Phase 7"` reads clean. TR-6's two atoms are covered. Of the forty deferrals, three
 were covered on the way: 702.21a-002 by TR-5c's Frost Titan (in part),
 707.5-002 by CV-2a, and 608.2d-001 by RS (in part). That leaves 37 uncovered, each
-with its owner above, and the 13 of them still ticketed NEW carry that owner in
-their session files, since a NEW ticket is what `owed` reads.
+with its owner above. None is ticketed `NEW`, the one ticket `owed` reads:
+16 name their owner in their session files ("Deferred to …", 13 at TR-6's
+close and three re-owned at the item 6 audit's close-out, 2026-10-22), and
+the rest keep the ticket their session wrote (`Phase 7 triggers`, `T20`,
+`L10`, `D19`), which the row above overrides.
 
 ---
 
@@ -4429,17 +4451,26 @@ Recorded here at authoring; a finding that becomes a code item moves to
    `battlefield_ids_ordered` order for a batch of entries — process-stable
    end to end. A `HashMap` reaching the queue would be a determinism bug;
    `trigger_sources` is an `IdMap`, iterated to select the gate's readers
-   and never for their order: the readers are sorted on
+      and never for their order: the readers are sorted on
    `PermanentState::timestamp`, the key `battlefield_ids_ordered` sorts on,
-   so the candidate order is the whole-battlefield walk's.
+   so the candidate order is the whole-battlefield walk's. **Closed as
+   built** (the item 6 audit, 2026-10-22): `candidates_now` puts the other
+   legs, `zone_trigger_sources` (an `IdMap` too) among them, in the same CR
+   613.7 order, and fuzz runs under three hash seeds matched.
 2. **The `AbilityTriggered` record and CR 603.2d.** A multiplied trigger
    queues N entries and emits N records, so Strict Proctor under
    Panharmonicon triggers twice, which is the CR's answer (each instance is
-   "a triggered ability [that] trigger[ed]"). Worth a test; not a doubt.
+      "a triggered ability [that] trigger[ed]"). **Tested** at the item 6
+   audit's close-out: Panharmonicon with the Lenient Proctor fixture
+   (`phase_tr5g_integration_test`).
 3. **The window's `mark` and a rewound cast.** `// CAST-ROLLBACK:` moves a
    card silently and `announce_zone_change` records the move at 601.2i, so
-   no record of a failed cast ever reaches a window; nothing to do, noted
-   because the matcher is the first reader that would have cared.
+      no record of a failed cast ever reaches a window; nothing to do, noted
+   because the matcher is the first reader that would have cared. **Closed**
+   (2026-10-22): the tag is at both sites. The rewind puts the card in its
+   owner's hand wherever it was cast from, against CR 732.1's "the zone it
+   came from", which no cast reaches while every cast is from the hand:
+   `codebase-state.md` item 298, PM-0's.
 4. **`ControlChanged.lki` is the frame before** (decided 2026-10-12,
    §3.12a). The sweep sees the new controller, and the prior frame is only
    in the memo's stale entry, a cache and not a record. This item once said
@@ -4450,23 +4481,35 @@ Recorded here at authoring; a finding that becomes a code item moves to
    the trigger's (CR 603.3a), so it never matches. So the sweep keeps a frame
    per permanent while `any_control_changing` is set, and TR-4d prices it.
    TR-4d's re-read (§12) found that this keeps nothing for the first change
-   on a board with no control row; its decision 1 is the fix.
+   on a board with no control row; its decision 1 is the fix. **One hole
+   left, fixed at the item 6 audit's close-out (2026-10-22, #272):** every
+   later row a resolution wrote kept the frames again, so Ray of Command's
+   haste, written after its steal and before any batch announced it,
+   replaced the frame from before the steal with one from after, and the
+   owner's "when you lose control" never matched. A row keeps nothing now
+   while a change waits to be announced; the test is Ray of Command
+   stealing a Khârn-shaped fixture (`phase_tr4d_integration_test`).
 5. **Golgari Brownscale's dredge** does not fit `Rewrite` (re-counted
    2026-10-12): it needs a library-size condition and a CR 616.1 choice among
-   dredges as well. So TR-4c's class is a fixture, and the card waits here
-   for dredge.
+   dredges as well. So TR-4c's class is a fixture, and the card waits for
+   dredge, which is `backlog.md` §2.49 since the item 6 audit.
 6. **Sneak Attack** waited for an indefinite haste, which CV-1b's prune
    made expressible (a `Duration::Indefinite` row ends when its subject
-   moves); its ruling is a TR-3 fixture board.
+      moves); its ruling is a TR-3 fixture board. **Closed** by TR-3b, which
+   quotes the one ruling in two tests (`phase_tr3b_integration_test`).
 7. **The pregame sweep** over the registry is a measurement TR-2 takes
    and records (histories advanced per record, ~40 fields, ~1,000 records
    a game); the decision to prune waits for the number. **Measured
    2026-09-24 (TR-2a):** the each arm adds the histories and nothing a
    pooled card reads. It read +0.1% CPU per decision at four seats over
-   five rounds (+2.1% over three), and `Layer walks` +5%. No prune: the
-   number does not ask for one.
+      five rounds (+2.1% over three), and `Layer walks` +5%. No prune: the
+   number does not ask for one. **Closed:** TR-5h replaced the store it
+   measured with one history log kept for the whole game (#262), which
+   nothing prunes either.
 8. **`ResolutionContext`'s rider pair** (item 137) gains no third `Option`:
    the binding is one field, and the two rider numbers stay as they are.
+   **Closed** as built; item 137's "~48" literals are about a hundred now,
+   which A6e's cleanup re-sizes.
 9. **CR 400.7e/f's "find the new object"** through a merged permanent is
    CV-7's (§10).
 10. **The visibility predicate's `face_down` half** is exact today (no
@@ -4475,51 +4518,55 @@ Recorded here at authoring; a finding that becomes a code item moves to
 11. **Two `Cost` arms are stubs and decide two cards.** `Cost::Discard` and
     `Cost::ExileFromGraveyard` return `Err` from both validation and payment
     (`engine/costs.rs`), which is why Immortal Coil is a fixture (§12, TR-6)
-    and Anurid Brushhopper was not TR-3's delayed consumer. Neither is this
-    phase's to build — a cost is `cost-architecture.md`'s — and both are
-    recorded there when the first card wants one.
+       and Anurid Brushhopper was not TR-3's delayed consumer. Neither is this
+   phase's to build — a cost is `cost-architecture.md`'s, and its CP-2 row
+   names both.
 12. **`backlog.md` §2.2 (linked abilities, CR 607) is unscheduled and
     shares one piece with this design.** None of TR-3's four consumers is a
     linked ability — Banishing Light's "until" is CR 610.3, the template
     printed to avoid the old O-Ring linkage; Flickerwisp's "that card" is
     603.7c's object reference — but `ObjectRef` (an object remembered by id
-    and epoch) is the per-ability memory 607.2c's "the exiled card" needs,
-    and §2.2 should reuse it rather than mint a second one. Miracle's
-    603.11 shape waits there (§16).
-13. **Prompts inside a resolution or a batch are not fork points, and this
-    design adds none.** Placement's prompts run at a priority grant with
-    the queue on `GameState` (§5.2); a vote or a CR 616.1 choice keeps its
-    continuation on the native stack (item 40's two violators), so the fork
-    model as decided answers them with a policy inside a rollout, in APNAP
-    order as the engine asks. Branching a search on one needs the resumable
-    resolution, Phase 10's, and nothing here makes it harder.
+       and epoch) is the per-ability memory 607.2a's "the exiled cards" needs,
+   and §2.2 should reuse it rather than mint a second one. Miracle's
+   603.11 shape waits there (§16). Kept here at the item 6 audit: §2.2 is
+   B7's to build, and A6s only decides it.
+13. **Prompts inside a resolution or a batch are not fork points.**
+    Placement's prompts run at a priority grant with the queue on
+    `GameState` (§5.2); a vote or a CR 616.1 choice keeps its continuation
+    on the native stack (item 40's two violators), so the fork model as
+    decided answers them with a policy inside a rollout, in APNAP order as
+    the engine asks. Branching a search on one needs the resumable
+    resolution, Phase 10's. This design added one: TR-5f's CR 508.4 choice
+    of what a creature put onto the battlefield attacking attacks
+    (`ChooseEnteringDefender`), asked in a batch's decide loop beside CR
+    616.1's, which item 40 holds with violator 1. Three more, in placement,
+    the delayed registry and the returns, predate §5.6's rule and are item
+    233's.
 14. **The card-authoring builder waits for its first caller** (the TR-1
     review, theme B, 2026-09-20). `cards::authoring::triggers` gives the
     printed shapes their words — `dies`, `enters`,
     `leaves_the_battlefield`, `at_beginning_of(step, Whose)` — and
     `CountableEvent::once_per_event` for CR 603.2c. The two methods the
-    design also sketched, `.caused_by(ZoneChangeCause)` and
+    design also sketched, one for the move's cause and
     `.owned_by(PlayerRef)`, are **not written**: no card among TR-1's five
     prints either, and none of TR-2's seven does. Two of those seven are
     zone-change triggers, Paladin of Atonement's "dies" and Elvish
-    Warmaster's "enter", and neither names a cause or an owner. They are
-    one method each on `CountableEvent`, whose only constructors already
-    build an arm carrying both fields, so the first
-    card that prints "whenever a creature an opponent controls is put into
-    a graveyard from the battlefield" adds them in the PR that adds the
-    card. Until then a card that asks writes the arm out — which is what
-    the one fixture that asks (a discard, `cause: Some(Discarded)`) does,
-    and it reads correctly, because its fields are `Some`: it was `None`
-    standing for "any" that the review objected to, not `Some`.
+    Warmaster's "enter", and neither names a cause or an owner. The cause is
+    two fields since RH-1, the arm's `by: Option<SourceFilter>` and its
+    pattern's `act`, and its method needs a name that does not collide with
+    `ReplacementDef::caused_by`. Each is one method on `CountableEvent`,
+    whose only constructors already build an arm carrying those fields, so
+    the first card that prints "whenever a creature an opponent controls is
+    put into a graveyard from the battlefield" adds them in the PR that adds
+    the card. Until then a card that asks writes the arm out — which is what
+    Guerrilla Tactics and the one fixture that asks do (a discard,
+    `act: Some(Discarded)`), and it reads correctly, because its fields are
+    `Some`: it was `None` standing for "any" that the review objected to,
+    not `Some`.
 15. **The kept LKI serves activated abilities too, and no reader
-    reads theirs yet** (the rulings pass, 2026-09-23). CR 113.7a names
-    activated and triggered abilities alike: "{T}: this creature deals
-    damage equal to its power" with its source sacrificed in response reads
-    the source's last known information, and ATOM-113.7a-001 (ALREADY-IMPL)
-    proves only that the ability still resolves. TR-2b's writer hands the
-    frame to every stack entry naming its source, an activated ability's
-    included, so the reader is a leaf away; which reader, and whether today's
-    `SourcePower` already answers it, is the first activated card's question.
+    reads theirs yet** (the rulings pass, 2026-09-23). `SourcePower` is
+    refused at resolution, so the reader is that arm: `codebase-state.md`
+    item 299 since the item 6 audit's close-out.
 
 ---
 
@@ -4527,26 +4574,33 @@ Recorded here at authoring; a finding that becomes a code item moves to
 
 - **Modes on a triggered ability** (603.3c) — `backlog.md` §2.7, which
   builds on §5.4's placement.
-- **"Unless [a player] pays"** — `cost-architecture.md` §3.10, CP-1; ward
-  (702.21a), Strict Proctor, Frost Titan register there, on TR-5's event.
+- **"Unless [a player] pays"** — no owner yet; `roadmap-v2.md` A6s gives it
+  one. Ward (702.21a), Strict Proctor and Frost Titan register with it, on
+  TR-5's event.
 - **Linked abilities** (603.11, 607) — `backlog.md` §2.2; miracle's
-  "reveal ... as you draw it" is its first trigger customer.
+  "reveal ... as you draw it" is a trigger customer, and Phyrexian
+  Vindicator's another (`codebase-state.md` item 288).
 - **The monarch, the initiative, rad counters** (724, 725, 727) — Phase 9's
   designations, on `TriggerOrigin::Rule`.
 - **Phasing's qualifier** on CR 603.6c (item 6) — with phasing, which
   arrives second.
 - **The per-viewer visibility query** (S1's body) — `backlog.md` §2.9, B4.
-- **Loop detection Tiers 2 and 3, and the voluntary shortcut** — `backlog.md` §2.28,
-  with the state hash and the fork harness.
+- **Loop detection Tiers 2 and 3, and the voluntary shortcut** — `roadmap-v2.md`
+  B14, graduating `backlog.md` §2.28: Tier 2's state hash (§4.9's amendment
+  keeps it), and CR 731.3's and 731.5's shortcuts. TR-6's two counted
+  stops, `MANDATORY_LOOP_CHECKS` and `DISPATCH_NESTING_LIMIT`, stand until
+  then.
 - **CR 707.10b's ability copies** — CV-4, with §6.5's sentence.
 - **Extra steps** (`backlog.md` §2.17's step half; Obeka) and **step-scoped
   durations** (§2.12 there) — their entries; the hooks exist.
 - **"As though" effects** (609.4) — B8.
-- **Bounding the in-state event log** (item 42's window) — nothing here
-  reads past one batch, so the window's size is a fork-cost question, not a
-  rules one.
-- **Special actions that create delayed triggers** (603.7g) — `backlog.md` §2.8, with a
-  fixture here.
+- **Bounding what the game keeps of its events.** The in-state window
+  (item 42's) is bounded since #188, and nothing here reads past one batch.
+  The history log grows by design, since "this game" reads it whole (§3.10,
+  item 179); its chunk size is `backlog.md` §2.48's.
+- **A delayed trigger an action a static ability allows creates** (603.7g)
+  — CR 103.6's opening-hand reveal is its producer (the Chancellors),
+  `codebase-state.md` item 119's; a fixture here.
 
 ---
 
@@ -4575,3 +4629,108 @@ Recorded here at authoring; a finding that becomes a code item moves to
 - `plans/references/trigger-survey.py` was deleted at TR-6's close
   (2026-10-21). The survey's document stays as a record, which live
   documents cite.
+
+---
+
+## 18. The track in hindsight — written 2026-10-22, at the item 6 audit
+
+Pointers, not prose. §15 holds the findings, the archive
+(`plans/archive/triggers-architecture-landed.md`) every phase body, and
+`fuzz-record.md` every number; this is the index a reader wants before any
+of those, written once at the close and not maintained (the item 6 audit's
+decision 5, `plans/handoffs/item-6-audit.md` §6).
+
+### What it was
+
+- **PRs #171–#269, 2026-09-18 → 2026-10-22.** The survey and this design
+  (#171, #172); TR-1 (#173, its review in #174–#178), TR-1b (#179), TR-2a
+  (#186), TR-2b (#193), TR-3a (#232), TR-3b (#234), TR-3c (#239), TR-4a–d
+  (#251–#254), TR-5a, TR-5e, TR-5f and TR-5b (#255–#258), TR-5c (#261),
+  TR-5h (#262), TR-5d (#263), TR-5g (#264), TR-6 (#268), TR-7 (#269). Between
+  them, on the same branches: the rulings pass and the cast facts (#180,
+  #181), the LKI rename (#241), RH's design (#242), the records' contract
+  (#246) and the fixes before TR-4 (#248).
+- **The shape that held from TR-1.** A batch's performed records are
+  matched at its close against the settled board, each look-back class
+  reading a frame the batch kept (§4.1, §4.3, question 8), and placement
+  drains a queue that lives on `GameState` (§5.2). Every later arm, record
+  and reader joined that path; TR-7's loop needed no engine code.
+- **Cards**: `cards-unlocked-ledger.md`'s TR rows; 215 registered and 124
+  pooled at TR-7's close.
+- **Cost**: `fuzz-record.md`, a block per phase; TR-7's is the last reading.
+  The placement's own cost was #265's fix.
+
+### The window around it
+
+The track's own size matched replacement's; the detours did not. Its 34 PRs
+added about 71,000 lines in 34 days, against replacement's 28 and about
+70,000 in 21. The window #171–#269 held 96 merged PRs and about 164,000
+lines: eleven prerequisites the trigger plan required (bounded state, CV-2a,
+RG, CV-2b, CV-1b, RH, MA-2, B10, CL-1), six fixes to older subsystems the
+trigger work exposed, the mana track's first phase, the dev GUI and the
+audits (`plans/handoffs/item-6-audit.md` §1 tables them). Five contracts
+other docs state moved in pieces on the way: RH, CV-1b, RG, LL with A6m,
+and MA-1 with MA-2.
+
+### What the building changed, against the design
+
+- **Six phases became seven and twenty-one build PRs.** The re-counts of
+  2026-09-24 and 2026-10-12 (§12) found tests running about twice their
+  estimate and each phase's cards needing facilities its row never listed;
+  the card-by-card gap hunt became a sizing step (`engineering-practices.md`
+  §4).
+- **The history was reshaped in TR-2a, TR-5b and TR-5h** before it was one
+  log kept the whole game (§3.10); one census of every reader before a
+  shared store is reshaped is the rule that came of it.
+- **RH landed mid-track** because TR-4's look-back needed the record to say
+  what moved, how and why (`replacement-architecture.md` §2b, #242–#245),
+  and **CV-1b** before TR-3's returns made new objects (CR 400.7).
+- **Control is derived, not performed**: a sweep announces it (TR-4d,
+  `engine/triggers/control.rs`), and its kept frames had one hole until the
+  close-out (§15.4).
+- **A prompt keeps what it decides on `GameState`** (§5.6, A6k's review);
+  three older prompts are `codebase-state.md` item 233's, and TR-5f's
+  defender prompt is item 40's.
+- **The dispatcher is audited with its shortcuts off** (TR-1b, §4.10), and
+  every later phase measured under it.
+
+### What was learned about the process
+
+- **Size against the tree, card by card.** §12's "Why the plan keeps
+  missing" is the paragraph to reread.
+- **A long item gets a midpoint audit** (A6k, `engineering-practices.md` §9),
+  and a model pass beside the script: A6l's found 11 copies
+  `similar_functions.py` did not.
+- **Discovery fans out; fixing stays sequential**
+  (`plans/handoffs/item-6-audit.md` §2). Refuters cut 37 changed verdicts to
+  15, and all four side findings they raised were real when reproduced: one
+  bug (§15.4), an item (298), a prompt item 40 now holds, and a dead seed
+  (item 264).
+- **A dated verdict is re-dated by reproducing it.** The four wrong-today
+  items matched their discovery counts exactly when run again; item 264's
+  seed had died with the pool changes, and a scenario stands in.
+- **Trace pages**: TR-1's and TR-5g's; TR-4d's and TR-5h's were decided
+  owed at the close. Each phase heading in §12 records its decision.
+- **The `owed` gate was armed at TR-6's close** and read clean through the
+  close-out; three atoms §13 deferred to owners that never named them went
+  to A6s, which does.
+
+### What stays open, and where each waits
+
+- §15: 9 (CV-7), 10 (`backlog.md` §2.9, B4), 11 (CP-2), 12 (§2.2, B7) and
+  13 (items 40 and 233); 5 is `backlog.md` §2.49 and 15 is item 299.
+- §16, each bullet with its owner; "unless [a player] pays" has none until
+  A6s.
+- §13: 37 atoms deferred, each with its owner; `owed` clean.
+- `codebase-state.md`'s wrong-today items: 59 (B7), 204 and 207 (beside
+  C0), 211 (MA-6) and 297 (A6e).
+- The two owed trace pages, TR-4d's and TR-5h's, earmarked for the item 6
+  audit's pass 5, the docs audit (the owner, at #272's review).
+
+### What comes next inherits
+
+A6s decides "unless [a player] pays", CR 607's linked abilities, modal
+triggers and the AI harness's type decisions before anything is built
+around them; A6f designs the information model, which §16's per-viewer
+visibility waits on. Items 40 and 233 are the debt a fork-based harness
+inherits.

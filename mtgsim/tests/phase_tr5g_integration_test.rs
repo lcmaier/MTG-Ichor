@@ -304,6 +304,30 @@ fn panharmonicon_leaves_a_dies_trigger_alone() {
     assert_eq!(waiting_from(&game, mourner), 1);
 }
 
+/// An ability that triggers an additional time has triggered twice (CR
+/// 603.2d), so CR 603.3b's second tier sees two: Strict Proctor's shape, on
+/// the Lenient Proctor fixture, triggers once for each of Soul Warden's.
+#[test]
+fn a_trigger_on_triggering_sees_each_time_a_multiplied_ability_triggers() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, panharmonicon(), 0);
+    // An enchantment, so its own ability triggering is no creature's.
+    let arm = TriggerEvent::AbilityTriggers { caused_by: None, source: Some(a_creature()) };
+    let proctor = CardDataBuilder::new("Lenient Proctor")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(arm, gain_one())))
+        .build();
+    let proctor = put_on_battlefield(&mut game, proctor, 1);
+    let warden = put_on_battlefield(&mut game, soul_warden(), 0);
+    resolve_all(&mut game, &test_dp());
+
+    reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
+    assert_eq!(waiting_from(&game, warden), 2, "Panharmonicon's additional time");
+    assert_eq!(waiting_from(&game, proctor), 2, "one for each time the Warden's ability triggered");
+    let proctors = game.pending_triggers.iter().filter(|t| t.origin.source() == proctor);
+    assert!(proctors.into_iter().all(|t| t.tier() == TriggerTier::Second));
+}
+
 /// "This ability triggers only once each turn" is read before the count: a
 /// capped ability triggers once.
 #[test]

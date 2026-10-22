@@ -2904,6 +2904,22 @@ added.
 | **Atoms** | none |
 | **Owner** | — ; the AI harness's performance work in Phase 10, after B10's structural sharing changes what a fork copies (`roadmap-v2.md`) |
 
+### 2.49 Dredge (CR 702.52) — a draw replaced from a graveyard
+
+**Moved from `triggers-architecture.md` §15.5 at the item 6 audit's
+close-out (2026-10-22).** Golgari Brownscale was TR-4c's card for a card put
+into a hand from a graveyard, and its dredge does not fit `Rewrite`, so TR-4c
+tested the trigger on a fixture.
+
+| Field | |
+|---|---|
+| **Rules** | CR 702.52 (a static ability that functions in a graveyard, 702.52a; a library with fewer than N cards can't pay it, 702.52b), with 616.1's choice among several draw replacements |
+| **Verdict** | `Rewrite` cannot say it: dredge replaces a draw with a mill and a return to hand, applies only while its controller's library holds at least N cards, and with two dredge cards in a graveyard, or another draw replacement, the player chooses which applies (CR 616.1). The draw is an event (RE-2) and the return's trigger reads it (TR-4c), so what is missing is the `Rewrite` arm, which 702.52a permits, and its library-size condition |
+| **Size** | ~1 PR with its first card: the arm, the condition, and its boards (Golgari Brownscale's, Life from the Loam's) |
+| **Blocks** | `keyword:dredge`: 14 cards (Scryfall, 2026-10-22), Golgari Brownscale and Life from the Loam among them |
+| **Atoms** | ATOM-702.52a-001, ATOM-702.52b-001 (Phase 8) |
+| **Owner** | — |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.
@@ -2958,7 +2974,7 @@ function the tree defines. This is D2b-shaped work: a test written or a
 | 115 | 6 | target legality checking |
 | 506 | 5 | `AttackingInfo` / `BlockingInfo`, combat step structure |
 | 605 | 5 | `activate_mana_ability` and its casting-time window |
-| 400 | 3 | zone guards in `move_object`; ordered zone collections. **400.2 was wrong here — it is §2.9** |
+| 400 | 3 | 400.4a's zone guard at the entry proposal (`entry_proposal`, tested since the item 6 audit's close-out); ordered zone collections. **400.2 was wrong here — it is §2.9** |
 | 119 | 4 | `GameConfig.starting_life`, life gain/loss, life SBA |
 | 106 | 2 | `ManaSymbol::Colored`, colorless distinct from generic |
 | 121 | 2 | draw-from-empty SBA flag |
@@ -3086,7 +3102,7 @@ pass 1's (5 from 38), so "no doc mentions it" turned out to be a weak signal.
 | 703 | 3 | 703.3 TBA ordering and 703.4d draw step implemented; **703.4c untap restrictions is `owed` with a `NEW` ticket** |
 | 112 | 2 | spell controller — implemented |
 | 303 | 2 | Aura SBAs — beside 704.5m, already §3.1 |
-| 304 | 2 | instant zone guard and instant-speed timing — implemented |
+| 304 | 2 | instant zone guard (at the entry proposal since the item 6 audit's close-out) and instant-speed timing — implemented |
 | 402 | 2 | maximum hand size — `perform_cleanup_actions` / `handle_cleanup_discard` (402.3 is §2.9) |
 | 404 | 2 | graveyard ordering and empty start — implemented (404.2 is §2.9) |
 | 201 | 1 | 201.2a is audit §5.2's "an object with several names" near-miss — already recorded, needs Layer 3 |

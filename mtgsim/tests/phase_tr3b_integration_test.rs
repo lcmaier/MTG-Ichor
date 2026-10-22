@@ -14,6 +14,8 @@
 //! 5. Item 226.
 //! 6. The review: an exile and a return in one resolution (Cloudshift's
 //!    shape) and CR 111.8, and an "until" whose event is not a leaving.
+//! 7. CR 304.4 and 307.4: an instant or sorcery card returned stays where it
+//!    was (`codebase-state.md` item 197, the item 6 audit).
 
 use std::sync::Arc;
 
@@ -45,8 +47,10 @@ use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId, UntilReturnId};
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
-use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, TriggerSubject};
-use mtgsim::types::zones::{Zone, ZoneChangeAct};
+use mtgsim::types::triggers::{
+    DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, TriggerEvent, TriggerSubject,
+};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -1122,4 +1126,42 @@ fn an_until_that_cannot_answer_610_3b_is_refused() {
     game.perform_sba_and_triggers(&dp).unwrap();
     let refused = game.resolve_top_of_stack(&dp).expect_err("refused");
     assert!(refused.contains("610.3a/b"), "{refused}");
+}
+
+// ---------------------------------------------------------------------------
+// 7. CR 304.4 and 307.4: a return the rules refuse
+// ---------------------------------------------------------------------------
+
+/// "Instants can't enter the battlefield. If an instant would enter the
+/// battlefield, it remains in its previous zone instead" (CR 304.4), and
+/// sorceries likewise (CR 307.4). A fixture returns every card discarded
+/// from its controller's hand, and the instant and the sorcery it is handed
+/// stay in the graveyard.
+// COVERS: ATOM-304.4-001, ATOM-307.4-001, ATOM-400.4a-001
+#[test]
+fn an_instant_or_sorcery_card_returned_to_the_battlefield_stays_in_the_graveyard() {
+    let mut game = setup_two_player_game();
+    let discarded = TriggerEvent::ZoneChange {
+        subject: TriggerSubject::Filter(ObjectFilter::All),
+        change: ZoneChangePattern { from: Some(Zone::Hand), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Discarded) },
+        by: None,
+        owner: Some(PlayerRef::You),
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    let returns = Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None };
+    let keeper = CardDataBuilder::new("Fixture Grave Keeper")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(discarded, Effect::Atom(returns, EffectRecipient::Triggering(EventRole::Object)))))
+        .build();
+    put_on_battlefield(&mut game, keeper, 0);
+    let instant = put_in_hand(&mut game, card_of_type("Fixture Instant", CardType::Instant), 0);
+    let sorcery = put_in_hand(&mut game, card_of_type("Fixture Sorcery", CardType::Sorcery), 0);
+
+    for card in [instant, sorcery] {
+        let discard = GameAction::ZoneChange { object: card, from: Zone::Hand, to: Zone::Graveyard, act: ZoneChangeAct::Discarded };
+        game.execute_action(discard, &test_ctx()).unwrap();
+        resolve_all(&mut game, &test_dp());
+        assert_eq!(zone(&game, card), Zone::Graveyard, "{card} remains in its previous zone");
+        assert!(!game.battlefield.contains_key(&card));
+    }
 }

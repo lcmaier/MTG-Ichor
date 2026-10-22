@@ -938,6 +938,78 @@ fn ray_of_command_taps_the_creature_another_player_takes() {
     assert!(tapped(&game, bears), "Act of Treason untapped it, and Ray's trigger tapped it after");
 }
 
+/// Ray of Command untaps the creature, steals it and then grants it haste,
+/// and nothing announces the change between the steal and the haste. The
+/// change still looks back to the board before the steal (CR 603.10d), so the
+/// owner is the one who lost control, and draws.
+#[test]
+fn ray_of_command_steals_from_a_player_who_then_lost_control() {
+    let mut game = stocked(2);
+    let betrayer = put_on_battlefield(&mut game, kharn_shaped(), 1);
+    let owners = hand_size(&game, 1);
+
+    ray_at(&mut game, betrayer);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(hand_size(&game, 1), owners + 2, "CR 603.3a, off the frame from before the steal");
+}
+
+/// **Fixture**, Control Magic's static: "You control enchanted creature."
+fn steal_aura(name: &str) -> Arc<CardData> {
+    use mtgsim::types::card_types::{EnchantmentType, Subtype};
+    CardDataBuilder::new(name)
+        .card_type(CardType::Enchantment)
+        .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+        .ability(static_ability(Effect::Atom(Primitive::GainControl(Duration::WhileSourceOnBattlefield), EffectRecipient::Host)))
+        .build()
+}
+
+/// Calming Verse's shape, cast by player 1 at a creature two steal Auras
+/// enchant, player 1's and then player 2's: "Destroy all enchantments you
+/// don't control. Then ... destroy all enchantments you control." Each
+/// instruction ends one Aura, so control changes twice in one resolution,
+/// as two events: player 2 loses it, then player 1 (CR 608.2c), and each
+/// draws off the frame from before their own loss.
+#[test]
+fn two_control_changes_in_one_resolution_are_two_events() {
+    let mut game = stocked(3);
+    let betrayer = put_on_battlefield(&mut game, kharn_shaped(), 0);
+    for thief in [1, 2] {
+        let aura = put_on_battlefield(&mut game, steal_aura("Fixture Control Magic"), thief);
+        game.execute_action(GameAction::Attach { attachment: aura, host: betrayer }, &effect_ctx(&game, aura)).unwrap();
+        resolve_all(&mut game, &test_dp());
+    }
+    assert_eq!(controller(&game, betrayer), Some(2));
+    let hands = |game: &GameState| (hand_size(game, 0), hand_size(game, 1), hand_size(game, 2));
+    let before = hands(&game);
+
+    let enchantments = |whose: PlayerRef| {
+        EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(CardType::Enchantment)),
+            Box::new(ObjectFilter::ByController(whose)),
+        ))
+    };
+    let verse = Effect::Sequence(vec![
+        Effect::Atom(Primitive::Destroy, enchantments(PlayerRef::Opponent)),
+        Effect::Atom(Primitive::Destroy, enchantments(PlayerRef::You)),
+    ]);
+    let source = put_in_graveyard(&mut game, card_of_type("Fixture Calming Verse", CardType::Sorcery), 1);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 1,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::one(Vec::new()),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&verse, &ctx, &test_dp()).unwrap();
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(controller(&game, betrayer), Some(0), "back with its owner");
+    assert_eq!(hands(&game), (before.0, before.1 + 2, before.2 + 2), "players 2 and 1 each lost control");
+}
+
 // RULING: Ray of Command #2 - "You may target an untapped creature with Ray of Command."
 #[test]
 fn ray_of_command_may_target_an_untapped_creature() {

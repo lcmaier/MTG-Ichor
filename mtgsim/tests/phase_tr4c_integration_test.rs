@@ -128,7 +128,7 @@ fn leaves_your_graveyard() -> Arc<CardData> {
 }
 
 /// **Fixture**, Golgari Brownscale's trigger on a creature with no dredge,
-/// which does not fit `Rewrite` (`triggers-architecture.md` §15 item 5):
+/// which does not fit `Rewrite` (dredge is `backlog.md` §2.49):
 /// "When this card is put into your hand from your graveyard, you gain 1
 /// life."
 fn golgari_brownscale_shaped() -> Arc<CardData> {

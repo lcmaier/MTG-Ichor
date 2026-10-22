@@ -1765,7 +1765,7 @@
 - **Action:** Player pays {1} three times.
 - **Expected Result:** The reflexive trigger fires once (not three times). The effect draws 3 cards (referencing the total).
 - **Phase:** Phase 7 (triggered abilities)
-- **Ticket:** Phase 7 triggers
+- **Ticket:** Deferred to `roadmap-v2.md` A6s, which gives a cost paid at resolution an owner ("unless [a player] pays", and paying "any number of times") — the reflexive trigger is built (TR-3c)
 
 ---
 
@@ -2017,7 +2017,7 @@
 - **Action:** Opponent activates a mana ability during the "unless they pay" window.
 - **Expected Result:** Legal — mana abilities can be activated when a rule or effect asks for mana payment.
 - **Phase:** Phase 7 (triggered abilities — mana payment windows)
-- **Ticket:** Phase 7 triggers
+- **Ticket:** Deferred to `roadmap-v2.md` A6s, which gives "unless [a player] pays" an owner (Rhystic Study's payment) — mana abilities in a payment a resolution asks for
 
 **ATOM-605.3a-003**
 

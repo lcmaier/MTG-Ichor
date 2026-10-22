@@ -807,7 +807,29 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
         AmountExpr::CardTypesAmong(_) => out.members |= Channels::TYPES,
         AmountExpr::AffectedManaValue => out.members |= Channels::MANA_COST,
         AmountExpr::Plus(inner, _) => amount_reads(inner, out, you_channel),
-        _ => {}
+        // The counts are off `GameState`; "you" is the source's controller.
+        AmountExpr::History(..) => out.source |= you_channel,
+        // Every arm left is a number or one `evaluate_amount` refuses, and
+        // each is listed so a new leaf is a compile error here, as a new
+        // `Condition` is in `condition_reads`.
+        AmountExpr::Fixed(_)
+        | AmountExpr::CountOf(Selector::CreaturesInGraveyard(_) | Selector::CardsInGraveyard(_))
+        | AmountExpr::X
+        | AmountExpr::SourcePower
+        | AmountExpr::SourceCounters(_)
+        | AmountExpr::TriggeringAmount
+        | AmountExpr::TriggeringPower(_)
+        | AmountExpr::TriggeringToughness(_)
+        | AmountExpr::TargetPower
+        | AmountExpr::TargetToughness
+        | AmountExpr::DamageDealtThisWay
+        | AmountExpr::ExcessDamageDealtThisWay
+        | AmountExpr::DiscardedThisWay
+        | AmountExpr::ReplacedAmount
+        | AmountExpr::Multiply(..)
+        | AmountExpr::UnspentMana(_)
+        | AmountExpr::DamagePrevented
+        | AmountExpr::StartingLifeTotal => {}
     }
 }
 
@@ -2201,5 +2223,19 @@ mod tests {
         assert_eq!(left_out_zones(&boards[1].1), ZoneSet::HIDDEN);
         assert_eq!(left_out_zones(&boards[2].1), ZoneSet::EMPTY, "both rows reach libraries alone, and the guard keeps them in");
         assert_eq!(left_out_zones(&boards[3].1), ZoneSet::HIDDEN);
+    }
+
+    /// A count of what happened is off `GameState`, and its "you" is the
+    /// source's controller (CR 109.5), as the conditions that count the same
+    /// history read it: "+1/+1 for each spell you've cast this turn" depends
+    /// on whatever changes who controls its source.
+    #[test]
+    fn a_history_amount_reads_the_sources_controller() {
+        use crate::types::effects::PlayerSet;
+        use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
+        let cast = HistoryCount { players: PlayerSet::You, fact: TurnFact::SpellsCast, of: None };
+        let mut reads = Reads::default();
+        amount_reads(&AmountExpr::History(HistorySpan::ThisTurn, Box::new(cast)), &mut reads, Channels::CONTROLLER);
+        assert_eq!((reads.source, reads.members), (Channels::CONTROLLER, Channels::NONE));
     }
 }

@@ -7606,3 +7606,136 @@ B13.
      TR-7, whose persist loop asks an order at every death. CR 732.1's
      reversal prompt with its policy (row 9) goes to B13, the Ironworks loop,
      since it lives inside item 162's solver decorator, which lands beside B9.
+
+### Item 197 — closed 2026-10-22 by PR #272 (the item 6 audit's close-out)
+
+Closed by the item 6 audit's close-out. Discovery found the item's slot met
+and its check missing: TR-3b built the return (`7030a47c`, #234), and
+Flickerwisp, Banishing Light and Strangleroot Geist put cards onto the
+battlefield uncast, each a permanent card. The check went where every road
+meets, `entry_proposal` (`engine/actions.rs`), beside its CR 800.4b refusal:
+the effective types, through `get_effective_types`, and an instant or a
+sorcery is refused. Its three callers already read `None` as "remains where
+it was": a single entry is not performed, an until return skips the card,
+and a token creation removes the object it made, which is CR 111.5's "no
+token is created" for a token copy of one. The test failed first: a fixture
+that returns every card discarded put an instant onto the battlefield
+(`tests/phase_tr3b_integration_test.rs`, which covers ATOM-304.4-001,
+ATOM-307.4-001 and ATOM-400.4a-001).
+
+*Original entry:*
+
+197. **Nothing on the entry path checks CR 304.4 and 307.4: "instants can't
+     enter the battlefield", and sorceries likewise, "it remains in its
+     previous zone instead".** `place_on_battlefield` makes a permanent of
+     whatever it is handed. The scenario loader is the first to refuse one
+     (`Scenario::build`, `// PRE-LAYER ZONE:`), at construction rather than
+     in play.
+
+     **Reachability (2026-10-01):** unreachable — no registered effect puts a
+     card onto the battlefield without casting it (`Primitive::ReturnToBattlefield`
+     is a stub that errors), every registered zone-change redirect goes to exile
+     or a library, and a resolving spell enters only when `has_permanent_type`
+     says it is a permanent spell.
+
+     **Sized:** ~15–25 lines: the check where an entry is proposed, as a rule
+     ahead of the pipeline (CR 304.4's "remains in its previous zone" is no
+     replacement effect), and a fixture test that returns an instant.
+     **Slotted:** with the first registered card that puts a card onto the
+     battlefield without casting it, whose PR builds `Primitive::ReturnToBattlefield`
+     (`resolve.rs` files it under `backlog.md` §2.5): Phase 8's breadth,
+     `roadmap-v2.md` §C.
+
+### Item 217 — closed 2026-10-22 by PR #272 (the item 6 audit's close-out)
+
+Closed by the item 6 audit's close-out. Discovery found the verdict's
+reason false: item 280's PR (#262, `c5d89ef8`) gave the layer walk's
+`evaluate_amount` a `History` arm, and `amount_reads`' `_ => {}` swallowed
+it, so a static counting the history read no channel. It stayed
+unreachable, since no registered static carries `AmountExpr::History`. The
+wildcard is gone: `History` reads the source's "you" (CR 109.5), as
+`condition_reads`' history arms do, and every other arm is listed as a
+number or a leaf `evaluate_amount` refuses. The unit test failed first
+(`a_history_amount_reads_the_sources_controller`, `layers/board.rs`): the
+wildcard read nothing.
+
+*Original entry:*
+
+217. **`amount_reads` ends in a wildcard, where `condition_reads` lists
+     every arm.** CR 613.8a(b)'s static pre-check (`engine/layers/board.rs`)
+     reads what each application reads off three tables. `filter_reads` and
+     `condition_reads` match their enums exhaustively, so a new leaf is a
+     compile error until its channels are named, and `amount_reads` closes
+     with `_ => {}`. A new `AmountExpr` leaf that the walk's `evaluate_amount`
+     learns to answer, such as "the greatest power among creatures you
+     control" (`cost-architecture.md` §3.9's leaves), would read no channel:
+     the pre-check would call it independent and the exact test would never
+     run. That is a wrong order, not a wrong value, so a test of the leaf's
+     own answer passes.
+     **Reachability (2026-10-06):** unreachable — every arm the wildcard
+     covers reads nothing (`Fixed`) or is one `evaluate_amount` refuses (`X`,
+     `SourcePower`, `Multiply` and the resolution-time reads), so no layer
+     row carries one.
+     **Sized:** ~10 lines, the wildcard replaced by those arms, listed. Slot:
+     the first PR that gives `evaluate_amount` a new arm. The census's
+     `pt-amount` shape (`plans/references/feedback-loops.md` §6) would be its
+     first printed customer, and none prints as a static yet.
+     **Slotted:** with the first registered card that needs a new
+     `evaluate_amount` leaf (`cost-architecture.md` §3.7's "where X is"
+     leaves), whose PR lists the wildcard's arms.
+
+### Item 96 — closed 2026-10-22 by PR #272 (the item 6 audit's close-out)
+
+Closed by the item 6 audit's close-out, its slot. `BOUNDARY-DEF-615.1a-001`'s
+unproven member was the out-of-set one, a triggered ability on damage dealt,
+which TR-5d's `TriggerEvent::DamageDealt` and `GainLife(TriggeringAmount)`
+can say. The test puts both members on one board
+(`prevent_makes_a_prevention_effect_and_a_trigger_on_damage_is_not_one`,
+`tests/phase_tr5d_integration_test.rs`): Mending Hands at a creature prevents
+its 3, and a watcher of prevented damage sees it; "whenever damage is dealt
+to a creature, you gain that much life" lets the other creature's 3 through
+and gains 3. The atom's "target creature" is "a creature" there, since a
+damage arm names no target. Breaking `AmountRewrite::prevents_damage`, the
+classification CR 615.1a's word becomes, fails it; breaking
+`ReplacementDef::is_prevention` does not, since that one answers CR 615.12
+and 701.19c, which the board does not ask. The unit test's partial comment
+names the board. `COMP-614-616-DOUBLE-REPLACEMENT-001`, the promoted half of
+the pair, is still covered.
+
+*Original entry:*
+
+96. **Two atoms moved in opposite directions, and the pair is the finding.**
+    `specdb` came out unchanged — 118 full, 50 partial — because one atom was
+    promoted and one demoted in the same pass, and the reasoning is the same
+    reasoning read from both ends.
+
+    **`COMP-614-616-DOUBLE-REPLACEMENT-001` was promoted to `COVERS`.** RD-2
+    had marked it partial on the grounds that "Player A chooses order" is a
+    half the engine deliberately does not build (§11 item 29's suppression).
+    The review's objection: *if the choice is provably immaterial, that points
+    at the atom rather than at the coverage*. Correct — and the atom now
+    carries an audit note saying so. CR 616.1e does give the player the
+    choice, and *because* multiplication commutes no rules-legal question
+    distinguishes the two orders: not the damage, not its source, not the
+    event log. An engine that asks and one that does not produce the same
+    game, so a test proving 2 → 4 → 8 with each doubler applying once covers
+    the atom. The clause that stays observable, and that a test here must not
+    drop, is CR 614.5's "each applies once".
+
+    **`BOUNDARY-DEF-615.1a-001` was demoted to `COVERS-PARTIAL`**, found while
+    answering a different question ("isn't that test tautological?" — half of
+    it was). The atom's out-of-set member is a *triggered ability*, and no type
+    in this engine can express one until critical-path item 6, so the test
+    substitutes the two nearest expressible non-members: a doubler, and
+    regeneration. Regeneration is the load-bearing one — a `Prevent` that is
+    **not** a prevention effect, because CR 615.1 is about damage and its
+    pattern is a destruction — and the test is now named for it.
+
+    **Reachability (2026-09-09):** nothing owed; `owed` is still 9 and neither
+    atom is in a shipped phase.
+
+    **Sized:** none. The out-of-set half of the boundary atom lands with
+    item 6.
+    **Slotted:** A6e, item 6's close audit: `BOUNDARY-DEF-615.1a-001`'s
+    out-of-set member is a `TriggerEvent::DamageDealt` ability now, so its
+    partial is promoted there.

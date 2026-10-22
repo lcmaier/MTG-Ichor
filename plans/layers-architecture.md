@@ -2164,7 +2164,7 @@ this document's item 9 second half. That is why the two split cleanly, and why
 | **Mycosynth Lattice** cl. 2 — "All cards that aren't on the battlefield, spells, and permanents are colorless" | battlefield | every zone | ✅ complete — `zones: ALL`, and `RemoveAllColors` already lowers to `Channels::COLORS` |
 | **Painter's Servant** cl. 2 — "… are the chosen color in addition to their other colors" | battlefield | every zone | ✅ the set; the color choice is an as-enters replacement RC already has |
 | **Deeproot Historian** — "Merfolk and Druid cards in your graveyard have retrace" | battlefield | your graveyard | ✅ the set (§13b decision 2 names it); `retrace` is a keyword the engine lacks |
-| **Aminatou, Veil Piercer** cl. 1 — "Each enchantment card in your hand has miracle" | battlefield | your hand | ⚠ the **grant lands on the frame**; miracle does not *function* from hand (A5) and is trigger-linked (item 6) |
+| **Aminatou, Veil Piercer** cl. 1 — "Each enchantment card in your hand has miracle" | battlefield | your hand | ⚠ the **grant lands on the frame**; miracle does not *function* from hand (A5) and is a linked trigger (CR 603.11, `backlog.md` §2.2) |
 | **Wonder** — "As long as this card is in your graveyard … creatures you control have flying" | **graveyard** | battlefield | ❌ source-side — A5 **and** CR 613.7d's timestamps |
 
 (Texts verified on Scryfall, 2026-09-14.)

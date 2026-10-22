@@ -682,7 +682,7 @@
 - **Boundary:** Copy system must preserve ability linkage metadata.
 - **Engine Constraint:** When copying linked abilities, the copy's linked pair references each other, not the original's abilities and not any other abilities the copy may have.
 - **Phase:** Phase 7 (linked abilities)
-- **Ticket:** T07-linked (linked abilities system)
+- **Ticket:** Deferred to `backlog.md` §2.2 (linked abilities, CR 607), `roadmap-v2.md` B7 — a copy's linked pairs stay linked to each other
 
 **707.8** — DEFERRED — Phase 9: Copying DFC/melded permanent uses face-up copiable values.
 

@@ -156,11 +156,10 @@ application (613.8c). **What it skips, and what holds that.** `depends_on`
 settles a pair without applying anything when what one reads and what the
 other writes share no channel (`Channels`, one bit per characteristic), and
 otherwise applies the other under a journal and looks. The channel reads are
-exhaustive matches over `ObjectFilter`'s leaves (`filter_reads`) and
-`Condition`'s (`condition_reads`), so a new leaf is a compile error there.
-`amount_reads` is not: it ends in a wildcard, so a new `AmountExpr` leaf the
-walk learns to evaluate would read as independent until its arm is added by
-hand (`codebase-state.md` item 217). The channels' grain is a performance
+exhaustive matches over `ObjectFilter`'s leaves (`filter_reads`),
+`Condition`'s (`condition_reads`) and `AmountExpr`'s (`amount_reads`, since
+`codebase-state.md` item 217 closed), so a new leaf is a compile error
+there. The channels' grain is a performance
 question, `backlog.md` §2.39.
 
 <!-- feedback-loops: begin LOOP2 -->
@@ -274,7 +273,7 @@ fixed as it resolves (CR 611.2c).
 | 1 | A card that enters with its back face up as a replacement (CR 616.1d) (`back-face`) | 616.1d | `o:/enters? (the battlefield )?transformed/` | 1 | `o:/(would enter\|enters?) [^.]*(transformed\|back face up)[^.]*instead/` | 0 | the one hit, Corruption of Towashi, is a trigger on a transformed entry; a transformed entry is an instruction's ("return it transformed"), and CV-5 (double-faced cards) builds 616.1d's step |
 | 1 | A copy that becomes applicable once the entry carries counters (CR 616.2), which would put a multiplier between two copies (`codebase-state.md` item 189) (`copy-by-counters`) | 616.2, 707.9e | `o:/enters? (the battlefield )?as (a )?cop(y\|ies)[^.]*(counter\|power\|toughness)/` | 9 | `o:/cop(y\|ies) of [^.]*(if\|as long as\|with) [^.]*counters? on (it\|them)/` | 9 | every hit's counters or power belong to the donor (Deceptive Frostkite, The Master, Volrath) or to the copy's own exception (Spark Double, Moritte, Altered Ego); nothing reads the entering object's counters |
 | 2 | A power or toughness bonus over a set chosen by power or toughness, as a static (layer 7c) (`pt-filter`) | 613.8a | `o:/creatures?( you control)? with (base )?(power\|toughness)[^.]* (get\|gets) [+-]\d+\/[+-]\d+(?![^.]*until)/` | 1 | `o:/(each\|all\|other) creatures? with (power\|toughness) \d+ or (less\|greater)[^.]* (get\|gets\|have\|has)(?![^.]*until)/` | 0 | what prints the filter is activated or triggered, a resolution's locked set (CR 611.2c); `filter_reads` puts `PowerLE` on the power channel, so a first static goes to the exact test |
-| 2 | A power or toughness that reads another creature's power or toughness, as a static (`pt-amount`) | 613.8a, 604.3 | `o:/(gets \+x\/\+x\|equal to x)[^.]*where x is the (total\|greatest) (power\|toughness) (of\|among) [^.]*creatures you control(?![^.]*until)/` | 1 | `o:/(power\|toughness)[^.]* (is\|are)( each)? equal to the (total\|greatest) (power\|toughness) (of\|among) [^.]*creatures you control/` | 0 | printed only as a resolution's or an entry's amount (Towering Titan's counters); the leaf would be `cost-architecture.md` §3.9's, and `amount_reads` would need its arm by hand (item 217) |
+| 2 | A power or toughness that reads another creature's power or toughness, as a static (`pt-amount`) | 613.8a, 604.3 | `o:/(gets \+x\/\+x\|equal to x)[^.]*where x is the (total\|greatest) (power\|toughness) (of\|among) [^.]*creatures you control(?![^.]*until)/` | 1 | `o:/(power\|toughness)[^.]* (is\|are)( each)? equal to the (total\|greatest) (power\|toughness) (of\|among) [^.]*creatures you control/` | 0 | printed only as a resolution's or an entry's amount (Towering Titan's counters); the leaf would be `cost-architecture.md` §3.9's, and `amount_reads`' exhaustive match asks for its arm |
 | 2 | A color change over a set chosen by color (layer 5) (`colors`) | 613.8a, 105.3 | `o:/(white\|blue\|black\|red\|green\|colorless\|multicolored\|non(white\|blue\|black\|red\|green)) (creatures\|permanents)[^.]* (is\|are) (white\|blue\|black\|red\|green\|colorless)\b/` | 1 | `o:/(each\|all) (white\|blue\|black\|red\|green\|non(white\|blue\|black\|red\|green)\|colorless\|multicolored) [^.]*(becomes?\|is\|are) [^.]*(white\|blue\|black\|red\|green\|colorless)\b/` | 0 | every printed color setter names its set by type or controller |
 | 2 | A control change over a set chosen by who controls it (layer 2) (`set-control`) | 613.8a, 613.1b | `o:/you control (all\|each) [^.]*(your opponents control\|opponents control\|you don't control)(?![^.]*(until\|this turn))/` | 2 | `-t:/instant\|sorcery/ o:/(gain\|gains) control of (all\|each) (?![^.]*(until\|this turn))/` | 21 | every printed control change names a fixed object or locks its set as it resolves (CR 611.2c) |
 | 4 | A triggered mana ability's mana triggering another (CR 605.4a), resolved without the stack (`mana`) | 605.1b, 605.4a | `o:/whenever [^.]*causes (you\|a player\|its controller) to add/` | 1 | `t:/land/ o:/whenever [^.]*(tapped\|tap [^.]*) for mana, [^.]*add/` | 0 | the one watcher, Caged Sun, names a land's ability, and no land has a triggered mana ability, so no chain prints; MA-3 owns what runs inside a mana ability |
@@ -354,7 +353,8 @@ No class that the census calls inexpressible has a registered card in it.
   and Layer 3. Each owns a class whose surface is unbuilt, and each loop's
   architecture document points here.
 - **Engine findings, recorded rather than fixed:** `amount_reads`' wildcard
-  (item 217) and the post-batch sweeps (item 6).
+  (item 217, fixed at the item 6 audit's close-out) and the post-batch sweeps
+  (item 6).
 
 ## 11. What the census cannot see
 

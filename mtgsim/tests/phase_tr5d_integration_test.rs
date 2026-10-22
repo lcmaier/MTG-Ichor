@@ -262,6 +262,50 @@ fn a_prevented_creatures_event_role_is_the_damage_recipient() {
     assert_eq!(game.battlefield[&bears].damage_marked, 0);
 }
 
+/// CR 615.1a: "Effects that use the word 'prevent' are prevention effects."
+/// The atom's two members on one board. Mending Hands cast at a creature is
+/// in the set: the bears are dealt nothing, and a watcher of prevented
+/// damage taps them. "Whenever damage is dealt to a creature, you gain that
+/// much life" is out of it, a triggered ability: the elves are dealt all 3,
+/// its controller gains 3, and the watcher leaves the elves untapped. The
+/// atom says "target creature"; a damage arm names no target, so here it is
+/// "a creature".
+// COVERS: BOUNDARY-DEF-615.1a-001
+#[test]
+fn prevent_makes_a_prevention_effect_and_a_trigger_on_damage_is_not_one() {
+    let tap_it = Effect::Atom(Primitive::Tap, EffectRecipient::Triggering(EventRole::DamageRecipient));
+    let watcher = CardDataBuilder::new("Fixture Watcher")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(damage_to_is_prevented(a_creature()), tap_it)))
+        .build();
+    let dealt = TriggerEvent::DamageDealt {
+        source: TriggerSubject::Any,
+        recipient: a_creature(),
+        combat: None,
+        excess: false,
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+
+    let mut game = setup_two_player_game();
+    let source = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let elves = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[]), 0);
+    put_on_battlefield(&mut game, watcher, 1);
+    put_on_battlefield(&mut game, gains_that_much(dealt), 0);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bears)]);
+    let before = life(&game, 0);
+
+    let three_each = vec![damage(source, DamageTarget::Object(bears), 3), damage(source, DamageTarget::Object(elves), 3)];
+    deal_together(&mut game, three_each, &test_dp());
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(game.battlefield[&bears].damage_marked, 0, "prevented");
+    assert!(game.battlefield[&bears].tapped, "and the prevention was a prevention effect's");
+    assert_eq!(game.battlefield[&elves].damage_marked, 3, "the trigger prevented nothing");
+    assert!(!game.battlefield[&elves].tapped);
+    assert_eq!(life(&game, 0), before + 3, "it triggered on the damage dealt");
+}
+
 // ---------------------------------------------------------------------------
 // Excess damage (CR 120.10)
 // ---------------------------------------------------------------------------

@@ -2186,6 +2186,8 @@ impl GameState {
     /// the control of a player who has left the game, that object remains in
     /// its current zone". A rule, checked at the site like CR 508.8's and
     /// CR 800.4k's: there is no event here for a replacement effect to see.
+    /// CR 304.4 and 307.4 are two more: an instant or a sorcery remains in its
+    /// previous zone, and a token copy of one is never created (CR 111.5).
     ///
     /// It carries CR 110.5b's default and nothing else. What the rules give an
     /// object as it enters beyond that is an ability of the object (CR 306.5b's
@@ -2198,6 +2200,11 @@ impl GameState {
         act: Option<ZoneChangeAct>,
     ) -> Option<GameAction> {
         if self.left_a_multiplayer_game(controller) {
+            return None;
+        }
+        use crate::types::card_types::CardType;
+        let types = crate::oracle::characteristics::get_effective_types(self, object);
+        if types.contains(&CardType::Instant) || types.contains(&CardType::Sorcery) {
             return None;
         }
         Some(GameAction::EnterBattlefield { object, from, controller, mods: EnterMods::NONE, act })
