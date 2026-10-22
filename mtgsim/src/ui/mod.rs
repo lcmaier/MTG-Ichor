@@ -8,6 +8,7 @@ pub mod mana_window_stop;
 pub mod auto_payer;
 pub mod full_control;
 pub mod auto_yield;
+pub mod auto_order_triggers;
 pub mod replay;
 pub mod what_happened;
 pub mod waiting;

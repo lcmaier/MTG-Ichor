@@ -7540,3 +7540,69 @@ its cause.
      settlement (`triggers-architecture.md` §4.9, §12), and this site moves
      with it.
      **Slotted:** TR-6, whose loop detector owns CR 104.4b's draw.
+
+### Item 163 — closed 2026-10-22 by PR #269 (TR-7)
+
+Closed by TR-7. `ui::AutoOrderTriggers` answers `ChoiceKind::OrderTriggers`
+with the order the prompt lists, which within one event is the sources'
+timestamp order, and passes every other prompt down. It sits in a person's
+seat inside `FullControl`'s decorated stack, in `cli_play`'s two branches and
+the dev GUI's, so full control is the toggle; a bot's agent orders for itself,
+and `fuzz_games` takes no decorator. The engine's half, the elision, was built
+in TR-1 and widened in TR-2b. The reversal this entry settled the shape of is
+item 72's, with its offer and policy (`backlog.md` §2.22 row 9), slotted to
+B13.
+
+*Original entry:*
+
+163. **CR 603.3b's ordering prompt, classified before it exists — and the
+     reversal's shape settled beside it.** In §2.22's fork-model table the
+     ordering is a **C** row and part of the residual: asked of each trigger's
+     controller in APNAP order, mid-step, of a seat that did not act. Two
+     halves. The engine's, by §2.22's rule 1: two triggers that are copies of
+     one ability under one controller with no targets give the same game in
+     either order, so the engine declines to ask — measured first, then elided
+     with expiry conditions, item 47's precedent for CR 616.1's prompt. The
+     decorator's, for the rest: timestamp order for a human under the toggle,
+     the agent's own for a bot. **Item 72's reversal (CR 732.1), decided
+     2026-09-18 and re-derived at review: two options, keep or reverse all.**
+     *Reverse all* is a no-log clone taken at the window's first activation
+     and restored at the rewind with `events` truncated to its length — CR
+     732.1's "no abilities trigger and no effects apply" by construction, the
+     RNG rewound with it, the retry loop's locals and `Diagnostics` kept live.
+     *Reverse some* is not a facility the chokepoint has: performed events
+     with replacements applied have no per-event undo, and Arena offers
+     undo-all only. A decorator may answer the offer only under the same
+     toggle as auto-yield — reverse all when the solver made the taps, on a
+     human's seat; a plain policy on a bot's (`fuzz_games`: keep, today's
+     stream); never silently on a human's. It lives inside item 162's
+     decorator, since the taps a solver made are the ones it should unmake.
+
+     **Built in part 2026-09-19 (TR-1):** the ordering half. `ChoiceKind::OrderTriggers
+     { player, tier }` is asked through `choose_ordering` with two or more
+     entries, and `trigger_order_cannot_change_outcome` elides it with the expiry
+     conditions written beside the predicate — a binding that differs, an
+     instance of "target", a tier-2 entry — each of which has a test
+     (`two_identical_triggers_are_placed_without_an_ordering_prompt` and the two
+     that reopen it). The reversal half is untouched.
+
+     **Built in part 2026-09-26 (TR-2b):** the elision compares only what a def
+     reads (`TriggerDef::trigger_binding_reads`, `triggers-architecture.md` §5.2), and
+     the source where it reads its source, which TR-1's predicate never
+     compared. The decorator's half and the reversal are untouched.
+
+     **Reachability (2026-09-26):** reachable — not wrong: the engine's half is
+     built; the decorator and CR 732.1's reversal prompt do not exist.
+
+     **Reachability (2026-09-19):** reachable — not wrong: the ordering prompt exists
+     and is asked or elided per the predicate; the reversal prompt does not exist,
+     and CR 732.1's option is simply never offered.
+
+     **Sized:** the ordering decorator ~40; the reversal prompt ~40 in the engine
+     (the clone, the restore, the truncation) and its decorator arm ~15; §2.22
+     rows 8 and 9.
+     **Slotted:** split on 2026-10-13, when the Ironworks loop moved off the
+     triggers path. The ordering decorator (`backlog.md` §2.22 row 8) goes to
+     TR-7, whose persist loop asks an order at every death. CR 732.1's
+     reversal prompt with its policy (row 9) goes to B13, the Ironworks loop,
+     since it lives inside item 162's solver decorator, which lands beside B9.

@@ -546,6 +546,7 @@ fn simultaneous_persist_or_undying_return_the_nonactive_players_creature_first()
 /// Kitchen Finks' seventh ruling: a creature whose -1/-1 counters on top of
 /// its +1/+1 counters kill it had both kinds as it left, since CR 704.5q's
 /// annihilation is part of the same check, so neither keyword returns it.
+// COVERS: COMP-9A-001
 #[test]
 fn persist_and_undying_skip_a_creature_that_died_with_both_counter_kinds() {
     for keyword in BOTH {
@@ -561,6 +562,7 @@ fn persist_and_undying_skip_a_creature_that_died_with_both_counter_kinds() {
 /// Strangleroot Geist: undying returns it once with a +1/+1 counter, and
 /// with haste it may attack the turn it returns. Dying with its counter, it
 /// stays dead.
+// COVERS: ATOM-702.93a-001
 #[test]
 fn strangleroot_geist_returns_once() {
     let mut game = setup_two_player_game();

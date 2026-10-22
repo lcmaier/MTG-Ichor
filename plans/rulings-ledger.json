@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-21",
+  "fetched": "2026-10-22",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -649,6 +649,15 @@
     "Grizzly Bears": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Grumgully, the Generous": {
+      "first_seen": "2026-10-22",
+      "read": "2026-10-22",
+      "rulings": [
+        {"n": 1, "published_at": "2019-10-04", "comment": "A non-Human creature you control that would enter the battlefield with no +1/+1 counters on it enters with one +1/+1 counter on it."},
+        {"n": 2, "published_at": "2019-10-04", "comment": "Any other non-Human creatures that enter the battlefield at the same time as Grumgully won't get a +1/+1 counter."},
+        {"n": 3, "published_at": "2019-10-04", "comment": "If a non-Human creature enters the battlefield as a copy of a Human creature, it won't get a +1/+1 counter. Similarly, if a Human enters as a non-Human creature, it will get a +1/+1 counter."}
+      ]
     },
     "Guardian Seraph": {
       "first_seen": "2026-09-17",
@@ -1534,6 +1543,14 @@
         {"n": 2, "published_at": "2006-05-01", "comment": "In Two-Headed Giant, triggers only once per upkeep, not once for each player.", "disposition": {"kind": "format-variant", "format": "Two-Headed Giant"}}
       ]
     },
+    "Viscera Seer": {
+      "first_seen": "2026-10-22",
+      "read": "2026-10-22",
+      "rulings": [
+        {"n": 1, "published_at": "2010-08-15", "comment": "You can sacrifice Viscera Seer to activate its own ability."},
+        {"n": 2, "published_at": "2010-08-15", "comment": "If you sacrifice an attacking or blocking creature during the declare blockers step, it won't deal combat damage. If you wait until the combat damage step, but that creature is dealt lethal damage, it'll be destroyed before you get a chance to sacrifice it."}
+      ]
+    },
     "Volcanic Island": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -1577,6 +1594,19 @@
         {"n": 4, "published_at": "2017-02-09", "comment": "If you control two Winding Constrictors, the number of counters placed on the artifact or creature is the original number plus two. Three Winding Constrictors adds three to the original number, and so on."},
         {"n": 5, "published_at": "2017-02-09", "comment": "If you would get counters of multiple kinds at the same time, Winding Constrictor increases the number of each of those kinds of counters by one. The same is true if counters of multiple kinds would be placed on an artifact or creature you control."},
         {"n": 6, "published_at": "2017-02-09", "comment": "Winding Constrictor's effect can't apply to itself as it's entering the battlefield or to any other permanent entering the battlefield at the same time as it."}
+      ]
+    },
+    "Wingrattle Scarecrow": {
+      "first_seen": "2026-10-22",
+      "read": "2026-10-22",
+      "rulings": [
+        {"n": 1, "published_at": "2013-06-07", "comment": "If a creature with persist stops being a creature, persist will still work."},
+        {"n": 2, "published_at": "2013-06-07", "comment": "The persist ability triggers when the permanent is put into a graveyard. Its last known information (that is, how the creature last existed on the battlefield) is used to determine whether it had a -1/-1 counter on it."},
+        {"n": 3, "published_at": "2013-06-07", "comment": "If a permanent has multiple instances of persist, they'll each trigger separately, but the redundant instances will have no effect. If one instance returns the card to the battlefield, the next to resolve will do nothing."},
+        {"n": 4, "published_at": "2013-06-07", "comment": "If a token with no -1/-1 counters on it has persist, the ability will trigger when the token is put into the graveyard. However, the token will cease to exist and can't return to the battlefield."},
+        {"n": 5, "published_at": "2013-06-07", "comment": "When a permanent with persist returns to the battlefield, it's a new object with no memory of or connection to its previous existence."},
+        {"n": 6, "published_at": "2013-06-07", "comment": "If multiple creatures with persist are put into the graveyard at the same time (due to combat damage or a spell that destroys all creatures, for example), the active player (the player whose turn it is) puts all of their persist triggers on the stack in any order, then each other player in turn order does the same. The last trigger put on the stack is the first one that resolves. That means that in a two-player game, the nonactive player's persist creatures will return to the battlefield first, then the active player's persist creatures do the same. The creatures return to the battlefield one at a time."},
+        {"n": 7, "published_at": "2013-06-07", "comment": "If a creature with persist that has +1/+1 counters on it receives enough -1/-1 counters to cause it to be destroyed by lethal damage or put into its owner's graveyard for having 0 or less toughness, persist won't trigger and the card won't return to the battlefield. That's because persist checks the creature's existence just before it leaves the battlefield, and it still has all those counters on it at that point."}
       ]
     },
     "Wonder": {

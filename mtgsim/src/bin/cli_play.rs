@@ -43,6 +43,7 @@ use mtgsim::state::game::Game;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::state::game_state::GameResult;
 use mtgsim::state::game_config::GameConfig;
+use mtgsim::ui::auto_order_triggers::AutoOrderTriggers;
 use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::auto_yield::{AutoYield, Yields};
 use mtgsim::ui::cli::CliDecisionProvider;
@@ -122,10 +123,10 @@ fn main() {
     let (full_control, yields) = (FullControlSwitch::default(), Yields::default());
     let terminal = || CliDecisionProvider::new(full_control.clone(), yields.clone());
     let human: Box<dyn DecisionProvider> = if auto_pay {
-        let decorated = AutoYield::new(AutoPayer::new(ManaWindowStop::new(terminal())), yields.clone());
+        let decorated = AutoOrderTriggers::new(AutoYield::new(AutoPayer::new(ManaWindowStop::new(terminal())), yields.clone()));
         Box::new(FullControl::new(decorated, terminal(), full_control.clone()).superseding(yields.clone()))
     } else {
-        let decorated = AutoYield::new(terminal(), yields.clone());
+        let decorated = AutoOrderTriggers::new(AutoYield::new(terminal(), yields.clone()));
         Box::new(FullControl::new(decorated, terminal(), full_control.clone()).superseding(yields.clone()))
     };
     let bot: Box<dyn DecisionProvider> = if auto_pay {

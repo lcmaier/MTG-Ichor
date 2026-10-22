@@ -36,6 +36,7 @@ use super::phase_tr5c_cards;
 use super::phase_tr5d_cards;
 use super::phase_tr5g_cards;
 use super::phase_tr6_cards;
+use super::phase_tr7_cards;
 use super::phase_ma2_cards;
 use super::phase_tr5e_cards;
 use super::phase_tr5f_cards;
@@ -70,7 +71,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 122] = [
+const PERFORMANCE_POOL: [&str; 124] = [
     "Plains",
     "Island",
     "Swamp",
@@ -579,6 +580,15 @@ const PERFORMANCE_POOL: [&str; 122] = [
     // and before placement. No agent choice: alone on its controller's side
     // it sacrifices itself, which in a random deck is often.
     "Emperor Crocodile",
+    // TR-7's: a triggered ability granted under a condition, which the
+    // dispatcher asks off the frame of the Scarecrow that died. No agent
+    // choice; without a black creature it is a 2/2 for three. Viscera Seer,
+    // the loop's other new card, stays out: a random agent sacrifices its own
+    // creatures with it at nearly every priority.
+    "Wingrattle Scarecrow",
+    // TR-7's entry counter over "not a Human", Master Biomancer's path at a
+    // fixed amount. No agent choice.
+    "Grumgully, the Generous",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -1031,6 +1041,12 @@ impl CardRegistry {
         // TR-6: CR 603.8's state check. "When you control no other
         // creatures" is asked of the board, never of an event.
         registry.register("Emperor Crocodile", phase_tr6_cards::emperor_crocodile);
+        // TR-7: the persist loop. With Blood Artist, sacrificing the
+        // Scarecrow to the Seer under Grumgully returns it with two counters
+        // that CR 704.5q removes, so it can persist again.
+        registry.register("Grumgully, the Generous", phase_tr7_cards::grumgully_the_generous);
+        registry.register("Wingrattle Scarecrow", phase_tr7_cards::wingrattle_scarecrow);
+        registry.register("Viscera Seer", phase_tr7_cards::viscera_seer);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,
@@ -1423,7 +1439,9 @@ mod tests {
     /// the paragraph the builder found for it. Several abilities may share
     /// one: Platinum Angel's two halves of one ability, or the CR's own
     /// several abilities on one line (603.11). A granted ability or a
-    /// token's is the text its card quotes. The exception
+    /// token's is the text its card quotes, and a granted keyword ability is
+    /// its name, which the card names (CR 702.1: Wingrattle Scarecrow's "has
+    /// persist"). The exception
     /// is CR 305.6's ability, which a land has from its basic land type
     /// whatever its text box prints. A card's rules text carries no reminder
     /// text, which has no game function (CR 207.2); every parenthesis in a
@@ -1466,8 +1484,11 @@ mod tests {
                 check(format!("{name} ability #{i}"), text, belongs);
                 let mut nested = 0usize;
                 ability.effect.for_each_ability_def_mut(&mut |def| {
-                    let quoted = printed.contains(&format!("\"{}\"", def.rules_text.words));
-                    check(format!("{name} ability #{i}, nested def #{nested}"), def.rules_text.words, quoted);
+                    let text = def.rules_text.words;
+                    let quoted = printed.contains(&format!("\"{text}\""));
+                    // A keyword's name is not a sentence, so it carries no period.
+                    let named_keyword = !text.contains('.') && printed.to_lowercase().contains(&text.to_lowercase());
+                    check(format!("{name} ability #{i}, nested def #{nested}"), text, quoted || named_keyword);
                     nested += 1;
                 });
             }

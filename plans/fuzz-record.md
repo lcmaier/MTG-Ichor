@@ -37,6 +37,101 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-22 for TR-7** (#269: the persist loop). Grumgully,
+the Generous, Wingrattle Scarecrow and Viscera Seer join the registry
+(212 → 215) and the first two the pool (122 → 124), so both §3 columns are
+new baselines. One `close_out.py` sitting against **main** `f2955a3` (#268's
+merge). **engine** `c97090e` is every code commit with the three cards
+unregistered, a throwaway commit; **shipped** is `02e4e5d`.
+
+**Predictions, before any arm ran** (`triggers-architecture.md` §12, TR-7):
+- the engine arm identical to `main` on both pools at two seats and four,
+  since no fuzz seat takes the ordering decorator;
+- instructions per decision within ±0.3%;
+- the shipped arm differing on both pools, since every seed builds new decks.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 170,640 / 166,023 | 342,562 / 355,499 |
+| gameplay rows, shipped vs `main`, performance / stress | differ / differ | differ / differ |
+| audit, shipped, dispatches agreed, performance / stress | 175,509 / 173,877 | 337,915 / 353,342 |
+| `stress` avg turns, `main` → shipped, 200 games | 24.3 → 25.7 | 49.6 → 49.6 |
+| `stress` avg turns, shipped, unforced → Viscera Seer forced | 25.7 → 27.2 | 49.6 → 51.4 |
+| `stress` creatures died, shipped, unforced → Viscera Seer forced | 4.7 → 6.1 | 10.5 → 12.4 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6713 M → 0.6695 M, **−0.28%** |
+
+**Every prediction held.** The engine arm's −0.28% is code no fuzz seat runs,
+inside the ±0.3% a code-only change reads. Viscera Seer's distortion, forced
+into every `stress` deck: games run 1.5 turns longer at two seats and 1.8 at
+four, and 30% and 18% more creatures die, since the agent sacrifices its own.
+It is registered and not pooled (the owner, at #269's review), so
+`performance` never deals it. Grumgully and the Scarecrow ask the agent
+nothing; with the three registered, unforced `stress` games ran 1.4 turns
+longer at two seats and no longer at four.
+
+**Reachability**, shipped, `stress` (the Seer is unpooled), 200 games with the
+four loop cards forced together. Resolved, in how many games:
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| Grumgully, the Generous | 125 in 98 (49%) | 86 in 83 (42%) |
+| Wingrattle Scarecrow | 140 in 112 (56%) | 86 in 81 (40%) |
+| Viscera Seer | 151 in 118 (59%) | 74 in 73 (36%) |
+| Blood Artist | 129 in 98 (49%) | 88 in 82 (41%) |
+
+The same games under `--audit`: no error, no panic, every dispatch agreed
+(173,381 and 351,415), and every game finished, so the agent stopped
+whatever loop it started. No row counts the Seer's activations, so how often
+the loop itself ran is not read here; its tests play it whole.
+
+**Memory.** The release clone tests and `history_held_test` pass; the worst
+decision of the printed games clones at 39 allocations and 6.3 KB, against
+floors of 64 and 128 KB.
+
+**CI's steps, run locally**: clippy at `-D warnings` on both crates, the
+suite's 2,748 tests, the release clone and round-trip tests, both fuzz pools,
+the checked `stress` run, determinism over three hash seeds, and the dev
+GUI's build, clippy, tests and pictures, all passing.
+
+**Copies** (`close_out.py`'s report against `main`): no near-copies. One
+composition, `AutoOrderTriggers::choose_ordering` beside `AutoPayer`'s: one
+prompt kind answered and the rest passed down, the decorators' shape.
+
+**§3 fixture rows, shipped `02e4e5d`, two seats, 50 games / seed 12345.**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 20 (40.0%) / 29 (58.0%) | 23 (46.0%) / 26 (52.0%) |
+| Wins by effect | 1 | 1 |
+| Avg turns | 26.6 | 24.2 |
+| Spells cast | 20.8 | 19.5 |
+| Lands played | 15.8 | 14.9 |
+| Combat w/ atk | 9.7 | 8.3 |
+| Creatures died | 7.4 | 4.2 |
+| Damage events | 22.6 | 19.0 |
+| Total damage | 63.2 | 54.8 |
+| Life changes | 15.6 | 15.9 |
+| **Layer walks** | **391** | **422** |
+| **Board walks** | **225** | **226** |
+| **Memo hits** | **51,343** | **53,607** |
+| **Layer frames** | **4,192** | **4,227** |
+| **Frames/walk** | **10.71** | **10.02** |
+| **Dependency checks** | **12** | **17** |
+| **Replacement gathers** | **931** | **877** |
+| **Restriction queries** | **933** | **879** |
+| Mana productions | 68 | 70 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.42 | 1.84 |
+| Max batch depth | 4 | 5 |
+| Decisions | 186 | 200 |
+| Priority decisions | 67 | 78 |
+| Actions reversed | 0.1 | 0.1 |
+| Triggers placed | 7.6 | 7.3 |
+| Windows past gate | 83.6 | 87.6 |
+| Candidate visits | 113.8 | 116.4 |
+| Trigger matches | 8.4 | 6.7 |
+
 **Re-recorded 2026-10-21 for TR-6** (#268: state triggers, the draw, and
 the rule-owned arm). Emperor Crocodile joins the registry and the pool (211 →
 212 registered, 121 → 122 pooled), so both §3 columns are new baselines. One

@@ -135,6 +135,7 @@ is derived.
 | 2026-10-20 | The multiplier, tokens and scry | `TR-5g` | `triggers-architecture.md` |
 | 2026-10-21 | The board and the stack shared between forks | `CL-1` | `clone-architecture.md` |
 | 2026-10-21 | State triggers, the draw, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
+| 2026-10-22 | The persist loop, the track's capstone | `TR-7` | `triggers-architecture.md` |
 
 ### Named, not yet landed
 
@@ -162,15 +163,14 @@ and no ✅ heading records, in the docs' order.
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
-| The persist loop, the track's capstone | `TR-7` | `triggers-architecture.md` |
 
 ## Counts
 
 | | |
 |---|---:|
-| Cards registered | 212 |
-| …of them in `PERFORMANCE_POOL` | 122 |
-| `#[test]` functions | 2733 |
+| Cards registered | 215 |
+| …of them in `PERFORMANCE_POOL` | 124 |
+| `#[test]` functions | 2754 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -191,11 +191,11 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 346 |
-| …closed, still recorded | 196 |
-| …open — unreachable, and says why | 101 |
+| Numbered items | 347 |
+| …closed, still recorded | 197 |
+| …open — unreachable, and says why | 102 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 29 |
+| …open — reachable, not wrong (perf, a name, a harness) | 28 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **0** |
 | …open, carrying an explicit `**Sized:**` | 148 of 150 |

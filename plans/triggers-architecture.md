@@ -3350,9 +3350,10 @@ at least one registered consumer of what it builds, and each closes against
   reference made before it (`copy-effects-architecture.md` §7d).
 - TR-4 widens the frame TR-5's combat shapes never read. TR-5a needs only
   TR-2b, so it may move up to just after it.
-- TR-6's loop detector counts the decisions every earlier phase adds.
-- TR-7 is last because its capstone loop reads TR-4's frame, TR-5's
-  counters and TR-6's loop handling.
+- TR-6 asks the state triggers after every dispatch the earlier phases
+  build; its loop detector moved to `roadmap-v2.md` B14 at its review.
+- TR-7 is last because its capstone loop reads TR-4's frame and TR-5's
+  counters, and its player stops it by choice.
 
 **Between TR-3b and TR-4a, `codebase-state.md` item 176's zone-change
 record design** (the owner, 2026-09-24): what was done, who did it, which replacement redirected
@@ -4165,50 +4166,40 @@ at about 980 lines, under the sized 1,305–1,720.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-6".
 
-### TR-7 — the persist loop, the track's capstone
+### TR-7 — the persist loop, the track's capstone — ✅ landed 2026-10-22
 
-**Re-scoped 2026-10-13 (the owner, at #246's review).** The track ends with a
-loop built only from what TR-4 to TR-6 build. The Krark-Clan Ironworks loop it
-replaces moved to `roadmap-v2.md` B13, a capstone across triggers, mana and
-permission. Its graveyard targets, metalcraft's activation restriction and CR
-732.1's reverse-all belong to later rows, and it exercised little of TR-4 to
-TR-6: no control change, combat, counters or state trigger.
+*Body evicted 2026-10-22 to `plans/archive/triggers-architecture-landed.md`,
+"TR-7", with the plan as designed and what the build changed.*
 
-**The loop.** Four cards, each playable whole by then:
-- Grumgully, the Generous: "Each other non-Human creature you control enters
-  with an additional +1/+1 counter on it";
-- Wingrattle Scarecrow: "This creature has persist as long as you control a
-  black creature";
-- Viscera Seer: "Sacrifice a creature: Scry 1", black;
-- Blood Artist, registered: "Whenever this creature or another creature dies,
-  target player loses 1 life and you gain 1 life", black.
+**What shipped.** Three cards that, with Blood Artist, make the persist
+loop: Grumgully, the Generous, Wingrattle Scarecrow and Viscera Seer, all
+registered and the first two pooled (212 → 215, 122 → 124). Nothing in the
+engine changed for them: the re-count found every facility the loop reads
+already built by TR-4 to TR-6. `ui::AutoOrderTriggers`, item 163's decorator
+half, takes a person's trigger order as offered under full control's toggle,
+in `cli_play` and the dev GUI; a bot's agent orders for itself. The loop is
+tested cast from hand under the dispatch audit, run three times by choice and
+stopped by a pass. The twelve rulings are tests, persist's two atoms are
+claimed, and TR-4a's tests claim the two they always proved.
 
-Sacrifice the Scarecrow. Persist returns it with a -1/-1 counter, and
-Grumgully's +1/+1 counter enters with it. CR 704.5q annihilates the pair, so
-the new object has no counters and persists again. Blood Artist drains on
-every death.
+**What moved on the way in.** At review the random agent kept no rule for an
+activation it can repeat freely, since `stress` drives the engine every way
+it can be driven, so Viscera Seer is registered and not pooled. The
+authoring check that each ability carries its card's text accepts a granted
+keyword the card names (CR 702.1). The seventh ruling is asked on lethal
+damage, the board where the order inside one state-based check decides it.
 
-What one loop exercises:
-- **Persist's intervening "if"** read off the frame at both instants (TR-4a;
-  CR 603.4, 603.10a; the Scarecrow's second ruling).
-- **A conditionally granted triggered ability**, asked of a departed object's
-  frame: persist exists as long as a black creature does (§4.2's leg 2).
-- **Each return is a new object** (CR 400.7; its fifth ruling).
-- **An entry with two counter rows**, announced (item 17), and their
-  annihilation as two removals in the state-based batch (TR-5b). That includes
-  the seventh ruling's board, where the counters arrive and the creature dies in
-  one check.
-- **The ordering** of persist and Blood Artist's trigger at each death (CR
-  603.3b), with item 163's ordering decorator.
-- **An optional loop** its player must be able to stop, and a fuzz agent that
-  does (TR-6, CR 731.1b, §4.9).
+**Measured** (`fuzz-record.md`, TR-7's block). The engine arm plays `main`'s
+games on both pools at two seats and four, at −0.28% instructions per
+decision, and every dispatch agreed under the audit, the four loop cards
+forced included. Viscera Seer forced into every `stress` deck lengthens games
+1.5 turns at two seats and 1.8 at four. Code and tests landed at about 1,100
+lines, inside the sized 975–1,300.
 
-Persist itself is undying's mirror, built beside it in TR-4a (Kitchen Finks'
-rulings are its tests). Mikaeus, the Unhallowed's undying lord was the first
-pick. It was set aside because its intimidate is a flag nothing reads until
-RS-3a (`cant-effects-architecture.md`), and a registered card may not carry a
-dead ability (`engineering-practices.md` §3). Not sized: its brief re-counts it
-against the tree TR-6 leaves.
+**What it leaves.** Item 6's close audit, A6e, then A6h and A6f
+(`roadmap-v2.md`).
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-7".
 
 ### Re-counted 2026-09-24 — the splits, and why the plan keeps missing
 
@@ -4225,7 +4216,7 @@ re-counts. Figures are code plus tests, the band `engineering-practices.md`
 | TR-4 | 2,000–2,460 | 2,640–3,460 | **TR-4a**: the frame, 1,360–1,620. **TR-4b**: the records, 1,430–1,790 |
 | TR-5 | 2,195–2,710 | 3,080–4,350 | **TR-5a**: combat, targeting, ability damage and excess damage, 1,200–2,050. **TR-5b**: counters, prevention, the multiplier, tokens and scry, 1,870–2,380 |
 | TR-6 | 740–1,030 | 935–1,360 | no split |
-| TR-7 | — | 1,020–1,420 | not yet |
+| TR-7 | — | 1,020–1,420 | no split; 975–1,300 at its design (2026-10-21) |
 
 Each half keeps the cards that read its facilities, so each half still
 carries a consumer.
