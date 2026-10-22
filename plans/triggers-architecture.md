@@ -3161,7 +3161,7 @@ smoke: no error, panic or turn-limit game, every dispatch agreed.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-4d". **Trace page:** owed, for the item 6 audit's pass 5 — control is announced by a sweep, not a performer.
 
-### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
+### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080) — ✅ landed 2026-10-15
 
 *TR-4's four sub-phases as re-counted on 2026-10-12 (A6p), with TR-4d's row as
 sized, moved to `plans/archive/triggers-architecture-landed.md` under this
@@ -3476,7 +3476,7 @@ finished game now drops waiting triggers (CR 104.1), and reads 50.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-5g". **Trace page:** `tr-5g-a-multiplier-is-read-where-its-trigger-looks.html`.
 
-### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5g (8,690–10,010)
+### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5g (8,690–10,010) — ✅ landed 2026-10-20
 
 *TR-5's route — four sub-phases at the 2026-10-12 re-count, three more split
 at their designs and reviews — and its table, with TR-5a's and TR-5d's rows as

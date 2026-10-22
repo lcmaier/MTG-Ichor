@@ -6739,7 +6739,7 @@ source cannot leave them where they were — "IDENTICAL on every counter" is
 unmeetable by construction for this change, and the F1-only arm is what
 carries that claim instead.
 
-### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
+### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080) — ✅ landed 2026-10-15
 
 *Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md` §12, where the heading and a stub remain.*
 
@@ -6762,7 +6762,7 @@ themselves from a graveyard, which CR 113.6m places in that zone and
 `zone_function` does not derive (Ichorid's intervening "if" is also main
 item 173's 113.6b statement).
 
-### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5g (8,690–10,010)
+### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5g (8,690–10,010) — ✅ landed 2026-10-20
 
 *Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md` §12, where the heading and a stub remain.*
 

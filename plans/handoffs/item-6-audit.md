@@ -30,9 +30,9 @@ pass re-reads what it touches: a number here is a starting point.
   start from their own work-lists.
 - Pass 2, the eviction, ran in session 3 as one PR, #273, on
   `audit/item-6-eviction` (§9); its body has the line counts section by
-  section. The board still lists TR-4 and TR-5 as named and not yet landed,
-  since their roll-up headings stayed byte-identical and carry no ✅: the
-  owner's call, put at #273's review.
+  section. Every moved heading stayed byte-identical except the TR-4 and
+  TR-5 roll-ups, which gained their last sub-phase's ✅ date so the board
+  stops listing them as not yet landed (the owner, at #273's review).
 
 ## 1. Why this audit is bigger than the last
 
