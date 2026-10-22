@@ -984,7 +984,22 @@ impl GameState {
                 // Indestructible is a "can't" (CR 702.12b, 614.17) that `is_prohibited`
                 // asks ahead of the pipeline, so a self-replacement still sees the
                 // proposal (614.17c). Off the battlefield, destroy does nothing (701.8b).
-                let batch = self.events_for(primitive, targets, ctx)?;
+                // "Destroy each ..." is `FilteredPermanents`, resolved now and
+                // ordered, as `Untap`'s is.
+                let each: Vec<ResolvedTarget>;
+                let objects = match recipient {
+                    EffectRecipient::FilteredPermanents(filter) => {
+                        each = self
+                            .battlefield_ids_ordered()
+                            .into_iter()
+                            .filter(|&id| self.matches_for_effect(id, filter, ctx))
+                            .map(ResolvedTarget::Object)
+                            .collect();
+                        &each[..]
+                    }
+                    _ => targets,
+                };
+                let batch = self.events_for(primitive, objects, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())
             }
@@ -2498,6 +2513,12 @@ impl GameState {
             // The permanents a selector names, as they are now (CR 608.2h),
             // "you" the resolution's controller: Ajani, Nacatl Avenger's "the
             // number of creatures you control".
+            // A hand's size, which any player may count (CR 402.3): "discard
+            // your hand" is a discard of this many.
+            AmountExpr::CountOf(Selector::CardsInHand(whose)) => {
+                let player = self.resolve_player_ref(whose, _ctx.targets.all(), _ctx)?;
+                Ok(self.get_player(player)?.hand.len() as u64)
+            }
             AmountExpr::CountOf(selector) => {
                 let filter = match selector {
                     Selector::PermanentsMatching(filter) => std::borrow::Cow::Borrowed(filter),
