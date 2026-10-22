@@ -35,6 +35,7 @@ use super::phase_tr5b_cards;
 use super::phase_tr5c_cards;
 use super::phase_tr5d_cards;
 use super::phase_tr5g_cards;
+use super::phase_tr6_cards;
 use super::phase_ma2_cards;
 use super::phase_tr5e_cards;
 use super::phase_tr5f_cards;
@@ -69,7 +70,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 121] = [
+const PERFORMANCE_POOL: [&str; 122] = [
     "Plains",
     "Island",
     "Swamp",
@@ -574,6 +575,10 @@ const PERFORMANCE_POOL: [&str; 121] = [
     // entering. Registered alone it moved `stress` games by about a turn
     // either way and no game ended differently in kind.
     "Panharmonicon",
+    // TR-6's: CR 603.8's state check, asked after every dispatch
+    // and before placement. No agent choice: alone on its controller's side
+    // it sacrifices itself, which in a random deck is often.
+    "Emperor Crocodile",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -1023,6 +1028,9 @@ impl CardRegistry {
         // ability of its controller's permanents that an artifact or
         // creature entering causes, its own entry and one beside it included.
         registry.register("Panharmonicon", phase_tr5g_cards::panharmonicon);
+        // TR-6: CR 603.8's state check. "When you control no other
+        // creatures" is asked of the board, never of an event.
+        registry.register("Emperor Crocodile", phase_tr6_cards::emperor_crocodile);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

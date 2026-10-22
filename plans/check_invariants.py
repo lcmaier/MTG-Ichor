@@ -160,9 +160,7 @@ PERFORMERS = {
 }
 
 #: Known violations, by `codebase-state.md` item: (check, file, name) -> (item, owner).
-KNOWN = {
-    ("write", "engine/sba.rs", "end_game"): (263, "TR-6: CR 104.4b's draw, ended directly"),
-}
+KNOWN = {}
 
 
 # --- reading -----------------------------------------------------------------

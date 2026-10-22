@@ -234,12 +234,13 @@ pub enum GameEvent {
     /// **Unstamped**: it carries no batch and no resolution, because it is a
     /// consequence of the event and not part of it, and the dispatcher reads
     /// it like any unbatched record. `caused_by` is the record that matched
-    /// (the first of them, for a "one or more" trigger).
+    /// (the first of them, for a "one or more" trigger), and `None` for a
+    /// state trigger, which no record caused (CR 603.8).
     AbilityTriggered {
         seq: TriggerSeq,
         origin: TriggerOrigin,
         controller: PlayerId,
-        caused_by: EventId,
+        caused_by: Option<EventId>,
     },
     /// A delayed triggered ability was created (CR 603.7a), by
     /// `GameState::register_delayed_trigger`, ahead of any record it can
@@ -306,6 +307,11 @@ pub enum GameEvent {
     /// standing — is not an event: it is the outcome the losses imply, recorded
     /// on `GameState::result` when the batch that performed them settles.
     PlayerWon { player_id: PlayerId },
+    /// CR 104.4 — the game is a draw. Emitted by the
+    /// `GameAction::GameEndsInADraw` performer; a draw CR 104.4a's
+    /// simultaneous losses imply is recorded when their batch settles, as
+    /// CR 104.2a's win is.
+    GameEndedInADraw,
 
     // --- Scry ---
     /// A player scried (CR 701.22a). `n` is the instruction's number and
@@ -663,6 +669,7 @@ impl GameEvent {
             | TurnBegin { .. }
             | PlayerLost { .. }
             | PlayerWon { .. }
+            | GameEndedInADraw
             | Scried { .. }
             | LibraryShuffled { .. }
             | StateBasedActionPerformed => {}

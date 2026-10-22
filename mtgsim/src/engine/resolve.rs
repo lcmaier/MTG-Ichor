@@ -351,6 +351,15 @@ impl GameState {
                     self.this_object(ctx).map(ResolvedTarget::Object).into_iter().collect();
                 self.resolve_primitive(primitive, recipient, &this, ctx, dp, walk)
             }
+            // "Each [permanent]": every permanent the filter matches as the
+            // instruction applies (CR 611.2c's set), handed to the primitive as
+            // the objects it acts on in one instruction (CR 608.2f), so a
+            // primitive that reads only its objects reaches them too.
+            Effect::Atom(primitive, recipient @ EffectRecipient::FilteredPermanents(_)) => {
+                let each: Vec<ResolvedTarget> =
+                    self.affected_permanents(recipient, &[], ctx).into_iter().map(ResolvedTarget::Object).collect();
+                self.resolve_primitive(primitive, recipient, &each, ctx, dp, walk)
+            }
             // CR 608.2d — objects a player chooses as the effect applies,
             // checked against the verb's own event (CR 101.2), so a "can't"
             // removes a candidate rather than refusing a choice.
@@ -371,8 +380,8 @@ impl GameState {
                         "{:?} on {:?} names an instance of \"target\" the effect never declared (CR 115.3)",
                         recipient, ctx.source
                     )),
-                    // Implicit, Controller, the filtered sweeps, Host — none
-                    // reads a chosen target.
+                    // Implicit, Controller, the other filtered sweeps, Host —
+                    // none reads a chosen target.
                     None => self.resolve_primitive(primitive, recipient, &[], ctx, dp, walk),
                 }
             }
@@ -2498,6 +2507,12 @@ impl GameState {
             // The permanents a selector names, as they are now (CR 608.2h),
             // "you" the resolution's controller: Ajani, Nacatl Avenger's "the
             // number of creatures you control".
+            // A hand's size, which any player may count (CR 402.3): "discard
+            // your hand" is a discard of this many.
+            AmountExpr::CountOf(Selector::CardsInHand(whose)) => {
+                let player = self.resolve_player_ref(whose, _ctx.targets.all(), _ctx)?;
+                Ok(self.get_player(player)?.hand.len() as u64)
+            }
             AmountExpr::CountOf(selector) => {
                 let filter = match selector {
                     Selector::PermanentsMatching(filter) => std::borrow::Cow::Borrowed(filter),
@@ -2599,6 +2614,13 @@ impl GameState {
                     })
                     .sum())
             }
+            // The discards this resolution performed, one record a card (CR
+            // 701.9a), as the damage above is this resolution's own.
+            AmountExpr::DiscardedThisWay => Ok(self
+                .events
+                .resolution_records(_ctx.stamp(), self.resolution_began_at()?)
+                .filter(|record| matches!(record.event, GameEvent::ZoneChange { act: ZoneChangeAct::Discarded, .. }))
+                .count() as u64),
             // CR 615.5's "that much"/"that many". Only a rider sets the field, so
             // outside a `ReplacementDef::then` this leaf asks a question its context
             // cannot answer, and a 0 would be silently wrong.

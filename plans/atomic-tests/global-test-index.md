@@ -757,8 +757,8 @@
 | ATOM-122.7-001 | 122.7 | Trigger fires when counter count crosses from below N to N or above | Phase 7 | S1 |  |
 | ATOM-122.8-001 | 122.8 | Triggered ability referencing counters on a sacrificed permanent creates new counters, doesn't move | Phase 7 | S1 |  |
 | ATOM-122.9-001 | 122.9 | Activated ability referencing counters on a sacrificed permanent creates new counters | Phase 7 | S1 |  |
-| ATOM-208.2b-001 | 208.2b | A creature with a replacement-effect-based P/T (choosing from specific values as it enters) has 0/0 while not on the battlefield. | NEW — replacement-effect P/T cards show 0/0 off-battlefield | S2 |  |
-| ATOM-208.2b-002 | 208.2b | The chosen P/T from a replacement effect affects the creature's copiable values. | NEW — copiable values from ETB replacement effect choices | S2 |  |
+| ATOM-208.2b-001 | 208.2b | A creature with a replacement-effect-based P/T (choosing from specific values as it enters) has 0/0 while not on the battlefield. | Deferred to `copy-effects-architecture.md` (copiable values from an entry choice) — replacement-effect P/T cards show 0/0 off-battlefield | S2 |  |
+| ATOM-208.2b-002 | 208.2b | The chosen P/T from a replacement effect affects the creature's copiable values. | Deferred to `copy-effects-architecture.md` (copiable values from an entry choice) — copiable values from ETB replacement effect choices | S2 |  |
 | ATOM-400.7-001 | 400.7 | An object that moves from one zone to another becomes a new object with no memory of its previous existence. | NEW — `zone_change_epoch` field on `GameObject`, global epoch counter on `GameState`, `ObjectRef` type for stale-reference checking. | S4 |  |
 | ATOM-400.7e-001 | 400.7e | Abilities that trigger when an object moves from one zone to another can find the new object in the destination zone, if that zone is public. | NEW — triggered ability zone-change object tracking | S4 |  |
 | ATOM-400.7e-002 | 400.7e (Non-example: Vigor) | "From anywhere" triggers don't need this rule. | NEW — "from anywhere" triggers don't require 400.7e lookup | S4 |  |
@@ -846,20 +846,20 @@
 | ATOM-610.3c-001 | 610.3c | "Until" return goes to owner's control | NEW — "Until" return defaults to owner's control | S6 |  |
 | ATOM-610.3c-002 | 610.3c | "Until" return under specific controller when stated | NEW — "Until" return under specific controller override | S6 |  |
 | ATOM-610.3d-001 | 610.3d | Simultaneous "until" returns are simultaneous | NEW — Simultaneous "until" returns | S6 |  |
-| ATOM-610.5-001 | 610.5 | Static ability grants Convoke to creature spells at cast time | NEW — Static ability grants casting mechanic at cast time (610.5 + 601.2a) | S6 |  |
-| ATOM-610.5-002 | 610.5 | Granting permanent destroyed before resolution: spell retains granted ability | NEW — Cast-time grant persists after source destruction | S6 |  |
-| ATOM-611.2e-001 | 611.2e | "Is [characteristic]" applies simultaneously with entering | NEW — Simultaneous "is [type]" ETB characteristic (611.2e) | S6 |  |
-| ATOM-611.3d-001 | 611.3d | Static grant of ability to permanent spell persists after source leaves | NEW — Static ability grant persists per 611.3d | S6 |  |
-| ATOM-611.3d-002 | 611.3d | Dream Devourer: foretold cards castable after source leaves | NEW — Dream Devourer foretell grant persists (611.3d real-card example) | S6 |  |
+| ATOM-610.5-001 | 610.5 | Static ability grants Convoke to creature spells at cast time | Deferred to `backlog.md` §2.1 (a keyword granted at cast, convoke's) — Static ability grants casting mechanic at cast time (610.5 + 601.2a) | S6 |  |
+| ATOM-610.5-002 | 610.5 | Granting permanent destroyed before resolution: spell retains granted ability | Deferred to `backlog.md` §2.1 (a keyword granted at cast, convoke's) — Cast-time grant persists after source destruction | S6 |  |
+| ATOM-611.2e-001 | 611.2e | "Is [characteristic]" applies simultaneously with entering | Deferred to Phase 8, with Arbiter of the Ideal (an entry's own type change, which `EnterMods` carries for Master Biomancer's Mutant) — Simultaneous "is [type]" ETB characteristic (611.2e) | S6 |  |
+| ATOM-611.3d-001 | 611.3d | Static grant of ability to permanent spell persists after source leaves | Deferred to `permission-architecture.md`, PM's later builds (foretell, `backlog.md` §2.3) — Static ability grant persists per 611.3d | S6 |  |
+| ATOM-611.3d-002 | 611.3d | Dream Devourer: foretold cards castable after source leaves | Deferred to `permission-architecture.md`, PM's later builds (foretell, `backlog.md` §2.3) — Dream Devourer foretell grant persists (611.3d real-card example) | S6 |  |
 | ATOM-614.6-001 | 614.6 | Replaced event never happens; modified event triggers abilities | NEW — Replaced event suppression + modified event triggers | S6 |  |
 | ATOM-614.8-002 | 614.8 | Regeneration: damage triggers still fire | NEW — Regeneration damage triggers still fire | S6 |  |
 | ATOM-615.6-001 | 615.6 | Prevented damage never happens; modified event triggers | NEW — Prevented damage suppresses damage triggers | S6 |  |
-| ATOM-700.2b-001 | 700.2b | Controller of modal triggered ability chooses modes when putting it on the stack. If no mode can be chosen, ability is removed from stack. | NEW — modal triggered ability mode selection + removal on no legal mode | S7a |  |
-| ATOM-700.2g-001 | 700.2g | A copy of a modal spell copies the modes chosen. Controller of copy can't choose different modes. | NEW — spell copy preserves modes (D19) | S7a |  |
-| ATOM-701.43d-001 | 701.43d | "You may exert as it attacks" = optional attack cost. | NEW — optional attack cost hook | S7a |  |
-| ATOM-701.66a-001 | 701.66a | Earthbend N: land becomes 0/0 creature with haste, gets N +1/+1 counters, delayed return trigger. | NEW — earthbend primitive (delayed trigger + land animation) | S7a |  |
-| ATOM-701.66a-002 | 701.66a | Earthbend: animated land dies, delayed trigger returns it. | NEW — earthbend delayed return | S7a |  |
-| ATOM-702.21a-001 | 702.21a | Ward [cost] means "Whenever this permanent becomes the target of a spell or ability an opponent controls, counter that spell or ability unless that player pays [cost]." | NEW — Phase 7: Ward implementation. Triggered ability: on-target trigger + counter-unless-pay resolution. | S7b | ward, triggered-ability, counter-unless-pay |
+| ATOM-700.2b-001 | 700.2b | Controller of modal triggered ability chooses modes when putting it on the stack. If no mode can be chosen, ability is removed from stack. | Deferred to `backlog.md` §2.7 (modes) — modal triggered ability mode selection + removal on no legal mode | S7a |  |
+| ATOM-700.2g-001 | 700.2g | A copy of a modal spell copies the modes chosen. Controller of copy can't choose different modes. | Deferred to `copy-effects-architecture.md`, CV-4 (spell copies) — spell copy preserves modes (D19) | S7a |  |
+| ATOM-701.43d-001 | 701.43d | "You may exert as it attacks" = optional attack cost. | Deferred to `backlog.md` §2.5 (exert) — optional attack cost hook | S7a |  |
+| ATOM-701.66a-001 | 701.66a | Earthbend N: land becomes 0/0 creature with haste, gets N +1/+1 counters, delayed return trigger. | Deferred to Phase 8 (earthbend) — earthbend primitive (delayed trigger + land animation) | S7a |  |
+| ATOM-701.66a-002 | 701.66a | Earthbend: animated land dies, delayed trigger returns it. | Deferred to Phase 8 (earthbend) — earthbend delayed return | S7a |  |
+| ATOM-702.21a-001 | 702.21a | Ward [cost] means "Whenever this permanent becomes the target of a spell or ability an opponent controls, counter that spell or ability unless that player pays [cost]." | Deferred to `cost-architecture.md` §3.10, CP-1 (ward: TR-5's targeting event and CP-1's "unless") — Ward implementation. Triggered ability: on-target trigger + counter-unless-pay resolution. | S7b | ward, triggered-ability, counter-unless-pay |
 | ATOM-702.21a-002 | 702.21a | Ward only triggers for opponent's spells/abilities, not controller's own. | NEW — Phase 7: Ward (same ticket as 702.21a-001). | S7b | ward, triggered-ability, self-targeting |
 | ATOM-702.176a-003 | 702.176a (ability 4) | Impending: at beginning of your end step, remove a time counter | (same as above) | S8 |  |
 | ATOM-707.5-002 | 707.5 | Copied ETB triggered abilities fire for the copy. | D5 + Phase 7 | S9a |  |

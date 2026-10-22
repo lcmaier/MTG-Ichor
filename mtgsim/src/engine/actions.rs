@@ -587,6 +587,17 @@ pub enum GameAction {
         player: PlayerId,
     },
 
+    /// CR 104.4 — the game ends in a draw. Proposed by the engine's two
+    /// bounds on a run that does not end: the state-based check that keeps
+    /// performing and the dispatch that keeps nesting (CR 104.4b), each with
+    /// `GameRule::MandatoryLoop` as its cause.
+    ///
+    /// **No `EventPattern` arm**: nothing printed replaces a draw, and an
+    /// effect that makes the game one works beside Platinum Angel (its fourth
+    /// ruling), so no "can't" refuses it either. A draw is no loss, so CR
+    /// 603.9's "whenever a player loses the game" never sees one.
+    GameEndsInADraw,
+
     /// CR 106.6a / 106.12b — **the mana production event**: a spell or
     /// ability adds mana to a player's pool. The event's subject is `player`.
     ///
@@ -1383,11 +1394,13 @@ impl GameState {
             controller: rider.controller,
             generated_by: rider.generated_by,
             // CR 615.5's rider acts on the replaced event's subject, which is
-            // one thing and therefore one instance.
-            targets: crate::engine::targeting::ChosenTargets::one(vec![match rider.subject {
-                EventSubject::Object(id) => ResolvedTarget::Object(id),
-                EventSubject::Player(pid) => ResolvedTarget::Player(pid),
-            }]),
+            // one thing and therefore one instance. A draw is replaced by
+            // nothing, so no rider has the game for its subject.
+            targets: crate::engine::targeting::ChosenTargets::one(match rider.subject {
+                EventSubject::Object(id) => vec![ResolvedTarget::Object(id)],
+                EventSubject::Player(pid) => vec![ResolvedTarget::Player(pid)],
+                EventSubject::Game => Vec::new(),
+            }),
             replaced_amount: rider.replaced_amount,
             damage_prevented: Some(rider.prevented),
             trigger: None,
@@ -1951,6 +1964,11 @@ impl GameState {
                 }
                 self.end_game(GameResult::Winner(player));
                 self.emit_event(GameEvent::PlayerWon { player_id: player }, ctx.cause)?;
+                Ok(())
+            }
+            GameAction::GameEndsInADraw => {
+                self.end_game(GameResult::Draw);
+                self.emit_event(GameEvent::GameEndedInADraw, ctx.cause)?;
                 Ok(())
             }
 

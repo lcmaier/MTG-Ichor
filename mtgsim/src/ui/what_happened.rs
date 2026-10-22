@@ -45,10 +45,24 @@ pub(crate) fn what_happened(game: &GameState, event: EventId, trace: &[TraceReco
         .flat_map(|r| trigger_lines(game, trace, r))
         .collect();
     let asked = if asked.is_empty() { vec![WhyLine::new("No triggered ability was asked about it.")] } else { asked };
-    Why {
-        title: performed.str("text").unwrap_or_default().to_string(),
-        sections: vec![section(WHAT_HAPPENED, lines), section("Triggered abilities asked about it", asked)],
+    let mut sections = vec![section(WHAT_HAPPENED, lines), section("Triggered abilities asked about it", asked)];
+    // CR 603.8: a state trigger is asked of the board after every event, so
+    // only those that triggered say anything about this one.
+    let of_the_board: Vec<WhyLine> = trace
+        .iter()
+        .filter(|r| r.kind == RecordKind::Trigger && r.bool("state") == Some(true) && r.bool("matched") == Some(true))
+        .filter(|r| r.u64("after") == Some(index))
+        .flat_map(|r| trigger_lines(game, trace, r))
+        .collect();
+    if !of_the_board.is_empty() {
+        sections.push(section("State triggers that triggered after it", of_the_board));
     }
+    Why { title: performed.str("text").unwrap_or_default().to_string(), sections }
+}
+
+/// The words of the performed event at `index`, read from the trace.
+pub(crate) fn event_text(trace: &[TraceRecord], index: u64) -> Option<&str> {
+    trace.iter().find(|r| r.kind == RecordKind::Event && r.u64("index") == Some(index)).and_then(|r| r.str("text"))
 }
 
 /// One record of a batch, as lines: a `batch`'s proposals, a `pipeline`'s
@@ -145,11 +159,13 @@ fn nothing_performed_after(game: &GameState, after: &[TraceRecord], own: Option<
 pub(crate) fn trigger_lines(game: &GameState, trace: &[TraceRecord], record: &TraceRecord) -> Vec<WhyLine> {
     let source = ObjectId::from_trace(record.u64("source").unwrap_or_default());
     let matched = record.bool("matched") == Some(true);
+    let state = record.bool("state") == Some(true);
     let verdict = if matched { "triggered" } else { "did not trigger" };
-    let mut lines = vec![WhyLine::new(format!("{}: {verdict}", named(game, source))).rule("603.2").naming(game, &[source])];
+    let rule = if state { "603.8" } else { "603.2" };
+    let mut lines = vec![WhyLine::new(format!("{}: {verdict}", named(game, source))).rule(rule).naming(game, &[source])];
     lines.extend(ability_words(game, source, record.str("ability")).map(|words| WhyLine::under(format!("“{words}”"))));
     lines.push(if !matched {
-        refused(record.str("refused_by"))
+        refused(record.str("refused_by"), state)
     } else if record.bool("mana") == Some(true) {
         WhyLine::under("A mana ability: it resolved at once, without the stack").rule("605.4a")
     } else {
@@ -159,11 +175,15 @@ pub(crate) fn trigger_lines(game: &GameState, trace: &[TraceRecord], record: &Tr
 }
 
 /// Where a matched trigger went: the first `pending` record after the match
-/// that names its source and this event.
+/// that names its ability and this event. A state trigger's names no event,
+/// and is the ability's next, since it cannot trigger again while it waits
+/// (CR 603.8).
 fn placement(game: &GameState, trace: &[TraceRecord], matched: &TraceRecord) -> WhyLine {
     let event = matched.u64("record");
     let pending = trace.iter().filter(|r| r.kind == RecordKind::Pending && r.seq > matched.seq).find(|r| {
-        r.u64("source") == matched.u64("source") && r.items("records").iter().any(|n| n.as_u64() == event)
+        r.u64("source") == matched.u64("source")
+            && r.str("ability") == matched.str("ability")
+            && (event.is_none() || r.items("records").iter().any(|n| n.as_u64() == event))
     });
     match pending.map(|p| (p.u64("object"), p.str("refused_by"))) {
         None => WhyLine::under("It waits to be put on the stack the next time a player would receive priority").rule("603.3"),
@@ -178,14 +198,21 @@ fn placement(game: &GameState, trace: &[TraceRecord], matched: &TraceRecord) -> 
     }
 }
 
-/// What refused a trigger, as the matcher names it (`engine::triggers::dispatch`).
-fn refused(by: Option<&str>) -> WhyLine {
-    let (words, rule) = match by {
-        Some("condition") => ("Its trigger condition does not match this event", Some("603.2")),
-        Some("intervening_if") => ("Its intervening “if” was false when the event happened", Some("603.4")),
-        Some("limit") => ("It had already used what it may trigger each turn", None),
-        Some("visibility") => ("Its source was not visible to all players", Some("603.2f")),
-        Some("state") => ("A state trigger, which is checked against the board, not against events", Some("603.8")),
+/// What refused a trigger, as the matcher names it (`engine::triggers::dispatch`)
+/// or, for a `state` trigger, the state check (`engine::triggers::state`).
+fn refused(by: Option<&str>, state: bool) -> WhyLine {
+    let (words, rule) = match (by, state) {
+        (Some("condition"), false) => ("Its trigger condition does not match this event", Some("603.2")),
+        (Some("condition"), true) => ("Its state was not true of the board", Some("603.8")),
+        (Some("intervening_if"), false) => ("Its intervening “if” was false when the event happened", Some("603.4")),
+        (Some("intervening_if"), true) => {
+            ("A state trigger has no intervening “if”: its state is checked only as it triggers", Some("603.8"))
+        }
+        (Some("limit"), false) => ("It had already used what it may trigger each turn", None),
+        (Some("limit"), true) => ("“For the first time each turn” is about an event, and a state trigger has none", Some("603.8")),
+        (Some("not_left_the_stack"), _) => ("It has triggered already, and that ability has not left the stack", Some("603.8")),
+        (Some("visibility"), _) => ("Its source was not visible to all players", Some("603.2f")),
+        (Some("state"), _) => ("A state trigger, which is checked against the board, not against events", Some("603.8")),
         _ => ("Refused by a check this build does not name", None),
     };
     WhyLine { rule, ..WhyLine::under(words) }

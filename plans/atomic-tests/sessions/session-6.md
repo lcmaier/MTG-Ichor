@@ -283,7 +283,7 @@ Static abilities that grant abilities to spells as they are cast apply at the ti
 - **Action:** Player A casts the creature spell, tapping three creatures to pay {3} of the cost.
 - **Expected Result:** Cast succeeds. The spell gains convoke at stack-placement time. Three creatures are tapped to pay 3 generic mana. Total mana paid: {G}.
 - **Phase:** Phase 7 (Static grants to spells)
-- **Ticket:** NEW — Static ability grants casting mechanic at cast time (610.5 + 601.2a)
+- **Ticket:** Deferred to `backlog.md` §2.1 (a keyword granted at cast, convoke's) — Static ability grants casting mechanic at cast time (610.5 + 601.2a)
 
 **ATOM-610.5-002**
 - **Rule:** 610.5 — Granting permanent destroyed before resolution: spell retains granted ability
@@ -292,7 +292,7 @@ Static abilities that grant abilities to spells as they are cast apply at the ti
 - **Action:** The creature spell resolves.
 - **Expected Result:** The spell still had convoke (granted at cast time). The cost was already paid. The spell resolves normally. The grant persists per 611.2a (no stated duration → indefinite).
 - **Phase:** Phase 7 (Static grants to spells)
-- **Ticket:** NEW — Cast-time grant persists after source destruction
+- **Ticket:** Deferred to `backlog.md` §2.1 (a keyword granted at cast, convoke's) — Cast-time grant persists after source destruction
 
 > **Deferred composition test (noted):** A permanent with "Creature spells you cast have 'When this creature enters, draw a card'" — whether the ETB ability transfers from spell object to permanent object is a composition question involving 610.5 + 611.3d + object continuity. Worth testing when triggered abilities are implemented in Phase 7.
 
@@ -396,7 +396,7 @@ A resolving spell/ability that both puts a permanent onto the battlefield AND cr
 - **Action:** The creature enters the battlefield.
 - **Expected Result:** The creature is an enchantment from the moment it enters. The "whenever an enchantment enters" trigger DOES fire. The creature does not enter as non-enchantment then become one.
 - **Phase:** Phase 7 (Triggered abilities) + Phase 5 Layers
-- **Ticket:** NEW — Simultaneous "is [type]" ETB characteristic (611.2e)
+- **Ticket:** Deferred to Phase 8, with Arbiter of the Ideal (an entry's own type change, which `EnterMods` carries for Master Biomancer's Mutant) — Simultaneous "is [type]" ETB characteristic (611.2e)
 
 ### 611.2f — DEFERRED — Phase 7
 "Next spell" continuous effects don't begin immediately; they apply when the next appropriate spell is put on the stack. Requires triggered ability infrastructure (D8 in roadmap).
@@ -454,7 +454,7 @@ Static abilities that allow casting/playing a permanent spell or grant it an abi
 - **Action:** The creature spell resolves and enters the battlefield.
 - **Expected Result:** The creature has lifelink. The grant was made when the spell was cast (610.5 / 601.2a) and persists indefinitely (no duration stated). The source leaving doesn't end the effect — this is an exception to 611.3a–b.
 - **Phase:** Phase 7 (Triggered abilities) + Phase 5 Layers
-- **Ticket:** NEW — Static ability grant persists per 611.3d
+- **Ticket:** Deferred to `permission-architecture.md`, PM's later builds (foretell, `backlog.md` §2.3) — Static ability grant persists per 611.3d
 
 **ATOM-611.3d-002**
 - **Rule:** 611.3d — Dream Devourer: foretold cards castable after source leaves
@@ -463,7 +463,7 @@ Static abilities that allow casting/playing a permanent spell or grant it an abi
 - **Action:** On a later turn, Player A attempts to cast the foretold card from exile.
 - **Expected Result:** The cast succeeds. The foretell was granted by Dream Devourer's static ability and used to exile the card. Per 611.3d, the granted foretell's effects (the card being in exile with permission to be cast) persist after Dream Devourer leaves. The card remains castable for its foretell cost.
 - **Phase:** Phase 7 + Phase 5 Layers
-- **Ticket:** NEW — Dream Devourer foretell grant persists (611.3d real-card example)
+- **Ticket:** Deferred to `permission-architecture.md`, PM's later builds (foretell, `backlog.md` §2.3) — Dream Devourer foretell grant persists (611.3d real-card example)
 
 ---
 

@@ -266,14 +266,17 @@ fn default_zones(types: &CardTypes) -> ZoneSet {
 /// honor and buys the bound.
 ///
 /// That bound is what makes the read syntactic, which is §13c decision 3's
-/// requirement for any reach: one level, no search. It is sound today because
-/// `Condition` has no `Not` — there is no complement to recover by abstract
-/// interpretation, so nothing has to widen to "all zones" to stay sound.
+/// requirement for any reach: one level, no search.
 ///
-/// The match below is exhaustive with no wildcard, so the day `Not` or `Or`
-/// lands the compiler stops the build until it answers here. The honest answer
-/// for `Not` is `None` — a negated zone clause is not a statement of where the
-/// ability functions, and `ZoneSet::without` is how a card says the complement.
+/// **`Not` states no zone, by the same rule**: a `SourceInZone` under it is an
+/// ordinary predicate. `Not` is there for facts like Emperor Crocodile's "you
+/// control no other creatures", which say nothing about zones. A card that
+/// functions everywhere but one zone, CR 113.6c's case, says so positively, as
+/// `SourceInZone(ZoneSet::ALL.without(zone))`, so this reader never has to
+/// work out what a negated clause leaves.
+///
+/// The match below is exhaustive with no wildcard, so the day `Or` lands the
+/// compiler stops the build until it answers here.
 fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
     match condition {
         Condition::SourceInZone(zones) => Some(*zones),
@@ -314,7 +317,8 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
         | Condition::SinceYourLastTurn(..)
         | Condition::ThisGame(..)
         | Condition::ResolvedThisTurn(_)
-        | Condition::CounterCountReached { .. } => None,
+        | Condition::CounterCountReached { .. }
+        | Condition::Not(_) => None,
     }
 }
 

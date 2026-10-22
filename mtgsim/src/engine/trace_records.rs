@@ -184,6 +184,23 @@ pub(crate) fn trigger(
     r
 }
 
+/// `trigger` for a state trigger (CR 603.8): the state check's decision. It
+/// names no record, since no event triggered it, and says `state`; `after` is
+/// the newest record when the board was asked, which is all a reader can say
+/// about when the state held.
+pub(crate) fn state_trigger(game: &GameState, identity: &AbilityIdentity, zone: Zone, refused_by: Option<&str>) -> Record {
+    let mut r = Record::new(RecordKind::Trigger);
+    r.field_bool("state", true);
+    r.field_opt_u64("after", game.events.next_seq().0.checked_sub(1).map(|newest| newest as u64));
+    r.field_u64("source", identity.source.id.raw());
+    r.field_str("name", &crate::ui::display::printed_name(game, identity.source.id));
+    r.field_str("ability", &identity.ability.to_string());
+    r.field_str("zone", &format!("{:?}", zone));
+    r.field_bool("matched", refused_by.is_none());
+    r.field_opt_str("refused_by", refused_by);
+    r
+}
+
 /// `pending` — one entry leaving the queue at placement (CR 603.3): onto
 /// the stack as `object`, with the targets it announced, or refused with
 /// the reason — CR 800.4d's departed controller, or CR 603.3d's "no legal
@@ -202,6 +219,7 @@ pub(crate) fn pending(
     r.field_u64("controller", entry.controller as u64);
     r.field_u64("source", identity.source.id.raw());
     r.field_str("name", &crate::ui::display::printed_name(game, identity.source.id));
+    r.field_str("ability", &identity.ability.to_string());
     let records: Vec<u64> = entry.binding.records().map(|r| r.seq.0 as u64).collect();
     r.field_u64s("records", &records);
     r.field_opt_u64("object", object.map(|id| id.raw()));

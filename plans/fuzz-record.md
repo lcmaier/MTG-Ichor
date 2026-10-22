@@ -37,6 +37,94 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-21 for TR-6** (#268: state triggers, the draw, and
+the rule-owned arm). Emperor Crocodile joins the registry and the pool (211 →
+212 registered, 121 → 122 pooled), so both §3 columns are new baselines. One
+`close_out.py` sitting against **main** `ccab756` (#267's merge). **engine**
+`2984293` is every engine commit with the Crocodile unregistered; **shipped**
+is `9586ac2`.
+
+**Predictions, before any arm ran** (`triggers-architecture.md` §11's table):
+- the engine arm identical to `main` on both pools at two seats and four,
+  since no registered card has a state trigger and both of the engine's
+  counts keep their numbers;
+- instructions per decision within ±0.3%: a state check at each outermost
+  dispatch and placement pass, a mask test over the trigger sources when
+  none is filed under the board-state kind;
+- the shipped arm moving every game, since every seed builds new decks.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 170,344 / 180,970 | 344,016 / 364,613 |
+| gameplay rows, shipped vs `main`, performance / stress | differ / differ | differ / differ |
+| audit, shipped, dispatches agreed, performance / stress | 170,640 / 166,023 | 342,562 / 355,499 |
+| `stress` avg turns, `main` → shipped, 200 games | 26.2 → 24.3 | 50.9 → 49.6 |
+| `performance` avg turns, `main` → shipped, 200 games | 27.3 → 27.4 | 52.1 → 51.8 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7644 M → 0.7662 M, **+0.24%** |
+| the same, second sitting, after the review's code | | 0.7643 M → 0.7666 M, **+0.30%** |
+
+**Every prediction held**, the second sitting at the edge of its ±0.3%.
+That sitting ran on the review's code, against a throwaway engine arm
+(`7d098ad`, the review's tree with the Crocodile unregistered) and
+shipped `03a8e8c`. The engine arm was IDENTICAL again on both pools at two
+seats and four, so "each [permanent]" reaching every primitive moved no
+game. The state check after every dispatch, not only the outermost, cost
+0.06 points and moved `Memo hits` alone. The audit asked every state check again over
+every object that may trigger, and agreed throughout. Emperor Crocodile's
+distortion: `stress` games run about two turns shorter at two seats and one
+at four, and no game ends differently in kind. It has no agent choice, so it
+is pooled and its distortion reported.
+
+**Reachability**, shipped, 200 games forced: Emperor Crocodile cast 141 times
+in 109 games at two seats (54%) and 94 in 87 at four (44%).
+
+**Memory.** The release clone tests and `history_held_test` pass; the worst
+decision of the printed games clones at 36 allocations and 6.1 KB.
+
+**CI's steps, run locally**: clippy at `-D warnings`, the release tests, both
+fuzz pools, the checked `stress` run, determinism over three hash seeds, and
+the dev GUI's build, clippy, tests and pictures, all passing.
+
+**Copies** (`close_out.py`'s report against `main`): one near-copy, the state
+trigger's trace record beside the matcher's (0.70), which is it without a
+record. The compositions are the state check reusing the gate's legs and the
+audit's shape, by design.
+
+**§3 fixture rows, shipped `03a8e8c` (the review's tree), two seats, 50 games / seed 12345.**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 24 (48.0%) / 25 (50.0%) | 24 (48.0%) / 25 (50.0%) |
+| Wins by effect | 1 | 1 |
+| Avg turns | 26.4 | 22.9 |
+| Spells cast | 20.5 | 18.3 |
+| Lands played | 15.6 | 14.2 |
+| Combat w/ atk | 9.8 | 7.5 |
+| Creatures died | 7.2 | 4.4 |
+| Damage events | 22.7 | 17.0 |
+| Total damage | 62.2 | 48.8 |
+| Life changes | 16.1 | 12.9 |
+| **Layer walks** | **367** | **375** |
+| **Board walks** | **206** | **209** |
+| **Memo hits** | **49,044** | **49,193** |
+| **Layer frames** | **3,632** | **3,721** |
+| **Frames/walk** | **9.89** | **9.92** |
+| **Dependency checks** | **4** | **17** |
+| **Replacement gathers** | **914** | **823** |
+| **Restriction queries** | **916** | **825** |
+| Mana productions | 63 | 69 |
+| Prevention allocations | 0.00 | 0.02 |
+| Replacement prompts | 0.00 | 0.64 |
+| Max batch depth | 4 | 5 |
+| Decisions | 174 | 198 |
+| Priority decisions | 64 | 79 |
+| Actions reversed | 0.0 | 0.1 |
+| Triggers placed | 6.6 | 5.4 |
+| Windows past gate | 62.4 | 58.0 |
+| Candidate visits | 83.7 | 76.7 |
+| Trigger matches | 7.2 | 5.2 |
+
 **Re-recorded 2026-10-21 for CL-1** (#267: the board and the stack shared
 between forks, B10's build). No pool change, so no new baselines: one
 `close_out.py` sitting against **main** `906dbb0` (#266's merge), **engine**

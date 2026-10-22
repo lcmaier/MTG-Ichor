@@ -5060,7 +5060,8 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
 
 2. **~~Event shape audit.~~ — ✅ CLOSED 2026-09-18 (A6 step 1, the trigger
    survey).** — archived. Run as `plans/references/trigger-survey.md`, with
-   `plans/references/trigger-survey.py` regenerating every count: each event
+   `plans/references/trigger-survey.py` regenerating every count until TR-6's
+   close deleted it: each event
    CR 603.1b–603.12a names against the corpus and the printed population, and
    the printed distribution against the performed event that would carry it.
    The three bullets held — per-permanent granularity with the batch as the
@@ -9006,20 +9007,13 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      **Reachability (2026-10-13):** closed — PR #248.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 262".
 
-263. **CR 104.4b's draw is written outside the chokepoint.**
-     `perform_sba_and_triggers` (`engine/sba.rs`, the `MANDATORY_LOOP_CHECKS`
-     branch) ends the game itself, `end_game(GameResult::Draw)` (since TR-5g,
-     which made `end_game` the result's one writer). Every other
-     ending of the game is performed by `PlayerLoses`' and `PlayerWins'`
-     performers, or settled after a batch. So no replacement or record sees
-     this one.
-     **Reachability (2026-10-13):** unreachable — the branch needs a
-     replacement that re-proposes a loss at every state-based check, and no
-     registered card does.
-     **Sized:** TR-6's: its loop detector routes CR 104.4b's draw through the
-     settlement (`triggers-architecture.md` §4.9, §12), and this site moves
-     with it.
-     **Slotted:** TR-6, whose loop detector owns CR 104.4b's draw.
+263. **~~CR 104.4b's draw is written outside the chokepoint.~~ — ✅ CLOSED 2026-10-21 (PR #268, TR-6).** — archived.
+     Done: the draw is `GameAction::GameEndsInADraw`, performed and announced
+     with `GameRule::MandatoryLoop` as its cause, and both of the engine's counts
+     propose it: the state-based check that keeps performing, and the dispatch
+     that keeps nesting. Loop detection itself is `roadmap-v2.md` B14's.
+     **Reachability (2026-10-21):** closed — PR #268.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 263".
 
 ### Found by TR-4c — the other two look-back classes (2026-10-15)
 
@@ -9527,3 +9521,29 @@ Number 277 was withdrawn in #260 and is not reused.
      decision 5).
      **Reachability (2026-10-21):** closed — PR #267.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 293".
+
+### Found by TR-6 — state triggers and the draw (2026-10-21)
+
+294. **A copy of a state trigger on the stack would keep the original from
+     triggering again.** CR 603.8's "doesn't trigger again until the ability
+     has ... left the stack" is read off the queue and the stack by the
+     ability's identity (`state_trigger_has_not_left_the_stack`,
+     `engine/triggers/state.rs`). A copy of the ability (CR 707.10) carries
+     the original's identity, so once the original has left, the copy still
+     on the stack would answer for it.
+     **Reachability (2026-10-21):** unreachable — nothing copies an ability
+     until CV-4.
+     **Sized:** ~10 lines: the read skips an entry that is a copy, which CV-4's
+     entry says it is.
+     **Slotted:** CV-4, which builds ability copies.
+
+295. **`TriggerOrigin::Rule` has no inherent ability yet.** The arm is
+     declared (`triggers-architecture.md` §14, question 6) over an
+     `InherentAbility` with no variant, so no trigger has a rule for its
+     origin. The monarch's "at the beginning of the monarch's end step, that
+     player draws a card" (CR 724.2) and the initiative's (CR 725.2) are its
+     first variants, each with its designation.
+     **Reachability (2026-10-21):** unreachable — no designation is built.
+     **Sized:** a variant and its condition per designation, inside each
+     designation's own build.
+     **Slotted:** Phase 9, with the monarch.

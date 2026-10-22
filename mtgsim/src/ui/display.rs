@@ -1108,6 +1108,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             "AbilityFizzled: {}'s {} [P{}] {DOES_NOT_RESOLVE}", obj_name(game, identity.source.id), ability_word(*identity), controller),
         PlayerLost { player_id } => format!("PlayerLost: P{} by {}", player_id, cause_words(game, cause)),
         PlayerWon { player_id } => format!("PlayerWon: P{}", player_id),
+        GameEndedInADraw => format!("GameEndedInADraw: by {}", cause_words(game, cause)),
         CountersPutOn { subject, counter_type, n, by, now } => format!(
             "CountersPutOn: {} {} counter(s) put on {} by P{} (now {})",
             n, counter_type.name(), counter_subject_name(game, *subject), by, now
@@ -1165,7 +1166,7 @@ pub fn log_lines<'a>(game: &GameState, records: &'a [EventRecord]) -> Vec<&'a Ev
     let read: Vec<_> = all
         .iter()
         .filter_map(|record| match record.event {
-            GameEvent::AbilityTriggered { caused_by, .. } => Some(caused_by),
+            GameEvent::AbilityTriggered { caused_by, .. } => caused_by,
             _ => None,
         })
         .collect();

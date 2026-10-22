@@ -195,6 +195,10 @@ pub struct RegistryScopeSummary {
     /// ever reads the two OR-ed, so the split was a distinction no reader
     /// made.
     pub unattributed_trigger_zones: ZoneSet,
+    /// The record kinds those `Filter` rows' triggered abilities read. The
+    /// dispatcher walks their zones for every window, but the state check
+    /// walks them only when this holds `BoardState`.
+    pub unattributed_trigger_kinds: EventKindMask,
 
     /// The record kinds the triggered abilities read that a row naming its
     /// objects puts on them (`SourceOnly`, `Fixed`, `Host`): a Cryptoplasm's
@@ -283,7 +287,10 @@ impl RegistryScopeSummary {
             let triggered_kinds = triggered_ability_kinds(effect);
             if !triggered_kinds.is_empty() {
                 match &effect.affected_objects {
-                    ObjectSet::Filter { zones, .. } => summary.unattributed_trigger_zones |= *zones,
+                    ObjectSet::Filter { zones, .. } => {
+                        summary.unattributed_trigger_zones |= *zones;
+                        summary.unattributed_trigger_kinds |= triggered_kinds;
+                    }
                     ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => {
                         summary.named_unattributed_trigger_kinds |= triggered_kinds
                     }

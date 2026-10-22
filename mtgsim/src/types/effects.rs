@@ -87,6 +87,9 @@ pub enum AmountExpr {
     /// "Equal to the excess damage dealt this way" (CR 120.10): the part of
     /// that damage past lethal.
     ExcessDamageDealtThisWay,
+    /// "Discard your hand, then draw that many cards": the cards the
+    /// resolving spell or ability's own effect has discarded so far.
+    DiscardedThisWay,
     /// CR 615.5's "that much" / "that many" — the amount the *replaced* event
     /// carried when a CR 615.5 rider was queued.
     ///
@@ -614,6 +617,11 @@ pub enum Condition {
     /// An empty vector is vacuously true, which is what `all()` means and what
     /// no card writes.
     All(Vec<Condition>),
+    /// The clause does not hold: Emperor Crocodile's "you control **no** other
+    /// creatures", Immortal Coil's "there are **no** cards in your graveyard".
+    /// Each states the absence of what a positive fact finds, so the fact is
+    /// written once and negated here rather than given a "no" twin.
+    Not(Box<Condition>),
     /// "as long as enchanted/equipped [permanent] is [X]" — a predicate on
     /// whatever the source is attached to (CR 303.4m reads it fresh, as
     /// `ObjectSet::Host` does). Rune of Flight's two clauses are both this
@@ -711,6 +719,7 @@ impl Condition {
             Condition::SourceUntapped | Condition::SourceTapped => true,
             Condition::CounterCount { object, .. } => *object == Antecedent::ThisObject,
             Condition::All(clauses) => clauses.iter().any(Condition::reads_entry_state),
+            Condition::Not(clause) => clause.reads_entry_state(),
             // The entering object is asked as on the battlefield already, so
             // no entry moves the zone `SourceInZone` reads; the rest read
             // players, histories, the host, a trigger, or a resolution.
@@ -767,6 +776,9 @@ pub enum PlayerFact {
     /// long as", asked by `replacement::gather` at each proposal through
     /// `condition::settled_holds`, the evaluator every condition shares.
     LibraryEmpty,
+    /// "[Whose] hand has no cards in it": hellbent, and CR 603.8's own
+    /// example, "whenever you have no cards in hand, draw a card".
+    HandEmpty,
     /// "There's a [filter] card in [whose] graveyard". The filter is an
     /// `ObjectFilter`, and CR 108.4a makes `ByController` answer off the
     /// battlefield too: a card with no controller uses its owner.

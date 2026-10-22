@@ -34,6 +34,7 @@ use crate::engine::targeting::HeldFrame;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
+use crate::ui::decision::AsksNobody;
 use crate::engine::replacement::EventSubject;
 use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
@@ -56,9 +57,11 @@ use super::binding::TriggeringEventView;
 use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
 
 /// Dispatches nested inside dispatches — a tier-2 trigger's `AbilityTriggered`
-/// dispatched from the dispatch that queued it, and so on. The recursion is
-/// bounded by the abilities present (no printed ability watches its own
-/// kind); a depth past this is the engine's mistake (§4.8).
+/// dispatched from the dispatch that queued it, and so on. No printed ability
+/// watches its own kind, so a chain this deep is taken for one with no end,
+/// each ability triggering on the last one's triggering, and the game is a
+/// draw (CR 104.4b): a count standing in for a proof that the chain cannot end
+/// (`triggers-architecture.md` §4.8, §4.9).
 pub const DISPATCH_NESTING_LIMIT: usize = 16;
 
 /// The ability lists surviving objects had just before a batch was
@@ -537,7 +540,8 @@ pub(super) struct DelayedMatch {
 /// Why a candidate did not trigger — the `trigger` record's field.
 #[derive(Clone, Copy)]
 pub(super) enum Refusal {
-    /// The condition is a state trigger, which TR-6 checks.
+    /// The condition is a state trigger, which the state check asks of the
+    /// board instead (`triggers::state`, CR 603.8).
     StateTrigger,
     /// CR 603.2f.
     Visibility,
@@ -641,11 +645,9 @@ impl GameState {
             return Ok(());
         }
         if self.nesting.dispatch_depth >= DISPATCH_NESTING_LIMIT {
-            return Err(format!(
-                "trigger dispatches nested {} deep: an ability's triggering keeps triggering \
-                 another, which no printed ability does",
-                self.nesting.dispatch_depth
-            ));
+            // The draw asks nothing, and the dispatch may have no provider.
+            let rule = ActionContext::game_rule(&AsksNobody, GameRule::MandatoryLoop);
+            return self.execute_actions(vec![GameAction::GameEndsInADraw], &rule).map(|_| ());
         }
         // Every record, before the gate: what happened this turn is read by
         // cards that are not on the battlefield yet (§3.10).
@@ -653,6 +655,12 @@ impl GameState {
         self.nesting.dispatch_depth += 1;
         let result = self.dispatch_inner(window, ctx, snapshots, audit);
         self.nesting.dispatch_depth -= 1;
+        // CR 603.8 — after every dispatch, so a state true only for a moment
+        // of a resolution, between two of its instructions, triggers (Emperor
+        // Crocodile's first ruling).
+        if result.is_ok() {
+            self.check_state_triggers()?;
+        }
         result
     }
 
@@ -806,7 +814,6 @@ impl GameState {
                     source_card: Arc::clone(&m.source_card),
                     instances: m.instances.clone(),
                     binding,
-                    is_state_trigger: false,
                     kept_lki,
                     x_value: None,
                 };
@@ -835,7 +842,7 @@ impl GameState {
         // it is emitted like any unbatched record.
         for (seq, origin, controller, caused_by) in queued {
             self.emit_event_unbatched(
-                GameEvent::AbilityTriggered { seq, origin, controller, caused_by },
+                GameEvent::AbilityTriggered { seq, origin, controller, caused_by: Some(caused_by) },
                 EventCause::GameRule(GameRule::AbilityTriggers),
             )?;
         }
@@ -872,7 +879,9 @@ impl GameState {
     pub(crate) fn aura_put_into_graveyard_by_the_check(&mut self, aura: ObjectRef) {
         let Some(found) = self.object_ref(aura.id) else { return };
         let finds = |source: ObjectRef, binding: &TriggerBinding| {
-            source == aura && binding.event().watches_its_host_leave() && binding.source_found_in_graveyard.is_none()
+            source == aura
+                && binding.event().is_some_and(TriggerEvent::watches_its_host_leave)
+                && binding.source_found_in_graveyard.is_none()
         };
         let waiting_that_find_it: Vec<usize> = self
             .pending_triggers
@@ -910,7 +919,7 @@ impl GameState {
     /// the key `battlefield_ids_ordered` sorts on, so the candidate order —
     /// which the `OrderTriggers` prompt offers — is the whole-battlefield
     /// walk's.
-    fn battlefield_readers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
+    pub(super) fn battlefield_readers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
         // ORDER-FREE: sorted by timestamp next.
         let mut readers: Vec<(Timestamp, ObjectId)> = self
             .trigger_sources
@@ -939,7 +948,7 @@ impl GameState {
     /// a filter names zones instead, and `candidates_now` walks them.
     ///
     /// Unordered: `candidates_now` puts every candidate in CR 613.7 order.
-    fn named_trigger_carriers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
+    pub(super) fn named_trigger_carriers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
         if !self.continuous_effects.summary().named_unattributed_trigger_kinds.intersects(window_kinds) {
             return Vec::new();
         }
@@ -1247,7 +1256,9 @@ impl GameState {
         // and a kind filter here would be a second table of it.
         let named = self.named_trigger_carriers(EventKindMask::ALL);
         // No newcomer's trigger looks back but off its own move's frame.
-        let mut ids = self.candidates_now(self.battlefield_readers(EventKindMask::ALL), named, Vec::new(), unattributed);
+        // ORDER-FREE: `candidates_now` sorts the zone map's objects by timestamp.
+        let zone_sources = self.zone_trigger_sources.keys().copied();
+        let mut ids = self.candidates_now(self.battlefield_readers(EventKindMask::ALL), named, Vec::new(), unattributed, zone_sources);
         // And the multipliers, which CR 603.2d's count reads on the same board.
         for id in self.trigger_multiplier_sources_now() {
             if !ids.contains(&id) {
@@ -1276,7 +1287,14 @@ impl GameState {
     /// `newcomers` whose every such trigger is on themselves moving, the
     /// `named` objects there, and every object in the zones a `Filter` row
     /// reaches.
-    fn candidates_now(&self, readers: Vec<ObjectId>, named: Vec<ObjectId>, newcomers: Vec<ObjectId>, unattributed: ZoneSet) -> Vec<ObjectId> {
+    pub(super) fn candidates_now(
+        &self,
+        readers: Vec<ObjectId>,
+        named: Vec<ObjectId>,
+        newcomers: Vec<ObjectId>,
+        unattributed: ZoneSet,
+        zone_sources: impl Iterator<Item = ObjectId>,
+    ) -> Vec<ObjectId> {
         let mut live: Vec<ObjectId> = if unattributed.contains(Zone::Battlefield) {
             self.battlefield_ids_ordered()
         } else if named.is_empty() {
@@ -1291,12 +1309,7 @@ impl GameState {
             on_battlefield.dedup_by_key(|&mut (_, id)| id);
             on_battlefield.into_iter().map(|(_, id)| id).collect()
         };
-        // ORDER-FREE: sorted by timestamp below.
-        let mut elsewhere: Vec<(Timestamp, ObjectId)> = self
-            .zone_trigger_sources
-            .keys()
-            .map(|&id| (self.object_timestamp(id), id))
-            .collect();
+        let mut elsewhere: Vec<(Timestamp, ObjectId)> = zone_sources.map(|id| (self.object_timestamp(id), id)).collect();
         let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
         for id in newcomers {
             if seen.insert(id) {
@@ -1333,7 +1346,9 @@ impl GameState {
         unattributed: ZoneSet,
         snapshots: &[LookBackSnapshot],
     ) -> Vec<MatchedTrigger> {
-        let mut live = self.candidates_now(readers, named, newcomers, unattributed);
+        // ORDER-FREE: `candidates_now` sorts the zone map's objects by timestamp.
+        let zone_sources = self.zone_trigger_sources.keys().copied();
+        let mut live = self.candidates_now(readers, named, newcomers, unattributed, zone_sources);
 
         // Each survivor's lists from before the window's snapshotting batches.
         // A survivor no live set reaches now, like a grant's carrier after
@@ -2142,7 +2157,7 @@ impl GameState {
                 };
                 let cause_ok = match caused_by {
                     None => true,
-                    Some(inner) => self.events.record(*cause).is_some_and(|r| inner.reads(&r.event)),
+                    Some(inner) => cause.and_then(|cause| self.events.record(cause)).is_some_and(|r| inner.reads(&r.event)),
                 };
                 triggering_event_if(source_ok && cause_ok)
             }

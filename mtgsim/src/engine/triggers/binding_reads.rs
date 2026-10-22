@@ -222,6 +222,7 @@ fn reads_a_counter_threshold(condition: &Condition) -> bool {
     match condition {
         Condition::CounterCountReached { .. } => true,
         Condition::All(all) => all.iter().any(reads_a_counter_threshold),
+        Condition::Not(clause) => reads_a_counter_threshold(clause),
         _ => false,
     }
 }
@@ -297,6 +298,7 @@ fn amount_reads(a: &AmountExpr) -> TriggerBindingReads {
         | AmountExpr::TargetToughness
         | AmountExpr::DamageDealtThisWay
         | AmountExpr::ExcessDamageDealtThisWay
+        | AmountExpr::DiscardedThisWay
         | AmountExpr::ReplacedAmount
         | AmountExpr::UnspentMana(_)
         | AmountExpr::DamagePrevented
@@ -363,6 +365,7 @@ fn condition_reads(c: &Condition) -> TriggerBindingReads {
             TriggerBindingReads::CHARACTERISTICS | TriggerBindingReads::needs_one(*p)
         }
         Condition::All(all) => all.iter().fold(TriggerBindingReads::NONE, |reads, c| reads | condition_reads(c)),
+        Condition::Not(clause) => condition_reads(clause),
         Condition::ResolvedThisTurn(_) => TriggerBindingReads::ABILITY,
         // The counts its records left, as "that many" reads their counters.
         Condition::CounterCountReached { .. } => TriggerBindingReads::AMOUNT,
@@ -400,7 +403,7 @@ fn player_fact_reads(f: &PlayerFact) -> TriggerBindingReads {
     match f {
         PlayerFact::ControlsPermanent(among) | PlayerFact::CardInGraveyard(among) => filter_reads(among),
         PlayerFact::LifeAtLeast(n) | PlayerFact::LifeAtMost(n) => amount_reads(n),
-        PlayerFact::LibraryEmpty => TriggerBindingReads::NONE,
+        PlayerFact::LibraryEmpty | PlayerFact::HandEmpty => TriggerBindingReads::NONE,
     }
 }
 

@@ -151,7 +151,7 @@ impl GameState {
     /// continuous effect could reach or that printed one — an object no row
     /// reaches has its printed abilities and nothing else. An ability on the
     /// stack is an object (CR 113.1c) without its source's abilities.
-    fn objects_that_may_trigger(&self) -> Vec<ObjectId> {
+    pub(super) fn objects_that_may_trigger(&self) -> Vec<ObjectId> {
         // NO ROW REACHES: asked only of an object no row reaches, whose
         // abilities are its printed ones.
         let printed_trigger =

@@ -127,7 +127,7 @@ impl GameState {
         // Each as its own entry's arm holds it, since "that creature" of
         // "blocks or becomes blocked by" is a different side on each arm.
         let objects = |binding: &TriggerBinding| -> Vec<(EventRole, ObjectRef)> {
-            let named: Vec<EventRole> = reads.event_roles().map(|role| binding.event().role_as_recorded(role)).collect();
+            let named: Vec<EventRole> = reads.event_roles().filter_map(|role| Some(binding.event()?.role_as_recorded(role))).collect();
             binding
                 .triggering_events
                 .iter()

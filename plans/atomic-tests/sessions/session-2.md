@@ -1007,7 +1007,7 @@ This defines how name comparison works for **all** name-checking effects: legend
 - **Action:** Query its P/T while in hand
 - **Expected Result:** Power = 0, Toughness = 0
 - **Phase:** Phase 5 Layers (L04) + Phase 7 (replacement effects for ETB choices)
-- **Ticket:** NEW — replacement-effect P/T cards show 0/0 off-battlefield
+- **Ticket:** Deferred to `copy-effects-architecture.md` (copiable values from an entry choice) — replacement-effect P/T cards show 0/0 off-battlefield
 
 **ATOM-208.2b-002**
 - **Rule:** 208.2b — The chosen P/T from a replacement effect affects the creature's copiable values.
@@ -1016,7 +1016,7 @@ This defines how name comparison works for **all** name-checking effects: legend
 - **Action:** The creature enters; query its P/T and abilities. Then a Clone copies it.
 - **Expected Result:** Corrupted Shapeshifter is a 3/3 with flying. The Clone is also a 3/3 with flying (the chosen values are copiable per rule 707.2).
 - **Phase:** Phase 6 (copy effects) + Phase 7 (replacement effects)
-- **Ticket:** NEW — copiable values from ETB replacement effect choices
+- **Ticket:** Deferred to `copy-effects-architecture.md` (copiable values from an entry choice) — copiable values from ETB replacement effect choices
 
 > **Audit note:** Changed from Clone to Corrupted Shapeshifter as the primary example. Clones don't fall under 208.2b — they copy another creature's values rather than choosing from a list of specific P/T values. The "turned face up" variant appears to be futureproofing with no current card examples.
 

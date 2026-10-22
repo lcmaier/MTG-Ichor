@@ -7514,3 +7514,29 @@ checked fuzz sitting.
      clone copies, so its shape is decided with the clone's, and a clone at
      a grant of priority copies it empty. Designed as CL-1's
      (`clone-architecture.md` decision 5).
+
+### Item 263 — closed 2026-10-21 by PR #268 (TR-6)
+
+Closed by TR-6. `perform_sba_and_triggers`' state-based bound proposes
+`GameAction::GameEndsInADraw` instead of calling `end_game`, and its performer
+is the result's writer, as `PlayerWins`' is, announcing `GameEndedInADraw`.
+`check_invariants.py`'s known violation came off with it. RE-6's
+`a_loss_replaced_forever_is_a_draw_not_a_hang` asserts the draw's record and
+its cause.
+
+*Original entry:*
+
+263. **CR 104.4b's draw is written outside the chokepoint.**
+     `perform_sba_and_triggers` (`engine/sba.rs`, the `MANDATORY_LOOP_CHECKS`
+     branch) ends the game itself, `end_game(GameResult::Draw)` (since TR-5g,
+     which made `end_game` the result's one writer). Every other
+     ending of the game is performed by `PlayerLoses`' and `PlayerWins'`
+     performers, or settled after a batch. So no replacement or record sees
+     this one.
+     **Reachability (2026-10-13):** unreachable — the branch needs a
+     replacement that re-proposes a loss at every state-based check, and no
+     registered card does.
+     **Sized:** TR-6's: its loop detector routes CR 104.4b's draw through the
+     settlement (`triggers-architecture.md` §4.9, §12), and this site moves
+     with it.
+     **Slotted:** TR-6, whose loop detector owns CR 104.4b's draw.

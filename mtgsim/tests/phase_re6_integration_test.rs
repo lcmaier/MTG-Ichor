@@ -22,7 +22,7 @@ use mtgsim::cards::phase_re_cards::{
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::events::cause::{EventCause, StateBasedAction};
+use mtgsim::events::cause::{EventCause, GameRule, StateBasedAction};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
@@ -509,6 +509,13 @@ fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
     game.check_state_based_actions_loop(&test_dp()).unwrap();
 
     assert_eq!(game.result, Some(GameResult::Draw));
+    let draws: Vec<EventCause> = game
+        .recorded_events()
+        .records()
+        .iter()
+        .filter_map(|record| matches!(record.event, GameEvent::GameEndedInADraw).then_some(record.stamp.cause))
+        .collect();
+    assert_eq!(draws, vec![EventCause::GameRule(GameRule::MandatoryLoop)], "performed, by CR 104.4b's rule (TR-6)");
     assert!(losses(&game).is_empty(), "the loss was replaced every time");
     assert!(life_changes(&game, 0).len() >= 100, "and it went round many times first");
 }

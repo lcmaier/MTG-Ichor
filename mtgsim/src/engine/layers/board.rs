@@ -866,6 +866,7 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
                 condition_reads(clause, out, you_channel);
             }
         }
+        Condition::Not(clause) => condition_reads(clause, out, you_channel),
     }
 }
 
@@ -885,7 +886,7 @@ fn player_fact_reads(fact: &PlayerFact, out: &mut Reads, you_channel: Channels) 
         // A library's card count is off `GameState` too. A graveyard card
         // is a non-member, which no application reaches — `amount_reads`'
         // `CardTypesAmong` arm is kept exact for the same reason.
-        PlayerFact::LibraryEmpty | PlayerFact::CardInGraveyard(_) => {}
+        PlayerFact::LibraryEmpty | PlayerFact::HandEmpty | PlayerFact::CardInGraveyard(_) => {}
     }
 }
 

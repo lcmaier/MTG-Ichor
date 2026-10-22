@@ -34,7 +34,7 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
 the route review, A6s; four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
 information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-7, MA-3–MA-6; B9; B13, the Ironworks loop; PM's
-later builds; CV-5 with the other characteristic sets; CV-3, CV-4; CV-6; CV-7; A4l. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
+later builds; CV-5 with the other characteristic sets; CV-3, CV-4; CV-6; CV-7; A4l; B14, loop detection. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
 
@@ -134,6 +134,7 @@ is derived.
 | 2026-10-19 | Prevention and excess damage | `TR-5d` | `triggers-architecture.md` |
 | 2026-10-20 | The multiplier, tokens and scry | `TR-5g` | `triggers-architecture.md` |
 | 2026-10-21 | The board and the stack shared between forks | `CL-1` | `clone-architecture.md` |
+| 2026-10-21 | State triggers, the draw, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
 
 ### Named, not yet landed
 
@@ -161,16 +162,15 @@ and no ✅ heading records, in the docs' order.
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
-| State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
 | The persist loop, the track's capstone | `TR-7` | `triggers-architecture.md` |
 
 ## Counts
 
 | | |
 |---|---:|
-| Cards registered | 211 |
-| …of them in `PERFORMANCE_POOL` | 121 |
-| `#[test]` functions | 2718 |
+| Cards registered | 212 |
+| …of them in `PERFORMANCE_POOL` | 122 |
+| `#[test]` functions | 2733 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -191,14 +191,14 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 344 |
-| …closed, still recorded | 195 |
-| …open — unreachable, and says why | 100 |
+| Numbered items | 346 |
+| …closed, still recorded | 196 |
+| …open — unreachable, and says why | 101 |
 | **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 147 of 149 |
+| …open, carrying an explicit `**Sized:**` | 148 of 150 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -212,7 +212,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 84 |
+| …slotted to a phase or roadmap row still to come | 85 |
 | …slotted to the first registered card that needs it | 53 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
