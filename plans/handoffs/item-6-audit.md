@@ -33,6 +33,12 @@ pass re-reads what it touches: a number here is a starting point.
   section. Every moved heading stayed byte-identical except the TR-4 and
   TR-5 roll-ups, which gained their last sub-phase's ✅ date so the board
   stops listing them as not yet landed (the owner, at #273's review).
+- Pass 3's hygiene half ran in session 4 as one PR, #274, on
+  `audit/item-6-hygiene` (§9). The model pass's rows to file are items
+  301–315 in `codebase-state.md`, and five more joined items 213, 265, 291 and
+  292, so A6e's cleanup, session 6, sizes against numbered items. Its row
+  pointers in the work-list below are still `45d4a130`'s lines; the items
+  cite functions.
 
 ## 1. Why this audit is bigger than the last
 
@@ -1337,7 +1343,7 @@ changed.
 | Discovery (session 1: Workflows A, B and C, pass 2's script) | #271 | the work-lists under passes 1, 2, 3 and 5 |
 | 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
 | 2. Eviction (1) | #273 | one PR: the whole sections and §4.9's B14 input moved, the 22 amendments collapsed into the text they overruled (−239 lines), 8 outside citations re-pointed; `triggers-architecture.md` 4,736 → 3,853, the archive 5,618 → 7,067 |
-| 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | | |
+| 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | #274 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup is next |
 | The card-homed triage (1, then its builds in the cleanup) | | added at #272's review |
 | 4. Readiness (2) | | |
 | 5. Docs audit, A6h (2–4) | | |

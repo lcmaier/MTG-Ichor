@@ -110,8 +110,8 @@ pub struct RegistryScopeSummary {
     /// path would buy nothing on exactly the boards that are most expensive to
     /// walk.
     ///
-    /// **Since RF this is two fields, and "unattributed" is their word for
-    /// it**: a replacement ability an object has on its effective list without
+    /// **Two fields, and "unattributed" is their word for it**: a
+    /// replacement ability an object has on its effective list without
     /// having printed it, which neither printed set
     /// (`GameState::replacement_ability_sources`, its zone twin) can name.
     /// Two producers put one there, a Layer 6 grant and a copy row (CR 707.2a),
@@ -128,8 +128,7 @@ pub struct RegistryScopeSummary {
     ///   named objects off the rows, wherever they are, and walks no zone.
     ///
     /// `EMPTY` here and `false` there is "no such row", the structural zero
-    /// every board without a grant or copy of a replacement ability gets. The
-    /// battlefield bit plus the bool is what the two old bools said.
+    /// every board without a grant or copy of a replacement ability gets.
     pub unattributed_replacement_zones: ZoneSet,
 
     /// True iff some grant or copy row over a named set (`SourceOnly`,

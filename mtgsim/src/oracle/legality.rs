@@ -642,9 +642,9 @@ mod tests {
         assert!(!legal.contains(&ResolvedTarget::Object(in_hand)), "a card in hand is not");
         assert_eq!(legal.len(), 3, "and nothing else");
 
-        // Enumeration and enforcement agree, which is the rule RS-2 fixed in
-        // both directions: everything offered validates, and the card in hand
-        // does not.
+        // Enumeration and enforcement agree in both directions, the rule
+        // `cant-effects-architecture.md`'s RS-2 states: everything offered
+        // validates, and the card in hand does not.
         for choice in &legal {
             assert!(game.validate_selection(&SelectionFilter::DamageSource, choice, 0, FilterIdentity::NONE).is_ok());
         }
@@ -743,8 +743,8 @@ mod tests {
             // The battlefield is empty, so `Any` offers the seats and nothing
             // else and the two lists are the same list.
             assert_eq!(seats(&game, filter.clone()), in_game, "{:?}: the seat is not offered", filter);
-            // Enumeration and enforcement agree — the rule RS-2 fixed in both
-            // directions, asked here of the seat that left.
+            // Enumeration and enforcement agree in both directions, RS-2's
+            // rule, asked here of the seat that left.
             assert!(game
                 .validate_selection(&filter, &ResolvedTarget::Player(3), 0, FilterIdentity::NONE)
                 .is_err());

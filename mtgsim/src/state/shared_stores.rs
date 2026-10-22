@@ -108,12 +108,13 @@ impl<T: Clone> Holding for CopiedAlone<T> {
     }
 }
 
-// Every type the game state stores this way. A type's size is fixed: every
-// permanent's state is 400 bytes however little is set on it, so the choice
-// is the type's. Small, with no heap of their own: copied with the chunk.
+// Every type the game state stores this way, with its size as read on
+// 2026-10-22. A type's size is fixed: every permanent's state is 400 bytes
+// however little is set on it, so the choice is the type's. Small, with no
+// heap of their own: copied with the chunk.
 // Large, with heap of their own: copied alone, since a chunk of 32 of them
 // copied whole would cost a fork that wrote one about 13 KB and up to 128
-// allocations (`clone-architecture.md` decision 1).
+// allocations (2026-10-21, `clone-architecture.md` decision 1).
 
 /// 48 bytes, with no heap but a count on its card's data.
 impl ForkCopy for crate::objects::object::GameObject {
@@ -140,7 +141,7 @@ impl ForkCopy for crate::state::game_state::StackEntry {
     type Held = CopiedAlone<Self>;
 }
 
-/// 264 bytes, with its binding's events and its targets on the heap.
+/// 256 bytes, with its binding's events and its targets on the heap.
 impl ForkCopy for crate::types::triggers::PendingTrigger {
     type Held = CopiedAlone<Self>;
 }

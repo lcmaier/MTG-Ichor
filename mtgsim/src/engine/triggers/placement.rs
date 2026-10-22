@@ -163,7 +163,7 @@ impl GameState {
     /// One trigger onto the stack (CR 603.3, 603.3d): `activate_ability`'s
     /// twin. The object is created under the controller locked at dispatch
     /// (603.3a), is not cast from anywhere, has no cost, and is `is_spell:
-    /// false`, which is what keeps "counter target spell" off it (A4o).
+    /// false`, which is what keeps "counter target spell" off it.
     ///
     /// CR 603.3d's removal — "if a choice is required ... but no legal
     /// choices can be made ... the ability is simply removed from the stack"

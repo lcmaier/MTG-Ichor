@@ -1132,9 +1132,9 @@ fn applications_in_layer<'a, 'l: 'a>(
                         }
                     }
                     Layer::Layer7cModifyPT => {
-                        // TODO: other P/T-modifying counter kinds (+2/+2, +0/+1)
-                        // when `CounterType` grows them — `codebase-state.md`,
-                        // "Before card breadth" item 3.
+                        // TODO: CR 122.1a's other kinds (+2/+2, +0/+1) when
+                        // `CounterType` grows them — `codebase-state.md`, "Before
+                        // card breadth" item 3, which names this arm's twin.
                         let count = i32::try_from(stack.count).unwrap_or(i32::MAX);
                         let (delta, rank) = match kind {
                             CounterType::PlusOnePlusOne => (count, 0),

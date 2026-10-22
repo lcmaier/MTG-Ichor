@@ -1385,9 +1385,9 @@ impl GameState {
     pub fn battlefield_ids_ordered(&self) -> Vec<ObjectId> {
         // Collect (timestamp, id) and sort *that*: `sort_by_key` calls its closure
         // O(n log n) times, so keying on a HashMap lookup paid ~20× (measured
-        // 2026-08-25), and this runs eight times per SBA sweep. Stable, keyed on
-        // timestamp alone — tiebreaking on a v4 `ObjectId` would be the exact
-        // non-determinism the ordered sweeps exist to avoid (`CLAUDE.md`).
+        // 2026-08-25), and this runs eight times per SBA sweep. Keyed on the
+        // timestamp alone, which one counter mints, so no two tie: an `ObjectId`
+        // is not an order (`CLAUDE.md`'s determinism rule) and has no `Ord`.
         // ORDER-FREE: sorted by timestamp next.
         let mut pairs: Vec<(Timestamp, ObjectId)> = self.battlefield
             .iter()
@@ -2603,19 +2603,11 @@ mod tests {
     use super::*;
 
     // -----------------------------------------------------------------------
-    // The lowering refuses to be quiet
-    //
-    // Each arm of `static_ability_atoms` / `static_object_set` that declines
-    // to lower something now asserts. These tests exist because an assertion
-    // nothing exercises is indistinguishable from one that does not fire — and
-    // the whole point of this batch is that the failure mode being guarded is
-    // *invisible*: a dropped atom yields an inert card, which panics nothing,
-    // computes nothing wrong, and stays perfectly deterministic under
-    // `fuzz_games`.
-    //
-    // `debug_assert!` panics under `cargo test` (debug_assertions on) and
-    // compiles out in release, so each test is `#[should_panic]` and compiled
-    // only where the assertion is. Release keeps the old skip-and-carry-on.
+    // The lowering refuses to be quiet: each arm of `static_ability_atoms` /
+    // `static_object_set` that declines to lower something asserts, since a
+    // dropped atom is an inert card that panics nothing under `fuzz_games`.
+    // The assertion is a `debug_assert!`, so each test is `#[should_panic]`
+    // and compiled only where it fires; release skips the atom.
     // -----------------------------------------------------------------------
 
     mod static_lowering {

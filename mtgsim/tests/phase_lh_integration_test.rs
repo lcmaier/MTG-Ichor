@@ -682,8 +682,8 @@ fn test_an_equipment_that_becomes_a_creature_unattaches() {
     assert_eq!(pt(&game, bears), (2, 2), "so it stops granting +2/+0");
 }
 
-/// The other half of CR 704.5p's first sentence, and the composition that
-/// closes a two-year-old TODO: an **Aura** that is also a creature.
+/// The other half of CR 704.5p's first sentence: an **Aura** that is also a
+/// creature.
 ///
 /// It is unattached by the same predicate — one rule, not two — and then
 /// CR 704.5m puts it into its owner's graveyard on the loop's next pass,

@@ -1,7 +1,6 @@
 //! The decision log: every answer a game's choices get, in the order it gets
 //! them, written by the engine so that the record is the game's and not a
-//! seat's (A6g's playable PR, the owner's call at its design review,
-//! 2026-10-02).
+//! seat's.
 //!
 //! A seat's provider sees only the prompts that reach it, and that depends on
 //! how the seat is set up: auto-yield and auto-pay answer some prompts above

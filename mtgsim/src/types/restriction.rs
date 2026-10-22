@@ -53,8 +53,8 @@ use crate::types::replacement::EventPattern;
 /// with a flag.**
 ///
 /// A one-field wrapper today on purpose: `unless: Option<Condition>` (§2.4)
-/// lands in it when Phase 6 gives `Condition` a meaning, and a bare enum would
-/// have to become a struct at that point across every reader.
+/// lands in it with CR 508.1c's "can't … unless", and a bare enum would have
+/// to become a struct at that point across every reader.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RestrictionDef {
     pub what: Restriction,

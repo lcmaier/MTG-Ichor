@@ -1,17 +1,18 @@
 // Random DecisionProvider — makes random legal choices for fuzz testing.
 //
 // Implements the 4-primitive `DecisionProvider` trait by picking uniformly at
-// random among the options the engine presents. Holds two pieces of interior-
-// mutable state: a per-mana-ability-window activation counter that caps
-// pathological filter-ability chains during fuzz, and the actions a priority
-// window has rejected, which it does not choose again (see `pick_n` below).
+// random among the options the engine presents. Holds three pieces of
+// interior-mutable state: a per-mana-ability-window activation counter that
+// caps pathological filter-ability chains during fuzz, the pool multiplier it
+// last activated, and the actions a priority window has rejected, which it
+// does not choose again (see `pick_n` below).
 //
 // Tap-before-cast sequencing is *not* RandomDP's concern — the engine runs
 // the 601.2g / 602.1b mana-ability-window loop inside `cast_spell` and
 // `activate_ability`, prompting this DP once per mana-ability activation.
 //
 // **It is random among the choices that can pay, not among all of them.**
-// Two of its answers are not uniform: in the mana window it taps a source
+// Three of its answers are not uniform: in the mana window it taps a source
 // that makes a pip the cost still needs before it taps anything else, least
 // flexible source first, and declines when no source can make a pip that is
 // still owed; and it splits the generic part of a cost only across mana the
@@ -19,9 +20,9 @@
 // doubles what the pool holds, so it is activated once nothing else is
 // offered, tapped toward when its doubling is the only source of a pip still
 // owed, and its input is paid with mana the cost does not need for a pip.
-// All of these are policy, not payment law —
-// the prompt still offers every legal option and the engine still validates
-// what comes back — and both exist because an any-color mana base
+// All of these are policy, not payment law — the prompt still offers every
+// legal option and the engine still validates what comes back — and they
+// exist because an any-color mana base
 // (`cards/dual_lands.rs::everywhere`) turns a uniform tap into a five-sided
 // die: land taps per spell cast read 7.66 uniform against 3.18 with the
 // policy (2026-09-03), and a failed payment rewinds with the lands still

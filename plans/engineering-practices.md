@@ -255,6 +255,59 @@ outgrown, each corrected rather than shortened:
 - three phase codes naming work since done;
 - a count of 45 emission sites, which is 58.
 
+**Fourth application — 2026-10-22, the item 6 audit's pass 3 (PR #274), 38
+PRs after the third.** The instrument is a script now,
+`plans/references/comment-census.py`: every definition a constant, and
+`--rev` reads any commit. Calibrated at the records' own trees first: the wide
+tier, the comment lines and the blocks over four lines by kind reproduce
+exactly at all three; the history blocks read 254 at `949a519` and 249 at
+`1e80147`, the first and second records' counts, and 81 and 109 where the
+third says 80 and 107, once "no longer" is a history word; the tight tier
+reads 65 (35), 47 (21) and 85 (56) against 63 (34), 45 (19) and 82 (53), once
+a hit is dated by its whole block, the gap being "about one object" as a
+preposition. Over non-card `src/`:
+
+| | `df2a14c8`, after #236 | `e010539e`, before | after #274 |
+|---|---|---|---|
+| wide tier: non-card src / cards / tests / live plans | 414 / 149 / 217 / 1,890 | 485 / 157 / 245 / 2,219 | 485 / 157 / 245 / 2,226 |
+| tight tier, non-card src (undated) | 78 (53) | 96 (71) | 96 (70) |
+| comment lines, and their share of all lines | 20,699 (29.3%) | 23,733 (29.3%) | 23,719 (29.3%) |
+| in blocks over four lines: doc / inline / module | 10,983 / 1,150 / 1,169 | 11,996 / 1,230 / 1,325 | 11,998 / 1,213 / 1,324 |
+| blocks narrating history (their lines) | 88 (1,465) | 100 (1,591) | 77 (1,183) |
+
+**The window grew the comments and not the faults the last two sweeps cut.**
+The 3,034 lines since #236 are nearly all doc comments in the trigger code;
+the history blocks and the inline blocks over four lines barely moved, the
+comment rule having been applied at each PR's review. So the sweep was a
+328-line source diff over 41 files, and its yield was not length but the
+comments the code had outgrown, each corrected rather than shortened:
+- combat validation's constraints describing the old roadmap's Phase 3/4/5
+  plan, where every caller passes `none()` and RS-3 owns the effects;
+- `cast_spell`'s "placeholder (601.2d — T18c)" and mana-window placeholder,
+  and `AlternativeCost`'s "T18 will wire these into the casting pipeline";
+- CR 707.9d's drop "arrives with … CV-2", and the state check "is TR-6's,
+  and the dispatcher refuses it until then";
+- `unless` waiting for "Phase 6 to give `Condition` a meaning", and a mana
+  grant "critical-path item 6's";
+- a warning against tiebreaking on "a v4 `ObjectId`";
+- `ResolutionContext`'s doc reading "no targets: ChosenTargets::one(targets),",
+  a rename's sed inside a comment;
+- the random agent's "two pieces of state" and "two" non-uniform answers that
+  "both exist", three each;
+- two tests crediting "the rule RS-2 fixed", which has not landed;
+- the dispatch gate's "the zone map is keyed by ability";
+- three of seven type sizes, re-read with a throwaway probe.
+
+The undated tight-tier list is the floor again, `counted` and `measured`
+describing the code. The numbers it does not see were the work: the type
+sizes, three Scryfall censuses with no date, and CR 702's keyword count
+(189, which holds). Outside the comment grep: four of the clippy table's
+five counts had moved again, and `ci.yml` called its glossary step "one of the
+four checks" and cited §11.4 for the checked sitting. **Next time, run the
+script at both ends with `--rev`, and read the doc comments of the subsystem
+the window built for a count or a phase's tense** — the history grep finds a
+"since RC-1" and never a "two" that became three.
+
 **What stays out of `CLAUDE.md`:** a comment-length rule. That file is 200
 lines and every section costs another; the rule it already has is the right
 one, and a second rule that duplicates it in the negative would buy nothing
@@ -1862,7 +1915,8 @@ needs the close-out and readiness.
    gains it — a gate, so the phase is not closed until it is clean (§5); the
    doc's own findings list, its known-missing table and its out-of-scope list
    re-read against what landed since; the summaries — `codebase-state.md`'s
-   TL;DR and the CR row — rewritten in place, never appended to. Produces the
+   TL;DR and the CR row, and the README's status block, its implemented table
+   and its roadmap rows — rewritten in place, never appended to. Produces the
    retrospective in `replacement-architecture.md` §14's shape: pointers, under
    150 lines, written once and not maintained. A fix found here is shown to
    fail first; one that moves a pool is its own PR with a `fuzz-record.md`
@@ -1881,8 +1935,9 @@ needs the close-out and readiness.
    instrument that actually cut lines); every `TODO` given a live owner or
    deleted; **clippy counted before it is decided** (`cargo clippy
    --all-targets`, the count deciding which lints go to `-D` and which are
-   allowed with a reason each); the toolchain pin measured; the four checks
-   in `ci.yml`, each with a comment giving its reason. **Helpers built more
+   allowed with a reason each); the toolchain pin measured; every step in
+   `ci.yml`, each with a comment giving its reason. `plans/references/comment-census.py`
+   reads both tiers and the block census at any commit (§2.1's fourth record). **Helpers built more
    than once** (the owner, 2026-10-06, at #225's review, which found the
    permanents a player controls built in six places, one of them a helper
    the engine never called): **`plans/similar_functions.py`**. Its token scan

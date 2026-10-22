@@ -2,10 +2,10 @@
 ///
 /// # What belongs here, and what does not
 ///
-/// Rule 702 defines 189 keyword abilities. They do not all want the same
-/// representation, and the axis that decides is **does the engine branch on
-/// the keyword, or execute it?** — crossed with whether the keyword takes a
-/// parameter:
+/// Rule 702 defines 189 keyword abilities, 702.2–702.190. They do not all
+/// want the same representation, and the axis that decides is **does the
+/// engine branch on the keyword, or execute it?** — crossed with whether the
+/// keyword takes a parameter:
 ///
 /// |  | No parameter | Parameterized |
 /// |---|---|---|

@@ -6,8 +6,8 @@
 //! (printed sources on the battlefield, the zone map, the zones a granting
 //! or copying row reaches), a look-back snapshot taken only when a batch
 //! departs an ability list's source, and an object's LKI off its record.
-//! Every wrong answer it has had was a shortcut that left something out (F1,
-//! items 167 and 174), and none of them fails a random game on its own. In a
+//! Every wrong answer it has had was a shortcut that left something out, and
+//! none of them fails a random game on its own. In a
 //! game that turns the audit on, every dispatch is answered twice by the same
 //! matching loop (`match_candidates`): once over the dispatcher's candidates,
 //! once over a set with no shortcut in it — every object that could carry a

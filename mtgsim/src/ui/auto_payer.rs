@@ -170,7 +170,7 @@ mod tests {
     /// caps summing to exactly what is owed never reach a provider from a game
     /// (`ui::ask::forced_allocation`), and a client that drives the provider by
     /// another route gets the wrapped provider's answer, never a second copy of
-    /// the engine's. Retired A4k, 2026-09-18 (`backlog.md` §2.22).
+    /// the engine's.
     #[test]
     fn a_forced_split_is_the_wrapped_providers_too() {
         let game = setup_two_player_game();

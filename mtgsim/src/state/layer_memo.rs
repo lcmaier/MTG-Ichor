@@ -472,8 +472,7 @@ mod tests {
 
     /// A static's filter that asks a creature's defending player (CR 508.5)
     /// reads what it is attacking, so its frames walk again once it attacks.
-    /// The read is noted inside the lookup, for a layer row's filter too, which
-    /// noted nothing before TR-5h.
+    /// The read is noted inside the lookup, for a layer row's filter too.
     #[test]
     fn a_defending_player_read_is_invalidated_by_an_attack() {
         use crate::state::battlefield::{AttackTarget, AttackingInfo};

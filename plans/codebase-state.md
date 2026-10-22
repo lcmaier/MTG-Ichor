@@ -4743,6 +4743,8 @@ first.
 
    **Build it with the first card that needs a named counter, not before** — there is no consumer today, `CounterType::keyword_granted()` already returns `None` for anything unrecognized, and a representation with nothing to test against is what item 9 warns about.
 
+   **And CR 122.1a's other kinds (2026-10-22, the item 6 audit's pass 3).** A +X/+Y counter other than +1/+1 and -1/-1 (+2/+2, +1/+0, +0/+1) is a variant on the rules side of the split above, and two catch-alls drop one silently today: the Layer 7c arm in `engine/layers/board.rs`, whose `TODO` points here, and `add_counter_kind` in `engine/replacement/pipeline.rs`, which says what a counter feeds. A new kind gets its arm in both.
+
    **Reachability (2026-09-03):** unreachable — every counter in `src/cards` is
    `+1/+1` or `-1/-1`.
 
@@ -8391,6 +8393,15 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      are battlefield abilities, and no registered mana trigger has either
      shape. Asking them in the prediction would change what the random agent
      is offered, so they ride with the limits, to MA-7.
+     **Two more shapes (2026-10-22, the item 6 audit's pass 3, rows 14 and
+     10):** the inventory's prediction, `mana_trigger_adds`
+     (`oracle/mana_supply.rs`), passes no referents for an intervening "if"
+     and never predicts an `ActivatesAbility` arm, two under-offers; and it
+     reads a `{T}` source that left before its event as it is now
+     (`mana_added_arm_matches`' prediction passes `lki: None`), where the
+     activation reads it as it last existed. Wild Growth has neither shape,
+     and no registered `{T}` mana ability moves its own source. ~40–80 lines
+     with MA-7.
      **Reachability (2026-10-22):** unreachable — no registered card has one
      of these shapes; the two MA-1 pools, Ironworks and the Cube, are read
      exactly, together and apart.
@@ -8979,6 +8990,13 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      it, and a card leaving a graveyard by being cast (flashback, escape) would
      reach a "leaves your graveyard" trigger with `lki: None` (CR 603.10a's
      second class; Syr Konrad, the Grim).
+     **And the hand-over (2026-10-22, the item 6 audit's pass 3, row 42):**
+     a mover's before-move half (the frame, the keepers, the unattach) is
+     written for `perform_zone_change` and `leaving.rs`'s two performers, and
+     `cast_spell` (`engine/put_on_stack.rs`) has none of it, so a cast from a
+     graveyard would hand a waiting trigger no frame where an exile does. A
+     cast runs outside a batch, so its frame is `lki_now`'s: ~5 lines and a
+     test beside the 15 above.
      **Reachability (2026-10-22):** unreachable — no registered card can be
      cast from a graveyard (`permission-architecture.md`, which `backlog.md`
      §2.3 graduated to).
@@ -9424,6 +9442,13 @@ Number 277 was withdrawn in #260 and is not reused.
        affecting", built from its objects, its players or both, whose one
        membership test takes the merged id above where `set_affects` takes
        both halves today.
+     **Row 64 (2026-10-22, the item 6 audit's pass 3):** an "object or
+     player" slot is matched by four hand-written matchers,
+     `counters_on_matches`, `damage_recipient_matches` and the targeting arm
+     of `triggering_events_in` (`engine/triggers/dispatch.rs`) and `admits`
+     (`types/triggers.rs`). This item's pair merges `CountersOn` and
+     `TargetSubject`; `DefenderFilter` keeps its own, CR 506.2's defenders.
+     ~25 lines, ~40 with tests.
      **Reachability (2026-10-22):** reachable — not wrong: a reader's cost.
      **Sized:** mechanical: `Selector` ~40 lines; the id ~920 references,
      most a path's rename, and the `From` impls deleted; the pair ~250
@@ -9447,6 +9472,11 @@ Number 277 was withdrawn in #260 and is not reused.
      - a "that player" whose binding finds nobody (CR 603.6).
      Found at TR-5d's review beside `DealDamage`'s `Controller` gap (#263),
      which was the same shape.
+     **Row 39 (2026-10-22, the item 6 audit's pass 3):** two more of the
+     shape. `named_player` (`engine/resolve.rs`) answers `Ok(None)` for a
+     `TriggeringPlayer` on an arm with no player where `resolve_player_for_self`
+     answers the controller, who draws; and `EntersAttacking::Player`. Both
+     inside the 60–80 lines below.
      **Reachability (2026-10-22):** unreachable — every registered card
      names one of its arms, and each that targets a player has that one
      target, so CR 608.2b keeps the whole spell or ability from resolving.
@@ -9620,3 +9650,242 @@ Number 277 was withdrawn in #260 and is not reused.
      a pooled stream, so that wider form carries a re-record.
      **Slotted:** A6e, the cleanup of item 6's close audit
      (`plans/handoffs/item-6-audit.md`, pass 3's cleanup).
+
+### Found by the item 6 audit, pass 3 — hygiene and CI (2026-10-22)
+
+The model pass's rows dispositioned "file an item" (`plans/handoffs/item-6-audit.md`,
+pass 3's work-list), each re-read on `main` at `e010539e`; the rows' line
+numbers were `45d4a130`'s, so each is cited here by its function. Rows 14,
+10, 39, 42 and 64 joined items 213, 265, 291 and 292 as dated paragraphs, and
+row 57 is item 297.
+
+301. **A state trigger's "not left the stack" asks the queue and the stack,
+     never the resolving slot.** CR 603.8: a state-triggered ability "doesn't
+     trigger again until the ability has resolved, has been countered, or has
+     otherwise left the stack". `state_trigger_has_not_left_the_stack`
+     (`engine/triggers/state.rs`) walks the pending queue and the stack, where
+     `lki_keepers` (`engine/triggers/dispatch.rs`) walks those and
+     `self.resolving`, CR 608.2n's ability mid-resolution, and
+     `aura_put_into_graveyard_by_the_check` walks the first two again. So a
+     state trigger whose own resolution emits an event while its state still
+     holds reads as having left, and queues again before it has resolved.
+     Row 1 of the model pass.
+     **Reachability (2026-10-22):** unreachable — Emperor Crocodile, the only
+     registered state trigger, sacrifices its own source; 1,000 `stress`
+     games (`--require "Emperor Crocodile" --seed 101`) show no repeat.
+     **Sized:** ~25 lines and a test: the three walks over `lki_keepers`'
+     legs, the resolving one included, on a fixture state trigger that keeps
+     its state while it resolves, shown failing first.
+     **Slotted:** A6e, the cleanup of item 6's close audit
+     (`plans/handoffs/item-6-audit.md`, pass 3's cleanup).
+
+302. **Each caller of `candidates_now` puts the dispatch gate's legs together
+     itself, and the dispatch walks the whole zone map.** `detect`,
+     `find_matches` and `look_back_frames` (`engine/triggers/dispatch.rs`) and
+     `state_trigger_candidates` (`engine/triggers/state.rs`) each gather the
+     battlefield readers, the named carriers, the newcomers, the unattributed
+     zones and the zone sources before calling it. `zone_trigger_sources`
+     files each object's `EventKindMask`, and the state check reads only the
+     objects filed under `BoardState`, but `find_matches` passes every key
+     whatever kinds the window holds. A cost, not a wrong answer: a window no
+     zone source's ability reads still asks each of them. `look_back_frames`
+     takes every kind on purpose, and its comment says why. Row 4.
+     **Reachability (2026-10-22):** reachable — not wrong: a cost only,
+     wherever a source whose trigger works from a graveyard or a hand sits
+     beside a window it cannot read.
+     **Sized:** ~25 lines: one constructor for the legs, keyed on the
+     window's kinds.
+     **Slotted:** A6e's readiness pass (`plans/handoffs/item-6-audit.md`,
+     pass 4), whose lever list prices the zone leg, then A6e's cleanup.
+
+303. **Which facts carry a place in their player's turn is listed four
+     times, and one way the lists can disagree is silent.** The kinds whose
+     arms can say "the first time each turn" (`triggers-architecture.md`
+     §3.5): `can_tell_a_first_time_each_turn`
+     (`engine/triggers/binding_reads.rs`, the registry's gate, by arm),
+     `HistoryUpdate::placed_among` (`engine/triggers/history.rs`, by record),
+     `PLACED_FACTS` (`state/history.rs`, the turn's tally) and the ordinal
+     `within_once_per_turn_limit` reads (`engine/triggers/dispatch.rs`). An
+     arm the gate refuses is refused loudly. An arm the gate admits that
+     `placed_among` gives no place never fires, with no error: the inventory's
+     §3.7 keep covers only the loud direction. Row 7.
+     **Reachability (2026-10-22):** unreachable — the gate's four placed
+     arms are exactly `placed_among`'s and `PLACED_FACTS`' four kinds (a
+     cast, a draw, a life gain, a life loss); its targeting arm is answered
+     by the turn's targeting rows instead.
+     **Sized:** ~20 lines: one `TriggerEvent` to `Option<TurnFact>` map the
+     others read, or a test that the four lists agree.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+304. **`event_roles` declares object roles some of its arms' events never
+     carry.** `TriggerEvent::event_roles` (`types/triggers.rs`) is what the
+     registry checks an instruction's "that creature" against;
+     `triggering_event_objects` (`engine/triggers/dispatch.rs`) binds it.
+     `DamageDealt`, `DamageIsPrevented` and `Attacks` declare
+     `DamageRecipient` or `Attacked`, which an event about a player does not
+     carry as an object, so a card naming the role on an arm that watches a
+     player passes the registry and finds nothing at resolution. Row 11; the
+     doc on `triggering_event_objects`, which stated the declaration as the
+     event's, was corrected in this pass's PR.
+     **Reachability (2026-10-22):** unreachable — no registered card names
+     `DamageRecipient` or `Attacked`.
+     **Sized:** ~20 lines: `event_roles` narrowed by the arm's fields, and a
+     debug assert that a bound role is carried. One
+     declaration per arm, an `event_shape` type, is the design of the audit's
+     §6 decision 2, ~60–100 lines, and nothing found calls for it.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+305. **An unattach keeps one end's frame when both ends leave in one
+     event.** CR 603.10c looks back in time for an unattach.
+     `GameEvent::Unattached` carries one `lki: Option<Lki>` (`events/event.rs`),
+     which `announce_unattached_by_leaving` (`engine/actions.rs`) fills with
+     the end that left, and which `record_frame` (`engine/triggers/binding.rs`)
+     and `subject_read_looking_back` (`engine/triggers/dispatch.rs`) read. When
+     the attachment and its host leave together, an arm reading the other
+     end reads it as it is now. Item 290's close says each end carries its
+     frame; one does. Row 26.
+     **Reachability (2026-10-22):** reachable — not wrong: Grafted Wargear and
+     its host leave together when a player leaves a four-seat game (CR
+     800.4a), but the Wargear reads no `Attachment` role (`--players 4
+     --require "Grafted Wargear" --seed 2601`, game 3).
+     **Sized:** ~20 lines and a `GameEvent` field: a frame per departed end.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+306. **Whether an object entered this turn is stored twice, and the two
+     disagree both ways.** `PermanentState::entered_battlefield_turn`
+     (`state/battlefield.rs`), which `ObjectFact::Entered` reads through
+     `answer_or_refuse` (`engine/object_filter.rs`), and the history log's
+     entry rows, which `draft_history_rows` (`engine/triggers/history.rs`)
+     writes. `test_support.rs` resets the field after the row is written; a
+     scenario's "arrived this turn" sets the field with no row. Row 34.
+     **Reachability (2026-10-22):** reachable — not wrong: a scenario
+     permanent loaded "arrived this turn" (Grizzly Bears) disagrees, but
+     nothing reads the entry rows and no registered card uses
+     `ObjectFact::Entered`.
+     **Sized:** ~20 lines: one store, chosen before anything reads the entry
+     rows.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+307. **Entering attacking is asked of the event's controller and performed
+     for the effective one.** CR 506.3b: a creature put onto the battlefield
+     attacking "under the control of any player except an attacking player"
+     is never an attacking creature. `decide_entry_attacks`
+     (`engine/actions.rs`) prompts off the event's controller, where
+     `entering_attack` (`state/game_state.rs`) reads the effective one, and
+     `is_defending_player` (`engine/combat/steps.rs`) has no attacking twin.
+     Row 40.
+     **Reachability (2026-10-22):** unreachable — Hanweir Garrison's tokens
+     enter under the attacking player.
+     **Sized:** ~8 lines, its two callers and a fixture: an
+     `is_attacking_player` beside `is_defending_player`, read at both sites.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+308. **A condition's "you" is read through two different channel lists, and
+     a Layer 2 dependency is missed.** CR 109.5's "you" is the source's
+     controller. `player_fact_holds` (`engine/layers/condition.rs`) answers it
+     and `player_fact_reads` (`engine/layers/board.rs`) declares what the
+     answer reads; they disagree on the channels. A conditional static at
+     Layer 2 whose "you" another control row moves reads `depends_on` false,
+     so CR 613.8a's dependency order is not applied. Row 47.
+     **Reachability (2026-10-22):** unreachable — no registered static
+     lowers to a Layer 2 row.
+     **Sized:** ~5 lines and a Layer 2 fixture.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+309. **A template naming a referred object its arm never remembers is made
+     empty, and never triggers, with no error.** CR 603.7c: a delayed
+     trigger's "that creature" is the object the effect that made it
+     referred to. `TriggerEvent::watches_referred` and `subject`
+     (`types/triggers.rs`) answer which arms read one, `resolve_primitive`
+     (`engine/resolve.rs`) remembers one only for those, and
+     `triggering_events_in` and `block_events` (`engine/triggers/dispatch.rs`)
+     read it. A template naming `Referred` in a field `subject()` does not
+     return remembers nothing, so it matches an empty set: no registry error,
+     no trigger. Row 52.
+     **Reachability (2026-10-22):** unreachable — Ray of Command's is a
+     `ControlChanges` subject, which it remembers.
+     **Sized:** ~10–40 lines of authoring validation and a ~25-line test,
+     failing first.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+310. **Two lists of the objects a record names, kept in step by nothing.**
+     `GameEvent::for_each_object_named` (`events/event.rs`), which the trace's
+     `names_as_announced` (`state/trace.rs`) reads to keep each name as it was
+     announced, and `format_event` (`ui/display.rs`), which prints them, each
+     match `GameEvent`'s variants. They cannot merge, since `format_event`
+     needs each object's role, so a variant one names and the other does not
+     loses a name or prints one nobody kept. Row 56.
+     **Reachability (2026-10-22):** unreachable — the two agree today.
+     **Sized:** ~50 lines: a test that gives every object each variant
+     carries a sentinel name and checks that both lists find it.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+311. **A `LeftTheGame` binding carries no object.** `single_object`
+     (`engine/triggers/dispatch.rs`), `draft_history_rows`
+     (`engine/triggers/history.rs`) and `read_at_trigger`
+     (`engine/triggers/binding.rs`) each answer which existence a move that
+     makes no new object names (`LeftTheGame`, `SameZoneMove`). For
+     `LeftTheGame` the object's store entry is gone before the event is
+     announced, so the binding holds none. Row 58.
+     **Reachability (2026-10-22):** reachable — not wrong: Banishing Light's
+     "until" and Ray of Command's delayed arm match it in four-seat play, but
+     neither reads the object (`--players 4 --require "Banishing Light"
+     --seed 58`, game 16).
+     **Sized:** ~8 lines and a ~60-line four-seat test, failing first.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+312. **A card exiled from a hidden zone and returned to the battlefield gets
+     no frame.** `capture_lki`, `objects_lki_is_kept_for` and `hand_over_lki`
+     (`engine/triggers/dispatch.rs`) decide which movers a keeper reads;
+     `perform_zone_change` (`engine/actions.rs`) decides which the batch
+     frames. A card in exile that came from a hidden zone is not framed on
+     its way to the battlefield, and is framed on its way to the graveyard.
+     Row 60.
+     **Reachability (2026-10-22):** unreachable — Flickerwisp and Banishing
+     Light return what they exiled from the battlefield, which no keeper
+     reads.
+     **Sized:** ~5 lines and a ~40-line test; the predicate then folds into
+     the one rule for which moves carry a frame (the work-list's row 61, ~25
+     lines with it).
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+313. **A sacrificed source is untapped on its activation record and tapped
+     on its departure frame.** For a `{T}, sacrifice` ability,
+     `source_before_paying` and `announce_activation`
+     (`engine/put_on_stack.rs`) and `activate_mana_ability`
+     (`engine/mana.rs`) record the source as it was before its costs, and
+     `capture_lki` and `hand_over_lki` (`engine/triggers/dispatch.rs`) frame
+     it as it left, tapped. Which is CR 113.7a's last known information for
+     the source is a reading of CR 602.2b and 605.3a against it, first. Row 63.
+     **Reachability (2026-10-22):** reachable — not wrong: Mind Stone and Dark
+     Sphere produce it (`--require "Mind Stone,Dark Sphere" --seed 63`), and
+     nothing a registered card has reads `was_tapped` off the record.
+     **Sized:** ~30 lines and a ~40-line test, after the reading.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+314. **"The first time each turn" is answered two ways, and a filtered arm
+     refuses a later match.** `within_once_per_turn_limit`
+     (`engine/triggers/dispatch.rs`) reads the record's ordinal, its place
+     among its player's facts of that kind this turn (`placed_among` and
+     `place_in_turn`, `engine/triggers/history.rs`; `DrawOrdinals::matches`,
+     `types/zones.rs`), where `can_tell_a_first_time_each_turn`
+     (`engine/triggers/binding_reads.rs`) admits the arm. On a filtered
+     `CastsSpell` arm, an instant cast and then a creature, the ordinal counts
+     the instant and refuses the creature. Whether "the first time" counts
+     the arm's matches or the kind's is a rules reading against
+     `triggers-architecture.md` §3.5's "first of its kind", first. Row 65.
+     **Reachability (2026-10-22):** unreachable — Vengeful Warchief's arm is
+     unfiltered.
+     **Sized:** ~40–80 lines and fixtures, after the reading.
+     **Slotted:** A6e, the cleanup of item 6's close audit.
+
+315. **`AbilityTriggers`' "caused by" checks only the record's kind.**
+     `is_caused_by` (`engine/triggers/dispatch.rs`) answers "the event that
+     caused this trigger was arm X" by the record's kind, where a trigger
+     multiplier's match runs the arm's full predicates through
+     `triggering_events_in`. Row 66.
+     **Reachability (2026-10-22):** unreachable — nothing builds
+     `AbilityTriggers` with `caused_by: Some`.
+     **Sized:** ~5–10 lines and a fixture: route the check through
+     `triggering_events_in`, or drop the field.
+     **Slotted:** A6e, the cleanup of item 6's close audit.

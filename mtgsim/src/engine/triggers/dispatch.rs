@@ -752,8 +752,9 @@ impl GameState {
             })
         });
         // The battlefield probe and the named rows read the mask. The zone
-        // map is keyed by ability, and a `Filter` row's zones and the departed
-        // leg read lists no registration saw, so they keep their whole walk.
+        // map files each object's kinds, but the gate asks only whether it is
+        // empty, and a `Filter` row's zones and the departed leg read lists no
+        // registration saw, so all three keep their whole walk.
         if readers.is_empty()
             && named.is_empty()
             && self.zone_trigger_sources.is_empty()
@@ -1096,9 +1097,9 @@ impl GameState {
     /// **Read, then write only the keepers that keep the object.** The
     /// waiting triggers and the stack entries live in stores a fork shares
     /// (`state::shared_stores`), where a write copies what it touches. A walk
-    /// that took `&mut` of every keeper, as this one did before CL-1, copied
-    /// every waiting trigger and stack entry in a fork whether or not it wrote
-    /// to them: the whole stack, on a board with 8,000 triggers. So this walk
+    /// that took `&mut` of every keeper would copy every waiting trigger and
+    /// stack entry in a fork whether or not it wrote to them: the whole stack,
+    /// on a board with 8,000 triggers. So this walk
     /// only reads, and the hand-over writes through [`Self::kept_lki_slot`] to
     /// the few keepers that matched.
     fn lki_keepers(&self) -> impl Iterator<Item = (KeeperLocation, LkiKeeper<'_>)> + '_ {
@@ -2417,7 +2418,7 @@ impl GameState {
 
     /// [`Self::mana_added_arm_matches`], asked before the mana is made.
     ///
-    /// `oracle::mana_supply` (MA-1) decides whether a player could pay a cost
+    /// `oracle::mana_supply` decides whether a player could pay a cost
     /// before the engine offers the spell or ability at priority. For
     /// that it works out what tapping each source would add, Wild Growth's
     /// extra {G} included, so it asks this of a production that has not
@@ -2568,8 +2569,9 @@ impl GameState {
 
     /// The objects `record`'s one triggering event is about (§3.4), each as
     /// the existence the trigger remembers (`subject_after`). The arm says
-    /// which event roles the event has, grouped as `event_roles()` groups
-    /// them; its record is one `triggering_events_in` matched to it. An
+    /// which event roles its events may carry, grouped as `event_roles()`
+    /// groups them, and an object role this event fills with a player names
+    /// no object; its record is one `triggering_events_in` matched to it. An
     /// object the store no longer holds leaves the event about none. An
     /// attack record holds one event per attacker, which
     /// `triggering_events_in` makes, so it answers none here.

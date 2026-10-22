@@ -614,8 +614,7 @@ fn resolved_off_the_stack(record: &mtgsim::events::event::EventRecord, object: O
 /// Counted per object, not remembered per object: a card cast twice (bounced
 /// and recast) owes two announcements, and `ObjectId` survives the round trip.
 /// The event index rather than the id in the report: this line sits in the
-/// region that must be byte-identical across runs, and the index was the
-/// stable handle when ids were not (they are now, since A4g).
+/// region that must be byte-identical across runs, which the index is.
 fn uncast_resolutions<'a>(
     records: impl Iterator<Item = &'a mtgsim::events::event::EventRecord>,
     game: &mtgsim::state::game_state::GameState,
@@ -754,8 +753,7 @@ impl AggregateStats {
 /// Called from the serial reporting pass, so blocks land in game order however
 /// many workers produced them. Two dumps of the same games diff line for line,
 /// ids included: an `ObjectId` is stamped from the game's own counter, so it is
-/// the same in every process and at every thread count. (Until A4g, 2026-09-16,
-/// ids were v4 UUIDs and had to be masked before two dumps would align.)
+/// the same in every process and at every thread count.
 fn dump_event_log(path: &str, game_num: usize, events: &[String]) {
     use std::io::Write;
     let mut file = std::fs::OpenOptions::new()

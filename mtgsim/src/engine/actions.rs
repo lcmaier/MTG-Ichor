@@ -1105,9 +1105,9 @@ impl GameState {
         // group** (§9's RD decision 3): one loop and one applied set per object or
         // player, so one shield counter goes for two blockers (CR 122.1c) while N
         // deaths stay N subjects. CR 101.4d's restart is not built: nothing here
-        // creates a replacement effect (deferred at RB's review). CR 614.13a/b's
-        // exclusions and CR 615.7's answers belong to these entries, saved and
-        // restored like the stamp, and filled before the first member is decided.
+        // creates a replacement effect. CR 614.13a/b's exclusions and CR 615.7's
+        // answers belong to these entries, saved and restored like the stamp,
+        // and filled before the first member is decided.
         let outer_selection = std::mem::take(&mut self.entry_selection);
         self.entry_selection.entering = members
             .iter()
@@ -2628,7 +2628,7 @@ mod tests {
         assert_eq!(game.players[0].life_total, 20);
     }
 
-    // --- T11: LifeChanged source field tests ---
+    // --- LifeChanged's source field ---
 
     #[test]
     fn test_life_changed_event_includes_source() {

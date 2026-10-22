@@ -3,7 +3,7 @@
 //! A [`TriggerBinding`] holds its triggering events, each with the record it
 //! matched, copied at dispatch, and the objects that event is about. Every
 //! read here is of the binding's own records through the matched arm's
-//! projection, and each instruction names the event role it reads (TR-5a).
+//! projection, and each instruction names the event role it reads.
 
 use std::sync::Arc;
 

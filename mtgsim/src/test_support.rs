@@ -633,7 +633,7 @@ pub fn put_on_battlefield(
     entry.entered_battlefield_turn = 0;
     entry.controller_since_turn = 0;
     // Both fields are layer-walk inputs, and the entry's own dispatch has
-    // just walked the board (TR-1): a write after it needs the bump every
+    // just walked the board: a write after it needs the bump every
     // other writer makes, or the memo serves the turn the permanent entered.
     game.bump_layer_epoch();
     id

@@ -71,7 +71,8 @@ impl Cost {
 ///
 /// A player can only choose one alternative cost per spell cast.
 /// The `Vec<Cost>` payload describes the costs to pay instead of the
-/// normal mana cost. T18 will wire these into the casting pipeline.
+/// normal mana cost: chosen at CR 601.2b (`ask_choose_alternative_cost`) and
+/// paid as the total cost's base (`cost_determination::total`).
 #[derive(Debug, Clone, PartialEq)]
 pub enum AlternativeCost {
     Flashback(Vec<Cost>),

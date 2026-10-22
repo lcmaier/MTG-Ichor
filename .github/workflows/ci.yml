@@ -32,14 +32,14 @@ jobs:
       # GitHub image bump into a build break with no commit to blame.
       #
       # 1.98 is the version this repo is developed and verified on, and it is
-      # not the floor. **The floor was measured 2026-09-15: 1.88.0** builds
-      # every target with zero warnings and passes the whole suite, and the
-      # tree cannot go lower — its let-chains are stable only from 1.88 on
-      # edition 2024, so the edition's own 1.85 does not build it. That number
-      # is `rust-version` in Cargo.toml. The pin stays at 1.98 on purpose: the
-      # clippy step below was counted on 1.98's lint set, and a lint gate is
-      # only meaningful on the toolchain it was sized against. Re-measure the
-      # floor when this pin moves.
+      # not the floor. **The floor is 1.88.0**, measured 2026-09-15 and again
+      # 2026-10-22: it builds every target with zero warnings and passes the
+      # whole suite, and the tree cannot go lower — its let-chains are stable
+      # only from 1.88 on edition 2024, so the edition's own 1.85 does not
+      # build it. That number is `rust-version` in Cargo.toml. The pin stays at
+      # 1.98 on purpose: the clippy step below was counted on 1.98's lint set,
+      # and a lint gate is only meaningful on the toolchain it was sized
+      # against. Re-measure the floor when this pin moves.
       - uses: dtolnay/rust-toolchain@1.98.0
         with:
           components: clippy
@@ -48,9 +48,18 @@ jobs:
         with:
           workspaces: mtgsim
 
+      # CLAUDE.md's first bar: every target — the library, the binaries, the
+      # tests and the examples — under `RUSTFLAGS` above, so a warning in a
+      # test file fails as one in the engine does. A step of its own, so a
+      # compile error reads as one rather than as a test run that never
+      # started.
       - name: Build (zero warnings is the bar)
         run: cargo build --all-targets
 
+      # Debug, on purpose: every `debug_assert!` runs, and with them the layer
+      # walk's and the memo's audits. A test that would take minutes under
+      # those is release-only (`cfg_attr(debug_assertions, ignore)`) and has
+      # a release step below.
       - name: Test
         run: cargo test
 
@@ -59,10 +68,12 @@ jobs:
       # files on 1.98.0 — and only then decided. Everything was fixed except
       # five design lints, allowed in Cargo.toml's `[lints.clippy]` table with
       # one reason each; a new allow goes there, with its reason, never at the
-      # site. `-D warnings` here is what `RUSTFLAGS` above already does, spelled
-      # out so a local `cargo clippy --all-targets -- -D warnings` is the same
-      # gate. Clippy lints are advisory by design — this step is what makes the
-      # default set a bar instead of a suggestion.
+      # site. One lint outside the default set is raised into it the same way,
+      # `default_trait_access` (2026-10-14). `-D warnings` here is what
+      # `RUSTFLAGS` above already does, spelled out so a local `cargo clippy
+      # --all-targets -- -D warnings` is the same gate. Clippy lints are
+      # advisory by design — this step is what makes the table a bar instead
+      # of a suggestion.
       #
       # `cargo fmt --check` is NOT here, and the cost is why: measured the same
       # day, it would change 148 of 165 Rust files in 2,441 hunks, with no
@@ -74,6 +85,9 @@ jobs:
       - name: Clippy (the default lint set is a bar)
         run: cargo clippy --all-targets -- -D warnings
 
+      # The release build every step below shares, made once so its minutes
+      # are this step's and not the first sitting's, and so a harness that
+      # does not compile fails here rather than inside a fuzz step.
       - name: Build the fuzz harness
         run: cargo build --release --bin fuzz_games
 
@@ -87,6 +101,13 @@ jobs:
       # beside the harness's.
       - name: Clone bound — allocations and bytes per clone
         run: cargo test --release --test clone_bound_test --test clone_fixture_test --test fork_copies_test
+
+      # The memory a game's history log holds, which no clone copies: at most
+      # about 5 KB a turn over every game together, on the clone tests' games
+      # (`history_held_test.rs`'s own doc). Release-only for the same reason,
+      # and it ran nowhere until 2026-10-22; 0.7 s here.
+      - name: History bound — what a game's log holds per turn
+        run: cargo test --release --test history_held_test
 
       # The scenario writer's round trip over played boards
       # (`plans/setup-architecture.md` §4.3): 32 games, about 1.5 s here and
@@ -108,6 +129,10 @@ jobs:
       - name: Fuzz — performance pool
         run: cargo run --release --bin fuzz_games -- --games 200 --seed 12345
 
+      # The same sweep over every registered card, so a card no `performance`
+      # deck holds is still played: that pool changes only on purpose, so its
+      # readings compare across PRs (`engineering-practices.md` §3), and this
+      # one is where a new card's paths are met.
       - name: Fuzz — stress pool (every registered card)
         run: cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --pool stress
 
@@ -156,8 +181,8 @@ jobs:
       # that a code anchor still resolves — and a doc that states facts with
       # nothing re-reading it goes stale in the commit that renames something.
       # This is the re-reader, and it is also the American-spelling gate on the
-      # crate (`CLAUDE.md`, Conventions). One of the four checks CLAUDE.md says
-      # must pass, and the one that was missing here until 2026-09-15.
+      # crate (`CLAUDE.md`, Conventions). The one of CLAUDE.md's checks that
+      # was missing here until 2026-09-15.
       # Stdlib-only, like the others; `plans/` spellings are reported, not
       # failed — that doc tree carries pre-existing forms whose sweep is its own
       # diff.
@@ -244,7 +269,7 @@ jobs:
   # The guards a release build compiles out, played over every registered
   # card: each `debug_assert!`, and with them the layer walk's and the memo's
   # audits, the mana watcher's and the pipeline's (`engineering-practices.md`
-  # §11.4). The `check` job's sittings are release, so they play past all of
+  # §11.5). The `check` job's sittings are release, so they play past all of
   # them. A job of its own, beside `check` rather than after it, because the
   # audits make a game about a hundred times slower: 200 stress games took
   # 25 s here against 0.21 s in release at 16 threads (2026-10-13). So this
@@ -263,6 +288,8 @@ jobs:
         with:
           workspaces: mtgsim
 
+      # `release-checked` is Cargo.toml's profile for this: release's
+      # optimization with debug assertions and overflow checks back on.
       - name: Fuzz — stress pool, debug assertions on
         run: cargo run --profile release-checked --bin fuzz_games -- --games 50 --seed 12345 --pool stress
 
@@ -293,9 +320,13 @@ jobs:
         with:
           workspaces: devgui
 
+      # The engine's first bar on the GUI crate: every target under
+      # `RUSTFLAGS`, which this job inherits from the workflow.
       - name: Build (zero warnings is the bar)
         run: cargo build --all-targets --locked
 
+      # The engine's clippy bar, read against the GUI crate's own
+      # `[lints.clippy]` table in `devgui/Cargo.toml`.
       - name: Clippy (the default lint set is a bar)
         run: cargo clippy --all-targets --locked -- -D warnings
 

@@ -109,6 +109,9 @@ WATCHLIST = [
     "person", "agent", "yield",
     # Added 2026-10-10, the zone-change record's design.
     "act", "cause", "redirect",
+    # Added 2026-10-22, the item 6 audit's pass 3: the trigger window's --suggest.
+    "multiplier", "audit", "newcomer", "settlement", "scenario", "replay",
+    "outlet", "fodder",
 ]
 
 # Words that name more than one thing, and how many senses the glossary owes
@@ -152,6 +155,8 @@ POLYSEMOUS = {
     "flush": 2,
     "bucket": 2,
     "epoch": 2,
+    "multiplier": 3,
+    "audit": 3,
 }
 
 # A definition paragraph opens with its term(s) in bold, then an em-dash:

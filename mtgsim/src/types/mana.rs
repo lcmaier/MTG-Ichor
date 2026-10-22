@@ -369,7 +369,8 @@ pub enum ManaGrant {
     /// The spell cast using this mana gains a keyword
     /// (e.g. haste from Arena of Glory, uncounterable from Cavern of Souls)
     GrantKeywordFlag(crate::types::keywords::KeywordFlag),
-    // A grant that triggers when the mana is spent is critical-path item 6's (CR 603).
+    // A grant that triggers when the mana is spent (CR 106.6, 603) waits for a
+    // `TriggerEvent` that watches the spending; none does.
 }
 
 /// How long mana persists in the pool before being emptied.
@@ -390,7 +391,8 @@ pub enum ManaGrant {
 ///
 /// There is no `Indefinite` variant. Every "mana doesn't empty" effect is either:
 /// - A blanket static ability (Omnath, Upwelling) → `BlanketPersistenceSet`
-/// - A replacement effect (Kruphix, Horizon Stone) → Phase 6 replacement
+/// - A replacement effect (Kruphix, Horizon Stone) → a replacement of the
+///   pool's emptying (CR 614), which no `EventPattern` watches yet
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ManaPersistence {
     /// Normal mana — empties at every step/phase transition (rule 106.4)
@@ -1159,7 +1161,7 @@ mod tests {
     }
 
     // =========================================================================
-    // T12b: ManaPool sidecar tests
+    // ManaPool's sidecar
     // =========================================================================
 
     fn creature_spend_ctx() -> SpendContext<'static> {

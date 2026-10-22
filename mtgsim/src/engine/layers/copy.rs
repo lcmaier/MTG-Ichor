@@ -82,8 +82,7 @@ pub struct CopiableValues {
     /// Carries each `AbilityDef.is_characteristic_defining` **verbatim**: CR
     /// 604.3a(2)'s third clause makes a CDA ride along on a copy, unlike a
     /// Layer 6 grant, which must clear it. CR 707.9d's drop for "except"
-    /// clauses is the one case that has to remove a flag, and it arrives with
-    /// the exception applier in CV-2.
+    /// clauses is the one case that removes a CDA, in [`Self::except`].
     ///
     /// Shared by allocation and still a value: every writer to a frame's list
     /// goes through `Arc::make_mut`, which copies before it writes while this
@@ -282,8 +281,8 @@ fn characteristic_it_fixes(exception: &CopyException) -> Option<CdaCharacteristi
 /// The single capture point. `None` when `id` names no object.
 ///
 /// **Reads `game.objects`, not `game.battlefield`**, so a card in a graveyard
-/// has copiable values too (CR 707.2 is not a battlefield rule) — which is what
-/// CV-1b's Dimir Doppelganger needs and costs nothing to allow now.
+/// has copiable values too (CR 707.2 is not a battlefield rule): Dimir
+/// Doppelganger becomes a copy of a creature card it exiles from a graveyard.
 pub fn copiable_values(game: &GameState, id: ObjectId) -> Option<CopiableValues> {
     debug_assert_eq!(
         LAYER_ORDER[END_OF_LAYER_1],
