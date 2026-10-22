@@ -24,6 +24,10 @@ pass re-reads what it touches: a number here is a starting point.
   passes 1, 2, 3 and 5. It touched this file and the regenerated board, and
   nothing else.
 - `plans/handoffs/` was empty before this file.
+- Pass 1, the close-out, ran in session 2 as one PR, #272, on
+  `audit/item-6-close-out` (§9). Its work-list below is done; what each entry
+  became is in the PR's body and in the places §3 names. The passes after it
+  start from their own work-lists.
 
 ## 1. Why this audit is bigger than the last
 
@@ -811,6 +815,12 @@ did not find them, so the pass reads the bodies). The docs that grew past
 and is not audited. `roadmap-v2.md`'s rows are re-checked against the
 2026-10-02 cut.
 
+**Two trace pages, from pass 1.** The close-out decided each TR phase's
+trace page (`triggers-architecture.md` §12, each heading). TR-4d's control
+sweep and TR-5h's history log change how a read is answered, and neither
+has a page: they are owed, written in this pass's PRs at
+`engineering-practices.md` §7's budget, two to three hours each.
+
 #### Work-list (discovery, 2026-10-22)
 
 These come from Workflow C, `item6-discovery-docs-vs-tree`. Nineteen
@@ -1229,9 +1239,9 @@ decides. One PR, which writes §3's two records and deletes this file.
 
 | Item | What | Pass |
 |---|---|---|
-| 96 | promote `BOUNDARY-DEF-615.1a-001` | 1 |
+| 96 | promote `BOUNDARY-DEF-615.1a-001` | 1 — closed by #272 |
 | 138, 142, 143 | the throughput target, the panic-surface baseline, the clone table | 4 |
-| 137, 7d, 215, 239, 247, 269, 284, 285, 291, 292, 296 | the cleanup | 3 |
+| 137, 7d, 215 (its two cleanups), 239, 247, 269, 284, 285, 291, 292, 296, 297 | the cleanup; 297 is pass 3's row 57, filed by pass 1 | 3 |
 
 A6h's are 185 and 188 (pass 5). A6s's, 264 and 288, stay with A6s.
 
@@ -1281,7 +1291,7 @@ changed.
 |---|---|---|
 | Plan | #270 | merged 2026-10-22 |
 | Discovery (session 1: Workflows A, B and C, pass 2's script) | #271 | the work-lists under passes 1, 2, 3 and 5 |
-| 1. Close-out (2–3 PRs) | | |
+| 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
 | 2. Eviction (1) | | |
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | | |
 | 4. Readiness (2) | | |
