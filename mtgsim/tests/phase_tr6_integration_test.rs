@@ -219,6 +219,7 @@ fn emperor_crocodile_cast_from_hand_alone_sacrifices_itself() {
     resolve_all(&mut game, &seat);
 
     assert_eq!(game.players[0].graveyard.len(), 1, "it entered, triggered and was sacrificed");
+    // ORDER-FREE: a predicate over every entry, whose answer no order changes.
     assert!(game.battlefield.values().all(|entry| entry.controller == 1), "the opponent's Bears are not another creature of yours");
 }
 

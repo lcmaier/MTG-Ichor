@@ -40,6 +40,8 @@ SETTLE    the outermost close → settle_layer_consequences: control, then comba
 DETECT    the outermost close → dispatch_batch → detect → find_matches            [triggers]
             ─── reads effective ability lists (a copy's at layer 1)               [layers]
 QUEUE     queue_matches → pending_triggers, AbilityTriggered (tier 2)             [triggers]
+STATE     the outermost dispatch's end → check_state_triggers (CR 603.8)      [triggers]
+            ─── the board, not a record; also before PLACE, and at cleanup     [layers]
 PLACE     perform_sba_and_triggers: SBAs ↺ (loop 3), then place_pending_triggers  [priority, triggers]
 RESOLVE   resolve_top_of_stack → resolve_effect → execute_action … ↺ (loop 4)     [stack, resolve]
 ```
@@ -190,6 +192,7 @@ table, the enum and the match disagree.
 | `ShuffleLibrary` | `shuffle_library`, drawing on `GameState::rng`; `LibraryShuffled` | — |
 | `PlayerLoses` | the loss and `PlayerLost`, then CR 800.4a | `player_left_the_game`'s moves, joining the batch |
 | `PlayerWins` | the result; `PlayerWon` | — |
+| `GameEndsInADraw` | the result, a draw (CR 104.4); `GameEndedInADraw` | — |
 | `ProduceMana` | the pool, its one writer; `ManaAdded` | — |
 <!-- arms:end -->
 
@@ -216,6 +219,7 @@ board the gate skips. Layer 3, text change, is the route with no leg yet.
 | restriction | `is_prohibited` `engine/restriction/predicate.rs:60`; the gate at `engine/restriction/predicate.rs:82` | `restriction_ability_sources` | `any_granted_restriction`, `any_copied_restriction` |
 | cost | `cost_modifications_for` `engine/cost_determination/gather.rs:54`; the gate at `engine/cost_determination/gather.rs:63` | `cost_modification_ability_sources` | `any_granted_cost_modification`, `any_copied_cost_modification` |
 | trigger | `detect` `engine/triggers/dispatch.rs:430`; the gate at `engine/triggers/dispatch.rs:446` | `trigger_sources`, `zone_trigger_sources` | one pair for both: `unattributed_trigger_zones` for a `Filter` row's zones, `named_unattributed_trigger_kinds` for a named row's objects; a departure's CR 603.10a frame and a look-back snapshot are two more probes |
+| state trigger | `check_state_triggers` `engine/triggers/state.rs`, the trigger gate's legs under `EventKind::BoardState` | the same two, by kind | the same, with `unattributed_trigger_kinds` saying whether a `Filter` row's zones hold one |
 
 The printed legs are written by `register_static_effects`
 `state/game_state.rs:1583` as an object arrives; the other two are
