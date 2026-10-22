@@ -283,7 +283,7 @@ Static abilities that grant abilities to spells as they are cast apply at the ti
 - **Action:** Player A casts the creature spell, tapping three creatures to pay {3} of the cost.
 - **Expected Result:** Cast succeeds. The spell gains convoke at stack-placement time. Three creatures are tapped to pay 3 generic mana. Total mana paid: {G}.
 - **Phase:** Phase 7 (Static grants to spells)
-- **Ticket:** Deferred to `backlog.md` §2.1 (a keyword granted at cast, convoke's) — Static ability grants casting mechanic at cast time (610.5 + 601.2a)
+- **Ticket:** Deferred to `mana-architecture.md` MA-5 (convoke's payment), with CR 610.5's grant at cast, which `roadmap-v2.md` A6s gives an owner — Static ability grants casting mechanic at cast time (610.5 + 601.2a)
 
 **ATOM-610.5-002**
 - **Rule:** 610.5 — Granting permanent destroyed before resolution: spell retains granted ability
@@ -292,7 +292,7 @@ Static abilities that grant abilities to spells as they are cast apply at the ti
 - **Action:** The creature spell resolves.
 - **Expected Result:** The spell still had convoke (granted at cast time). The cost was already paid. The spell resolves normally. The grant persists per 611.2a (no stated duration → indefinite).
 - **Phase:** Phase 7 (Static grants to spells)
-- **Ticket:** Deferred to `backlog.md` §2.1 (a keyword granted at cast, convoke's) — Cast-time grant persists after source destruction
+- **Ticket:** Deferred to `roadmap-v2.md` A6s, which gives CR 610.5's grant at cast an owner; the board's convoke is MA-5's — Cast-time grant persists after source destruction
 
 > **Deferred composition test (noted):** A permanent with "Creature spells you cast have 'When this creature enters, draw a card'" — whether the ETB ability transfers from spell object to permanent object is a composition question involving 610.5 + 611.3d + object continuity. Worth testing when triggered abilities are implemented in Phase 7.
 

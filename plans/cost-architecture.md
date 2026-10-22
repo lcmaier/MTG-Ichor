@@ -1118,8 +1118,8 @@ uncovered since those phases closed. `owed` selects on `ticket LIKE 'NEW%'`, so
 covering them shrinks `owed --all` and cannot grow `owed`; re-filing them into
 `Phase 5 Layers (CM-4 …)` with a `NEW` ticket would be a lateral move between
 two shipped phases that changes no gate, and doing the same to
-`ATOM-605.3a-002` — Rhystic Study's "unless that player pays", which is item
-6's — would have grown `owed` from 9 to 10 for an atom this phase cannot cover.
+`ATOM-605.3a-002` — Rhystic Study's "unless that player pays", which
+`roadmap-v2.md` A6s gives an owner — would have grown `owed` from 9 to 10 for an atom this phase cannot cover.
 **`owed` stands at 9, unchanged, and none of the nine is CM's.**
 
 **Two claims of this phase have no atom**, and both say so in the test rather

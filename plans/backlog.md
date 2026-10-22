@@ -2904,6 +2904,22 @@ added.
 | **Atoms** | none |
 | **Owner** | — ; the AI harness's performance work in Phase 10, after B10's structural sharing changes what a fork copies (`roadmap-v2.md`) |
 
+### 2.49 Dredge (CR 702.52) — a draw replaced from a graveyard
+
+**Moved from `triggers-architecture.md` §15.5 at the item 6 audit's
+close-out (2026-10-22).** Golgari Brownscale was TR-4c's card for a card put
+into a hand from a graveyard, and its dredge does not fit `Rewrite`, so TR-4c
+tested the trigger on a fixture.
+
+| Field | |
+|---|---|
+| **Rules** | CR 702.52 (a static ability that functions in a graveyard, 702.52a; a library with fewer than N cards can't pay it, 702.52b), with 616.1's choice among several draw replacements |
+| **Verdict** | `Rewrite` cannot say it: dredge replaces a draw with a mill and a return to hand, applies only while its controller's library holds at least N cards, and with two dredge cards in a graveyard, or another draw replacement, the player chooses which applies (CR 616.1). The draw is an event (RE-2) and the return's trigger reads it (TR-4c), so what is missing is the `Rewrite` arm, which 702.52a permits, and its library-size condition |
+| **Size** | ~1 PR with its first card: the arm, the condition, and its boards (Golgari Brownscale's, Life from the Loam's) |
+| **Blocks** | `keyword:dredge`: 14 cards (Scryfall, 2026-10-22), Golgari Brownscale and Life from the Loam among them |
+| **Atoms** | ATOM-702.52a-001, ATOM-702.52b-001 (Phase 8) |
+| **Owner** | — |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.

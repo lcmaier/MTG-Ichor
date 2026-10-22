@@ -48,8 +48,8 @@ impl GameState {
     /// CR 603.7a — a delayed triggered ability is created, through the one
     /// door every rule that creates one uses. The caller supplies the
     /// provenance its rule gives: a resolution reads CR 603.7d–f's off its
-    /// context, and a special action a static ability allows would read
-    /// 603.7g's off that ability's object (`backlog.md` §2.8). `referred` is
+        /// context, and an action a static ability allows (CR 103.6's
+    /// opening-hand reveal) would read 603.7g's off that ability's object. `referred` is
     /// what its "that card" means (CR 603.7c), the creating resolution's
     /// `Effect::Remember`. Announced first, so its creation is no record it
     /// reads. Then one of two things, by its duration:

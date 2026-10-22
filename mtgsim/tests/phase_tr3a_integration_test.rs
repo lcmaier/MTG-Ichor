@@ -804,8 +804,8 @@ fn a_replacements_delayed_trigger_is_its_objects_as_it_applied() {
     assert_eq!((life(&game, 0), life(&game, 1)), (22, 20));
 }
 
-/// CR 603.7g, by fixture: nothing lets a player take a special action a
-/// static ability allows yet (`backlog.md` §2.8), so the registry is handed
+/// CR 603.7g, by fixture: nothing lets a player take an action a static
+/// ability allows yet (CR 103.6's opening-hand reveal), so the registry is handed
 /// the provenance that action would give it, the object with the static
 /// ability under its controller as the action was taken. The trigger keeps
 /// both when control of the object changes.
