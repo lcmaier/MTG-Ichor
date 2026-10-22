@@ -293,3 +293,68 @@ fn counter(game: &mut GameState, ability: ObjectId) {
 fn zone_of(game: &GameState, id: ObjectId) -> Option<Zone> {
     game.objects.get(&id).map(|object| object.zone)
 }
+
+// ---------------------------------------------------------------------------
+// "Each [permanent]" reaches every primitive
+// ---------------------------------------------------------------------------
+
+/// Resolve `primitive` over "each creature you control" for player 0, beside
+/// two creatures of player 0's and one of player 1's. Returns `(yours, theirs)`.
+fn each_creature_you_control(game: &mut GameState, primitive: Primitive) -> (Vec<ObjectId>, ObjectId) {
+    let yours = vec![put_on_battlefield(game, grizzly_bears(), 0), put_on_battlefield(game, grizzly_bears(), 0)];
+    let theirs = put_on_battlefield(game, grizzly_bears(), 1);
+    let yours_filter = ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Creature)),
+        Box::new(ObjectFilter::ByController(mtgsim::types::effects::PlayerRef::You)),
+    );
+    let source = put_in_hand(game, grizzly_bears(), 0);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 0,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::NONE,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    let each = Effect::Atom(primitive, EffectRecipient::FilteredPermanents(yours_filter));
+    game.resolve_effect(&each, &ctx, &test_dp()).expect("resolving");
+    (yours, theirs)
+}
+
+/// "Exile each creature you control" — Merciless Eviction's shape.
+#[test]
+fn exile_reaches_each_permanent_a_filter_names() {
+    let mut game = setup_two_player_game();
+    let (yours, theirs) = each_creature_you_control(&mut game, Primitive::Exile);
+    assert!(yours.iter().all(|&id| zone_of(&game, id) == Some(Zone::Exile)));
+    assert_eq!(zone_of(&game, theirs), Some(Zone::Battlefield));
+}
+
+/// "Tap all creatures ..." — Sleep's shape.
+#[test]
+fn tap_reaches_each_permanent_a_filter_names() {
+    let mut game = setup_two_player_game();
+    let (yours, theirs) = each_creature_you_control(&mut game, Primitive::Tap);
+    assert!(yours.iter().all(|id| game.battlefield[id].tapped));
+    assert!(!game.battlefield[&theirs].tapped);
+}
+
+/// "Return all creatures ... to their owners' hands" — Evacuation's shape.
+#[test]
+fn return_to_hand_reaches_each_permanent_a_filter_names() {
+    let mut game = setup_two_player_game();
+    let (yours, theirs) = each_creature_you_control(&mut game, Primitive::ReturnToHand);
+    assert!(yours.iter().all(|&id| zone_of(&game, id) == Some(Zone::Hand)));
+    assert_eq!(zone_of(&game, theirs), Some(Zone::Battlefield));
+}
+
+/// "Shuffle each creature you control into its owner's library."
+#[test]
+fn shuffle_into_library_reaches_each_permanent_a_filter_names() {
+    let mut game = setup_two_player_game();
+    let (yours, theirs) = each_creature_you_control(&mut game, Primitive::ShuffleIntoLibrary);
+    assert!(yours.iter().all(|&id| zone_of(&game, id) == Some(Zone::Library)));
+    assert_eq!(zone_of(&game, theirs), Some(Zone::Battlefield));
+}

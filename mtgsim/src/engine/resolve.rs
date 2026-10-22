@@ -351,6 +351,15 @@ impl GameState {
                     self.this_object(ctx).map(ResolvedTarget::Object).into_iter().collect();
                 self.resolve_primitive(primitive, recipient, &this, ctx, dp, walk)
             }
+            // "Each [permanent]": every permanent the filter matches as the
+            // instruction applies (CR 611.2c's set), handed to the primitive as
+            // the objects it acts on in one instruction (CR 608.2f), so a
+            // primitive that reads only its objects reaches them too.
+            Effect::Atom(primitive, recipient @ EffectRecipient::FilteredPermanents(_)) => {
+                let each: Vec<ResolvedTarget> =
+                    self.affected_permanents(recipient, &[], ctx).into_iter().map(ResolvedTarget::Object).collect();
+                self.resolve_primitive(primitive, recipient, &each, ctx, dp, walk)
+            }
             // CR 608.2d — objects a player chooses as the effect applies,
             // checked against the verb's own event (CR 101.2), so a "can't"
             // removes a candidate rather than refusing a choice.
@@ -371,8 +380,8 @@ impl GameState {
                         "{:?} on {:?} names an instance of \"target\" the effect never declared (CR 115.3)",
                         recipient, ctx.source
                     )),
-                    // Implicit, Controller, the filtered sweeps, Host — none
-                    // reads a chosen target.
+                    // Implicit, Controller, the other filtered sweeps, Host —
+                    // none reads a chosen target.
                     None => self.resolve_primitive(primitive, recipient, &[], ctx, dp, walk),
                 }
             }
@@ -984,22 +993,7 @@ impl GameState {
                 // Indestructible is a "can't" (CR 702.12b, 614.17) that `is_prohibited`
                 // asks ahead of the pipeline, so a self-replacement still sees the
                 // proposal (614.17c). Off the battlefield, destroy does nothing (701.8b).
-                // "Destroy each ..." is `FilteredPermanents`, resolved now and
-                // ordered, as `Untap`'s is.
-                let each: Vec<ResolvedTarget>;
-                let objects = match recipient {
-                    EffectRecipient::FilteredPermanents(filter) => {
-                        each = self
-                            .battlefield_ids_ordered()
-                            .into_iter()
-                            .filter(|&id| self.matches_for_effect(id, filter, ctx))
-                            .map(ResolvedTarget::Object)
-                            .collect();
-                        &each[..]
-                    }
-                    _ => targets,
-                };
-                let batch = self.events_for(primitive, objects, ctx)?;
+                let batch = self.events_for(primitive, targets, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())
             }
