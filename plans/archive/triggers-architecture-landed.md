@@ -5755,9 +5755,545 @@ the pass's live board; `settled_holds` for a post-layer reader). The CR
 `LeftTheGame.lki`) as an `EffectiveCharacteristics` — characteristics and
 controller, no status (item 14), and for no other departure (item 15).
 
+### 3.4 Subjects, "you", and the bound facts — `TriggerBinding`
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+The engine's answer is a struct filled at dispatch and carried on the
+`PendingTrigger` and then the `StackEntry`. It was built to **point at the
+records and copy nothing they hold**. **As built in the bounded-state PR
+(2026-09-25; `codebase-state.md` item 42):** the log has left `GameState`, so
+the binding **copies the records it matched, whole**. A projection of the
+facts each reader needs would be a second schema for an event, with a second
+chance to drop a fact. The copy is cheap because a record's CR 603.10a frame
+is the layer memo's own `Arc`, which the same PR made it:
+
+```rust
+pub struct TriggerBinding {
+    /// The records that matched, copied at dispatch: one for a
+    /// `PerOccurrence` trigger, every matching record of the window for a
+    /// `OncePerEvent` one. Each carries its `EventId`, the stream's
+    /// monotonic number and never an index, and its `EventStamp`, which the
+    /// reflexive check and CR 603.7h's "this ability" read.
+    pub records: Vec<EventRecord>,
+    /// Which of the condition's events matched — the `TriggerEvent` whose
+    /// projections (below) say what "that object", "that player" and
+    /// "that many" are for these records.
+    pub event: EventIndex,
+    /// The one fact a record does not carry and the resolution needs: the
+    /// subject's `zone_change_epoch` at dispatch (CR 400.7 — a later move
+    /// makes it a new object the reference cannot find;
+    /// `codebase-state.md` item 10's field). `None` for an event about no
+    /// object.
+    pub subject: Option<ObjectRef>,
+    /// The ability whose triggering this is (CR 603.3b's second tier), or
+    /// for a reflexive trigger, the action within the resolution.
+    pub triggered_by: Option<TriggerSeq>,
+}
+```
+
+**Amended 2026-10-10 (`replacement-architecture.md` §2b.5), as built in RH-3
+(#245):** a zone change's record carries the object the move made
+(`new_epoch`), so `subject` is read off the record rather than off the store at
+dispatch (`subject_after`, item 177). "Them" on a "one or more" binding is
+`EffectRecipient::TriggeringObjects`, each matched zone change's new object;
+over another kind of record it is refused (`codebase-state.md` item 250).
+
+**Amended 2026-10-16 (TR-5a, §12):** the binding keeps its triggering
+events (`TriggeringEvent`), each the record that holds it and the objects it
+is about (`TriggeringEventObjects`), by the part each played, as `ObjectRef`s
+taken at the dispatch. That replaces `records` and `subject`. Each instruction
+names the participant it reads: `EffectRecipient::Triggering(participant)` is
+"that creature" off a trigger on each event and "them" off "one or more", over
+any kind of record (items 250 and 255).
+
+**The projections live on the arm, and they are exhaustive matches.**
+`TriggerEvent` carries three methods — `subject_of(&GameEvent) ->
+Option<ObjectId>`, `player_of(..) -> Option<PlayerId>`, `amount_of(..) ->
+Option<u64>` — and the dispatcher's `triggering_events_in` one more,
+each a `match` whose last arm names every arm with `_` for the record (the
+triggers midpoint audit, item 231: a bare wildcard had stood there since
+TR-1). So a new arm must say what its "that many" is (damage
+dealt, cards looked at, counters put on, damage prevented) or fail to
+compile, and must say what an occurrence is (a record for most kinds; a
+counter for the counter arms, per Protean Hydra's ruling; an attacker for
+the attack shapes). The readers resolve through them at resolution:
+`EffectRecipient::TriggeringObject` is `subject` checked against the live
+object's epoch — CR 603.6's "unable to be found" and CR 400.7 in one
+comparison; `EffectRecipient::TriggeringPlayer` is `player_of` on the
+records; `AmountExpr::TriggeringAmount` is `amount_of` summed over them
+(one creature's records for Simic Ascendancy's "that many", §4.4); and
+`AmountExpr::TriggeringPower` reads the live object when it is where the
+event left it and its last known information otherwise (CR 608.2h) — the
+record's `lki` when the event was the departure, the entry's
+`kept_lki` when the object left afterwards (§6.1). All
+three leaves ship in TR-1 because the type that carries them opens there.
+
+### 3.5 `TriggerLimit` — the two once-per-turn gates, and "first time"
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+The two gate sets live on `GameState` beside the history log:
+`action_taken_this_turn` and `triggered_this_turn`, each keyed by the full
+identity (§3.6), so a bounced and replayed permanent — a new object, CR
+400.7 — starts clean, and both cleared by the `BeginTurn` performer. "Each
+turn" is the game's turn, not the controller's.
+
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 2): the action-taken
+gate is also keyed by the controller.** CR 603.2h: the ability triggers "only
+if its source's controller has not yet taken the indicated action that turn".
+If a permanent changes control mid-turn, its new controller has not taken the
+action, so `action_taken_this_turn` is a set of `(AbilityIdentity, PlayerId)`
+pairs. Nykthos Paragon's rulings don't reach a control change, and the rule's
+wording decides it. `triggered_this_turn` stays keyed by the identity alone:
+Elvish Warmaster's ruling makes "triggers only once each turn" a fact about
+the ability. 34 cards print "Do this only once each turn"
+(`o:"do this only once each turn"`).
+
+**As built (TR-2a, 2026-09-24).** "The first time" is each record's place
+among its player's records of the same kind this turn, which the history's
+advance returns beside the rows (`TurnOrdinals`). So two losses in one batch
+are the first and the second. `triggered_this_turn` is written as the
+dispatcher queues, so a second match in the same window finds it taken.
+`begin_turn` clears both sets and §6.5's count.
+
+**Amended at TR-3c's review (2026-10-10): the place is kept on the record.**
+`TurnOrdinals` lived only for the dispatch that advanced the history, so a
+reflexive trigger made later in the resolution could not read it, and
+TR-3c first answered "no place" for one. `EventRecord::place_in_turn` is
+written as the history advances past the record, and every reader of "the
+first time each turn" reads it there.
+
+### 3.6 `AbilityIdentity` gains the object's epoch, and a granted instance its grant (S3)
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+**Decided: the instance joins the identity, as the brief recommended,
+with one refinement the rulings forced.** Ashling the Pilgrim's ruling
+(2023-07-28): the count is of "that same ability from this creature", a
+copy of the ability (Rings of Brighthearth) counts, another creature with
+the same name does not, and a countered one does not — so 603.7h's key is
+`(source, zone_change_epoch, ability)`, and CR 707.10b's copy rule for
+CV-4 is one line: a copied ability's stack entry carries the original's
+identity. The instance is for dispatch and placement, where two instances
+are two triggers, and for the gates. The `(source, ability)` pair sites —
+13 by item 149's count — take the two new fields; `AbilityActivated` and
+`AbilityResolved` carry them. An ordinal among same-id instances rather
+than an index into the whole list, so a Layer 6 grant later in the turn
+does not renumber an earlier instance's gate.
+
+**Amended 2026-09-22 by the owner (the TR-1 review, theme D): provenance
+ids replace the ordinal, built in the review's theme E before TR-2 keys a
+gate on the identity.** The ordinal is stable under a later grant but not
+under an earlier grant *ending*: if the first of two Diffusion Slivers
+leaves mid-turn, the survivor's instance 1 becomes instance 0, and a
+once-per-turn gate keyed on instance 1 is orphaned while instance 0's reads
+as unused. So the Layer 6 grant site (`compute.rs:962`, where
+`is_characteristic_defining` is already cleared) mints the granted def's id
+from the granting row's source and epoch, an id constructor beside
+`AbilityId::derived_on` (`types/ids.rs:140`). Two grants carry two ids, stable
+while each grant exists and gone with it, so the "one or more" fold's
+`(identity, arm)` key (`dispatch.rs:519`) tells them apart with no ordinal.
+The elision (`placement.rs:106`) is re-keyed on def equality rather than id
+equality, and item 149's closure is amended. "Loses all abilities" goes by
+list, so CR 113.10b is unaffected. Diffusion Sliver itself waits for TR-5's
+target event, so nothing printed reads the field yet.
+
+**Built 2026-09-22 (theme E), with three calls the amendment left open —
+the owner's, each as recommended.** The mint changes every granted def's
+id, not only a triggered one's, and three sites wanted the shared id,
+because each means "this ability, whichever instance": CR 113.10b's
+`LoseAbility`, the mana window's dedupe, and a granted static's rows, which
+`register_granted_static_effects` filed under the def's id for CR 604.2's
+existence check to find on the grantee. *Where the definition lives:*
+inside the id, `AbilityId { definition, grant }` with the grant `0` unless a
+Layer 6 row granted the instance, so no `AbilityDef` literal changed,
+equality is per instance by default, and `definition()` is the opt-in —
+taken on the condition that the A/B's CPU line shows no cost of the wider
+key (`fuzz-record.md`'s theme E block), a field on `AbilityDef` otherwise.
+*The mint's input:* the granting row's `EffectId`
+(`AbilityId::granted_by`), not its source and epoch. A resolution's row is
+sourced at the resolving stack object — a spell, whose epoch moves when it
+reaches the graveyard and again whenever it leaves, or an ability object
+CR 608.2n deletes — and two grants of one def from one source to one
+object would share a pair. The row is the grant: a counter no row reuses,
+gone when the grant goes. *The mana window* dedupes on the definition, so
+it lists what it listed. A granted static's rows now carry its instance's
+id, which keeps the existence check exact, and CR 614.12's look-ahead names
+its would-be rows by the ids their registration will assign. One
+consequence rather than a call: the replacement gather keys a static
+replacement by `(ObjectId, AbilityId)`, so two granted instances of one
+replacement ability are two effects, as the CR has them; nothing registered
+grants one.
+
+### 3.8 `TriggerOrigin` — object, delayed, reflexive, rule
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+```rust
+pub enum TriggerOrigin {
+    /// A printed, granted or copied ability of an object.
+    Object(AbilityIdentity),
+    /// CR 603.7 — registered by a resolution, a replacement's rider, or a
+    /// special action; provenance per 603.7d–g on the registry entry.
+    Delayed(DelayedTriggerId),
+    /// CR 603.12 — a delayed trigger checked at creation against the
+    /// creating resolution's own records.
+    Reflexive(DelayedTriggerId),
+    /// CR 724.2 / 725.2 / 727.1 — "inherent triggered abilities [that] have
+    /// no source", CR 113.8's exception. Named here so `AbilityIdentity`
+    /// never grows a fake source; built with the designation that owns it
+    /// (Phase 9). Question 6.
+    Rule(InherentAbility),
+}
+```
+
+**As built (TR-3a, 2026-10-07): `Delayed(AbilityIdentity)`, not
+`Delayed(DelayedTriggerId)`.** Every reader of an origin wants its source and
+its identity: placement builds the stack entry's `ability_identity`, CR
+603.7h's count keys on it, and an entry's kept LKI names the source. A `Once`
+entry leaves the registry as it queues, so an id alone would name nothing by
+placement. The identity is the entry's source (CR 603.7d–g) and
+`AbilityId::delayed` of its registry number, a derivation in the role
+`UNASSIGNED` leaves free above zero, so a delayed trigger's resolution never
+advances its creator's count. The arm's tag grows `GameEvent` from 64 to 72
+bytes (`AbilityTriggered` carries the origin), priced in `fuzz-record.md`'s
+TR-3a block.
+
+**Amended at TR-3c (2026-10-09): there is no `Reflexive` arm.** CR 603.12
+has a reflexive trigger "follow the rules for delayed triggered abilities",
+and what every reader of an origin wants is what `Delayed` already carries:
+the source CR 603.7e gives it, and the identity its registry number gives
+it. A reflexive trigger is a delayed entry checked as it is made and never
+left waiting (§4.6), so its number names nothing in the registry once it is
+made, as a `Once` entry's names nothing once it has triggered. A second arm
+would be a second spelling of one origin, and placement, CR 603.7h's count
+and the kept LKI would each have to learn it.
+
+### 3.9 The delayed-trigger registry (CR 603.7)
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 4): the id rides the
+proposal.** "A turn records which entry it came from" has to happen before the
+turn begins, on `GameAction::BeginTurn`, because four printed replacement
+effects read it there: Stranglehold, Ugin's Nexus, Gerrard's Hourglass Pendant
+and Trouble in Pairs replace "a player would begin an extra turn" (CR
+614.10). Today `next_turn_taker` pops the queue and proposes the turn with its
+player and number only, and `BeginTurn`'s own doc says who takes the turn is
+not on the event. The proposal carries `extra_turn: Option<ExtraTurnId>`, the
+turn's `EventPattern` arm reads it, and the turn that begins takes it from the
+proposal. "During that turn" (Alchemist's Gambit, Kang the Conqueror) is a
+duration on the same id. ~20–30 lines, with this id or with the first of the
+four cards.
+
+### 3.11 `Lki` — the last known information, widened (items 14, 15) — built in TR-4a
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+The two amendments below are the design record this was built from.
+
+**Amended 2026-10-10 (the LKI rename, A6n, #241): one type, not two.** This
+section planned `LastKnownInformation` as the frame inside TR-2b's pair,
+`DepartedFrame { object, frame }`. The rename called the pair `Lki`, the
+tree's spelling of the fact (`lki`, `lki_of`, `source_lki`), and a second
+type spelled the same way would be two names for one concept
+(`engineering-practices.md` §2b). So TR-4a widens `Lki` itself, and whether
+the fields share the frame's `Arc` was TR-4a's to decide.
+`DelayedTrigger.source_frame` becomes an `Lki` with it, or the widened facts
+never reach a delayed trigger's source (§3.12a).
+
+**Amended 2026-10-09 (A6k's review, item 235): the owner** (CR 108.3; CR
+111.2 for a token). A delayed trigger or an "until" return stores its
+source's owner as it is made, since "its owner" is fixed. A source already
+gone from the store by then has only its last known information left to say
+who owned it: a token that ceased to exist before its ability resolved (CR
+704.5d), or an object whose owner has left the game (CR 800.4a).
+
+### 4.1 When: the close of a batch, or an unbatched emission (question 8)
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+**A dispatch is the matcher's run over one window: every record stamped
+with one `BatchId`, run when the outermost `execute_actions` that opened
+that batch is about to return, after its riders; or one unbatched record,
+run inside `emit_event` before it returns.** The window is
+`records_since(mark)`, with `mark` the stream's sequence number at the
+outermost `open_batch`.
+
+**Amended 2026-10-10 (`replacement-architecture.md` §2b.6, decision 5):** a
+window whose outermost batch queued riders is dispatched in two parts. What
+the batch performed is dispatched before its riders run, and the riders'
+records at its close, so every live read is taken immediately after the event
+(item 175). Built in RH-3 (#245) as two batches: the batch closes and its
+window is dispatched, and its riders then run as a new batch with its own
+dispatch (`execute_riders`), so "one window, one batch id"
+still holds.
+
+### 4.2 Who is asked: the candidate set, the three-leg gate, S1, and CR 113.6k
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+   the condition: **113.6k is derived, not stated** — a condition about
+   `ThisObject` moving from zone Z functions in Z ("when this card is put into a
+   graveyard from anywhere" functions everywhere it can be; Guerrilla
+   Tactics' discard, amended below); a condition about other
+   objects functions on the battlefield unless 113.6b states otherwise.
+   **Amended 2026-10-11 (RH-1):** the map loses the card as it moves, before
+   the window's dispatch, so a condition about this object *leaving* such a
+   zone is asked off the departure's frame, on leg 2 (`codebase-state.md`
+   item 249, TR-4c).
+   **Amended 2026-10-15 (TR-4c): not off a frame, and where it went.** A move
+   CR 603.10a does not look back across is asked after the event (CR 603.10),
+   so CR 113.6k's "zones it can trigger from" are the zones the move can leave
+   the object in, a hidden one included: whether the card triggers there is CR
+   603.2f's question, of the object (Library of Leng's board,
+   `plans/atomic-tests/supplemental-docs/603-2f-complexity.md`, which Future
+   Sight's revealed top card turns around). CR 702.29c says so of a cycling
+   trigger, which fires "from whatever zone the card winds up in", and Yixlid
+   Jailer's second ruling of Narcomoeba's, which fires from the graveyard
+   where the Jailer stops it. Guerrilla Tactics' discard functions in the
+   graveyard, in Rest in Peace's exile and in Library of Leng's library. A look-back move still functions
+   in the zone it left, asked off the frame on leg 2. And an intervening "if"
+   that states a zone replaces the derivation for every condition of its
+   ability (CR 113.6b; Bridge from Below, item 173), in `functioning_zones` and
+   `condition_functions_in` alike.
+
+**Amended 2026-10-15 (TR-4c, item 266): the zone set's sibling.** An object
+off the battlefield whose every functioning trigger is on itself changing
+zones (`TriggerDef::triggers_only_on_this_object_moving`: Guerrilla
+Tactics' discard, Guile's "from anywhere") can be triggered only by the
+window that moved it, so it waits on `newcomer_trigger_sources`, and the gate
+and the zone leg take it only as one of that window's newcomers
+(`newcomer_trigger_carriers`). On the zone map it passed every window of a
+game it was in from the library on: on `stress`, windows past the gate at
+6.6× `main`'s.
+
+Sight's revealed top card does. **Amended 2026-10-15 (TR-4c):** the brief
+offered "is the object, where it is now, visible?" for every candidate.
+Asked of a frame, that refuses the returned creature, whose fixture fails
+under it, so a frame is asked where it was. `Zone::is_public()` gets its first caller
+
+### 4.5 State triggers (CR 603.8; P1; question 7)
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+**One-shot** (603.8's last sentences): a state trigger that has triggered is
+in `state_triggers_armed_off: IdSet<AbilityIdentity>` until its stack
+object leaves — resolution, counter, fizzle, or 603.3d's removal — and
+`GameState::trigger_left_stack(identity)` at those four sites is the one
+writer that re-arms it. Immortal Coil's two rulings (countered → triggers
+again at once; resolved without losing → again) are the tests, on a fixture
+carrying its third ability (§12), and that fixture beside Platinum Angel is
+CR 104.4b's mandatory loop, which §4.9 catches. **Emperor Crocodile's
+second ruling is the difference from an
+intervening "if"**: a state trigger checks at the trigger only, so
+`intervening_if` is `None` on a `State` condition and the matcher refuses
+the pair.
+
+**Amended 2026-10-21 (TR-6's design, read against #267's tree).** Five things
+the sketch above leaves out or gets wrong.
+- **Who is asked.** A state trigger reads no record, so its `record_kinds` is
+  empty and `trigger_sources` never files its permanent. The check reads the
+  dispatcher's own gate, all three legs of it (printed, granted, copied), through
+  one reserved bit of `EventKindMask` that a `State` condition sets. A board with
+  no state trigger then pays one mask test each time the check runs: after every
+  dispatch, on every pass of `perform_sba_and_triggers`, and in the cleanup
+  probe (the three schedules above). A granted or copied
+  state trigger is found on the leg that finds a granted "whenever", which is
+  `CLAUDE.md`'s rule for a new reader of the effective list. Leg 3
+  (`zone_trigger_sources`) takes the bit the same way. The dispatch audit
+  (§4.10) gains a state leg: every candidate's every `State` def asked with the
+  gate off, and compared with the gated answer.
+- **No armed-off set, and no re-arm.** *(As built, replacing this amendment's
+  first two bullets here, which planned one re-arm line in
+  `ability_leaves_the_stack`.)* CR 603.8's "doesn't trigger again until the
+  ability has resolved, has been countered, or has otherwise left the stack"
+  holds while an instance of it waits in the queue or sits on the stack, and
+  both are on `GameState` already. So the check reads them
+  (`state_trigger_has_not_left_the_stack`) and keeps no set beside them: every
+  way of leaving is the answer changing, CR 603.3d's removal included, which
+  happens before its stack entry exists and so had no entry for a re-arm to
+  read. "If the object with the ability is still in the same zone" needs no
+  code: the identity carries the source's `ObjectRef`, and a source that moved
+  is a new object (CR 400.7). A copy of a state trigger on the stack (CR
+  707.10, CV-4) would carry the original's identity, and must not keep the
+  original from triggering once the original has left: a Deferred Migrations
+  line.
+- **What the check queues.** A `PendingTrigger` bound to no record:
+  `TriggerBinding::event()` is `None` for it, and every reader of the binding's
+  event answers "no event". It is announced by `AbilityTriggered` with
+  `caused_by: None` after the check, so a tier-2 watcher sees it as it sees any
+  other trigger (§4.8), and an arm that asks what caused a triggering never
+  matches one.
+- **The predicate is the "as long as" evaluator, not a new one.** The check
+  asks `condition::settled_holds` (`engine/layers/condition.rs:299`), which is
+  `holds` at the walk's last layer. `holds` is what a conditional static's "as
+  long as" is asked through inside the layer walk (LI-3), and `settled_holds`
+  is what the replacement and restriction gathers, CR 613.11's cost effects and
+  an intervening "if" ask outside it. Every one of those askers is a reader
+  that already needs the answer: a static's "as long as" is asked when the
+  object is read, a gather's when an event is proposed. Nothing reads a state
+  trigger's condition, so the check is its asker, at the three schedules. The
+  schedules are new; the evaluator is not. The leaves below are written once, in `holds`, so
+  a static's "as long as you have no cards in hand" gets them too.
+- **What the cards need besides the check.** `Condition::Not`, for Emperor
+  Crocodile's "you control no other creatures" and Immortal Coil's "there are no
+  cards in your graveyard". "Controls" is a `PlayerFact`, not a `Condition` arm,
+  so the Crocodile's condition is `Not(Player { You, ControlsPermanent(creature
+  and NotSource) })`. `PlayerFact::HandEmpty`, for CR 603.8's own example
+  ("whenever you have no cards in hand", the board of both atoms; hellbent prints
+  the same fact). And "then draw that many", read off the discards the
+  resolution performed so far through `resolution_records` (§4.6), as
+  `DamageDealtThisWay` reads damage, for ATOM-603.8-002's spell.
+
+### 4.6 Delayed and reflexive (CR 603.7, 603.12; questions 1 and 14)
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+A **reflexive** trigger (603.12) is a delayed entry created as the
+resolution reaches it and **checked immediately**: the window is the records
+with that stamp up to `created.record`. *(Amended at TR-3b's review,
+2026-10-08: this sketch named an `Effect::Reflexive { when, then }`, which
+no code ever had. TR-3c builds it as `Primitive::CreateDelayedTrigger` with
+`DelayedDuration::Reflexive`, its row in §12 says why.)* Its trigger event
+
+**Amended 2026-09-23 (the rulings pass, G2).** The first text read the
+window "since `created.record`", which contradicts both CR 603.12 — the
+ability triggers "based on whether the trigger event or events occurred
+earlier during the resolution of the spell or ability that created them" —
+and this section's own example, whose sacrifice precedes the reflexive
+entry. The window is every record the resolution has performed so far, and
+it is one reader, `resolution_records(stamp)`. It is also where "this way"
+and "that many" look (`trigger-survey.md` table three: 480 and 260 trigger
+cards read the resolution's own events — "you gain life equal to the
+damage dealt this way", "discard any number, then draw that many"); their
+`AmountExpr` and `Condition` leaves come with their first cards and read
+this reader, never a count kept beside it. A reflexive whose action is
+making a token — Ajani, Nacatl Avenger, Generous Plunderer — needs
+`CreatesToken` (§3.3), which is TR-5's; Ajani's two rulings are TR-5
+fixtures, and the few such cards are not a reason to move the arm.
+
+### 4.8 The trace's sixth emit point (item 9), and `AbilityTriggered`
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md` §4.8, which keeps the bound as built: its two amendments as they stood, and TR-6's review draft of the work stack that removes the number, which is `roadmap-v2.md` B14's input.*
+
+And one *performed* record: **`AbilityTriggered`**, emitted by the
+dispatcher through `emit_event` for every queued trigger, after the window
+it belongs to has closed (so it carries no batch and no resolution: it is a
+consequence of the event, not part of it). It exists because CR 603.3b's
+second tier is defined by "a trigger condition that is another ability
+triggering", and Strict Proctor's ruling says that tier always goes on the
+stack *after* the ability that caused it. The matcher dispatches it like
+any unbatched record; a trigger watching it is tier 2 by construction
+(`TriggerCondition::tier()`); a trigger watching a tier-2 trigger's
+triggering is tier 2 too, ordered within the tier by APNAP and its
+controller. No printed ability watches its own kind, which is necessary
+and not sufficient once custom cards exist: a trigger watching abilities
+triggering, whose own triggering it then watches, recurses synchronously
+inside one dispatch, where TR-6's loop detector — which counts decisions —
+cannot see it, so the nesting bound is the only guard for that loop.
+**Amended 2026-09-22 by the owner (the TR-1 review, theme D): at the bound
+the answer is CR 104.4b's draw, not an `Err`.** TR-6 settles
+`GameResult::Draw` through the same settlement §4.9's detector uses, and
+`DISPATCH_NESTING_LIMIT` (16 today, an `Err` until then, which since A6r
+reaches the record's emitter: item 262) becomes that detector's threshold knob
+rather than a second number.
+`BATCH_NESTING_LIMIT` (32, `actions.rs:38`) is the same pattern but a
+genuine engine invariant — CR 614.5 bounds every replacement chain — so it
+stays an `Err`.
+
+**Amended 2026-10-21 (TR-6's design, decision 5 — decided with (ii) at review).**
+TR-6 builds the 2026-09-22 call's draw as written. At the bound the dispatcher
+proposes §4.9's `GameEndsInADraw`, caused `GameRule::MandatoryLoop`, instead of
+returning the `Err`, and its two doc comments (now `dispatch.rs:58–61` and
+`game_state.rs:300–304`) lose "the engine's mistake". The bound itself stays at
+16, a count the loop phase keeps until it can replace it. That phase has the
+option B below; the draft's text follows as its input.
+
+*The draft, revised at review: no second number.* The 2026-09-22 call stands:
+when a tier-2 chain has no end, the answer is the draw. The review asked why a
+bound is needed at all. The answer is
+that `DISPATCH_NESTING_LIMIT` (16, now `dispatch.rs:62`) bounds a **call
+depth**, not a loop. Each `AbilityTriggered` is dispatched inside the `dispatch`
+that queued its trigger (`emit_record` → `dispatch_unbatched` → `dispatch`), so a
+chain of tier-2 triggers is a chain of nested frames on the thread the game runs
+on. The bound is there so that a chain with no end fails before the thread's
+stack does. The deepest nesting the review's probe saw in 12,000 fuzz games is 3.
+- **A — keep the recursion: two numbers** (this amendment's first version). The
+  dispatcher draws at 16 and the detector at 500, both through one performer
+  (§4.9, decision 4). One number would put 500 nested frames on the stack, or
+  draw legal games at 16 (§4.9's table).
+- **B — take the recursion out.** Step 5 of `dispatch_inner` pushes its queued
+  triggers onto a work stack that the outermost dispatch drains. The drain pops
+  one, emits and dispatches its `AbilityTriggered`, and pushes what that
+  dispatch queued on top, which is the order the recursion visits them in.
+  Nesting stops at two frames whatever the chain. A chain with no end is then a
+  decision-free run the detector counts (§4.9, decision 1's fourth clause) under
+  its one threshold. `DISPATCH_NESTING_LIMIT`, its `Err` and its two doc
+  comments (now `dispatch.rs:58–61` and `game_state.rs:300–304`) go.
+
+  The order matches the recursion's except where a dispatch nests inside
+  another's step 4: a triggered mana ability's batch (CR 605.4a), whose tier-2
+  triggers then wait for the outer dispatch's step 5. That moves their `seq`s,
+  not their tier. Code: about 50 lines in `dispatch.rs`. Test: a fixture pair
+  of triggers that each watch the other's triggering, drawn by the detector.
+
+*Recommended for the loop phase: B.* It removes a number and a way to overflow
+the stack, and it is what the 2026-09-22 call asked for. Under the loop phase's
+principle (§4.9), an endless tier-2 chain is a run its proof reads like any
+other.
+
+`BATCH_NESTING_LIMIT` stays an `Err`, and is a different kind of number. No
+legal board reaches it, since CR 614.5 bounds every replacement chain, so it is
+an assertion about the engine, not a bound on play.
+
 ### 4.9 The mandatory loop (CR 104.4b, 731; P5; `backlog.md` §2.28)
 
-*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md` §4.9, which keeps the draw TR-6 built (decision 4) and a pointer here. This is the design input `roadmap-v2.md` B14 starts from, as TR-6's review left it.*
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md` §4.9, which keeps the draw TR-6 built and a pointer here. In the section's order: its opening and TR-6's amendment, then the design input `roadmap-v2.md` B14 starts from as TR-6's review left it, with decision 4, the draw as drafted, where it stood.*
+
+The state-tracking doc's Tier 1 survives unchanged and lands here because
+its first reachable board is a trigger's: Immortal Coil's third ability
+with an empty graveyard beside Platinum Angel is "an involuntary infinite
+loop ... the game will end in a draw" (the Coil's own ruling; the board is
+a fixture, §12). `LoopDetector` on
+`GameState` counts consecutive engine actions with no `DecisionProvider`
+prompt of two or more options — A4e's definition of a decision, already
+counted — and a run past the threshold (configurable, default 15) settles
+`GameResult::Draw` through the same batch settlement CR 104.4a uses. A
+decision resets it. A prompt with one legal answer, such as a priority
+window where passing is all a player can do, is not a decision and does not
+(corrected 2026-09-24: the count is item 138's decisions, never prompts).
+Tiers 2 and 3 need the state hash item 40's discipline
+makes possible and stay in `backlog.md` §2.28 with the fork harness; the voluntary
+shortcut (D26) stays there too. `fuzz_games`' turn limit keeps standing in
+for what Tier 1 cannot see.
+
+**Amended 2026-10-21 (TR-6's design, decided at review): TR-6 builds the draw,
+not the detector.** The paragraph above has TR-6 build Tier 1, a count of
+decision-free actions that draws past a threshold. The review rejected a count
+as the verdict, for three reasons:
+- **Any threshold misjudges every finite run longer than itself.** That is what
+  a count is, so a threshold can be defended as cheap, never as correct.
+- **The boards a count confuses differ from the start.** Sanguine Bond and
+  Exquisite Blood behind the opponent's Platinum Angel never stop, and with no
+  Angel they stop when that opponent's life reaches 0. The Angel is on the board before the first
+  iteration, and a check that reads what the loop moves and what could end it
+  sees the difference; a count, which reads only how long the run has gone on,
+  cannot.
+- **No fuzz sitting can show a threshold safe.** The pools were built to
+  exercise the engine, so their tails describe those decks, not Magic. A sitting
+  can show a design wrong (the Protean Hydra below is a real card on a natural
+  board), never right.
+
+So TR-6 builds:
+- **the draw** (decision 4, taken): `GameAction::GameEndsInADraw`, through the
+  chokepoint;
+- **the two counts the engine already has, ending the game through it,
+  unchanged in number:** `MANDATORY_LOOP_CHECKS` (500 performing checks in one
+  CR 704.3 repetition, `sba.rs:121`; item 263's board, Lich's Mirror's loop) and
+  `DISPATCH_NESTING_LIMIT` (16 nested dispatches, §4.8, decision 5). TR-6 adds no
+  number, and item 263 and `check_invariants.py:164`'s entry close.
 
 **Loop detection is a phase of its own** (`backlog.md` §2.28 graduates; its
 slot on the route is set at this review). Its principle, set at the review:
@@ -5984,6 +6520,40 @@ The harness bound is needed once a registered card can close a loop the engine
 cannot end. Until the loop phase lands no such card is registered: a pooled card
 that hangs a game hangs CI's `stress` step, as item 264's token board does.
 
+**Decision 4 — the draw goes through the chokepoint (`codebase-state.md`
+item 263).** The paragraph above settles the draw "through the same batch
+settlement CR 104.4a uses". It cannot. 104.4a's draw is read off performed
+losses (`settle_game_result`), and a loop's draw has no performed event to be
+read off. A settlement would be the direct write item 263 is about.
+
+Proposed: `GameAction::GameEndsInADraw`, caused
+`EventCause::GameRule(GameRule::MandatoryLoop)`.
+- **The performer** is `end_game(GameResult::Draw)`, which announces
+  `GameEvent::GameEndedInADraw`, so the log, the trace and the dev GUI say why
+  the game ended. `PlayerWins`' performer is the precedent (`actions.rs:1948`).
+- **No `EventPattern` arm,** as `ShuffleLibrary` and `Attach` have none: nothing
+  printed replaces a draw. Platinum Angel's fourth ruling says an effect that
+  makes the game a draw still works beside it, so no `is_prohibited` row
+  refuses one either.
+- **A draw is no loss,** so CR 603.9's "whenever a player loses the game" does
+  not trigger ("unless that player leaves the game as the result of a draw").
+- **A later "the game is a draw" effect** proposes the same arm with its
+  effect's cause.
+
+The state-based bound stays. It is a count the loop phase keeps for what it
+cannot prove, and its branch now proposes the arm instead of writing the result,
+which closes item 263 and `check_invariants.py:164`'s entry. *(Amended with
+(ii): the draft had the bound go, its unit joining decision 1's count.)*
+
+Cost: about 17 exhaustive arms, 10 on `GameAction` and 7 on `GameEvent`,
+counted from `PlayerWins`' and `PlayerWon`'s. The names are for review:
+`GameEndsInADraw` takes `PlayerWins`' shape, a subject and a present verb,
+since "draw" alone reads as drawing a card.
+
+*Recommended: the arm as proposed.* The alternative is the direct write.
+**Taken at review (2026-10-21): a typed `GameAction` arm.** Its names are
+reviewed with the build.
+
 **The shortcut (D26) and the loop phase.** CR 731.2's procedure is
 `backlog.md` §2.28's second half, with `GameNumber`. A player runs a loop and
 proposes "N more times", and the others accept or shorten it. Its design is
@@ -6008,6 +6578,85 @@ Three seams with the loop phase, none of them built in TR-6:
 
 CR 731.3's fragmented loop and 731.5's involved objects need the comparison
 too, and stay in §2.28.
+
+### 6.1 The intervening "if" at both instants (CR 603.4, 608.2a), and the frame of what has left
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+The two amendments below are the design record this was built from.
+
+**Amended 2026-09-23 (the rulings pass, G1): an object that leaves after it
+triggered.** The binding's frame exists only when the triggering event was
+the object's departure. An enters trigger whose source is sacrificed before
+it resolves has none: its entry record carries no frame, and the departure
+is a later record no binding points at. CR 603.4 still rechecks, and CR
+608.2h and 113.7a answer from "the object's last known information" — and
+"the source can still perform the action even though it no longer exists".
+So the departure writes the frame where the recheck finds it:
+`capture_departure_frames` (§4.3) sets `departed: Vec<(ObjectRef,
+Arc<frame>)>` on every `PendingTrigger` and `StackEntry` whose source or
+bound object (`TriggerBinding.subject`) is the departing `ObjectRef`, the
+frame type of the day (`EffectiveCharacteristics` until TR-4's
+`LastKnownInformation`). The evaluator and §6.3's readers take an object's
+facts from there once its epoch has moved. One writer, one meaning, and no
+search of the log (§7). Vibrance is the case that found it, and it also
+needs mana spent (recorded by type since 2026-09-23, `codebase-state.md`
+item 30) and the frame's `cast` (§3.11); the common case is any "this creature deals damage equal
+to its power" enters trigger answered by removal, which needs neither.
+
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 4): from every zone.**
+`capture_departure_frames` frames what leaves the battlefield, and TR-4 widens
+that capture to CR 603.10a's three classes. CR 113.7a and 608.2h are scoped to
+neither: they use last known information for any object gone from the zone it
+was expected in, and two printed readers leave from zones no class covers.
+God-Eternal Kefnet's trigger copies a revealed card, and its ruling copies
+from last known information if the card leaves the hand first. Double
+Vision's and Galvanic Iteration's rulings make their copy even if the spell
+was countered first. So the `departed` frame is written wherever an object a
+queued or stacked entry names leaves its zone: in `move_object`, gated on the
+pending list or the stack naming the mover, which on the common board are
+empty or short. A stack object's frame keeps its entry (§3.11), because CR
+707.10 copies a spell's targets, modes, X and costs, and CV-4's `copy_of` has
+no live entry to read once the spell has left. The `IsCountered` look-back
+(CR 603.10e, §4.3's list) reads the same frame of the countered spell.
+`codebase-state.md` item 169 carries the size.
+
+### 6.2 "May" and "unless" (CR 603.5)
+
+*Evicted 2026-10-22 by the item 6 audit's pass 2 from `plans/triggers-architecture.md`, where the section now says as built what these passages said in stages: the dated amendments, with the text they overruled, as they stood.*
+
+The two amendments below are the design record this was built from.
+
+**Amended 2026-09-23 (the rulings pass, G3): the field records CR 118.12's
+answer, not the event.** CR 118.12 makes the action a cost paid at
+resolution, and its "If [a player] [does, doesn't, or can't]" clause
+"checks whether the player chose to pay an optional cost or started to pay
+a mandatory cost, regardless of what events actually occurred"; CR 118.11
+keeps a modified payment paid. So `last_optional_taken` is
+`last_cost_answer: Option<CostAnswer>`, `Does | Doesnt | Cant` in the
+rule's words, written by the atom that takes the action and read by the
+clause after it — never re-derived from the performed records. Wicked
+Guardian's ruling is the board: its 2 damage prevented by protection, the
+card is still drawn, where a reader asking the stream whether damage was
+dealt would draw nothing. `Cant` is the mandatory form's failure —
+ATOM-118.12-001's Standstill, exiled before its trigger resolves, is not
+sacrificed and no one draws — and "if you can't" reads it (105 trigger
+cards, `trigger-survey.md` table three). The choice names its chooser:
+`Effect::Optional` carries a `PlayerRef`, `You` unless the text names
+another, so "that player may ... if they do" (53) asks the right seat; "any
+player may ... if a player does" asks each in APNAP order (CR 101.4) and
+is `Does` if any did, built with its first card. ATOM-118.12-002 is this
+paragraph's rule; its own board is Dermoplasm's morph under Gather
+Specimens, which waits for Phase 8, so TR-2b covers it partially with
+Wicked Guardian's.
+
+**Amended 2026-09-24 (the owner, at TR-2's sizing): the answer lives in the
+resolver's walk.** `ResolutionContext` is read-only down the effect tree, and
+a field on it would mean editing its 56 literal sites. The walk already
+carries one writable value for each resolution, the target cursor.
+`last_cost_answer` sits beside it in a struct each resolution makes fresh. A
+rider resolves separately, so it never sees its parent's answer. TR-2b builds
+it with "may".
 
 ## 8. Engine interaction points — counted against the tree
 
