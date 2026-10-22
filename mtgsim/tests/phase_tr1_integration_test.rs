@@ -1968,7 +1968,7 @@ fn the_stack_object_is_an_ability_with_its_identity_and_binding() {
 /// Two grants of one triggered ability are two instances on the carrier, and
 /// each keeps its identity for exactly as long as its grant lasts: the first
 /// grant ending mid-turn leaves the survivor's trigger under the identity it
-/// had (`triggers-architecture.md` §3.6, the provenance amendment). An
+/// had (`triggers-architecture.md` §3.6, an id per grant). An
 /// ordinal among same-id instances renumbered the survivor from 1 to 0, which
 /// would orphan a TR-2 gate keyed on the one and hand it the other's.
 #[test]

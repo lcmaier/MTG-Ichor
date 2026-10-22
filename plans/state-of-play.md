@@ -124,6 +124,7 @@ is derived.
 | 2026-10-14 | Attachment's records | `TR-4b` | `triggers-architecture.md` |
 | 2026-10-15 | The other two look-back classes and the zone statement | `TR-4c` | `triggers-architecture.md` |
 | 2026-10-15 | Control, countering, loss, and the records' missing facts | `TR-4d` | `triggers-architecture.md` |
+| 2026-10-15 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
 | 2026-10-16 | The binding's roles | `TR-5a` | `triggers-architecture.md` |
 | 2026-10-16 | The attack declaration | `TR-5e` | `triggers-architecture.md` |
 | 2026-10-17 | Creatures put onto the battlefield attacking, and removal from combat | `TR-5f` | `triggers-architecture.md` |
@@ -133,6 +134,7 @@ is derived.
 | 2026-10-19 | One history of what happened | `TR-5h` | `triggers-architecture.md` |
 | 2026-10-19 | Prevention and excess damage | `TR-5d` | `triggers-architecture.md` |
 | 2026-10-20 | The multiplier, tokens and scry | `TR-5g` | `triggers-architecture.md` |
+| 2026-10-20 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
 | 2026-10-21 | The board and the stack shared between forks | `CL-1` | `clone-architecture.md` |
 | 2026-10-21 | State triggers, the draw, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
 | 2026-10-22 | The persist loop, the track's capstone | `TR-7` | `triggers-architecture.md` |
@@ -161,8 +163,6 @@ and no ✅ heading records, in the docs' order.
 | Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
-| The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
-| The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
 
 ## Counts
 
