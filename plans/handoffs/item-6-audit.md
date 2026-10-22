@@ -139,7 +139,7 @@ sessions are ordinary ones, one PR at a time in the main folder:
 | 4. Hygiene and CI | plain | 3's sweep | 1–2 |
 | 5. The docs audit's fixes | plain, a session per PR | 5 | 4 (pass 5, re-cut at #274's merge) |
 | 5b. The card-homed triage | plain; a single verifier at most | the triage (§4) | 1, docs |
-| 5c. The plans rename | plain; the design reviewed first | pass 5c | 1 design, then sweeps at the band |
+| 5c. Names for the phases ahead | plain; the design reviewed first | pass 5c | 1 |
 | 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 3–6, and 1–2 for the builds |
 | 7. Readiness | plain; measurement | 4 | 2 |
 | 8. Scheduling | plain | 6 | 1 |
@@ -175,8 +175,8 @@ As §9 and the post-RE audit set it:
 
 Order: the close-out gates the rest; the eviction opens second; hygiene and
 the docs audit commute; the card-homed triage follows hygiene's sweep; the
-plans rename follows the docs audit and the triage; A6e's cleanup follows
-hygiene's model pass, the triage and the rename, and takes the
+naming of the phases ahead follows the docs audit and the triage; A6e's
+cleanup follows hygiene's model pass, the triage and the naming, and takes the
 triage's builds; readiness reads the tree the cleanup leaves; scheduling is
 last.
 
@@ -1294,47 +1294,45 @@ a dated record. Two were `CLAUDE.md` lines.
 
 The journal keeps every text.
 
-### Pass 5c — the plans rename
+### Pass 5c — names for the phases ahead
 
-**Added by the owner at #274's merge (2026-10-22):** the plans' naming
-scheme, before the audit ends, since the road to card breadth only adds to
-it. Today a reader meets twenty phase-code families (`TR-5h`, `CV-1b`,
-`RS-3a`, `CM-4`, `SU-8`, `MA-2`, `RH-3`, …), 37 A-rows and 15 B-rows in
-`roadmap-v2.md`, the archived plan's `T##`, `L##` and `D##`, and item numbers
-in five runs that share 1–65 ("main item 46", "'Before card breadth' item
-3"), beside the critical path's own numbers and each architecture doc's
-§11-style findings.
+**Added by the owner at #274's merge (2026-10-22), and scoped the same day:**
+the phases and route rows still to come get names that say what they
+deliver. Not the numbered items, and not the landed phases. Today the road
+ahead reads `RS-2; PM-0; PM-1; B2; B3; B4 … RS-3a, RS-4, RS-3b; B8; CP-1,
+CP-2; MA-7, MA-3–MA-6; B9; B13 … CV-5; CV-3, CV-4; CV-6; CV-7; A4l; B14`
+(`CLAUDE.md`'s critical path): two-letter tracks, letter rows and suffixes
+a reader has to look up, and the PR titles inherit them ("TR-5c: blocks,
+targeting and activation", "A6m, PR 1 of 2"). Card breadth adds more.
 
-**Counted on `ac23c8aa`** (`git grep`, live docs being `plans/` and
-`CLAUDE.md` and `README.md` with `plans/archive/` and the corpus out): about
-2,400 "item N" citations in the live docs and 474 comment lines in
-`mtgsim/src` and `mtgsim/tests`, and about 6,700 phase-code mentions, `TR-`
-alone 1,152.
+**Counted on `21e3c1d4`** (`git grep` for each code as a word, live docs
+being `plans/`, `CLAUDE.md` and `README.md` with the archive, the corpus and
+the generated board out): 27 codes — the board's 17 "named, not yet landed"
+phases, `PM-1`, and `roadmap-v2.md`'s `A6s`, `A4l`, `B2`, `B3`, `B4`, `B8`,
+`B9`, `B13` and `B14` — about 970 mentions in the docs and 60 in source and
+test comments, over 55 files. `RS-2` alone is 136.
 
-**What makes it a design first, then sweeps:**
-- **A citation is a reading, not a substitution** (`codebase-state.md`,
-  "Not done 2026-09-14"): a bare "item 6" has several meanings, and a `sed`
-  that guesses wrong points confidently at the wrong item. So each sweep
-  carries a human-checked table.
-- **The gates parse the codes.** `check_state_of_play.py` reads item
-  numbers and route tokens (`ITEM_RE`, `ROUTE_TOKEN_RE`) and the ✅
-  headings, `specdb.py` knows phases by name, and `check_engine_map.py`
-  and `check_glossary.py` resolve names. A scheme changes them in the same
-  PR as the docs they read.
-- **Landed codes live where nothing can be rewritten:** commit messages,
-  PR titles and bodies, and `plans/archive/`. The design says what a landed
-  code becomes (kept, or kept beside a mapping table), so `git log --grep`
-  still finds a phase.
-- **Source comments are not renamed.** By the comment rule
-  (`engineering-practices.md` §2) a source comment says the rule, not a
-  plans number, so the 474 lines are rewritten to the rule, by reading.
-  That is the naming sweep A6e's cleanup already owns, and the design says
-  which of the two takes it.
+**The work:**
+- **A naming scheme**, decided first and reviewed: what a phase's name is
+  (the subsystem and what it delivers, as the board's Phase column already
+  reads: "Combat, the predicate half"), whether a short handle survives
+  beside it for branches and greps, and how a phase split later is named
+  (`engineering-practices.md` §4.2).
+- **A mapping table**, old code to new name, kept where a reader of an old
+  commit message finds it.
+- **The sweep**, mechanical once the table exists, since each code is one
+  token with one meaning. The gates move with it: `check_state_of_play.py`'s
+  `ROUTE_TOKEN_RE` reads a `**Slotted:**` line's route token, and its board
+  reads phases off headings.
+- **Untouched:** landed phase codes (`TR-5h`, `CV-1b`, `RH-3` …), which live in
+  commit messages, PR titles and `plans/archive/` that nobody rewrites, and
+  the numbered items.
 
-**Order:** after pass 5's PRs and the card-homed triage, which edit the
-same lines, and before A6e's cleanup, so the cleanup and pass 6's
-scheduling table are written in the new names. One design PR, reviewed
-before anything is swept; then sweeps split at the band by doc family.
+**Sized:** one PR, the design opened as a draft and reviewed before the
+sweep goes on the same branch: ~1,000 changed lines for the sweep, inside
+the band. **Order:** after pass 5's PRs and the card-homed triage, which
+edit the same lines; before A6e's cleanup, so the cleanup's PRs and pass 6's
+scheduling table are written in the new names.
 
 ### Pass 6 — scheduling
 
@@ -1408,5 +1406,5 @@ changed.
 | The card-homed triage (1, then its builds in the cleanup) | | added at #272's review |
 | 4. Readiness (2) | | |
 | 5. Docs audit, A6h (4) | | re-cut at #274's merge; item 188 to A6s |
-| 5c. The plans rename (1 design, then sweeps) | | added at #274's merge |
+| 5c. Names for the phases ahead (1) | | added at #274's merge |
 | 6. Scheduling (1) | | |
