@@ -4278,7 +4278,7 @@ libraries stay in reach.
 **The dispatcher's rows** read 25.5 / 31.0 / 2.7 (`Windows past gate`,
 `Candidate visits`, `Trigger matches`) on `performance` at two seats and
 70.8 / 109.0 / 6.1 at four; with eight copies each of the three TR-1 cards at
-two seats, 189.0 / 712.9 / 66.1. `triggers-architecture.md` §11.1's throwaway
+two seats, 189.0 / 712.9 / 66.1. `plans/archive/triggers-architecture-landed.md` §11.1's throwaway
 probe read 25 / 30 / 2.7 and 189 / 707 / 66.1 on the first two boards.
 Windows and matches reproduce it; candidates are counted per ability list,
 and counting distinct objects instead gives 30.6 and 708.9, so the per-list
@@ -4375,7 +4375,7 @@ ability is inside the loop the two answers share. Determinism holds under
 three hasher seeds, audited and unaudited, at two seats and four.
 
 **Re-recorded 2026-09-22 for the TR-1 review, theme E** (provenance ids —
-`triggers-architecture.md` §3.6's amendment as built — and main item 167's
+`triggers-architecture.md` §3.6, as built — and main item 167's
 look-back snapshot, §4.3). **No pool change**: `performance` stays at 94 and
 `stress` at 171, and every row of the 2026-09-19 tables still reads. What
 this block records is two arms' attribution and one cost.
@@ -4479,7 +4479,7 @@ cost model, the mask exists to stop asking a source that cannot match, and
 the two cannot both hold. The F1-only arm is what carries "no behavior
 moved", and it carries it byte for byte.
 
-**The dispatcher's own sitting** is `triggers-architecture.md` §11.1 — a
+**The dispatcher's own sitting** is `plans/archive/triggers-architecture-landed.md` §11.1 — a
 throwaway `Instant` build, before and after, on the `--copies` boards the
 2026-09-20 reading used. The headline: candidate visits per game 297 → 30 on
 the shipped pool and 10,131 → 707 with eight copies each of the three, with

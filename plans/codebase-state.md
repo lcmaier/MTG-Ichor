@@ -8886,7 +8886,7 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      read.
 
 257. **Storm's count is planned and waits for CV-4.**
-     `triggers-architecture.md` §3.10's amendment takes "each other spell that
+     `triggers-architecture.md` §3.10 takes "each other spell that
      was cast before it this turn" (CR 702.40a) at the storm spell's
      `SpellCast` record, since a spell cast in response is not before it. It
      was left "authored with the first storm card". 33 cards: `kw:storm`.
@@ -9480,7 +9480,7 @@ Number 277 was withdrawn in #260 and is not reused.
      **Slotted:** CV-4, which builds ability copies.
 
 295. **`TriggerOrigin::Rule` has no inherent ability yet.** The arm is
-     declared (`triggers-architecture.md` §14, question 6) over an
+     declared (`triggers-architecture.md` §3.8) over an
      `InherentAbility` with no variant, so no trigger has a rule for its
      origin. The monarch's "at the beginning of the monarch's end step, that
      player draws a card" (CR 724.2) and the initiative's (CR 725.2) are its

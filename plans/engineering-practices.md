@@ -1287,8 +1287,8 @@ follow from the tree, and nobody writes them (TR-2b's review, 2026-09-27).
 **Hunt the gaps card by card before counting.** For each card a phase names,
 read every clause against the tree and list each facility it needs that the
 phase's rows do not name: a chooser, a mask's width, a source-relative
-"another". The triggers track's re-count (`triggers-architecture.md` §12,
-2026-09-24) found 3–11 such facilities in every phase and tests at about
+"another". The triggers track's re-count (`plans/archive/triggers-architecture-landed.md`,
+"Re-counted 2026-09-24") found 3–11 such facilities in every phase and tests at about
 twice their row, with one read-only agent per phase; a sizing without the
 hunt is the one that misses.
 
