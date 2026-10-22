@@ -789,7 +789,7 @@ For these: ALREADY-IMPLEMENTED sub-rules go in the classification table only. Su
 - **Action:** P1 casts Lightning Bolt targeting P0's ward creature. Ward triggers.
 - **Expected Result:** Ward trigger goes on the stack above Lightning Bolt. When ward resolves, P1 must pay {2} or Lightning Bolt is countered. If P1 pays {2}, Lightning Bolt resolves normally. If P1 doesn't pay, Lightning Bolt is countered and put into P1's graveyard.
 - **Phase:** Phase 7 (triggered abilities)
-- **Ticket:** NEW — Phase 7: Ward implementation. Triggered ability: on-target trigger + counter-unless-pay resolution.
+- **Ticket:** Deferred to `cost-architecture.md` §3.10, CP-1 (ward: TR-5's targeting event and CP-1's "unless") — Ward implementation. Triggered ability: on-target trigger + counter-unless-pay resolution.
 - **Tags:** ward, triggered-ability, counter-unless-pay
 
 **ATOM-702.21a-002**

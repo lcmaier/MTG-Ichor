@@ -1960,24 +1960,27 @@ the sketch above leaves out or gets wrong.
   (`zone_trigger_sources`) takes the bit the same way. The dispatch audit
   (§4.10) gains a state leg: every candidate's every `State` def asked with the
   gate off, and compared with the gated answer.
-- **One re-arm site, not four.** Resolution (`stack.rs:118`, `:241`), fizzle
-  (`:299`), countering (`resolve.rs:2370`) and CR 603.3d's removal
-  (`placement.rs:201`) already share `GameState::ability_leaves_the_stack`
-  (`stack.rs:264`). The re-arm is one line there, keyed on the entry's
-  `TriggerOrigin` identity, and `trigger_left_stack` is not written. The sixth
-  caller, an activation's rollback (`put_on_stack.rs:740`), only ever holds an
-  activated ability, so it re-arms nothing. "If the object with the ability is
-  still in the same zone" needs no code: the identity carries the source's
-  `ObjectRef`, and a source that moved is a new object (CR 400.7) whose identity
-  was never armed off.
-- **Armed off when queued, not when placed.** CR 603.8's "doesn't trigger again
-  until the ability has ... left the stack" holds while the trigger waits in the
-  queue too. ATOM-603.8-001 asks it on the stack; every dispatch between the
-  check and placement asks it of the queue.
-- **What the check queues.** A `PendingTrigger` bound to no record, whose event
-  roles are empty as a "when you don't" reflexive's are (§4.6). It is announced
-  by `AbilityTriggered` after the check, so a tier-2 watcher sees it as it sees
-  any other trigger (§4.8).
+- **No armed-off set, and no re-arm.** *(As built, replacing this amendment's
+  first two bullets here, which planned one re-arm line in
+  `ability_leaves_the_stack`.)* CR 603.8's "doesn't trigger again until the
+  ability has resolved, has been countered, or has otherwise left the stack"
+  holds while an instance of it waits in the queue or sits on the stack, and
+  both are on `GameState` already. So the check reads them
+  (`state_trigger_has_not_left_the_stack`) and keeps no set beside them: every
+  way of leaving is the answer changing, CR 603.3d's removal included, which
+  happens before its stack entry exists and so had no entry for a re-arm to
+  read. "If the object with the ability is still in the same zone" needs no
+  code: the identity carries the source's `ObjectRef`, and a source that moved
+  is a new object (CR 400.7). A copy of a state trigger on the stack (CR
+  707.10, CV-4) would carry the original's identity, and must not keep the
+  original from triggering once the original has left: a Deferred Migrations
+  line.
+- **What the check queues.** A `PendingTrigger` bound to no record:
+  `TriggerBinding::event()` is `None` for it, and every reader of the binding's
+  event answers "no event". It is announced by `AbilityTriggered` with
+  `caused_by: None` after the check, so a tier-2 watcher sees it as it sees any
+  other trigger (§4.8), and an arm that asks what caused a triggering never
+  matches one.
 - **The predicate is the "as long as" evaluator, not a new one.** The check
   asks `condition::settled_holds` (`engine/layers/condition.rs:299`), which is
   `holds` at the walk's last layer. `holds` is what a conditional static's "as
@@ -3097,8 +3100,8 @@ read at dispatch and never later, since the outermost dispatch flushes it
 | `perform_sba_and_triggers` (`engine/priority.rs`) | the stub | the state check, then `place_pending_triggers`; returns whether anything was placed | TR-1 |
 | `Game::run_turn_steps`' cleanup branch (`state/game.rs`) | `check_state_based_actions` as the 514.3a probe | probe becomes SBAs-would-perform OR triggers-waiting OR state-check | TR-1 |
 | `put_on_stack.rs::activate_ability` (`:437`) | builds the `StackEntry` with `is_spell: false` | `trigger: None`; the placement path builds its twin; `Targeted`, then `AbilityActivated`, once the costs are paid (#231) | TR-1, TR-5 |
-| `stack.rs::resolve_taken` (`:120–230`) | resolves, announces `AbilityResolved` | the intervening "if" first (608.2a); `trigger_left_stack` for a state trigger; the binding threaded into `ResolutionContext` | TR-1, TR-6 |
-| `stack.rs::handle_fizzle`, `resolve.rs`' `CounterAbility` arm, 603.3d's removal | remove the object | call `trigger_left_stack` | TR-6 |
+| `stack.rs::resolve_taken` (`:120–230`) | resolves, announces `AbilityResolved` | the intervening "if" first (608.2a); the binding threaded into `ResolutionContext` | TR-1 |
+| `stack.rs::handle_fizzle`, `resolve.rs`' `CounterAbility` arm, 603.3d's removal | remove the object | nothing: CR 603.8's "has left the stack" is read off the queue and the stack (§4.5's amendment, as built) | TR-6 |
 | `resolve.rs` (`:220–240`) | `Conditional`, `Optional` → `Err` | `Conditional` resolves (its `Condition` through `settled_holds`); `Optional` asks; `Triggered` is refused outside a trigger's placement (a spell cannot carry one); `Reflexive` creates and checks | TR-1, TR-2, TR-3 |
 | `oracle/characteristics.rs::get_effective_abilities` | three index readers | a fourth reader, the dispatcher, keying each def by its id (a granted instance's names its grant, §3.6) | TR-1 |
 | `zone_function::functioning_zones` | six of fourteen subrules | the `Triggered` arm (113.6k, derived) | TR-1 |
@@ -3323,7 +3326,7 @@ decision at identical counters:
 | TR-3 | `IDENTICAL` both pools | `differ` | the registry is empty on the old pools |
 | TR-4 | `Layer walks` up by the widened captures on `stress`, `Memo hits` up on both (the control sweep runs while Act of Treason's row lives); every gameplay counter `IDENTICAL` | `differ` | the sweep is gated on `any_control_changing`; captures gate on `from`/`to` |
 | TR-5 | `IDENTICAL` counters; `--dump-events` gains `DamagePrevented` and entry `CountersChanged` lines (`Targeted`'s came with #231, `DamagePrevented`'s with #260) | `differ` | records announced, no decision moved |
-| TR-6 | `IDENTICAL` both pools | `differ` | no state trigger on the old pools; Tier 1 counts decisions and settles nothing on them |
+| TR-6 | `IDENTICAL` both pools | `differ` | no state trigger on the old pools, and both of the engine's counts keep their numbers (§4.9's amendment) |
 
 Each phase's `fuzz-record.md` block re-records both pools when its
 `PERFORMANCE_POOL` entry lands, and the reachability rows (`--require`)
@@ -4126,47 +4129,40 @@ ahead of both, TR-5h.
 | **TR-5g — the multiplier, tokens and scry** — ✅ landed 2026-10-20, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5g" | | | | +1,781 |
 | *TR-5d as sized at TR-5c's review (2026-10-18), kept for the record* | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; excess damage per recipient over the batch, and the "this turn" damage facts ("was dealt damage", "dealt damage to"), moved from TR-5c at its review (TR-5c's piece 11 and part (a)); item 275, moved with them; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001, ATOM-120.10-001 | ~610 (915–1,220) | ~1,080 | 1,995–2,300 |
 
-### TR-6 — state triggers, the draw, and the rule-owned arm (1,305–1,720)
+### TR-6 — state triggers, the draw, and the rule-owned arm — ✅ landed 2026-10-21
 
-**Re-counted 2026-10-21, at its design** (§4.5, §4.8 and §4.9's amendments),
-card by card against #267's tree, then **cut at the review to (ii)**: loop
-detection moved to a phase of its own (§4.9's head), and TR-6 builds the draw
-and the state triggers. Code at 1.5–2× plus tests, the band's measure since RH:
+*Body evicted 2026-10-21 to `plans/archive/triggers-architecture-landed.md`,
+"TR-6", with the plan as designed and what the build changed.*
 
-| Piece | ~additions |
-|---|---|
-| the state check: the gate's reserved bit on all three legs and on leg 3, the sweep through `settled_holds`, a trigger queued with no record and announced by `AbilityTriggered`, its trace record, the armed-off set and its one re-arm (§4.5); the three schedules; the dispatch audit's state leg | ~255 |
-| `Condition::Not`; `PlayerFact::HandEmpty`; "then draw that many" over the resolution's discards | ~85 |
-| the draw: `GameAction::GameEndsInADraw` and its event, the performer, `GameRule::MandatoryLoop`, about 17 exhaustive arms; the two counts the engine has proposing it, `MANDATORY_LOOP_CHECKS`' branch (item 263) and `DISPATCH_NESTING_LIMIT`'s, with the latter's two doc comments (§4.8, §4.9, decisions 4 and 5) | ~100 |
-| `TriggerOrigin::Rule` with `InherentAbility` uninhabited | ~20 |
-| cards and fixtures: **Emperor Crocodile**, registered after its stress distortion is measured; the Coil's third ability, a fixture beside the registered Platinum Angel; CR 603.8's example permanent and its discard spell; a flicker and an ability counter for the rulings' boards (Adaptive Shimmerer, registered, is the second Crocodile ruling's arrival); a pair of triggers that each watch the other's triggering, for the nesting bound | ~110 |
-| **code**, ~570 as sized | **855–1,140** |
-| tests, 10: the 2 atoms; the Crocodile's 2 rulings and one cast from hand; the Coil's fourth and fifth rulings and its sixth's "it will immediately trigger again", the Angel registered; Lich's Mirror's loop drawn through the new arm (item 263); the nesting bound drawn through it, beside Platinum Angel (its fourth ruling: an effect that makes the game a draw still works) | **450–580** |
-| **code and tests** | **1,305–1,720** |
-| docs: these amendments, with `backlog.md` §2.28's pointer (about 460); the close-out — the stub and archive, the record block, the items, the 37 deferred Phase 7 atoms given their owners in the session files (13 are ticketed NEW, which is what `owed` reads), `trigger-survey.py` deleted | ~820 |
+**What shipped.** CR 603.8's state check (`engine/triggers/state.rs`), asked
+after every outermost dispatch, on every pass of CR 117.5's loop before
+placement, and at the cleanup step's CR 514.3a probe. A state trigger's source
+is filed under `EventKind::BoardState`, a kind no record carries, so the
+check reads the dispatcher's gate on every leg and no window asks it. Its
+condition is the "as long as" evaluator's, with `Condition::Not` and
+`PlayerFact::HandEmpty` new. "Has not left the stack" is read off the queue
+and the stack, so nothing re-arms it. The draw is a performed action,
+`GameAction::GameEndsInADraw`, and the engine's two existing counts propose
+it (`codebase-state.md` item 263). `TriggerOrigin::Rule` is declared, over an
+empty `InherentAbility`. Emperor Crocodile is registered and pooled (211 →
+212, 121 → 122); Immortal Coil's state trigger and CR 603.8's example are
+fixtures. Loop detection is `roadmap-v2.md` B14's (§4.9).
 
-At the band's floor, and under it at its low end. Nothing is folded in to fill
-it. The 2026-09-24 row missed these facilities, a count inside the 3–11 every
-earlier re-count found:
-- the gate's bit, and the audit's state leg;
-- `PlayerFact::HandEmpty`;
-- the "that many" leaf;
-- the exhaustive arms;
-- the fixtures for the rulings' boards.
+**What moved on the way in.** `TriggerBinding::event()` and
+`AbilityTriggered`'s cause became `Option`s, and `EventSubject::Game` is a
+draw's subject. Destroy now reaches "each" permanent, and a hand's size
+counts at resolution: two resolution gaps the fixtures found.
 
-Its tests come to more than its row's ~300, as before. What (ii) moved out:
-the loop detector and its counting sites, the resets, the harness bound, the
-tier-2 work stack, and seven tests, among them the Coil's draw beside Platinum
-Angel. They go with §4.9's record to the loop phase.
+**Measured** (`fuzz-record.md`, TR-6's block). The engine arm plays
+`main`'s games on both pools at two seats and four, at +0.24% instructions
+per decision. Every dispatch and state check agreed under the audit.
+Emperor Crocodile moved `stress` games two turns shorter at two seats and
+one at four, and no game ended differently in kind. Code and tests landed
+at about 980 lines, under the sized 1,305–1,720.
 
-*As sized on 2026-09-24, kept for the record:*
+**What it leaves.** TR-7, the persist loop.
 
-| Piece | ~additions |
-|---|---|
-| the state check at its three schedules, `state_triggers_armed_off`, `trigger_left_stack` at four sites, `TriggerCondition::State` matched; `Condition::Not` (Emperor Crocodile's "no other creatures" is its first card — LI-3's rule for when the enum grows); `LoopDetector` (Tier 1) on `GameState` reading A4e's decision counter, `GameResult::Draw` through the settlement; the same draw at `DISPATCH_NESTING_LIMIT`, which becomes the threshold knob (§4.8), with its two doc comments (`dispatch.rs:40`, `game_state.rs:214`); `TriggerOrigin::Rule` declared with `InherentAbility` empty | ~320 |
-| cards: **Emperor Crocodile** (603.8, its two rulings), pooled. Immortal Coil is the CR 104.4b board — its third ability beside Platinum Angel is "an involuntary infinite loop ... the game will end in a draw" by its own ruling — and it is a **fixture**, not a registration: its first ability's `Cost::ExileFromGraveyard` is a validation and payment stub today (`engine/costs.rs`), and a card wearing a real name with a dead ability is what `engineering-practices.md` §3 forbids | ~120 |
-| tests, 9: §13's 2 TR-6 atoms; Emperor Crocodile's two rulings; the Coil's three trigger rulings on the fixture; the draw at threshold, with Platinum Angel registered; the draw at the nesting bound (§4.8). The ratchet's reading at the phase's close (§9 of the practices) is a reading, not a test | ~300 |
-| docs, the close-out, §16's deferrals re-read, ledger, record | ~400 |
+→ `plans/archive/triggers-architecture-landed.md`, "TR-6".
 
 ### TR-7 — the persist loop, the track's capstone
 
@@ -4340,7 +4336,7 @@ their trigger half lands.
 | **RH-3** (`replacement-architecture.md` §2b.5) | 400.7e-001, -002, moved from TR-4 on 2026-10-10, and from RH-2 to RH-3 on 2026-10-12: the record carries the object the move made | 2 |
 | **TR-4** | TR-4a: 603.6e-002; 122.8-001; 122.9-001. TR-4b: 603.10c-001, -002, -003; 603.2e-002. TR-4c: 603.6e-001; 400.7f-001. TR-4d: 603.10d-001; 603.10e-001; 603.9-001 (2026-10-12, §12) | 12 |
 | **TR-5** | TR-5e: 508.2a-001, moved from TR-5a at its design (2026-10-16). TR-5b: 122.7-001. TR-5d: 120.10-001, moved from TR-5c at its review (2026-10-18). TR-5g: 603.2d-001 (2026-10-12, §12), split from TR-5d at its design (2026-10-18) | 4 |
-| **TR-6** | 603.8-001, -002 | 2 |
+| **TR-6** | 603.8-001, -002 (both covered at its close) | 2 |
 | **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
 
 Ninety-three of the 133 Phase 7 atoms are owed across the six phases and RH-3 (plus
@@ -4351,6 +4347,13 @@ against `spec.sqlite` on 2026-09-18 (400.7-001 moved from the deferrals to
 TR-3a on 2026-10-07), and worth re-checking the same way at each close. The deferrals are re-read at item 6's close audit
 (`engineering-practices.md` §9 pass 1) and any whose owner has landed by
 then is claimed there.
+
+**At TR-6's close (2026-10-21)** Phase 7 joined `SHIPPED_PHASES`, and `owed --phase
+"Phase 7"` reads clean. TR-6's two atoms are covered. Of the forty deferrals, three
+were covered on the way: 702.21a-002 by TR-5c's Frost Titan (in part),
+707.5-002 by CV-2a, and 608.2d-001 by RS (in part). That leaves 37 uncovered, each
+with its owner above, and the 13 of them still ticketed NEW carry that owner in
+their session files, since a NEW ticket is what `owed` reads.
 
 ---
 
@@ -4577,5 +4580,6 @@ Recorded here at authoring; a finding that becomes a code item moves to
 - `plans/glossary.md` gained *dispatch*, *window*, *binding*, *tier* and
   *probe* with TR-1 (2026-09-19), and `check_glossary.py --suggest` at each
   close is the gate on the rest.
-- `plans/references/trigger-survey.py` deletes with the survey when TR-6
-  closes, per its own docstring.
+- `plans/references/trigger-survey.py` was deleted at TR-6's close
+  (2026-10-21). The survey's document stays as a record, which live
+  documents cite.

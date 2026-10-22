@@ -735,7 +735,13 @@ That spread is the over-count decision 1 accepted, and it is small.
 
 ---
 
-## 8. Regenerating
+## 8. Regenerating — no longer
+
+**The instrument was deleted at TR-6's close (2026-10-21, PR #268)**, as its
+docstring said once critical-path item 6 had landed: the tables above are a
+record of the stream and the printed population as they were counted, and a
+question they raise now is a fresh look, not a re-run. Kept in the history
+is what it did:
 
 ```bash
 python plans/references/trigger-survey.py --write
@@ -747,5 +753,6 @@ parses the enums, asserts the field claims, and rewrites the seven marked
 blocks in place; the prose is untouched. `--refresh` drops the cache first,
 `--boundary` prints §7 alone, `--names Q` prints the first page of names
 behind a query (how the small buckets in table two were read), `--no-fetch`
-runs from the cache and fails on a query it lacks. The script's docstring
-says when to delete both files.
+runs from the cache and fails on a query it lacks. Its docstring said to
+delete both files together. This one stays, because live documents cite its
+tables (`triggers-architecture.md` §4.6 among them).

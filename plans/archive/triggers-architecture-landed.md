@@ -5298,3 +5298,86 @@ Panharmonicon and its registration +140; tests +876/−50), against
 `CountOf` took it past the design and inside the 1,500–2,500 band.
 Thirty-two integration tests in `phase_tr5g_integration_test`, four unit
 tests, and two fixtures moved onto the creation.
+
+#### TR-6 — state triggers, the draw, and the rule-owned arm — ✅ landed 2026-10-21
+
+### The plan as designed (TR-6, as §12 carried it on 2026-10-21)
+
+
+**Re-counted 2026-10-21, at its design** (§4.5, §4.8 and §4.9's amendments),
+card by card against #267's tree, then **cut at the review to (ii)**: loop
+detection moved to a phase of its own (§4.9's head), and TR-6 builds the draw
+and the state triggers. Code at 1.5–2× plus tests, the band's measure since RH:
+
+| Piece | ~additions |
+|---|---|
+| the state check: the gate's reserved bit on all three legs and on leg 3, the sweep through `settled_holds`, a trigger queued with no record and announced by `AbilityTriggered`, its trace record, the armed-off set and its one re-arm (§4.5); the three schedules; the dispatch audit's state leg | ~255 |
+| `Condition::Not`; `PlayerFact::HandEmpty`; "then draw that many" over the resolution's discards | ~85 |
+| the draw: `GameAction::GameEndsInADraw` and its event, the performer, `GameRule::MandatoryLoop`, about 17 exhaustive arms; the two counts the engine has proposing it, `MANDATORY_LOOP_CHECKS`' branch (item 263) and `DISPATCH_NESTING_LIMIT`'s, with the latter's two doc comments (§4.8, §4.9, decisions 4 and 5) | ~100 |
+| `TriggerOrigin::Rule` with `InherentAbility` uninhabited | ~20 |
+| cards and fixtures: **Emperor Crocodile**, registered after its stress distortion is measured; the Coil's third ability, a fixture beside the registered Platinum Angel; CR 603.8's example permanent and its discard spell; a flicker and an ability counter for the rulings' boards (Adaptive Shimmerer, registered, is the second Crocodile ruling's arrival); a pair of triggers that each watch the other's triggering, for the nesting bound | ~110 |
+| **code**, ~570 as sized | **855–1,140** |
+| tests, 10: the 2 atoms; the Crocodile's 2 rulings and one cast from hand; the Coil's fourth and fifth rulings and its sixth's "it will immediately trigger again", the Angel registered; Lich's Mirror's loop drawn through the new arm (item 263); the nesting bound drawn through it, beside Platinum Angel (its fourth ruling: an effect that makes the game a draw still works) | **450–580** |
+| **code and tests** | **1,305–1,720** |
+| docs: these amendments, with `backlog.md` §2.28's pointer (about 460); the close-out — the stub and archive, the record block, the items, the 37 deferred Phase 7 atoms given their owners in the session files (13 are ticketed NEW, which is what `owed` reads), `trigger-survey.py` deleted | ~820 |
+
+At the band's floor, and under it at its low end. Nothing is folded in to fill
+it. The 2026-09-24 row missed these facilities, a count inside the 3–11 every
+earlier re-count found:
+- the gate's bit, and the audit's state leg;
+- `PlayerFact::HandEmpty`;
+- the "that many" leaf;
+- the exhaustive arms;
+- the fixtures for the rulings' boards.
+
+Its tests come to more than its row's ~300, as before. What (ii) moved out:
+the loop detector and its counting sites, the resets, the harness bound, the
+tier-2 work stack, and seven tests, among them the Coil's draw beside Platinum
+Angel. They go with §4.9's record to the loop phase.
+
+*As sized on 2026-09-24, kept for the record:*
+
+| Piece | ~additions |
+|---|---|
+| the state check at its three schedules, `state_triggers_armed_off`, `trigger_left_stack` at four sites, `TriggerCondition::State` matched; `Condition::Not` (Emperor Crocodile's "no other creatures" is its first card — LI-3's rule for when the enum grows); `LoopDetector` (Tier 1) on `GameState` reading A4e's decision counter, `GameResult::Draw` through the settlement; the same draw at `DISPATCH_NESTING_LIMIT`, which becomes the threshold knob (§4.8), with its two doc comments (`dispatch.rs:40`, `game_state.rs:214`); `TriggerOrigin::Rule` declared with `InherentAbility` empty | ~320 |
+| cards: **Emperor Crocodile** (603.8, its two rulings), pooled. Immortal Coil is the CR 104.4b board — its third ability beside Platinum Angel is "an involuntary infinite loop ... the game will end in a draw" by its own ruling — and it is a **fixture**, not a registration: its first ability's `Cost::ExileFromGraveyard` is a validation and payment stub today (`engine/costs.rs`), and a card wearing a real name with a dead ability is what `engineering-practices.md` §3 forbids | ~120 |
+| tests, 9: §13's 2 TR-6 atoms; Emperor Crocodile's two rulings; the Coil's three trigger rulings on the fixture; the draw at threshold, with Platinum Angel registered; the draw at the nesting bound (§4.8). The ratchet's reading at the phase's close (§9 of the practices) is a reading, not a test | ~300 |
+| docs, the close-out, §16's deferrals re-read, ledger, record | ~400 |
+
+### As landed (2026-10-21)
+
+**What the build changed in the design.**
+- **No armed-off set.** §4.5 planned `state_triggers_armed_off` with one re-arm
+  line in `ability_leaves_the_stack`. CR 603.8's "until the ability has left
+  the stack" is the queue and the stack, both on `GameState`, so the check
+  reads them, and no second collection is kept in step. It also answers CR
+  603.3d's removal, which happens before the stack entry exists.
+- **The zone map's value is the kinds its triggers read**, as
+  `trigger_sources`'s is, so the state check filters it with a mask test; its
+  ability list had no reader. The registry summary gained
+  `unattributed_trigger_kinds`, so a `Filter` row's zones are walked only when
+  one of its triggers is a state trigger.
+- **A binding with no event.** `TriggerBinding::event()` is an `Option`, and
+  its ten readers answer "no event"; the Aura check walks every pending
+  trigger, so this was a panic waiting for the first state trigger.
+  `AbilityTriggered`'s `caused_by` is an `Option` for the same reason.
+- **The draw's subject is `EventSubject::Game`.** The pipeline asks every
+  proposal for its subject, and a draw affects no player rather than another.
+- **`AsksNobody`.** The nesting bound's dispatch may have no provider, and
+  the draw asks nothing, so the bound proposes it through a provider whose
+  every answer its validator refuses.
+- **`PendingTrigger::is_state_trigger` is gone**: the def says it.
+- **Two resolution gaps** the fixtures found: Destroy read only an instance of
+  "target", so "destroy each" destroyed nothing and said nothing; and a hand's
+  size had no evaluator at resolution.
+
+**Size.** About 980 lines of code and tests, against 1,305–1,720 sized: about
+640 of code at under 1.2× the ~570 sized, and 340 of tests across 10, where
+the sizing read 450–580. The sizing's multiplier was for facilities the hunt
+had not found. This time the hunt found them, and the armed-off set and its
+writers were never built.
+
+**Measured** (`fuzz-record.md`, TR-6's block): the engine arm IDENTICAL to
+`main` on both pools at two seats and four, +0.24% instructions per decision,
+every dispatch and state check agreed under the audit; Emperor Crocodile
+reached in 54% and 44% of forced games.

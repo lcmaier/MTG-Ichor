@@ -49,7 +49,7 @@
 - **Action:** The trigger condition is met; ability would go on stack.
 - **Expected Result:** No mode can be chosen; ability is removed from the stack entirely (not fizzled — never placed).
 - **Phase:** Phase 7 (triggered abilities)
-- **Ticket:** NEW — modal triggered ability mode selection + removal on no legal mode
+- **Ticket:** Deferred to `backlog.md` §2.7 (modes) — modal triggered ability mode selection + removal on no legal mode
 
 **ATOM-700.2c-001**
 - **Rule:** 700.2c — Mode-conditional targeting: targets for a mode are chosen only if that mode was selected.
@@ -96,7 +96,7 @@
 - **Action:** Copy is placed on stack.
 - **Expected Result:** Copy has Mode A locked in. No mode choice prompt for the copy's controller.
 - **Phase:** Phase 7 (spell copying — D19)
-- **Ticket:** NEW — spell copy preserves modes (D19)
+- **Ticket:** Deferred to `copy-effects-architecture.md`, CV-4 (spell copies) — spell copy preserves modes (D19)
 
 **ATOM-700.2h-001**
 - **Rule:** 700.2h — Modal spells with per-mode additional costs: costs must be paid for each chosen mode.
@@ -1255,7 +1255,7 @@ The `reveal()` primitive handles case 1. Case 2 is a continuous effect, but it d
 - **Action:** P0 chooses to exert C as part of attack declaration.
 - **Expected Result:** C is exerted (skip_next_untap += 1). Linked triggered ability triggers.
 - **Phase:** Phase 7 (linked trigger) but exert primitive itself is Phase 5-Pre
-- **Ticket:** NEW — optional attack cost hook
+- **Ticket:** Deferred to `backlog.md` §2.5 (exert) — optional attack cost hook
 
 **Architectural note (post-audit) — Untap step restriction interactions:**
 Exert's `skip_next_untap` is one of several mechanisms that prevent untapping. The untap step must support:
@@ -1760,7 +1760,7 @@ All three are orthogonal and checked independently. A permanent fails to untap i
 - **Action:** Effect resolves.
 - **Expected Result:** F is now a 0/0 Forest Land Creature with haste. F has 3 +1/+1 counters (effectively 3/3). Delayed trigger created: "When F dies or is exiled, return it to battlefield tapped under P0's control."
 - **Phase:** Phase 7 (delayed triggers) + Phase 5-Layers (land animation)
-- **Ticket:** NEW — earthbend primitive (delayed trigger + land animation)
+- **Ticket:** Deferred to Phase 8 (earthbend) — earthbend primitive (delayed trigger + land animation)
 
 **ATOM-701.66a-002**
 - **Rule:** 701.66a — Earthbend: animated land dies, delayed trigger returns it.
@@ -1768,7 +1768,7 @@ All three are orthogonal and checked independently. A permanent fails to untap i
 - **Action:** F dies. Delayed trigger fires.
 - **Expected Result:** F returns to battlefield tapped under P0's control. No longer animated (the animation effect ended). No +1/+1 counters (new object). Just a regular tapped Forest.
 - **Phase:** Phase 7
-- **Ticket:** NEW — earthbend delayed return
+- **Ticket:** Deferred to Phase 8 (earthbend) — earthbend delayed return
 
 **701.66b:** PURE-DEF — "whenever you earthbend" trigger timing.
 

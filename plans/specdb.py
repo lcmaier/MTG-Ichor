@@ -967,7 +967,7 @@ def orphans():
 # did not contain it, so no replacement phase was ever gated by this query
 # (`engineering-practices.md` §5.1). The audit ran it once by hand, triaged
 # every uncovered atom, and armed it.
-SHIPPED_PHASES = ("ALREADY-IMPL", "Phase 5-Pre", "Phase 5-Layers", "Phase 6")
+SHIPPED_PHASES = ("ALREADY-IMPL", "Phase 5-Pre", "Phase 5-Layers", "Phase 6", "Phase 7")
 
 
 def owed(phase=None, show_all=False):
