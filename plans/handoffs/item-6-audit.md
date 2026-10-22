@@ -1274,7 +1274,7 @@ changed.
 | Pass | PR | State |
 |---|---|---|
 | Plan | #270 | merged 2026-10-22 |
-| Discovery (session 1: Workflows A, B and C, pass 2's script) | DISCOVERY_PR | the work-lists under passes 1, 2, 3 and 5 |
+| Discovery (session 1: Workflows A, B and C, pass 2's script) | #271 | the work-lists under passes 1, 2, 3 and 5 |
 | 1. Close-out (2–3 PRs) | | |
 | 2. Eviction (1) | | |
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | | |
