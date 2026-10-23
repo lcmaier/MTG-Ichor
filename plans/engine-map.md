@@ -327,6 +327,90 @@ Every prompt goes through `ui/ask.rs`, which validates the answer and traces a
 | `EventPattern` grows one arm per variant; `Rewrite` is closed; variety goes in `then` | `EventPattern` `types/replacement.rs:204`, `Rewrite` `types/replacement.rs:855`, `ReplacementDef::then` `types/replacement.rs:137` | `replacement-architecture.md` §3.2a, §3.2b |
 | Randomness is owned | `GameState::rng` `state/game_state.rs:812`; the provider's own `rng` `ui/random.rs:207`; `IdHash` `types/ids.rs:310`; `tests/determinism_test.rs`; refused elsewhere by `clippy.toml` | `plans/id-hasher.md` §6 |
 
+
+### 2.8 What the engine does not ask, and what it does not compute
+
+`codebase-state.md` item 185's inventory. Three classes, in `glossary.md`'s
+words: a **forced prompt** has one legal answer, and the engine gives it; an
+**elision** has two or more, and they all leave one game; **skipped work** is a
+gate, a memo or a fold that answers without the work it skips, on a premise
+about what it did not read. Each row gives the claim, its premise as a
+property, and what holds the premise. A wrong premise raises nothing: the
+engine asks one question fewer or computes one thing fewer, and the answer is
+wrong only on the board the premise did not foresee.
+
+**Not rows.** A choice a rule makes only among two or more is no choice below
+that: CR 616.1's effects (`Decided::Single`), 603.7b's "more than once",
+601.2f's "multiple" reductions, 704.5j's legends, 510.1c's blockers, and an
+order of one item (one trigger, a scry group of one). Nor is an instruction
+with nothing to choose from (CR 101.3), where an empty list returns before a
+prompt is built: attackers, blockers, alternative and optional additional
+costs, the mana window, a scry of an empty library. Nor is a cheaper route that
+reads everything its answer depends on: `next_ready`
+`engine/layers/board.rs:1636`'s key-first application reads the head's
+dependencies, `compute_non_member_recorded` `engine/layers/compute.rs:369`
+exits only when no CDA and no noted row reaches the object, and
+`any_replacement_counter` `engine/replacement/gather.rs:986` is computed, not
+cached.
+
+#### Forced prompts
+
+**The CR states no rule for this class.** Comments across the tree cite CR
+102.2 for it, and 102.2 is the two-player opponent rule; A4k's census
+found the slip (`backlog.md` §2.22, rule 1). The claim is the engine's own: a
+prompt with one legal answer gets that answer from every provider, and asking
+it changes nothing in the game. Its premise is the same for every row and adds
+nothing to the prompt's own: **the candidate list and its bounds are every
+legal answer**, the list the prompt would have offered. What a row adds is its
+one-answer test, and whether that test is the predicate the validators count
+decisions with (`only_pick` `ui/ask.rs:190`, `only_number` `ui/ask.rs:254`,
+`only_order` `ui/ask.rs:425`, `forced_allocation` `ui/ask.rs:72`) or a copy of
+it.
+
+| Prompt | Site | One answer when | The test |
+|---|---|---|---|
+| a target or a "choose", CR 601.2c, 608.2d | `ask_select_recipients` `ui/ask.rs:686` | a fixed count takes none of the legal recipients, or all of them | a copy of `only_pick`'s, agreeing by reading |
+| a discard, CR 701.9b | `ask_discard` `ui/ask.rs:946` | the count takes the whole hand | a copy of `only_pick`'s |
+| X, CR 601.2b, 107.3a | `ask_choose_x_value` `ui/ask.rs:603` | one value is legal (`legal_x_values`) | `has_one_value`, which `only_number` restates |
+| a division: CR 510.1c's among blockers, 702.19b's trample, 601.2h's generic mana, 615.7's next damage | `forced_allocation` `ui/ask.rs:72`, called by the four allocating asks | nothing left over the minimums; nothing spare under the maximums; or one bucket free to take the rest and able to hold it | one predicate for the guard and the count, with its doc's three-shape argument and `ui/ask.rs`'s unit tests. An answer it gives never meets `validate_allocation` `ui/ask.rs:260`, so it answers `None` to anything ill-formed |
+| a sacrifice for a cost, CR 601.2h, 701.21a | `plan_payment` `engine/costs.rs:305` | as many candidates as the cost takes | the caller's; `ask_choose_sacrifice_for_cost` asserts more |
+| a copy effect's donor, CR 608.2d, 614.12a | `apply_copy` `engine/resolve.rs:1900`, `entry_copy_donor` `engine/replacement/pipeline.rs:3017` | one candidate, and no "may" | the caller's; `ask_choose_copy_source` asserts two or more |
+| a damage source, CR 609.7a | `fill_chosen_damage_source` `engine/resolve.rs:2133` | one candidate | the caller's; `ask_choose_damage_source` asserts two or more |
+| "an opponent of your choice", CR 614.12a | `entering_controller` `engine/replacement/pipeline.rs:2966` | one opponent | the caller's; `ask_choose_entering_controller` asserts two or more |
+| what a creature put onto the battlefield attacking attacks, CR 508.4 | `decide_entry_attacks` `engine/actions.rs:2269` | one candidate | the caller's; `ask_choose_entering_defender` asserts two or more |
+| priority, CR 117.3d | `run_priority_round` `engine/priority.rs:38` | `Pass` alone, and the seat does not stop at every priority point | the caller's; the decision log writes the pass as a forced line |
+
+An ask's assertion holds that its caller never prompts with one; the premise
+itself is held by the enumeration, which the prompt would have shared.
+
+#### Elisions
+
+| Prompt | Site | Premise, as a property | Held by |
+|---|---|---|---|
+| CR 616.1's choice within a bucket | `ordering_cannot_change_outcome` `engine/replacement/pipeline.rs:1083` | no member's write can make another stop applying, change what another writes, be overwritten by another, or make applicable an effect that multiplies another's write | `replacement-architecture.md` §3.5's feeds table: exhaustive destructures at its inputs (`EntryWrites` `engine/replacement/pipeline.rs:1538`); `check_order_invariance` `engine/replacement/pipeline.rs:1748` after each suppressed prompt, in debug builds; two tests for the fourth property. The trace's pipeline record names it, `Decided::OrderInvariant` |
+| CR 603.3b's order | `trigger_order_cannot_change_outcome` `engine/triggers/placement.rs:110` | the entries are one def, tier 1, with no instance of "target" and no mode, and agree on every fact the def reads (`entries_agree_on` `engine/triggers/placement.rs:122`, over `trigger_binding_reads` `engine/triggers/binding_reads.rs:108`) | `triggers-architecture.md` §5.2's reasons; the exhaustive walk in `trigger_binding_reads`; TR-2b's and TR-5a's tests that ask exactly when a fact the def reads differs. Nothing checks it in a game |
+| CR 603.7b's cause | `choose_delayed_cause` `engine/triggers/delayed.rs:526` | causes that agree on every fact the def reads give one game, so the controller is asked only among two or more that differ | `entries_agree_on`, the row above's; TR-3b's two tokens dying at once. Nothing checks it in a game |
+| CR 601.2f's reduction order: **owed, not taken** | `modify` `engine/cost_determination/total.rs:95` asks it | every order gives one total (`cost-architecture.md` §3.4's theorem) until a hybrid reduction symbol or a floored reduction exists | `codebase-state.md` item 165, slotted at CP-1; `AutoPayer` answers it until then |
+
+#### Skipped work
+
+A gate's premise is §2.3's: every object whose effective list holds a static
+ability of the reader's kind is in a printed set or reached by a row the
+registry summary records. A leg that over-approximates costs a walk; a missing
+leg loses an answer, and the card does nothing.
+
+| Work skipped | Site | Claim, and its premise | Held by |
+|---|---|---|---|
+| the replacement gather's sweep | `gather` `engine/replacement/gather.rs:202`; the gate at `engine/replacement/gather.rs:272` | a skipped sweep finds no candidate: §2.3's legs, the counters that make replacement effects (`any_replacement_counter`), and CR 903.9b and the entering object asked ahead of the gate | the argument beside it and each leg's tests; no audit |
+| the restriction sweep | `prohibition` `engine/restriction/predicate.rs:96`; the gate at `engine/restriction/predicate.rs:114` | the same, with keywords asked ahead of the gate | the argument and the legs' tests; no audit |
+| the cost sweep | `cost_modifications_for` `engine/cost_determination/gather.rs:56` | the same, with the spell's own printed card (`prints_cost_ability`) | the argument and the legs' tests; no audit |
+| the trigger dispatcher | `detect` `engine/triggers/dispatch.rs:735`; `check_state_triggers` `engine/triggers/state.rs:53`; `count_additional_triggers` `engine/triggers/dispatch.rs:1530` | a skipped candidate triggers nothing: the legs, the zone map and its newcomers, a `LookBackSnapshot` taken only when a batch departs a source, a departure's frame off its record | TR-1b's audit, `audit_dispatch` `engine/triggers/audit.rs:118`: the matcher again with every shortcut off, compared at each dispatch under `fuzz_games --audit` and every A/B counter run (`triggers-architecture.md` §4.10). It shares the matching loop, so it checks the gate and the candidates and not the loop |
+| a controller's walk, and the control sweep | `get_effective_controller` `oracle/characteristics.rs:167`; `settle_announced_controllers` `engine/triggers/control.rs:118`; `keep_frames_before_control_change` `engine/triggers/control.rs:57` | with no control-changing row, every controller is the one its permanent entered under, and with none at the last sweep either, none has changed: Layer 2 is the only channel that writes a controller (CR 613.1b) | the type surface, since `CopiableValues` carries no controller on purpose; TR-4d's tests. Nothing compares a sweep's changes with a walk |
+| a repeated layer walk | `compute_characteristics` `engine/layers/compute.rs:103`; `LayerMemo` `state/layer_memo.rs:45` | a frame stored at the current epoch is the walk's answer: every write to a walk input moves the epoch, and a gated input (`GatedWalkInput` `state/layer_memo.rs:89`) moves it only when a frame valid now read it | `audit_memo_hit` `engine/layers/compute.rs:210`, which walks again at every hit in a debug build |
+| a castability clause (A4q) | `every_instance_has_a_choice` `oracle/mana_helpers.rs:415` | a clause equal to an earlier one, past the last clause that reads an earlier instance, has that clause's answer, since past `feed_until` no answer reads the earlier targets | the argument beside it; A4q's A/B, every gameplay counter identical. No check |
+| CR 704.6d's walk for commanders | `arrivals_since_last_sba_check`, read by the state-based check | every arrival a CR 704 rule reads since the last check is noted | `moved_since` `engine/sba.rs:142`'s walk, compared with the list in a debug build |
+| the four loops' skipped work | `references/feedback-loops.md` §2, §3, §4, §5 | loop 1's elision is the CR 616.1 row; loop 2's pre-check is exhaustive over filter, condition and amount leaves; loop 3 skips nothing; loop 4's gate is the dispatcher row | there |
+
 ---
 
 ## 3. Keeping it true
