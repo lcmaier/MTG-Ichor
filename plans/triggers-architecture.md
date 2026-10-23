@@ -3210,7 +3210,7 @@ identical on both pools at two seats and four, and the audit agreeing on
 every dispatch; instructions per decision +0.32%. The 1,000-game audited
 smoke: no error, panic or turn-limit game, every dispatch agreed.
 
-→ `plans/archive/triggers-architecture-landed.md`, "TR-4d". **Trace page:** owed, for the item 6 audit's pass 5 — control is announced by a sweep, not a performer.
+→ `plans/archive/triggers-architecture-landed.md`, "TR-4d". **Trace page:** `plans/traces/tr-4d-control-is-announced-by-a-sweep.html`, written at the item 6 audit's pass 5 — control is announced by a sweep, not a performer.
 
 ### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080) — ✅ landed 2026-10-15
 
@@ -3444,8 +3444,8 @@ each fixed and shown failing first, and one copy.
 **What it leaves.** Items 286 and 287 (`codebase-state.md`, "Found by
 TR-5h"); item 279's other facts, each with its first card.
 
-**Trace page:** owed, for the item 6 audit's pass 5 — every history read
-became a scan of one log.
+**Trace page:** `plans/traces/tr-5h-every-history-read-is-a-scan-of-one-log.html`,
+written at the item 6 audit's pass 5 — every history read became a scan of one log.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5h".
 
 ### TR-5d — prevention and excess damage — ✅ landed 2026-10-19
@@ -3878,7 +3878,8 @@ and MA-1 with MA-2.
   items matched their discovery counts exactly when run again; item 264's
   seed had died with the pool changes, and a scenario stands in.
 - **Trace pages**: TR-1's and TR-5g's; TR-4d's and TR-5h's were decided
-  owed at the close. Each phase heading in §12 records its decision.
+  owed at the close and written in the docs audit, the item 6 audit's pass
+  5. Each phase heading in §12 records its decision.
 - **The `owed` gate was armed at TR-6's close** and read clean through the
   close-out; three atoms §13 deferred to owners that never named them went
   to A6s, which does.
@@ -3892,8 +3893,6 @@ and MA-1 with MA-2.
 - §13: 37 atoms deferred, each with its owner; `owed` clean.
 - `codebase-state.md`'s wrong-today items: 59 (B7), 204 and 207 (beside
   C0), 211 (MA-6) and 297 (A6e).
-- The two owed trace pages, TR-4d's and TR-5h's, earmarked for the item 6
-  audit's pass 5, the docs audit (the owner, at #272's review).
 
 ### What comes next inherits
 
