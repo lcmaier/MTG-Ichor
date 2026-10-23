@@ -10,7 +10,12 @@ use mtgsim::events::event::{GameEvent, UnattachRoute};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_ctx, test_dp, vanilla_creature};
-use mtgsim::objects::card_data::CardDataBuilder;
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::types::ids::AbilityId;
+use mtgsim::types::mana::{ManaCost, ManaType};
+use mtgsim::types::triggers::{TriggerCondition, TriggerDef, TriggerLimit};
+use mtgsim::types::effects::PlayerRef;
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -200,4 +205,75 @@ fn a_source_sacrificed_for_its_cost_is_tapped_on_its_activation_and_its_departur
     let activation = tapped_on(|e| matches!(e, GameEvent::AbilityActivated { .. }));
     assert_eq!(departure, Some(true));
     assert_eq!(activation, Some(true), "the activation reads it as it left, after its {{T}}");
+}
+
+// ---------------------------------------------------------------------------
+// "The first ... each turn" counts the arm's own kind (item 314)
+// ---------------------------------------------------------------------------
+
+/// "Whenever you cast your first creature spell each turn, you gain 1
+/// life." Kalamax's and Plan for All Outcomes' rulings: the first of the
+/// spells of the kind it names this turn, whatever other spells came first.
+fn fixture_first_creature_tithe() -> std::sync::Arc<CardData> {
+    let first_creature = TriggerDef {
+        condition: TriggerCondition::Event(TriggerEvent::CastsSpell {
+            caster: Some(PlayerRef::You),
+            spell: Some(ObjectFilter::ByType(CardType::Creature)),
+        }),
+        intervening_if: None,
+        limit: Some(TriggerLimit::FirstTimeEachTurn),
+        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+    };
+    CardDataBuilder::new("Fixture First Creature's Tithe")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", first_creature))
+        .build()
+}
+
+/// A spell of `card_type` with mana cost {1}: a 1/1, or an instant whose
+/// instruction gains no life.
+fn one_drop(name: &'static str, card_type: CardType) -> std::sync::Arc<CardData> {
+    let builder = CardDataBuilder::new(name).mana_cost(ManaCost::build(&[], 1)).card_type(card_type);
+    match card_type {
+        CardType::Creature => builder.power_toughness(1, 1).build(),
+        _ => builder
+            .ability(AbilityDef {
+                rules_text: "You gain 0 life.".into(),
+                is_characteristic_defining: false,
+                activation_restriction: ActivationRestriction::None,
+                id: AbilityId::UNASSIGNED,
+                instances: Vec::new(),
+                ability_type: AbilityType::Spell,
+                costs: Vec::new(),
+                effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(0)), EffectRecipient::Controller),
+            })
+            .build(),
+    }
+}
+
+/// `card` cast by player 0 from exactly {1}, and resolved with what it
+/// triggered.
+fn cast_and_resolve(game: &mut GameState, card: std::sync::Arc<CardData>) {
+    let id = put_in_hand(game, card, 0);
+    game.players[0].mana_pool.add(ManaType::Colorless, 1);
+    game.cast_spell(0, id, &ManaWindowStop::new(test_dp())).expect("castable from exactly its cost");
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(&test_dp()).unwrap();
+        game.perform_sba_and_triggers(&test_dp()).unwrap();
+    }
+}
+
+/// An instant, then two creatures: the first creature is the first
+/// creature spell this turn, and the second is not.
+#[test]
+fn the_first_spell_of_a_kind_each_turn_counts_only_that_kind() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, fixture_first_creature_tithe(), 0);
+    cast_and_resolve(&mut game, one_drop("Fixture Instant", CardType::Instant));
+    assert_eq!(game.players[0].life_total, 20, "an instant is no creature spell");
+    cast_and_resolve(&mut game, one_drop("Fixture Creature", CardType::Creature));
+    assert_eq!(game.players[0].life_total, 21, "the first creature spell, though not the first spell");
+    cast_and_resolve(&mut game, one_drop("Fixture Second Creature", CardType::Creature));
+    assert_eq!(game.players[0].life_total, 21, "the second creature spell");
 }

@@ -42,6 +42,7 @@ use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
+use crate::state::history_log::RowFact;
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::engine::targeting::TargetRef;
 use crate::types::history::CountIs;
@@ -1910,6 +1911,20 @@ impl GameState {
                             && earlier.target == *target
                             && by.admits(earlier.by_spell)
                             && whose.as_ref().is_none_or(|p| self.player_ref_is(p, earlier.controller, referents))
+                    })
+                }
+                // "Your first creature spell each turn": the first of the
+                // caster's spells this turn the arm admits, whatever came
+                // before it (Kalamax's and Plan for All Outcomes' rulings),
+                // read off the turn's cast rows, each the spell as it was cast.
+                (TriggerEvent::CastsSpell { spell: Some(filter), .. }, GameEvent::SpellCast { caster, .. }) => {
+                    !self.history.log.rows_of_turn(self.turn_number).any(|earlier| {
+                        earlier.seq < record.seq
+                            && earlier.player == Some(*caster)
+                            && matches!(earlier.fact, RowFact::Cast { .. })
+                            && earlier.frame_matches(|id, frame| {
+                                self.object_matches_filter(id, filter, &mut { *referents }, Some(HeldFrame::Characteristics(frame)))
+                            })
                     })
                 }
                 _ => record.place_in_turn() == Some(1),
