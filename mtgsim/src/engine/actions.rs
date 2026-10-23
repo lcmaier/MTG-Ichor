@@ -1679,7 +1679,7 @@ impl GameState {
                     // CR 701.3d: leaving the first host is becoming unattached
                     // from it, in the same event and ahead of the attach.
                     if let (Some(former), Some(moved)) = (unattached_from, self.object_ref(attachment)) {
-                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, None, ctx.cause)?;
+                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, None, None, ctx.cause)?;
                     }
                     self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
                 }
@@ -1700,7 +1700,7 @@ impl GameState {
                     return Ok(());
                 };
                 self.detach(attachment);
-                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, None, ctx.cause)
+                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, None, None, ctx.cause)
             }
 
             GameAction::Tap { object } => {
@@ -2117,7 +2117,12 @@ impl GameState {
         cause: EventCause,
     ) -> Result<(), String> {
         for (attachment, former_host, route) in unattached {
-            self.announce_unattached(attachment, former_host, route, leaving_frame.clone(), cause)?;
+            // The other end, if this event takes it too, as its batch framed it.
+            let (attachment_lki, former_host_lki) = match route {
+                UnattachRoute::AttachmentLeft => (leaving_frame.clone(), self.frame_taken_for(former_host).cloned()),
+                _ => (self.frame_taken_for(attachment).cloned(), leaving_frame.clone()),
+            };
+            self.announce_unattached(attachment, former_host, route, attachment_lki, former_host_lki, cause)?;
         }
         Ok(())
     }
@@ -2153,10 +2158,11 @@ impl GameState {
         attachment: ObjectRef,
         former_host: ObjectRef,
         route: UnattachRoute,
-        lki: Option<Lki>,
+        attachment_lki: Option<Lki>,
+        former_host_lki: Option<Lki>,
         cause: EventCause,
     ) -> Result<(), String> {
-        self.emit_event(GameEvent::Unattached { attachment, former_host, route, lki }, cause)?;
+        self.emit_event(GameEvent::Unattached { attachment, former_host, route, attachment_lki, former_host_lki }, cause)?;
         Ok(())
     }
 

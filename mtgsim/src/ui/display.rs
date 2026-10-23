@@ -1148,7 +1148,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             ),
             None => format!("Attached: {} to {}", named(*attachment), named(*host)),
         },
-        Unattached { attachment, former_host, route, lki: _ } => format!(
+        Unattached { attachment, former_host, route, .. } => format!(
             "Unattached: {} from {} ({:?})",
             named(attachment.id), named(former_host.id), route
         ),
@@ -1735,7 +1735,8 @@ mod tests {
                 attachment: reference(game, unattached),
                 former_host: reference(game, unhosted),
                 route: UnattachRoute::HostLeft,
-                lki: None,
+                attachment_lki: None,
+                former_host_lki: None,
             },
             GameEvent::ControlChanged { object_id: controlled, from: 0, to: 1, lki: lki(game, controlled) },
             GameEvent::LeftTheGame { object_id: id(), owner: 1, from: Zone::Battlefield, lki: None },

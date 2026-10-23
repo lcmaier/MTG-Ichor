@@ -1172,6 +1172,12 @@ impl GameState {
         self.last_known_information(id, compute_characteristics(self, id)?)
     }
 
+    /// The frame a batch in progress took of `object` and has not handed
+    /// over yet: `object` is about to leave in the event being performed.
+    pub(crate) fn frame_taken_for(&self, object: ObjectRef) -> Option<&Lki> {
+        self.lki_captures.iter().find(|capture| capture.object == object)?.lki.as_ref()
+    }
+
     /// The capture its batch took of `object`, if one did.
     fn capture_of(&mut self, object: ObjectRef) -> Option<&mut LkiCapture> {
         self.lki_captures.iter_mut().find(|d| d.object == object)

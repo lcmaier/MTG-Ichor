@@ -2115,7 +2115,8 @@ mod tests {
                 attachment: identity.source,
                 former_host: identity.source,
                 route: crate::events::event::UnattachRoute::HostLeft,
-                lki: None,
+                attachment_lki: None,
+                former_host_lki: None,
             }),
             ("DamagePrevented", GameEvent::DamagePrevented {
                 target: DamageTarget::Player(0),
