@@ -286,6 +286,17 @@ fn answer_or_refuse<'f>(
                 }
                 ObjectFact::WasDealtDamage => log.was_dealt_damage(existence()?, turn, span, &note),
                 ObjectFact::WasDealtExcessDamage => log.was_dealt_excess_damage(existence()?, turn, span, &note),
+                ObjectFact::Died => log.died(existence()?, turn, span, &note),
+                ObjectFact::PutHere { from, act } => log.put_there(existence()?, *from, *act, turn, span, &note),
+                ObjectFact::WasCast => {
+                    note(GatedWalkInput::TurnNumber);
+                    let entry = game.battlefield.get(&id).filter(|_| last_known.is_none()).ok_or(FilterRefusal::ObjectGone(id))?;
+                    span == CombatSpan::ThisTurn && entry.cast.is_some() && entry.entered_battlefield_turn == turn
+                }
+                ObjectFact::CameUnderControl => {
+                    note(GatedWalkInput::TurnNumber);
+                    span == CombatSpan::ThisTurn && chars()?.control_since_turn == turn
+                }
                 ObjectFact::DealtDamageTo { player, combat } => {
                     let dealt: Vec<PlayerId> = log.players_dealt_damage_by(existence()?, *combat, turn, span, &note).collect();
                     match player {

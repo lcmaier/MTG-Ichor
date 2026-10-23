@@ -382,7 +382,11 @@ fn object_fact_reads(f: &ObjectFact) -> TriggerBindingReads {
         | ObjectFact::WasBlocked
         | ObjectFact::Entered
         | ObjectFact::WasDealtDamage
-        | ObjectFact::WasDealtExcessDamage => {
+        | ObjectFact::WasDealtExcessDamage
+        | ObjectFact::Died
+        | ObjectFact::PutHere { .. }
+        | ObjectFact::WasCast
+        | ObjectFact::CameUnderControl => {
             TriggerBindingReads::NONE
         }
         ObjectFact::DealtDamageTo { player, .. } => player.as_ref().map_or(TriggerBindingReads::NONE, player_ref_reads),

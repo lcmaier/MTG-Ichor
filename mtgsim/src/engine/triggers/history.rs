@@ -106,6 +106,8 @@ impl GameState {
         for stamp in &stamps {
             self.draft_history_rows(stamp.seq, window, &mut drafts);
         }
+        #[cfg(debug_assertions)]
+        self.assert_each_zone_change_has_its_row(&stamps, &drafts);
         let mut stamp_of = stamps.iter().peekable();
         let mut kinds_written = [false; RowKind::COUNT];
         for (seq, draft) in drafts {
@@ -135,6 +137,27 @@ impl GameState {
             }
             self.history.log.reframe_newest(redrafts.into_iter().map(|(_, draft)| draft.frame).collect());
             self.bump_rows_written(&kinds_written);
+        }
+    }
+
+    /// Each zone change these records hold writes its row: a move that is
+    /// no entry, cast or draw its own `LeftZone`, and an entry its
+    /// `EnteredBattlefield` off the entry's record in the same window. A
+    /// cast's row is its `SpellCast`'s and a draw's its `CardDrawn`'s, each
+    /// announced after its move, outside any batch for an opening hand
+    /// (CR 103.5, 121.5, 601.2i).
+    #[cfg(debug_assertions)]
+    fn assert_each_zone_change_has_its_row(&self, stamps: &[RowStamp], drafts: &[(EventId, RowDraft)]) {
+        for stamp in stamps {
+            let Some(GameEvent::ZoneChange { object_id, to, act, .. }) = self.events.record(stamp.seq).map(|r| &r.event) else { continue };
+            let written = match (to, act) {
+                (_, ZoneChangeAct::Cast | ZoneChangeAct::Drawn) => true,
+                (Zone::Battlefield, _) => drafts.iter().any(|(_, draft)| {
+                    matches!(draft.fact, RowFact::EnteredBattlefield { .. }) && draft.object.is_some_and(|object| object.id == *object_id)
+                }),
+                _ => drafts.iter().any(|(seq, draft)| *seq == stamp.seq && matches!(draft.fact, RowFact::LeftZone { .. })),
+            };
+            debug_assert!(written, "zone change {:?} of {object_id} to the {to:?} wrote no history row", stamp.seq);
         }
     }
 

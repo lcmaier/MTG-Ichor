@@ -359,6 +359,35 @@ impl HistoryLog {
         self.rows_during(turn, span, RowKind::Blocked, note).any(|row| row.fact == RowFact::Blocked(object))
     }
 
+    /// Did the card `object` get where it is by dying in `span` of turn
+    /// `turn` (CR 700.4)? The row of its move names it as the object the move
+    /// made, and keeps the creature it was as it left.
+    pub(crate) fn died(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
+        self.rows_during(turn, span, RowKind::LeftZone, note).any(|row| {
+            matches!(row.fact, RowFact::LeftZone { from: Zone::Battlefield, to: Zone::Graveyard, became, .. } if became == object)
+                && row.frame.as_ref().is_some_and(|frame| frame.types.contains(&CardType::Creature))
+        })
+    }
+
+    /// Was `object` put where it is from `from` by `act` in `span` of turn
+    /// `turn`? `None` asks neither.
+    pub(crate) fn put_there(
+        &self,
+        object: ObjectRef,
+        from: Option<Zone>,
+        act: Option<ZoneChangeAct>,
+        turn: u32,
+        span: CombatSpan,
+        note: &dyn Fn(GatedWalkInput),
+    ) -> bool {
+        self.rows_during(turn, span, RowKind::LeftZone, note).any(|row| match row.fact {
+            RowFact::LeftZone { from: moved_from, act: moved_by, became, .. } => {
+                became == object && from.is_none_or(|from| from == moved_from) && act.is_none_or(|act| act == moved_by)
+            }
+            _ => false,
+        })
+    }
+
     /// Was `object` dealt damage in `span` of turn `turn` (CR 120.3)?
     pub(crate) fn was_dealt_damage(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
         self.excess_of_each_damage_to(object, turn, span, note).next().is_some()

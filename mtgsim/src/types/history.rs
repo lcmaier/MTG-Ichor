@@ -6,6 +6,7 @@
 //! vocabulary a `Condition` leaf, an amount and a filter use to ask it.
 
 use crate::types::effects::{ObjectFilter, PlayerRef, PlayerSet};
+use crate::types::zones::{Zone, ZoneChangeAct};
 
 /// Which turns a count spans. A `Condition` leaf and an amount read any of
 /// the four; a scenario states the first three, and derives "since your last
@@ -86,6 +87,21 @@ pub enum ObjectFact {
     /// Dealt damage to a player (CR 120.1), only combat damage when `combat`
     /// (CR 510.2). `None` is any player, `Some(You)` the asker's "you".
     DealtDamageTo { player: Option<PlayerRef>, combat: bool },
+    /// Died (CR 700.4): put into a graveyard from the battlefield as a
+    /// creature, as it left. Asked of the card the move made (CR 400.7), "a
+    /// creature card in your graveyard that died this turn".
+    Died,
+    /// Put into the zone it is in from `from` by `act`, asked of the object
+    /// the move made (CR 400.7): "a card in a graveyard that was milled this
+    /// turn" (`act: Milled`), "discarded", "put there from anywhere".
+    PutHere { from: Option<Zone>, act: Option<ZoneChangeAct> },
+    /// Cast (CR 601.2i): a permanent that was a spell cast this turn, by
+    /// the facts it keeps of the spell (CR 400.7d). A turn's.
+    WasCast,
+    /// Came under its controller's control this turn, entering or by a
+    /// change of control: its control's start, which Layer 2 keeps (CR
+    /// 613.1b). A turn's.
+    CameUnderControl,
 }
 
 /// How a count must compare.

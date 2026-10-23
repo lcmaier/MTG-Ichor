@@ -7,9 +7,16 @@ use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::phase_rd_cards::dark_sphere;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::events::event::{GameEvent, UnattachRoute};
-use mtgsim::oracle::characteristics::get_effective_power;
+use mtgsim::oracle::characteristics::{get_effective_colors, get_effective_power};
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_ctx, test_dp, vanilla_creature};
+use mtgsim::test_support::{
+    put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_this_turn, setup_game, setup_two_player_game, static_ability,
+    test_ctx, test_dp, vanilla_creature,
+};
+use mtgsim::types::colors::Color;
+use mtgsim::types::effects::{ColorChange, Duration};
+use mtgsim::types::history::ObjectFact;
+use mtgsim::types::zones::ZoneSet;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::types::ids::AbilityId;
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -276,4 +283,98 @@ fn the_first_spell_of_a_kind_each_turn_counts_only_that_kind() {
     assert_eq!(game.players[0].life_total, 21, "the first creature spell, though not the first spell");
     cast_and_resolve(&mut game, one_drop("Fixture Second Creature", CardType::Creature));
     assert_eq!(game.players[0].life_total, 21, "the second creature spell");
+}
+
+// ---------------------------------------------------------------------------
+// The "this turn" facts the history's rows and the permanent answer (item 279)
+// ---------------------------------------------------------------------------
+
+/// "Cards in graveyards that [`fact`] this turn are black."
+fn fixture_mourning_ink(fact: ObjectFact) -> std::sync::Arc<CardData> {
+    CardDataBuilder::new("Fixture Mourning Ink")
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Atom(
+            Primitive::ChangeColor(ColorChange::Add(Color::Black), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredObjectsIn(ObjectFilter::ThisTurn(fact), ZoneSet::GRAVEYARD),
+        )))
+        .build()
+}
+
+fn is_black(game: &GameState, id: ObjectId) -> bool {
+    get_effective_colors(game, id).contains(&Color::Black)
+}
+
+/// "Died this turn" is the card a creature's death made (CR 700.4, 400.7):
+/// a creature destroyed, not a creature card discarded, and not the same
+/// card once it has moved again.
+#[test]
+fn died_this_turn_is_the_card_its_death_made() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, fixture_mourning_ink(ObjectFact::Died), 0);
+    let died = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let discarded = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.execute_action(GameAction::Destroy { object: died }, &test_ctx()).unwrap();
+    game.change_zone(discarded, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx()).unwrap();
+    assert!(is_black(&game, died), "the card its death put there");
+    assert!(!is_black(&game, discarded), "a card discarded did not die");
+
+    game.change_zone(died, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(died, Zone::Graveyard, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    assert!(!is_black(&game, died), "a new object, which died never (CR 400.7)");
+}
+
+/// "Milled this turn", "discarded this turn": the act its move was (CR
+/// 701.17, 701.9), asked of the card the move made.
+#[test]
+fn milled_and_discarded_this_turn_read_the_act_of_the_move() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, fixture_mourning_ink(ObjectFact::PutHere { from: None, act: Some(ZoneChangeAct::Milled) }), 0);
+    let milled = put_in_library(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let discarded = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.change_zone(milled, Zone::Graveyard, ZoneChangeAct::Milled, &test_ctx()).unwrap();
+    game.change_zone(discarded, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx()).unwrap();
+    assert!(is_black(&game, milled));
+    assert!(!is_black(&game, discarded));
+}
+
+/// "Creatures [that did `fact`] this turn get +1/+0."
+fn banner_over(fact: ObjectFact) -> std::sync::Arc<CardData> {
+    CardDataBuilder::new("Fixture Banner")
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Atom(
+            Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredPermanents(ObjectFilter::ThisTurn(fact)),
+        )))
+        .build()
+}
+
+/// Rock Jockey's "if this creature was cast this turn": the permanent a
+/// spell became, which keeps the spell's facts (CR 400.7d). A creature put
+/// onto the battlefield this turn was not cast.
+#[test]
+fn was_cast_this_turn_is_a_permanent_its_spell_became() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, banner_over(ObjectFact::WasCast), 0);
+    let put = put_on_battlefield_this_turn(&mut game, vanilla_creature(2, 2, &[]), 0);
+    cast_and_resolve(&mut game, one_drop("Fixture Creature", CardType::Creature));
+    let cast = game
+        .battlefield_ids_ordered()
+        .into_iter()
+        .find(|id| game.objects[id].card_data.name == "Fixture Creature")
+        .expect("it resolved");
+    assert_eq!(get_effective_power(&game, cast), Some(2), "a 1/1 cast this turn");
+    assert_eq!(get_effective_power(&game, put), Some(2), "a 2/2 put onto the battlefield, not cast");
+}
+
+/// Erg Raiders' "unless it came under your control this turn": entering
+/// this turn starts its control (CR 302.6's clock), and a permanent there
+/// since before the turn has not come under anyone's control this turn.
+#[test]
+fn came_under_control_this_turn_starts_with_the_entry() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, banner_over(ObjectFact::CameUnderControl), 0);
+    let old = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let new = put_on_battlefield_this_turn(&mut game, vanilla_creature(2, 2, &[]), 0);
+    assert_eq!(get_effective_power(&game, old), Some(2));
+    assert_eq!(get_effective_power(&game, new), Some(3));
 }
