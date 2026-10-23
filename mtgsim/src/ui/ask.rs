@@ -744,7 +744,7 @@ pub fn ask_select_recipients(
     max_selections: usize,
 ) -> Vec<ResolvedTarget> {
     // Nothing to choose from, or a count of zero, is no question.
-    if legal_selections.is_empty() || max_selections == 0 {
+    if legal_selections.is_empty() || (min_selections == 0 && max_selections == 0) {
         return Vec::new();
     }
     let options: Vec<ChoiceOption> = legal_selections

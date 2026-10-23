@@ -115,6 +115,7 @@ impl GameState {
                 // Attempt execution. On Err, the callee is required to leave
                 // game state clean (see `cast_spell` rollback via move_object,
                 // `activate_ability` via `rollback_ability_activation`).
+                let unasked = self.unasked_mark();
                 let (exec_result, was_mana_ability) = match &action {
                     PriorityAction::Pass => unreachable!(),
                     PriorityAction::CastSpell(card_id) => (
@@ -168,6 +169,7 @@ impl GameState {
                     Err(e) => {
                         rejections += 1;
                         self.diagnostics.record_action_reversed();
+                        self.take_back_unasked(unasked);
                         // What `--dump-events` cannot show: a cast the enumeration
                         // offered and the engine rejected performs nothing, so the
                         // re-ask that follows is only explicable from here.

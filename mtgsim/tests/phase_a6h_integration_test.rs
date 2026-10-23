@@ -14,6 +14,7 @@
 //! covers, then panicking when the leg is taken away: the board a missing leg
 //! would leave silently wrong.
 
+use mtgsim::cards::alpha::giant_growth;
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cm_cards::thalia_guardian_of_thraben;
 use mtgsim::cards::phase_rb_cards::rest_in_peace;
@@ -26,7 +27,7 @@ use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    assert_not_asked, card_of_type, effect_ctx, forest, not_asked, put_in_hand, put_on_battlefield,
+    assert_not_asked, card_of_type, effect_ctx, forest, not_asked, place_forest, put_in_hand, put_on_battlefield,
     setup_two_player_game, test_ctx,
 };
 use mtgsim::types::card_types::CardType;
@@ -38,6 +39,7 @@ use mtgsim::ui::ask::{
     ask_choose_entering_defender, ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost,
     ask_choose_trample_damage_assignment, ask_choose_x_value, ask_discard, ask_select_recipients,
 };
+use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::display::{format_event_log, format_record, log_lines};
 
@@ -74,6 +76,26 @@ fn the_game_log_says_what_was_not_asked_and_the_dev_gui_log_does_not() {
     let drawn: Vec<String> =
         log_lines(&game, recorded.records_from(before)).into_iter().map(|record| format_record(&game, record)).collect();
     assert!(!drawn.is_empty() && drawn.iter().all(|line| !line.starts_with("NotAsked")), "{drawn:#?}");
+}
+
+/// CR 732.1: a cast reversed after its one legal target was answered
+/// unasked takes the note back, since the game's log shows nothing of a
+/// reversed action.
+#[test]
+fn a_reversed_cast_takes_back_what_it_answered_unasked() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let growth = put_in_hand(&mut game, giant_growth(), 0);
+    place_forest(&mut game, 0);
+    let dp = ScriptedDecisionProvider::new();
+    let window = ChoiceKind::ManaAbilityWindow { spell_or_ability_id: growth, remaining_cost: ManaCost::zero() };
+    dp.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    dp.expect_pick_n(window, vec![]);
+    dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+
+    game.run_priority_round(&dp).unwrap();
+    assert!(game.players[0].hand.contains(&growth), "the cast was reversed");
+    assert!(not_asked(&game).is_empty(), "{:#?}", not_asked(&game));
 }
 
 /// A game nobody records writes nothing, and the answer is the same.
@@ -208,7 +230,7 @@ fn a_choice_with_two_answers_is_asked_and_not_recorded() {
     let b = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let spell = put_in_hand(&mut game, card_of_type("Fixture Shape", CardType::Instant), 0);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(mtgsim::ui::choice_types::ChoiceKind::ChooseCopySource { source: spell }, vec![1]);
+    dp.expect_pick_n(ChoiceKind::ChooseCopySource { source: spell }, vec![1]);
     assert_eq!(ask_choose_copy_source(&dp, &game, 0, spell, &[a, b]), b);
     assert!(not_asked(&game).is_empty());
 }

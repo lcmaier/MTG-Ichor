@@ -81,6 +81,16 @@ impl RecorderHandle {
         self.recorder.lock()[self.branch].unasked.push(unasked);
     }
 
+    /// How many questions this branch has noted of its own.
+    fn own_unasked(&self) -> usize {
+        self.recorder.lock()[self.branch].unasked.len()
+    }
+
+    /// Drop this branch's own notes past the first `kept`.
+    fn keep_own_unasked(&self, kept: usize) {
+        self.recorder.lock()[self.branch].unasked.truncate(kept);
+    }
+
     /// This branch's stream: its ancestors' records up to each fork, then its
     /// own, oldest first.
     pub fn records(&self) -> Vec<EventRecord> {
@@ -204,6 +214,21 @@ impl GameState {
         let mut records = recorder.records();
         records.extend(self.events.held().iter().cloned());
         RecordedEvents { records, unasked: recorder.unasked() }
+    }
+
+    /// Where the questions not asked stand before an action, so that its
+    /// reversal can take back the ones it took (`Self::take_back_unasked`).
+    pub(crate) fn unasked_mark(&self) -> Option<usize> {
+        self.events.recorder().map(RecorderHandle::own_unasked)
+    }
+
+    /// CR 732.1: a reversed action performed nothing, and the game's log
+    /// shows nothing of it, so the questions it answered unasked go too. The
+    /// decision log keeps its answers, which a replay asks again.
+    pub(crate) fn take_back_unasked(&self, mark: Option<usize>) {
+        if let (Some(recorder), Some(kept)) = (self.events.recorder(), mark) {
+            recorder.keep_own_unasked(kept);
+        }
     }
 
     /// Record that `player` was not asked a question and why, building the

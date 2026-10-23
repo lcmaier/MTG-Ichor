@@ -1176,7 +1176,7 @@ fn main() {
     // Off the default for the payer line's reason; `fuzz_ab.py` strips the
     // audit's lines, which are about the run and not the game.
     if args.audit {
-        println!("Audit: on — every trigger dispatch answered twice (triggers-architecture.md §4.10)");
+        println!("Audit: on — every trigger dispatch answered twice, and every gate, sweep and fold with its shortcut off (plans/elisions.md §4)");
     }
     if let Some(dir) = &args.trace {
         std::fs::create_dir_all(dir).expect("cannot create the trace directory");

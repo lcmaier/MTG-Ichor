@@ -469,10 +469,10 @@ fn every_instance_has_a_choice(
                 // a `false` returns below.
                 let already_answered =
                     ix >= reusable_from && instances[reusable_from..ix].contains(recipient);
+                let has_choices =
+                    || crate::oracle::legality::enumerate_legal_selections_upto(game, f, None, player_id, view, n).len() >= n;
                 if already_answered && game.audit_on() {
-                    let enough = game.unobserved(|| {
-                        crate::oracle::legality::enumerate_legal_selections_upto(game, f, None, player_id, view, n).len() >= n
-                    });
+                    let enough = game.unobserved(has_choices);
                     crate::engine::audit::assert_shortcut_agrees(
                         "the castability fold",
                         || format!("{recipient:?}"),
@@ -480,9 +480,7 @@ fn every_instance_has_a_choice(
                         vec![enough.to_string()],
                     );
                 }
-                if !already_answered
-                    && crate::oracle::legality::enumerate_legal_selections_upto(game, f, None, player_id, view, n).len() < n
-                {
+                if !already_answered && !has_choices() {
                     return false;
                 }
             }

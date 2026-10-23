@@ -2490,10 +2490,12 @@ impl GameState {
             // its stack entry carried since the cast, and a delayed trigger's
             // its creator's (107.3n). A rider resolves no stack object, and has
             // none.
-            AmountExpr::X => announced_x
-                .inspect(|_| self.note_binding_read(_ctx, TriggerBindingReads::X))
-                .or_else(|| self.resolving_for(_ctx).and_then(|resolving| resolving.x_value))
-                .ok_or_else(|| format!("{} resolves with no X chosen for AmountExpr::X to read", _ctx.source)),
+            AmountExpr::X => {
+                self.note_binding_read(_ctx, TriggerBindingReads::X);
+                announced_x
+                    .or_else(|| self.resolving_for(_ctx).and_then(|resolving| resolving.x_value))
+                    .ok_or_else(|| format!("{} resolves with no X chosen for AmountExpr::X to read", _ctx.source))
+            }
             // The permanents a selector names, as they are now (CR 608.2h),
             // "you" the resolution's controller: Ajani, Nacatl Avenger's "the
             // number of creatures you control".
@@ -2568,6 +2570,7 @@ impl GameState {
             // cost; on the battlefield, where the ability expected it, while
             // it is still that object. Neither is a missed capture.
             AmountExpr::SourceCounters(kind) => {
+                self.note_binding_read(_ctx, TriggerBindingReads::SOURCE);
                 if let Some(lki) = self.source_lki(_ctx) {
                     return Ok(u64::from(lki.counters(*kind)));
                 }
