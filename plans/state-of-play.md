@@ -170,7 +170,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 215 |
 | …of them in `PERFORMANCE_POOL` | 124 |
-| `#[test]` functions | 2760 |
+| `#[test]` functions | 2782 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -191,12 +191,12 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 367 |
-| …closed, still recorded | 200 |
+| Numbered items | 368 |
+| …closed, still recorded | 201 |
 | …open — unreachable, and says why | 114 |
 | **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 33 |
-| …open — nothing to build, a record for a later phase | 15 |
+| …open — reachable, not wrong (perf, a name, a harness) | 34 |
+| …open — nothing to build, a record for a later phase | 14 |
 | **…open — reachability *not* stated** | **0** |
 | …open, carrying an explicit `**Sized:**` | 165 of 167 |
 

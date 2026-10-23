@@ -78,6 +78,21 @@ pass re-reads what it touches: a number here is a starting point.
   at B2. Found beside the rows: item 72 had moved to B13 while five
   `backlog.md` lines and the mana and cost docs still placed it with item
   6. Left for PR 4: item 185 and the two trace pages.
+- Pass 5's fourth PR, item 185, ran in session 5 as #278 on
+  `audit/item-6-elisions` (§9). Done: the inventory, `plans/elisions.md`
+  (forced prompts, elisions and skipped work, each with its claim, premise
+  and what checks it; the forced prompts' "CR 102.2" corrected throughout);
+  every forced prompt decided in `ui/ask.rs`, and each forced prompt and
+  elision taken recorded in the game's log (`events::unasked`), drawn by
+  `format_event_log` and not by the dev GUI's `log_lines`; audits for the
+  replacement, restriction and cost gates, the control sweep and the
+  castability fold under `--audit` (`engine::audit`), and a debug check of
+  the trigger elisions' premise. Item 185 closed, item 317 filed. Decided
+  at its design review (the owner): the record a note on the event
+  recorder; every forced prompt and elision recorded but the priority pass;
+  the inventory a page of its own, the engine map staying an entry point;
+  forced prompts decided in `ui/ask.rs`; the checks built here, and the two
+  trace pages split to PR 5.
 
 ## 1. Why this audit is bigger than the last
 
@@ -1334,169 +1349,15 @@ a dated record. Two were `CLAUDE.md` lines.
 
 The journal keeps every text.
 
-#### PR 4 — item 185's record and the two trace pages (the design, under review)
+#### PR 5 — the two trace pages (next)
 
-Branch `audit/item-6-elisions`, opened as a draft at the design stop
-(`review-the-design-doc-before-building`); the build goes on the same branch.
-The inventory is written where the review placed it, `plans/elisions.md`; the
-record below is not built yet.
-
-**Decided at the first review round (the owner, 2026-10-22).** Decision 1,
-the record is a note on the event recorder, option (b). Decision 2, a record
-for every forced prompt and elision but the forced priority pass. Decision 4,
-every forced prompt decided in `ui/ask.rs` through the validators' own
-predicates. Decision 3 went the other way: the engine map stays an entry
-point, so the inventory left its §2.8 for a page of its own, `plans/elisions.md`,
-which the map's §2.3 and §2.6 point to and `check_engine_map.py` now reads with
-the same rules (a cited function that disappears fails it). Decision 5 is
-restated below with its context; the owner asked how an elision's premise is
-shown complete, since a wrong one is a silent bug.
-
-**What the inventory found.**
-- **Three classes, not one.** `glossary.md` already defines an **elision**
-  narrowly (two or more legal answers, one game) and says a forced prompt is
-  not one; item 185 used the word for both and for skipped work. The page
-  keeps the glossary's words: forced prompts, elisions, skipped work.
-- **Forced prompts rest on no CR rule.** The tree cites CR 102.2 for them in
-  comments across `src` and `tests`; 102.2 is the two-player opponent rule.
-  A4k's census found it on 2026-09-18 and left "one comment fix, next time a
-  hand is in the file" (`backlog.md` §2.22, rule 1), and the citation spread
-  from a handful of sites since. The build corrects every one that means a
-  forced choice, and keeps the ones that mean an opponent.
-- **Forced prompts are decided in two places.** Four asks decide in
-  `ui/ask.rs` (`ask_discard`, `ask_select_recipients`, `ask_choose_x_value`,
-  the four allocating asks through `forced_allocation`); five assert two or
-  more and leave the one-candidate case to six callers. Two of the in-ask
-  tests are copies of `only_pick`'s, agreeing by reading.
-- **Three elisions are taken and one is owed.** CR 616.1's has a debug check;
-  CR 603.3b's and 603.7b's share `entries_agree_on` and have tests but no
-  check in a game; CR 601.2f's is item 165, slotted at CP-1.
-- **Skipped work: the dispatcher's gate and the memo have instruments; the
-  replacement, restriction and cost gates, the controller fast path with the
-  control sweep, and A4q's fold have only their argument.**
-- **Not rows**: a choice the rule makes only among two or more, and an empty
-  list (CR 101.3). The first draft listed the legend rule and a single
-  blocker here; the review asked how either could elide, and neither can,
-  so the page names only the cases that sit beside an elision in the code.
-- **CR 603.3b's elision is stricter than the rule needs (the owner's Bristly
-  Bill, Spine Sower question at review).** Its "no target, no mode"
-  conditions say the order decides who chooses against what (CR 603.3c,
-  603.3d). For entries of one def that agree on every fact it reads, it does
-  not: targets and modes are still chosen one entry at a time as each goes on
-  the stack, and since the entries are interchangeable, any order with any
-  sequence of choices gives the same stack as the first order with the same
-  sequence. Several lands entering under Bristly Bill ask an order today, then
-  a target for each, and the order prompt adds no outcome. Dropping the two
-  conditions drops a prompt, so it is a fixture migration and a `differ` A/B
-  (`changing-what-the-engine-asks`), its own PR; the build files it as an
-  item. Tier 2 was not re-read.
-
-**The record (decision 1 picks its stream; this is option (b)'s shape).** One
-record per forced prompt or elision the engine answers itself: who would have
-been asked, the question as its `ChoiceKind`, the answer as the options it
-chose, and the reason.
-
-```rust
-// events/unasked.rs — names proposed, listed again in the PR body
-pub struct UnaskedChoice {
-    /// The record it precedes: the stream's next `EventId` when it was taken.
-    pub before: EventId,
-    pub player: PlayerId,
-    pub kind: ChoiceKind,
-    pub answer: UnaskedAnswer,   // LoggedAnswer's four shapes, owned
-    pub why: Unasked,
-}
-pub enum Unasked {
-    OneLegalAnswer,              // a forced prompt
-    OneGame(Elision),            // an elision, and which
-}
-pub enum Elision { ReplacementOrder, TriggerOrder, DelayedTriggerCause }
-```
-
-- **Written** through `GameState::note_unasked(|| UnaskedChoice { .. })`: one
-  branch on the recorder's `Option` when nothing records, built only when
-  something does. An observer, as the trace sink and the decision log are:
-  it draws no randomness, asks no provider, moves no epoch and writes
-  through `&GameState`, which is what every ask holds.
-- **Kept** by `RecorderHandle` beside its branch's records and forked the
-  same way; read as `RecordedEvents::unasked`.
-- **Drawn** by `format_event_log`, each before the record it precedes, so
-  `--dump-events`, `cli_play`'s log and a test's log carry it:
-  `Not asked: P0 SelectRecipients for Lightning Bolt (#12): Grizzly Bears (#7), its one legal answer`;
-  `Not asked: P1 OrderTriggers: Soul Warden (#3), Soul Warden (#9), every order one game (CR 603.3b)`.
-- **Not drawn** by `log_lines`, which reads records only, so the dev GUI's
-  log never shows one; a test pins it, beside the full log showing it.
-- **Sites**: the forced-prompt rows but the priority pass, and the three
-  elisions taken: twelve, each shown in a test. With decision 4's (b), the
-  forced prompts are written from one helper per primitive in `ui/ask.rs`.
-- **What it moves**: the formatted log and `--dump-events`, by the note
-  lines. No `EventId`, window, dispatch, history row, counter or RNG draw, so
-  the A/B predicts every gameplay counter `IDENTICAL` and the dumps differing
-  by note lines alone; the budget reads the note's cost with a recorder
-  attached.
-
-**How many, measured at the design stop.** A throwaway worktree at
-`1767fcd6` printed a line at each site, and `fuzz_games --games 100 --seed
-185` ran each table with `--dump-events` (the worktree is removed). Per 100
-games:
-
-| Table | Event-log lines | Forced priority passes | Every other row | Of which the generic split |
-|---|---:|---:|---:|---:|
-| `performance`, 2 seats | 105,775 | 53,090 | 2,399 | 1,848 |
-| `performance`, 4 seats | 223,037 | 179,163 | 4,507 | 3,517 |
-| `stress`, 2 seats | 101,682 | 49,123 | 3,128 | 2,611 |
-| `stress`, 4 seats | 230,558 | 176,622 | 7,081 | 5,258 |
-
-So the record adds 2–3% to the log without the priority pass, and the pass
-alone would add half the log at two seats and four-fifths at four. The rest,
-by row: a target or "choose" taking every legal one 270–484, CR 616.1's
-elision 78–1,234, a creature entering attacking with one candidate 14–92,
-CR 603.3b's elision 6–121, a sacrifice taking every candidate 14–55, X with
-one value 6–32, a trample split 5–14, a discard of the whole hand 0–17, a
-copy's one donor at resolution 2–7. No game reached CR 603.7b's elision, a
-lone damage source, a lone opponent, an entry copy's lone donor, a count of
-zero, a forced combat split or a forced next-damage split; their tests build
-the board.
-
-**Decision 5, restated: the premises nothing checks.** Six rows of the page
-hold only by argument and tests: the replacement, restriction and cost gates;
-the controller shortcut with TR-4d's control sweep; A4q's fold; and the two
-trigger elisions' runtime premise, that a resolving ability reads only the
-facts `trigger_binding_reads` lists. If one is wrong, a card silently does
-nothing, or two orders the engine called one game are not. The instrument
-that has worked is TR-1b's: the same code with the shortcut off, compared.
-- **The gates, the control sweep and the fold**: under the switch
-  `fuzz_games --audit` already sets (`enable_dispatch_audit`), do the skipped
-  work as well and panic with the seed when the answers differ. The gather,
-  `prohibition` and `cost_modifications_for` with the gate forced open; every
-  permanent's controller walked after each sweep and compared with the one
-  announced; the folded clause answered anyway. Each audit gets a test that
-  breaks a leg and sees the panic. ~250–350 lines with tests.
-- **The trigger elisions**: in debug builds, note each fact a resolving
-  triggered ability reads off its entry, at the binding's readers
-  (`bound_objects`, `bound_player`, `bound_amount`, `bound_characteristics`,
-  `triggering_object`, the event view's object reads), and assert at the
-  resolution's end that the def's list holds every one. Every test and debug
-  game then checks the premise. "This object" is read in many places and is
-  the part to scope at the build. ~150–200 lines with tests.
-- (a) Build them here, so item 185 closes with every row checked, and move
-  the trace pages to a PR of their own. (b) File one sized item, slotted at
-  A6e's cleanup, and narrow item 185 to it.
-
-**Sizing.** The record, with decisions 1(b), 2(a) and 4(b): about 700 lines
-written. The recorder's notes ~60, the types and the writer ~90, the log's
-drawing ~50, the sites ~80 net, the citation corrections about even, tests
-~400. Sizings run 1.5–2× on code (`track-the-band-during-the-build`), so
-1,000–1,400 against the 1,500–2,500 band. Decision 5's (a) adds ~400–550
-written, ~600–1,000 calibrated, which puts the PR at 1,600–2,400: inside the
-band, near its top. The two trace pages are hand-written HTML of the
-template's size (203–551 lines), which the band does not count, at two to
-three hours each. **With 5(a) the pages are their own PR, as the re-cut
-allows; with 5(b) one PR holds everything.**
-
-**The trace pages, planned.** Each walks the phase's findings, not its
-feature list (`engineering-practices.md` §7), from traced runs at the build's
-commit.
+Split from PR 4 (#278) at its design review, as the re-cut allows: PR 4
+built item 185 and the shortcuts' audits (§0). Branch from `main` once
+#278 merges. Each page walks the phase's findings, not its feature list
+(`engineering-practices.md` §7), from traced runs at the PR's commit;
+each is pinned in its `<head>`, linked from its `triggers-architecture.md`
+§12 heading and its `codebase-state.md` entry, and added to §7's table.
+Two to three hours each.
 - `tr-4d-control-is-announced-by-a-sweep.html`: a steal that ends at
   cleanup, where the sweep's gate must still run once the last row is gone
   (`control_effects_at_last_sweep`); the first control row, which keeps the
@@ -1510,13 +1371,9 @@ commit.
   kind, turn and combat, noted inside the lookup, beside the write that moves
   it. The table: what each read scanned, and what it used to read.
 
-**Done when** (the brief's): the inventory covers every row item 185 lists,
-each with claim, premise and what holds it; the record is built at the
-agreed sites, each in a test; item 185 is closed or narrowed with the pages
-linked; the full gate, every `CLAUDE.md` check and `specdb owed --phase
-"Phase 7"` pass, with `check_engine_map.py --drift` read; §9's pass 5 row
-names the PR and §0 gains its bullet. Pass 5 is then done, and the
-card-homed triage is next.
+**Done when**: both pages written and linked; the full gate and every
+`CLAUDE.md` check pass; §9's pass 5 row names the PR, and §0 gains its
+bullet. Pass 5 is then done, and the card-homed triage is next.
 
 ### Pass 5c — names for the phases ahead
 
@@ -1629,6 +1486,6 @@ changed.
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | #274 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup is next |
 | The card-homed triage (1, then its builds in the cleanup) | | added at #272's review |
 | 4. Readiness (2) | | |
-| 5. Docs audit, A6h (4) | #275, #276, #277 | re-cut at #274's merge; item 188 to A6s. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4 next |
+| 5. Docs audit, A6h (5) | #275, #276, #277, #278 | re-cut at #274's merge; item 188 to A6s. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages, next |
 | 5c. Names for the phases ahead (1) | | added at #274's merge |
 | 6. Scheduling (1) | | |
