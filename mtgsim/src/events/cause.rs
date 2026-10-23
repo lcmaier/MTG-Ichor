@@ -66,6 +66,22 @@ impl EventCause {
         }
     }
 
+    /// The object its record's line names it by: the source of the spell or
+    /// ability whose effect it is, or what a cost was paid for.
+    pub fn object_named(&self) -> Option<ObjectId> {
+        match self {
+            EventCause::Effect { resolution, .. } => Some(resolution.source),
+            EventCause::Cost { paying_for, .. } => Some(*paying_for),
+            EventCause::Casting(_)
+            | EventCause::Activating(_)
+            | EventCause::SpecialAction { .. }
+            | EventCause::TurnBasedAction(_)
+            | EventCause::StateBasedAction(_)
+            | EventCause::GameRule(_)
+            | EventCause::Harness => None,
+        }
+    }
+
     /// Who controls the spell or ability that caused this, for "a spell or
     /// ability [someone] controls causes". `None` for anything that is not a
     /// spell's or an ability's effect: a cost, a special action, a turn-based

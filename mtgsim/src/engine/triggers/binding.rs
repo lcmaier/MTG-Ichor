@@ -25,16 +25,8 @@ use crate::types::triggers::{EventRole, Lki, PendingTrigger, TriggerBinding, Tri
 /// anywhere" arm's object is the object after the move (CR 603.6c), read
 /// where it went.
 pub(crate) fn record_frame<'r>(arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> Option<&'r Lki> {
-    if let Some(lki) = record.event.source_lki()
-        && lki.object().id == id
-    {
-        return Some(lki);
-    }
-    let lki = match &record.event {
-        GameEvent::Unattached { lki: Some(lki), .. } => lki,
-        _ => record.event.lki()?.0,
-    };
-    (arm.looks_back() && lki.object().id == id).then_some(lki)
+    let lki = record.event.frame_of(id)?;
+    (record.event.source_lki().is_some() || arm.looks_back()).then_some(lki)
 }
 
 /// An object of a triggering event, as a condition reads it when the ability
@@ -231,6 +223,18 @@ impl GameState {
     /// were. `None` while `object` is still there.
     pub(crate) fn lki_kept_by_resolving(&self, object: ObjectRef) -> Option<&Lki> {
         self.resolving.as_ref()?.lki_of(object)
+    }
+
+    /// How `object` last existed, as any spell or ability that reads it keeps
+    /// it (CR 113.7a): the one resolving, a trigger waiting to be put on the
+    /// stack, one on the stack, or a delayed trigger whose source it is.
+    /// `None` while `object` is still there, or once nothing reads it.
+    pub(crate) fn lki_kept_for(&self, object: ObjectRef) -> Option<&Lki> {
+        let stacked = self.stack.iter().filter_map(|id| self.stack_entries.get(id));
+        self.lki_kept_by_resolving(object)
+            .or_else(|| self.pending_triggers.iter().find_map(|pending| pending.lki_of(object)))
+            .or_else(|| stacked.into_iter().find_map(|entry| entry.lki_of(object)))
+            .or_else(|| self.delayed_triggers.iter().find_map(|delayed| delayed.source_lki.as_ref().filter(|lki| lki.object() == object)))
     }
 
     /// What a resolving condition reads about the objects its text names

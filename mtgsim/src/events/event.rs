@@ -551,6 +551,32 @@ impl GameEvent {
         }
     }
 
+    /// The last known information this record carries for `id`, its object
+    /// as it last existed before the event (CR 113.7a): a source gone before
+    /// it (`source_lki`), or the object the event itself moved or unattached
+    /// as it left (`lki`, an unattach's end that left). `None` for an object
+    /// the record keeps no frame of.
+    pub fn frame_of(&self, id: ObjectId) -> Option<&Lki> {
+        let lki = match self {
+            GameEvent::Unattached { lki, .. } => lki.as_ref(),
+            _ => self.source_lki().or_else(|| self.lki().map(|(lki, ..)| lki)),
+        }?;
+        (lki.object().id == id).then_some(lki)
+    }
+
+    /// The source of the ability this record is about, as the existence that
+    /// activated or triggered it.
+    pub fn ability_source(&self) -> Option<ObjectRef> {
+        match self {
+            GameEvent::AbilityTriggered { origin, .. } => Some(origin.source_ref()),
+            GameEvent::AbilityActivated { identity, .. }
+            | GameEvent::AbilityResolved { identity, .. }
+            | GameEvent::AbilityCountered { identity, .. }
+            | GameEvent::AbilityFizzled { identity, .. } => Some(identity.source),
+            _ => None,
+        }
+    }
+
     /// The last known information this record carries (CR 603.10), with the
     /// zone its object left and its owner: a zone change's or a leaving's
     /// (603.10a), a countered spell's (603.10e), and `None` for every other

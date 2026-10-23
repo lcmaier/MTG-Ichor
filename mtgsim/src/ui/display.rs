@@ -13,7 +13,7 @@ use crate::engine::layers::copy::{CopiableValues, copiable_values, copiable_valu
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
-use crate::events::event::{DamageTarget, EventRecord, GameEvent, NamesAsAnnounced};
+use crate::events::event::{AppliedReplacement, DamageTarget, EventRecord, GameEvent, NamesAsAnnounced};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer, UnaskedChoice};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
@@ -29,7 +29,7 @@ use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::types::triggers::{DelayedDuration, Lki, ReflexiveForm};
+use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaSymbol, ManaType};
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
@@ -869,11 +869,11 @@ fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) ->
     }
 }
 
-/// An object as an event read it (CR 608.2h): by its last known information
-/// when the event carries one, since it had left (a look-back frame, a source
-/// dealing damage after it left), and as its record named it otherwise.
-fn as_it_left(game: &GameState, id: ObjectId, lki: Option<&Lki>, announced: &NamesAsAnnounced) -> String {
-    match lki {
+/// An object as `event`'s line names it: as it last existed, where the record
+/// keeps a frame of it (`GameEvent::frame_of`, CR 113.7a), and under the name
+/// the record kept for it otherwise.
+fn named_in(game: &GameState, event: &GameEvent, id: ObjectId, announced: &NamesAsAnnounced) -> String {
+    match event.frame_of(id) {
         Some(lki) => object_label(game, id, &lki.chars().name),
         None => name_with_id(game, id, announced),
     }
@@ -898,13 +898,13 @@ fn ability_word(identity: AbilityIdentity) -> String {
 
 /// What caused a record, as its log line says it (`replacement-architecture.md`
 /// §2b.3): the rule's or the action's name, or whose spell or ability's effect,
-/// cost, cast or activation it was.
-fn cause_words(game: &GameState, cause: &EventCause) -> String {
+/// cost, cast or activation it was, each object as `named` names it.
+fn cause_words(cause: &EventCause, named: impl Fn(ObjectId) -> String) -> String {
     match cause {
         EventCause::Effect { resolution, generated_by } => {
-            format!("{generated_by:?} of {} [P{}]", name_with_id(game, resolution.source, &None), resolution.controller)
+            format!("{generated_by:?} of {} [P{}]", named(resolution.source), resolution.controller)
         }
-        EventCause::Cost { player, paying_for } => format!("Cost of {} [P{player}]", name_with_id(game, *paying_for, &None)),
+        EventCause::Cost { player, paying_for } => format!("Cost of {} [P{player}]", named(*paying_for)),
         EventCause::Casting(player) => format!("Casting [P{player}]"),
         EventCause::Activating(player) => format!("Activating [P{player}]"),
         EventCause::SpecialAction { player, action } => format!("{action:?} [P{player}]"),
@@ -913,6 +913,17 @@ fn cause_words(game: &GameState, cause: &EventCause) -> String {
         EventCause::GameRule(rule) => format!("{rule:?}"),
         EventCause::Harness => "Harness".to_string(),
     }
+}
+
+/// ", replaced by …": each replacement effect that applied to a move, in
+/// order (CR 614.5), marked where it changed where the move goes.
+fn replaced_by_words(applied: Option<&[AppliedReplacement]>, named: impl Fn(ObjectId) -> String) -> String {
+    let Some(applied) = applied else { return String::new() };
+    let each: Vec<String> = applied
+        .iter()
+        .map(|a| format!("{}{}", cause_words(&a.by, &named), if a.redirected { " (redirected)" } else { "" }))
+        .collect();
+    format!(", replaced by {}", each.join(", "))
 }
 
 /// [`format_event`] of a performed record.
@@ -925,7 +936,8 @@ pub fn format_record(game: &GameState, record: &EventRecord) -> String {
 pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnnounced, cause: &EventCause) -> String {
     use crate::events::event::CounterSubject;
     use crate::events::event::GameEvent::*;
-    let obj_name = |game: &GameState, id: ObjectId| name_with_id(game, id, announced);
+    let obj_name = |game: &GameState, id: ObjectId| named_in(game, event, id, announced);
+    let named = |id: ObjectId| obj_name(game, id);
     let counter_subject_name = |game: &GameState, subject: CounterSubject| match subject {
         CounterSubject::Object(id) => obj_name(game, id),
         CounterSubject::Player(pid) => format!("P{}", pid),
@@ -945,28 +957,15 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 names.sort();
                 format!(" ({})", names.join(" "))
             }).unwrap_or_default();
-            // Each replacement that applied, in order, and the ones that sent
-            // it somewhere else.
-            let replaced = applied.as_deref().map(|applied| {
-                let each: Vec<String> = applied
-                    .iter()
-                    .map(|a| format!("{}{}", cause_words(game, &a.by), if a.redirected { " (redirected)" } else { "" }))
-                    .collect();
-                format!(", replaced by {}", each.join(", "))
-            }).unwrap_or_default();
             format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}] by {}{}",
-                    as_it_left(game, *object_id, lki.as_ref(), announced), was, owner, from, to, act, cause_words(game, cause), replaced)
+                    named(*object_id), was, owner, from, to, act, cause_words(cause, named), replaced_by_words(applied.as_deref(), named))
         }
         ControlChanged { object_id, from, to, lki: _ } => {
             format!("ControlChanged: {} [P{} -> P{}]", obj_name(game, *object_id), from, to)
         }
         SameZoneMove { object_id, owner, zone, act, lki: _, applied } => {
-            let replaced = applied.as_deref().map(|applied| {
-                let each: Vec<String> = applied.iter().map(|a| cause_words(game, &a.by)).collect();
-                format!(", replaced by {}", each.join(", "))
-            }).unwrap_or_default();
             format!("SameZoneMove: {} [P{}] stays in {:?} [{:?}] by {}{}",
-                    obj_name(game, *object_id), owner, zone, act, cause_words(game, cause), replaced)
+                    named(*object_id), owner, zone, act, cause_words(cause, named), replaced_by_words(applied.as_deref(), named))
         }
         AbilityActivated { identity, controller, .. } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source.id), controller),
@@ -1026,9 +1025,9 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 if *tapped_for_mana { " tapped for mana" } else { "" },
             )
         }
-        DamageDealt { source_id, source_lki, target, amount, excess, is_combat } => {
+        DamageDealt { source_id, source_lki: _, target, amount, excess, is_combat } => {
             let target_str = damage_target_name(game, *target);
-            let source = as_it_left(game, *source_id, source_lki.as_ref(), announced);
+            let source = named(*source_id);
             let excess = if *excess > 0 { format!(", {excess} excess") } else { String::new() };
             format!(
                 "DamageDealt: {} -> {} for {}{}{}",
@@ -1041,7 +1040,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         }
         DamagePrevented { target, amount, by: _ } => {
             let target_str = damage_target_name(game, *target);
-            format!("DamagePrevented: {} to {} by {}", amount, target_str, cause_words(game, cause))
+            format!("DamagePrevented: {} to {} by {}", amount, target_str, cause_words(cause, named))
         }
         PhaseBegin { phase, player } => format!("PhaseBegin: {:?} [P{}]", phase, player),
         StepBegin { step, player } => format!("StepBegin: {:?} [P{}]", step, player),
@@ -1107,9 +1106,9 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         SpellFizzled { spell_id, controller } => format!("SpellFizzled: {} [P{}] {DOES_NOT_RESOLVE}", obj_name(game, *spell_id), controller),
         AbilityFizzled { identity, controller } => format!(
             "AbilityFizzled: {}'s {} [P{}] {DOES_NOT_RESOLVE}", obj_name(game, identity.source.id), ability_word(*identity), controller),
-        PlayerLost { player_id } => format!("PlayerLost: P{} by {}", player_id, cause_words(game, cause)),
+        PlayerLost { player_id } => format!("PlayerLost: P{} by {}", player_id, cause_words(cause, named)),
         PlayerWon { player_id } => format!("PlayerWon: P{}", player_id),
-        GameEndedInADraw => format!("GameEndedInADraw: by {}", cause_words(game, cause)),
+        GameEndedInADraw => format!("GameEndedInADraw: by {}", cause_words(cause, named)),
         CountersPutOn { subject, counter_type, n, by, now } => format!(
             "CountersPutOn: {} {} counter(s) put on {} by P{} (now {})",
             n, counter_type.name(), counter_subject_name(game, *subject), by, now
@@ -1139,8 +1138,8 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             "Unattached: {} from {} ({:?})",
             obj_name(game, attachment.id), obj_name(game, former_host.id), route
         ),
-        LeftTheGame { object_id, owner, from, lki } => {
-            format!("LeftTheGame: {} (P{}, from {:?})", as_it_left(game, *object_id, lki.as_ref(), announced), owner, from)
+        LeftTheGame { object_id, owner, from, lki: _ } => {
+            format!("LeftTheGame: {} (P{}, from {:?})", named(*object_id), owner, from)
         }
         TokenCreated { object_id, owner, zone, .. } => {
             format!("TokenCreated: {} (P{}, in {:?})", obj_name(game, *object_id), owner, zone)
