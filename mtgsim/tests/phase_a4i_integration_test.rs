@@ -60,7 +60,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 /// **Exactly, and that is the point.** A pool with spare colours makes the
 /// generic component a real CR 601.2h choice and every test in this file would
 /// have to script an allocation it is not about. With the cost's own mana and
-/// nothing else the split is forced (CR 102.2), so the only prompts these tests
+/// nothing else the split is forced, so the only prompts these tests
 /// see are CR 601.2c's.
 fn pay_for(game: &mut GameState, player: PlayerId, generic: u64, colored: &[(ManaType, u64)]) {
     if generic > 0 {
@@ -223,7 +223,7 @@ fn make_black(game: &mut GameState, id: ObjectId, controller: PlayerId) {
 /// names it, and the pumps stack.
 ///
 /// **Zero prompts, and that is the assertion that matters most.** A fixed count
-/// of one with one legal choice is not a choice (CR 102.2), so each of the
+/// of one with one legal choice is not a choice, so each of the
 /// three announcements is forced. Before this phase the spell had one recipient
 /// and one prompt; the difference between "one clause" and "three clauses all
 /// forced to the same creature" is invisible in the prompt log and entirely
@@ -480,7 +480,7 @@ fn plague_spores_destroys_the_land_when_the_creature_clause_went_illegal() {
 
     let dp = stopping_dp();
     // Both clauses have exactly one legal choice — the animated land — so both
-    // announcements are forced (CR 102.2) and neither reaches the provider.
+    // announcements are forced and neither reaches the provider.
     // The scripted provider panics on a prompt it was not given, which is that
     // assertion; the one decision counted is the CR 601.2g mana window, which
     // a board whose target *is* an untapped land cannot avoid offering.

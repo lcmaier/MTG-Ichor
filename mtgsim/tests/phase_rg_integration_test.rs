@@ -212,6 +212,8 @@ fn a_power_filter_beside_members_that_raise_no_power_is_not_asked() {
     let entry = &game.battlefield[&bears];
     assert!(entry.tapped);
     assert_eq!(entry.counter_count(CounterType::Charge), 1);
+    // The elision is recorded in the game's log (`plans/elisions.md` §3).
+    mtgsim::test_support::assert_not_asked(&game, 0, "ChooseReplacementEffect", "every order leaves one game (CR 616.1)");
 }
 
 /// Premise (a) with an edit. Adding Mutant can turn a leaf only on, so it can

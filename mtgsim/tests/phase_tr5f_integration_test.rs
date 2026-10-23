@@ -566,6 +566,7 @@ fn a_token_put_onto_the_battlefield_attacking_never_attacked() {
         assert!(game.battlefield[&human].tapped);
     }
     assert_eq!(entering_defender_prompts(&dp), 0, "one player to attack, so nothing to choose");
+    mtgsim::test_support::assert_not_asked(&game, 0, "ChooseEnteringDefender", "its one legal answer");
     assert_eq!(life(&game, 1), 18, "Hellrider's two triggers, and none for the tokens");
     let attacked = |id| {
         let object = Some(existence(&game, id));

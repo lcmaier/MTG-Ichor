@@ -634,7 +634,7 @@ fn test_mirrorweave_registers_one_row_for_the_whole_class() {
     assert_eq!(copy_rows[0].layer, Layer::Layer1Copy);
 }
 
-/// CR 102.2 — with one candidate the CR 707.4 choice is forced, so nothing is
+/// With one candidate the CR 707.4 choice is forced, so nothing is
 /// asked. `ScriptedDecisionProvider` with an empty queue panics on any prompt,
 /// which is the assertion.
 #[test]
@@ -645,6 +645,7 @@ fn test_cytoshape_asks_nothing_when_only_one_creature_can_be_chosen() {
     let dp = ScriptedDecisionProvider::new();
     resolve_spell(&mut game, cytoshape(), 0, vec![target], &dp);
     assert_eq!(get_effective_name(&game, target), "Bear");
+    mtgsim::test_support::assert_not_asked(&game, 0, "ChooseCopySource", "its one legal answer");
 }
 
 /// CR 608.2b — a target that has left the battlefield leaves nothing to affect,

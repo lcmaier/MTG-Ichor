@@ -146,13 +146,16 @@ fn test_volcanic_upheaval_destroys_land() {
     let decisions = ScriptedDecisionProvider::new();
     // CastSpell at index 1 in [Pass, CastSpell(upheaval_id)]
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // The only legal target, so CR 102.2 makes the choice forced and
+    // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
     // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
     // Cast (returns ActionTaken immediately)
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
+    // Both answered unasked, and the game's log says so.
+    mtgsim::test_support::assert_not_asked(&game, 0, "SelectRecipients", "its one legal answer");
+    mtgsim::test_support::assert_not_asked(&game, 0, "GenericManaAllocation", "its one legal answer");
     // Land is still on battlefield while upheaval is on the stack
     assert!(game.battlefield.contains_key(&target_land));
 
@@ -184,7 +187,7 @@ fn test_burst_of_energy_untaps_land() {
     let decisions = ScriptedDecisionProvider::new();
     // CastSpell at index 1 in [Pass, CastSpell(burst_id)]
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // The only legal target, so CR 102.2 makes the choice forced and
+    // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // Cast (returns ActionTaken immediately)
     game.run_priority_round(&decisions).unwrap();
@@ -218,7 +221,7 @@ fn test_volcanic_upheaval_fizzles_when_target_destroyed() {
 
     // Cast first upheaval targeting the land
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // The only legal target, so CR 102.2 makes the choice forced and
+    // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
     // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
@@ -268,7 +271,7 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
 
     // Player 0 casts Burst of Energy targeting their own tapped land
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // The only legal target, so CR 102.2 makes the choice forced and
+    // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     game.run_priority_round(&decisions).unwrap();
 
@@ -276,7 +279,7 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
     // After ActionTaken, priority returns to caster (player 0) who passes
     // Player 1 casts: CastSpell(upheaval_id) at idx 1 in [Pass, CastSpell(upheaval_id)]
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // The only legal target, so CR 102.2 makes the choice forced and
+    // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
     // the split is forced and nothing is asked (`ui::ask::forced_allocation`).

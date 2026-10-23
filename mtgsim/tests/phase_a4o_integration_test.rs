@@ -42,7 +42,7 @@ use mtgsim::ui::decision::ScriptedDecisionProvider;
 /// Merfolk Thaumaturgist under player 1, with Counterspell and its {U}{U} in
 /// player 0's hand and pool.
 ///
-/// Exactly {U}{U} and no lands: the cost is forced (CR 102.2) and the CR 601.2g
+/// Exactly {U}{U} and no lands: the cost is forced and the CR 601.2g
 /// window has no mana ability to offer, so every prompt these tests see would
 /// be a CR 601.2c one — which is the assertion.
 fn thaumaturgist_and_a_counterspell(game: &mut GameState) -> (ObjectId, ObjectId) {
@@ -103,8 +103,8 @@ fn counterspell_is_not_offered_an_activated_ability_on_the_stack() {
     // CR 112.1 — a spell is a *card* on the stack, and CR 113.7a makes an
     // activated ability on the stack something else entirely: an object that
     // is not a card and goes to no zone. Before the filter asked `is_spell`,
-    // the ability was the only other object on the stack, so CR 102.2 made the
-    // choice forced and the cast went through with no prompt at all.
+    // the ability was the only other object on the stack, so the
+    // choice was forced and the cast went through with no prompt at all.
     let mut game = setup_two_player_game();
     let (thaum, counter) = thaumaturgist_and_a_counterspell(&mut game);
     let dp = test_dp();
@@ -164,7 +164,7 @@ fn counterspell_is_not_offered_an_activated_ability_on_the_stack() {
 fn counterspell_takes_the_spell_beside_the_ability_without_a_prompt() {
     // The same board, plus a real spell: player 1 activates the Thaumaturgist
     // and then casts Giant Growth at it, so the stack holds one ability and
-    // one spell. CR 102.2 makes Counterspell's target forced *again* — but for
+    // one spell. Counterspell's target is forced *again* — but for
     // the opposite reason. One candidate, and it is the spell.
     //
     // A `ScriptedDecisionProvider` with an empty queue panics on the first

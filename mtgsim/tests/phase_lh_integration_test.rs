@@ -349,7 +349,7 @@ fn equip(
 ) -> Result<(), String> {
     game.players[player].mana_pool.add(ManaType::White, 1);
     let decisions = ScriptedDecisionProvider::new();
-    // `None` is a board with one legal creature: CR 102.2 makes the target
+    // `None` is a board with one legal creature: the target is
     // forced and nothing is asked. The {1} is never a question either — the
     // White is the only mana in the pool, so the split is forced too.
     if let Some(pick) = pick {

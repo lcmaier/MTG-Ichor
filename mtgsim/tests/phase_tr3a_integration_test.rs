@@ -603,7 +603,7 @@ fn two_attackers_declared_at_once_ask_a_once_delayed_trigger_s_controller() {
 
 /// The choice is asked only between events that give different games: a
 /// "draw a card" reads nothing of its event, so two deaths at once are one
-/// answer, and nobody is asked (CR 102.2; item 163's reading).
+/// answer, and nobody is asked (item 163's reading).
 #[test]
 fn simultaneous_events_that_agree_on_everything_read_ask_nothing() {
     let mut game = setup_two_player_game();

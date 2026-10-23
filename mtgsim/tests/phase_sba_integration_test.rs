@@ -59,7 +59,7 @@ fn cast_battlegrowth_at_the_only_creature(game: &mut GameState, player: usize) -
     let id = put_in_hand(game, battlegrowth(), player);
     game.players[player].mana_pool.add(ManaType::Green, 1);
 
-    // Nothing to script: exactly one creature, so CR 102.2 makes the target
+    // Nothing to script: exactly one creature, so the target is
     // forced and no prompt is made.
     let decisions = ScriptedDecisionProvider::new();
 

@@ -344,7 +344,7 @@ fn test_counterspell_cleans_up_stack_entries() {
         vec![1],
     );
     // The Counterspell's is not: the bolt is the only spell on the stack, so
-    // CR 102.2 makes it forced and no prompt is made.
+    // it is forced and no prompt is made.
     let cs_id = put_in_hand(&mut game, alpha::counterspell(), 1);
     game.cast_spell(0, bolt_id, &decisions).unwrap();
     assert!(game.stack_entries.contains_key(&bolt_id));

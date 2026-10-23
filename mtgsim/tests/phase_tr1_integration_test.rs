@@ -2035,7 +2035,7 @@ fn kicker_red() -> AdditionalCost {
 
 /// Cast `card` from hand out of exactly `pool`, kicking it or not, then
 /// resolve it and anything its resolution triggered. Exact, so the generic
-/// split is forced (CR 102.2) and asks nothing.
+/// split is forced and asks nothing.
 fn cast_from_exact_pool(card: Arc<CardData>, pool: &[ManaType], kick: bool) -> (GameState, ObjectId) {
     let mut game = setup_two_player_game();
     let id = put_in_hand(&mut game, card, 0);

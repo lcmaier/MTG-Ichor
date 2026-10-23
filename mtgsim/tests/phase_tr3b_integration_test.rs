@@ -365,6 +365,7 @@ fn a_delayed_trigger_watching_two_tokens_that_die_at_once_triggers_once() {
     assert_eq!(life(&game, 0), 25, "one trigger for the two deaths");
     assert!(game.delayed_triggers.is_empty(), "triggered once and gone (CR 603.7b)");
     assert!(dp.kinds().iter().all(|k| k != "ChooseDelayedTriggerEvent"), "two causes, one game: nothing asked");
+    mtgsim::test_support::assert_not_asked(&game, 0, "ChooseDelayedTriggerEvent", "every event leaves one game (CR 603.7b)");
 }
 
 /// Sneak Attack's shape on a creature already there: "{T}: Target creature
