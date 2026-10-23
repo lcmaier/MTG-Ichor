@@ -2,7 +2,8 @@
 
 > **Status:** design, authored 2026-09-07 and revised the same day against the
 > owner's review (seven notes and a judge's walkthrough of the Ironworks loop;
-> each is answered where it lands and listed in §11). CM-0 and CM-1 built.
+> each is answered where it lands and listed in §11). CM-0 through CM-4 built.
+> CP-1 and CP-2 are sized slots (§6).
 > **Authority:** the cost pipeline — what a cost modification *is* in this
 > engine, which objects can have one, where one is discovered, the CR 601.2f
 > order as built, the lock-in, and the phase sequencing for CR 601.2f–h /
@@ -255,17 +256,22 @@ games (CM-1, 2026-09-07) — found by the A/B arm, not by argument (§8 item 8).
 Dominion's graveyard abilities — are `roadmap-v2.md` A5's zone-function
 predicate, which is what answers "which abilities function from where" for
 every static shape at once; this document adds a source when that exists
-rather than a graveyard sweep now.
+rather than a graveyard sweep now. (The predicate exists since LK, 2026-09-14,
+`engine/zone_function.rs`; the cost gather still sweeps the battlefield alone,
+and unlike the replacement sweep's zone leg (RF) and the restriction sweep's
+(`codebase-state.md` item 146, slotted at RS-2) this one has no item yet.)
 
-**One thing the other two gates get wrong and this one does not.**
-`register_static_effects` inserts a source when `ability.effect` *is* an
-`Effect::Replacement` or `Effect::Restriction`; a conditional one —
-`Effect::Conditional(cond, Replacement)` — is never inserted and the gather
-never sees it, so a conditional replacement or restriction static is inert
-today (no registered card has one; §8). Trinisphere prints exactly that shape
-— "as long as this artifact is untapped" — so this gate sees through the
-wrapper: `Effect::as_cost_modification` peels `Conditional` and returns the
-condition beside the definition, and all three legs use it.
+**All three gates see through the wrapper.** Trinisphere prints a
+conditional static — "as long as this artifact is untapped" — so this gate
+sees through `Effect::Conditional`: `Effect::as_cost_modification` peels it
+and returns the condition beside the definition, and all three legs use it.
+When this was written the other two gates did not, and a conditional
+replacement or restriction static was inert (§8 item 1). Since RE-6
+(2026-09-12, `codebase-state.md` item 73) `register_static_effects` files
+through `Effect::replacement_body`, `Effect::as_restriction` and
+`Effect::as_cost_modification`, each peeling `Conditional` with
+`with_its_condition`, and the sweeps (`replacement_of`, `is_prohibited`, the
+cost gather) peel it too and ask the condition at the proposal.
 
 ### 3.2 The type surface
 
@@ -284,7 +290,8 @@ pub enum CostSubject {
     /// spell's frame with "you" resolved to the source's *current* controller
     /// (CR 109.5); the spell's own controller is its caster (CR 601.2a).
     Spells(ObjectFilter),
-    // Itself — the spell this ability is on (CR 113.6d/e, 702.41a): CM-2.
+    /// This spell — CR 113.6d, 702.41a (CM-2).
+    Itself,
     // ActivatedAbilities(ObjectFilter) — §3.10, with its first consumer.
 }
 
@@ -294,8 +301,9 @@ pub enum CostChange {
     Increase(ManaCost),
     /// "cost {N} less to cast" — a cost reduction, applied under CR 118.7a–d.
     Reduce(ManaCost),
-    // ReduceGeneric(AmountExpr) — "cost {X} less, where X is …": CM-2, with
-    //   the evaluator §3.7 argues for.
+    /// "cost {N} less, where N is …" — generic only, read through
+    /// `settled_amount` (CM-2, the evaluator §3.7 argues for).
+    ReduceGeneric(AmountExpr),
     // Reduce { not_below } — "can't reduce the mana in that cost to less than
     //   one mana", a clamp on one reduction's application, printed on 8 cards,
     //   all of them activated-ability reducers: with that subject (§3.10).
@@ -319,7 +327,9 @@ counted 2026-09-07, 275 occurrences in 25 `src/` files, 119 in 18 test files,
 56 in live plan documents — a mechanical sweep with `cargo build` as the
 check and no behaviour to test. The matcher that answers it,
 `targeting::permanent_matches_filter_in_frame`, keeps its body and becomes
-`object_matches_filter_in_frame`; `NotSource` and `PowerLE` answer for a spell as for any object;
+`object_matches_filter_in_frame` (since 2026-10-14 the one leaf table answers
+it, asked through `object_matches_filter_of_source`, §4 and
+`layers-architecture.md` §3.4); `NotSource` and `PowerLE` answer for a spell as for any object;
 `Token` and `ByOwner` read the `GameObject`, which a spell also is. The
 **zone leaf** item 9 wants on the same type is not part of CM-0 — a rename
 with a semantic change in it is two PRs wearing one name.
@@ -342,8 +352,12 @@ arithmetic in one function, the one call `cast_spell` makes at 601.2f.
 `engine::costs` keeps *payment* (601.2h). The steps:
 
 1. **Merge.** Every `Cost::Mana` in the assembled list — the base or
-   alternative cost, an X expansion, a kicker's mana — becomes **one** mana
-   component. CR 601.2f speaks of "the mana component of the total cost" in
+   alternative cost and a kicker's mana — becomes **one** mana component. The
+   base's X stays a variable through steps 3–5 (`ManaComponent::x_symbol_count`,
+   read by no modification), and step 6 evaluates it at the announced X
+   (`TotalCostInX::locked_at`); `total_cost_in_x` is the total CR 601.2b's
+   announcement of X reads. An additional cost's {X} stays a symbol (§6's CP-2
+   row). CR 601.2f speaks of "the mana component of the total cost" in
    the singular, and CR 118.8 says additional costs are paid "at the same
    time". The non-mana costs keep their order behind it; **the component goes
    first**, because CR 601.2h lets the first group's costs be paid "in any
@@ -365,7 +379,8 @@ arithmetic in one function, the one call `cast_spell` makes at 601.2f.
    {0}". A `not_below` reduction additionally stops at its own floor — the
    mana value may not drop below N *by this reduction* — which is a clamp on
    the step and not on the total: a later, unfloored reduction may still take
-   it lower (§3.4's worked example).
+   it lower (§3.4's worked example). (Not built: no arm carries `not_below`
+   until its subject lands, §3.2 and §3.10.)
 5. **Direct-total effects.** `TotalAtLeast(n)` raises the component's mana
    value to `n` with generic. Two Trinispheres agree, so the order is
    immaterial and none is chosen.
@@ -646,8 +661,10 @@ of the log. It needs two facts and one designation:
   `ObjectId`, which survives zone changes here (`move_object` keeps the id and
   bumps `zone_change_epoch`), incremented at 601.2i when the spell becomes
   cast and `cast_from == Command && is_commander`;
-- *a commander* — `is_commander` is set nowhere in production ("Before
-  Commander" item 2), and `can_begin_to_cast` admits only the hand.
+- *a commander* — `is_commander` is set only by the scenario loader's
+  `Commander` card word (`scenario/build.rs`), with no `GameConfig`
+  designation and no deck-built game setting it ("Before Commander" item 2),
+  and `can_begin_to_cast` admits only the hand.
 
 The counter is a fact, and facts are recorded on their first customer
 (`engineering-practices.md` §5). The first customer is the tax, and the tax
@@ -753,7 +770,7 @@ vocabulary (the owner's limit), and it is not v1's.
 |---|---|---|---|
 | 1 | With priority, tap Mox Opal for one mana of any color, then sacrifice it to Ironworks: three mana | 605.3a (a mana ability whenever you have priority); metalcraft is an activation restriction with a count condition | `backlog.md` §2.8 (the restriction), §2.19 (any-color mana); CM-3 (the sacrifice cost) |
 | 2 | Announce Chromatic Sphere's ability. 602.2b runs 601.2f: the total cost, {1}, is locked; 601.2g opens the mana window because the cost includes a mana payment | 601.2f, 601.2g | **this document** (the lock); CM-4 (the window) |
-| 3 | In the window, sacrifice Myr Retriever to Ironworks, then Ironworks to itself: seven mana. "Obviously you don't need any more mana to activate Chromatic Sphere, but there's nothing saying you can't take advantage of that rule here to make some more" | 605.3a — "whenever they are … activating an ability that requires a mana payment", with no "until it is paid". Each activation is its own event, in order: Trawler sees both leave; Retriever's own trigger fires | CM-3 (Ironworks sacrificing itself is `Cost::Sacrifice(Artifact, 1)` choosing the source); **CM-4** — today the window closes the moment the pool covers {1}, so step 3 is impossible (§8) |
+| 3 | In the window, sacrifice Myr Retriever to Ironworks, then Ironworks to itself: seven mana. "Obviously you don't need any more mana to activate Chromatic Sphere, but there's nothing saying you can't take advantage of that rule here to make some more" | 605.3a — "whenever they are … activating an ability that requires a mana payment", with no "until it is paid". Each activation is its own event, in order: Trawler sees both leave; Retriever's own trigger fires | CM-3 (Ironworks sacrificing itself is `Cost::Sacrifice(Artifact, 1)` choosing the source); **CM-4** — when this was written the window closed the moment the pool covered {1}, so step 3 was impossible; CM-4 moved that stop into a payer, `ui::ManaWindowStop`, and the engine offers the window until the player declines (§8 item 3) |
 | 4 | Pay {1}, tap and sacrifice the Sphere: six mana. Trawler sees the Sphere die | 601.2h, after the window | CM-3 |
 | 5 | The mana ability resolves at once: one mana of any color, draw a card. Seven mana | 605.3b — no stack, no priority in between. **Frozen CR only**: under the current 605.1a the Sphere's ability uses the stack, and step 6's triggers go on top of it | §2.19; a draw inside a mana ability's effect, which `mana.rs::resolve_mana_effect` must carry (noted for §2.19's owner) |
 | 6 | "All these triggered abilities don't go on the stack right away; they wait until a player is about to get priority, which in this case means right after we finish resolving Chromatic Sphere's ability." Targets are chosen as each goes on the stack, so Retriever, Ironworks and the Sphere are all in the graveyard: Trawler's trigger from Ironworks (mana value 4) returns Retriever (2), its trigger from Retriever returns the Sphere (1), its trigger from the Sphere returns Mox Opal (0), and Retriever's own trigger returns Ironworks | 603.3, 603.3b (the controller orders them), 603.3d (targets chosen as the ability is put on the stack) | critical-path item 6. **A vocabulary gap for it:** "with lesser mana value" is a graveyard target compared against the *trigger's source*, a selection leaf relative to the ability's origin, which no filter says today |
@@ -902,7 +919,7 @@ something irreversible**, which is §3.3's mana-first argument generalised:
 | rank | costs | why nothing after it can fail |
 |---|---|---|
 | 0 | `Mana` | the only cost whose payment can fail on a choice the player made — an illegal generic split — so it is paid while nothing else has been |
-| 1 | `Tap`, `Untap`, `PayLife`, counters | reads the source's tapped state, its summoning sickness, or a life total; no rank-0 payment touches any of them |
+| 1 | `TapSelf`, `UntapSelf`, `PayLife`, `RemoveCounters`, `AddCounters` | reads the source's tapped state, its summoning sickness, or a life total; no rank-0 payment touches any of them |
 | 2 | `Sacrifice`, `SacrificeSelf`, `Discard`, `ExileFromGraveyard` | its own payment cannot fail — `plan_payment` enumerated the candidates and `validate_pick_n` bounds the answer — and nothing follows it that a removal could invalidate |
 
 `payment_order_rank` is matched exhaustively, so a new `Cost` arm decides where
@@ -976,15 +993,19 @@ abilities are the third leg, OR'd with the same two flags, and the leg asks
 Only when some leg opens is a frame computed at all — and when source 1's
 sweep is running, that frame is the one it was already going to compute.
 
-**Two predicates, one per gate, and they are not each other's negation.**
-`applies_from_battlefield` decides whether `register_static_effects` records a
-permanent as a source at all — an affinity creature is a source of nothing,
-because its subject is an identity test a permanent can never satisfy, and
-recording it widened the sweep on every cast for a match that could not
-succeed. `applies_to_its_own_object` is source 2's leg. CR 602.2b's activated
-abilities (§3.10) will answer `true` to the first and `false` to the second,
-which is why one predicate could not do both jobs; both are matched
-exhaustively, so a new subject has to answer each.
+**One predicate on `CostSubject`, and one zone rule.** `register_static_effects`
+records a battlefield source only when `engine::zone_function::functions_in`
+says the ability functions there (CR 113.6), and that rule derives "not on the
+battlefield" for an `Itself` subject from `applies_to_its_own_object`
+(CR 113.6d) — so an affinity creature is a source of nothing, because its
+subject is an identity test a permanent can never satisfy, and recording it
+widened the sweep on every cast for a match that could not succeed.
+`applies_to_its_own_object` is also source 2's leg. CR 602.2b's activated
+abilities (§3.10) will answer `false` to it and still function on the
+battlefield, which is why the zone question is CR 113.6's and not a second
+method. (Until LK, 2026-09-14, the zone half was
+`CostSubject::applies_from_battlefield`, a second predicate; LK moved it into
+`functioning_zones` and deleted the method, `layers-architecture.md` §13d.)
 
 **What the spell-side match reads.** `object_matches_filter_of_source(spell,
 filter, source_controller, source, Some(HeldFrame::Characteristics(frame)))`,
@@ -1037,7 +1058,7 @@ the same player.
 | **CM-2 — the spell's own cost abilities** ✅ | `CostSubject::Itself` (source 2), `CostChange::ReduceGeneric(AmountExpr)`, the evaluator §3.7 argues for (`CountOf` and `SourcePower` over the finished board), affinity lowered to it, the preview reading the hand frame's cost abilities (113.6e). **And the `CardDataBuilder::keyword` → `keyword_flag` rename** (42 sites in 16 `src/` files, 3 in tests; zero behaviour, its own commit), because affinity is the first keyword a builder writes that is not a flag. **Consumers:** Myr Enforcer, Frogmite (affinity for artifacts; one pooled — the pool's first self-reduction and the first `CountOf` at cast time) | 1 source, 1 arm, 1 evaluator (~120), a builder helper, 2 cards, ~250 of tests: ~600 | low-medium — the evaluator is a third reader of `AmountExpr` and item 57's warning is answered in §3.7 |
 | **CM-3 — lock-in's payment side** ✅ | `Cost::Sacrifice(filter, n)` paid through the chokepoint with a `ChoiceKind` for which permanent, as a spell's additional cost and as a mana ability's cost; a mandatory additional cost (`AdditionalCost` today is all optional, CR 118.8b); the mana component is already paid *first* (§3.3), so a split that fails has paid nothing else — and CR 732.1's "any payments already made are canceled" turned out to need nothing added — §3.12 is the answer and the gate. **Consumers:** Altar's Reap + Thunderscape Familiar (CR 601.2h's own example, a named board); Krark-Clan Ironworks + Foundry Inspector (the lock-in through the window, §3.11); Mind Stone (the 732.1 board, its trigger half left for item 6) | 2 payment arms + 1 check arm in `costs.rs`, 1 prompt, 1 `ask_choose_additional_costs` change, 5 cards, ~350 of tests: ~800 | low — payment machinery with the CR's own board and the banned deck's as the tests |
 | **CM-4 — the mana window and the payer** ✅ | `run_mana_ability_window` opens only when the locked mana component is non-empty (601.2g) and then runs until the player declines or no ability is left (605.3a) — it also stopped the moment the pool covered the cost, which was a payer's policy in the engine's loop (§3.11, §8). The policy moved to **two** decorators, not one: `ui::ManaWindowStop<D>` takes the stop, `ui::AutoPayer<D>` takes `GenericManaAllocation` and `OrderCostReductions`, and CM-3's sacrifice choice stays the wrapped provider's (§3.4's criterion). Clients compose; `--no-auto-pay` drops the stack. **Consumers:** the loop's step 3 with CM-3's cards, no new card needed; the fuzz harness | ~35 in the window, ~290 decorators, ~60 wiring, ~330 tests: ~715 | medium — every cast's prompt sequence passes through it; the A/B is the check, and it found the one board where the payer's stop is narrower than the engine's was |
-| **CP-1 — hybrid, Phyrexian and X payment (a sized slot, not a design)** | §2.1's other half. 601.2b's announcement of a nonhybrid equivalent and of Phyrexian halves (a `ChoiceKind`, before 601.2f); `ManaPool::pay`/`can_pay` branches for `Hybrid`, `MonoHybrid`, `Phyrexian`, `HybridPhyrexian` (`pay_life` for the latter, through the chokepoint), and a `ManaSymbol` arm for CR 107.4e's colorless hybrids `{C/W}`, which no arm can hold (one card, Ulalek, Fused Atrocity; item 212's census); an activated ability's `{X}`, which CR 602.2b's run of 601.2b announces and `activate_ability` never asks for (`x_value: None`; 145 cards); the existence check's arms for them, `mana-architecture.md` §3.2, which switch on with the payment's (the AI cannot cast a hybrid card today); `ask_choose_generic_mana_allocation`'s tally; mana value with X on the stack (202.3e — a characteristic, read off the `StackEntry`); `{Q}` exists as `Cost::Untap` and its atoms want annotations. **A note for the Scryfall parser that CP-1 or Phase 8 writes:** a printed cost's symbol order is not WUBRG — two-color costs follow the color wheel's shorter arc ({G}{U}, {R}{W}), shards and wedges have their own — and `ManaCost` equality is *sequence* equality, so a parser must keep the printed order for display and comparisons must be by multiset. `ATOM-107.4e/f-*` (7 `NEW`), `ATOM-202.3*` (7) | 6 sites; ~1 PR | medium — `ManaPool::pay` is on every cast |
+| **CP-1 — hybrid, Phyrexian and X payment (a sized slot, not a design)** | §2.1's other half. 601.2b's announcement of a nonhybrid equivalent and of Phyrexian halves (a `ChoiceKind`, before 601.2f); `ManaPool::pay`/`can_pay` branches for `Hybrid`, `MonoHybrid`, `Phyrexian`, `HybridPhyrexian` (`pay_life` for the latter, through the chokepoint), and a `ManaSymbol` arm for CR 107.4e's colorless hybrids `{C/W}`, which no arm can hold (one card, Ulalek, Fused Atrocity; item 212's census); an activated ability's `{X}`, which CR 602.2b's run of 601.2b announces and `activate_ability` never asks for (`x_value: None`; 145 cards); the existence check's arms for them, `mana-architecture.md` §3.2, which switch on with the payment's (the AI cannot cast a hybrid card today); `ask_choose_generic_mana_allocation`'s tally; mana value with X on the stack (202.3e — a characteristic, read off the `StackEntry`); `{Q}` exists as `Cost::UntapSelf` and its atoms want annotations. **A note for the Scryfall parser that CP-1 or Phase 8 writes:** a printed cost's symbol order is not WUBRG — two-color costs follow the color wheel's shorter arc ({G}{U}, {R}{W}), shards and wedges have their own — and `ManaCost` equality is *sequence* equality, so a parser must keep the printed order for display and comparisons must be by multiset. `ATOM-107.4e/f-*` (7 `NEW`), `ATOM-202.3*` (7) | 6 sites; ~1 PR | medium — `ManaPool::pay` is on every cast |
 | **CP-2 — the cost actions (a sized slot, not a design)** | Placed here by the owner on 2026-10-05, from `codebase-state.md` item 212's census (`plans/references/cast-census.md` §3; §11, item 3). **The four arms that are neither checked nor paid:** `Cost::Discard` (342 cards), `RemoveCounters` (235), `ExileFromGraveyard` (105) and `AddCounters` (10). Each is checked in `check_cost_resource` and paid through the chokepoint. Its choice (which card, which counter) is asked in `plan_payment` before anything is performed (§3.12), and `payment_order_rank` already ranks them. **The shapes the arms need, built once:** an amount that can be X, or that the board decides (half your life, 3 life for each counter), where an arm holds a fixed number (`PayLife(u64)`, `Sacrifice(_, u32)`, `RemoveCounters(_, u32)`: 96 pieces), with X announced from every cost that holds it (CR 107.3a), since `cast_spell` reads X only from the mana component of the total in X (`total_cost_in_x`: the chosen base, the mana cost or an alternative cost's own X, plus the additional costs' mana), never from a non-mana cost, and Toxic Deluge's X is a life payment in an additional cost; a choice between two costs, "pay {4} or sacrifice" (53); the counter arms naming their permanent, not only the source (removing from another, 45; putting on another, and blight, 15); tapping or untapping other permanents (194, and crew, saddle and station's 242); and the count that multikicker, replicate and squad announce at 601.2b (53). A loyalty ability's cost is the counter arms (311 planeswalkers); its timing is `permission-architecture.md`'s. `ChooseSacrificeForCost`'s why (`setup-architecture.md` §7c) lands here too. **Open for its design: an arm per action, or a cost composed of a choice and a `GameAction`** (the owner's question, 2026-10-05, at the census's review). CR 118.1 calls a cost "an action or payment", and RS-4 already maps each `Cost` arm onto the `GameAction`s it proposes, for CR 614.17b (`cant-effects-architecture.md` §4.6). Written as "choose these objects, then propose this action", a new cost built from existing actions is data rather than a new arm. A custom card (post-v1, `backlog.md` §2.37) could then add one without an engine change, bounded by `GameAction`'s vocabulary, which grows one arm per action by contract. Against it: CR 118.3's resource check and the payment prompt are per action today, so the composed form needs a legality check per `GameAction` kind before anything is proposed. That is the design's question to price. **Not CP-2's: the single-arm actions.** Energy, behold, reveal, return to hand, exile from a hand, a library or the battlefield, mill, exert, collect evidence, forage, waterbend, unattach and a die roll each get one arm with their first card, in C, the rule every row of this table follows. So do the Defilers' additional cost on other spells (CR 118.8; a `CostChange` arm, 7 cards) | 4 arms checked and paid, their prompts, the amount shape across 4 arms, 2 new arms (a choice, tapping others); ~1–2 PRs, sized at its design | low-medium. New prompts, but no registered card pays these costs, so no fixture moves |
 
 **Why the modification/payment seam is where it is** (the owner's question,
@@ -1142,7 +1163,8 @@ COVERS-PARTIAL. The session file carries a note on each.
 **CR 113.6d and 113.6e have no atoms**, and CM-2 checked rather than assumed:
 session-1 records both as PURE-DEF ("Framework"), so there was nothing to
 re-file for either and this document is the only place the zone question is
-written down. **CR 702.41b has no atom either** — the corpus has it as a
+written down. (Since LK, 2026-09-14, `layers-architecture.md` §13d writes it
+down too, as `engine/zone_function.rs`'s walk of CR 113.6's subrules.) **CR 702.41b has no atom either** — the corpus has it as a
 deferred one-liner — and the engine reached it anyway: affinity lowers to one
 static ability per instance and the gather returns one instance per ability, so
 "each of them applies" is the gather's shape rather than a case.
@@ -1166,11 +1188,14 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
 
 ## 8. Findings
 
-1. **A conditional replacement or restriction static is inert** (§3.1):
-   `register_static_effects` matches the body without peeling
-   `Effect::Conditional`, and neither gather does either. No registered card
-   has one; the fix is the same `as_…` peel this phase wrote for cost effects.
-   `codebase-state.md` "Before card breadth", new item. The prohibition gate's
+1. **A conditional replacement or restriction static was inert** (§3.1). ✅
+   Closed at RE-6 (2026-09-12), `codebase-state.md` item 73. As found:
+   `register_static_effects` matched the body without peeling
+   `Effect::Conditional`, and neither gather did either; the fix was the same
+   `as_…` peel this phase wrote for cost effects. It now files through
+   `Effect::replacement_body` and `Effect::as_restriction`, and the gathers
+   read `replacement_of` and `as_restriction`, asking the condition at the
+   proposal; Laboratory Maniac is the first registered card with one. The prohibition gate's
    granted and copied legs were the last to read the bare body; A6m's first PR
    (#249) gave them `as_restriction`.
 2. **Two `Cost::Mana` entries in one total were paid against one allocation**
@@ -1215,7 +1240,8 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
    games, found by `fuzz_ab.py`'s middle arm and by nothing else. Both fixed
    by asking `CostSubject` a question (`applies_from_battlefield`,
    `applies_to_its_own_object`), matched exhaustively so a new subject decides
-   both. **The general shape**: `Effect::as_…` tells you what kind of thing an
+   both. (LK, 2026-09-14, moved the first into CR 113.6's
+   `functioning_zones` and deleted it; §4 has the shape as built.) **The general shape**: `Effect::as_…` tells you what kind of thing an
    ability is, never where it can apply from, and every one of the three gates
    is about *where*.
 7. **CR 113.6e's second sentence has nothing to grant with** (CM-2, §3.1).
@@ -1234,7 +1260,7 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
    includes a mana payment", read against a component reduced to nothing)
    reachable from a measured game for the first time. The window's opening
    condition is still right today and still CM-4's to make explicit; only its
-   reachability moved.
+   reachability moved. (CM-4 made it explicit, item 3.)
 9. **"Is a mana ability" is an author's classification, and the rule it
    applies moved after the freeze** (§3.11). `AbilityType::Mana` is CR
    605.1a applied by whoever writes the card, and the Hobbit update added
@@ -1254,13 +1280,14 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
 - **Commander tax**: §3.8, with B2.
 - **`lands_per_turn`, `max_hand_size`, player hexproof**: `backlog.md` §2.15.
 - **Golden-Tail Trainer**: the *card*, with item 6 — its second ability is an
-  attack trigger, and a card wearing its name with half its text is what
+  attack trigger (item 6 has landed; the card is still unregistered), and a card wearing its name with half its text is what
   `engineering-practices.md` §3 forbids. Its *mechanism* is in:
   `settled_amount` answers `SourcePower` and `phase_cm_cards::power_reducer`
   is the fixture that consumes it (§3.7). Registering the printed card is then
   a card change with no engine change behind it.
 - **Cost abilities in other zones** (emblems, Convergence of Dominion): §3.1,
-  with A5.
+  with A5. A5's predicate has landed (LK); the cost gather's zone leg has not,
+  and has no item (§3.1).
 - **The Ironworks board's trigger half and the 732.1 reversal choice**:
   §3.11 and §8; the reversal is placed with critical-path item 6 rather than
   with the payer (§8 item 4). The window itself is CM-4, built.
