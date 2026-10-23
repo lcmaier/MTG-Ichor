@@ -699,7 +699,7 @@ definition can state it. It is maintained by whoever writes the ability onto the
 | Route | Flag | Why |
 |---|---|---|
 | Printed on the card | as authored | 604.3a(2), first clause |
-| Copy effect (Layer 1), text-changing effect (Layer 3) | rides along on the def | 604.3a(2), third clause — free, and the reason Deadpool, Trading Card would work once Layer 3 exists |
+| Copy effect (Layer 1), text-changing effect (Layer 3) | rides along on the def | 604.3a(2), third clause — free, and the reason Deadpool, Trading Card would work once Layer 3 exists. The one copy that drops a CDA is CR 707.9d's "except" clause, `CopiableValues::except` (`copy-effects-architecture.md` §3.4) |
 | Layer 6 `GrantAbility` | **must be cleared** | a Layer 6 grant is none of 604.3a(2)'s routes (printed, granted to a token by the effect that created it, copy or text change), so the ability is never a CDA there, however its text reads |
 
 The last row is honored in the Layer 6 grant arm (`layers::compute`), which clears the flag as it writes the def.
