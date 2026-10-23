@@ -111,7 +111,8 @@ pub struct StackEntry {
     /// different fact, and folding the two together is how a field starts
     /// drifting. `None` for abilities is the honest answer, not a missing value.
     ///
-    /// Two known customers, neither implemented yet:
+    /// Read at resolution into a permanent's `CastFacts` (CR 400.7d) and by the
+    /// history's `RowFact::Cast`. Two customers still to come:
     /// - CR 903.8 commander tax, which counts casts **from the command zone**
     ///   specifically. The cast counter cannot be incremented correctly without
     ///   this, because a commander recast from hand after being bounced does not

@@ -28,10 +28,10 @@
 //! [`control`] announces CR 603.10d's event, which no performer makes: a
 //! sweep compares each permanent's controller with the one last announced.
 //!
-//! [`binding`] is what the resolution reads back: the bound facts as
-//! indices into the event log, resolved through the matched arm's
-//! projections, with CR 603.6's "unable to be found" and CR 400.7 as one
-//! epoch comparison.
+//! [`binding`] is what the resolution reads back: the bound facts as the
+//! records the trigger matched, copied at dispatch, read through the matched
+//! arm's projections, with CR 603.6's "unable to be found" and CR 400.7 as
+//! one epoch comparison.
 
 pub mod audit;
 pub mod binding;

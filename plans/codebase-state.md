@@ -12,7 +12,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Partially covered:** CR 6 casting — the pipeline, X, alternative and additional costs, and **cost determination as its own pipeline** (`cost-architecture.md`, CM-0–CM-4, 2026-09-07/08: CR 601.2f's step, the spell's own cost abilities, sacrifice as a cost, the mana window and a payer split into two decorators); mode choice, distribution and target uniqueness pending; activation restrictions are one value (`ActivationRestriction::OnlyAsSorcery`, LH-2), the rest `permission-architecture.md`'s since 2026-10-05. CR 1 mulligan is a stub. Equip ✅ (LH-2); Bestow not started.
 - **Triggered abilities (CR 603) — ✅ complete, TR-1 to TR-7, 2026-09-18 → 2026-10-22; critical-path item 6 closed with TR-7, and its audit opened the same day.** Detection is the performed-event stream: a batch's records are matched at its close against the settled board, each CR 603.10 look-back class reading a frame the batch kept, and placement drains a queue on `GameState` in APNAP order with CR 603.3b's two tiers. Delayed, "until" and reflexive triggers, state triggers, CR 603.2d's multiplier and one history log kept the whole game are built on that path. `triggers-architecture.md` is authoritative and its §18 is the track in hindsight; the CR 603 row below carries the "not yet" list.
 - **Not started:** CR 802's defending player and CR 800.4f–h's choices by a departed player ("Before Commander" item 4); the information model (`backlog.md` §2.9).
-- **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame, and what a permanent enters with and as is one shape since RG (2026-09-28, `replacement-architecture.md` §3.5); damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
+- **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame, and what a permanent enters with and as is one shape since RG (2026-09-28, `replacement-architecture.md` §3.5); damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative; `RestrictionDef` / `Restriction`, the third `DurationRegistry` customer, and `engine::restriction::is_prohibited` — one predicate over *effective* ability lists, checked ahead of the replacement pipeline. Still ahead: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
 - **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), a permanent can enter as a copy (CV-2a, 2026-09-28), and an entry copy makes CR 707.9's exceptions (CV-2b, 2026-09-29).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held in `PermanentState::entered_as` (RG) and loyalty a copiable value; `CopyException`, one arm per sub-rule of CR 707.9, made on the captured values (707.9a–d) and on the entry (707.9e–f, `engine/replacement/entry_copy.rs`), with Spark Double (§4.1a). A copy may last until the end of the game (CV-1b, 2026-10-06), since a move now ends every reference to the object that moved (CR 400.7, main item 10), with Cryptoplasm. Still ahead: CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
 - **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; TR-1 review theme C, 2026-09-22 — the trigger dispatcher's, per ability rather than per object; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
@@ -144,7 +144,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry; 610.3's "until" returns (`engine/returns.rs`, TR-3b); a resolution's "for as long as" row ends as its source leaves (611.2b, TR-3b) | `state/continuous_effects.rs` |
 | 612 | Text-changing effects | ❌ |
 | **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 3 (text), Layer 1b (face-down, CV-6). **Landed since this row was written:** the board-wide pass (LI-1) with the CR 613.8 dependency algorithm (LI-2) and conditional statics (LI-3), all 2026-09-06, `engine/layers/board.rs`; the zone-reaching `ObjectSet` (LJ) and CR 113.6's registration leg (LK), 2026-09-14. Layers 2 and 6 live since 2026-08-23; CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,board,compute,cda,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
-| **614–616** | **Replacement + prevention + interaction** | ✅ **Phases RA–RE complete (2026-08-25 → 2026-09-15, twenty-four PRs); critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through `execute_actions`, carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution (RA); `apply_replacements` runs CR 616.1a–g between proposal and mutation, with CR 614.4/5/6/7a/17, 616.2, CR 615.5 riders and CR 101.4 APNAP (RB); the CR 614.12 look-ahead frame (RC-4), entering as one event (RC-4b), CR 614.13's auxiliary moves (RC-5); damage with CR 120.3's results, CR 615.7's shields decided per `(batch, subject)`, CR 609.7's sources, CR 614.9's redirection and CR 615.12's unpreventable damage (RD-1–4); skips and the turn queue, draw with its lineage, life, tokens, counters on permanents and players, the game's end and a player leaving it, the discard and scry producers, mana, extra phases and the turn plan (RE-1–10). `Rewrite` is the closed algebra `replacement-architecture.md` §3.2b claims. **Not yet:** CR 614.15 self-replacement (bucket, no producer — §11 item 3); CR 614.1e turned face up (CV-6); CR 614.12b (main item 134); CR 614.12c and 614.14 (`backlog.md` §2.2); CR 614.9's *partial* redirection (`backlog.md` §2.25); CR 615.13's trigger arm (critical-path item 6; the record came with #260); dice (`backlog.md` §2.31) and search (`backlog.md` §2.5, with its producer) as events; CR 121.2c's draw order (main item 122); a substitution keeping the replaced event's `cause` (main item 131); CR 731 (`backlog.md` §2.28). §14 there is the phase in hindsight. |
+| **614–616** | **Replacement + prevention + interaction** | ✅ **Phases RA–RE complete (2026-08-25 → 2026-09-15, twenty-four PRs); critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal through `execute_actions`, carrying its cause (`ZoneChangeCause` at RA; a `ZoneChangeAct` and an `EventCause` since RH), the CR 603.10a LKI frame, a `BatchId` and its resolution (RA); `apply_replacements` runs CR 616.1a–g between proposal and mutation, with CR 614.4/5/6/7a/17, 616.2, CR 615.5 riders and CR 101.4 APNAP (RB); the CR 614.12 look-ahead frame (RC-4), entering as one event (RC-4b), CR 614.13's auxiliary moves (RC-5); damage with CR 120.3's results, CR 615.7's shields decided per `(batch, subject)`, CR 609.7's sources, CR 614.9's redirection and CR 615.12's unpreventable damage (RD-1–4); skips and the turn queue, draw with its lineage, life, tokens, counters on permanents and players, the game's end and a player leaving it, the discard and scry producers, mana, extra phases and the turn plan (RE-1–10). `Rewrite` is the closed algebra `replacement-architecture.md` §3.2b claims. **Not yet:** CR 614.15 self-replacement (bucket, no producer — §11 item 3); CR 614.1e turned face up (CV-6); CR 614.12b (main item 134); CR 614.12c and 614.14 (`backlog.md` §2.2); CR 614.9's *partial* redirection (`backlog.md` §2.25); CR 615.13's trigger arm (critical-path item 6; the record came with #260); dice (`backlog.md` §2.31) and search (`backlog.md` §2.5, with its producer) as events; CR 121.2c's draw order (main item 122); a substitution keeping the replaced event's `cause` (main item 131); CR 731 (`backlog.md` §2.28). §14 there is the phase in hindsight. |
 
 ### CR 7 — Additional Rules
 
@@ -2082,10 +2082,10 @@ section never asked.
     `priority_player` is already a `GameState` field, which is the fact that
     makes the first row cheap.
 
-    **Violator 1 — `pipeline.rs:101/115/119`, the CR 614.5 sets.** `applied`,
+    **Violator 1 — the CR 614.5 sets (`engine/replacement/pipeline.rs`).** `applied`,
     `declined` and `exempt_applied` live in `apply_replacements`' frame and are
-    consulted across the `ask_choose_replacement` / `ask_apply_optional_replacement`
-    prompts. Fork at a CR 616.1 prompt and the branches disagree about which
+    consulted across the `ask_choose_replacement` / `ask_take_or_leave`
+    (`ChoiceKind::ApplyOptionalReplacement`) prompts. Fork at a CR 616.1 prompt and the branches disagree about which
     effects have already applied — so a *different replacement* applies, which
     is a different game. Worse than a wrong answer in one respect: the `declined`
     set is what stops the loop re-offering a declined optional forever, so a
@@ -2097,7 +2097,7 @@ section never asked.
 
     **Violator 2 — `put_on_stack.rs`, the CR 601.2 announcement window.** Between the
     card leaving hand and the `StackEntry` being pushed, the proposal (modes,
-    targets, X, chosen costs) is a local. The four `rollback_cast_to_hand` call
+    targets, X, chosen costs) is a local. The `rollback_cast_to_hand` call
     sites are the evidence: a rewind is possible precisely because the state is
     not yet committed anywhere a clone would see. This one is a *fact* on the
     triage split — the announcement is CR 601.2's own sequence, and a later
@@ -2118,7 +2118,7 @@ section never asked.
     **Sized:** violator 1 — a `PendingReplacement { applied,
     declined, exempt_applied }` on `GameState`, saved and restored by
     `execute_batch_inner` the way `entry_selection` is, ~80–120 lines; violator
-    2 — a `PendingCast` holding the 601.2b–d proposal that the four rewind sites
+    2 — a `PendingCast` holding the 601.2b–d proposal that the rewind sites
     and the push read, ~200–300 lines; both land with the first fork-based
     harness, the AI track, not before.
 
@@ -2818,7 +2818,7 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     **The sort is not the expensive part**; two heap allocations per call are.
     So the design that recovers it is not "sort less" but "derive less": keep
     the ordered vector on `GameState`, maintained at the three places the
-    order can change — `place_on_battlefield` (append; entry timestamps are
+    order can change — the entry, `make_permanent` (append; entry timestamps are
     monotonic), removal, and `attach`, where CR 613.7e reassigns a timestamp
     and LH-2 already re-stamps rows — and hand out a slice. Debug-mode
     re-derivation and comparison is the guard, exactly as `audit_memo_hit` is
@@ -4354,7 +4354,7 @@ worth having written down before someone re-derives them anxiously:
 
 - **Phasing is not a zone change.** CR 110.5d: only permanents have status, and a
   phased-out permanent is still on the battlefield. So the whole RA event spine
-  is untouched — no `ZoneChangeCause`, no LKI frame, no batch. CR 603.10b gives
+  is untouched — no zone-change record, no LKI frame, no batch. CR 603.10b gives
   phase-out triggers their own look-back, which is the same shape as 603.10a's.
 - **"Treated as though it doesn't exist" is an enumeration boundary**, and this
   engine has exactly one: `battlefield_ordered` / `battlefield_ids_ordered`,
@@ -4417,7 +4417,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 7. **Static-ability effect existence — ✅ strip half done (2026-08-21); grant half open.**
 
-   `register_static_effects` still runs once at ETB off printed abilities, and still cannot use the layer system there (it runs inside `place_on_battlefield`, before the object's own effect is registered). That turned out not to be the thing to fix. **Registry membership is not effect existence.** The CR resolves existence *inside the layer walk* — `compute_characteristics` gathers the effects that apply at each layer and does not gather one whose generating ability is gone. Each effect applies at most once and the pending set only shrinks, so it terminates structurally; there is no fixpoint and nothing to cap.
+   `register_static_effects` still runs once at ETB off printed abilities, and still cannot use the layer system there (it runs inside the entry performer, `place_on_battlefield` then and `perform_entry` since RH-1, before the object's own effect is registered). That turned out not to be the thing to fix. **Registry membership is not effect existence.** The CR resolves existence *inside the layer walk* — `compute_characteristics` gathers the effects that apply at each layer and does not gather one whose generating ability is gone. Each effect applies at most once and the pending set only shrinks, so it terminates structurally; there is no fixpoint and nothing to cap.
 
    - **Stripped ability — fixed.** `ContinuousEffect.origin` (`EffectOrigin::StaticAbility { ability }` vs `Resolution`) makes existence askable, and `compute.rs::static_ability_still_exists` re-asks it at every layer against the source's frame *as of the end of the previous layer*. Blood Moon stripping a land now retires the effect that land registered at ETB. Gated on `RegistryScopeSummary::any_ability_changing` so it costs nothing on boards where no registered effect can change an ability set — `fuzz_games` at 200 games / seed 12345, measured back to back against `main` on the same machine: 27.59 → 28.62 ms/game, inside the documented ±3% run-to-run band. (Measure it that way — readings drift several ms across sessions, enough to invent a regression that isn't there.)
    - **Granted ability — ✅ half done (2026-08-23, Layer 6 phase); filter half open.** `GrantAbility(Box<AbilityDef>)` exists, and when a *resolution* grants a static-bodied ability, `resolve::register_granted_static_effects` registers the effects that ability generates then and there. Their `origin` is `StaticAbility { ability: <granted id> }`, so existence needs nothing new: the CR 604.2 check already re-asks at every layer whether the grantee still has the ability, and retires the derived effect when a later Layer 6 strip takes it away (`test_stripping_a_granted_ability_retires_the_effect_it_generated`).
@@ -8811,7 +8811,8 @@ ones on the last-known-information and zone-change surface are items 176 and
      coming, which the waiting panel defines again (T8), and three small
      ones (T9).
      **Reachability (2026-10-22):** unreachable — `wait_to_return` makes a
-     return after its exile batch closes and no rider makes one (T4); the
+     return after its exile batch closes and no registered rider makes one
+     (T4; a replacement rider running `ExileUntil` could, pass 3's row 25); the
      audit's `describe` compares no card (T6); only the waiting panel reads
      its copy (T8).
      **Sized:** ~200–350 lines over `triggers/dispatch.rs`, `delayed.rs` and
@@ -9913,3 +9914,33 @@ row 57 is item 297.
      **Sized:** ~5–10 lines and a fixture: route the check through
      `triggering_events_in`, or drop the field.
      **Slotted:** A6e, the cleanup of item 6's close audit.
+
+### Found by the item 6 audit, pass 5 — the docs audit (2026-10-22)
+
+316. **The cost gather sweeps the battlefield alone — it has no zone leg.**
+     `cost_modifications_for` (`engine/cost_determination/gather.rs`) reads
+     two sources: the battlefield's cost-effect sources and the spell's own
+     abilities (CR 113.6d). `register_static_effects` files a cost ability on
+     `cost_modification_ability_sources` only for `Zone::Battlefield`, so a
+     cost ability that functions from another zone is invisible to it. CR
+     113.6's predicate has answered "which abilities function from where"
+     since LK (`engine/zone_function.rs`), and `cost-architecture.md` §3.1
+     planned to add the source once it existed. The replacement gather's leg
+     is RF's, built, and the restriction sweep's is item 146, slotted at
+     RS-2; this one had no item. The first printed customer is a commander's
+     eminence: The Ur-Dragon's "As long as The Ur-Dragon is in the command
+     zone or on the battlefield, other Dragon spells you cast cost {1} less
+     to cast" (`o:eminence o:"cost" o:"less"`, 2 cards, Scryfall 2026-10-22);
+     an emblem's "spells you cast cost {1} less" is the other family.
+     **Reachability (2026-10-22):** unreachable — no registered card prints a
+     cost ability that functions anywhere but the battlefield and its own
+     spell.
+     **Sized:** RF's shape, item 146's twin: a zone set filled at
+     `register_static_effects`' zone doors and retired at
+     `cleanup_zone_state`, a leg in `cost_modifications_for` after the
+     battlefield sweep reading the effective list through `functions_in`,
+     and the fast-path gate's printed leg widened to it; ~60–80 lines plus a
+     command-zone fixture and its test.
+     **Slotted:** B2, the Commander format and designation, whose commanders
+     put the command zone on the board (`roadmap-v2.md` §3a, "From triggers
+     to Phase 8").

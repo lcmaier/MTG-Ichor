@@ -70,14 +70,15 @@ pub struct RegistryScopeSummary {
     /// True iff some row can change an object's controller — i.e. some
     /// `EffectModification::SetController` is registered.
     ///
-    /// `compute::effective_controller` needs this because CR 109.5 resolves a
-    /// static ability's "you" against the source's *effective* controller, and
-    /// asking for that means a `compute_to_ceiling` walk of the source. When
-    /// this is false, `chars.controller` provably cannot differ from the value
-    /// the walk seeds it with — `PermanentState.controller`, or the owner off
-    /// the battlefield — because Layer 2 is the only channel that writes it: no
-    /// CDA lives in Layer 2 (CR 613.4a lists only 7a), and no counter touches
-    /// controller. So the field read is the walk's answer, not an approximation.
+    /// `oracle::characteristics::get_effective_controller` needs this because
+    /// CR 109.5 resolves a static ability's "you" against the source's
+    /// *effective* controller, and asking for that means a layer walk of the
+    /// source. When this is false, `chars.controller` provably cannot differ
+    /// from the value the walk seeds it with — `PermanentState.controller`, or
+    /// the owner off the battlefield — because Layer 2 is the only channel that
+    /// writes it: no CDA lives in Layer 2 (CR 613.4a lists only 7a), and no
+    /// counter touches controller. So the field read is the walk's answer, not
+    /// an approximation.
     ///
     /// **Load-bearing, not a trim.** Forcing it off cost 83.7 → 107.2 ms/game on
     /// `fuzz_games --games 200 --seed 12345` with a control-changing card in the
@@ -600,8 +601,8 @@ impl ContinuousEffectRegistry {
     /// Removals preserve order for the same reason — see
     /// `DurationRegistry::retain`.
     ///
-    /// (Not yet CR 613.8: dependency ordering is unimplemented, so this is
-    /// timestamp order only. See Deferred Migrations item 8.)
+    /// Timestamp order only: the board pass (`engine::layers::board`) applies
+    /// CR 613.8's dependency order over this slice.
     pub fn effects_in_layer(&self, layer: Layer) -> &[Arc<ContinuousEffect>] {
         debug_assert!(self.effects.is_sorted(), "registry order invariant violated");
         let all = self.effects.as_slice();

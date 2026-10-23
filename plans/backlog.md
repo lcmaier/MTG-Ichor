@@ -1117,7 +1117,7 @@ mechanic rather than a migration, which is why it is here and not in
   The reversal prompt is main item 72, and CM-4 placed it with critical-path
   item 6 rather than here: reversing a mana ability fails the payer's own
   criterion, and the board it is observable on is waiting for the trigger
-  phase. **And a third thing lives here now (2026-09-07, CM-3):**
+  phase (moved to B13, the Ironworks loop, on 2026-10-13). **And a third thing lives here now (2026-09-07, CM-3):**
   the *staged* payment Arena offers — delve exiles, convoke taps, a sacrifice,
   all shown and take-back-able until the player confirms the cast. CM-3 made
   that possible without any engine facility by separating deciding from
@@ -1154,7 +1154,8 @@ mechanic rather than a migration, which is why it is here and not in
   (#225) reads them once a window and re-asks only their costs.
 - **Owner** — `plans/mana-architecture.md` (#224): the solver and its
   decorator are MA-6 (§3.12); the window's inventory landed in MA-1 (§3.8).
-  The reversal prompt stays main item 72's, with critical-path item 6.
+  The reversal prompt stays main item 72's, slotted to B13, the Ironworks
+  loop.
 
 ### 2.19 Any-color mana — "Add one mana of any color"
 
@@ -1506,7 +1507,7 @@ mechanic rather than a migration, which is why it is here and not in
   | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below; designed in `mana-architecture.md` (#224): the existence check landed in MA-1 (#225), and the covering set, the solver, is MA-6 (`mana-architecture.md` §3.12) |
   | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6; MA-6 |
   | 8 | auto-order triggers | CR 603.3b's order, once it exists | engine elision for identical triggers; policy for the rest | human under the toggle / the agent's | ~40 + ~30 engine | **built**: the elision in TR-1 and TR-2b, the decorator `ui::AutoOrderTriggers` in TR-7 (2026-10-22, PR #269); classified at birth below |
-  | 9 | reversal policy | CR 732.1's offer, keep or reverse all (item 72) | policy | human under the toggle / a bot policy — never silent on a human's | ~15 in row 7; the prompt ~40 in the engine | with item 6 |
+  | 9 | reversal policy | CR 732.1's offer, keep or reverse all (item 72) | policy | human under the toggle / a bot policy — never silent on a human's | ~15 in row 7; the prompt ~40 in the engine | B13, the Ironworks loop (item 72) |
 
   **Row 2, decided: the payer keeps no answer the engine stopped asking for.**
   `AutoPayer::allocate`'s forced branch and `auto_payer::split_is_forced`
@@ -1725,13 +1726,13 @@ mechanic rather than a migration, which is why it is here and not in
   reversal is an undo log or a re-simulation of the window's activations from
   the snapshot minus the reversed ones, a facility and not thirty lines, and
   Arena offers undo-all only. So the prompt is *keep* or *reverse all*, ~40
-  lines in the engine, with item 6 as CM-4 placed it. **A decorator may
+  lines in the engine, with item 6 as CM-4 placed it (B13 since 2026-10-13). **A decorator may
   answer it only under the same toggle as auto-yield.** On a human's seat it
   is a prompt-skipping automation — *reverse all* when the solver made the
   taps, since the taps a solver made are the ones it should unmake — and it
   lives inside row 7; on a bot's seat it is a plain policy (`fuzz_games`:
   keep, which is today's stream); **never silently on a human's**. Item 72's
-  placement with item 6 does not move, and the invariant it states — the
+  placement (B13) does not move, and the invariant it states — the
   ability's cost and its mana undone together — is what the restore gives for
   free.
 

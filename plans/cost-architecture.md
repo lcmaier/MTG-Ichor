@@ -259,7 +259,8 @@ every static shape at once; this document adds a source when that exists
 rather than a graveyard sweep now. (The predicate exists since LK, 2026-09-14,
 `engine/zone_function.rs`; the cost gather still sweeps the battlefield alone,
 and unlike the replacement sweep's zone leg (RF) and the restriction sweep's
-(`codebase-state.md` item 146, slotted at RS-2) this one has no item yet.)
+(`codebase-state.md` item 146, slotted at RS-2) this one is item 316,
+slotted at B2.)
 
 **All three gates see through the wrapper.** Trinisphere prints a
 conditional static — "as long as this artifact is untapped" — so this gate
@@ -1286,11 +1287,12 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
   is the fixture that consumes it (§3.7). Registering the printed card is then
   a card change with no engine change behind it.
 - **Cost abilities in other zones** (emblems, Convergence of Dominion): §3.1,
-  with A5. A5's predicate has landed (LK); the cost gather's zone leg has not,
-  and has no item (§3.1).
+  with A5. A5's predicate has landed (LK); the cost gather's zone leg has not
+  (`codebase-state.md` item 316, §3.1).
 - **The Ironworks board's trigger half and the 732.1 reversal choice**:
-  §3.11 and §8; the reversal is placed with critical-path item 6 rather than
-  with the payer (§8 item 4). The window itself is CM-4, built.
+  §3.11 and §8; the reversal was placed with critical-path item 6 rather than
+  with the payer (§8 item 4), and is B13's since 2026-10-13 (`codebase-state.md`
+  item 72). The window itself is CM-4, built.
 - **An agent that declines to tap the activation's own source for mana**:
   `codebase-state.md` item 83. Legal under CR 605.3a and always a mistake, but
   it is `RandomDecisionProvider`'s policy and it would move every counter, so

@@ -1,10 +1,11 @@
 # The clone — what a fork shares, and what it copies
 
-> **Status:** design, 2026-10-21, for `roadmap-v2.md` B10; no code. Every
-> decision is taken (the owner, 2026-10-21, #266): 3, 4, 6 and 8 at the first
-> review, CL-1 next; 1, 2, 5 and 7 at the second, once B was measured (§2.8)
-> and 2, 5 and 7 rewritten. CL-1 landed 2026-10-21 (§7). Every number in §2
-> was measured on 2026-10-21 on `b86c59c1` (#265's merge), and §2.0 says how.
+> **Status:** design, 2026-10-21, for `roadmap-v2.md` B10. Its one build,
+> CL-1, landed 2026-10-21 (#267, §7). Every decision is taken (the owner,
+> 2026-10-21, #266): 3, 4, 6 and 8 at the first review, CL-1 next; 1, 2, 5
+> and 7 at the second, once B was measured (§2.8) and 2, 5 and 7 rewritten.
+> "Today" in §1 to §3 and §6 is the tree before CL-1: every number in §2 was
+> measured on 2026-10-21 on `b86c59c1` (#265's merge), and §2.0 says how.
 > **Authority:** how `GameState` holds per-object state so that a clone shares
 > it, namely the object store, the battlefield's entries, the stack's entries
 > and order, the triggers waiting to be put on the stack, and the layer memo's
@@ -24,8 +25,8 @@
 > - `layers-architecture.md` §12 "7a", the memo whose frames §3 decision 2
 >   bounds; §5.2, the termination argument those frames serve, which nothing
 >   here touches.
-> - `triggers-architecture.md` §4, the dispatcher's queue and placement, which
->   write two of the stores.
+> - `triggers-architecture.md` §4, the dispatcher's queue, and §5, placement,
+>   which write two of the stores.
 > - `state/history_log.rs`, the precedent: rows in fixed chunks behind `Arc`s,
 >   so a fork's first write copies one chunk.
 > - `plans/references/ai-performance-floors.md`, where the floors come from.
@@ -40,12 +41,12 @@
 how `GameState` is stored. A search (the AI harness, and in Phase 10 parallel
 play) clones the state at a decision and plays an answer on the clone, a fork
 (`plans/glossary.md`). Floors 2 and 3 bound that clone: 10 µs, 64 allocations
-as CI's proxy, and 128 KB. Today a clone deep-copies every object: a
+as CI's proxy, and 128 KB. Before CL-1 a clone deep-copied every object: a
 permanent's 400 bytes, a stack entry's 408 bytes and its heap, and a waiting
-trigger's 264 bytes and its three heap blocks. A wide board, a deep stack or a
-big batch of waiting triggers therefore makes every clone pay for all of it.
-The goal: a clone that copies a pointer per chunk of objects, and an object
-copied only when a fork writes to it.
+trigger's 264 bytes and its three heap blocks, so a wide board, a deep stack
+or a big batch of waiting triggers made every clone pay for all of it. The
+goal, which CL-1 built (§7): a clone that copies a pointer per chunk of
+objects, and an object copied only when a fork writes to it.
 
 **A document of its own.** The build reaches into four subsystems' code (the
 layer memo, the trigger queue and its keeper walks, the state-based check, the
@@ -123,12 +124,19 @@ reads a set, a count or an `any`, so none observes the map's order.
 5. **A board a test or a scenario builds, 4**: `update_permanent` and
    `test_support`'s three combat setters.
 
-**The stack side has shape 4 too.** `aura_put_into_graveyard_by_the_check`
-(`engine/triggers/dispatch.rs:852`) and `for_each_lki_keeper` (`:1040`) take
+**The stack side had shape 4 too.** `aura_put_into_graveyard_by_the_check`
+(`engine/triggers/dispatch.rs:852`) and `for_each_lki_keeper` (`:1040`) took
 `&mut` of every waiting trigger and every stack entry, whether or not they
-write one. The second runs whenever a batch moves an object whose last known
+wrote one. The second ran whenever a batch moved an object whose last known
 information something may keep (`objects_lki_is_kept_for`, a read through the
 same `&mut` walk).
+
+**Since CL-1 (§7, decision 3)** each of the eight reads first and writes only
+what matches. The aura check collects its matches, then writes those.
+`for_each_lki_keeper` is gone: its walk is `lki_keepers`, by `&`, read by
+`objects_lki_is_kept_for` and by `hand_over_lki`, which writes only the
+matched keepers through `kept_lki_slot`. The battlefield's four sweeps read
+first too.
 
 Under copy-on-write, shapes 1, 2, 3 and 5 copy what they change. Shape 4 copies
 everything a fork holds, and the check's sweep does it at every check. **The
@@ -341,7 +349,7 @@ entry, one per chunk of entries, or one per store.
 |---|---|---|---|---|
 | **A. An `Arc` per entry in today's map** | `battlefield: FitOnClone<IdMap<ObjectId, Arc<PermanentState>>>`; a write, `Arc::make_mut(game.battlefield.get_mut(&id)?)` | 34 / 21.5 · 26 / 11.0; 37 / 22.6 · 28 / 11.1 | ~620 KB, ~95 µs: floor 3 five times over, floor 2's time ten | least code; the map keeps hashing, a table of 17 bytes a slot, and `FitOnClone` stays (decision 4) |
 | **B. A persistent map** | an external crate (`imbl`, measured in §2.8), or the same shape written here as a trie keyed by id; `battlefield: imbl::GenericHashMap<ObjectId, Arc<PermanentState>, IdHash, _>` | C's, less one allocation per non-empty store, and about C's KB: 32 · 24; 34 · 26 | ~9 KB, ~2 µs | a clone is one count at any size. A lookup is 3.1–3.3 ns against C's 0.6–0.7 and today's ~1.5, an unshared write 2–3 times C's, a walk 2–9 times (§2.8). Nine crates and ~11,500 lines (the engine has one dependency, `rand`; the hasher is written here on purpose, `plans/id-hasher.md`), or about 400 lines of persistent structure to own. Iterates in hash order |
-| **C. Chunks, like the history log** | ids are a per-game counter, so `ObjectId(n)` lives in chunk n/32 at slot n%32: `objects: ObjectTable<GameObject>`, each chunk behind an `Arc`; a write copies the chunk if a fork shares it, then the entry | 34 / 12.1 · 26 / 5.7; 37 / 12.2 · 28 / 5.8 | ~15 KB, ~5 µs | one generic table, about 300 lines with tests. Reads hash nothing (§2.7). Iterates in id order. The outer vector spans every id minted, 8 bytes per 32 ids: 2 KB after the 8,000-trigger wipe, 250 KB after a million ids |
+| **C. Chunks, like the history log** | ids are a per-game counter, so `ObjectId(n)` lives in chunk n/32 at slot n%32: `objects: ObjectTable<GameObject>`, each chunk behind an `Arc`; a write copies the chunk if a fork shares it, then the entry | 34 / 12.1 · 26 / 5.7; 37 / 12.2 · 28 / 5.8 | ~15 KB, ~5 µs | one generic table, about 300 lines with tests. Reads hash nothing (§2.7). Iterates in id order. The outer vector spans the ids up to the highest live one, 8 bytes per 32 ids (as built, an emptied chunk is dropped, and the trailing ones with it): 2 KB on the 8,000-trigger wipe, 250 KB if an object a million ids in is live |
 
 B's whole-clone counts are additive estimates from §2.8's per-store clones,
 as A's and C's are from §2.2–§2.4.
@@ -489,10 +497,11 @@ in every library, hand and graveyard, and every ability on the stack. A
 four-seat board is 300–400 objects, walked twice a check. After a wipe that
 stacks 8,000 death triggers it is 8,000 objects twice a check, with a check
 after every resolution: 7.6 µs of each 12 µs check, 60 ms over the stack
-(item 293).
+(item 293). *Since CL-1 (§7)* both rules read the list below,
+`arrivals_since_last_sba_check`, and the walk is kept in debug builds only.
 
 **The list.** Every move into a zone goes through one function,
-`arrive_in_zone` (`engine/zones.rs:250`), which already stamps each move with
+`arrive_in_zone` (`engine/zones.rs`), which already stamps each move with
 its epoch. It notes the moves the two rules could match on a list. Each check
 takes the list, emptying it, and its two rules read only that. The list holds
 exactly what the walk would have found.
@@ -580,13 +589,15 @@ game reaches a choice, a log or a count.
    `Diagnostics` row: an unforked game copies nothing and a forked one does,
    so a counter of copies would make the fixture tables differ by whether
    anyone forked. Pointer comparisons belong to tests (decision 6(c)).
-3. **A fork iterates as its parent does.** Today a `FitOnClone` rebuild gives
-   the fork a different hash order from its parent's. Nothing may observe it,
-   but C removes the possibility.
+3. **A fork iterates as its parent does.** Before CL-1 a `FitOnClone` rebuild
+   gave the fork a different hash order from its parent's. Nothing could
+   observe it, and CL-1's tables walk in id order and a clone copies them as
+   they are, so the possibility is gone.
 4. **The memo stays per fork.** A fork's walk copies the chunks it stores
    into and leaves the parent's as they were, which
    `a_fork_reading_a_left_out_card_leaves_the_originals_memo_as_it_was`
-   already asserts for today's map.
+   already asserted for the map before CL-1, and asserts for the frames'
+   table since (`state/layer_memo.rs`).
 
 **Taken: the four as rules** (the owner, 2026-10-21, at #266's second review), the first enforced by the existing gate,
 the second by review and §11's "what the gate does not see".
@@ -672,8 +683,9 @@ memo's frames leave with their object. The archive's "CL-1" keeps the build
 as sized.
 
 **Where it built otherwise than designed.**
-- The holding is a type parameter, so a typed read (`&PermanentState`) and
-  the tests' field writes after `get_mut` kept their call sites.
+- The holding is the item type's associated type (`ForkCopy::Held`), so a
+  table is generic over the item alone, and a typed read (`&PermanentState`)
+  and the tests' field writes after `get_mut` kept their call sites.
 - Every table chunk keeps a mask of its live slots, so a walk visits only
   those: the sparse battlefield needed it, and one rule is simpler than two.
 - Item 293's list stays on the state through the check's prompts (item 40)

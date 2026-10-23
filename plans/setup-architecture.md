@@ -174,10 +174,11 @@ what is played.
 - **Plain state is written.** That is anything the engine stores as a value
   with no source and no duration: a field (tapped, counters, damage, a life
   total, a card's zone, the turn), or a count it keeps. A player's history is
-  such a count: spells cast this turn, life gained, attackers declared.
-  `PlayerHistory` is materialized, and "nothing derives these from the event
-  stream" (`state/history.rs`), so writing a count is like writing a life
-  total.
+  such a count: spells cast this turn, life gained, attackers declared. It
+  is a sum over the history log's rows (`state/history_log.rs`), which one
+  writer, `engine::triggers::history`, writes as each event ends, and a
+  scenario writes each count as a `RowFact::Stated` row, that player's on the
+  span's turn, so writing a count is like writing a life total.
 - **What an effect created is played.** That means a spell or ability on the
   stack, a registry row from a resolution (Giant Growth's +3/+3, Act of
   Treason's control, a regeneration shield, a "can't"), a delayed trigger, or
@@ -234,6 +235,8 @@ Neither builds a board at rest.
 let scenario = Scenario::parse(&text)?;              // or a `Scenario` value built in Rust
 let mut game = scenario.build(&CardRegistry::default_registry())?;
 game.resume(&dp)?;                                   // resume_turn_at_priority, then run
+// As built (SU-2, §8): `build` returns a `BuiltScenario`, the game and its
+// `SetupActions`, which a `SetupDriver` plays before the seats take over.
 ```
 
 ### 3.1 What a scenario's permanent gets
@@ -247,10 +250,14 @@ game.resume(&dp)?;                                   // resume_turn_at_priority,
 | arrival announced, triggers dispatched | **yes** | no | **no**: it is at rest |
 | summoning sickness | not sick | not sick | as stated: arrived before this turn (the default) or this turn |
 
-**One road.** `place_on_battlefield`, the `EnterBattlefield` performer, splits
-at the seam between state and event. Its state half (the entity, the counters'
-CR 613.7c timestamps, the memo bump, `register_static_effects`) becomes the
-door both use; the performer is that half plus the announcement. The loader's
+**One road.** `GameState::perform_entry`, the `EnterBattlefield` performer,
+splits at the seam between state and event. Its state half, `make_permanent`
+(the entity, the counters' CR 613.7c timestamps, the memo bump,
+`register_static_effects`), is the door both use. The construction door,
+`GameState::create_on_battlefield` (`engine/zones.rs`), is that half alone;
+the performer is that half, then what only play writes (the announced
+controller, CR 508.4's entering attacking), then the announcement.
+(`test_support::place_on_battlefield` is a test helper over `perform_entry`.) The loader's
 door is the construction counterpart of `create_in_zone`, which refuses the
 battlefield today because during play an arrival is an entry. At construction
 it is not, and the door refuses once a turn has begun: the loader builds at
@@ -270,8 +277,9 @@ battlefield go through `create_in_zone`, `Game::new`'s door, which registers
 what functions there (CR 113.6). Counters go through `GameState::add_counters`,
 in the file's order. An attachment goes through `GameState::attach` at its own
 line, so CR 613.7e's new timestamp sits in the file's order; its host must be
-listed first. The turn goes through `set_turn_position`, `begin_turn` and
-`begin_turn_history`, the one writers. The plain fields with no door (tapped,
+listed first. The turn goes through `set_turn_position` and `begin_turn`, the one
+writers; `begin_turn` also begins the turn's history
+(`GameHistory::turn_began`, `PlayerHistory::record_own_turn`). The plain fields with no door (tapped,
 damage, combat, life, lands played, the history counts) are written directly,
 as `engine/combat/steps.rs` writes combat; none is a layer-walk input, so none
 needs a bump.
@@ -369,8 +377,9 @@ the attributes, a comment and a tag; a semicolon is in one (TL;DR); `(` is in
 `10 Forest`. A name runs from the head's colon to the tag or the bar, so
 "Circle of Protection: Red" parses (only the first colon is the head's). Words
 reuse the spellings already shown to a person: a step as `format_phase` prints
-it, and a counter kind as devgui's `counter_label` prints it, a table the build
-moves into the engine so the parser, the writer and the window read one copy.
+it, and a counter kind as `CounterType::name` prints it (`types/effects.rs`),
+the one table the parser (`CounterType::named`), the writer and the window
+read.
 
 ### 4.1 How a bad board fails
 
@@ -2301,8 +2310,8 @@ pub fn explain(game: &GameState, id: ObjectId) -> Option<LayerExplanation>;
 // Applied { before, after }, NotMatched, NotInItsZones, Gone (CR 604.2) or LockedOut (CR 613.6).
 
 // oracle (SU-7): one check for the enumeration and the enforcement. As built,
-// `Ok` holds the mana sources it would tap, which `castable_spells` returns.
-pub fn can_cast(game: &GameState, player: PlayerId, card: ObjectId) -> Result<Vec<ManaSource>, CannotCast>;
+// `Ok` carries nothing (since MA-1) and `castable_spells` returns the castable cards' ids.
+pub fn can_cast(game: &GameState, player: PlayerId, card: ObjectId) -> Result<(), CannotCast>;
 let castable = hand.iter().filter(|&&card| can_cast(game, player, card).is_ok());
 
 // ui::why: what every client draws.
@@ -2685,7 +2694,8 @@ sized against built, and what the build changed in the design).
 ### SU-1 — the scenario loader — ✅ landed 2026-10-01
 
 **What shipped.** The entry performer's state half, `make_permanent`, which
-`place_on_battlefield` and the construction door `create_on_battlefield` share,
+`place_on_battlefield` (the performer RH-1 renamed `perform_entry`) and the
+construction door `create_on_battlefield` share,
 with the arrival turn a parameter of both it and `register_static_effects`.
 `mtgsim::scenario`: the grammar as §5.1's one table (a module doc's copy moved here at
 review), `Scenario::parse`,

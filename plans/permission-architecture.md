@@ -91,7 +91,10 @@ designed once, and neither half reshapes the other's enum.
 
 - `oracle::mana_helpers::can_begin_to_cast` admits the hand alone, and only
   the owner's card: `CannotCast::NotInHand`. `StackEntry.cast_from` records
-  the zone a spell was cast from (CR 903.8's tax reads it).
+  the zone a spell was cast from. The resolution carries it into a
+  permanent's `CastFacts` (`engine/stack.rs`), and the trigger history's
+  `RowFact::Cast` reads it (`engine/triggers/history.rs`). CR 903.8's tax,
+  which B2 builds, will read it.
 - `oracle::legality::can_play_land` admits the hand alone: `CannotPlayLand::
   NotInHand`. Its count, `PlayerState::lands_per_turn`, is set to 1 and
   nothing changes it: `CannotPlayLand::NoLandDropLeft`.
@@ -160,8 +163,9 @@ From the census's rules pass (`cast-census.md` §2):
 - **Item 162.** Every zone a permission names adds candidates to the priority
   question, whose candidate list is 18.6% of a close-out run's instructions
   (SU-6's engine arm). The design prices the gather. Item 211's mana
-  abilities at a priority question (CR 605.3a) are item 162's offer, not
-  this document's.
+  abilities at a priority question (CR 605.3a) are MA-6's
+  (`mana-architecture.md` §3.11's shape C: one "add mana" entry for a seat
+  that asks), not this document's.
 - **B2.** CR 903.8 is the permission; the designation and the tax are B2's.
 - **`backlog.md` §2.9.** A permission to cast from a library's top or from
   face-down exile reads what its player can see (601.3f).
@@ -224,11 +228,13 @@ Named here so the design session starts from them; none is answered.
 
 | PR | Shape | Size | Risk |
 |---|---|---|---|
-| **PM-0, who may cast, play or activate: the design** | §5 answered, and the build split and sized against the census's families. Reviewed before any build, with RS-2's reasons designed beside it | docs | low |
+| **PM-0, who may cast, play or activate: the design** | §5 answered, and the build split and sized against the census's families. Reviewed before any build, with RS-2's reasons designed beside it. It sizes `codebase-state.md` item 265 too: a card cast from a graveyard carries no frame for a "leaves your graveyard" trigger | docs | low |
 | **PM-1 onward** | sized by PM-0. The first carries CR 903.8's command zone, since B2 needs it | — | — |
 
-**Slot** (the owner, 2026-10-05): PM-0 beside RS-2, which is "beside A,
-after A6c's item 10" (`roadmap-v2.md` §3a), so RS-2 builds against reasons
-designed for both halves. The first build lands before B2, which comes first
-after triggers (`roadmap-v2.md` B11). The rest is pulled by its card families
-and lands before C.
+**Slot** (`roadmap-v2.md` §3a, "From triggers to Phase 8"; `CLAUDE.md`
+owns the order): after triggers, the route review A6s comes first. Then
+RS-2, with PM-0 designing its reasons beside it so each check's reasons are
+designed once (the owner, 2026-10-05), and a card's characteristic sets
+designed beside PM-0. Then PM-1, CR 903.8's command zone, which B2 needs,
+then B2. PM's later builds (flashback and the other cast-from-elsewhere
+families) have their own step, after B13 and before CV-5.
