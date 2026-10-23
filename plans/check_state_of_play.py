@@ -193,25 +193,33 @@ def cite(run, number):
 
 #: A `**Slotted:**` line's text, to the next bold label or the item's end.
 SLOTTED_RE = re.compile(r"\*\*Slotted:(.+?)(?=\*\*[A-Z][^*\n]{0,60}:\*\*|\Z)", re.S)
-#: What a Slotted line can name on the route: a phase code, a roadmap row's
-#: label (`A6h`, `B10`, `C0`), or one of the two phases with no rows yet.
-ROUTE_TOKEN_RE = re.compile(r"\b[A-Z]{2}-[0-9]+[a-z]?\b|\b[ABC][0-9]+[a-z]?\b|\bPhase (?:9|10)\b|§[DE]\b")
+#: A phase or route row still to come, cited by its name hyphenated in
+#: backticks (`combat-restrictions`); the backticks are not part of it.
+NAME = r"`[a-z0-9]+(?:-[a-z0-9]+)+`"
+#: What a Slotted line can name on the route: a name, a landed phase's code,
+#: a roadmap row's label (`A6h`, `B10`), or one of the two phases with no rows yet.
+ROUTE_TOKEN_RE = re.compile(
+    r"(?<=`)[a-z0-9]+(?:-[a-z0-9]+)+(?=`)|\b[A-Z]{2}-[0-9]+[a-z]?\b|\b[ABC][0-9]+[a-z]?\b|\bPhase (?:9|10)\b|§[DE]\b"
+)
+#: A code whose last letter marks a phase of a family (`TR-4a` of `TR-4`).
+LETTERED_CODE_RE = re.compile(r"[A-Z]{2}-[0-9]+[a-z]?")
 CARD_HOME_RE = re.compile(r"\bthe first registered card\b")
 RECORD_HOME_RE = re.compile(r"^none\s*[—–-]+\s*a record\b")
 
 
 def route_ids():
     """Every home the route offers, each with whether it has landed: the
-    architecture docs' phase codes (`phase_index`), `roadmap-v2.md` §3a's row
-    labels, a row landed when its first cell says ✅, and Phases 9 and 10."""
+    architecture docs' phases (`phase_index`), `roadmap-v2.md` §3a's rows by
+    label or name, a row landed when its second cell says ✅, and Phases 9
+    and 10."""
     landed, to_build = phase_index()
     route = {code: True for _, _, code, _ in landed if code}
     route.update({code: False for _, code, _ in to_build if code not in route})
     roadmap = read("plans/roadmap-v2.md")
-    for m in re.finditer(r"^\| (?:\*\*)?([AB][0-9]+[a-z]?)(?:\*\*)? \| ([^|]*)\|", roadmap, re.M):
-        route[m.group(1)] = m.group(2).strip().startswith("✅")
-    for m in re.finditer(r"^\*\*(C[0-9]+) — ", roadmap, re.M):
-        route[m.group(1)] = False
+    for m in re.finditer(rf"^\| (?:\*\*)?([AB][0-9]+[a-z]?|{NAME})(?:\*\*)? \| ([^|]*)\|", roadmap, re.M):
+        route[m.group(1).strip("`")] = m.group(2).strip().startswith("✅")
+    for m in re.finditer(rf"^\*\*(C[0-9]+|{NAME}) — ", roadmap, re.M):
+        route[m.group(1).strip("`")] = False
     route.update({"Phase 9": False, "Phase 10": False, "§D": False, "§E": False})
     return route
 
@@ -222,6 +230,8 @@ def route_status(token, route):
     and a family (`TR-3`) has landed once every phase of it has."""
     if token in route:
         return route[token]
+    if not LETTERED_CODE_RE.fullmatch(token):
+        return None
     family = re.sub(r"[a-z]$", "", token)
     if family != token and family in route:
         return route[family]
@@ -316,7 +326,10 @@ def intake_names(token, code):
     """Whether a Slotted line's `token` puts the item on `code`'s list. A
     lettered phase also takes what is slotted to its family as a whole
     ("TR-4" is TR-4a's or TR-4b's to decide), and a family takes what is
-    slotted to any of its phases; a sibling's is not its."""
+    slotted to any of its phases; a sibling's is not its. A name has no
+    family: a split names each part."""
+    if not LETTERED_CODE_RE.fullmatch(code):
+        return token == code
     family = re.sub("[a-z]$", "", code)
     return token in (code, family) or (family == code and re.sub("[a-z]$", "", token) == code)
 
@@ -388,26 +401,32 @@ def selftest():
         f"4. **Landed.** {open_} **Slotted:** TR-3b, beside it. **Sized:** with TR-3c.",
         f"5. **Missing.** {open_}",
         f"6. **Unknown.** {open_} **Slotted:** `backlog.md` §2.3's first PR.",
+        f"6a. **Named.** {open_} **Slotted:** `combat-restrictions`, beside TR-3b.",
+        f"6b. **Backticked, not a name.** {open_} **Slotted:** with the first registered card that `fuzz-games` deals.",
+        f"6c. **Mistyped name.** {open_} **Slotted:** `combat-restriction`.",
         f"7. **Lettered family.** {open_} **Slotted: TR-4a** with the frame.",
         "### Before Layers",
         f"1. **Own run.** {open_} **Slotted:** Phase 10, the harness.",
         "### Found by Y",
         "2. **Twice.** **Reachability (2026-10-09):** closed — PR #2.",
     ])
-    route = {"TR-3b": True, "TR-3c": False, "TR-4": False, "Phase 10": False}
+    route = {"TR-3b": True, "TR-3c": False, "TR-4": False, "Phase 10": False, "combat-restrictions": False}
     numbered = items_by_run(runs)
     assert [(r, n) for r, n, _, _ in numbered] == [
-        ("main", "1"), ("main", "2"), ("main", "3"), ("main", "4"), ("main", "5"), ("main", "6"), ("main", "7"),
+        ("main", "1"), ("main", "2"), ("main", "3"), ("main", "4"), ("main", "5"), ("main", "6"),
+        ("main", "6a"), ("main", "6b"), ("main", "6c"), ("main", "7"),
         ("Before Layers", "1"), ("main", "2"),
     ], f"selftest: runs {numbered}"
     homes = [home(b, route)[0] for _, _, b, _ in numbered if classify_item(b) != "closed"]
-    assert homes == ["route", "card", "record", "landed", "missing", "unknown", "route", "route"], f"selftest: homes {homes}"
-    last = slotted_text(numbered[6][2])
+    assert homes == ["route", "card", "record", "landed", "missing", "unknown", "route", "card", "unknown",
+                     "route", "route"], f"selftest: homes {homes}"
+    last = slotted_text(numbered[9][2])
     assert last == "TR-4a with the frame.", f"selftest: a section's last Slotted line ran on: {last!r}"
     dupes = [(r, n, len(lines)) for r, n, lines in duplicate_numbers(runs)]
     assert dupes == [("main", "2", 2)], f"selftest: duplicates {dupes}"
-    intake = [intake_names(t, c) for t, c in [("TR-4", "TR-4a"), ("TR-4b", "TR-4a"), ("TR-4a", "TR-4"), ("TR-40", "TR-4")]]
-    assert intake == [True, False, True, False], f"selftest: intake {intake}"
+    intake = [intake_names(t, c) for t, c in [("TR-4", "TR-4a"), ("TR-4b", "TR-4a"), ("TR-4a", "TR-4"), ("TR-40", "TR-4"),
+                                              ("combat-restrictions", "combat-restrictions"), ("combat-restriction", "combat-restrictions")]]
+    assert intake == [True, False, True, False, True, False], f"selftest: intake {intake}"
     # The phase index's parser: coded and plain-named ✅ headings, a parent
     # heading and a closed phase, a trace page's ✅, a sizing table's cells.
     phases = "\n".join([
@@ -421,6 +440,8 @@ def selftest():
         "| **MA-2, X** | §3.7 |",
         "| **CV-3 — token copies** | a constructor |",
         "### TR-3 — delayed, reflexive, and \"until\" — TR-3a and TR-3b (2,800–3,600)",
+        "| **`spell-copies` — a copy of a spell on the stack** | `StackEntry` copy |",
+        "### `rust-notes` — the Rust notes — ✅ 2026-11-01",
     ])
     landed, defined = phases_in(phases)
     assert landed == [
@@ -428,6 +449,7 @@ def selftest():
         ("2026-09-11", "Skips, and the turn queue", "RE-1"),
         ("2026-10-06", "The editor's advanced settings, first part", None),
         ("2026-08-26", "The pipeline", "RB"),
+        ("2026-11-01", "The Rust notes", "rust-notes"),
     ], f"selftest: landed {landed}"
     assert defined == [
         ("RS-1", "The spine and Tier 2"),
@@ -435,6 +457,8 @@ def selftest():
         ("MA-2", "X"),
         ("CV-3", "Token copies"),
         ("TR-3", 'Delayed, reflexive, and "until"'),
+        ("spell-copies", "A copy of a spell on the stack"),
+        ("rust-notes", "The Rust notes"),
     ], f"selftest: defined {defined}"
 
 
@@ -481,25 +505,26 @@ def landed_phases():
         except FileNotFoundError:
             continue
         for m in re.finditer(
-            r"^#{2,4} (?:[0-9]+[a-z]?\. )?(?:Phase )?([A-Z]{2}-?[0-9]*[a-z]?) — (.+)$", text, re.M
+            rf"^#{{2,4}} (?:[0-9]+[a-z]?\. )?(?:Phase )?([A-Z]{{2}}-?[0-9]*[a-z]?|{NAME}) — (.+)$", text, re.M
         ):
-            code, rest = m.group(1), m.group(2)
+            code, rest = m.group(1).strip("`"), m.group(2)
             if "✅" in rest:
                 out[code] = doc
     return out
 
 
 #: A phase's code: a family's letters, and a number where the family has
-#: phases (`SU-1`, `RC-4b`), or the letters alone for a one-phase family (`RB`).
-CODE_RE = re.compile(r"[A-Z]{2}(?:-[0-9]+[a-z]?)?")
+#: phases (`SU-1`, `RC-4b`), or the letters alone for a one-phase family
+#: (`RB`); or a phase named since codes closed, in backticks.
+CODE_RE = re.compile(rf"[A-Z]{{2}}(?:-[0-9]+[a-z]?)?|{NAME}")
 #: A landed phase's heading: its title, then ✅ and the day it landed.
 LANDED_HEADING_RE = re.compile(
     r"^#{2,4} (?:[0-9]+[a-z]?\. )?(?:Phase )?(.+?) — ✅ (?:landed )?(\d{4}-\d{2}-\d{2})\s*$", re.M
 )
-#: A numbered phase the doc defines: a heading, or a sizing table's bold
-#: first cell (`| **MA-2, X** |`, `| **CV-3 — token copies** |`).
+#: A phase the doc defines: a heading, or a sizing table's bold first cell
+#: (`| **MA-2, X** |`, `` | **`token-copies` — a second constructor** | ``).
 DEFINED_RE = re.compile(
-    r"^(?:#{2,5} (?:[0-9]+[a-z]?\. )?(?:Phase )?|\| \*\*)([A-Z]{2}-[0-9]+[a-z]?)(?: —|,) ([^*|\n]+)", re.M
+    rf"^(?:#{{2,5}} (?:[0-9]+[a-z]?\. )?(?:Phase )?|\| \*\*)([A-Z]{{2}}-[0-9]+[a-z]?|{NAME})(?: —|,) ([^*|\n]+)", re.M
 )
 
 
@@ -518,9 +543,10 @@ def phases_in(text):
     landed = []
     for m in LANDED_HEADING_RE.finditer(text):
         first, _, rest = m.group(1).partition(" — ")
-        code, title = (first, rest) if CODE_RE.fullmatch(first) and rest else (None, m.group(1))
+        code, title = (first.strip("`"), rest) if CODE_RE.fullmatch(first) and rest else (None, m.group(1))
         landed.append((m.group(2), plain_name(title.split(" — ")[0]), code))
-    defined = [(m.group(1), plain_name(m.group(2).split(" — ")[0])) for m in DEFINED_RE.finditer(text) if "❌" not in m.group(2)]
+    defined = [(m.group(1).strip("`"), plain_name(m.group(2).split(" — ")[0]))
+               for m in DEFINED_RE.finditer(text) if "❌" not in m.group(2)]
     return landed, defined
 
 
@@ -606,9 +632,9 @@ def render():
     L.append("## Phases by name")
     L.append("")
     L.append("Every phase the architecture docs (`plans/*-architecture.md`, globbed) name,")
-    L.append("by its plain name, its code beside it for reading older text. A phase's name")
-    L.append("comes first in chat and titles, and a roadmap row's ID orders work but never")
-    L.append("names it (`engineering-practices.md` §4.2).")
+    L.append("by its plain name, with what text cites it by: a landed phase's code, or a")
+    L.append("phase still to come's name, hyphenated (`engineering-practices.md` §4.2).")
+    L.append("The codes those names replaced are in `plans/archive/route-codes-renamed.md`.")
     L.append("")
     L.append("### Landed")
     L.append("")
@@ -617,17 +643,17 @@ def render():
     L.append("the ordering and says nothing about progress, so there is one answer and it")
     L.append("is derived.")
     L.append("")
-    L.append("| Landed | Phase | Code | Doc |")
+    L.append("| Landed | Phase | Cited as | Doc |")
     L.append("|---|---|---|---|")
     for date, name, code, doc in index_landed:
         L.append(f"| {date} | {name} | {f'`{code}`' if code else '—'} | `{doc_name(doc)}` |")
     L.append("")
     L.append("### Named, not yet landed")
     L.append("")
-    L.append("A numbered phase a doc defines in a heading or a sizing table's first cell,")
-    L.append("and no ✅ heading records, in the docs' order.")
+    L.append("A phase a doc defines by code or name in a heading or a sizing table's first")
+    L.append("cell, and no ✅ heading records, in the docs' order.")
     L.append("")
-    L.append("| Phase | Code | Doc |")
+    L.append("| Phase | Cited as | Doc |")
     L.append("|---|---|---|")
     for name, code, doc in index_to_build:
         L.append(f"| {name} | `{code}` | `{doc_name(doc)}` |")
@@ -688,11 +714,11 @@ def render():
     L.append(f"| **A number used twice in one run** | **{dm['duplicates']}** |")
     L.append("")
     L.append("**Both bolded rows fail the check.** A home is a `**Slotted:**` line naming a")
-    L.append("phase code or `roadmap-v2.md` §3a row still to come (Phases 9 and 10 by name,")
+    L.append("phase or `roadmap-v2.md` §3a row still to come (Phases 9 and 10 by number,")
     L.append("having no rows yet), \"with the first registered card that\" and the card or")
     L.append("class, or \"none — a record\". A line naming only phases that have landed is")
     L.append("no home: they went without it. A phase reads its intake list at its first")
-    L.append("ticket: `python plans/check_state_of_play.py --slotted TR-3c`.")
+    L.append("ticket: `python plans/check_state_of_play.py --slotted cant-be-targeted`.")
     L.append("")
     L.append("### This is not `specdb owed`, and the two overlap nowhere")
     L.append("")
@@ -807,7 +833,7 @@ def main():
     ap.add_argument("--write", action="store_true", help="regenerate plans/state-of-play.md")
     ap.add_argument("--check", action="store_true", help="exit 1 if the board is stale")
     ap.add_argument("--flight", action="store_true", help="branches and PRs (needs git/gh)")
-    ap.add_argument("--slotted", nargs="+", metavar="CODE",
+    ap.add_argument("--slotted", nargs="+", metavar="NAME",
                     help="the open items slotted to a phase or roadmap row: its intake list")
     args = ap.parse_args()
 
