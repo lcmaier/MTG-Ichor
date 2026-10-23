@@ -185,10 +185,8 @@ impl GameState {
     /// The state check asked again of every object that may trigger, with no
     /// gate (`audit.rs`), whose answer must be the gated one's.
     fn audit_state_check(&mut self, gated: &[StateTriggerMatch]) {
-        let saved = self.save_observers();
         let reference: Vec<StateTriggerMatch> =
-            self.objects_that_may_trigger().into_iter().flat_map(|id| self.state_triggers_of(id)).collect();
-        self.restore_observers(saved);
+            self.unobserved(|| self.objects_that_may_trigger().into_iter().flat_map(|id| self.state_triggers_of(id)).collect());
         let describe = |matches: &[StateTriggerMatch]| -> Vec<String> {
             matches
                 .iter()

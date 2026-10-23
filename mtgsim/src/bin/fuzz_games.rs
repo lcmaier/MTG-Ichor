@@ -181,10 +181,13 @@ struct Args {
     /// With `--trace`, trace only game N (1-based, the number the report
     /// prints), `--trace-game N`.
     trace_game: Option<usize>,
-    /// Answer every trigger dispatch a second time with the reference matcher
-    /// and panic where the two differ, `--audit` (`engine::triggers::audit`,
-    /// `triggers-architecture.md` §4.10). Off by default; on, it changes no
-    /// counter, and a disagreement is a `PANIC` line carrying the game's seed.
+    /// Answer every shortcut a second time with it off and panic where the two
+    /// differ, `--audit`: each trigger dispatch with the reference matcher
+    /// (`engine::triggers::audit`, `triggers-architecture.md` §4.10), and the
+    /// replacement, restriction and cost gates, the control sweep and the
+    /// castability fold (`engine::audit`, `plans/elisions.md` §4). Off by
+    /// default; on, it changes no counter, and a disagreement is a `PANIC`
+    /// line carrying the game's seed.
     audit: bool,
 }
 
@@ -944,7 +947,7 @@ fn run_one_game(
         // and the engine keeps none of it (`codebase-state.md` item 42).
         game.state.record_events();
         if audit {
-            game.state.enable_dispatch_audit();
+            game.state.enable_audit();
         }
         if start.is_none() {
             game.reseed(shuffle_seed);

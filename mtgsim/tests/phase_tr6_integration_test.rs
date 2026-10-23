@@ -38,7 +38,7 @@ fn gain_one() -> Effect {
 /// by the gate, and by every object that may trigger (`engine::triggers::audit`).
 fn audited_game() -> GameState {
     let mut game = setup_two_player_game();
-    game.enable_dispatch_audit();
+    game.enable_audit();
     game
 }
 

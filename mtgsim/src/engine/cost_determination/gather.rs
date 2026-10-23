@@ -5,6 +5,7 @@
 //! cost-effect sources, and the spell itself (CR 113.6d, affinity). A registry
 //! of resolution-created cost effects is later (`cost-architecture.md` §4).
 
+use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::board::filter_reads_mana_value;
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -54,13 +55,26 @@ pub struct CostModificationInstance {
 /// enforcement (§3.6). The CR never has to answer that question; the engine
 /// does.
 pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModificationInstance> {
+    let found = cost_modifications_sweeping(game, spell, Sweep::Gated);
+    if game.audit_on() {
+        let everything = game.unobserved(|| cost_modifications_sweeping(game, spell, Sweep::Everything));
+        let named = |found: &[CostModificationInstance]| found.iter().map(|m| format!("{:?} {:?}", m.source, m.def)).collect();
+        assert_shortcut_agrees("the cost sweep's gate", || format!("the cost of {spell}"), named(&found), named(&everything));
+    }
+    found
+}
+
+/// [`cost_modifications_for`]'s sweep, past its gate as the game runs it, or
+/// over every permanent, as its audit does.
+fn cost_modifications_sweeping(game: &GameState, spell: ObjectId, sweep: Sweep) -> Vec<CostModificationInstance> {
     // The fast-path gate, with `replacement_ability_sources`' rule: a new source
     // of static cost abilities, or a new route onto the effective list, needs a
     // leg here or it is dead. Printed (the set, an entry copy's too, or the
     // spell's own card), granted and copied (the summary's flags); exact, and
     // over-approximating at the cost of a walk, never an answer.
     let summary = game.continuous_effects.summary();
-    let widened = summary.any_granted_cost_modification || summary.any_copied_cost_modification;
+    let widened =
+        sweep == Sweep::Everything || summary.any_granted_cost_modification || summary.any_copied_cost_modification;
     let sweep = widened || !game.cost_modification_ability_sources.is_empty();
     if !sweep && !prints_cost_ability(game, spell) {
         return Vec::new();

@@ -23,6 +23,7 @@ use std::sync::Arc;
 
 use super::dispatch::{LookBackSnapshot, ObjectSnapshot};
 use crate::engine::actions::ActionContext;
+use crate::engine::audit::assert_shortcut_agrees;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::{EffectiveCharacteristics, Layer};
 use crate::events::cause::{EventCause, GameRule};
@@ -99,6 +100,9 @@ impl GameState {
     /// stream last announced, as one event, and dispatch it.
     pub(crate) fn announce_control_changes(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let sweep = self.settle_announced_controllers();
+        if self.audit_on() {
+            self.audit_announced_controllers();
+        }
         if sweep.changes.is_empty() {
             return Ok(());
         }
@@ -147,6 +151,19 @@ impl GameState {
         }
         self.control_effects_at_last_sweep = rows;
         sweep
+    }
+
+    /// The sweep's audit (`engine::audit`): after a sweep, every permanent's
+    /// controller, walked, is the one it announced, whether or not its gate
+    /// let it walk.
+    fn audit_announced_controllers(&self) {
+        let ids = self.battlefield_ids_ordered();
+        let announced =
+            ids.iter().filter_map(|id| Some(format!("{id} {}", self.battlefield.get(id)?.announced_controller))).collect();
+        let walked = self.unobserved(|| {
+            ids.iter().filter_map(|id| Some(format!("{id} {}", compute_characteristics(self, *id)?.controller))).collect()
+        });
+        assert_shortcut_agrees("the control sweep's gate", || "every permanent's controller".to_string(), announced, walked);
     }
 
     /// The changes one sweep found, as one window, with every permanent's

@@ -212,6 +212,31 @@ impl Drop for OpenAuditScope<'_> {
 }
 
 impl LayerMemo {
+    /// Put back what `saved`, a clone of this memo taken earlier, held: an
+    /// observer's read leaves the memo as it found it (`GameState::unobserved`).
+    /// The audit scope goes back to none, as a clone's does.
+    pub(crate) fn restore(&self, saved: LayerMemo) {
+        let LayerMemo {
+            frames,
+            notes,
+            mana_production_watchers,
+            gated_reads,
+            #[cfg(debug_assertions)]
+            audit_paused,
+            #[cfg(debug_assertions)]
+            audit_scope,
+        } = saved;
+        self.frames.replace(frames.into_inner());
+        self.notes.replace(notes.into_inner());
+        self.mana_production_watchers.replace(mana_production_watchers.into_inner());
+        self.gated_reads.set(gated_reads.get());
+        #[cfg(debug_assertions)]
+        {
+            self.audit_paused.set(audit_paused.get());
+            self.audit_scope.0.replace(audit_scope.0.into_inner());
+        }
+    }
+
     /// Whether the debug audits check what this memo serves.
     #[cfg(debug_assertions)]
     pub(crate) fn audited(&self) -> bool {

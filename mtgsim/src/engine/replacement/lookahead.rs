@@ -29,7 +29,7 @@ use crate::types::replacement::EnterMods;
 
 /// What the frame is computed from: the entry proposal itself, or an entering
 /// object a synthetic query is about. Everything is known.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FrameBasis {
     object: ObjectId,
     controller: PlayerId,
@@ -72,6 +72,13 @@ impl<'g> EntryFrame<'g> {
             basis: Some(FrameBasis { object, controller, mods: mods.clone() }),
             frame: OnceCell::new(),
         }
+    }
+
+    /// The same frame with nothing computed yet: what an audit reads through,
+    /// so that what it computes is not a frame the game's own reads would then
+    /// find already there (`engine::audit`).
+    pub(crate) fn uncomputed(&self) -> EntryFrame<'g> {
+        EntryFrame { game: self.game, basis: self.basis.clone(), frame: OnceCell::new() }
     }
 
     /// Is `id` the object this event is entering? Answered off the proposal,
