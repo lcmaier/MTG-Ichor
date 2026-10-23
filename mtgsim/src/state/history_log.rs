@@ -67,7 +67,9 @@ pub enum RowFact {
     GainedLife(u64),
     LostLife(u64),
     /// CR 603.6a: entered the battlefield, from the zone it came from; a token
-    /// comes from none. Any other move is a `LeftZone`.
+    /// comes from none. Any other move is a `LeftZone`. The event, for a count
+    /// of the turn's entries; whether an object entered this turn is its own
+    /// fact (`ObjectFact::Entered`).
     EnteredBattlefield { from: Option<Zone> },
     /// A move that is no draw, cast or entering the battlefield: died, discarded, milled,
     /// sacrificed, exiled, returned to a hand. `became` is the object the move

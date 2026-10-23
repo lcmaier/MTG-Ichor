@@ -252,6 +252,10 @@ impl GameState {
                     _ => None,
                 });
                 if let Some((object, frame)) = current(*object_id) {
+                    debug_assert!(
+                        self.battlefield.get(object_id).is_none_or(|entry| entry.entered_battlefield_turn == self.turn_number),
+                        "{object_id}'s entry row and its own entry turn disagree"
+                    );
                     draft_history_row(Some(*controller), Some(object), frame, RowFact::EnteredBattlefield { from });
                 }
             }

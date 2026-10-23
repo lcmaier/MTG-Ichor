@@ -71,7 +71,12 @@ pub enum ObjectFact {
     Blocked,
     /// Became a blocked creature as blockers were declared (CR 509.1h).
     WasBlocked,
-    /// Entered the battlefield. A turn's, never a combat's.
+    /// Entered the battlefield. A turn's, never a combat's. The permanent's
+    /// own fact (`PermanentState::entered_battlefield_turn`, which its last
+    /// known information keeps), never the log's entry rows: CR 614.12's
+    /// look-ahead asks it of a permanent not yet on the battlefield, and the
+    /// batch it enters in may ask it before the window that writes its row
+    /// closes.
     Entered,
     /// Was dealt damage (CR 120.3).
     WasDealtDamage,
