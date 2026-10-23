@@ -265,11 +265,14 @@ paths.
   theorem holds for any bipartite graph, so a restriction naming part of a
   cost would only narrow what that mana reaches.
 
-**How it runs.** The inventory keeps one table: for each of the 64 type
-sets (128 once `{S}` needs a seventh bit), how much mana reaches it, built once with a subset-sum transform (384
-additions). A generic pip accepts every type, so it enters only the total. A
-cost with k distinct colored pip kinds needs at most 2^k − 1 comparisons;
-k is 1–3 on nearly every printed card. **About 100 instructions a cost**,
+**How it runs.** The inventory keeps its free mana as a list of (type set,
+amount) (`SplitSupply::free`; this design had a table over every type set,
+built once by a subset-sum transform, and MA-1 built the list). For each
+nonempty subset of the cost's colored pip kinds, `feasible` adds up the
+mana whose type set meets that subset and compares it with the pips asked.
+A generic pip accepts every type, so it enters only the total. A cost with
+k distinct colored pip kinds needs at most 2^k − 1 comparisons; k is 1–3
+on nearly every printed card. **About 100 instructions a cost**,
 measured on the board.
 
 **Every symbol has a demand:**
@@ -373,12 +376,16 @@ gate leans one way only.
   another permanent (Ironworks, Ashnod's Altar) give their output once per
   permanent they may sacrifice. The cost's own sacrifices come out of that
   count first: the window comes before the payment (601.2g, then 601.2h), so
-  a permanent sacrificed for mana cannot also pay the cost. Today the check
-  counts the sacrifice free (143).
+  a permanent sacrificed for mana cannot also pay the cost. Before MA-1 the
+  greedy counted the sacrifice free (143); MA-1's check takes the cost's own
+  sacrifices out of an outlet's fodder, and still reads loosely a source that
+  sacrifices itself for mana and is what the cost's own sacrifice must take
+  (`codebase-state.md` item 213).
 - **The cost's own consumption.** An activated ability whose cost includes
   `{T}` takes its own source's entry out. Chainbreaker with Citanul
-  Hierophants' grant cannot tap itself to pay its own `{3}`; today's greedy
-  counts it, and it is among the probe's 44. The same rule keeps
+  Hierophants' grant cannot tap itself to pay its own `{3}`; before MA-1 the
+  greedy counted it, and it was among the probe's 44 (§2.3). MA-1's check
+  leaves it out. The same rule keeps
   `cost-architecture.md` §3.11's Mind Stone puzzle out of the offer: an
   ability whose cost sacrifices its source cannot also feed that source to
   Ironworks.
@@ -438,14 +445,21 @@ few hundred of it. That is about 0.5 points saved, an estimate MA-1 measures.
 the check takes the purpose: the spell's types, or the activated ability's
 source's (`SpendPurpose`, which exists). Entries the purpose refuses leave
 the table before the check, and a second table is built when the inventory
-holds any. **About 2,100 instructions a cost where present.**
+holds any. **About 2,100 instructions a cost where present.** MA-1 built
+neither the entry's restriction nor the purpose argument: the inventory
+does not count restricted mana (`ManaOutput::special`) and reads only the
+pool's unrestricted mana, so it never offers a payment that needs it. Both
+come with item 33's build.
 - **Snow** is §3.2's seventh bit.
-- **The pool** is read through one function, today `ManaPool::available()`.
-  Item 33's per-unit record replaces it with the units the purpose may
+- **The pool** is read through one function, today
+  `ManaPool::unrestricted_by_type()`, which leaves restricted mana out (the
+  inventory's pool entry and `remaining_cost_after_pool` call it; the
+  payment's generic split still reads `available()`). Item 33's per-unit
+  record replaces it with the units the purpose may
   spend, which `amount_for` already computes for the special atoms.
 - **What this design builds:** the entry's restriction and the purpose
-  argument. No card reaches them until item 33's build (`roadmap-v2.md` B9)
-  makes restricted mana spendable.
+  argument, with item 33's build (`roadmap-v2.md` B9), which makes
+  restricted mana spendable; until then MA-1 leaves it uncounted.
 - **What item 33 builds:** the per-unit record, the payment that reads it,
   and the source axis on the generic split.
 
@@ -692,8 +706,11 @@ gets it under the toggle; `fuzz_games` gets a flag, off by default
 
 `setup-architecture.md` §7c and `cast-census.md` §9 give these kinds typed
 reasons "with item 162's build":
-- **`ManaAbilityWindow`:** the refusals are the inventory's, one
-  `CannotPay` per mana ability it did not make an entry of, saying why.
+- **`ManaAbilityWindow`:** the refusals are the window's: for each of the
+  source's mana abilities the window does not offer, the `CannotPay` its
+  costs return when they cannot be paid, saying why. A permanent whose
+  abilities can't be activated at all gets that one refusal instead
+  (`ui/why.rs`' `window_refusals`).
 - **`ChooseXValue`:** the bound and each cut (§3.7). "X above N leaves the
   cost unpayable: N plus the cost's other pips is all the mana this board
   makes." "X = 2 is not offered: no artifact has mana value 2."
@@ -730,7 +747,7 @@ cost if every cost the check read carried it.
 | Painland riders | 129 | gate unchanged; the rider through the chokepoint | 0 at the gate; about 22.5K an activation | MA-3 |
 | The chosen color | 32 | the recorded bit; `backlog.md` §2.2's record, its mana half | 0 beyond a read | MA-4 |
 | "Could produce" | 14 | the union, a fixpoint, memoized | one pass over the named set a memo miss | MA-4 |
-| Restricted mana | 153 | §3.6, an edge refused | 2,100 a cost where present; bound 5.6K | the seam in MA-1, the cards in item 33's build (`roadmap-v2.md` B9) |
+| Restricted mana | 153 | §3.6, an edge refused | 2,100 a cost where present; bound 5.6K | item 33's build (`roadmap-v2.md` B9); MA-1 leaves restricted mana uncounted |
 | X | 527 | the smallest legal X at the gate; the legal set at 601.2b, the bound in closed form, cut by the other rules (§3.7) | 159 a cost; bound 0.4K | MA-2; each cut with its surface |
 | Hybrid, `{C/W}` | 582, 1 | a two-type pip | 0 beyond the plain check | CP-1, against §3.2 |
 | Mono-hybrid, Phyrexian | 20, 36 | counts enumerated | 1,300 a cost where present; bound 3.6K | CP-1, against §3.2 |
@@ -823,7 +840,8 @@ seven were taken as recommended at #224's review** (the owner,
    payment and the source axis are item 33's own pass (§3.6).
 3. **The algorithm.** As recommended: one entry per shared cost, amounts as
    capacities. Feasibility is read by Hall's condition over a 64-entry
-   table, about 100 instructions a cost. §3.3's shapes are exact: one-choice
+   table (MA-1 built it over a list of (type set, amount), §3.2), about
+   100 instructions a cost. §3.3's shapes are exact: one-choice
    entries and alternatives tried, Signet-shaped converters by a base-mana
    pip, Doubling Cube by its input's split. Only enumerations past a stated
    cost cap over-offer. On the budget's board the
@@ -848,9 +866,9 @@ seven were taken as recommended at #224's review** (the owner,
 
 ## 8. Out of scope
 
-- **CR 732.1's reversal** (item 72). It stays with critical-path item 6, as
-  `backlog.md` §2.22 row 9 placed it. The solver's "reverse all when the
-  solver made the taps" is row 9's, not MA-6's.
+- **CR 732.1's reversal** (item 72). It is `backlog.md` §2.22 row 9's,
+  slotted to B13, the Ironworks loop (`codebase-state.md` item 72). The
+  solver's "reverse all when the solver made the taps" is row 9's, not MA-6's.
 - **The payment of hybrid, Phyrexian and `{C/W}`** is CP-1's. Of `{S}` and
   restricted mana, item 33's.
 - **CR 609.4b's "spend as though it were mana of any color"** (49 cards) is
@@ -918,6 +936,10 @@ Found by MA-2's plan (2026-10-17, at #259):
   Ancient, an X of 11,318 was announced and paid, and beside Nyxbloom each
   Cube multiplies what the pool can reach by about four, so a dozen reach
   about 10^9 (#260, which fixed the byte counts an X past 255 overflowed).
+  *Annotated at the item 6 audit (2026-10-22):* MA-2 then held the
+  arithmetic's generic part as a count (`ManaComponent`, §3.7), but the
+  `ManaCost` it hands on (`ManaComponent::at`, `ManaCost::with_x_as`) still
+  writes a `Generic` symbol per mana, so the point stands.
 - **`GameNumber`'s plan has no division** (found at #259's review). The
   most X for a cost with two or more X symbols is a floor quotient of the
   mana the board makes (§3.7), and `decision-provider-refactor.md` §9's
