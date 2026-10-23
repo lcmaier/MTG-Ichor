@@ -37,6 +37,38 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-22 for item 185** (#278: the record of each question not
+asked, every forced prompt decided in `ui/ask.rs`, the shortcuts' audits; the
+item 6 audit's pass 5). No card moves, so no table is re-recorded. One
+`close_out.py` sitting against **main** `1767fcd` (#277's merge); **engine**
+`ab46f12` is the last engine commit, after the review's fixes. The first
+sitting, on `1fa2f8f` before them, read the same rows and +0.50%.
+
+**Predictions, before any arm ran** (#278's body):
+- every row, gameplay and cost, identical on both pools at two seats and four,
+  since the record takes no `EventId` and the audits' reads restore what they
+  touch;
+- instructions per decision +0.0% to +0.3%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| every counter row, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 175,509 / 173,877 | 337,915 / 353,342 |
+| instructions / decision, callgrind, the Commander board | | 0.7392 M → 0.7433 M, **+0.55%** |
+| audited smoke, 1,000 games at seed 777, performance / stress: errors, panics, turn limits | 0 / 0 | 0 / 0 |
+
+**The one move nobody predicted: +0.55% where +0.3% was the ceiling.** Read off
+the first sitting's callgrind profiles, inclusive: the PR's own work is about
+5 M of its 35 M (the two ask helpers, the notes, the cost sweep's switch),
+about 0.07%; the review's fix adds a mark per priority action for a reversal
+to return to, the other 0.05%. Nearly all the rest is `activatable_abilities_with`, +55 M, code the PR
+does not touch: `mana_production_of` is inlined into it on the engine arm, and
+`controls` stopped being inlined (12 M → 102 M inclusive). An inlining shift,
+inside §3.1's 2.5-point budget, so not chased.
+
+The audited smoke ran every new audit (the three gates, the control sweep,
+the castability fold) on 4,000 games beside the dispatcher's, and none fired.
+
 **Re-recorded 2026-10-22 for TR-7** (#269: the persist loop). Grumgully,
 the Generous, Wingrattle Scarecrow and Viscera Seer join the registry
 (212 → 215) and the first two the pool (122 → 124), so both §3 columns are

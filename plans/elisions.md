@@ -86,17 +86,17 @@ effects involved can read and write.
 | Question | Where it is skipped | The premise | What checks it |
 |---|---|---|---|
 | CR 616.1: which of several replacement effects applies first, among those the player must choose from at that step of 616.1a–e | `ordering_cannot_change_outcome` `engine/replacement/pipeline.rs:1081` | applying one never stops another from applying, never changes what another writes, is never overwritten by another, and never makes an effect apply that would multiply another's write | `replacement-architecture.md` §3.5's feeds table: its inputs are matched exhaustively (`EntryWrites` `engine/replacement/pipeline.rs:1536`), so a new kind of write does not compile until it is classified. `check_order_invariance` `engine/replacement/pipeline.rs:1746` re-checks the first property after every skipped prompt, in debug builds only, so a release game pays nothing. Two tests reach every order for the fourth property |
-| CR 603.3b: the order of one player's triggered abilities that triggered together | `trigger_order_cannot_change_outcome` `engine/triggers/placement.rs:118` | they are the same ability, in the first of 603.3b's two tiers, with no target and no mode, and they agree on every fact the ability reads off its trigger: which object, which player, how much, its power, the source, X, the ability's own count (`entries_agree_on` `engine/triggers/placement.rs:130`) | `trigger_binding_reads` `engine/triggers/binding_reads.rs:108` lists what an ability reads, and it is an exhaustive match: a new kind of effect does not compile until it says what it reads. `binding_reads_are_named` `engine/stack.rs:326` checks the list in every debug test and game: each fact a resolving triggered ability reads off its entry is noted where it is read (`note_binding_read` `engine/resolve.rs:2945`), and must be one its def names. TR-2b's and TR-5a's tests pin both answers. "No target, no mode" is stricter than the rule needs (item 317) |
+| CR 603.3b: the order of one player's triggered abilities that triggered together | `trigger_order_cannot_change_outcome` `engine/triggers/placement.rs:118` | they are the same ability, in the first of 603.3b's two tiers, with no target and no mode, and they agree on every fact the ability reads off its trigger: which object, which player, how much, its power, the source, X, the ability's own count (`entries_agree_on` `engine/triggers/placement.rs:130`) | `trigger_binding_reads` `engine/triggers/binding_reads.rs:108` lists what an ability reads, and it is an exhaustive match: a new kind of effect does not compile until it says what it reads. `binding_reads_are_named` `engine/stack.rs:326` checks the list in every debug test and game: each fact a resolving triggered ability reads off its entry is noted where it is read (`note_binding_read` `engine/resolve.rs:2948`), and must be one its def names. TR-2b's and TR-5a's tests pin both answers. "No target, no mode" is stricter than the rule needs (item 317) |
 | CR 603.7b: which of several events that happened at once triggers a delayed triggered ability | `choose_delayed_cause` `engine/triggers/delayed.rs:527` | the events agree on every fact the ability reads, as in the row above | the row above's list and its check; TR-3b's two tokens dying at once |
 | CR 601.2f: the order of two or more cost reductions. **Owed, not taken** | asked in `modify` `engine/cost_determination/total.rs:95` | every order gives the same total (`cost-architecture.md` §3.4's theorem), until a reduction can be a hybrid symbol or have a floor | item 165, slotted at CP-1; `AutoPayer` answers it until then |
 
 **What the trigger check sees.** It notes the binding's facts where the
 resolution reads them: the triggering objects by event role, the triggering
 player, the amount, the triggering object's power or toughness, the referred
-objects, X, and "this object" through `this_object`. A read of the source by
-another route, such as a damage source or a mana ability's producer, is not
-noted, so a leaf that reads the source that way and does not name it is
-caught only by review and the tests.
+objects, X, and the source through `this_object` and its counters. A read of
+the source by another route, such as a damage source or a mana ability's
+producer, is not noted, so a leaf that reads the source that way and does not
+name it is caught only by review and the tests.
 
 ## 4. Skipped work
 
@@ -160,18 +160,23 @@ takes each gate's printed leg away and sees the panic
 **Each forced prompt and elision the engine takes is recorded in the game's
 log**: who would have been asked, the question, the answer and why
 (`events::unasked`, `UnaskedChoice` `events/unasked.rs:19`). It is written
-through `note_unasked` `events/recorder.rs:211` beside the event recorder's
+through `note_unasked` `events/recorder.rs:236` beside the event recorder's
 records, placed before the record it preceded, and drawn by `format_event_log`
 (`format_unasked` `ui/display.rs:1215`), so `--dump-events`, `cli_play`'s log
-and a test's log carry it:
+and a test's log carry it. Three lines from `fuzz_games --games 10 --seed
+185 --dump-events` at #278:
 
 ```
-NotAsked: P0 SelectRecipients for Volcanic Upheaval (#7): Forest (#3), its one legal answer
-NotAsked: P0 OrderTriggers: Grafted Wargear (#9), Grafted Wargear (#10) in that order, every order leaves one game (CR 603.3b)
+NotAsked: P1 SelectRecipients for Act of Treason (#71): Wall of Stone (#7), its one legal answer
+NotAsked: P0 GenericManaAllocation for Wall of Stone (#7): 1 to mana {W}, 0 to mana {R}, its one legal answer
+NotAsked: P0 ChooseReplacementEffect: Mana Reflection (#7), every order leaves one game (CR 616.1)
 ```
 
 The dev GUI's log does not draw it (`log_lines` `ui/display.rs:1164` reads
-records only), as it does not draw a mana ability's activation. It is an
+records only), as it does not draw a mana ability's activation. An action
+reversed under CR 732.1 takes back the questions it answered unasked, since the
+log shows nothing of it (`take_back_unasked` `events/recorder.rs:228`); the
+decision log keeps its answers, which a replay asks again. It is an
 observer: it takes no `EventId`, enters no window, matches no trigger, moves
 no counter and draws no randomness, so a game performs the same events
 whether anything records. Skipped work is not recorded each time, since it
