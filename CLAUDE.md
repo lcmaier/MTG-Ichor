@@ -35,7 +35,7 @@ python plans/check_claude_md.py && python plans/check_module_layout.py && python
 ## The layer-system invariant
 
 **Never read `card_data.{types,subtypes,supertypes,colors,keyword_flags,abilities}` for an object
-on the battlefield or the stack** — route through `oracle/characteristics.rs`, and assume a new query needs a wrapper.
+in any zone** — route through `oracle/characteristics.rs`, and assume a new query needs a wrapper.
 
 **Ability *indices* are part of it.** `activatable_abilities`, `priority.rs`'s re-derivation
 by id and `put_on_stack.rs::activate_ability` must all index the *effective* list; migrating one alone
@@ -53,8 +53,8 @@ already cost a redesign:
 
 - **Don't reconcile the registry at state-mutation chokepoints** — deciding existence outside
   the layer walk needs an iteration cap and invents oscillation the CR does not have.
-- **The frame cache's descending layer ceiling is the termination argument**, not an
-  optimization. → `layers-architecture.md` §5.2.
+- **Nothing inside the layer pass calls the top-level entry**: a member's frame is read off the live board, and only a
+  non-member's walk recurses, at a strictly lower ceiling (`Board::frame_of`). That is the termination argument, not an optimization. → `layers-architecture.md` §5.2.
 
 ## CDAs are never registry effects
 
@@ -73,7 +73,7 @@ invisible to CR 614 no matter how loudly it is *emitted* — the pipeline reads 
 the event. Propose with `execute_action` / `change_zone`; `check_invariants.py` fails any other write (`engineering-practices.md` §11).
 
 - **A `ZoneChange` names its `ZoneChangeAct` and every proposal its `EventCause`; no catchall.** Only
-  the pipeline and the trigger matcher branch on `act`; every emitter names its record's cause.
+  the pipeline, the trigger matcher, the history writer and a resolution counting its own records ("discarded this way") branch on `act`; every emitter names its record's cause.
 - **Performers are loud; callers check legality.** That makes CR 608.2b's partial resolution
   the *caller's* job — see `Primitive::Untap`/`Destroy`.
 - **"Becomes" events fire on the transition only (CR 603.2e).** A redundant tap announces nothing.
@@ -85,7 +85,7 @@ the event. Propose with `execute_action` / `change_zone`; `check_invariants.py` 
 - **A simultaneous rule needs `execute_actions`, not a loop.** CR 704.3's single event, 704.7's
   collapse and 615.7's shield allocation are unreachable from a loop; a *nested* call joins the
   enclosing batch unless the CR makes its events no *result of* the outer one (`// AUXILIARY-MOVE:`,
-  CR 614.13). One permanent chokepoint exemption, `// CAST-ROLLBACK:`: CR 601.2a's move is silent both ways, loud at 601.2i. → `replacement-architecture.md` §2.
+  CR 614.13). Two permanent write tags: `// CAST-ROLLBACK:` (CR 601.2a's move, silent both ways, loud at 601.2i) and `// NOT REPLACEABLE:` (a write no replacement effect can watch for, CR 614.1). → `replacement-architecture.md` §2.
 - **A decision site may not hold outcome-bearing state off `GameState`.** → `codebase-state.md` item 40.
 
 ## The replacement pipeline (CR 614–616)
@@ -99,7 +99,7 @@ rules, each of which has already cost something. → `replacement-architecture.m
 - **A "can't" is not a replacement effect (CR 614.17).** Checked ahead of the pipeline, and it
   wins (CR 101.2) — `engine::restriction::is_prohibited`, never a `ReplacementDef`.
 - **A static replacement ability is discovered off the *effective* ability list, never a
-  registry.** Two gates, three legs each — printed, granted, copied; Layer 3 is the route left.
+  registry.** One gate per reader of that list (`engine-map.md` §2.3), three legs each — printed, granted, copied; Layer 3 is the route left.
   **A new gather source, or a new route to that list, needs a leg on every gate** or it is dead.
 - **Declining an optional is tracked separately from CR 614.5's applied set.** CR 903.9b is
   exempt *and* optional, so a decline recorded in the applied set is a hang.
@@ -122,7 +122,7 @@ reassigns from the same process-independent counter — never `ObjectId`; same f
 
 **Randomness is owned, never ambient.** Nothing reachable from a game may call `rand::rng()`, and `clippy.toml`
 refuses it; draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and `reseed_from_entropy`
-are the deliberate opt-outs, for interactive play, each under `#[expect]`.
+for interactive play, and an unseeded `fuzz_games` run's seed, are the deliberate opt-outs, each under `#[expect]`.
 
 The regression is `tests/determinism_test.rs`, but the id hasher (`types::ids::IdHash`) is seeded once
 per process, so the end-to-end check is three shell `fuzz_games` runs at one seed under three

@@ -643,8 +643,9 @@ instant. → `engine::triggers::dispatch`.
 **matcher** — the question dispatch asks one triggered ability about one
 record: does the record fit the ability's trigger event (the arm, its subject,
 its players), and do its once-each-turn limits and its intervening "if" (CR
-603.4) let it trigger? Yes queues a trigger. Besides the replacement pipeline,
-the only code that may branch on a zone change's `act`.
+603.4) let it trigger? Yes queues a trigger. One of the few readers that may
+branch on a zone change's `act`, with the replacement pipeline, the history
+writer and a resolution's "discarded this way" count.
 → `match_def` in `engine::triggers::dispatch`.
 
 **multiplicity** — CR 603.2c's question about one arm: does it trigger once
