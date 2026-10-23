@@ -857,17 +857,21 @@ here. None is blocking RB.
     the type level. Unreachable until Layer 1 (copy) and Station land; recorded so
     neither phase quietly removes it.
 
-    **Reachability (2026-09-03):** unreachable — Layer 1 landed with CV-1 and
-    Station has not (`station` appears nowhere in `src/`); no registered
-    creature has `toughness == None` today (Sutured Ghoul is registered at a
-    printed 0/0, item 59, and Keldon Warlord's CDA fills its box).
+    **Reachability (2026-10-23):** unreachable — Station has not landed
+    (`station` appears nowhere in `src/`), and no registered creature has
+    `toughness == None` (Sutured Ghoul is registered at a printed 0/0, item
+    59, and Keldon Warlord's CDA fills its box).
 
     **Sized:** the two `unwrap_or(0)` reads (`sba.rs:242`, `:254`)
     become an explicit `None` arm whose answer CR 721.2c decides, ~10 lines plus
     a test; lands with the first Station card (Phase 8).
     **Slotted:** with the first registered card that has station (Scryfall:
-    `kw:station`), whose PR gives the two `unwrap_or(0)` reads in `sba.rs` CR
-    721.2c's `None` arm.
+    `kw:station`), whose PR gives the two `unwrap_or(0)` reads in `sba.rs` an
+    explicit `None` arm. Kept with its card at the card-homed triage
+    (2026-10-23): no rule gives a creature with no toughness a number (CR
+    208.2a's "use 0" is a characteristic-defining ability's), so a station
+    card's rulings decide the arm, and `unwrap_or(0)` already gives the judge
+    corpus's answer for Taskmaster and The Seriema.
 
 ### Found by the "can't" design pass (2026-08-27)
 
@@ -1224,18 +1228,24 @@ registered card returns an object.
     sweep, the epoch (the row's source is an id, not an `ObjectRef`), and the
     control leg.
 
-    **Reachability (2026-09-24):** unreachable — the 33 registered
-    source-scoped durations are all static abilities, whose rows name the
-    permanent as their source; no registered resolution writes one.
+    **Reachability (2026-10-23):** unreachable — the registered source-scoped
+    durations are all static abilities, whose rows name the permanent as their
+    source, and no registered resolution writes one (Sower of Temptation and
+    Dragonlord Silumgar are unregistered).
 
     **Reachability (2026-09-03):** unreachable — still exactly two producers of
     registry rows, `Primitive::Regenerate` (`UntilEndOfTurn`) and
     `Primitive::Restrict` (a duration the card writes), and no registered card
     uses either; static replacement and restriction abilities never register a
     row.
-    **Slotted:** with the first registered card that resolves a "for as long
-    as" duration (78 cards, the body's two queries); the control leg reads
-    TR-4d's `ControlChanged`.
+    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    the replacement and restriction registries' sweep on
+    `Duration::ends_with_its_source`, the watched object as an `ObjectRef` so
+    a flicker ends it (CR 400.7), and the control leg on TR-4d's
+    `ControlChanged`, with the three fixtures above. Its check, in debug
+    builds after each performed batch: no row in the three registries whose
+    duration ends with its source names an object that has left the
+    battlefield (CR 611.2b).
 
 ### Found by the theme C+E pass (2026-08-30)
 
@@ -1290,12 +1300,14 @@ registered card returns an object.
     "doesn't untap during ..."**. `cant-effects-architecture.md` §2.2 is where
     that belongs.
 
-    **Reachability (2026-09-03):** unreachable — RS-1 landed, so the
-    prerequisite is met, and `turns.rs:137` still zeroes unconditionally; none
-    of the seven cards is registered.
-    **Slotted:** with the first registered card that keeps damage from being
-    removed in cleanup (Scryfall: `o:/damage isn.t removed/`, 7 cards): a
-    filter on CR 514.2's wipe.
+    **Reachability (2026-10-23):** unreachable — RS-1's registry exists and
+    `turns.rs`'s cleanup still zeroes `damage_marked` unconditionally; none of
+    the seven cards is registered.
+    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    CR 514.2's wipe asks the restriction registry before it removes a
+    permanent's damage, with a fixture static "damage isn't removed from
+    creatures you control during cleanup steps" and a creature that keeps its
+    damage into the next turn.
 
 ### Found by the theme H pass (2026-08-30)
 
@@ -1358,12 +1370,16 @@ registered card returns an object.
     keyword counter on a card outside the battlefield. Not Skullbriar alone —
     two cards do not earn the move. → `replacement-architecture.md` §11 item 10.
 
-    **Reachability (2026-09-03):** unreachable — no registered card puts a
-    counter on a card outside the battlefield; suspend, off-battlefield keyword
-    counters and Skullbriar are all unregistered.
-    **Slotted:** with the first registered card that puts a counter on a card
-    outside the battlefield (suspend, Scryfall: `kw:suspend`), which moves
-    `counters` onto `GameObject`.
+    **Reachability (2026-10-23):** unreachable — no registered card puts a
+    counter on a card outside the battlefield (suspend, off-battlefield
+    keyword counters and Skullbriar are unregistered), and `counters` is still
+    `PermanentState`'s.
+    **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23):
+    moving `counters` onto `GameObject` is a design, not a card's mechanical
+    fix: what CR 613.7c's `CounterStack.timestamp` means off the battlefield,
+    and the clone cost of a map on every object in every zone. Its first
+    customer, suspend, casts from exile, which is permission's later builds,
+    so A6s places it beside them.
 
 24. **~~`ReplacementDef.then` is rich enough; the `Effect` tree is not
     (`rb-review.md` F4).~~ — ✅ CLOSED 2026-09-26 (TR-2b).** — archived.
@@ -1438,13 +1454,17 @@ registered card returns an object.
     the batch is the caller. What it must not become is a `match` on error
     strings, which would make a real bug indistinguishable from a stale member.
 
-    **Reachability (2026-09-03):** unreachable — re-checked: the SBA sweep
+    **Reachability (2026-10-23):** unreachable — re-checked: the SBA sweep
     dedupes per object, combat and untap batches are per-object unique, RC-5's
     auxiliary batch names each object once by CR 614.13b, and no registered
     spell proposes one object twice.
-    **Slotted:** with the first registered card that proposes one object twice
-    in one batch (two "destroy target creature" clauses, CR 115.3), which gives
-    phase 2 its `still_legal` check.
+    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    phase 2's `still_legal`, one arm per `GameAction` variant with no
+    wildcard, skipping a stale member rather than failing the batch (CR
+    608.2b), with a fixture whose one instruction names one creature twice
+    ("exile target creature and target creature", CR 115.3). Its check: a
+    member `still_legal` passed performs without `Err`, asserted in debug
+    builds, so a performer's error stays a bug.
 
 ### Found by a rider read-through (2026-08-30)
 
@@ -1490,9 +1510,9 @@ section never asked.
     shared helper. Count that before committing to one.
     → `replacement-architecture.md` §11 item 17.
 
-    **Reachability (2026-09-03):** unreachable — no registered rider is phrased
-    over a set, and `regeneration_rider`'s unread filter is inert rather than
-    wrong.
+    **Reachability (2026-10-23):** unreachable — no registered rider is
+    phrased over a set, and `regeneration_rider`'s unread filter is inert
+    rather than wrong.
 
     **Sized:** counted 2026-09-03: `resolve_primitive` has 41 arms
     now (29 when this was written). The shared route — one `recipients_for(ctx,
@@ -1500,9 +1520,11 @@ section never asked.
     at resolution time, with the object-reaching arms reading `ctx.targets`
     through it — is ~150–250 lines; lands with the first set-phrased rider
     (RD/RE) or the first mass-removal spell, whichever comes first.
-    **Slotted:** with the first registered card whose rider acts on a set (item
-    24's "put a +1/+1 counter on each of them"), through a resolution-time
-    `recipients_for`.
+    **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23):
+    what is left is a design, `EffectRecipient::Choose` answered at resolution
+    (CR 608.2d) across the object-reaching arms and a set the event names
+    ("each of them"), with the count above first, which decides between one
+    `recipients_for` and per-arm treatment.
     **Partly built (2026-10-14, A6m's first PR, #249):** `affected_permanents`
     resolves a `FilteredPermanents` recipient as the effect resolves, for every
     arm that writes a row, regenerates or removes from combat or damage.
@@ -2542,12 +2564,18 @@ measurement; what follows is what a later phase has to know.
     and `apply_auxiliary_move`, plus the count question. Lands with item 46's
     producer, since neither is testable in a game without the other.
 
-    **Reachability (2026-09-03):** unreachable — re-checked: no multi-entry
-    batch (item 46) and nothing grants devour; `grants_devour` in
+    **Reachability (2026-10-23):** unreachable — a plural entry exists since
+    RE-4 closed item 46 (`GameAction::CreateTokens` proposes every token's
+    entry as one batch), but no registered card creates two creatures with
+    devour at once or grants devour; `grants_devour` in
     `phase_rc5_integration_test.rs` is the only board.
-    **Slotted:** with the first registered card that makes two devour creatures
-    enter at once (Dragon Broodmother under Doubling Season; Scryfall:
-    `o:devour -keyword:devour`).
+    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    one entry event's auxiliary moves performed as one batch and counted by
+    what was performed (CR 701.21a; the card's "for each creature sacrificed
+    this way"), with a fixture that creates two creature tokens with devour at
+    once, the plural entry RE-4 built, and `grants_devour`. Its check, in
+    debug builds: every auxiliary move of one entry event writes its record
+    into one batch.
 
 62. **`AuxiliaryMove` has no chooser field, so "you" is the effect's
     controller — and the two printed shapes disagree.** CR 614.13a says "**you**
@@ -2566,10 +2594,13 @@ measurement; what follows is what a later phase has to know.
     field with one used value is the shape §3.2's growth contract warns about.
     The test fixture `grants_devour` takes it and says so.
 
-    **Reachability (2026-09-03):** unreachable — no registered card takes the
-    granted-devour road; the same fixture is the only board.
-    **Slotted:** with the first registered card that grants devour (only the
-    Jund plane does, CR 614.13b; Scryfall: `t:plane o:devour include:extras`).
+    **Reachability (2026-10-23):** unreachable — no registered card takes the
+    granted-devour road; `grants_devour` is the only board.
+    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    a granted devour is the entering creature's own ability, so that
+    creature's controller chooses and sacrifices (CR 614.13a's "you", CR
+    109.5), and `grants_devour` asserts it; the chooser field only if the
+    gather cannot give the instance that controller.
 
 63. **`per_chosen` is a constant per object, and Thromok the Insatiable's is
     not.** "Devour X, where X is the number of creatures devoured this way" —
@@ -2580,12 +2611,15 @@ measurement; what follows is what a later phase has to know.
     22 are `Fixed`, and CR 702.82c's devour-[quality] variants are covered
     already by the payload's `filter`.
 
-    **Reachability (2026-09-03):** unreachable — Thromok the Insatiable is not
+    **Reachability (2026-10-23):** unreachable — Thromok the Insatiable is not
     registered.
 
     **Sized:** ~20 lines with the card, as the entry says.
     **Slotted:** with the first registered card that devours by a count,
-    Thromok the Insatiable: `PerChosen::Count`, ~20 lines.
+    Thromok the Insatiable: `PerChosen::Count`, ~20 lines. Kept with its card
+    at the card-homed triage (2026-10-23): CR 702.82a's devour N is a number,
+    and a count in its place is the card's own text ("where X is the number of
+    creatures devoured this way"), so the card decides the shape.
 
 64. **~~`PermanentFilter` filters objects in zones where nothing is a
     permanent, and the name now lies.~~ ✅ Renamed to `ObjectFilter` 2026-09-07
@@ -2976,9 +3010,9 @@ one, so nothing was wrong in practice and nothing moved.
     before paying and paying before sacrificing give different draws, because
     Omnath's power is read off the pool.
 
-    **Reachability (2026-09-07):** reachable — not wrong; a forced choice.
-    No registered card makes the two orders differ, and Omnath is not
-    registered.
+    **Reachability (2026-10-23):** reachable — not wrong; a forced choice. No
+    registered card makes the two orders differ; Omnath and Momentous Fall are
+    unregistered.
 
     **Sized:** a `ChoiceKind` over the orderings of one rank, ~70 lines. **The
     constraint it must keep:** only orders that complete may be offered, which
@@ -2986,8 +3020,12 @@ one, so nothing was wrong in practice and nothing moved.
     Offering an order that bricks the payment is what would make 732.1's
     cancellation load-bearing, and building the cancellation is the
     alternative to that constraint rather than a companion to it.
-    **Slotted:** with the first registered card that makes CR 601.2h's order
-    observable, Omnath, Locus of Mana beside Momentous Fall
+    **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23),
+    with "Before card breadth" item 4's CR 613.7m: each is an order the CR
+    hands a player ("in any order", "in the order of that player's choice")
+    that the engine takes today, and when one is asked is one design, asked
+    only where the orders' outcomes differ, and here only among orders that
+    complete. Its board stays Omnath, Locus of Mana beside Momentous Fall
     (`ATOM-601.2h-003`).
 
 80. **CR 601.2h's second payment group is not modelled, and nothing was
@@ -3000,11 +3038,9 @@ one, so nothing was wrong in practice and nothing moved.
     cannot apply would be worse than a missing one. What was missing is an
     *owner* for the day that changes; this item is it.
 
-    **Reachability (2026-09-08):** unreachable — no `Cost` arm qualifies. The
-    first one that will is **mill as a cost** (`ATOM-701.17b-002`, Phase 8,
-    "can't pay a cost that requires milling more than library size"), which
-    moves library cards to a public zone; a cost with "at random" in it is the
-    other family and the corpus has no atom for one.
+    **Reachability (2026-10-23):** unreachable — no `Cost` arm is random or
+    moves a library card; mill as a cost (`ATOM-701.17b-002`) is the first
+    that will.
 
     **Sized:** a rank above `RANK_MOVES_AN_OBJECT` and a second sort key,
     ~15 lines, with whichever arm first qualifies. **The thing to notice when
@@ -3013,7 +3049,11 @@ one, so nothing was wrong in practice and nothing moved.
     sacrifice — item 79's constraint and §3.12's argument both meet it there.
     **Slotted:** with the first registered card whose cost mills (Deranged
     Assistant), the first arm in CR 601.2h's second payment group
-    (`ATOM-701.17b-002`).
+    (`ATOM-701.17b-002`). Kept with its card at the card-homed triage
+    (2026-10-23): the group's first member is a single-arm cost action, which
+    the cost document gives its first card in Phase 8, and
+    `payment_order_rank` is matched with no wildcard, so that arm cannot
+    compile without taking its rank.
 
 81. **A keyworded additional cost can be mandatory, and `AdditionalCost`'s
     shape says otherwise.** Every named variant is a keyword whose keyword
@@ -3272,17 +3312,18 @@ consequences, and only the first was designed:
     `PlayerState.poison_counters` exists as a bare `u32` and no proposal
     reaches it, so CR 122.1's chokepoint has no player-side arm.
 
-    **Reachability (2026-09-08):** unreachable — no card in the crate has
-    infect, wither or toxic, and the three are keyword flags that do not
-    exist. It becomes reachable with the first one registered.
+    **Reachability (2026-10-23):** unreachable — no card in the crate has
+    infect, wither or toxic, and the three keyword flags do not exist; the
+    counter on a player they propose does, since RE-5.
 
-    **Sized:** ~200–300 with the first infect card, per `backlog.md` §2.6,
-    which names the three keywords and their CR 120.3 results. The player-side
-    counter proposal is the part that is not mechanical; §2.16's player-counter
-    map is the same work from the other side.
-    **Slotted:** with the first registered card with infect, wither or toxic
-    (Scryfall: `keyword:infect or keyword:wither or keyword:toxic`), per
-    `backlog.md` §2.6.
+    **Sized:** ~80 lines of code and ~100 of tests: RE-5 built the
+    player-side counter this item waited on (`backlog.md` §2.16), so each
+    keyword is a flag, a result and a block in `perform_action`'s
+    `DealDamage` arm; `backlog.md` §2.6 names the three.
+    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    infect, wither and toxic as keyword flags, and CR 120.3b, 120.3d and
+    120.3g as `DamageResults` flags proposing `GameAction::AddCounters`, a
+    player's through `CounterSubject::Player`, with a fixture per keyword.
 
 87. **CR 120.3h is absent — a battle's defense counters — and so is CR 310.**
     Damage dealt to a battle removes that many defense counters, which is the
@@ -3290,15 +3331,19 @@ consequences, and only the first was designed:
     on a keyword. `CardType` has no `Battle` arm and nothing in the engine
     knows CR 310 exists.
 
-    **Reachability (2026-09-08):** unreachable — the card type does not exist,
-    so no object can be a battle and the arm can never be taken.
+    **Reachability (2026-10-23):** unreachable — `CardType::Battle` and
+    `AttackTarget::Battle` exist and nothing chooses a protector; no
+    registered card is a battle.
 
     **Sized:** unknown until CR 310 is scoped; `backlog.md` §2.23 owns it and
     was filed 2026-09-08 because no doc owned CR 310 at all. The 120.3h result
     itself is one flag on `DamageResults` and one block, the same shape as
     120.3c; everything else about battles is the size.
-    **Slotted:** with the first registered card that is a battle (Scryfall:
-    `t:battle`), `backlog.md` §2.23's PR: CR 310 and the 120.3h result arm.
+    **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23):
+    CR 310 is a design, the protector a second control-like relation
+    `ObjectFilter` has no leaf for, a battle attacked with its protector as
+    the defending player (CR 506.2, 508.5), and the 120.3h result one flag
+    inside it (`backlog.md` §2.23).
 
 ### Found by the RD-1 review (2026-09-08)
 
@@ -3343,8 +3388,8 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     (this item is the record; the handoff that first carried it is gone).
     Threading them onto `ReplacementInstance`
     and `Rider`, and giving `ReplacementDef::then` a recipient leaf that says
-    "the thing this effect targeted at resolution", is that card's PR, which
-    also needs `AmountExpr::X`.
+    "the thing this effect targeted at resolution", is that card's PR, whose
+    `AmountExpr::X` landed with MA-2.
 
     **The three rulings that pin the shape, carried here so they survive the
     handoff file** (Divine Deflection, verified on Scryfall 2026-09-08; the
@@ -3374,15 +3419,18 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     — so it is an *existence and type* check, not CR 608.2b's legality
     re-check. A rider that asked `validate_selection` would get shroud wrong.
 
-    **Reachability (2026-09-09):** unreachable — no `then` can name a
+    **Reachability (2026-10-23):** unreachable — no `then` can name a
     resolution target, and no registered rider wants one.
 
     **Sized:** ~80–120 — a field on the instance and the rider, one
     `EffectRecipient` arm, `resolve_rider` building a context that carries
     both, and the no-op check.
-    **Slotted:** with the first registered card that is Divine Deflection: the
-    row's targets threaded onto `ReplacementInstance` and `Rider`, and the
-    no-op check.
+    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    the row's targets threaded onto `ReplacementInstance` and `Rider`, a
+    `then` recipient for what the effect targeted, and the rider's
+    existence-and-type check (the three rulings above), with a fixture
+    prevention shield whose rider deals the prevented amount to a target
+    chosen at cast. Item 106's `ToFixed` rides it.
 
 91. ~~**`AmountRewrite::PreventUpTo` has a performer and no printed
     producer.**~~ — ✅ closed, archived.
@@ -3424,7 +3472,9 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     CR 615.11's per-player rows would be the same arm in `CreateReplacement`
     over the player list. One customer, so it waits.
 
-    **Reachability (2026-09-09):** unreachable — no such recipient.
+    **Reachability (2026-10-23):** unreachable —
+    `EffectRecipient::EachOf(PlayerGroup)` exists (item 122's) and
+    `CreateReplacement` refuses it by name; Kitsune Palliator is unregistered.
 
     **Sized:** ~30 — an each-player `EffectRecipient` arm (or a `PlayerSet`
     beside the filter) and one more branch in the primitive.
@@ -3433,9 +3483,11 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     `EffectRecipient::EachOf(PlayerGroup)` exists now (item 122's), and
     `CreateReplacement` refuses it by name. What is left is the per-player
     rows, ~15 lines, with Kitsune Palliator.
-    **Slotted:** with the first registered card that is Kitsune Palliator:
+    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
     per-player rows in `CreateReplacement` over
-    `EffectRecipient::EachOf(PlayerGroup)`, ~15 lines.
+    `EffectRecipient::EachOf(PlayerGroup)`, ~15 lines, with a fixture shield
+    for "each creature and each player", a row per player as CR 615.11's are
+    per creature.
 
 95. **~~The row a `Primitive::Regenerate` makes still names the ephemeral
     ability object; a `CreateReplacement` row names the permanent.~~ — ✅
@@ -3633,16 +3685,17 @@ audit is at the end.
      closed algebra, which §3.2's growth contract forbids for exactly the
      reason it would be dead.
 
-     **Reachability (2026-09-09):** unreachable — no registered card, and no
+     **Reachability (2026-10-23):** unreachable — no registered card, and no
      registrable one, can author a `ToFixed`.
 
      **Sized:** one enum arm, one match arm in `apply_rewrite`, and the
      resolution-side fill, which is item 90's — so it is item 90 plus ~20
      lines, and it lands with the first card that needs it. Not stubbed: the
      arm does not exist, so no card can silently do nothing.
-     **Slotted:** with the first registered card that redirects damage to a
-     target it chose (Glarecaster; Scryfall: `o:"to any target instead"`), on
-     item 90's targets.
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     on item 90's targets, `RetargetSpec::ToFixed` and its fill, with a
+     fixture that redirects damage to a target chosen at cast, CR 614.9's
+     destination re-check applying.
 
 107. **~~CR 614.9's re-check is an existence-and-type check.~~ — ✅ CLOSED
      2026-10-09 (PR #238).** — archived.
@@ -3658,46 +3711,15 @@ audit is at the end.
      Full entry: `plans/archive/codebase-state-closed.md`, "Found by RD-4 —
      redirection and unpreventable damage (2026-09-09)" item 108.
 
-109. **The `NotSource` fix stopped one site short of the sites that have a
-     source, and the biggest one is `Primitive`'s filter recipient.** RD-4 gave
-     `set_affects` a source to answer `ObjectFilter::NotSource` against
-     (item 103). Four callers of `targeting::object_matches_filter` remain
-     source-less, and **only two of them are genuine selections** —
-     `validate_permanent_target` and `costs.rs`'s cost-candidate filter, which
-     have no effect source and are right to refuse the leaf. The other two do
-     have one and do not pass it:
-
-     - `resolve.rs`'s three `EffectRecipient::FilteredPermanents` sites
-       (`DealDamage`, `CreateReplacement`, one more) hold `ctx.source`. This is
-       the one with printed customers: **85 cards say "each other creature you
-       control"** and 146 say "each other creature" (Scryfall, 2026-09-09).
-       Today such a filter matches nothing and the card silently does nothing —
-       Palisade Giant's bug at a different site.
-     - `pipeline.rs`'s CR 614.13 auxiliary-move filter holds `chosen.source`.
-       No printed customer: devour's payload is "creatures you control" and
-       says nothing about "other".
-
-     `pattern_watches`' three legs are a different question and stay refused:
-     the function takes the effect's *controller* and not its source, and a
-     source-side "other than me" predicate is Sokrates' one-customer shape that
-     §8c already told RD-3 to record rather than build.
-
-     **Reachability (2026-09-09):** unreachable — no registered card writes
-     `NotSource` into a `FilteredPermanents` recipient, which is exactly the
-     kind of zero item 103 has just been corrected for reading too broadly. It
-     is evidence about the pool, and the pool has 85 printed candidates waiting
-     outside it.
-
-     **Sized:** three one-line changes in `resolve.rs` (and one in
-     `pipeline.rs`) to `object_matches_filter_of_source`, plus one registered
-     card that says "each other creature you control" to test it — so ~10 lines
-     of engine and one card. It belongs with the first phase that writes that
-     card, not with RD-4, whose scope is redirection. Not stubbed: the filter
-     exists and answers `false`, which is the silent-card failure, so this line
-     is the record that it does.
-     **Slotted:** with the first registered card whose effect reads "each other
-     creature you control" (Scryfall: `o:"each other creature you control"`),
-     which passes the source.
+109. **~~The `NotSource` fix stopped one site short of the sites that have a
+     source, and the biggest one is `Primitive`'s filter recipient.~~ — ✅
+     CLOSED 2026-10-23 (found fixed at the item 6 audit's card-homed triage:
+     PR #239, TR-3c, and PR #250, A6m).** — archived.
+     Done: a resolution's filters are asked with its effect's source
+     (`matches_for_effect`, item 229), and CR 614.13's auxiliary move asks its
+     filter with the source of the resolution it belongs to.
+     **Reachability (2026-10-23):** closed — PRs #239 and #250.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 109".
 
 ### Found by RE's sizing (2026-09-11)
 
@@ -3779,17 +3801,17 @@ named RE PR.
      because no rule calls it a turn-start action and RE-1 registered no
      untap-step skip to make it reachable.
 
-     **Reachability (2026-09-11):** unreachable — no registered card skips the
-     untap step. Reachable the day one is registered, which is Phase 8's
-     breadth or whichever PR wants Eon Hub's siblings.
+     **Reachability (2026-10-23):** unreachable — no registered card skips the
+     untap step, and `process_untap_step` still resets the land drop.
 
      **Sized:** one line moved into `on_turn_begin` plus the CR citation that
-     justifies it, ~10 lines; the care is that CR 505.5b counts land plays per
+     justifies it, ~10 lines; the care is that CR 305.2 counts land plays per
      *turn* and no rule places the reset, so the move needs an argument rather
      than a hunch.
-     **Slotted:** with the first registered card that skips an untap step
-     (Scryfall: `o:skip o:"untap step"`): the land-drop reset moves to
-     `on_turn_begin`, with its argument.
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     the land-drop reset moves to `on_turn_begin`, since CR 305.2's one land
+     is per turn, with a fixture "skip your untap step" and a land played in
+     the turn that skipped it.
 
 118. **CR 514.3a's repeated cleanup step announces nothing.** — ✅ closed,
      archived.
@@ -3813,11 +3835,9 @@ named RE PR.
      because it is conditional on not being the starting player and has a cost
      (exile a card from your hand).
 
-     **Reachability (2026-09-11):** unreachable — the clause is a static
-     ability functioning in the *hand*, which is
-     `replacement-architecture.md` §3.3's source 2 and needs CR 113.6 (critical
-     path item 6a). Leyline of the Void is castable for `{2}{B}{B}` and does
-     nothing before it resolves, which is the whole of today's behaviour.
+     **Reachability (2026-10-23):** unreachable — no pregame step exists, and
+     the registered Leyline of the Void carries its second clause only (LK's
+     §13d decision 5); since LK the clause's zone question is answered.
 
      **Re-derived (2026-09-14, LK) — the prerequisite is in and this is now
      ordinary unbuilt work.** LK landed CR 113.6, and the hand-zone lookup this
@@ -3838,9 +3858,12 @@ named RE PR.
      per eligible card per player. **Unblocked as of LK.** The care is the
      ordering ruling above and CR 103.6's interaction with mulligans, which are
      themselves stubbed.
-     **Slotted:** with the first registered card that begins the game on the
-     battlefield (Scryfall: `o:"begin the game with"`, Gemstone Caverns), which
-     gives Leyline of the Void its first clause and CR 103.6 its pregame step.
+     **Slotted:** A6s, the route review, at the card-homed triage
+     (2026-10-23): CR 103.6's step is designed beside CR 103.5's mulligans,
+     which A6s places (`setup-architecture.md` names both as its neighbors): a
+     pregame step between `Game::setup`'s opening hands and
+     `start_first_turn`, its `DecisionProvider` question and Gemstone Caverns'
+     ordering ruling. Leyline of the Void gets its first clause there.
 
 120. **~~`AbilityDef` has no named constructors.~~ — ✅ CLOSED 2026-10-09 (PR
      #238).** — archived.
@@ -4424,20 +4447,24 @@ The layer system's designated single-point change site is `oracle/characteristic
 
      Eager registration works because a resolution's affected set is locked to its targets (CR 613.7b), so the grantee set is known at grant time. **What stays open is the case where it is not:** a *static* ability that grants a static ability over a filter — "enchanted creature has 'creatures you control get +1/+1'" — has a grantee set that changes with the board. That still needs the original plan here: the gather step in `apply_effects` unions the registry with effects derived from each permanent's frame-as-of-previous-layer, same loop, same frame cache, same CR 613.6 started-applying set.
 
-   **Reachability (2026-09-03):** unreachable (the grant-over-a-filter half; the
-   strip half and the resolution-grant half are closed) — no registered static
-   ability grants a *static-bodied* ability over a filter: Citanul Hierophants'
-   grant, the only `GrantAbility` in `src/cards`, has a mana body.
+   **Reachability (2026-10-23):** unreachable (the grant-over-a-filter half;
+   the strip half and the resolution-grant half are closed) — no registered
+   static ability grants a static-bodied ability over a filter: the registered
+   `GrantAbility`s are a mana ability's and, since TR-7, a self-granted
+   persist.
 
    **Sized:** the gather step unions the registry with rows derived
    from each permanent's frame-as-of-previous-layer, same loop and frame cache,
    ~150–250 lines in `apply_effects`, plus CR 613.7a's timestamp for a grantee
    set that moves with the board; lands with the first such card — an
    Aura-granted static after LH, or an Archetype-class lord.
-   **Slotted:** with the first registered card that grants a static ability
-   through a static ability (an Aura granting an anthem, an Archetype-class
-   lord, Rune of Flight's Equipment clause); item 7g, merged here, is the same
-   per-pass derivation.
+   **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23):
+   the gather that unions the registry with rows derived from each frame, and
+   CR 613.7a's timestamp for a grantee set that moves with the board, are a
+   design inside the layer walk, and `engineering-practices.md` §4
+   (2026-10-20) puts a design on the route, not in a card's registration.
+   `roadmap-v2.md` §3a had kept it with its first card on 2026-10-12. Item 7g,
+   merged here, is the same per-pass derivation.
 
 7a. **Frame cache is live.** — ✅ closed, archived.
     **Reachability (2026-09-03):** closed — and the cross-call half is
@@ -4611,17 +4638,18 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     - **Cross-call memoization deliberately did NOT land here** (`layers-architecture.md` §12 item 2, scheduled between this phase and 613.8). Three reasons: §12 requires the paranoid recompute-and-assert mode in the same commit, which is phase-sized on its own; +4% does not force it; and its invalidation key wants designing against item 8 step 4's board-wide sequential pass, which does not exist yet. Landing it before that pass risks building a cache for the wrong computation.
 
-    **Reachability (2026-09-03):** unreachable (the residual; the layer closed
-    2026-08-23) — the "an opponent gains control" lowering is still missing, no
-    card of the nine is registered, and `fuzz_games` plays two players, so
-    `PlayerRef::Opponent`'s above-two-players assert never fires.
+    **Reachability (2026-10-23):** unreachable (the residual; the layer closed
+    2026-08-23) — `Primitive::GainControl(Duration)` still carries no player
+    and no card of the nine is registered, so `PlayerRef::Opponent`'s assert
+    above two players has no lowering to reach it.
 
     **Sized:** `Primitive::GainControl` takes a recipient and the
     resolution arm asks the `DecisionProvider` when more than one opponent
     exists, ~80–120 lines with the first of the nine cards.
-    **Slotted:** with the first registered card that gives control to an
-    untargeted opponent (Akroan Horse; Scryfall: `o:"opponent gains control"
-    -o:"target opponent"`).
+    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    `Primitive::GainControl` names its new controller, and "an opponent" is
+    chosen as the ability resolves (CR 608.2d; the Akroan Horse ruling), asked
+    only above two players, with a three-seat fixture.
 
 14. **The targeting-side `ObjectFilter` could not resolve a `PlayerRef` — ✅
     done (2026-08-23).** — archived.
@@ -4644,21 +4672,23 @@ The layer system's designated single-point change site is `oracle/characteristic
     effect, one bundle and one locked set, and its second atom would apply to
     the first's set. The CR reads such text as two effects.
 
-    **Reachability (2026-09-06):** unreachable — every registered static
-    ability whose body is a `Sequence` (Humility, March of the Machines,
-    Opalescence) has one recipient across its atoms; the other `Sequence`s in `src/cards` are
-    resolutions, which lower through a different path. Authoring the shape
-    as two `AbilityDef`s gives the CR's answer today, and the loud lowering
-    (item 12) does not catch this one because both atoms lower fine.
+    **Reachability (2026-10-23):** unreachable — no registered static ability
+    has atoms with different recipients (item 184's read of all 215,
+    2026-10-22); Humility, March of the Machines and Opalescence each have one
+    recipient across their atoms. Authoring the shape as two `AbilityDef`s
+    gives the CR's answer today, and the loud lowering (item 12) does not
+    catch this one because both atoms lower fine.
 
     **Sized:** `EffectGroup::StaticAbility` gains the atom's index in the
     ability (~30 lines: `ContinuousEffect::group`, the two static
     registrations, `would_be_rows`, `register_copied_static_effects`), or
     the lowering splits a multi-recipient `Sequence` into one group per
     recipient; with the first card that needs it.
-    **Slotted:** with the first registered card that prints one static ability
-    over two recipient sets (yours get +1/+1, the rest −1/−1), in Phase 8's
-    breadth.
+    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    beside item 184, `EffectGroup::StaticAbility` keyed by the atom too, so
+    one static ability over two recipient sets is two effects with two locked
+    sets (CR 613.6), with a fixture "creatures you control get +1/+1 and
+    creatures you don't control get −1/−1" written as one ability.
 
 ### ~~Test-support duplication — cross-cutting~~ ✅ done (2026-08-22)
 
@@ -4721,16 +4751,18 @@ first.
 
 1. **CR 208.3 — a noncreature permanent has no P/T.** "A noncreature permanent has no power or toughness, even if it's a card with a power and toughness printed on it (such as a Vehicle)." `get_effective_power`/`get_effective_toughness` return the printed numbers for an unanimated Vehicle. Pre-existing and unreachable today — no Vehicle is implemented — but visible now that those accessors are no longer gated on the battlefield (CDA phase, 2026-08-22). Fix belongs with the first Vehicle: gate on `chars.types.contains(Creature)` for battlefield objects only, since CR 208.3's *other* half deliberately keeps P/T on a card outside the battlefield.
 
-   **Reachability (2026-09-03):** unreachable — no Vehicle is registered
-   (`CardType::Vehicle` exists, no card uses it), and no registered effect
-   removes the creature type from a permanent with printed P/T.
+   **Reachability (2026-10-23):** unreachable — no Vehicle is registered, and
+   no registered effect removes the creature type from a permanent with
+   printed P/T (no registered card removes a card type, item 206's read).
 
    **Sized:** a battlefield-only type gate in
    `get_effective_power`/`get_effective_toughness`, ~10 lines plus a test, with
    the first Vehicle.
-   **Slotted:** with the first registered card that is a Vehicle (Scryfall:
-   `t:vehicle`), which gates a noncreature permanent's power and toughness (CR
-   208.3).
+   **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23): a
+   battlefield-only creature-type gate in
+   `get_effective_power`/`get_effective_toughness` (CR 208.3; off the
+   battlefield a card keeps its printed P/T), with a fixture creature that
+   loses the creature type.
 
 2. **~~"Any player may activate this ability" is unmodeled (CR 602.1a).~~ — ✅
    CLOSED 2026-10-09 (PR #238).** — archived.
@@ -4756,15 +4788,19 @@ first.
 
    **And CR 122.1a's other kinds (2026-10-22, the item 6 audit's pass 3).** A +X/+Y counter other than +1/+1 and -1/-1 (+2/+2, +1/+0, +0/+1) is a variant on the rules side of the split above, and two catch-alls drop one silently today: the Layer 7c arm in `engine/layers/board.rs`, whose `TODO` points here, and `add_counter_kind` in `engine/replacement/pipeline.rs`, which says what a counter feeds. A new kind gets its arm in both.
 
-   **Reachability (2026-09-03):** unreachable — every counter in `src/cards` is
-   `+1/+1` or `-1/-1`.
+   **Reachability (2026-10-23):** unreachable — no registered card puts a
+   +X/+Y counter other than +1/+1 or −1/−1. The named counters answer right:
+   `Charge`, which no card uses, and since TR-5b `Growth` (Simic Ascendancy)
+   are variants, which is the drift this item records.
 
    **Sized:** `CounterType::Named(&'static str)` and moving
    `Charge` across the line, ~80 lines, with the first card that needs a named
    counter.
-   **Slotted:** with the first registered card that puts a named counter on a
-   permanent (Scryfall: `o:"counter on" -o:"+1/+1" -o:"loyalty"`), moving
-   `Charge` with it.
+   **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+   `CounterType::Named` with `Charge` and `Growth` moved across the line, and
+   CR 122.1a's other +X/+Y kinds given their arms at the two catch-alls above,
+   with a fixture that puts a named counter and one that puts a +1/+0 counter.
+   The newtype question is decided there.
 
 4. **CR 613.7e re-timestamping on attachment is unimplemented — and it collides with the determinism doctrine (recorded 2026-08-24).** "An Aura, Equipment, or Fortification receives a new timestamp each time it becomes attached to an object or player." Nothing in the tree ever reassigns `PermanentState.timestamp`, and both CLAUDE.md and `battlefield_ordered`'s docs now state "allocated once per `place_on_battlefield`, never reassigned" as the *determinism* guarantee. `layers-architecture.md` §8 point 3 lists 613.7e as designed, so that doc currently claims more than the code does.
 
@@ -4772,9 +4808,11 @@ first.
 
    **CR 613.7m is the same rule family and is also unimplemented (recorded 2026-09-01, RC-2 review).** "If two or more objects would receive a timestamp simultaneously, such as by entering a zone simultaneously or becoming attached simultaneously, their relative timestamps are determined in APNAP order." `allocate_timestamp` hands out a strict sequence one call at a time, so the engine can only ever produce a total order in *allocation* order — which is the caller's loop order, not APNAP. It is exact today because every entry is its own singleton batch: `propose_entry` is called once per zone change, and nothing puts two permanents onto the battlefield as one event. **The one thing that changes that is `GameAction::CreateTokens` (Phase RE)**, plus the mass-return primitive item 46 now sizes. **Corrected 2026-09-03, by RC-5's re-size:** this row also named "CR 614.13's auxiliary zone changes (RC-4)", and they are not one of them. An object receives a timestamp in one production place — `place_on_battlefield` (`game_state.rs:671`; `:789` is CR 613.7c's per-counter-kind stack, not an object) — and 614.13's auxiliary moves are battlefield → graveyard and graveyard → exile. Neither destination allocates a timestamp and neither is an entry, so RC-5 produces no simultaneous entries and 613.7m stays with `CreateTokens` in RE, beside item 52's token residual. Note the shape of the fix is *not* "sort the batch": 613.7m gives the active player's objects the earlier timestamps **in the order of that player's choice**, so it is a decision point, not a sort. Related and separate: CR 613.7n's rule that an object's own static ability out-timestamps a resolving spell's effect on it is also unimplemented, and is the same batch of work.
 
-   **Reachability (2026-09-03):** unreachable — no reattachment path exists
-   (Equip is unimplemented, Aura Finesse is unregistered, no Aura is castable)
-   and nothing enters simultaneously (613.7m; `CreateToken` still loops).
+   **Reachability (2026-10-23):** unreachable — `CreateTokens` makes
+   simultaneous entries, but every registered creation's tokens are identical
+   under one controller, a choice with one outcome, and no registered card
+   creates distinguishable tokens at once (Academy Manufactor is
+   unregistered); 613.7e's half is LH-2's, landed.
 
    **Re-dated 2026-09-13 (RE-4) — 613.7m's half now has simultaneous entries
    and is still not asked, on RC-4's rule.** `GameAction::CreateTokens`
@@ -4795,33 +4833,40 @@ first.
    (`layers-architecture.md` §13a); 613.7m is a decision point (the active
    player orders their own), ~60 lines inside `CreateTokens`' performer, with
    the first distinguishable creation; 613.7n rides LH-2.
-   **Slotted:** with the first registered card that creates distinguishable
-   tokens at once (Academy Manufactor), whose timestamps the active player
-   orders (CR 613.7m).
+   **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23),
+   with item 79: CR 613.7m's "in the order of that player's choice" is an
+   order the engine takes today, and asking it only where the orders' outcomes
+   differ is the same design as CR 601.2h's payment order. Its APNAP half,
+   across players, needs no choice.
 
 5. **Layer 7c is not order-independent in Magic, and 19 cards say so (recorded 2026-08-24).** `compute.rs` applies ±1/±1 counters after the 7c registry slice without a timestamp merge. That is correct while every 7c modification is an addition — but CR 701.10a makes "double [a creature's] power" a 7c continuous effect whose addend depends on what already applied, so two doublings, or a doubling and a pump, are order-dependent by timestamp. Scryfall: **19 cards** match the doubling shape (Bulk Up, Epic Fight, Exponential Growth, Unnatural Growth…), before looser wordings. Inexpressible today — `AmountExpr` has no affected-power leaf — so nothing is wrong now. The first doubling card needs that leaf **and** the timestamp merge Layer 6's keyword counters already use. The comment at the code site was corrected 2026-08-24; it used to claim order-independence as a property of the layer.
 
-   **Reachability (2026-09-03):** unreachable — `AmountExpr` has no leaf reading
-   the affected creature's power and none of the 19 doubling cards is
+   **Reachability (2026-10-23):** unreachable — `AmountExpr` has no leaf
+   reading the affected creature's power, and none of the 19 doubling cards is
    registered.
 
    **Sized:** the leaf plus a 7c timestamp merge in the shape Layer
    6's keyword counters use, ~100–150 lines, with the first doubling card.
-   **Slotted:** with the first registered card that doubles a creature's power
-   (19 cards: Bulk Up, Unnatural Growth), with the affected-power leaf and a 7c
-   merge.
+   **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+   the affected-power leaf and a 7c timestamp merge in the shape Layer 6's
+   keyword counters use (CR 701.10a's doubling is a 7c effect whose addend
+   reads what applied before it), with a fixture doubling beside a pump, in
+   both timestamp orders.
 
 6. **Multi-attacker block damage is a silent stub.** `engine/combat/resolution.rs`'s multi-block arm: a blocker blocking 2+ attackers assigns *all* its damage to the first living attacker — no `DecisionProvider` choice, no error, CR 510.1d ignored (the comment there has pointed here since 2026-09-15). Unreachable (nothing in the pool grants "can block an additional creature"), and the plumbing to fix it already exists: `GameState.blocker_damage_divisions` is populated from `choose_blocker_damage_division`. Reachable with the first "blocks an additional creature" card. This is the silent-wrong-*choice* cousin of the silent-inertness class the loud-lowering work covered.
 
-   **Reachability (2026-09-03):** unreachable — nothing populates
-   `blocking_limits` (`validation.rs:135`; `max_blocks_for` always answers 1).
+   **Reachability (2026-10-23):** unreachable — nothing registered populates
+   `blocking_limits`, so `max_blocks_for` answers 1 outside a unit test.
 
    **Sized:** read `blocker_damage_divisions` in
    that arm instead of the first living attacker, ~40–60 lines, with
    the first "can block an additional creature" card.
-   **Slotted:** with the first registered card that lets a creature block an
-   additional creature (Scryfall: `o:"block an additional creature"`), per CR
-   510.1d.
+   **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+   the multi-block arm reads `blocker_damage_divisions` (CR 510.1d), and the
+   same board tells CR 509.3a's once per blocker from 509.3b's once per
+   creature blocked, with a fixture "can block an additional creature" static.
+   Its check, in debug builds: a blocker's damage is divided only among the
+   attackers it blocks.
    **Widened by TR-5c (2026-10-18):** the same board is the first that tells
    CR 509.3a's "whenever this creature blocks", once per blocking creature,
    from 509.3b's "blocks a creature", once per creature it blocks. TR-5c's
@@ -5097,17 +5142,19 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    the day phasing lands it needs a condition, and the day the matcher lands it
    needs to know that.
 
-   **Reachability (2026-09-13):** unreachable twice over — no trigger matcher
-   reads the event, and nothing can phase a permanent out. It stops being
-   unreachable when *either* lands, which is why the line names both.
+   **Reachability (2026-10-23):** unreachable — nothing can phase a permanent
+   out, and the matcher reads `LeftTheGame` unconditionally, which is exact
+   while every permanent is phased in.
 
    **Sized:** one predicate at the frame's `if` in `owned_objects_leave`,
    ~5 lines, inside whichever of the two arrives second.
 
    **Phase (2026-09-18):** not this phase's — the matcher (TR-1) reads `LeftTheGame` unconditionally and the qualifier lands with phasing, which arrives second; `triggers-architecture.md` §3.3's `LeftTheGame` row and §16.
-   **Slotted:** with the first registered card that phases a permanent out
-   (Scryfall: `keyword:phasing`, 13 cards), which adds CR 603.6c's phased-in
-   test.
+   **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+   CR 603.6c's phased-in test at the frame's `if` in `owned_objects_leave`, ~5
+   lines, with a fixture that stages `PermanentState::phased_out` on a
+   permanent whose owner leaves the game; phasing's own build reads the same
+   field.
 
 8. **~~"Whenever you create one or more tokens" has one key.~~ — ✅ CLOSED
    2026-10-09 (PR #238).** — archived.
@@ -5525,11 +5572,11 @@ migration.
      nothing. Lich's Mirror's fifteenth ruling is the same board with a
      shuffle.
 
-     **Reachability (2026-09-12):** reachable in `stress` — the Archangel is
-     registered, and one combat with it blocking a 5-power attacker while
-     another attacker is lethal to you is the board. **Wrong in the narrow
-     sense**: the engine takes one of the ruling's two outcomes and never asks;
-     the other is unreachable by construction. Tested as it behaves
+     **Reachability (2026-10-23):** reachable — not wrong; a forced choice, in
+     `stress`: the Archangel is registered, and one combat with it blocking a
+     5-power attacker while another attacker is lethal to you is the board.
+     The engine takes the graveyard, one of the ruling's two outcomes, and
+     never offers exile
      (`exquisite_archangel_replaces_the_loss_while_dying_in_the_same_check`).
 
      **Sized: it is `backlog.md` §2.25's facility, not a patch.** A
@@ -5545,9 +5592,13 @@ migration.
      which is what §8c's "two customers before a leaf" asks for before that
      facility is built. Until then the engine's answer is the graveyard and
      this line is the record that the choice is missing.
-     **Slotted:** with the first registered card that splits one damage event
-     in two, Harm's Way, whose facility (`backlog.md` §2.25) gives Exquisite
-     Archangel's ruling its choice.
+     **Slotted:** A6s, the route review, at the card-homed triage
+     (2026-10-23): `backlog.md` §2.25's facility, a replacement whose result
+     is more than one event, inserted as members in phase 1, with CR 704.7's
+     collapse of two members moving one object turned into a prompt, is a
+     design with two customers (Harm's Way, Exquisite Archangel's ruling) and
+     no row; `replacement-architecture.md` §9's RD-5 section holds its shape
+     and the gate that closed.
 
 ### Found by RE-4 — tokens (2026-09-13)
 
@@ -5602,12 +5653,16 @@ with its customer named:**
      the way CR 614.13's auxiliary move is, and the modal template is the
      field that holds the alternatives.
 
-     **Reachability (2026-09-13):** unreachable — the only printed customer
-     is unregistered.
+     **Reachability (2026-10-23):** unreachable — the only printed customer is
+     unregistered.
 
      **Sized:** ~40 lines and a `ChoiceKind`, with Jinnie Fay.
      **Slotted:** with the first registered card that offers a choice of token
-     definitions in a replacement, Jinnie Fay, Jetmir's Second.
+     definitions in a replacement, Jinnie Fay, Jetmir's Second. Kept with its
+     card at the card-homed triage (2026-10-23): the alternatives are the
+     card's own two definitions, so the card decides the modal template's
+     shape; the choice is asked in `apply_rewrite`, where CR 614.13's
+     auxiliary move already asks.
 
 128. **~~"Create … tapped and attacking" has the first half and not the second.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f).** — archived.
      "Tapped and attacking" is the creating effect's word, on `TokenDef` and
@@ -5841,7 +5896,7 @@ closed. **The last of RE's ten PRs.**
        row (Circle of Protection's `ChosenDamageSource` shape, ~20 lines)
        and an indefinite `Duration` for a row an activated ability makes.
 
-     **Reachability (2026-09-15):** unreachable — no registered def names a
+     **Reachability (2026-10-23):** unreachable — no registered def names a
      type, an amount or a chosen permanent, and the pattern has no field to
      name any with. Pale Moon, the review's other find, needed none of the
      three and is registered.
@@ -5852,9 +5907,13 @@ closed. **The last of RE's ten PRs.**
      increments and the turn resets, ~20 lines, CM's), the Gnomes after the
      fill arm. The amount field is the one that changes a proof and is owed
      the standing question when it lands.
-     **Slotted:** with the first registered card that replaces mana by type,
-     amount or a chosen permanent: False Dawn, Damping Sphere or Quarum Trench
-     Gnomes.
+     **Slotted:** MA-7, at the card-homed triage (2026-10-23): CR 106.12b's
+     type and amount, and the chosen permanent, are replacements the exact
+     check must read (`mana-architecture.md` §3.4), and the amount is the axis
+     that makes their order matter (Damping Sphere beside Mana Reflection, its
+     first ruling), which MA-7's fold of replacement effects by state answers;
+     each axis with its fixture there, and `engineering-practices.md` §4.1's
+     question at `reads_the_amount`.
 
 240. **Three of the six printed type-changers want three facilities RE-9 did
      not build.**
@@ -5870,7 +5929,7 @@ closed. **The last of RE's ten PRs.**
      — RC-5's "an application that prompts" shape, on a different arm, and
      the one of the three that changes the pipeline's contract.
 
-     **Reachability (2026-10-22):** unreachable — none is registered, and each
+     **Reachability (2026-10-23):** unreachable — none is registered, and each
      of the three needs its facility before its def can be written.
 
      **Sized:** Hall of Gemstone ~40 lines after item 6; Naked Singularity a
@@ -5881,9 +5940,12 @@ closed. **The last of RE's ten PRs.**
      this — their lines are fixtures in `tests/phase_re9_integration_test.rs`.
      Their upkeep halves wait on a cost paid at resolution, "sacrifice it
      unless you ..." and cumulative upkeep, which A6s gives an owner.
-     **Slotted:** with the first registered card that sets a land's mana type
-     by a choice or its subtypes: Hall of Gemstone, Naked Singularity or
-     Harvest Mage.
+     **Slotted:** MA-4 and MA-3, at the card-homed triage (2026-10-23): Hall
+     of Gemstone's chosen color is MA-4's (`backlog.md` §2.2's record on the
+     permanent); Harvest Mage's "one mana of a color of your choice" inside a
+     substitution is MA-3's choice at resolution, where which prompts
+     `pipeline::substitute` may ask is designed. Naked Singularity's subtype
+     map stays with its card, whose text decides the template's shape.
 
 135. **A mixed mana production under a fixed retype is refused, not
      decided.** `GameActionTemplate::ProduceMana { amount: Fixed(n) }` on a
@@ -5895,16 +5957,19 @@ closed. **The last of RE's ten PRs.**
      restriction; `a_mixed_production_under_a_fixed_retype_is_refused` asserts
      the refusal.
 
-     **Reachability (2026-09-15):** unreachable — no registered ability mixes
-     the two, and no printed one does (Scryfall, 2026-09-15).
+     **Reachability (2026-10-23):** unreachable — no registered ability mixes
+     restricted and unrestricted mana, and no printed one does (Scryfall,
+     2026-09-15).
 
      **Sized:** one arm in the `Fixed` leg, ~10 lines, the day a card brings
      the ruling that decides it. Recorded rather than guessed because a wrong
      answer here is a restriction that vanishes from a pool with nothing
      pointing at it.
      **Slotted:** with the first registered card that makes restricted and
-     unrestricted mana in one ability (none printed as of 2026-09-15), whose
-     ruling decides it.
+     unrestricted mana in one ability, whose ruling decides it. Kept with its
+     card at the card-homed triage (2026-10-23): no rule says which
+     restriction the new units carry (CR 106.6a is about one ability's mana),
+     so the card's ruling decides the arm; the refusal is loud until then.
 
 136. **The chokepoint's fixed cost per event is the whole of what a proposal
      with nothing watching it costs, and the one lever §8 pre-approved cannot
@@ -6017,10 +6082,9 @@ them); and the board's classifier, which had read "not wrong today" as
      the rule bites only with both at once and a player who cannot pay for
      all of them.
 
-     **Reachability (2026-09-15):** unreachable — no registered entry
-     replacement has a cost, and no producer enters two cards at once.
-     Reachable the day both exist, which is Phase 8's second shockland
-     beside its first mass entry.
+     **Reachability (2026-10-23):** unreachable — no registered entry
+     replacement has a cost, and no registered producer enters two permanents
+     with one at once.
 
      **Sized:** a `cost: Option<Cost>` on `EnterModsTemplate`, paid at
      application, ~60 lines with the first shockland; then the 614.12b check
@@ -6038,9 +6102,12 @@ self-replacement producer is `replacement-architecture.md` §11 item 3's,
 with its reachability line there; and the eviction of that document's
 pre-build reasoning is planned section by section in the handoff and opens
 as its own PR after this one merges.
-     **Slotted:** with the first registered card that gives an entry choice a
-     cost (a shockland, Scryfall: `o:"you may pay 2 life"`), beside the first
-     mass entry of nontoken permanents.
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     an entry choice's cost on `EnterModsTemplate`, paid as the replacement
+     applies (CR 614.12, a shockland as the fixture), and CR 614.12b's
+     payability sweep over a batch's chosen costs, with a fixture plural
+     entry, two such tokens created at once (RE-4's plural batch), for a
+     player who can pay for one.
 
 ### Found by the post-RE audit, pass 3 — parallel-play readiness (2026-09-15)
 
@@ -6828,16 +6895,17 @@ owner decided it the same day.
      §2.3 lets a card be cast from anywhere but a hand's ordinary door.
      Raised at RF's review (2026-09-16).
 
-     **Reachability (2026-09-16):** nothing owed by the engine — no
-     hand-functioning ability exists to be stripped. A record for the keyword
-     that lands first.
+     **Reachability (2026-10-23):** nothing owed by the engine — no
+     hand-functioning ability exists to be stripped. A record for the build
+     that lands the first.
 
      **Sized:** one test per keyword, ~30 lines each, in that keyword's own
      phase file, with this fixture as the negative: the ability is usable
      without Hollow Hands and not with it.
-     **Slotted:** with the first registered card that has an ability
-     functioning from a hand (cycling or channel, CR 113.6j), whose file adds
-     the `hollow_hands` negative.
+     **Slotted:** PM-0, at the card-homed triage (2026-10-23): an ability that
+     functions from a hand (cycling, channel, CR 113.6j) is
+     `permission-architecture.md`'s, so the build PM-0 sizes for it adds the
+     `hollow_hands` negative beside its first test.
 
 148. **Exile is the one zone the Colossus family's tests do not move
      *from*, and the reason is a missing card.** The clause functions in
@@ -6851,13 +6919,16 @@ owner decided it the same day.
      Eternity — "put target face-up exiled card into its owner's graveyard"
      — is the card. Raised at RF's review (2026-09-16).
 
-     **Reachability (2026-09-16):** unreachable — no producer.
+     **Reachability (2026-10-23):** unreachable — no registered card moves a
+     card from exile to a graveyard.
 
      **Sized:** the card, its `Primitive` arm, and one test: a Colossus in exile under
      Pull from Eternity is shuffled into its owner's library instead. Phase 8.
-     **Slotted:** with the first registered card that moves a card from exile
-     to a graveyard (Pull from Eternity), which brings that `Primitive` arm
-     and the Colossus test.
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     a `Primitive` that puts an object into its owner's graveyard
+     (`ZoneChangeAct::Put`, `EventCause::Effect`), with a fixture "put target
+     face-up exiled card into its owner's graveyard" and the Colossus test:
+     one in exile is shuffled into its owner's library instead.
 
 ### Found by A4g — process-stable ids (PR #158, 2026-09-16)
 
@@ -7090,11 +7161,11 @@ place.
      excluded each other could be told it cannot be cast when a different
      assignment would work.
 
-     **Reachability (2026-09-17):** unreachable — no printed card combines the
-     two, and the failure mode is conservative (a cast refused, never an
-     illegal one allowed). If one prints, the fix is Hopcroft–Karp over at most
-     a handful of instances, which is small but is a different kind of code
-     from what is there.
+     **Reachability (2026-10-23):** unreachable — no registered card prints a
+     later "another target" clause narrower than the one it excludes, and the
+     failure is conservative (a cast refused, never an illegal one allowed).
+     The fix is Hopcroft–Karp over at most a handful of instances, small but a
+     different kind of code from what is there.
 
      **Sharpened at the audit (2026-09-17): the condition is monotone widening,
      not one filter.** Greedy is exact as long as no later clause is *narrower*
@@ -7106,9 +7177,11 @@ place.
      returns one card, Combine Guildmage, and it reuses one filter — so the
      reachability line above stands. This is the sentence a card author checks
      a new "another target" card against.
-     **Slotted:** with the first registered card that prints an "another
-     target" clause narrower than the clause it excludes (none prints one;
-     Combine Guildmage reuses one filter).
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     castability asks for an assignment of every instance at once (CR 601.2c),
+     so a later clause narrower than one it excludes is not refused, with a
+     fixture "target creature" then "another target creature you control" on
+     the board above.
 
 156. **~~The rulings gate has a same-day blind spot.~~ — ✅ CLOSED 2026-10-09
      (PR #238).** — archived.
@@ -7757,20 +7830,21 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      only if the card matched where its effect started), so the debug audit
      agrees with it.
 
-     **Reachability (2026-10-22):** unreachable. No registered card's static
-     ability has atoms with different recipients: all 215 read, the 7 whose
-     registration spans lines being replacement and prevention abilities.
-     Encroaching Mycosynth and the six "creature cards you own" cards of item
-     181 print exactly this shape, so it is reachable the day one is
-     registered.
+     **Reachability (2026-10-23):** unreachable. No registered card's static
+     ability has atoms with different recipients (all 215 read on 2026-10-22,
+     the 7 whose registration spans lines being replacement and prevention
+     abilities); Encroaching Mycosynth and the six "creature cards you own"
+     cards of item 181 print the shape.
 
      **Sized:** ~30 lines and a test: within the layer an effect starts in,
      each row evaluates its own filter and the lock records their union; later
      layers apply the union. With the first registered card of the shape, or
      before it.
-     **Slotted:** with the first registered card that has a static ability with
-     different recipients in one layer (Encroaching Mycosynth, the "creature
-     cards you own" cards).
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     beside "Before Layers" item 16, within the layer an effect starts in each
+     row evaluates its own filter and the lock records their union (CR 613.6),
+     with the throwaway fixture's shape kept as a test: two layer-4 rows over
+     a battlefield creature and a creature card in hand.
 
 ### Found by the CV-2 design review (2026-09-28)
 
@@ -7895,22 +7969,25 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      7a then re-sets. `cda::CdaCharacteristic` keys the two as one for the
      same reason (CV-2b's CR 707.9d drop).
 
-     **Reachability (2026-10-22):** unreachable. No registered card has a
+     **Reachability (2026-10-23):** unreachable. No registered card has a
      one-sided P/T CDA. Written with its printed other side, one gives the
      same numbers on every printed board: nothing below layer 7a changes
-     toughness without replacing the ability list (a copy, face-down), and
-     an effect that removes the CDA leaves the printed value, which is the
-     one it re-set. It would show only under an effect or a copy exception
-     that sets one side while the CDA survives, and none is printed: every
-     printed P/T exception sets both (Quicksilver Gargantuan's "it's 7/7"),
-     as `CharacteristicEdit::PowerToughness` does.
+     toughness without replacing the ability list (a copy, face-down), and an
+     effect that removes the CDA leaves the printed value, which is the one it
+     re-set. It would show only under an effect or a copy exception that sets
+     one side while the CDA survives, and none is printed: every printed P/T
+     exception sets both (Quicksilver Gargantuan's "it's 7/7"), as
+     `CharacteristicEdit::PowerToughness` does. A fixture can stage one.
 
      **Sized:** ~60–100 lines: a CDA that names the side it defines (one-sided
      amounts on the primitive and on `EffectModification::SetPowerToughness`,
      27 and 13 sites, or a one-sided primitive for CDAs alone), the key split
      into `Power` and `Toughness`, and a test with a one-sided copy exception.
-     **Slotted:** with the first registered card that defines one side,
-     Adeline the likeliest, in Phase 8's breadth (`roadmap-v2.md` §C).
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     a CDA that names the side it defines (CR 604.3a(1)),
+     `cda::CdaCharacteristic`'s key split into `Power` and `Toughness`, and a
+     fixture one-sided copy exception beside a one-sided CDA; which of the two
+     shapes above is its first decision.
 
 ### Found by the A6g spike, the dev GUI (2026-09-30)
 
@@ -8152,17 +8229,19 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      types" and Maskwood Nexus's "are every creature type" each need their
      writer.
 
-     **Reachability (2026-10-22):** unreachable — no registered card is every
-     creature type. The mark's one engine reader with a test is
+     **Reachability (2026-10-23):** unreachable — no registered card is every
+     creature type; the mark's one engine reader with a test is
      `ManaRestriction::OnlyForCreatureType` (`types/mana.rs`, the changeling
-     fixture); the log's type line reads it too (`ui/display.rs`).
+     fixture), and the log's type line reads it too (`ui/display.rs`).
 
      **Sized:** ~30–60 lines with the first such card: the CDA in
      `engine/layers/cda.rs`, or an `EffectModification` arm, each calling
-     `Subtypes::insert_every_creature_type`. **Slotted:** with the first
-     registered card that is every creature type (changeling, Scryfall:
-     `kw:changeling`; Omni-Changeling, Moritte, `copy-effects-architecture.md`
-     §4.1's changeling row), which writes the mark.
+     `Subtypes::insert_every_creature_type`.
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     changeling's CDA in `engine/layers/cda.rs` (CR 702.73a) and a Layer 4
+     `EffectModification` arm for "gains all creature types", each calling
+     `Subtypes::insert_every_creature_type`, with a fixture changeling and a
+     fixture effect of Mirror Entity's shape.
 
 206. **CR 205.1a's correlated subtypes stay when their card type goes.** An
      effect that removes a card type, or sets card types without it, leaves
@@ -8172,7 +8251,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      also bounds item 205's mark: an object that stops being a creature, and
      is not a kindred, stops being every creature type.
 
-     **Reachability (2026-10-22):** unreachable — no registered card removes
+     **Reachability (2026-10-23):** unreachable — no registered card removes
      or sets a card type; every registered type change adds one.
 
      **Sized:** ~30–50 lines and the atom's fixture: after Layer 4's type
@@ -8180,8 +8259,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      types with creature or kindred, CR 205.3m). The rule keeps them removed
      "for the entire time the object's card type is removed", so whether a
      later effect that gives the type back gives the subtypes back is read
-     against the rulings before it is built. **Slotted:** with the first
-     registered card that removes or sets a card type, in Phase 8's breadth.
+     against the rulings before it is built.
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     after Layer 4's type arms a subtype stays only while a type it belongs to
+     remains (CR 205.1a, 205.3m), with ATOM-205.1a-004's fixture, the
+     registered Dryad Arbor made noncreature by a fixture effect; whether a
+     type given back gives its subtypes back is read against the rulings
+     first, as above.
 
 207. **Fourteen registered creatures lack the creature types they print.**
      Citanul Hierophants, Earth Elemental, Giant Spider, Grizzly Bears, Hill
@@ -8528,15 +8612,19 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      target) nor choose a player as CR 303.4f's host (`engine/returns.rs`
      refuses it loudly). 47 printed, 46 legal in Commander
      (`o:"enchant player" t:aura`, Scryfall 2026-10-08): the Curses.
-     **Reachability (2026-10-22):** unreachable — no registered Aura
-     enchants a player.
+     **Reachability (2026-10-23):** unreachable — no registered Aura enchants
+     a player.
      **Sized:** an attachment that can name a player, and its readers (CR
      704.5m, `ObjectSet::Host`, the why panel, and TR-4b's: an entry's
      `EnterMods.attached_to` and the attachment records), ~150 lines with the
      first Curse.
-     **Slotted:** with the first registered card that is an Aura enchanting a
-     player, the first Curse Phase 8's breadth registers (Scryfall:
-     `o:"enchant player" t:aura`; the owner, at #234's review, 2026-10-08).
+     **Slotted:** A6s, the route review, at the card-homed triage
+     (2026-10-23): an attachment that can name a player is a design, the
+     host's type on `PermanentState::attached_to` and `GameAction::Attach` and
+     every reader of it (CR 704.5m, `ObjectSet::Host`, the why panel, TR-4b's
+     attachment records), and `engineering-practices.md` §4 (2026-10-20) puts
+     a design on the route, not in a card's registration; #234's slot with the
+     first Curse predates that rule.
 
 228. **~~An Aura that enters attached is attached by a direct write, and
      announces nothing.~~ — ✅ CLOSED 2026-10-14 (PR #252, TR-4b).** —
@@ -9003,7 +9091,7 @@ with no batch between them; written at the item 6 audit's pass 5.
      `(o:"when" or o:"whenever") o:"into an opponent's graveyard" o:"that
      player"`. Counters' "that player" (the object's controller or the putter)
      is the other.
-     **Reachability (2026-10-22):** unreachable — no registered card's "that
+     **Reachability (2026-10-23):** unreachable — no registered card's "that
      player" has two candidates.
      **Sized:** ~40 lines of code and ~60 of tests: "that player" names its
      participant as the object readers do, a player the record names or an
@@ -9019,9 +9107,12 @@ with no batch between them; written at the item 6 audit's pass 5.
      "that player loses 2 life" with no player costs the controller 2. TR-5e's
      two new player readers skip the instruction instead; this item's
      participant reader does the same.
-     **Slotted:** with the first registered card whose "that player" has two
-     candidates, or the first registered attack trigger that reads "that
-     player".
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     "that player" names its participant as the object readers do (CR 608.2c)
+     and the existing `TriggeringPlayer` uses migrate, with fixtures for a
+     stolen creature dying under "whenever a creature an opponent controls
+     dies, that player …" and an attack trigger's "that player" at three
+     seats.
 
 269. **A value of an object is seven `AmountExpr` variants, one per object and
      value.** `SourcePower`, `SourceCounters`, `TargetPower`, `TargetToughness`,
@@ -9088,14 +9179,17 @@ with no batch between them; written at the item 6 audit's pass 5.
      requirement (`cant-effects-architecture.md`'s RS-3a) rather than the
      entry, since the tokens are created before combat. A missing facility,
      not a deferral of TR-5f's: every other way to say the defender is built.
-     **Reachability (2026-10-22):** unreachable — no registered card runs an
-     instruction once for each player.
+     **Reachability (2026-10-23):** unreachable — no registered card runs an
+     instruction once for each player, and `Effect::ForEach` refuses at
+     resolution.
      **Sized:** `Effect::ForEach` built, with a players `Selector` that binds
      each player as the instruction's named player, ~60 lines of code and ~80
      of tests.
-     **Slotted:** with the first registered card that runs an instruction
-     once for each opponent naming that player; Adeline, Resplendent Cathar,
-     a Commander staple, is the likely one.
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     `Effect::ForEach` over a players `Selector` that binds each player as the
+     instruction's named player, with a three-seat fixture "for each opponent,
+     create a 1/1 token tapped and attacking that player"; encore's attack
+     requirement stays RS-3a's.
 
 ### Found by MA-2 (2026-10-18)
 
@@ -9111,13 +9205,15 @@ with no batch between them; written at the item 6 audit's pass 5.
      606.6's cut on a loyalty −X is an interval, from 0 to the loyalty, which
      the `(min, max)` form holds; the set form comes with a target or choice
      "with mana value X".
-     **Reachability (2026-10-22):** unreachable — no registered card cuts the
+     **Reachability (2026-10-23):** unreachable — no registered card cuts the
      values of X.
      **Sized:** each cut with its surface (`mana-architecture.md` §3.7's
      owners): the cut's set built in `oracle::x_values` and its reason's
      line, ~30 lines each beside the surface's own.
-     **Slotted:** with the first registered card that targets or chooses a
-     card with mana value X (Detonate; Tamiyo, Compleated Sage after CP-2).
+     **Slotted:** B13, at the card-homed triage (2026-10-23), beside item 274:
+     a cut "with mana value X" reads a mana value, and B13 builds the first
+     filter that does; the first cut with a gap is the producer (Detonate;
+     Tamiyo, Compleated Sage once CP-2 gives a loyalty ability its cost).
 
 274. **A cost change that applies by a spell's mana value makes the bound
      on X piecewise.** On the stack a spell's mana value counts X (CR
@@ -9132,15 +9228,18 @@ with no batch between them; written at the item 6 audit's pass 5.
      asserts in debug that no cost change applying to an X spell has a
      filter that reads `MANA_COST` (`engine::layers::board::
      filter_reads_mana_value`), so the first such arm fails a test.
-     **Reachability (2026-10-22):** unreachable — no filter can read a mana
+     **Reachability (2026-10-23):** unreachable — no filter can read a mana
      value.
      **Sized:** the thresholds (`X ≥ ceil((m − the rest's mana value) / k)`)
      cutting `ManaComponent` into pieces, one division a piece, and the gate
      testing each piece's first X: ~60 lines of code and ~80 of tests,
      beside CR 202.3e's on-stack mana value (`cost-architecture.md`'s CP-1
      row) (`mana-architecture.md` §3.7).
-     **Slotted:** with the first registered card whose cost change applies
-     by a spell's mana value (Krosan Drover, Thryx).
+     **Slotted:** B13, the Krark-Clan Ironworks loop, at the card-homed triage
+     (2026-10-23): it builds the first `ObjectFilter` arm that reads a mana
+     value (Scrap Trawler's "lesser mana value"), the day
+     `filter_reads_mana_value`'s assertion can first fire, so the piecewise
+     bound is designed with that arm, beside item 273's set form.
 
 275. **~~Delayed triggers from one template and one source still ask their
      order.~~ — ✅ CLOSED 2026-10-19 (PR #263, TR-5d).** — archived.
@@ -9171,12 +9270,17 @@ Number 277 was withdrawn in #260 and is not reused.
      (`triggers-architecture.md` §12, TR-5c's re-read). Each writes its own
      record when it is built, which the arm's occurrences read, and the
      combat's rows record it.
-     **Reachability (2026-10-22):** unreachable — no registered card makes a
+     **Reachability (2026-10-23):** unreachable — no registered card makes a
      block by an effect.
      **Sized:** per effect, its performer's record and the arm's reading of
      it, ~40 lines of code and ~60 of tests; ATOM-509.4-001 with the first.
-     **Slotted:** with the first registered card that makes a creature block
-     or become blocked by an effect (Curtain of Light, Aetherplasm).
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     one effect that makes a block, its performer's record and the block arm
+     reading it (CR 509.3c), with a fixture "target unblocked attacking
+     creature becomes blocked", and ATOM-509.4-001's blocking entry beside it
+     while the band holds. Its check, in debug builds: every blocked attacker
+     and every blocker the combat holds has a block record this combat, so an
+     effect that blocks with no record fails a test.
 
 279. **The "this turn" object facts with no writer yet.** `ObjectFilter::ThisTurn`
      and `ThisCombat` ask `ObjectFact`'s seven facts, the ones whose writers
@@ -9188,14 +9292,19 @@ Number 277 was withdrawn in #260 and is not reused.
      made, CR 400.7); "was cast" (11, the permanent's `cast` facts); "crewed"
      or "saddled" (13, keywords not built); "came under your control" and
      "turned face up" (1 each).
-     **Reachability (2026-10-22):** unreachable — no registered card asks one.
+     **Reachability (2026-10-23):** unreachable — no registered card asks one
+     of these facts.
      **Sized:** the damage rows ~40 lines of code and ~60 of tests; the
      zone-change rows ~45 and ~70; each other fact ~15 and ~30 with its
      writer.
-     **Slotted:** TR-5h, the log every reader of the history reads, whose
-     first new rows are the damage facts; moved from TR-5d at its review
-     (2026-10-19). Each other fact with the first registered card that
-     reads it, as a variant of the log's rows.
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     the zone-change facts ("died", "discarded", "milled", "put into a
+     graveyard", keyed by the object the move made, CR 400.7), "was cast" and
+     "came under your control" (TR-4d's `ControlChanged`), each a `RowFact`
+     reading or variant with a fixture filter. Its check, in debug builds:
+     each zone change a batch performs writes its row. "Crewed" and "saddled"
+     come with crew and saddle, whose tapping cost is CP-2's, and "turned face
+     up" with CV-6.
      **Shaped at TR-5c's review (the owner, 2026-10-18):** for TR-5d's design,
      one history of what each object did this round, the combat's rows
      generalized (an object, the turn, the combat and a fact), which these
@@ -9229,12 +9338,14 @@ Number 277 was withdrawn in #260 and is not reused.
      (Hunting Kavu) groups a target with this object. A target member needs
      its place in the announcement's order (`Effect::instances`) and its own
      CR 608.2b fizzle, so `resolve_group_member` refuses it loudly.
-     **Reachability (2026-10-22):** unreachable — no registered card joins a
+     **Reachability (2026-10-23):** unreachable — no registered card joins a
      target.
      **Sized:** the instance walk into `Group`, and the member's fizzle,
      ~30 lines of code and ~50 of tests.
-     **Slotted:** with the first registered card whose join names a target
-     (Hunting Kavu).
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     the instance walk into `Group` and the target member's own fizzle (CR
+     608.2b), with a fixture "exile this creature and target creature without
+     flying that's attacking you".
 
 282. **~~`AbilityActivated.from` is written as the battlefield by both
      producers.~~ — withdrawn at TR-5c's review (2026-10-18), before it
@@ -9248,11 +9359,14 @@ Number 277 was withdrawn in #260 and is not reused.
      cost arms and `permission-architecture.md`'s timing build them.
      `ActivatesAbility` has no field for it, so such a card cannot be
      written, rather than written wrong.
-     **Reachability (2026-10-22):** unreachable — no loyalty ability exists.
+     **Reachability (2026-10-23):** unreachable — no loyalty ability exists.
      **Sized:** a `loyalty: Option<bool>` on the arm and the record, ~15 lines
      and ~30 of tests.
-     **Slotted:** with the first registered card that reads a loyalty
-     ability's activation.
+     **Slotted:** CP-2, at the card-homed triage (2026-10-23): no ability is a
+     loyalty ability until CP-2's counter arms make its cost, with
+     `permission-architecture.md`'s CR 606.3 timing beside them, so the build
+     that makes the first writes on the activation's record whether it is one,
+     and the arm reads it.
 
 284. **Nothing flags an item slotted with its first registered card when the
      card arrives.** 53 open items are slotted "with the first registered card"
@@ -9308,14 +9422,19 @@ scan of the history log, and the place in a turn that reads a tally since
      today only because `Not` keeps a refusal; "tokens that died this turn"
      counts none. `Lki` carries the owner and the counters but not
      token-ness either.
-     **Reachability (2026-10-22):** unreachable — no registered card narrows
-     a history count by a fact the store holds.
+     **Reachability (2026-10-23):** unreachable — no registered card narrows a
+     history count by a fact the store holds.
      **Sized:** a departure row keeps its record's last known information
      beside its frame, `Lki` gains whether it was a token, and the filter's
      `Token` leaf reads it; ~40 lines and ~50 of tests, with a held-memory
      reading, since the information is larger than a frame.
-     **Slotted:** with the first registered card that narrows a history
-     count by token-ness or counters (Caller of the Claw).
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     a departure row keeps its record's last known information beside its
+     frame, `Lki` gains whether it was a token, and the `Token` leaf reads it,
+     with fixtures "for each nontoken creature that died this turn" and its
+     token twin, and a held-memory reading. Its check, in debug builds: a
+     history read that asks the store about an object its row says departed
+     fails.
 
 287. **The scenario names its casts and counts the rest.** A save writes each
      cast by its card's name (`setup-architecture.md` §5.1), so a count
@@ -9589,13 +9708,16 @@ scan of the history log, and the place in a turn that reads a tally since
      while it is still on the battlefield. ATOM-113.7a-001 proves only that
      such an ability still resolves. Moved from `triggers-architecture.md`
      §15.15.
-     **Reachability (2026-10-22):** unreachable — no registered resolving
-     effect names `SourcePower`; its two card uses are an entry's counters
-     and a cost reduction.
+     **Reachability (2026-10-23):** unreachable — no registered resolving
+     effect names `SourcePower`; its two card uses are an entry's counters and
+     a cost reduction.
      **Sized:** ~20 lines: the arm, and a test whose source is sacrificed
      before its ability resolves.
-     **Slotted:** the first registered card whose resolving ability reads its
-     source's power.
+     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     `AmountExpr::SourcePower` at resolution reads the source's power while it
+     is on the battlefield and its kept last known information once it has
+     left (CR 113.7a), with a fixture "{T}: this creature deals damage equal
+     to its power to any target" sacrificed in response.
 
 300. **Two control changes one resolution writes back to back are announced
      as one.** A change of control is announced by the sweep at the head of
