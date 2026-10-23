@@ -1334,6 +1334,138 @@ a dated record. Two were `CLAUDE.md` lines.
 
 The journal keeps every text.
 
+#### PR 4 — item 185's record and the two trace pages (the design, under review)
+
+Branch `audit/item-6-elisions`, opened as a draft at the design stop
+(`review-the-design-doc-before-building`); the build goes on the same branch.
+The inventory is written where the design proposes it, `engine-map.md` §2.8,
+so the review reads the real thing; the record below is not built yet.
+
+**What the inventory found.**
+- **Three classes, not one.** `glossary.md` already defines an **elision**
+  narrowly (two or more legal answers, one game) and says a forced prompt is
+  not one; item 185 used the word for both and for skipped work. §2.8 keeps
+  the glossary's words: forced prompts, elisions, skipped work.
+- **Forced prompts rest on no CR rule.** The tree cites CR 102.2 for them in
+  comments across `src` and `tests`; 102.2 is the two-player opponent rule.
+  A4k's census found it on 2026-09-18 and left "one comment fix, next time a
+  hand is in the file" (`backlog.md` §2.22, rule 1), and the citation spread
+  from a handful of sites since. The build corrects every one that means a
+  forced choice, and keeps the ones that mean an opponent.
+- **Forced prompts are decided in two places.** Four asks decide in
+  `ui/ask.rs` (`ask_discard`, `ask_select_recipients`, `ask_choose_x_value`,
+  the four allocating asks through `forced_allocation`); five assert two or
+  more and leave the one-candidate case to six callers. Two of the in-ask
+  tests are copies of `only_pick`'s, agreeing by reading.
+- **Three elisions are taken and one is owed.** CR 616.1's has a debug check;
+  CR 603.3b's and 603.7b's share `entries_agree_on` and have tests but no
+  check in a game; CR 601.2f's is item 165, slotted at CP-1.
+- **Skipped work: the dispatcher's gate and the memo have instruments; the
+  replacement, restriction and cost gates, the controller fast path with the
+  control sweep, and A4q's fold have only their argument.**
+- **Not rows**: a choice the rule makes only among two or more, an empty
+  list (CR 101.3), and a cheaper route that reads everything it depends on.
+
+**The record (decision 1 picks its stream; this is option (b)'s shape).** One
+record per forced prompt or elision the engine answers itself: who would have
+been asked, the question as its `ChoiceKind`, the answer as the options it
+chose, and the reason.
+
+```rust
+// events/unasked.rs — names proposed, listed again in the PR body
+pub struct UnaskedChoice {
+    /// The record it precedes: the stream's next `EventId` when it was taken.
+    pub before: EventId,
+    pub player: PlayerId,
+    pub kind: ChoiceKind,
+    pub answer: UnaskedAnswer,   // LoggedAnswer's four shapes, owned
+    pub why: Unasked,
+}
+pub enum Unasked {
+    OneLegalAnswer,              // a forced prompt
+    OneGame(Elision),            // an elision, and which
+}
+pub enum Elision { ReplacementOrder, TriggerOrder, DelayedTriggerCause }
+```
+
+- **Written** through `GameState::note_unasked(|| UnaskedChoice { .. })`: one
+  branch on the recorder's `Option` when nothing records, built only when
+  something does. An observer, as the trace sink and the decision log are:
+  it draws no randomness, asks no provider, moves no epoch and writes
+  through `&GameState`, which is what every ask holds.
+- **Kept** by `RecorderHandle` beside its branch's records and forked the
+  same way; read as `RecordedEvents::unasked`.
+- **Drawn** by `format_event_log`, each before the record it precedes, so
+  `--dump-events`, `cli_play`'s log and a test's log carry it:
+  `Not asked: P0 SelectRecipients for Lightning Bolt (#12): Grizzly Bears (#7), its one legal answer`;
+  `Not asked: P1 OrderTriggers: Soul Warden (#3), Soul Warden (#9), every order one game (CR 603.3b)`.
+- **Not drawn** by `log_lines`, which reads records only, so the dev GUI's
+  log never shows one; a test pins it, beside the full log showing it.
+- **Sites**: the forced-prompt rows but the priority pass, and the three
+  elisions taken: twelve, each shown in a test. With decision 4's (b), the
+  forced prompts are written from one helper per primitive in `ui/ask.rs`.
+- **What it moves**: the formatted log and `--dump-events`, by the note
+  lines. No `EventId`, window, dispatch, history row, counter or RNG draw, so
+  the A/B predicts every gameplay counter `IDENTICAL` and the dumps differing
+  by note lines alone; the budget reads the note's cost with a recorder
+  attached.
+
+**How many, measured at the design stop.** A throwaway worktree at
+`1767fcd6` printed a line at each site, and `fuzz_games --games 100 --seed
+185` ran each table with `--dump-events` (the worktree is removed). Per 100
+games:
+
+| Table | Event-log lines | Forced priority passes | Every other row | Of which the generic split |
+|---|---:|---:|---:|---:|
+| `performance`, 2 seats | 105,775 | 53,090 | 2,399 | 1,848 |
+| `performance`, 4 seats | 223,037 | 179,163 | 4,507 | 3,517 |
+| `stress`, 2 seats | 101,682 | 49,123 | 3,128 | 2,611 |
+| `stress`, 4 seats | 230,558 | 176,622 | 7,081 | 5,258 |
+
+So the record adds 2–3% to the log without the priority pass, and the pass
+alone would add half the log at two seats and four-fifths at four. The rest,
+by row: a target or "choose" taking every legal one 270–484, CR 616.1's
+elision 78–1,234, a creature entering attacking with one candidate 14–92,
+CR 603.3b's elision 6–121, a sacrifice taking every candidate 14–55, X with
+one value 6–32, a trample split 5–14, a discard of the whole hand 0–17, a
+copy's one donor at resolution 2–7. No game reached CR 603.7b's elision, a
+lone damage source, a lone opponent, an entry copy's lone donor, a count of
+zero, a forced combat split or a forced next-damage split; their tests build
+the board.
+
+**Sizing.** About 700 lines written for option (b) with decision 4's (b):
+the recorder's notes ~60, the types and the writer ~90, the log's drawing
+~50, the sites ~80 net, the citation corrections about even, tests ~400.
+Sizings run 1.5–2× on code (`track-the-band-during-the-build`), so 1,000–1,400
+against the 1,500–2,500 band. Decision 5's (a) adds ~250–350. The two trace
+pages are hand-written HTML of the template's size (203–551 lines), which
+the band does not count, at two to three hours each. **One PR fits**; the
+split the re-cut allows is offered as decision 6.
+
+**The trace pages, planned.** Each walks the phase's findings, not its
+feature list (`engineering-practices.md` §7), from traced runs at the build's
+commit.
+- `tr-4d-control-is-announced-by-a-sweep.html`: a steal that ends at
+  cleanup, where the sweep's gate must still run once the last row is gone
+  (`control_effects_at_last_sweep`); the first control row, which keeps the
+  frames before it writes (`keep_frames_before_the_first_control_row`); and
+  Ray of Command's three rows with no batch between, where a change not yet
+  announced keeps no newer frame. The table: which frame each look-back
+  reads.
+- `tr-5h-every-history-read-is-a-scan-of-one-log.html`: a span condition
+  ("this turn") answered as a count over rows; `ObjectFilter::ThisTurn`'s
+  damage facts read off each row's frame; and the memo's gate keyed by row
+  kind, turn and combat, noted inside the lookup, beside the write that moves
+  it. The table: what each read scanned, and what it used to read.
+
+**Done when** (the brief's): the inventory covers every row item 185 lists,
+each with claim, premise and what holds it; the record is built at the
+agreed sites, each in a test; item 185 is closed or narrowed with the pages
+linked; the full gate, every `CLAUDE.md` check and `specdb owed --phase
+"Phase 7"` pass, with `check_engine_map.py --drift` read; §9's pass 5 row
+names the PR and §0 gains its bullet. Pass 5 is then done, and the
+card-homed triage is next.
+
 ### Pass 5c — names for the phases ahead
 
 **Added by the owner at #274's merge (2026-10-22), and scoped the same day:**
