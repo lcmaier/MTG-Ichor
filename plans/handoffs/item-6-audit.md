@@ -49,6 +49,21 @@ pass re-reads what it touches: a number here is a starting point.
   PRs 2 and 3 (replacement §2a's `EventPattern`, `ReplacementClass` and
   `Uses` rows, copy §2.1's Tier C). Their work-list rows quote the text as
   it was before #275, so re-read the section before fixing.
+- Pass 5's second PR, the older subsystem docs, ran in session 5 as #276
+  on `audit/item-6-docs-older` (§9). Done: `layers-`, `replacement-`,
+  `cant-effects-`, `copy-effects-` and `cost-architecture.md` — their 69
+  remaining work-list rows and the two halves #275 left (replacement §3.1's
+  table, cost §3.2's CM-0 paragraph), all fixed; the 11 contested rows, each
+  dispositioned in #276's body; and every unread section listed under "What
+  the readers did not reach" for these five, read. Docs only. Left for PR 3:
+  the cost gather's zone leg, which has no `codebase-state.md` item (A5's
+  predicate landed at LK; the replacement leg is RF's and the restriction
+  leg item 146's); three stale source doc comments
+  (`ContinuousEffectRegistry::effects_in_layer`'s "Not yet CR 613.8",
+  `CopiableValues`' and `any_control_changing`'s fast-path pointers); and
+  `clone-architecture.md`'s "no code" status line, the last of the
+  convention #275 left to a sweep (replacement, cant-effects and copy now
+  name their landed phases).
 
 ## 1. Why this audit is bigger than the last
 
@@ -1416,6 +1431,6 @@ changed.
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | #274 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup is next |
 | The card-homed triage (1, then its builds in the cleanup) | | added at #272's review |
 | 4. Readiness (2) | | |
-| 5. Docs audit, A6h (4) | #275 | re-cut at #274's merge; item 188 to A6s. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PRs 2–4 next |
+| 5. Docs audit, A6h (4) | #275, #276 | re-cut at #274's merge; item 188 to A6s. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PRs 3–4 next |
 | 5c. Names for the phases ahead (1) | | added at #274's merge |
 | 6. Scheduling (1) | | |
