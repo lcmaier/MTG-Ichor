@@ -14,7 +14,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::events::event::{DamageTarget, EventId, GameEvent};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
-use crate::state::history_log::{HistoryRow, RowFact, RowKind};
+use crate::state::history_log::{HistoryRow, RowFact, RowKind, FIRST_TURN};
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{Lki, ObjectOrPlayer};
@@ -177,7 +177,7 @@ impl GameState {
                 let key = (identity.source, identity.ability.definition());
                 *self.history.resolutions_this_turn.entry(key).or_insert(0) += 1;
             }
-            HistoryUpdate::CardDrawn { player } if self.turn_number != 0 && self.in_own_draw_step(*player) => {
+            HistoryUpdate::CardDrawn { player } if self.turn_number >= FIRST_TURN && self.in_own_draw_step(*player) => {
                 if let Some(history) = self.history.players.get_mut(*player) {
                     history.drew_in_draw_step();
                 }
@@ -204,7 +204,7 @@ impl GameState {
     /// log's rows of the turn, this window's earlier records, then it.
     fn place_in_turn(&self, update: &HistoryUpdate, placed_this_window: &[((PlayerId, TurnFact), u64)]) -> Option<u64> {
         let (player, fact) = update.placed_among()?;
-        if self.turn_number == 0 {
+        if self.turn_number < FIRST_TURN {
             return None;
         }
         let logged = self.history.count_in_turn(player, fact, self.turn_number);
@@ -215,7 +215,7 @@ impl GameState {
     /// A counted draw's place in its player's own draw step (CR 504).
     fn place_in_draw_step(&self, update: &HistoryUpdate) -> Option<u64> {
         match update {
-            HistoryUpdate::CardDrawn { player } if self.turn_number != 0 && self.in_own_draw_step(*player) => {
+            HistoryUpdate::CardDrawn { player } if self.turn_number >= FIRST_TURN && self.in_own_draw_step(*player) => {
                 Some(self.history.players.get(*player)?.this_draw_step())
             }
             _ => None,

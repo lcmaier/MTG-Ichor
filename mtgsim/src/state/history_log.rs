@@ -23,6 +23,11 @@ use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{Lki, ObjectOrPlayer};
 use crate::types::zones::{Zone, ZoneChangeAct};
 
+/// The game's first turn. Turn 0 is the game before it, when the opening
+/// hands are drawn (CR 103), and nothing then counts toward a turn: no count
+/// reads it, and no record has a place in it.
+pub const FIRST_TURN: u32 = 1;
+
 /// How many rows a chunk holds. The log is a chain of chunks, each a block of
 /// rows behind an `Arc`, and every copy of the game shares every chunk, so a
 /// fork's first write copies only the newest, open one: this many rows at
@@ -194,6 +199,9 @@ pub fn added_to_count(fact: TurnFact, row: &HistoryRow, counts_for: &dyn Fn(Play
         (asked, RowFact::Stated { fact, count }) if asked == fact => (player, count),
         _ => return 0,
     };
+    // A count notes the one kind of row it scans (`kind_counted`), so a fact
+    // counted off a second kind would leave a walk standing through its write.
+    debug_assert_eq!(row.fact.kind(), kind_counted(fact), "{fact:?} counted off a {:?} row", row.fact);
     if counts_for(whose) { amount } else { 0 }
 }
 
@@ -323,7 +331,14 @@ impl HistoryLog {
 
     /// Turn `turn`'s rows, newest first.
     pub fn rows_of_turn(&self, turn: u32) -> impl Iterator<Item = &HistoryRow> {
-        self.rows_newest_first().skip_while(move |row| row.turn > turn).take_while(move |row| row.turn == turn)
+        self.rows_of_turns(turn..=turn)
+    }
+
+    /// The rows of `turns`, newest first: rows are written in turn order, so
+    /// the walk stops at the first one before them.
+    pub fn rows_of_turns(&self, turns: RangeInclusive<u32>) -> impl Iterator<Item = &HistoryRow> {
+        let (first, last) = (*turns.start(), *turns.end());
+        self.rows_newest_first().skip_while(move |row| row.turn > last).take_while(move |row| row.turn >= first)
     }
 
     /// The rows of `kind` a question about turn `turn`, the turn in
@@ -489,9 +504,8 @@ impl HistoryLog {
     ) -> u64 {
         note(GatedWalkInput::TurnNumber);
         note(GatedWalkInput::Rows(kind_counted(fact)));
-        let (first, last) = ((*turns.start()).max(1), *turns.end());
         let mut total: u64 = 0;
-        for row in self.rows_newest_first().skip_while(|row| row.turn > last).take_while(|row| row.turn >= first) {
+        for row in self.rows_of_turns((*turns.start()).max(FIRST_TURN)..=*turns.end()) {
             let added = added_to_count(fact, row, counts_for);
             if added > 0 && of(row) {
                 total = total.saturating_add(added);

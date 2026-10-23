@@ -19,41 +19,38 @@ pub enum HistorySpan {
     ThisGame,
 }
 
-/// One quantity of one player's turn. Each is counted on exactly one row, and
-/// the name says whose: the caster's, the drawer's, the player whose life
-/// total moved, the player dealt the damage, the player who controlled the
-/// creature as it died, the player who declared the attackers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TurnFact {
-    /// Spells this player cast (CR 601.2i). A copy is not cast (CR 707.10).
-    /// [`HistoryCount::of`] narrows them by what they were as they were cast.
-    SpellsCast,
-    /// Cards this player drew (CR 121.1). A card put into a hand without the
-    /// word "draw" is not drawn (CR 121.5).
-    CardsDrawn,
-    /// Life this player gained, in total.
-    LifeGained,
-    /// Life-gain events: CR 119.9 makes each source's gain its own.
-    LifeGainEvents,
-    /// Life this player lost, in total: to damage, to a payment, to an effect.
-    LifeLost,
-    /// Life-loss events, one per record.
-    LifeLossEvents,
-    /// Damage dealt to this player (CR 120.3a), in total. Damage dealt to a
-    /// permanent they control is not dealt to them.
-    DamageTaken,
-    /// Creatures this player controlled that died (CR 700.4), counted off
-    /// each creature's last known information. Morbid's "a creature died
-    /// this turn" sums every player's row.
-    ControlledCreaturesDied,
-    /// Creatures this player declared as attackers (CR 508.1a). Raid's "if
-    /// you attacked this turn" is at least one.
-    AttackersDeclared,
-}
-
-impl TurnFact {
-    /// How many facts there are.
-    pub const COUNT: usize = 9;
+counted_enum! {
+    /// One quantity of one player's turn. Each is counted on exactly one row, and
+    /// the name says whose: the caster's, the drawer's, the player whose life
+    /// total moved, the player dealt the damage, the player who controlled the
+    /// creature as it died, the player who declared the attackers.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum TurnFact {
+        /// Spells this player cast (CR 601.2i). A copy is not cast (CR 707.10).
+        /// [`HistoryCount::of`] narrows them by what they were as they were cast.
+        SpellsCast,
+        /// Cards this player drew (CR 121.1). A card put into a hand without the
+        /// word "draw" is not drawn (CR 121.5).
+        CardsDrawn,
+        /// Life this player gained, in total.
+        LifeGained,
+        /// Life-gain events: CR 119.9 makes each source's gain its own.
+        LifeGainEvents,
+        /// Life this player lost, in total: to damage, to a payment, to an effect.
+        LifeLost,
+        /// Life-loss events, one per record.
+        LifeLossEvents,
+        /// Damage dealt to this player (CR 120.3a), in total. Damage dealt to a
+        /// permanent they control is not dealt to them.
+        DamageTaken,
+        /// Creatures this player controlled that died (CR 700.4), counted off
+        /// each creature's last known information. Morbid's "a creature died
+        /// this turn" sums every player's row.
+        ControlledCreaturesDied,
+        /// Creatures this player declared as attackers (CR 508.1a). Raid's "if
+        /// you attacked this turn" is at least one.
+        AttackersDeclared,
+    }
 }
 
 /// What an object did, which `ObjectFilter::ThisTurn` and `ThisCombat` ask:
