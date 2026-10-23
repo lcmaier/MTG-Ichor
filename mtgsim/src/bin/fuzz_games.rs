@@ -6,6 +6,7 @@
 //        cargo run --bin fuzz_games -- --seed 12345 --games 1 --verbose
 //        cargo run --bin fuzz_games -- --games 200 --threads 1     (serial)
 //        cargo run --bin fuzz_games -- --pool stress                (every card)
+//        cargo run --bin fuzz_games -- --pool fixtures              (and the fixtures)
 //        cargo run --bin fuzz_games -- --require "Cytoshape,Mirrorweave"
 //        cargo run --bin fuzz_games -- -r "Opt" -r "Eligeth, Crossroads Augur"
 //        cargo run --bin fuzz_games -- -r "Soul Warden" --copies 8   (a heavy board)
@@ -191,7 +192,7 @@ struct Args {
     audit: bool,
 }
 
-/// The two pools, and the reason there are two.
+/// The pools, and the reason there are several.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CardPool {
     /// The frozen 55. Comparable across phases; the default.
@@ -199,6 +200,9 @@ enum CardPool {
     /// Every registered card. Grows, so its numbers are only comparable to
     /// another run of the same tree.
     Stress,
+    /// Every registered card and the castable fixtures, for the checked
+    /// sitting, where the checks their builds carry fire. Keeps no table.
+    Fixtures,
 }
 
 impl CardPool {
@@ -206,6 +210,7 @@ impl CardPool {
         match self {
             CardPool::Performance => "performance",
             CardPool::Stress => "stress",
+            CardPool::Fixtures => "fixtures",
         }
     }
 
@@ -213,6 +218,7 @@ impl CardPool {
         match self {
             CardPool::Performance => CardRegistry::performance_pool(),
             CardPool::Stress => CardRegistry::default_registry(),
+            CardPool::Fixtures => CardRegistry::fixture_pool(),
         }
     }
 }
@@ -323,8 +329,9 @@ fn parse_args() -> Args {
                     result.pool = match args[i].as_str() {
                         "performance" => CardPool::Performance,
                         "stress" => CardPool::Stress,
+                        "fixtures" => CardPool::Fixtures,
                         other => {
-                            eprintln!("Unknown pool {other:?} — want performance or stress");
+                            eprintln!("Unknown pool {other:?} — want performance, stress or fixtures");
                             std::process::exit(2);
                         }
                     };

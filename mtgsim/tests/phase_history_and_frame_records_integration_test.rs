@@ -2,36 +2,32 @@
 //! object that is gone, and the history log's rows as every "this turn"
 //! fact's one store (`plans/handoffs/item-6-audit.md`, pass 3's cleanup).
 
-use mtgsim::cards::authoring::triggers::{becomes_blocked, becomes_blocked_by, blocks, leaves_the_battlefield, triggered_ability, whenever};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::types::effects::{SelectionFilter, TargetCount};
+use mtgsim::cards::authoring::triggers::{becomes_blocked, becomes_blocked_by, blocks, triggered_ability, whenever};
+use mtgsim::cards::phase_history_and_frame_records_cards::{fixture_first_creature_tithe, fixture_mourners_tithe};
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::phase_rd_cards::dark_sphere;
 use mtgsim::engine::actions::{ActionContext, GameAction};
+use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{GameEvent, UnattachRoute};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_colors, get_effective_power};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_this_turn, setup_game, setup_two_player_game, static_ability,
     test_ctx, test_dp, vanilla_creature,
 };
-use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{ColorChange, Duration};
-use mtgsim::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
-use mtgsim::types::effects::PlayerSet;
-use mtgsim::types::zones::ZoneSet;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
-use mtgsim::types::ids::AbilityId;
-use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::types::triggers::{TriggerCondition, TriggerDef, TriggerLimit};
-use mtgsim::types::effects::PlayerRef;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::colors::Color;
+use mtgsim::types::effects::{
+    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter, TargetCount,
+};
+use mtgsim::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
+use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
+use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerEvent, TriggerSubject};
-use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // An unattach, each end as it left (CR 603.10c)
@@ -103,17 +99,6 @@ fn an_unattach_keeps_no_frame_of_an_end_that_stays() {
 // ---------------------------------------------------------------------------
 // The object a departure from the game names (CR 800.4a, 603.6c)
 // ---------------------------------------------------------------------------
-
-/// "Whenever a creature leaves the battlefield, you gain life equal to its
-/// power": its power is the creature's as it last existed (CR 608.2h).
-fn fixture_mourners_tithe() -> std::sync::Arc<mtgsim::objects::card_data::CardData> {
-    let creature = TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature));
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller);
-    CardDataBuilder::new("Fixture Mourner's Tithe")
-        .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", whenever(leaves_the_battlefield(creature), gain)))
-        .build()
-}
 
 /// Player 1 leaves a three-seat game with a 3/3, which leaves the
 /// battlefield as it leaves the game (CR 603.6c). Player 0's watcher binds
@@ -221,25 +206,6 @@ fn a_source_sacrificed_for_its_cost_is_tapped_on_its_activation_and_its_departur
 // ---------------------------------------------------------------------------
 // "The first ... each turn" counts the arm's own kind (item 314)
 // ---------------------------------------------------------------------------
-
-/// "Whenever you cast your first creature spell each turn, you gain 1
-/// life." Kalamax's and Plan for All Outcomes' rulings: the first of the
-/// spells of the kind it names this turn, whatever other spells came first.
-fn fixture_first_creature_tithe() -> std::sync::Arc<CardData> {
-    let first_creature = TriggerDef {
-        condition: TriggerCondition::Event(TriggerEvent::CastsSpell {
-            caster: Some(PlayerRef::You),
-            spell: Some(ObjectFilter::ByType(CardType::Creature)),
-        }),
-        intervening_if: None,
-        limit: Some(TriggerLimit::FirstTimeEachTurn),
-        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
-    };
-    CardDataBuilder::new("Fixture First Creature's Tithe")
-        .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", first_creature))
-        .build()
-}
 
 /// A spell of `card_type` with mana cost {1}: a 1/1, or an instant whose
 /// instruction gains no life.

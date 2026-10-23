@@ -293,6 +293,11 @@ jobs:
       - name: Fuzz — stress pool, debug assertions on
         run: cargo run --profile release-checked --bin fuzz_games -- --games 50 --seed 12345 --pool stress
 
+      # Every card and the castable fixtures (`engineering-practices.md` §3),
+      # played only here, where the debug checks their builds carry fire.
+      - name: Fuzz — fixture pool, debug assertions on
+        run: cargo run --profile release-checked --bin fuzz_games -- --games 50 --seed 12345 --pool fixtures
+
   # The dev GUI (`devgui/`), a crate beside the engine with its own lockfile
   # and target. A job of its own, so it runs beside `check` and is never the
   # long pole: its cold build measured 49 s at four jobs in WSL (2026-09-30),

@@ -462,12 +462,14 @@ because it is consumed and deleted.
 
 ## 3. Two card pools
 
-`cards/registry.rs` builds two:
+`cards/registry.rs` builds two of real cards, and a third for the checked
+sitting:
 
 | Pool | Contents | For | Flag |
 |---|---|---|---|
 | **performance** | a *representative* board (`PERFORMANCE_POOL`) — grows deliberately, one card per new engine path | A/B-ing an engine change, **interleaved in one sitting** | `--pool performance` (default) |
 | **stress** | every registered card (`default_registry`) | panics, errors, and effect interactions | `--pool stress` |
+| **fixtures** | every registered card and the castable fixtures (`fixture_pool`) | the debug checks a fixture's build carries, in CI's checked sitting (§11.5) only; keeps no table | `--pool fixtures` |
 
 **Why two.** Before this split there was one pool, and it had to be both things
 at once — so a card that would have exercised the new pipeline was kept *out of
@@ -2546,7 +2548,9 @@ never allows.
 
 `[profile.release-checked]` is release with debug assertions and overflow
 checks on, and CI's `fuzz-checked` job plays 50 stress games under it beside
-the `check` job. The release sittings compile out every `debug_assert!`, and
+the `check` job, then 50 of the `fixtures` pool (§3): the registered cards
+with the castable fixtures (`cards::phase_history_and_frame_records_cards`),
+whose builds carry debug checks no registered card reaches yet. The release sittings compile out every `debug_assert!`, and
 with them the layer walk's and the memo's audits, the mana watcher's and the
 pipeline's, so before A6q no CI game ran any of them.
 

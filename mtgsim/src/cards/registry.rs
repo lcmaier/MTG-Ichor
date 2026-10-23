@@ -1241,6 +1241,21 @@ impl CardRegistry {
     }
 }
 
+impl CardRegistry {
+    /// Every registered card and the castable fixtures: `fuzz_games --pool
+    /// fixtures`, which the checked sitting plays, where the debug checks the
+    /// fixtures' builds carry fire (`engineering-practices.md` §3). A fixture
+    /// is no printed card, so it is listed apart and never joins
+    /// `default_registry`, whose numbers stay real cards'.
+    pub fn fixture_pool() -> Self {
+        let mut pool = Self::default_registry();
+        for (name, fixture) in crate::cards::phase_history_and_frame_records_cards::CASTABLE {
+            pool.register(name, fixture);
+        }
+        pool
+    }
+}
+
 impl Default for CardRegistry {
     fn default() -> Self {
         Self::default_registry()
