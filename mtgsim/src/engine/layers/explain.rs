@@ -65,7 +65,7 @@ pub enum AppliedBy {
     PtCounters { kind: CounterType, count: u32 },
     /// The copy it entered as (CR 614.1c, 707.5).
     EnteredAsCopy,
-    /// An edit it entered with (CR 614.1c).
+    /// An edit it entered as (CR 614.1c).
     EnteredWith,
     /// A planeswalker's intrinsic loyalty ability (CR 306.5b), given at the
     /// end of layer 4.

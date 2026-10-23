@@ -366,7 +366,7 @@ sorcery and only once each turn") lands in whichever comes first in row order.
 ## 5. Mana abilities — what they produce, and what feeds them
 
 <!-- cast-census: begin MANA -->
-| what it produces | CR | surface | plays | owner | abilities | cards | the affordability check (item 162) |
+| what it produces | CR | surface | plays | owner | abilities | cards | the affordability check before MA-1 (item 162) |
 |---|---|---|---|---|---:|---:|---|
 | with "spend this mana only" | 106.6 | `ManaRestriction`; `ManaPool::pay` reads the plain pool | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) | 153 | 151 | counts it as unrestricted |
 | mana that does something when spent, or does not empty | 106.6 | `ManaGrant`, `ManaPersistence`; no payment path reads them | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) | 8 | 8 | counts its mana |
@@ -394,7 +394,7 @@ Patterns, in row order, against the effect from its first "add" or "choose a col
 - several mana at once ({C}{C}, {W}{U}): `^add (\{[wubrgc]\}){2,}\|^add (two\|three) mana`
 - one mana of one type: `^add \{[wubrgc]\}\.?$`
 
-| what its cost feeds it | CR | surface | plays | owner | abilities | cards | the affordability check (item 162) |
+| what its cost feeds it | CR | surface | plays | owner | abilities | cards | the affordability check before MA-1 (item 162) |
 |---|---|---|---|---|---:|---:|---|
 | costs mana (a filter, a Signet) | 605.1a | `Cost::Mana`, paid from the pool | built |  | 175 | 170 | skips it unless the pool already holds the cost |
 | costs a sacrifice (Ironworks, a Treasure) | 605.1a | `Cost::Sacrifice` | built |  | 143 | 143 | counts it free, the sacrificed source included |
@@ -409,9 +409,11 @@ Patterns, in row order, against the effect from its first "add" or "choose a col
 
 **"Plays" and the affordability check are different questions**, and the
 calibration (§10) is what showed it. Krark-Clan Ironworks and Sol Ring play
-correctly. The check misreads both: it counts Ironworks' sacrifice as free and
-Sol Ring's `{C}{C}` as one mana. The last column is item 162's
-(`oracle/mana_helpers.rs::find_mana_sources`, `available_mana_sources`).
+correctly. The check read both wrongly before MA-1: it counted Ironworks'
+sacrifice as free and Sol Ring's `{C}{C}` as one mana. The last column is that
+check (`find_mana_sources`, gone since #225). `oracle::mana_supply` counts Sol
+Ring's two, and Ironworks once per artifact it can sacrifice
+(`mana-architecture.md` §3.1, §3.3).
 
 ## 6. Casting and playing — permission, ownership, timing
 
@@ -503,8 +505,8 @@ A card lands in the first row its mana cost matches, so the cards column partiti
 question offers one** when its least legal X is payable, 0 or 1 under "X
 can't be 0" (`mana-architecture.md` §3.7). CR 601.2b's `ChooseXValue` then
 offers the X the board can pay, read in closed form off CR 601.2f's
-arithmetic and the inventory (`oracle::x_values`). Blaze and Protean Hydra
-are the registered X spells. An activated ability's `{X}` is still never
+arithmetic and the inventory (`oracle::x_values`). Blaze, Protean Hydra and
+Goblin Negotiation are the registered X spells. An activated ability's `{X}` is still never
 asked (the "mana with {X}" cost row, CP-1's).
 
 <!-- cast-census: begin PHRASES -->

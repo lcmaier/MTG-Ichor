@@ -215,8 +215,10 @@ impl std::ops::BitAnd for ZoneSet {
 ///
 /// - **The caller sets it.** `Primitive::Sacrifice` knows it is sacrificing;
 ///   `perform_action` cannot recover that from `(from, to)`.
-/// - **Nothing may branch on it outside the replacement pipeline and the
-///   trigger matcher.** A third reader is a third place for it to drift.
+/// - **Only the replacement pipeline, the trigger matcher, the history writer
+///   and a resolution counting its own records (`AmountExpr::DiscardedThisWay`)
+///   branch on it.** Each reader is a place for it to drift, so a new one joins
+///   this list in review.
 /// - **No catchall variant. No `Other`, no `Unknown`, no `#[non_exhaustive]`.**
 ///   A site with no honest act to give is a site whose act nobody has worked
 ///   out — see `cast.rs::rollback_cast_to_hand`.

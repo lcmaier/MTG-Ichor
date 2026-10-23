@@ -323,9 +323,9 @@ fn test_the_candidate_set_follows_the_card_from_zone_to_zone() {
 
     // Into exile, where the clause functions too (`ZoneSet::ALL`) and the map
     // follows it. The move *out* of exile into a graveyard is the one board
-    // this file does not have: no registered card makes it and no
-    // `ZoneChangeAct` names it — Pull from Eternity brings both
-    // (`codebase-state.md` main item 148).
+    // this file does not have: no registered card makes it, and no
+    // `Primitive` puts an object into its owner's graveyard — Pull from
+    // Eternity brings both (`codebase-state.md` main item 148).
     game.change_zone(colossus, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     assert_eq!(zone_of(&game, colossus), Zone::Exile);
     assert!(game.zone_replacement_ability_sources.contains_key(&colossus), "refiled in exile");

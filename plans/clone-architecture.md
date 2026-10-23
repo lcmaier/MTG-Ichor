@@ -55,7 +55,7 @@ name, not a line.
 
 ---
 
-## 1. What a clone copies today
+## 1. What a clone copied before CL-1 (on `b86c59c1`)
 
 ### 1.1 The stores
 
@@ -73,6 +73,13 @@ whose capacity is past twice its length is rebuilt at its length. The history
 log (`state/history_log.rs:31`) is the tree's one store shared in chunks: rows in chunks
 of 16 behind `Arc`s, so a clone copies one pointer and a fork's first write
 copies only the open chunk.
+
+**Since CL-1 (§7)** every store above is a `state::shared_stores` type:
+`objects`, `battlefield`, `stack_entries` and the memo's frames are
+`ObjectTable`s, and `stack` and `pending_triggers` are `SharedList`s.
+`remove_object` drops a removed object's frame (`LayerMemo::forget`), and
+`FitOnClone` is gone (decision 4), so the history log is no longer the tree's
+one store shared in chunks.
 
 ### 1.2 Who writes and reads each store
 
@@ -341,7 +348,8 @@ as A's and C's are from §2.2–§2.4.
 
 **How an entry is held, under C.** A chunk is copied whole on a fork's first
 write to it. So small entries with no heap of their own sit **inline** in the
-chunk: an object (48 B) and a memo frame (24 B), whose chunk copy is 1.5 KB or
+chunk: an object (48 B) and a memo frame (16 B as built: an epoch and a
+pointer, since the table stores no key), whose chunk copy is 1.5 KB or
 less. Large ones sit **behind their own `Arc`**: a permanent, a stack entry
 and a waiting trigger. A chunk of 32 stack entries in a deep stack, copied
 inline, would be about 13 KB and some 128 allocations for a fork that resolves

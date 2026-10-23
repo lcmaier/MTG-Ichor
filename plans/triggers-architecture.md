@@ -324,9 +324,11 @@ compile, and must say what an occurrence is (a record for most kinds; a
 counter for the counter arms, per Protean Hydra's ruling; an attacker for
 the attack shapes). Each instruction names the part it reads, an
 `EventRole`, and the readers resolve through the projections at resolution:
-`EffectRecipient::Triggering(role)` is the object that played `role`, checked
-against the live object's epoch — CR 603.6's "unable to be found" and CR
-400.7 in one comparison — and is "that creature" off a trigger on each event
+`EffectRecipient::Triggering(role)` is the object that played `role`, an
+`ObjectRef` taken at dispatch and found through `GameState::bound_objects`
+while its epoch still matches — CR 603.6's "unable to be found" and CR 400.7
+in one comparison, and for a zone change's trigger only in a public zone (CR
+400.7e) — and is "that creature" off a trigger on each event
 and "them" off "one or more", over any kind of record;
 `EffectRecipient::TriggeringPlayer` is `player_of` on the records;
 `AmountExpr::TriggeringAmount` is `amount_of` summed over them (one
@@ -492,8 +494,8 @@ pub struct PendingTrigger {
 }
 
 // on GameState:
-pub pending_triggers: Vec<PendingTrigger>,
-pub next_trigger_seq: u64,
+pub pending_triggers: SharedList<PendingTrigger>,   // state::shared_stores: chunks a fork shares, each trigger copied alone when written
+pub(crate) next_trigger_seq: u64,
 ```
 
 On `GameState` and nowhere else — item 40's invariant, and A4h's fork test
@@ -1835,9 +1837,10 @@ it; a permanent entering during the end step sees no `StepBegin { End }`
 until the next turn's, and a delayed "at the beginning of the next end
 step" created during the end step likewise — the two 513.2 atoms assert the
 absence. 603.7a's batch half, a rider creating an entry between two members
-of one simultaneous event, is §3.9's `created_in`. 603.7c is the `refs` list: "exile it at the
-beginning of the next end step" names an `ObjectRef { id, zone_change_epoch }`
-and finds nothing if the epoch moved (CR 400.7), which is Sneak Attack's
+of one simultaneous event, is §3.9's `created_in`. 603.7c is the entry's `referred` (`Effect::Remember`, §3.9): "exile it at the
+beginning of the next end step" names a `RememberedObject` (an `ObjectRef` and
+the record of the move that ended it) and finds nothing once that object has
+moved (CR 400.7), which is Sneak Attack's
 ruling and Flickerwisp's board.
 
 A **reflexive** trigger (603.12) is a delayed entry created as the
@@ -2404,8 +2407,10 @@ Proctor, Frost Titan and every ward wait for it (§13).
 
 ### 6.3 The bound facts, LKI, and CR 603.6's "unable to be found"
 
-`EffectRecipient::TriggeringObject` resolves against `ObjectRef`: the
-object at that id whose `zone_change_epoch` still equals the binding's. A
+`EffectRecipient::Triggering(role)` resolves through `GameState::bound_objects`:
+each `ObjectRef` the binding took at dispatch, found while its
+`zone_change_epoch` still matches, and for a zone change's trigger only in a
+public zone (CR 400.7e). A
 creature that died and was returned before the trigger resolves is a new
 object and the recipient resolves to nothing — the atom "put a +1/+1 counter
 on it" after a bounce (ATOM-603.6-001) and CR 603.6c's "checks for it only
@@ -2511,12 +2516,12 @@ field with one writer:
 | the controller the stream last announced (item 13) | `PermanentState.announced_controller` | placement, the state check's sweep | the sweep |
 | who cast this permanent, from which zone, and with what mana (400.7d; main items 9 and 30) | `PermanentState.cast: Option<CastFacts { by, from, mana_spent }>`, `None` for a copy of a spell (CR 707.10) | the entry performer, off `ResolvingObject.cast`, which resolution builds from the stack entry; `mana_spent` is written onto the entry at CR 601.2h | `EntersBattlefield { was_cast }`, "if you cast it", Coal Stoker's "from your hand", Prized Amalgam's "from your graveyard" |
 | its cost decisions — kicked, bargained, evoked (707.10; main item 30) | `PermanentState.cost_choices: CostChoices { additional, alternative }`, kept by a copy of the spell and the token it becomes, and by its `Lki` once it leaves (§3.11) | the entry performer, off `ResolvingObject.cost_choices` | `Condition::SpellWasKicked`, "if it was kicked", "if its evoke cost was paid" |
-| the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer, from the records its instruction performed (§3.9) | the delayed check, the resolution |
+| the objects and players a delayed trigger refers to (603.7c) | `DelayedTrigger.referred: Referred { objects: Vec<RememberedObject>, players }`, each object an `ObjectRef` with the record of the move that ended it | `Effect::Remember`, from what its creator's instruction acted on (§3.9) | the delayed check, the resolution |
 | the answer to a cost paid at resolution (118.12: does, doesn't, can't) | `ResolutionWalk.last_cost_answer`, beside the target cursor (§6.2) | the atom that takes the action (`Does`), a declined "may" (`Doesnt`), a sacrifice that could not start (`Cant`) | `Condition::CostAnswer` in the clause after it, and CR 603.2h's gate (§6.2, §6.4) |
 | an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `kept_lki` on `PendingTrigger`, `StackEntry` and `ResolvingObject` | `hand_over_lki`, with the frame `capture_lki` took | `bound_characteristics`, for §6.3's readers; the recheck's bound-fact form is TR-4's (§6.1) |
 | when a delayed trigger was created (603.7a, 513.2) | `DelayedTrigger.created` | the producer | the reflexive window; nothing else needs it (§4.6) |
 | which extra turn "that turn" is | `ExtraTurnId` on `turn_queue` entries and `GameState.current_turn_origin` | `Primitive::ExtraTurn`, `begin_turn` | `StepBegins { whose: Turn(id) }` |
-| the trigger's event, subject, amount, frame | `TriggerBinding` (the matched records, copied whole; the matched event; the subject's epoch) | the dispatcher | the resolution, through the arm's projections |
+| the trigger's events, their objects, amount, frame | `TriggerBinding` (each triggering event: its record, copied whole, and the objects it is about, by role, as `ObjectRef`s taken at dispatch; the matched event) | the dispatcher | the resolution, through the arm's projections |
 
 The pending queue, the delayed registry, the histories and the four sets
 are `GameState` fields, cloned with a fork. The window (`EventWindow`) is

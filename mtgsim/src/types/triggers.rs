@@ -160,7 +160,8 @@ pub enum TriggerLimit {
     /// written by the dispatcher as it queues (Elvish Warmaster's ruling).
     TriggersOnlyOnceEachTurn,
     /// "Whenever [event] for the first time each turn" — a predicate on the
-    /// event, read record by record off the turn summary.
+    /// event, read record by record off the history: the record's place in
+    /// the turn.
     FirstTimeEachTurn,
 }
 

@@ -226,9 +226,10 @@ whose cost is a sacrifice or nothing is an entry of its own. The pool is
 entries too, one per type of mana in it.
 
 **The mana check runs last, for abilities as it already does for cards.**
-`can_cast` asks timing, targets and the other costs before mana;
-`can_afford_ability_costs` walks the printed cost list, mana first on most
-cards, and asks targets after. Asking the cheap refusals first is what takes
+`can_cast` asks timing, targets and the other costs before mana; before
+MA-1, `can_afford_ability_costs` walked the printed cost list, mana first on
+most cards, and asked targets after, and MA-1's `can_activate_as_its_controller`
+asks mana last. Asking the cheap refusals first is what takes
 the inventory count to 17,906 from 19,675. It changes one thing a person can
 see: the why of a tapped Chainbreaker with too little mana says "tapped", not
 "not enough mana" (SU-7's rule: the first reason the check refuses).
@@ -280,7 +281,7 @@ measured on the board.
 | hybrid `{W/U}`, and `{C/W}` | the two types | yes, by the same theorem |
 | `{2/W}`, Phyrexian `{W/P}` and `{W/U/P}` | a choice per symbol, paid colored or another way (two generic, or 2 life): enumerate how many of each kind go each way, n+1 choices for n such symbols of one type | yes |
 | `{S}` | a seventh bit, set on a snow permanent's entries | yes for permanents; the pool's snow mana waits for item 33 |
-| `{X}` | none at the gate (§3.7) | yes |
+| `{X}` | a spell's is expanded at its least legal X before the check: 0, or 1 generic under "X can't be 0" (§3.7). An unexpanded `{X}`, an activated ability's, is refused until CP-1 announces it | yes |
 
 **Until a payment path pays a symbol, the check refuses it.** Enumeration
 must agree with enforcement (`cost-architecture.md` §3.6): the gate's hybrid

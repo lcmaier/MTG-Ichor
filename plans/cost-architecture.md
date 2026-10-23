@@ -240,10 +240,13 @@ not there — the gather returns *before* computing one when no cost source is o
 the board, which is the common board. Ungated, source 2 puts one
 `compute_characteristics` on every card in hand at every castability preview,
 forever. So the third gate gets a third leg: the spell's own printed abilities,
-OR'd with the two summary flags. It is exact today, because `compute_non_member`
-applies no registry rows — a non-member's effective ability list *is* its
-printed list, so neither a Layer 6 grant nor a Layer 1 copy can reach a spell on
-the stack or a card in hand (§8 item 7). **The leg asks the subject, not the
+OR'd with the two summary flags. It is exact while no row reaches the card:
+`compute_non_member` applies a card's CDAs and, for a library or hand card that
+a row reaches (left out of the pass since LL), that row as the pass noted it,
+and a spell a stack-reaching row names is a member. So a Layer 6 grant or a
+Layer 1 copy reaching a hand or the stack does reach the card, and the leg
+rests on the gate's two summary flags, not on a structural impossibility (§8
+item 7; `codebase-state.md` item 75). **The leg asks the subject, not the
 body**: Thalia prints a cost ability and a Thalia in hand modifies nothing of
 her own, and asking the body alone cost five non-member walks per 200 measured
 games (CM-1, 2026-09-07) — found by the A/B arm, not by argument (§8 item 8).
@@ -546,8 +549,10 @@ prospective caster. **Nothing licenses that read but this section.** A cost
 ability functions on the stack (CR 113.6d, 702.41a; §3.1), so the preview is
 not claiming the card's affinity works in hand — it is predicting the total the
 cast will lock, using the one arithmetic that will lock it. Enumeration and
-enforcement agreeing is the requirement; the CR has no rule about it. `find_mana_sources` then reasons about the previewed
-component as it did about the printed one.
+enforcement agreeing is the requirement; the CR has no rule about it. `mana_payable` then asks whether the pool or the
+inventory pays the previewed component: `oracle::mana_supply`'s Hall's-condition
+check, exact since MA-1 (`mana-architecture.md` §3.2), and for an X spell asked
+at its least legal X (MA-2, `mana-architecture.md` §3.7).
 
 **The reasons are one check, shared by the enumeration and the enforcement**
 (SU-7, 2026-10-05). `castable_spells` keeps the cards `can_cast` allows, and
@@ -872,9 +877,10 @@ item 6's exit criterion rather than any phase's here.
 The seam §6 named (`backlog.md` §2.1's payment half) reaches this document at
 exactly one point: a sacrifice is the first payment that is a *choice* and a
 *move*, and a move that is later un-made is a chokepoint question. `CLAUDE.md`
-names one permanent exemption, `// CAST-ROLLBACK:`, CR 601.2a's silent move.
-The question this phase had to settle is whether 732.1 is a second exemption,
-a reuse of the first, or neither. **It is neither, and CM-3 builds the
+names `// CAST-ROLLBACK:`, CR 601.2a's silent move, as a permanent exemption
+(beside `// NOT REPLACEABLE:`, a write no replacement effect can watch for).
+The question this phase had to settle is whether 732.1 is a new exemption,
+a reuse of the rollback's, or neither. **It is neither, and CM-3 builds the
 property that makes it so rather than the cancellation it would otherwise
 need.** `CLAUDE.md`'s chokepoint section is unchanged.
 
@@ -980,9 +986,12 @@ abilities (§3.10) will answer `true` to the first and `false` to the second,
 which is why one predicate could not do both jobs; both are matched
 exhaustively, so a new subject has to answer each.
 
-**What the spell-side match reads.** `object_matches_filter_in_frame(spell,
-filter, you, &frame)` — `permanent_matches_filter_in_frame` until CM-0 — with
-`frame = compute_characteristics(game, spell)`. For a spell on the stack that frame's
+**What the spell-side match reads.** `object_matches_filter_of_source(spell,
+filter, source_controller, source, Some(HeldFrame::Characteristics(frame)))`,
+the one `ObjectFilter` table (`layers-architecture.md` §3.4) asked for the cost
+ability's source, with the frame the gather already holds for the spell,
+`compute_characteristics(game, spell)` (`object_matches_filter_in_frame` until
+A6m, and `permanent_matches_filter_in_frame` until CM-0). For a spell on the stack that frame's
 controller is the caster; for the preview (§3.6) it is the owner, which is
 the same player.
 
@@ -1029,7 +1038,7 @@ the same player.
 | **CM-3 — lock-in's payment side** ✅ | `Cost::Sacrifice(filter, n)` paid through the chokepoint with a `ChoiceKind` for which permanent, as a spell's additional cost and as a mana ability's cost; a mandatory additional cost (`AdditionalCost` today is all optional, CR 118.8b); the mana component is already paid *first* (§3.3), so a split that fails has paid nothing else — and CR 732.1's "any payments already made are canceled" turned out to need nothing added — §3.12 is the answer and the gate. **Consumers:** Altar's Reap + Thunderscape Familiar (CR 601.2h's own example, a named board); Krark-Clan Ironworks + Foundry Inspector (the lock-in through the window, §3.11); Mind Stone (the 732.1 board, its trigger half left for item 6) | 2 payment arms + 1 check arm in `costs.rs`, 1 prompt, 1 `ask_choose_additional_costs` change, 5 cards, ~350 of tests: ~800 | low — payment machinery with the CR's own board and the banned deck's as the tests |
 | **CM-4 — the mana window and the payer** ✅ | `run_mana_ability_window` opens only when the locked mana component is non-empty (601.2g) and then runs until the player declines or no ability is left (605.3a) — it also stopped the moment the pool covered the cost, which was a payer's policy in the engine's loop (§3.11, §8). The policy moved to **two** decorators, not one: `ui::ManaWindowStop<D>` takes the stop, `ui::AutoPayer<D>` takes `GenericManaAllocation` and `OrderCostReductions`, and CM-3's sacrifice choice stays the wrapped provider's (§3.4's criterion). Clients compose; `--no-auto-pay` drops the stack. **Consumers:** the loop's step 3 with CM-3's cards, no new card needed; the fuzz harness | ~35 in the window, ~290 decorators, ~60 wiring, ~330 tests: ~715 | medium — every cast's prompt sequence passes through it; the A/B is the check, and it found the one board where the payer's stop is narrower than the engine's was |
 | **CP-1 — hybrid, Phyrexian and X payment (a sized slot, not a design)** | §2.1's other half. 601.2b's announcement of a nonhybrid equivalent and of Phyrexian halves (a `ChoiceKind`, before 601.2f); `ManaPool::pay`/`can_pay` branches for `Hybrid`, `MonoHybrid`, `Phyrexian`, `HybridPhyrexian` (`pay_life` for the latter, through the chokepoint), and a `ManaSymbol` arm for CR 107.4e's colorless hybrids `{C/W}`, which no arm can hold (one card, Ulalek, Fused Atrocity; item 212's census); an activated ability's `{X}`, which CR 602.2b's run of 601.2b announces and `activate_ability` never asks for (`x_value: None`; 145 cards); the existence check's arms for them, `mana-architecture.md` §3.2, which switch on with the payment's (the AI cannot cast a hybrid card today); `ask_choose_generic_mana_allocation`'s tally; mana value with X on the stack (202.3e — a characteristic, read off the `StackEntry`); `{Q}` exists as `Cost::Untap` and its atoms want annotations. **A note for the Scryfall parser that CP-1 or Phase 8 writes:** a printed cost's symbol order is not WUBRG — two-color costs follow the color wheel's shorter arc ({G}{U}, {R}{W}), shards and wedges have their own — and `ManaCost` equality is *sequence* equality, so a parser must keep the printed order for display and comparisons must be by multiset. `ATOM-107.4e/f-*` (7 `NEW`), `ATOM-202.3*` (7) | 6 sites; ~1 PR | medium — `ManaPool::pay` is on every cast |
-| **CP-2 — the cost actions (a sized slot, not a design)** | Placed here by the owner on 2026-10-05, from `codebase-state.md` item 212's census (`plans/references/cast-census.md` §3; §11, item 3). **The four arms that are neither checked nor paid:** `Cost::Discard` (342 cards), `RemoveCounters` (235), `ExileFromGraveyard` (105) and `AddCounters` (10). Each is checked in `check_cost_resource` and paid through the chokepoint. Its choice (which card, which counter) is asked in `plan_payment` before anything is performed (§3.12), and `payment_order_rank` already ranks them. **The shapes the arms need, built once:** an amount that can be X, or that the board decides (half your life, 3 life for each counter), where an arm holds a fixed number (`PayLife(u64)`, `Sacrifice(_, u32)`, `RemoveCounters(_, u32)`: 96 pieces), with X announced from every cost that holds it (CR 107.3a), since `cast_spell` reads X from the mana cost alone and Toxic Deluge's is in an additional cost; a choice between two costs, "pay {4} or sacrifice" (53); the counter arms naming their permanent, not only the source (removing from another, 45; putting on another, and blight, 15); tapping or untapping other permanents (194, and crew, saddle and station's 242); and the count that multikicker, replicate and squad announce at 601.2b (53). A loyalty ability's cost is the counter arms (311 planeswalkers); its timing is `permission-architecture.md`'s. `ChooseSacrificeForCost`'s why (`setup-architecture.md` §7c) lands here too. **Open for its design: an arm per action, or a cost composed of a choice and a `GameAction`** (the owner's question, 2026-10-05, at the census's review). CR 118.1 calls a cost "an action or payment", and RS-4 already maps each `Cost` arm onto the `GameAction`s it proposes, for CR 614.17b (`cant-effects-architecture.md` §4.6). Written as "choose these objects, then propose this action", a new cost built from existing actions is data rather than a new arm. A custom card (post-v1, `backlog.md` §2.37) could then add one without an engine change, bounded by `GameAction`'s vocabulary, which grows one arm per action by contract. Against it: CR 118.3's resource check and the payment prompt are per action today, so the composed form needs a legality check per `GameAction` kind before anything is proposed. That is the design's question to price. **Not CP-2's: the single-arm actions.** Energy, behold, reveal, return to hand, exile from a hand, a library or the battlefield, mill, exert, collect evidence, forage, waterbend, unattach and a die roll each get one arm with their first card, in C, the rule every row of this table follows. So do the Defilers' additional cost on other spells (CR 118.8; a `CostChange` arm, 7 cards) | 4 arms checked and paid, their prompts, the amount shape across 4 arms, 2 new arms (a choice, tapping others); ~1–2 PRs, sized at its design | low-medium. New prompts, but no registered card pays these costs, so no fixture moves |
+| **CP-2 — the cost actions (a sized slot, not a design)** | Placed here by the owner on 2026-10-05, from `codebase-state.md` item 212's census (`plans/references/cast-census.md` §3; §11, item 3). **The four arms that are neither checked nor paid:** `Cost::Discard` (342 cards), `RemoveCounters` (235), `ExileFromGraveyard` (105) and `AddCounters` (10). Each is checked in `check_cost_resource` and paid through the chokepoint. Its choice (which card, which counter) is asked in `plan_payment` before anything is performed (§3.12), and `payment_order_rank` already ranks them. **The shapes the arms need, built once:** an amount that can be X, or that the board decides (half your life, 3 life for each counter), where an arm holds a fixed number (`PayLife(u64)`, `Sacrifice(_, u32)`, `RemoveCounters(_, u32)`: 96 pieces), with X announced from every cost that holds it (CR 107.3a), since `cast_spell` reads X only from the mana component of the total in X (`total_cost_in_x`: the chosen base, the mana cost or an alternative cost's own X, plus the additional costs' mana), never from a non-mana cost, and Toxic Deluge's X is a life payment in an additional cost; a choice between two costs, "pay {4} or sacrifice" (53); the counter arms naming their permanent, not only the source (removing from another, 45; putting on another, and blight, 15); tapping or untapping other permanents (194, and crew, saddle and station's 242); and the count that multikicker, replicate and squad announce at 601.2b (53). A loyalty ability's cost is the counter arms (311 planeswalkers); its timing is `permission-architecture.md`'s. `ChooseSacrificeForCost`'s why (`setup-architecture.md` §7c) lands here too. **Open for its design: an arm per action, or a cost composed of a choice and a `GameAction`** (the owner's question, 2026-10-05, at the census's review). CR 118.1 calls a cost "an action or payment", and RS-4 already maps each `Cost` arm onto the `GameAction`s it proposes, for CR 614.17b (`cant-effects-architecture.md` §4.6). Written as "choose these objects, then propose this action", a new cost built from existing actions is data rather than a new arm. A custom card (post-v1, `backlog.md` §2.37) could then add one without an engine change, bounded by `GameAction`'s vocabulary, which grows one arm per action by contract. Against it: CR 118.3's resource check and the payment prompt are per action today, so the composed form needs a legality check per `GameAction` kind before anything is proposed. That is the design's question to price. **Not CP-2's: the single-arm actions.** Energy, behold, reveal, return to hand, exile from a hand, a library or the battlefield, mill, exert, collect evidence, forage, waterbend, unattach and a die roll each get one arm with their first card, in C, the rule every row of this table follows. So do the Defilers' additional cost on other spells (CR 118.8; a `CostChange` arm, 7 cards) | 4 arms checked and paid, their prompts, the amount shape across 4 arms, 2 new arms (a choice, tapping others); ~1–2 PRs, sized at its design | low-medium. New prompts, but no registered card pays these costs, so no fixture moves |
 
 **Why the modification/payment seam is where it is** (the owner's question,
 §11 note 7). CP-1 is *sequenced*, not deferred: it sits at 601.2b and 601.2h,
@@ -1209,11 +1218,13 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
    both. **The general shape**: `Effect::as_…` tells you what kind of thing an
    ability is, never where it can apply from, and every one of the three gates
    is about *where*.
-7. **A registry row cannot reach a non-member, so CR 113.6e's second sentence
-   has nothing to build on** (CM-2, §3.1). `compute_non_member` applies CDAs
-   and no rows at all, so a card in hand or a spell on the stack has exactly
-   its printed ability list. That is what makes source 2's printed gate leg
-   *exact* rather than an over-approximation — and it means "an ability that
+7. **CR 113.6e's second sentence has nothing to grant with** (CM-2, §3.1).
+   `compute_non_member` applies a card's CDAs and, for a library or hand card
+   a row reaches, the rows the pass noted (LL). A card in hand or a spell on
+   the stack has its printed ability list only while no row reaches its zone,
+   which the gate's flag legs catch (`codebase-state.md` item 75). That is
+   what makes source 2's printed gate leg *exact* rather than an
+   over-approximation — and it means "an ability that
    grants it another ability that restricts or modifies how that particular
    object can be played or cast functions only on the stack" is unreachable
    today. Recorded as a Deferred Migrations item with the gate's flag legs

@@ -537,7 +537,8 @@ MANA_EFFECT = re.compile(r"(^|\. )add (\{|one mana|two mana|three mana|x mana|an
 PRODUCTION = [
     # `(id, family, CR, surface, status, owner, pattern, what the affordability check does with it)`.
     # The status is whether the engine plays it; the last column is how
-    # `find_mana_sources` counts it, which is item 162's.
+    # `find_mana_sources` counted it, item 162's check until MA-1 (#225)
+    # replaced it with `oracle::mana_supply`.
     ("prod-restricted", "with \"spend this mana only\"", "106.6", "`ManaRestriction`; `ManaPool::pay` reads the plain pool",
      "owned", "B9", r"spend this mana only|this mana can't be spent", "counts it as unrestricted"),
     ("prod-grant", "mana that does something when spent, or does not empty", "106.6",
@@ -1150,7 +1151,7 @@ def render_mana(w):
             r[1].add(ab["card"])
     out = []
     for title, table, buckets in (("what it produces", prod, PRODUCTION), ("what its cost feeds it", fed, FED)):
-        L = ["| %s | CR | surface | plays | owner | abilities | cards | the affordability check (item 162) |" % title,
+        L = ["| %s | CR | surface | plays | owner | abilities | cards | the affordability check before MA-1 (item 162) |" % title,
              "|---|---|---|---|---|---:|---:|---|"]
         for bid, fam, cr, surface, status, key, _, aff in buckets:
             n, cards = table[bid]

@@ -90,7 +90,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 206 | Expansion/rarity | not modeled — not needed for engine |
 | 207 | Text box / rules text | 🟡 stored as `String`; not parsed into structured abilities (no NLP, hand-coded card defs) | `objects/card_data.rs` |
 | 208 | P/T (`i32`) | ✅ signed, correct per E8 | `objects/card_data.rs` |
-| 209 | Loyalty (for PW) | ✅ ETB counter init + 0-loyalty SBA, and CR 120.3c takes counters off from RD-1 on, so the SBA is reachable from a game (Loyalty Probe) | `engine/sba.rs` (704.5i), `state/game_state.rs` (init_etb_counters), `engine/actions.rs` |
+| 209 | Loyalty (for PW) | ✅ CR 306.5b's "enters with" loyalty, an ability the walk gives every planeswalker's frame (`add_intrinsic_entry_abilities`), gathered and ordered by CR 616.1, + 0-loyalty SBA, and CR 120.3c takes counters off from RD-1 on, so the SBA is reachable from a game (Loyalty Probe) | `engine/sba.rs` (704.5i), `engine/layers/intrinsic.rs`, `engine/actions.rs` |
 
 ### CR 3 — Card Types
 
@@ -2757,6 +2757,17 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     **Reachability (2026-09-14):** unreachable — still no registered card puts
     a cost ability on an object off the battlefield, and the two summary flags
     catch it when one does.
+
+    **Re-derived (2026-10-22, the item 6 audit), for LL (2026-09-25).** A hand
+    or library card that a row reaches is now left out of the pass
+    (`board::left_out_zones`) and stays a member only if a guard keeps its zone
+    in, a `Fixed` row names it, or it joins as a source. `compute_non_member`
+    walks a left-out card and applies each reaching row as the pass noted it
+    (`PassMembership::LeftOut`), so a row does reach a non-member, and "applies
+    CDAs and no rows at all" holds only for `PassMembership::NonMember`. A
+    spell a stack-reaching row names is still a member. The load-bearing
+    consequence is unchanged: source 2's printed leg still rests on the two
+    summary flags.
 
     **Re-derived (2026-09-14, LK) — the gap half now has an owner and a
     name.** CR 113.6e's second sentence still has nothing to grant *with*, and
@@ -6539,8 +6550,8 @@ Commander-scale board closes item 69.
      ids get offered, as it learns a card from its id. Anything a client
      wants *structured* about the rule is an oracle query, never a prompt
      field. The events are untouched: a visual effect keys on the performed
-     stream — `ZoneChange` with its catchall-free `ZoneChangeCause`,
-     `PlayerLost`, `Tapped`, `ManaAdded` — whose own closure is enum- and
+     stream — `ZoneChange` with its catchall-free `ZoneChangeAct` and its
+     stamp's `EventCause`, `PlayerLost`, `Tapped`, `ManaAdded` — whose own closure is enum- and
      id-shaped by construction, and whose per-viewer projection is
      `backlog.md` §2.9's. The shape: keep the structured payload in-process
      (the decorators read `ManaCost`), add the two rendering methods so the
@@ -6829,21 +6840,23 @@ owner decided it the same day.
      the `hollow_hands` negative.
 
 148. **Exile is the one zone the Colossus family's tests do not move
-     *from*, and the reason is a missing cause.** The clause functions in
+     *from*, and the reason is a missing card.** The clause functions in
      exile (`ZoneSet::ALL`; `create_in_zone` and `arrive_in_zone` register
      there, and `test_the_candidate_set_follows_the_card_from_zone_to_zone`
      asserts the map holds an exiled Colossus), but no registered card moves
-     a card from exile into a graveyard and no `ZoneChangeCause` names that
-     move. Pull from Eternity — "put target face-up exiled card into its
-     owner's graveyard" — is the card, and the no-catchall rule makes it
-     bring its cause. Raised at RF's review (2026-09-16).
+     a card from exile into a graveyard. Since RH-1 the move needs no new
+     vocabulary: its act is `ZoneChangeAct::Put` and its cause
+     `EventCause::Effect`. What the card brings is a `Primitive` that puts an
+     object into its owner's graveyard, which none does today. Pull from
+     Eternity — "put target face-up exiled card into its owner's graveyard"
+     — is the card. Raised at RF's review (2026-09-16).
 
      **Reachability (2026-09-16):** unreachable — no producer.
 
-     **Sized:** the card, its cause, and one test: a Colossus in exile under
+     **Sized:** the card, its `Primitive` arm, and one test: a Colossus in exile under
      Pull from Eternity is shuffled into its owner's library instead. Phase 8.
      **Slotted:** with the first registered card that moves a card from exile
-     to a graveyard (Pull from Eternity), which brings its `ZoneChangeCause`
+     to a graveyard (Pull from Eternity), which brings that `Primitive` arm
      and the Colossus test.
 
 ### Found by A4g — process-stable ids (PR #158, 2026-09-16)
@@ -7259,10 +7272,12 @@ the file.
      601.2g's window while the component is uncovered, disjoint from
      `ManaWindowStop`'s predicate, **and answers `GenericManaAllocation` when
      the pool has surplus**, since one preference decides both. The second
-     customer is `castable_spells`' affordability, a heuristic
-     overapproximation today (`find_mana_sources`), whose over-offers are the
+     customer is `castable_spells`' affordability, exact on the registered
+     cards since MA-1 (#225): `oracle::mana_supply`'s Hall's-condition check
+     (`ManaSupply::covers`, through `mana_payable`) replaced
+     `find_mana_sources`' greedy overapproximation, whose over-offers were the
      CR 732.1 rewinds A4h made the retry loop state-dependent for (item 139)
-     and the enumeration lever 4 prices at 19.2% (item 138). **The Arena
+     and the enumeration lever 4 priced at 19.2% (item 138). **The Arena
      problem is the preference, not the matching, and the preference is the
      client's in the client's own shape**: the framework owes possibility —
      any client-side intent maps onto the matching's (source, type) edges, so
@@ -7282,13 +7297,12 @@ the file.
      **Sized:** the matching ~150–250 lines with tests, its own oracle PR any
      time — **and that number is the plain bipartite case**, the one row with
      algorithmic legwork (§2.22, rows 6 and 7): amounts as capacities, since
-     `available_mana_sources` drops them today and `find_mana_sources`
-     refuses hybrid, so a flow rather than a matching; mana-spending filter
+     `available_mana_sources` drops them today and the check refuses hybrid
+     (`find_mana_sources` did too, before MA-1), so a flow rather than a matching; mana-spending filter
      chains out of scope and left to the window; a property test that every
      covering set is one `ManaPool::pay` accepts (16c's class); re-derive
-     against a written algorithm before scheduling. The affordability customer moves the random agent's stream and owes
-     an A/B with `differ` predicted on both pools, and a rewind counter first
-     since `fuzz_games` prints none; the decorator ~60 lines after item 161,
+     against a written algorithm before scheduling. The affordability customer landed in MA-1 (#225), its rewinds
+     read on `fuzz_games`' "Actions reversed"; the decorator ~60 lines after item 161,
      human under the toggle, a harness flag off by default, read in its A/B as
      `Decisions` falling with the engine no faster. §2.22 rows 6 and 7.
 
@@ -7766,12 +7780,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      outcome, rests on a premise written beside that one site:
      - **CR 616.1's ordering prompt.** `pipeline::ordering_cannot_change_outcome`
        spreads its premises over `classify`, `commutes`, `shared_clauses_hold`,
-       `filter_is_mods_invariant`, `EventPattern::reads_the_amount` and
+       the feeds table (`EntryWrites`, `replacement-architecture.md` §3.5;
+       `filter_is_mods_invariant` until RG), `EventPattern::reads_the_amount` and
        `EnterModsTemplate::is_fixed`, with `check_order_invariance` in debug
        builds only. It was corrected in three consecutive PRs
        (`engineering-practices.md` §4.1), and CV-2's design had to re-argue
        `filter_is_mods_invariant`'s premise, because `EnterMods.copy` feeds every
-       characteristic (restated in the predicate's doc comment by CV-2a).
+       characteristic (restated in the predicate's doc comment by CV-2a; the
+       doc comment is `EntryWrites`' now).
      - **Forced choices.** A prompt with one outcome is not asked (main item
        145; the census's rule 1, `backlog.md` §2.22), and CR 603.3b's trigger
        order is not asked when no order can change the game
@@ -7819,8 +7835,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      is TR-1b's audit, and its ordering elision `triggers-architecture.md`
      §5.2. The forced choices and the fast-path gates outside the loops stay
      owed.
-     **Slotted:** A6h, the docs audit, which inventories the forced-choice and
-     fast-path elisions left, each with its premise and what holds it.
+     **Built, not only written (the owner, 2026-10-22, at #274's merge):**
+     beside the inventory, an engine record at each elision stating its
+     reason, kept in a game's log at the level of a land tapped for mana: in
+     the log, and not drawn in the dev GUI's.
+     **Slotted:** A6h, the docs audit's fourth PR
+     (`plans/handoffs/item-6-audit.md`, pass 5), which inventories the
+     forced-choice and fast-path elisions left, each with its premise and
+     what holds it, and writes the record.
 
 ### Found by CV-2a's review (2026-09-28)
 
@@ -7904,8 +7926,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      blocker's half of `can_block`.
 
      **Sized:** the candidates are unsized until each is confirmed.
-     **Slotted:** `roadmap-v2.md` A6h, the end-of-phase docs audit, beside item
-     185's inventory of elisions, which is the same kind of list.
+     **Slotted:** `roadmap-v2.md` A6s, the route review after triggers, which
+     places it among the rows before Phase 8's card breadth (the owner,
+     2026-10-22, at #274's merge: confirming a candidate is a read and a
+     merge, which is cleanup, so it left A6h's docs audit).
 
 ### Found by building CV-2b (2026-09-29)
 

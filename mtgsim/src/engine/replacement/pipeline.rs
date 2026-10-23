@@ -2633,7 +2633,7 @@ fn substitute(
 
         // Containment Priest, Hallowed Moonlight: the entry is the zone change
         // (CR 614.1c), so a card's substitute is one move from where it is, with
-        // the entry's cause, and it never becomes a permanent. A token has no
+        // the entry's act, and it never becomes a permanent. A token has no
         // `from` — created in the zone, entity pending (`create_tokens`) — so its
         // substitute is the creation itself, elsewhere: `CreateTokenIn`, the
         // Moonlight ruling's appearance.
@@ -2645,7 +2645,7 @@ fn substitute(
             (None, _) => Ok(GameAction::CreateTokenIn { object, zone: *to }),
             (Some(_), None) => Err(format!(
                 "replacement {:?} redirects an entry of {:?} from a zone, and the entry \
-                 names no cause: only a token's entry has none",
+                 names no act: only a token's entry has none",
                 chosen.id, object
             )),
         },

@@ -245,9 +245,8 @@ pub enum EventPattern {
     /// Earth's and Grafdigger's Cage's shape, and it shares CR 616.1's step
     /// with [`Self::EnterBattlefield`] — one event.
     ZoneChange {
-        /// Where from, where to, and what was done. Nothing outside this
-        /// pipeline and the trigger matcher may branch on an act — see
-        /// [`ZoneChangeAct`].
+        /// Where from, where to, and what was done. Only the readers
+        /// [`ZoneChangeAct`] names may branch on an act.
         change: ZoneChangePattern,
         /// A constraint on the moving object beyond what `affected` says.
         ///
@@ -844,7 +843,9 @@ impl LifeLossCausePattern {
 /// | `Prevent` | 614.6, 615.6 |
 /// | `Instead` | 614.1a |
 /// | `EnterWith(..)` | 614.1c/d |
+/// | `EnterAfterMoving(..)` | 614.13 |
 /// | `EnterUnderControlOf(..)` | 616.1b, 614.1c |
+/// | `EnterAsCopy(..)` | 616.1c, 707.5, 614.1c |
 /// | `Amount(..)` | 614.5 doublers, 615.7 partial prevention |
 /// | `Retarget(..)` | 614.9 redirection |
 ///
@@ -1694,7 +1695,7 @@ pub enum TokenSubstitution {
 #[derive(Debug, Clone, PartialEq)]
 pub enum GameActionTemplate {
     /// Send the event's object somewhere else instead, keeping its `from` and
-    /// its `cause`.
+    /// its `act`.
     ///
     /// Three customers: CR 122.1h's finality counter ("If this permanent
     /// would be put into a graveyard from the battlefield, exile it instead"),
@@ -1705,7 +1706,7 @@ pub enum GameActionTemplate {
     /// graveyard, and a redirected one is still that act: CR 701.9c and the
     /// Rest in Peace and Nephalia Academy rulings for discard, CR 701.17c for
     /// mill, CR 608.2c's example for counter. An entry turned into a zone
-    /// change keeps the entry's cause by the same rule, since a return or a
+    /// change keeps the entry's act by the same rule, since a return (`Put`) or a
     /// land play is read together with `to`. `codebase-state.md` item 176.
     ZoneChangeTo { to: Zone },
 

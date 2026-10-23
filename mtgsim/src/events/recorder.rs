@@ -2,10 +2,11 @@
 //! (`codebase-state.md` item 42).
 //!
 //! The engine keeps a record only until its last reader has run
-//! ([`EventWindow`]), so a game's history is not game state. What wants all of
-//! it — `fuzz_games`' fixture rows, `--dump-events`, the fork test, a GUI's
-//! game log, a test asserting on what happened — attaches a recorder, and the
-//! window hands it each record as it flushes, in stream order.
+//! ([`EventWindow`]), so the performed stream is not game state: what a card
+//! can ask of the past is the history log's rows (`state::history_log`). What
+//! wants all of it — `fuzz_games`' fixture rows, `--dump-events`, the fork
+//! test, a GUI's game log, a test asserting on what happened — attaches a
+//! recorder, and the window hands it each record as it flushes, in stream order.
 //!
 //! **Not a buffer on the state**, for the trace sink's reason (`state::trace`):
 //! `GameState` derives `Clone` and a search forks it at every decision, so what
