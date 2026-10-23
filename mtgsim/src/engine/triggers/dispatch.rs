@@ -1050,7 +1050,7 @@ impl GameState {
                 GameAction::EnterBattlefield { object, from: Some(from), .. } => (*object, *from, Zone::Battlefield),
                 GameAction::PlayerLoses { player } => {
                     for id in self.battlefield_ids_ordered() {
-                        if self.departs_with(id, *player) {
+                        if self.departs_with(id, *player) && self.move_carries_frame(id, Zone::Battlefield, None) {
                             self.capture_frame(id);
                         }
                     }
@@ -1079,9 +1079,12 @@ impl GameState {
     /// carries the frame its batch took on its record: one of CR 603.10a's
     /// classes (`zone_change_looks_back`), of an object that was there to
     /// leave. A token whose entry is still being decided has no entry to look
-    /// back at (`create_tokens`).
+    /// back at (`create_tokens`), and a phased-out permanent is treated as
+    /// though it does not exist (CR 702.26b), so it leaves the game with its
+    /// owner unframed and triggers nothing (CR 603.6c's "phased-in").
     pub(crate) fn move_carries_frame(&self, id: ObjectId, from: Zone, to: Option<Zone>) -> bool {
-        zone_change_looks_back(from, to) && (from != Zone::Battlefield || self.battlefield.contains_key(&id))
+        zone_change_looks_back(from, to)
+            && (from != Zone::Battlefield || self.battlefield.get(&id).is_some_and(|entry| !entry.phased_out))
     }
 
     /// The objects some keeper keeps last known information for
@@ -1955,12 +1958,15 @@ impl GameState {
             // CR 603.6c names this event for a leaves-the-battlefield ability,
             // and for nothing else: a card leaving the game from a graveyard
             // leaves no graveyard (Erebos's Titan's third ruling). Nothing
-            // narrower either — no `to`, no act, no cause.
+            // narrower either — no `to`, no act, no cause. Only a phased-in
+            // permanent's, which is one its departure framed
+            // (`move_carries_frame`).
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
                 GameEvent::LeftTheGame { object_id, owner: moved_owner, from, lki },
             ) => triggering_event_if(
                 *from == Zone::Battlefield
+                    && lki.is_some()
                     && change.from == Some(Zone::Battlefield)
                     && change.to.is_none()
                     && change.act.is_none()

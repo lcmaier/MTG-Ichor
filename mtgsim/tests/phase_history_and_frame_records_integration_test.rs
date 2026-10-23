@@ -115,6 +115,27 @@ fn a_creature_that_left_the_game_is_its_triggers_object() {
     assert_eq!(game.players[0].life_total, 23);
 }
 
+/// CR 603.6c's qualifier: a leaves-the-battlefield ability triggers when "a
+/// phased-in permanent leaves the game because its owner leaves the game".
+/// Player 1 leaves with a phased-in 3/3 and a phased-out 5/5; the watcher
+/// gains 3, for the one that was phased in.
+#[test]
+fn a_phased_out_permanent_leaving_with_its_owner_triggers_nothing() {
+    let mut game = setup_game(3);
+    put_on_battlefield(&mut game, fixture_mourners_tithe(), 0);
+    put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
+    let phased_out = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
+    game.battlefield.get_mut(&phased_out).unwrap().phased_out = true;
+    game.bump_layer_epoch();
+    game.execute_action(GameAction::PlayerLoses { player: 1 }, &ActionContext::new(&test_dp())).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(&test_dp()).unwrap();
+        game.perform_sba_and_triggers(&test_dp()).unwrap();
+    }
+    assert_eq!(game.players[0].life_total, 23);
+}
+
 // ---------------------------------------------------------------------------
 // Which moves carry a frame (CR 113.7a, 603.10a)
 // ---------------------------------------------------------------------------
