@@ -354,7 +354,7 @@ mod tests {
 
         // Power(2) < lethal(3): defender bucket maxed at 0, blocker mins dropped
         // to 0 — so the blocker is the only bucket that can take the two, the
-        // split is forced (CR 102.2) and nothing is asked. The assertions below
+        // split is forced and nothing is asked. The assertions below
         // are the engine's own answer, not a scripted one.
         let scripted = ScriptedDecisionProvider::new();
         let assignments = assign_trample_damage(

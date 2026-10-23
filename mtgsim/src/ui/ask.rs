@@ -10,15 +10,15 @@
 //!
 //! Engine call sites and tests use these exclusively — never raw DP methods.
 //!
-//! **A prompt with one legal answer is not asked** (CR 102.2): `ask_discard`
-//! returns the hand when the count takes all of it, `order_scry_group` returns
-//! below two cards, `ask_select_recipients` returns a fixed count that takes
-//! none or all, `forced_allocation` answers a split with one place to put the
-//! remainder, and five asks assert two or more candidates and leave the single
-//! case to the caller. Out of process each of those would be a round trip for
-//! an answer the engine already has — and it would spend CPU against the
-//! ratchet's numerator without producing a decision to count
-//! (`codebase-state.md` item 145).
+//! **A prompt with one legal answer is not asked.** No CR rule says so: the
+//! claim is the engine's, that such a question gets that answer from any
+//! provider, so asking changes nothing (`plans/elisions.md` §2). Every one is
+//! decided here, by the predicate the decision count uses: a pick through
+//! [`pick_unless_forced`], a split through [`allocate_unless_forced`], and X
+//! through `XOffer::has_one_value`. Each is recorded for the game's log
+//! (`events::unasked`). Out of process each would be a round trip for an
+//! answer the engine already has, spending CPU against the ratchet's numerator
+//! without producing a decision to count (`codebase-state.md` item 145).
 //!
 //! The four `validate_*` helpers also carry `codebase-state.md` item 138's
 //! **decision** count — a prompt with two or more legal answers, the unit
@@ -36,6 +36,7 @@ use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::diagnostics::Diagnostics;
 use crate::state::game_state::GameState;
 use crate::engine::trace_records;
+use crate::events::unasked::{Unasked, UnaskedAnswer};
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
@@ -45,19 +46,19 @@ use crate::oracle::x_values::{LegalXValues, XOffer};
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use super::decision::{DecisionProvider, PriorityAction};
 
-/// CR 102.2 — the one allocation a forced split admits, or `None` when the
-/// player has something to decide.
+/// The one allocation a forced split admits, or `None` when the player has
+/// something to decide.
 ///
 /// A split is forced in exactly three shapes: nothing left once every bucket
 /// holds its minimum, nothing spare once every bucket holds its maximum, and
 /// one bucket free to take whatever is left. Everything else admits two
 /// allocations that differ by one unit moved between two free buckets.
 ///
-/// **Both a guard and a counter.** The `ask_*` bodies call it to answer
-/// without a prompt — a round trip for an answer the engine already has costs
-/// the ratchet its numerator (`codebase-state.md` item 145) — and
+/// **Both a guard and a counter.** [`allocate_unless_forced`] calls it to
+/// answer without a prompt — a round trip for an answer the engine already
+/// has costs the ratchet its numerator (`codebase-state.md` item 145) — and
 /// [`validate_allocation`] calls it so the decision count cannot drift from
-/// what the callers skip.
+/// what is skipped.
 ///
 /// **`None` is also every answer that is not well formed**, and that is load
 /// bearing rather than defensive: an allocation this returns is used *without*
@@ -108,6 +109,57 @@ pub(crate) fn forced_allocation(
         return Some(maxs.to_vec());
     }
     None
+}
+
+/// A `pick_n` among `options` within `bounds`: the one legal answer
+/// [`only_pick`] finds, given without asking and recorded for the game's log,
+/// or else the provider's, validated. `asking` names the question in a
+/// refusal.
+fn pick_unless_forced(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    ctx: ChoiceContext,
+    options: &[ChoiceOption],
+    bounds: (usize, usize),
+    asking: &str,
+) -> Vec<usize> {
+    if let Some(only) = only_pick(options.len(), bounds) {
+        game.note_unasked(player, Unasked::OneLegalAnswer, || {
+            (ctx.kind, UnaskedAnswer::Picks(only.iter().map(|&i| options[i].clone()).collect()))
+        });
+        return only;
+    }
+    let picked = dp.pick_n(game, player, &ctx, options, bounds);
+    validate_pick_n(&picked, options, bounds, asking, game, player, &ctx);
+    picked
+}
+
+/// An `allocate` of `total` across `buckets`: the one split
+/// [`forced_allocation`] finds, given without asking and recorded, or else the
+/// provider's, validated. A total of zero divides nothing and is not recorded.
+fn allocate_unless_forced(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    ctx: ChoiceContext,
+    total: u64,
+    buckets: &[ChoiceOption],
+    per_bucket_mins: &[u64],
+    per_bucket_maxs: Option<&[u64]>,
+    asking: &str,
+) -> Vec<u64> {
+    if let Some(alloc) = forced_allocation(total, per_bucket_mins, per_bucket_maxs) {
+        if total > 0 {
+            game.note_unasked(player, Unasked::OneLegalAnswer, || {
+                (ctx.kind, UnaskedAnswer::Allocation(buckets.iter().cloned().zip(alloc.iter().copied()).collect()))
+            });
+        }
+        return alloc;
+    }
+    let alloc = dp.allocate(game, player, &ctx, total, buckets, per_bucket_mins, per_bucket_maxs);
+    validate_allocation(&alloc, buckets, total, per_bucket_mins, per_bucket_maxs, asking, game, player, &ctx);
+    alloc
 }
 
 // ===========================================================================
@@ -524,11 +576,7 @@ pub fn ask_choose_attacker_damage_assignment(
         .collect();
     let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage { attacker_id });
     let mins = vec![0u64; buckets.len()];
-    let alloc = forced_allocation(power, &mins, None).unwrap_or_else(|| {
-        let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, None);
-        validate_allocation(&alloc, &buckets, power, &mins, None, "choose_attacker_damage_assignment", game, player, &ctx);
-        alloc
-    });
+    let alloc = allocate_unless_forced(dp, game, player, ctx, power, &buckets, &mins, None, "choose_attacker_damage_assignment");
     blockers
         .iter()
         .zip(alloc.iter())
@@ -574,11 +622,9 @@ pub fn ask_choose_trample_damage_assignment(
         attacker_id,
         defending_target,
     });
-    let alloc = forced_allocation(power, &mins, per_bucket_maxs).unwrap_or_else(|| {
-        let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, per_bucket_maxs);
-        validate_allocation(&alloc, &buckets, power, &mins, per_bucket_maxs, "choose_trample_damage_assignment", game, player, &ctx);
-        alloc
-    });
+    let alloc = allocate_unless_forced(
+        dp, game, player, ctx, power, &buckets, &mins, per_bucket_maxs, "choose_trample_damage_assignment",
+    );
 
     let blocker_assignments: Vec<(ObjectId, u64)> = blockers
         .iter()
@@ -597,9 +643,9 @@ pub fn ask_choose_trample_damage_assignment(
 
 /// CR 601.2b — choose the value of X for `spell_id` from `values`, which
 /// `oracle::x_values::legal_x_values` read, so every X offered is one the
-/// payment at 601.2h can make. One value is announced without asking
-/// (`backlog.md` §2.22's rule 1). An interval is a `pick_number`; a set with
-/// a gap, which only a rule cuts, a `pick_n` over its numbers.
+/// payment at 601.2h can make. One value is announced without asking, and
+/// recorded. An interval is a `pick_number`; a set with a gap, which only a
+/// rule cuts, a `pick_n` over its numbers.
 pub fn ask_choose_x_value(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -608,7 +654,11 @@ pub fn ask_choose_x_value(
     values: LegalXValues,
 ) -> u64 {
     if values.offered.has_one_value() {
-        return values.offered.at_least();
+        let x = values.offered.at_least();
+        game.note_unasked(player, Unasked::OneLegalAnswer, || {
+            (ChoiceKind::ChooseXValue { spell_id, values: Box::new(values) }, UnaskedAnswer::Number(x))
+        });
+        return x;
     }
     let offered = values.offered.clone();
     let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, values: Box::new(values) });
@@ -693,21 +743,9 @@ pub fn ask_select_recipients(
     min_selections: usize,
     max_selections: usize,
 ) -> Vec<ResolvedTarget> {
-    if legal_selections.is_empty() {
+    // Nothing to choose from, or a count of zero, is no question.
+    if legal_selections.is_empty() || max_selections == 0 {
         return Vec::new();
-    }
-    // CR 102.2 — a fixed count that takes none of the legal recipients or all
-    // of them is not a choice, and one legal target for "target creature" is
-    // the common shape of it. Returned in `legal_selections` order for
-    // `ask_discard`'s reason: no rule gives the player that order, and the
-    // choosers agreeing is worth more than an order nobody named.
-    if min_selections == max_selections {
-        if min_selections == 0 {
-            return Vec::new();
-        }
-        if min_selections == legal_selections.len() {
-            return legal_selections.to_vec();
-        }
     }
     let options: Vec<ChoiceOption> = legal_selections
         .iter()
@@ -720,14 +758,10 @@ pub fn ask_select_recipients(
         recipient: recipient.clone(),
         spell_id,
     });
-    let indices = dp.pick_n(game, player, &ctx, &options, (min_selections, max_selections));
-    validate_pick_n(
-        &indices,
-        &options,
-        (min_selections, max_selections),
-        "select_recipients",
-        game, player, &ctx,
-    );
+    // A fixed count that takes every legal recipient is answered unasked, in
+    // `legal_selections` order for `ask_discard`'s reason; one legal target
+    // for "target creature" is the common shape of it.
+    let indices = pick_unless_forced(dp, game, player, ctx, &options, (min_selections, max_selections), "select_recipients");
     indices.iter().map(|&i| legal_selections[i]).collect()
 }
 
@@ -876,19 +910,9 @@ pub fn ask_choose_generic_mana_allocation(
         maxs,
         generic_count,
     );
-    let alloc = forced_allocation(generic_count, &mins, Some(&maxs)).unwrap_or_else(|| {
-        let alloc = dp.allocate(game, player, &ctx, generic_count, &buckets, &mins, Some(&maxs));
-        validate_allocation(
-            &alloc,
-            &buckets,
-            generic_count,
-            &mins,
-            Some(&maxs),
-            "choose_generic_mana_allocation",
-            game, player, &ctx,
-        );
-        alloc
-    });
+    let alloc = allocate_unless_forced(
+        dp, game, player, ctx, generic_count, &buckets, &mins, Some(&maxs), "choose_generic_mana_allocation",
+    );
 
     // per_bucket_maxs already enforces that each allocation leaves every pip
     // its own mana — no post-hoc check needed.
@@ -940,9 +964,9 @@ pub fn ask_take_or_leave(
 /// was. Nothing in CR 701.9 gives the discarding player that order, and the two
 /// choosers agreeing is worth more than an order no rule names.
 ///
-/// Two ways nothing is asked, both CR 102.2's "a choice that is forced is not
-/// made": an empty hand, and a count that takes the whole hand. The second is
-/// what a Mind Rot against a one-card hand is, and it is common.
+/// Nothing is asked of an empty hand or a count of zero, and a count that
+/// takes the whole hand is its one legal answer, given unasked: what a Mind
+/// Rot against a one-card hand is, and it is common.
 pub fn ask_discard(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -957,13 +981,9 @@ pub fn ask_discard(
     if count == 0 {
         return Vec::new();
     }
-    if count == hand.len() {
-        return hand.to_vec();
-    }
     let options: Vec<ChoiceOption> = hand.iter().map(|id| ChoiceOption::Object(*id)).collect();
     let ctx = ChoiceContext::new(ChoiceKind::Discard { source });
-    let mut picked = dp.pick_n(game, player, &ctx, &options, (count, count));
-    validate_pick_n(&picked, &options, (count, count), "discard", game, player, &ctx);
+    let mut picked = pick_unless_forced(dp, game, player, ctx, &options, (count, count), "discard");
     picked.sort();
     picked.into_iter().map(|i| hand[i]).collect()
 }
@@ -982,7 +1002,7 @@ pub fn ask_discard(
 /// Returns `(top, bottom)`, each ordered top-most first within its own group,
 /// which is what the caller writes back into the library.
 ///
-/// **Up to three prompts, and CR 102.2 removes the ones with one answer.**
+/// **Up to three prompts, and the ones with one answer are not asked.**
 /// "Any number of them" is the first, bounds `(0, k)`; "in any order" is the
 /// other two, asked only of a group holding two or more cards. So Opt — scry 1
 /// — asks exactly once and never orders, which is every scry a registered card
@@ -1108,21 +1128,16 @@ pub fn ask_allocate_next_damage(
     let mins = vec![0; buckets.len()];
     let total = remaining.min(maxs.iter().sum());
     let ctx = ChoiceContext::new(ChoiceKind::AllocateNextDamage { source, remaining });
-    forced_allocation(total, &mins, Some(&maxs)).unwrap_or_else(|| {
-        let alloc = dp.allocate(game, chooser, &ctx, total, &options, &mins, Some(&maxs));
-        validate_allocation(&alloc, &options, total, &mins, Some(&maxs), "allocate_next_damage", game, chooser, &ctx);
-        alloc
-    })
+    allocate_unless_forced(dp, game, chooser, ctx, total, &options, &mins, Some(&maxs), "allocate_next_damage")
 }
 
 /// Choose which of several opponents a permanent enters under (CR 616.1b's
 /// `Rewrite::EnterUnderControlOf(PlayerRef::Opponent)` — Xantcha's "an opponent
 /// of your choice").
 ///
-/// **Two or more candidates, like [`ask_choose_replacement`]**: with one
-/// opponent CR 102.2 leaves nothing to choose and the caller does not ask.
-/// CR 614.12a puts the choice before the permanent enters, which holds here
-/// because the CR 616.1 loop that asks runs ahead of the performer.
+/// With one opponent the choice is forced, and answered unasked. CR 614.12a
+/// puts the choice before the permanent enters, which holds here because the
+/// CR 616.1 loop that asks runs ahead of the performer.
 pub fn ask_choose_entering_controller(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -1130,23 +1145,18 @@ pub fn ask_choose_entering_controller(
     object: ObjectId,
     candidates: &[PlayerId],
 ) -> PlayerId {
-    assert!(
-        candidates.len() >= 2,
-        "ask_choose_entering_controller: a choice needs two or more opponents; called with {}",
-        candidates.len(),
-    );
+    assert!(!candidates.is_empty(), "ask_choose_entering_controller: no opponent to choose for {object}");
     let options: Vec<ChoiceOption> = candidates.iter().map(|p| ChoiceOption::Player(*p)).collect();
     let ctx = ChoiceContext::new(ChoiceKind::ChooseEnteringController { object });
-    let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, &options, (1, 1), "choose_entering_controller", game, chooser, &ctx);
+    let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_entering_controller");
     candidates[index[0]]
 }
 
 /// CR 508.4 — choose what a permanent put onto the battlefield attacking
 /// attacks, as it enters, among `candidates`.
 ///
-/// **Two or more candidates**, as [`ask_choose_entering_controller`]: with
-/// one the effect has settled it, and the caller does not ask.
+/// With one candidate the choice is forced, and answered unasked, as
+/// [`ask_choose_entering_controller`]'s is.
 pub fn ask_choose_entering_defender(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -1154,11 +1164,7 @@ pub fn ask_choose_entering_defender(
     object: ObjectId,
     candidates: &[AttackTarget],
 ) -> AttackTarget {
-    assert!(
-        candidates.len() >= 2,
-        "ask_choose_entering_defender: a choice needs two or more candidates; called with {}",
-        candidates.len(),
-    );
+    assert!(!candidates.is_empty(), "ask_choose_entering_defender: nothing for {object} to attack");
     let options: Vec<ChoiceOption> = candidates
         .iter()
         .map(|&target| match target {
@@ -1167,18 +1173,10 @@ pub fn ask_choose_entering_defender(
         })
         .collect();
     let ctx = ChoiceContext::new(ChoiceKind::ChooseEnteringDefender { object });
-    let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, &options, (1, 1), "choose_entering_defender", game, chooser, &ctx);
+    let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_entering_defender");
     candidates[index[0]]
 }
 
-/// CR 707.4 — choose the permanent a copy effect captures its values from.
-///
-/// **Two or more candidates, always.** With one the choice is forced and the
-/// caller takes it without a prompt (CR 102.2's shape, as
-/// `ask_choose_entering_controller` uses it). The assert is what keeps that a
-/// caller obligation rather than a convention, and it is why registering
-/// Cytoshape adds no prompt to any existing scripted test.
 /// CR 614.13a — choose the objects an entry replacement also moves.
 ///
 /// > 614.13a While applying an effect that modifies how a permanent enters the
@@ -1223,8 +1221,10 @@ pub fn ask_choose_auxiliary_zone_change(
     picked.into_iter().map(|i| candidates[i]).collect()
 }
 
-/// A copy effect's choice of donor, which it must make: one of two or more
-/// `candidates`, since one is forced and the caller takes it.
+/// The permanent a copy effect captures its values from, a choice it must
+/// make: one of `candidates`, and with one the choice is forced and answered
+/// unasked, which is why registering Cytoshape added no prompt to any
+/// existing scripted test.
 pub fn ask_choose_copy_source(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -1232,13 +1232,9 @@ pub fn ask_choose_copy_source(
     source: ObjectId,
     candidates: &[ObjectId],
 ) -> ObjectId {
-    assert!(
-        candidates.len() >= 2,
-        "ask_choose_copy_source: a choice needs two or more candidates; called with {}",
-        candidates.len(),
-    );
+    assert!(!candidates.is_empty(), "ask_choose_copy_source: nothing to choose from for {source}");
     let picked = pick_copy_source(dp, game, chooser, source, candidates, (1, 1));
-    picked.expect("a pick of exactly one")
+    candidates[picked[0]]
 }
 
 /// A copy effect's "you **may**": one of `candidates`, or none. Asked with a
@@ -1252,7 +1248,8 @@ pub fn ask_may_choose_copy_source(
     candidates: &[ObjectId],
 ) -> Option<ObjectId> {
     assert!(!candidates.is_empty(), "ask_may_choose_copy_source: nothing to choose from for {source}");
-    pick_copy_source(dp, game, chooser, source, candidates, (0, 1))
+    let picked = pick_copy_source(dp, game, chooser, source, candidates, (0, 1));
+    picked.first().map(|&i| candidates[i])
 }
 
 fn pick_copy_source(
@@ -1262,13 +1259,11 @@ fn pick_copy_source(
     source: ObjectId,
     candidates: &[ObjectId],
     bounds: (usize, usize),
-) -> Option<ObjectId> {
+) -> Vec<usize> {
     let options: Vec<ChoiceOption> =
         candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
     let ctx = ChoiceContext::new(ChoiceKind::ChooseCopySource { source });
-    let index = dp.pick_n(game, chooser, &ctx, &options, bounds);
-    validate_pick_n(&index, &options, bounds, "choose_copy_source", game, chooser, &ctx);
-    index.first().map(|&i| candidates[i])
+    pick_unless_forced(dp, game, chooser, ctx, &options, bounds, "choose_copy_source")
 }
 
 /// CR 609.7a — choose the source of damage a prevention or replacement effect
@@ -1279,9 +1274,7 @@ fn pick_copy_source(
 /// is, or as it last existed once it has left the zone it was in, which two
 /// candidates sharing an id are told apart by.
 ///
-/// **Only called with two or more**, for [`ask_choose_copy_source`]'s reason:
-/// with one candidate the choice is forced and the caller takes it without
-/// asking anyone.
+/// With one candidate the choice is forced, and answered unasked.
 pub fn ask_choose_damage_source(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -1289,11 +1282,7 @@ pub fn ask_choose_damage_source(
     source: ObjectId,
     candidates: &[ObjectRef],
 ) -> ObjectRef {
-    assert!(
-        candidates.len() >= 2,
-        "ask_choose_damage_source: a choice needs two or more candidates; called with {}",
-        candidates.len(),
-    );
+    assert!(!candidates.is_empty(), "ask_choose_damage_source: no source of damage to choose for {source}");
     let options: Vec<ChoiceOption> = candidates
         .iter()
         .map(|&object| match game.find(object).is_some() {
@@ -1302,8 +1291,7 @@ pub fn ask_choose_damage_source(
         })
         .collect();
     let ctx = ChoiceContext::new(ChoiceKind::ChooseDamageSource { source });
-    let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, &options, (1, 1), "choose_damage_source", game, chooser, &ctx);
+    let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_damage_source");
     candidates[index[0]]
 }
 
@@ -1338,10 +1326,9 @@ pub fn ask_choose_delayed_trigger_event(
 /// `candidates` is every permanent the payer controls that matches the cost's
 /// filter, in `battlefield_ids_ordered`; `count` is how many the cost takes.
 ///
-/// **Only called with more candidates than the cost needs.** With exactly
-/// `count` the payment is forced and the caller sacrifices them without
-/// asking anyone — `CLAUDE.md`'s "never prompt with fewer than two
-/// candidates", counted against the choice rather than against the list.
+/// With exactly `count` candidates the payment is forced, and answered
+/// unasked: "never prompt with fewer than two candidates", counted against
+/// the choice rather than against the list.
 pub fn ask_choose_sacrifice_for_cost(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -1352,16 +1339,15 @@ pub fn ask_choose_sacrifice_for_cost(
 ) -> Vec<ObjectId> {
     let n = count as usize;
     assert!(
-        candidates.len() > n,
-        "ask_choose_sacrifice_for_cost: {} candidates for {} sacrifices is forced",
+        candidates.len() >= n,
+        "ask_choose_sacrifice_for_cost: {} candidates cannot pay {} sacrifices",
         candidates.len(),
         n,
     );
     let options: Vec<ChoiceOption> =
         candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
     let ctx = ChoiceContext::new(ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count });
-    let picks = dp.pick_n(game, player, &ctx, &options, (n, n));
-    validate_pick_n(&picks, &options, (n, n), "choose_sacrifice_for_cost", game, player, &ctx);
+    let picks = pick_unless_forced(dp, game, player, ctx, &options, (n, n), "choose_sacrifice_for_cost");
     picks.into_iter().map(|i| candidates[i]).collect()
 }
 

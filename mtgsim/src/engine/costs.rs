@@ -340,16 +340,7 @@ impl GameState {
                         n, candidates.len()
                     ));
                 }
-                // CR 102.2 / `CLAUDE.md`: as many candidates as the cost takes
-                // is not a choice, and prompting for it would be a prompt with
-                // one answer.
-                let chosen = if candidates.len() == n {
-                    candidates
-                } else {
-                    ask_choose_sacrifice_for_cost(
-                        ctx.dp, self, player_id, source_id, *count, &candidates,
-                    )
-                };
+                let chosen = ask_choose_sacrifice_for_cost(ctx.dp, self, player_id, source_id, *count, &candidates);
                 sacrifices.insert(idx, chosen);
             }
         }

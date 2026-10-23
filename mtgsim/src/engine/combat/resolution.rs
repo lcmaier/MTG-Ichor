@@ -566,7 +566,7 @@ mod tests {
         set_blocking(&mut game, blocker, vec![trampler]);
 
         // Power(2) < lethal(3), clamped mins=[2,0] — nothing is left over the
-        // minimums, so the split is forced (CR 102.2) and nothing is asked.
+        // minimums, so the split is forced and nothing is asked.
         let scripted = ScriptedDecisionProvider::new();
         let assignments = assign_combat_damage(&game, &scripted, 0, false);
 

@@ -32,6 +32,7 @@ use super::binding::TriggeringEventView;
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
 use crate::events::event::{EventRecord, EventId, GameEvent};
+use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
@@ -42,7 +43,7 @@ use crate::types::triggers::{
 };
 use crate::types::zones::UntilReturn;
 use crate::ui::ask::ask_choose_delayed_trigger_event;
-use crate::ui::choice_types::ChoiceOption;
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
 
 impl GameState {
     /// CR 603.7a — a delayed triggered ability is created, through the one
@@ -530,6 +531,7 @@ impl GameState {
         ctx: Option<&ActionContext>,
     ) -> Option<PendingTrigger> {
         let reads = entries.first()?.binding.def.trigger_binding_reads();
+        let several = entries.len() >= 2;
         let mut distinct: Vec<PendingTrigger> = Vec::new();
         for entry in entries {
             if !distinct.iter().any(|kept| self.entries_agree_on(reads, kept, &entry)) {
@@ -537,7 +539,17 @@ impl GameState {
             }
         }
         if distinct.len() < 2 {
-            return distinct.pop();
+            let kept = distinct.pop()?;
+            if several {
+                self.note_unasked(kept.controller, Unasked::OneGame(Elision::DelayedTriggerCause), || {
+                    let cause = match kept.binding.triggering_event().and_then(|t| t.objects.objects().next()) {
+                        Some((_, object)) => ChoiceOption::Object(object.id),
+                        None => ChoiceOption::Number(kept.binding.first_record().map_or(0, |r| r.seq.0 as u64)),
+                    };
+                    (ChoiceKind::ChooseDelayedTriggerEvent { source }, UnaskedAnswer::Picks(vec![cause]))
+                });
+            }
+            return Some(kept);
         }
         let Some(ctx) = ctx else {
             // Two occurrences of one arm come only in a batch's window, a

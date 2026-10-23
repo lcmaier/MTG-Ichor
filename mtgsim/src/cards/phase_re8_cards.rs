@@ -228,7 +228,7 @@ pub fn nephalia_academy() -> Arc<CardData> {
 ///
 /// A scry 1 asks exactly one question — which is CR 701.22a's "put any number
 /// of them on the bottom" with one card — and never asks the ordering one,
-/// because a group of one has no order to choose (CR 102.2).
+/// because a group of one has no order to choose.
 ///
 /// **The reminder text's "look at" is the same non-event as Nephalia Academy's
 /// "reveal"**: this engine's decision providers see the whole board, so

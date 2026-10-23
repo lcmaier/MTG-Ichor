@@ -1408,7 +1408,7 @@ impl GameState {
             replaced_amount: rider.replaced_amount,
             damage_prevented: Some(rider.prevented),
             trigger: None,
-        };
+                    };
         let outer = self.rider_lineage.replace(rider.lineage);
         let result = self.resolve_effect(&rider.effect, &rctx, ctx.dp);
         self.rider_lineage = outer;
@@ -2263,14 +2263,14 @@ impl GameState {
 
     /// CR 508.4: a permanent put onto the battlefield attacking attacks what
     /// its controller chooses as it enters, once CR 616.1 has settled who
-    /// that is. Asked only with two or more candidates, and only of an
-    /// attacking player during combat, since nothing else ever attacks (CR
-    /// 506.2, 506.3b); the entry's performer checks the rest.
+    /// that is: only of an attacking player during combat, since nothing else
+    /// ever attacks (CR 506.2, 506.3b), and with one candidate answered
+    /// unasked; the entry's performer checks the rest.
     fn decide_entry_attacks(&self, group: &mut [BatchMember], ctx: &ActionContext) {
         for member in group.iter_mut() {
             let Some(GameAction::EnterBattlefield { object, controller, mods, .. }) = &mut member.event else { continue };
             let Some(attack) = &mut mods.attacking else { continue };
-            if attack.candidates.len() < 2 || self.phase.phase_type != PhaseType::Combat || *controller != self.active_player {
+            if attack.candidates.is_empty() || self.phase.phase_type != PhaseType::Combat || *controller != self.active_player {
                 continue;
             }
             let chosen = ask_choose_entering_defender(ctx.dp, self, *controller, *object, &attack.candidates);

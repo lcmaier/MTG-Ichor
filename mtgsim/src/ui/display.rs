@@ -14,6 +14,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
 use crate::events::event::{DamageTarget, EventRecord, GameEvent, NamesAsAnnounced};
+use crate::events::unasked::{Elision, Unasked, UnaskedAnswer, UnaskedChoice};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
     controller_or_owner, get_effective_abilities, get_effective_name, get_effective_power, get_effective_toughness,
@@ -1192,14 +1193,51 @@ fn the_log_leaves_implicit(record: &EventRecord) -> bool {
     )
 }
 
-/// Format every recorded event with resolved card names. The game must be
-/// recording (`GameState::record_events`).
+/// Format every recorded event with resolved card names, and each question
+/// the engine answered without asking before the record it preceded. The
+/// game must be recording (`GameState::record_events`).
 pub fn format_event_log(game: &GameState) -> Vec<String> {
-    game.recorded_events()
-        .records()
-        .iter()
-        .map(|record| format_record(game, record))
-        .collect()
+    let recorded = game.recorded_events();
+    let mut unasked = recorded.unasked().iter().peekable();
+    let mut lines = Vec::new();
+    for record in recorded.records() {
+        while let Some(question) = unasked.next_if(|question| question.before <= record.seq) {
+            lines.push(format_unasked(game, question));
+        }
+        lines.push(format_record(game, record));
+    }
+    lines.extend(unasked.map(|question| format_unasked(game, question)));
+    lines
+}
+
+/// A question the engine answered without asking: whose it was, the
+/// question, the answer, and why (`plans/elisions.md`).
+pub fn format_unasked(game: &GameState, question: &UnaskedChoice) -> String {
+    let UnaskedChoice { player, kind, answer, why, .. } = question;
+    let named = |option: &ChoiceOption| match option {
+        ChoiceOption::Player(player) => format!("P{player}"),
+        other => other.as_logged(game),
+    };
+    let listed = |options: &[ChoiceOption]| match options {
+        [] => "none".to_string(),
+        some => some.iter().map(named).collect::<Vec<_>>().join(", "),
+    };
+    let answered = match answer {
+        UnaskedAnswer::Picks(picks) => listed(picks),
+        UnaskedAnswer::Number(number) => number.to_string(),
+        UnaskedAnswer::Allocation(parts) => {
+            parts.iter().map(|(part, amount)| format!("{amount} to {}", named(part))).collect::<Vec<_>>().join(", ")
+        }
+        UnaskedAnswer::Order(items) => format!("{} in that order", listed(items)),
+    };
+    let subject = kind.subject().map(|id| format!(" for {}", name_with_id(game, id, &None))).unwrap_or_default();
+    let reason = match why {
+        Unasked::OneLegalAnswer => "its one legal answer",
+        Unasked::OneGame(Elision::ReplacementOrder) => "every order leaves one game (CR 616.1)",
+        Unasked::OneGame(Elision::TriggerOrder) => "every order leaves one game (CR 603.3b)",
+        Unasked::OneGame(Elision::DelayedTriggerCause) => "every event leaves one game (CR 603.7b)",
+    };
+    format!("NotAsked: P{player} {}{subject}: {answered}, {reason}", kind.as_str())
 }
 
 #[cfg(test)]
