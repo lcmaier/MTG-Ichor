@@ -88,64 +88,52 @@ pub enum Layer {
 }
 ```
 
+**As built, Layer 1 is one slot.** The enum above is the target. The engine's `Layer` has a single `Layer1Copy` for both sublayers, in CR 613.2's order (1a copy, then 1b face-down), and only 1a has producers. CV-6 splits the slot when face-down arrives (`copy-effects-architecture.md` §4.6), and `layers::copy::END_OF_LAYER_1` is what the split has to move.
+
 **Decision — counter effects are derived, not stored.** Counters remain written to `PermanentState.counters`. When `compute_characteristics` walks layer 7c, it synthesizes virtual `ContinuousEffect`s from the counter map. This avoids double-booking state between the counter map and the effect registry.
 
-**Decision — face-down is also derived.** `PermanentState.face_down: bool` already exists. When set, `compute_characteristics` synthesizes a cluster of Layer-1a effects at compute time (set colorless, lose all abilities, become 2/2 creature with no name). No effect-registry entries needed for vanilla face-down; effects that *turn something face-down* (the action) are registered in Layer 1a, and their application side-effect is flipping the flag.
+**Decision — face-down is also derived.** `PermanentState.face_down: bool` already exists. When set, `compute_characteristics` will synthesize CR 708.2a's characteristics in Layer 1b at compute time (set colorless, lose all abilities, become a 2/2 creature with no name). No registry row is needed: turning something face-down is an action that flips the flag, not an effect. **Not built:** no layer reads the flag yet. CV-6 makes 1b derive from it (`copy-effects-architecture.md` §4.6).
 
 ### 3.2 `EffectiveCharacteristics`
 
 ```rust
 /// Output of `compute_characteristics(game, id)`. Mirrors `CardData`'s
-/// user-queryable fields plus zone-derived characteristics.
+/// user-queryable fields plus zone-derived characteristics. As built.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EffectiveCharacteristics {
-    // --- Identity ---
+    // --- Identity (layer 1a) ---
     pub name: String,
     pub mana_cost: Option<ManaCost>,
-    pub color_indicator: Option<Vec<Color>>,
-
-    // --- Types (layer 4) ---
-    pub types: HashSet<CardType>,
-    pub subtypes: HashSet<Subtype>,
-    pub supertypes: HashSet<Supertype>,
 
     // --- Colors (layer 5) ---
     pub colors: HashSet<Color>,
 
-    // --- Abilities (layer 6) ---
-    /// All abilities (keyword and non-keyword). Keywords are represented
-    /// as `AbilityDef::Keyword(KeywordAbility)` variants; there is no
-    /// separate `keywords` set — keywords are abilities per CR 702.
-    /// `has_keyword(id, kw)` is derived by scanning this vec.
-    pub abilities: Vec<AbilityDef>,
+    // --- Types (layer 4) ---
+    pub types: CardTypes,
+    pub subtypes: Subtypes,
+    pub supertypes: HashSet<Supertype>,
 
-    // --- P/T (layer 7a-d) ---
+    // --- Abilities (layer 6), two channels ---
+    /// The CR 702 keywords whose whole meaning is their presence.
+    pub keyword_flags: HashSet<KeywordFlag>,
+    /// Every other ability: a keyword with a parameter or an ability body,
+    /// and all non-keyword text. Shared, written through `Arc::make_mut`.
+    pub abilities: Arc<Vec<AbilityDef>>,
+
+    // --- P/T (layer 7a-d), and loyalty ---
     pub power: Option<i32>,
     pub toughness: Option<i32>,
+    pub loyalty: Option<i32>,
 
     // --- Control (layer 2) ---
     pub controller: PlayerId,
     /// The turn `controller` took control (CR 302.6). See the Layer 2
     /// amendment below.
     pub control_since_turn: u32,
-
-    // --- Planeswalker/Battle ---
-    pub loyalty: Option<u32>,
-    pub defense: Option<u32>,
-
-    // --- Text box (layer 3) ---
-    pub text: Option<String>,
-
-    // --- Derived flag (layer 1a) ---
-    /// Whether the object is currently face-down. Derived from
-    /// `PermanentState.face_down`. No back-pointer to a copy source
-    /// is stored: copy effects (layer 1b) lock characteristics in at
-    /// resolution time (CR 707.2 — the copy's copiable values are the
-    /// copied object's copiable values as they exist at the moment
-    /// the copy is made).
-    pub face_down: bool,
 }
 ```
+
+**Not built:** a color indicator (CR 204), defense (CR 310.4), a text box (Layer 3 is unmodeled) and a face-down flag (§3.1). No back-pointer to a copy source is stored: a copy effect's values are captured when the copy is made (CR 707.2) and carried on its row.
 
 **Amendment (2026-08-23, Layer 2 phase) — `control_since_turn`.** CR 302.6 asks whether a creature has been under its controller's control "continuously since their most recent turn began", so the answer to "who controls this" is only half of what summoning sickness needs. `PermanentState.controller_since_turn` cannot supply the other half once Layer 2 exists: control from a continuous effect is *derived*, so a `Duration::UntilEndOfTurn` steal reverts at cleanup with no mutation to hang a field update on and no event to hook. Computing it beside the controller it describes is what makes reversion need nothing at all — the value stops being computed when the row leaves the registry.
 
@@ -155,6 +143,7 @@ The battlefield field survives as the seed, and still owns every control change 
 
 ```rust
 /// A single active continuous effect. Lives in `ContinuousEffectRegistry`.
+/// As built.
 #[derive(Debug, Clone)]
 pub struct ContinuousEffect {
     /// Stable ID for this effect (distinct from source ObjectId —
@@ -162,10 +151,12 @@ pub struct ContinuousEffect {
     pub id: EffectId,
 
     /// The object that generates this effect. May be on the
-    /// battlefield, in the command zone (for emblems/commanders), etc.
-    /// When the source leaves its functional zone, `Duration::WhileSourceActive`
-    /// effects are removed.
+    /// battlefield or in another zone a static ability functions from.
     pub source: ObjectId,
+
+    /// A static ability of `source` (and which one), or a resolution.
+    /// CR 604.2's existence check reads it; so does `group()`.
+    pub origin: EffectOrigin,
 
     /// Which layer/sublayer this effect applies in.
     pub layer: Layer,
@@ -174,6 +165,12 @@ pub struct ContinuousEffect {
 
     /// When the effect becomes inactive.
     pub duration: Duration,
+
+    /// The controller of the spell or ability that made the row: "you"
+    /// for a resolution's row (§3.4's amendment), and whose turn
+    /// `UntilYourNextTurn` waits for.
+    pub controller: PlayerId,
+    pub created_on_turn: u32,
 
     /// Timestamp assigned when the effect became active (CR 613.7).
     /// Unique across the whole game — `GameState.next_timestamp` is a
@@ -187,30 +184,19 @@ pub struct ContinuousEffect {
     /// Evaluated against the frame state at the start of this effect's
     /// layer (§5). Not re-entered for `compute_characteristics` of any
     /// object during evaluation — predicates read the frame directly.
-    pub affected: ObjectSet,
+    pub affected_objects: ObjectSet,
 
     /// What the effect does to each affected object.
     pub modification: EffectModification,
-
-    /// What characteristic categories the `affected_objects` predicate reads.
-    /// Pre-computed at effect creation for the dependency algorithm's
-    /// cheap static-check step (§9). Distinct from the effect's own
-    /// output category, which is derived from `layer` (see `Layer::category`
-    /// in §3.5) — no need to store it twice.
-    ///
-    /// Example: a Layer 6 effect "Creatures you control gain flying"
-    /// has `layer = Layer6Ability` (output = Ability) and
-    /// `filter_reads = {Type, Control}` (the filter inspects types and
-    /// controller). Dependency step 2 fires if some other effect's
-    /// output category is in this set.
-    pub filter_reads: HashSet<CharacteristicCategory>,
 }
 
 pub type EffectId = u64;
-pub type Timestamp = u64;
+pub use crate::types::ids::Timestamp;
 ```
 
-**Why `modifies` is not a stored field:** each **registry entry** operates in exactly one layer, so its output category is `layer.category()` — no separate field needed. What *is* stored is `filter_reads`, because the filter's reads are distinct from the layer's output.
+**Neither what a row writes nor what it reads is stored.** Each **registry entry** operates in exactly one layer, so what it writes follows from its modification (`board::writes_of`, into `Channels`). What its set and its condition read is derived per layer by `board::effect_channels`, as a `Reads { source, members }` carried on the walk's `Application`, for CR 613.8's dependency check (§9). A stored `filter_reads` would have gone stale whenever a filter's meaning moved with the board.
+
+**A row ends with its source** when `ContinuousEffect::ends_with_its_source` holds: every static ability's row (CR 611.3b), and a resolution's row whose duration ends with the object that made it (`Duration::ends_with_its_source`, CR 611.2b). Any other resolution's row outlives its source (CR 611.2a). §10 has where each is removed.
 
 **Multi-layer card text** is split at registration time per **CR 613.6** ("If an effect should be applied in different layers or sublayers, the parts of the effect each apply in their appropriate ones."). So a spell whose resolving effect text is "target creature gets +1/+1 and becomes the color of your choice until end of turn" registers **two sibling registry entries** at resolution:
 
@@ -242,6 +228,8 @@ pub enum ObjectSet {
 **Amendment (2026-08-23) — the filter is stored unresolved.** As shipped, the variant is `Filter { filter: ObjectFilter }`, and it briefly also carried a `controller: Option<PlayerId>` resolved from `ObjectFilter::ByController(PlayerRef::You)` at registration. That was wrong: CR 109.5 makes a static ability's "you" the source's **current** controller, so a value snapshotted when the source entered the battlefield is stale the moment control of the source changes.
 
 `compute::object_matches_filter` now resolves the `PlayerRef` during the walk, which puts the whole of "does this object match" in one function instead of splitting it across the filter and a sibling field.
+
+(The variant gained `zones: ZoneSet` at LJ, §13c decision 3, and the enum gained `Host` at LH-1, §13a: as built, `ObjectSet { SourceOnly, Filter { filter, zones }, Fixed(Vec<ObjectId>), Host }`, defined in `types/effects.rs` for its second reader, replacement's `affected_objects`.)
 
 - `EffectOrigin::StaticAbility` → the source's effective controller, asked at `layer_index` (§5.2's descending ceiling, never the full one — same request `static_ability_still_exists` makes).
 - `EffectOrigin::Resolution` → `ContinuousEffect.controller`, fixed when the effect began (CR 611.2c).
@@ -302,38 +290,35 @@ Three implementors: `FilterPlayers` (a source always, earlier targets never); `T
 /// text ("becomes a 0/0 Golem artifact creature that loses all abilities")
 /// is split at registration into sibling entries sharing timestamp and
 /// source (see the CR 613.6 note in §3.3): a Layer 4 SetTypes, a Layer 6
-/// LoseAllAbilities, and a Layer 7b SetPowerToughness.
+/// LoseAllAbilities, and a Layer 7b SetPowerToughness. As built.
 pub enum EffectModification {
     // --- Layer 1a ---
-    /// Turns the affected object face-down. Registered by morph/manifest/
-    /// cloak/disguise actions. Its side-effect is flipping
-    /// `PermanentState.face_down`; `compute_characteristics` then
-    /// synthesizes the 2/2 no-name no-colors no-abilities cluster.
-    TurnFaceDown,
-
-    // --- Layer 1b ---
-    /// Copy effect. `copiable` is a snapshot of copiable values at the
-    /// moment the copy is made (CR 707.2). Opaque to later layers — once
-    /// the copy is applied, it *is* the base for subsequent layers.
-    CopyFrom { copiable: CopiableValues },
+    /// Copy effect: the copiable values captured at the moment the copy is
+    /// made (CR 707.2). Opaque to later layers — once the copy is applied,
+    /// it *is* the base for subsequent layers. Behind an `Arc`, as
+    /// `GrantAbility` is: stored inline it would enlarge every row the walk
+    /// iterates, and the registry is cloned with every fork.
+    CopyFrom(Arc<CopiableValues>),
+    // NOT BUILT: a face-down arm. CV-6 derives Layer 1b from
+    // `PermanentState.face_down`, with no row (§3.1).
 
     // --- Layer 2 ---
     SetController(PlayerRef),
 
-    // --- Layer 3 ---
-    SetText(String),
+    // NOT BUILT: Layer 3. Text-changing effects are unmodeled.
 
     // --- Layer 4 ---
     AddType(CardType),
     RemoveType(CardType),
-    SetTypes(HashSet<CardType>),
+    SetTypes(CardTypes),
     AddSubtype(Subtype),
     RemoveSubtype(Subtype),
     /// "[Land] is a [basic land subtype]" — see the CR 305.7 handling
     /// note below. Blood Moon and Urborg use this variant.
-    SetSubtypes(HashSet<Subtype>),
+    SetSubtypes(Subtypes),
     AddSupertype(Supertype),
     RemoveSupertype(Supertype),
+    SetSupertypes(HashSet<Supertype>),
 
     // --- Layer 5 ---
     AddColor(Color),
@@ -349,11 +334,12 @@ pub enum EffectModification {
     // `KeywordFlag` is the CR 702 keywords whose whole meaning is their
     // presence; anything parameterized or with an ability body is an
     // `AbilityDef`. See `types::keywords` for the four-quadrant map.
-    GrantKeyword(KeywordFlag),
-    RemoveKeyword(KeywordFlag),
-    /// Boxed — `AbilityDef` contains an `Effect`, so the recursion is real.
+    GrantKeywordFlag(KeywordFlag),
+    RemoveKeywordFlag(KeywordFlag),
+    /// Behind an `Arc` — `AbilityDef` contains an `Effect`, so the recursion
+    /// is real, and the row is cloned with every fork.
     /// Clears `is_characteristic_defining` on application (CR 604.3a(2)).
-    GrantAbility(Box<AbilityDef>),
+    GrantAbility(Arc<AbilityDef>),
     /// `retain`, not remove-first: CR 113.10b removes *all* instances.
     LoseAbility(AbilityId),
     LoseAllAbilities,
@@ -374,33 +360,16 @@ pub enum EffectModification {
     SetPowerToughness { power: PtValue, toughness: PtValue },
 
     // --- Layer 7c ---
-    /// +N/+N or -N/-N. Includes counter-derived modifiers synthesized
-    /// from `PermanentState.counters`.
-    ModifyPowerToughness { power: i32, toughness: i32 },
+    /// +N/+N or -N/-N. Counters are applied here too, read off
+    /// `PermanentState.counters` during the walk rather than registered.
+    ModifyPowerToughness { power: PtValue, toughness: PtValue },
 
     // --- Layer 7d ---
     SwitchPowerToughness,
 }
-
-/// Top-level characteristic categories — what an effect's output
-/// affects. Used by the dependency algorithm's cheap static-check step.
-/// Mapped 1:1 from the top-level of `Layer` (sublayer granularity
-/// collapsed: all Layer 7 sublayers → PowerToughness).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CharacteristicCategory {
-    Copy,            // layer 1a + 1b
-    Control,         // layer 2
-    Text,            // layer 3
-    Type,            // layer 4 (includes subtypes + supertypes)
-    Color,           // layer 5
-    Ability,         // layer 6
-    PowerToughness,  // layer 7 (all sublayers)
-}
-
-impl Layer {
-    pub fn category(self) -> CharacteristicCategory { ... }
-}
 ```
+
+**No `CharacteristicCategory`.** The design's category enum and `Layer::category()` were never built. CR 613.8's static check asks what each row writes, `board::writes_of` into the `Channels` bitset, which is finer than a category: a Layer 4 row that adds a subtype and one that sets the card types are different channels.
 
 **Amendment (2026-08-23, Layer 2 phase) — `SetController` carries a `PlayerRef`, not a `PlayerId`.** Same correction §3.4 records for `ObjectSet::Filter`, and for the same rule. CR 109.5 makes a static ability's "you" the *current* controller of the object it is on, so a resolved id stored at registration is a snapshot — Mind Control's "You control enchanted creature" has to follow the Aura when the Aura itself changes hands. `compute::resolve_set_controller` resolves it during the walk through the same `FilterPlayers` a filter's `ByController` uses, so `EffectOrigin::StaticAbility` asks the source and `EffectOrigin::Resolution` reads `ContinuousEffect.controller`, which CR 611.2c locked when the spell resolved.
 
@@ -462,7 +431,7 @@ keeps intrinsics globally unique like any other ability, just reproducible inste
 
 **Why this is a one-off and not a pattern to copy:** the CR 305.6/305.7 mana ability is the
 only ability in the engine that is *synthesized* rather than *stored*. Printed abilities get
-an id from `CardDataBuilder`; Layer 6 `GrantAbility` carries a `Box<AbilityDef>` in its
+an id from `CardDataBuilder`; Layer 6 `GrantAbility` carries an `Arc<AbilityDef>` in its
 registry row, and Layer 1 copies and Layer 3 text changes hand a stored def over whole — all
 four have somewhere to put an id, so all four are stable across calls by construction. Only
 this one is conjured inside a pure function. That is the whole of the asymmetry, and it is
@@ -482,96 +451,100 @@ own; if the alias is ever opened up for another reason, fold this in then.
 ### 3.6 `Duration`
 
 ```rust
+/// As built (`types/effects.rs`, shared with replacement effects).
 pub enum Duration {
-    /// Effect is active while its source is in its functional zone
-    /// (battlefield for most permanents; command zone for emblems and
-    /// commander auras that function there; all zones for CDAs).
-    /// Replaces the earlier proposed `Static` / `UntilSourceLeaves` pair.
-    WhileSourceActive,
-
-    /// Classic "until end of turn" — ends at cleanup step.
+    /// Classic "until end of turn" — ends in the cleanup step (CR 514.2).
     UntilEndOfTurn,
 
-    /// "Until your next turn" — ends at the beginning of this player's
-    /// next untap step.
+    /// "Until your next turn" — ends as `controller`'s next turn begins.
     UntilYourNextTurn,
 
-    /// "Until end of combat" — ends at end of combat step.
-    UntilEndOfCombat,
+    /// CR 611.2b's "for as long as" durations tied to the object that made
+    /// the effect: it ends as that object leaves the battlefield, or stops
+    /// enchanting or equipping (`Duration::ends_with_its_source`).
+    WhileSourceOnBattlefield,
+    WhileEnchanted,
+    WhileEquipped,
 
-    /// "For as long as X controls Y" — a predicate re-evaluated by SBA.
-    /// See `ExpirationPredicate` below.
-    WhileCondition(ExpirationPredicate),
-
-    /// Permanent effect generated by a resolving spell that doesn't
-    /// specify a duration (rare). Lives until the object receiving it
-    /// leaves the battlefield.
-    UntilTargetLeavesBattlefield(ObjectId),
-}
-
-pub struct ExpirationPredicate {
-    /// Data-driven predicate evaluated during SBA. Examples:
-    /// "Source controls Target", "Target is tapped", etc.
-    pub kind: ExpirationKind,
+    /// No stated duration: until the end of the game (CR 611.2a).
+    Indefinite,
 }
 ```
+
+A static ability's row carries no duration of its own that ends it: it ends with its source (§3.3), which is what the design's `WhileSourceActive` meant. **Not built:** "until end of combat", a condition re-checked each time ("for as long as X controls Y"), and the design's `UntilTargetLeavesBattlefield`. Each needs its expiry site in §10 when it lands.
 
 ### 3.7 `ContinuousEffectRegistry`
 
 ```rust
-/// Lives on GameState. Owns all active continuous effects.
+/// Lives on GameState. Owns all active continuous effects. As built.
 pub struct ContinuousEffectRegistry {
-    effects: Vec<ContinuousEffect>,
-    /// Monotonic counter for assigning unique `EffectId`s. Needed because
-    /// (a) a single source can register multiple effects (a card with two
-    /// static abilities generates two effects with the same `source`);
-    /// and (b) callers need a stable handle to remove an individual effect
-    /// later — e.g., an UntilEndOfTurn effect must be removed at cleanup
-    /// without affecting sibling effects from the same source. Removing
-    /// by `source` only would be too coarse.
-    next_effect_id: EffectId,
+    /// The rows, the id counter and the CR 514.2 expiry hooks, shared with
+    /// the replacement registry (`state/duration_registry.rs`). The id is
+    /// needed because one source can register several rows, and an
+    /// UntilEndOfTurn row must be removed without its siblings.
+    effects: DurationRegistry<ContinuousEffect>,
+    /// Derived flags the readers gate on (§5.1). Every write goes through
+    /// one private `mutating`, which rebuilds it.
+    summary: RegistryScopeSummary,
 }
 
 impl ContinuousEffectRegistry {
-    pub fn add(&mut self, effect: ContinuousEffect) -> EffectId { ... }
-    pub fn remove(&mut self, id: EffectId) -> Option<ContinuousEffect> { ... }
-    pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<ContinuousEffect> { ... }
-    pub fn iter(&self) -> impl Iterator<Item = &ContinuousEffect> { ... }
+    pub fn add(&mut self, effect: ContinuousEffect) -> EffectId { ... }  // assigns the id
+    pub fn next_id(&self) -> EffectId { ... }  // the next id, without advancing it
+    pub fn effects_in_layer(&self, layer: Layer) -> &[Arc<ContinuousEffect>] { ... }
+    pub fn remove(&mut self, id: EffectId) -> Option<Arc<ContinuousEffect>> { ... }
+    // ... and the removals §10 names, plus `retime_static_rows` (CR 613.7a/e),
+    // which edits rows in place.
 }
 ```
+
+Rows are `Arc<ContinuousEffect>`, kept in (layer, timestamp, id) order, so `effects_in_layer` serves a layer as one contiguous slice.
 
 ---
 
 ## 4. Module Layout
 
+As built:
+
 ```
 mtgsim/src/
   state/
-    continuous_effects.rs      # ContinuousEffectRegistry struct + EffectId.
+    continuous_effects.rs      # ContinuousEffectRegistry and RegistryScopeSummary.
                                # Data owner. Lives on GameState.
-    game_state.rs              # + field: continuous_effects: ContinuousEffectRegistry
-                               # + field: next_timestamp: Timestamp
+    duration_registry.rs       # The rows, ids and expiry hooks it shares with
+                               # the replacement registry.
+    layer_memo.rs              # The cross-call memo (§12, 7a).
+    game_state.rs              # + continuous_effects, next_timestamp, layer_memo;
+                               # register_static_effects, register_copied_static_effects
   engine/
     layers/
-      mod.rs                   # Public API. Re-exports types, exposes
-                               # compute_characteristics, helpers to
-                               # register/remove effects from spell resolution.
-      types.rs                 # Layer, Duration, ContinuousEffect, EffectModification,
-                               # CharacteristicCategory, ObjectSet, Timestamp,
-                               # EffectiveCharacteristics, CopiableValues, AbilityOrigin.
-      compute.rs               # compute_characteristics(game, id).
-                               # Pure function of (registry, base characteristics).
-      dependency.rs            # Hybrid dependency algorithm. Standalone,
-                               # unit-testable with synthetic effects.
-      lifecycle.rs             # register_effect / deregister_effect helpers
-                               # called from resolve.rs, zones.rs, turn cleanup.
+      mod.rs                   # Declares and re-exports (compute_characteristics,
+                               # copiable_values, explain, compute_as_entering).
+      types.rs                 # Layer, EffectId, PtValue, EffectModification,
+                               # EffectOrigin, EffectGroup, ContinuousEffect,
+                               # EffectiveCharacteristics. Re-exports ObjectSet and
+                               # Timestamp, which live in types/ for their other
+                               # readers; Duration is imported from types/effects.rs.
+      compute.rs               # compute_characteristics, its memo entry,
+                               # compute_non_member.
+      board.rs                 # The board-wide sequential pass and CR 613.8
+                               # (§13b): dependency order, writes and reads.
+      cda.rs                   # CDAs, off the object's own ability list (§6).
+      condition.rs             # A conditional static's condition (§13b, LI-3).
+      copy.rs                  # CopiableValues and their capture (CR 707.2).
+      explain.rs               # The pass run again with a recorder watching.
+      intrinsic.rs             # CR 306.5b's planeswalker loyalty ability.
+      land_types.rs            # CR 305.6/305.7 (§3.5a).
+      lookahead.rs             # CR 614.12's object as it would enter.
   oracle/
     characteristics.rs         # Wrappers (has_keyword, is_creature,
                                # get_effective_power, get_effective_toughness,
                                # get_effective_name, ...) route through
                                # compute_characteristics. No other code reads
-                               # CardData directly for battlefield objects.
+                               # CardData directly for an object in any zone.
 ```
+
+Registration goes through `register_static_effects` (an object arriving), `register_copied_static_effects` (CR 707.4's later copy), `resolve.rs`'s `register_granted_static_effects` (a Layer 6 grant of a static ability) and `ContinuousEffectRegistry::add` for a resolution's rows (§10). Removal goes through the registry's own methods. There is no `dependency.rs` and no `lifecycle.rs`; the dependency algorithm lives in `board.rs`.
 
 **Rationale for `state/continuous_effects.rs` vs `engine/layers/`:**
 Existing codebase split — `state/` holds data structs stored on `GameState` (battlefield, player, mana pool), `engine/` holds behavior. Registry is data, compute is behavior.
@@ -639,14 +612,16 @@ pub struct RegistryScopeSummary {
     /// graveyards and not libraries; `beyond_battlefield()` is what
     /// `Board::seed` adds members for, and it is empty on an ordinary board.
     pub reachable_zones: ZoneSet,
-    // ...plus eight gate flags added by Layer 2, RS-1, CV-1, CM-1 and RE-8;
-    // `state/continuous_effects.rs` is the list, each with its own reason.
+    // ...plus a gate flag or zone set for each reader that needs one, added
+    // from the Layer 2 phase on (the replacement, restriction, cost and
+    // trigger gates among them); `state/continuous_effects.rs` is the list,
+    // each with its own reason.
 }
 ```
 
 `touches_stack` and `has_active_cdas` were never built. The stack half is subsumed: `ZoneSet::STACK` is a zone like any other. The CDA half is not a registry question at all — CR 604.3a(3) keeps CDAs out of the registry entirely (§6), so the fast path's CDA term is `cda::has_any_cda` read off the object's own list, which is where `compute_non_member` already asks it.
 
-Then `compute_characteristics(game, id, zone)` dispatches:
+Then `compute_characteristics(game, id, zone)` dispatches, in this section's plan. **As built** the entry takes no zone: `Board::seed` adds members from `reachable_zones`' zones beyond the battlefield, a library or hand a row reaches is left out of the pass and walked alone when read (`compute_non_member`, LL, §13e), and an object no row reaches gets only its CDAs.
 
 | Caller zone | Fast path when... | Slow path otherwise |
 |---|---|---|
@@ -753,18 +728,18 @@ produces `EffectModification`s, so that is a wrapper type rather than a redesign
 
 **Corrected 2026-09-02 (CV-1); this section had the two backwards.** `tmnt.txt`:
 
-- **1a — copiable effects (CR 613.2a).** Copy effects (CR 707) and the merged-permanent characteristics of CR 729.2a. **`EffectModification::CopyFrom(Box<CopiableValues>)`, the phase's one new arm**, applied at `LAYER_ORDER[0]`, replacing every characteristic channel at once — which is what layer 1 means, and why a second layer-1 arm would be a claim that CR 613.2 has a third sublayer.
+- **1a — copiable effects (CR 613.2a).** Copy effects (CR 707) and the merged-permanent characteristics of CR 729.2a. **`EffectModification::CopyFrom(Arc<CopiableValues>)` (a `Box` at CV-1), the phase's one new arm**, applied at `LAYER_ORDER[0]`, replacing every characteristic channel at once — which is what layer 1 means, and why a second layer-1 arm would be a claim that CR 613.2 has a third sublayer.
 - **1b — face-down (CR 613.2b).** Morph, manifest, cloak, disguise, applied **after** copy. `PermanentState.face_down: bool` is the canonical state and the sublayer synthesizes CR 708.2a's characteristics from it — derived from state already owned, the way 7c reads counters, rather than duplicated into the registry. Phase CV-6.
 
 **The 2/2 answer does not come from the order.** All three sites that had these backwards justified it with *"a Clone copying a face-down creature must copy the 2/2 colorless characteristics, not the printed card"* — a correct conclusion from a wrong premise. The 2/2 is CR 708.2's own sentence, "Any listed characteristics are the copiable values of that object's characteristics", with CR 708.10 covering the copy-of-a-face-down case directly.
 
 **Where the order does bite is one integer.** CR 613.2c makes copiable values the state at the end of layer 1, and `layers::copy::END_OF_LAYER_1` is the ceiling the capture takes. A reader who believed 1b was copy would stop one sublayer early, and the bug would appear only on a board with a face-down creature being copied — i.e. not before Phase 8. `copiable_values` carries a `debug_assert` that `LAYER_ORDER[END_OF_LAYER_1]` is `Layer2Control`, so CV-6's split is a test failure rather than a silent read.
 
-`Layer1Copy` still collapses both sublayers in the `Layer` enum: 1a has a producer as of CV-1, 1b has none until CV-6. Splitting the variant then just lengthens `LAYER_ORDER`, since the frame-cache ceiling is a runtime index into it.
+`Layer1Copy` still collapses both sublayers in the `Layer` enum: 1a has a producer as of CV-1, 1b has none until CV-6. Splitting the variant then just lengthens `LAYER_ORDER`, since the capture's ceiling, `END_OF_LAYER_1`, is a runtime index into it.
 
 —> `copy-effects-architecture.md` §5.4 (the finding), §3.2 (`CopiableValues`), §4.6 (why face-down is derived rather than registered).
 
-**Implementation note (face-down):** `PermanentState.face_down: bool` is the canonical state. In Layer 1a, `compute_characteristics` reads the flag and synthesizes the vanilla-face-down characteristics (empty name, colorless, no abilities, P/T 2/2, types={Creature}). Actual `TurnFaceDown` effects (from morph etc.) flip the flag when they apply; they don't store separate per-object state. This mirrors the 7c counter approach — derive from state already owned, don't duplicate it in the registry.
+**Implementation note (face-down), not built:** `PermanentState.face_down: bool` is the canonical state, and nothing in the layer system reads it yet. At CV-6, Layer 1b reads the flag and synthesizes the vanilla-face-down characteristics (empty name, colorless, no abilities, P/T 2/2, types={Creature}). Turning a permanent face-down (morph etc.) is an action that flips the flag, not a registry row. This mirrors the 7c counter approach — derive from state already owned, don't duplicate it in the registry.
 
 ---
 
@@ -772,7 +747,7 @@ produces `EffectModification`s, so that is a wrapper type rather than a redesign
 
 Assignment (CR 613.7c–d):
 
-1. **On ETB** — `PermanentState.timestamp = game.next_timestamp(); game.next_timestamp += 1;`. Existing infrastructure: the field is already populated (`state/battlefield.rs:80-84`); Phase LA starts *reading* it.
+1. **On entering any zone** (CR 613.7d) — `GameObject.timestamp` is allocated from `GameState.next_timestamp` as the object arrives (`arrive_in_zone`, under `move_object`), and as a token is created. The battlefield entry's `PermanentState.timestamp` is a copy that `insert_battlefield_entity` stamps from the object, kept for the ordered sweeps; `set_object_timestamp` writes both. A static ability's rows take the object's value (`static_effect_timestamp`, §13d decision 2).
 2. **On effect creation** — `ContinuousEffect.timestamp = game.next_timestamp();` at registration.
 3. **Re-timestamping on aura/equipment attachment** (CR 613.7e) — when an Aura moves from one creature to another (e.g., via Sun Titan returning it), the Aura's effect timestamp updates. Similarly when a permanent becomes an Aura/Equipment.
 
@@ -849,27 +824,30 @@ For performance, the snapshot is a thin overlay (CoW) over the frame, not a deep
 
 ### Where effects get added
 
-| Source | When | Who calls `register_effect` |
+| Source | When | Who registers it |
 |---|---|---|
-| Static ability on a permanent | ETB | `GameState::place_on_battlefield` → `register_static_effects` (`state/game_state.rs`). The table used to name `engine/zones.rs::init_zone_state`; that hook was never where this landed. |
-| Resolving spell ("gets +2/+2 UEOT") | `resolve.rs` `ModifyPowerToughness` primitive | `engine/resolve.rs` |
-| Resolving activated ability with continuous effect | Same as above | Same |
-| Commander in command zone (emblem-like) | When put into command zone | `engine/zones.rs::move_object` (when destination is command zone + source is commander) |
-| Emblem | Emblem creation | Future Phase 7 hook |
+| Static ability on a permanent | Entering the battlefield | `GameState::make_permanent` → `register_static_effects(id, controller, Zone::Battlefield, arrived_on)` (`state/game_state.rs`), reached from both `perform_entry` and `create_on_battlefield` |
+| Static ability that functions in another zone (CR 113.6) | Arriving in that zone | `engine/zones.rs::register_off_the_battlefield`, with the owner as "you" (CR 108.4); its callers are `arrive_in_zone` (`move_object`'s tail) and `create_in_zone`. A commander in the command zone registers here (§13d) |
+| A permanent that becomes a copy later (CR 707.4) | The copy row's registration | `register_copied_static_effects` |
+| Resolving spell or ability ("gets +2/+2 UEOT") | Its resolution | `engine/resolve.rs`'s `add_resolution_effect` |
+| A static ability granted by a resolution (Layer 6) | The grant's registration | `resolve.rs`'s `register_granted_static_effects` |
+| Emblem | Emblem creation | Unbuilt: nothing creates an emblem |
 | Alchemy perpetual mod | When applied | Phase 9 |
 
 ### Where effects get removed
 
-| Trigger | Who calls `deregister_effect` |
+| Trigger | Who removes it |
 |---|---|
-| Source leaves battlefield | `engine/zones.rs::cleanup_zone_state` (new hook) |
-| Cleanup step (UntilEndOfTurn) | `engine/turns.rs::cleanup_step` |
-| Start of controller's untap (UntilYourNextTurn) | `engine/turns.rs::begin_untap` |
-| End of combat (UntilEndOfCombat) | `engine/combat/steps.rs::end_of_combat` |
-| Condition predicate goes false (WhileCondition) | SBA loop checks these and removes |
-| Target leaves battlefield (UntilTargetLeavesBattlefield) | `engine/zones.rs::cleanup_zone_state` on target |
+| Source leaves the battlefield | `engine/zones.rs::cleanup_zone_state` → `remove_rows_ending_with`: its static abilities' rows and a resolution's rows whose duration ends with it |
+| Source leaves another zone | `cleanup_zone_state` → `remove_static_by_source`: its static abilities' rows only |
+| An object a row names moves (CR 400.7) | `move_object` → `break_references_to` → `remove_references_to`, sparing a permanent spell's rows under 400.7a (`copy-effects-architecture.md` §5.3) |
+| A later copy effect on the same object (CR 707.4) | `resolve.rs`'s `apply_copy` → `retire_earlier_copies_of` |
+| Cleanup step (UntilEndOfTurn, CR 514.2) | `engine/turns.rs`'s `on_step_begin` → `remove_expired_at_cleanup` |
+| Start of that player's turn (UntilYourNextTurn) | `turns.rs`'s `expire_until_your_next_turn` → `remove_expired_at_turn_start` |
 
-**Invariant:** `ContinuousEffectRegistry` should never contain effects whose source has left its functional zone. The `remove_by_source` helper runs on every zone change out of battlefield.
+No end-of-combat, condition or target-leaves duration exists (§3.6), so none has a site.
+
+**Invariant:** a row is removed when its duration ends, and not before. A resolution's row outlives its source (CR 611.2a) unless its duration ends with that source (CR 611.2b); a static ability's row ends with its source (CR 611.3b). Functioning zones come from `engine/zone_function.rs::functioning_zones` (§13d). `remove_by_source`, which removed every row a source made, has no production caller.
 
 ---
 
@@ -880,9 +858,9 @@ For performance, the snapshot is a thin overlay (CoW) over the frame, not a deep
 This is the single read-side chokepoint. All wrappers route through `compute_characteristics`. Phase LA rewires the existing wrappers (`has_keyword`, `is_creature`, `get_effective_name`, `get_effective_power`, `get_effective_toughness`). New wrappers added as needed:
 
 - `get_effective_colors(game, id) -> HashSet<Color>`
-- `get_effective_types(game, id) -> HashSet<CardType>`
-- `get_effective_controller(game, id) -> PlayerId`
-- `get_effective_abilities(game, id) -> Vec<AbilityDef>`
+- `get_effective_types(game, id) -> CardTypes`
+- `get_effective_controller(game, id) -> Option<PlayerId>`
+- `get_effective_abilities(game, id) -> Arc<Vec<AbilityDef>>`
 
 ### 11.2 Cast pipeline
 
@@ -892,7 +870,7 @@ Cost modification (CR 601.2f) isn't part of the layer system, but some cost-modi
 
 ### 11.3 SBA
 
-SBA reads effective characteristics via `oracle/characteristics.rs`. Zero changes to SBA code for Phase LA through LD beyond the wrapper rewiring. `WhileCondition` duration predicate evaluation happens in a dedicated SBA pass added in Phase LC (adjacent to 704.5 checks).
+SBA reads effective characteristics via `oracle/characteristics.rs`. Zero changes to SBA code for Phase LA through LD beyond the wrapper rewiring. The planned `WhileCondition` duration, re-checked in an SBA pass, was not built (§3.6); a static ability's condition is evaluated during the layer pass instead (§13b, LI-3).
 
 ### 11.4 Combat
 
@@ -946,13 +924,13 @@ Measured 2026-08-21 on the same synthetic board, gate-free, µs/query:
 | + registry kept sorted by `(layer, timestamp, id)` | 5.56 | 44.89 |
 | + eliding the per-frame `Vec<AbilityDef>` deep clone | 3.80 | 31.86 |
 
-The sorted registry is done. The second row is a probe, not an implementation: `EffectiveCharacteristics.abilities` is a `Vec<AbilityDef>` cloned out of `CardData` for every frame, and `AbilityDef` owns a boxed `Effect` tree, so it is a deep clone. Worth a uniform ~30%. Making `CardData::abilities` an `Arc<Vec<AbilityDef>>` and having the frame clone the `Arc` — with `Arc::make_mut` in the layer-4 and layer-6 arms that actually mutate it — is answer-preserving and bounded. Do that before reaching for anything cleverer.
+The sorted registry is done. The second row is a probe, not an implementation: `EffectiveCharacteristics.abilities` is a `Vec<AbilityDef>` cloned out of `CardData` for every frame, and `AbilityDef` owns a boxed `Effect` tree, so it is a deep clone. Worth a uniform ~30%. Making `CardData::abilities` an `Arc<Vec<AbilityDef>>` and having the frame clone the `Arc` — with `Arc::make_mut` in the layer-4 and layer-6 arms that actually mutate it — is answer-preserving and bounded. Do that before reaching for anything cleverer. (Done 2026-09-16 as A4f, PR #157: the re-read below.)
 
 Neither closes the gap at large N. Only cross-call memoization does, because the quadratic is *repetition*: a priority sweep asks the same question about the same unchanged board once per permanent.
 
 If profiling later shows this is hot:
 
-1. **Per-frame cache** (inside a single `compute_characteristics` call) — already required for acyclicity (§5.2). Implicit.
+1. **Per-frame cache** (inside a single `compute_characteristics` call) — already required for acyclicity (§5.2). Implicit. (Gone at LI-1, when the sequential pass became the termination argument; item 2 is 7a, below.)
 2. **Registry-invalidated cache on `GameState`** — keyed by `(object_id, registry_version)`, cleared when the registry or any battlefield state changes. Adds a dirty-flag bit.
 3. **Dirty-object tracking** — only recompute for objects whose inputs changed. Complex; defer.
 
@@ -1025,16 +1003,18 @@ residual rather than in advance.
   PR; and four inputs whose writes are too frequent to bump at each, life
   totals (`codebase-state.md` item 199), the tapped status (item 187), combat
   and the histories with the turn number. **Since TR-5f's review those four are
-  `GatedWalkInput`s**: a pass notes each one it reads on its `Board`, the
+  `GatedWalkInput`s** (the histories one per row kind, beside the turn number and the
+  combat count): a pass notes each one it reads on its `Board`, the
   memo keeps those notes with the pass's frames at their epoch, and each
   writer moves the epoch only when a frame stored at the current epoch read
   it. A walk with no such read costs nothing, and a write costs a compare. The note rather than items 187 and 199's registry bit,
   because a note covers every route to the read: a row's condition, a
-  filter (`ObjectFilter::AttackedThisTurn`) and a CDA alike.
+  filter (`ObjectFilter::ThisTurn`, whose `ObjectFact` names the history) and a CDA alike.
 - **Bypasses.** The CR 614.12 look-ahead overlay (`lookahead.rs`) computes a hypothetical
   and the CR 603.10a LKI frame computes the past; neither consults or fills the memo.
-  The per-call frame cache of §5.2 is untouched: it is the termination argument, not a
-  cache.
+  §5.2's per-pass cache of non-member frames is untouched: it bounds only the non-member
+  recursion and is discarded with the pass (since LI-1 the termination argument is the
+  sequential pass, not a cache).
 - **The debug mode in the same commit, as this section has always required.** On every
   hit, `debug_assert_eq!` against a fresh walk. That turns `cargo test` and a debug
   fuzz run into the invalidation-completeness test, which is the one thing a coarse
@@ -1348,7 +1328,8 @@ the shape. Lever 2 is landed; item 144 is closed.
 > "Layers 1, 3, 4" and shipped Layer 4 (Parts A and B); Layer 6 became its own phase
 > (LF), CDAs became LE, Layer 2 became LG, and the CR 613.8 dependency algorithm has not
 > shipped at all — it is now scheduled after triggered abilities, with a back-stop before
-> card breadth (`CLAUDE.md` → "Critical path to v1").
+> card breadth (`CLAUDE.md` → "Critical path to v1"). (It shipped ahead of them, as LI-2 on
+> 2026-09-06, §13b.)
 >
 > Kept rather than rewritten, for two reasons: the exit criteria and atomic-test targets
 > below are cited by other notes, and rewriting them here would fork planning authority
@@ -1423,7 +1404,7 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
 
 1. Layer 4 (Type-changing). Includes CR 205.1a/b subtype replacement semantics and **CR 305.7 (Blood Moon)** special-case handling in `apply()` (§3.5a). Uses `AbilityOrigin` field added in Phase LA.
 2. Layer 3 (Text-changing). Rare in practice; e.g., [[Artificial Evolution]].
-3. Layer 1a (Face-down). Morph, manifest. Uses the synthesized-from-flag approach (§7).
+3. Layer 1a (Face-down). Morph, manifest. Uses the synthesized-from-flag approach (§7). (This plan had the sublayers inverted: face-down is 1b and copy 1a, §7.)
 4. Layer 1b (Copy). Clone, Phantasmal Image, etc. Resolution produces a `CopyFrom { copiable: CopiableValues }` Layer 1b effect. Concrete `CopiableValues` struct defined at kickoff.
 
 **Atomic-test coverage target:** 613.2 series, 613.3 series, CR 707/708 face-down interactions, CR 305.7 Blood-Moon-style tests.
@@ -1524,7 +1505,7 @@ kind arrives. Deterministic, shipped, and the same move one level up.
 
 ### LH-2 — CR 613.7e, and the field split (~900 additions) — ✅ 2026-09-05
 
-**Shipped.** `PermanentState.timestamp` split into the entry timestamp determinism keys off and the CR 613.7 timestamp 613.7e reassigns at the attach site; `GameAction::Attach` performed through `GameState::attach`, emitting `Attached` on the transition; the four readers updated one by one. Consumer: Equip (CR 702.6). ~900.
+**Shipped.** `PermanentState.timestamp` became the CR 613.7 timestamp 613.7e reassigns at the attach site, and the ordered sweeps key on it too: the split into an entry timestamp shipped in the first commit and was undone in review (above); `GameAction::Attach` performed through `GameState::attach`, emitting `Attached` on the transition; the three readers updated one by one. Consumer: Equip (CR 702.6). ~900.
 
 → The section as sized, what the building changed and the measurement: `plans/archive/layers-architecture-landed.md`, "LH-2" (evicted 2026-09-11).
 
@@ -2279,10 +2260,10 @@ several subsystems ask and no subsystem owns, so it cannot live in
 ```rust
 /// CR 113.6 — the zones in which `ability` functions, for an object whose
 /// effective card types are `types`.
-pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> ZoneSet;
+pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet;
 
 /// CR 113.6 as the callers ask it.
-pub fn functions_in(ability: &AbilityDef, types: &HashSet<CardType>, zone: Zone) -> bool;
+pub fn functions_in(ability: &AbilityDef, types: &CardTypes, zone: Zone) -> bool;
 ```
 
 **A set, not a predicate, because the callers need the set.** Registration asks
@@ -2567,7 +2548,7 @@ deferrals are §2.3's, not this row's**.
 | **113.6 for a `KeywordFlag`** | **not reached, and the gap is new** | Quadrant ① keywords are frame *characteristics*, not `AbilityDef`s (`plans/glossary.md`, “quadrant”), and `seed_frame` seeds them from the card in every zone — so this predicate never sees one. A Wonder in a graveyard still reports flying, which CR 113.6 says it should not. Found by writing Wonder and **recorded rather than fixed**: nothing reads a non-battlefield object's keyword flags for a rules decision, so there is no arm to apply. `codebase-state.md`'s A5 finding owns it |
 | **113.6b** states its zones | **ships — the new facility** | **Wonder**. Decision 5's field, the registration leg, the existence leg |
 | **113.6c** states where it doesn't | **ships, as a spelling of 113.6b** | `ZoneSet::ALL.without(z)`, and `EVERYWHERE_BUT_BATTLEFIELD` is already a constant LJ wrote for Grist and Mycosynth Lattice. **No second arm and no card claimed** — a fixture asserts the complement round-trips through the same field |
-| **113.6d** cost abilities on the stack | **ships as a move** | Already answered by `CostSubject::applies_from_battlefield`; it becomes this predicate's arm and the method delegates. Registered and pooled consumers: `phase_cm_cards`' two affinity cards. Its twin `applies_to_its_own_object` **stays** — it is a subject-identity question, not a zone question, and its doc comment already forbids collapsing the pair |
+| **113.6d** cost abilities on the stack | **ships as a move** | Was answered by `CostSubject::applies_from_battlefield`; it became `functioning_zones`' arm, which takes the ability through `as_cost_modification` and returns `ZoneSet::STACK` when `applies_to_its_own_object` holds, else CR 113.6's default. The method was deleted (0146cc75), not left delegating. Registered and pooled consumers: `phase_cm_cards`' two affinity cards. Its twin `applies_to_its_own_object` **stays** — it is a subject-identity question, not a zone question, and its doc comment already forbids collapsing the pair |
 | **113.6h** entry-modifying | **ships as an assertion** | Already true through RC-4's look-ahead frame and LJ's `in_zones_or_entering`: an entering object is admitted by a row iff the row reaches the battlefield. Registered consumer: Scarwood Treefolk, and ATOM-614.12-001 is the test that already passes |
 | 113.6e play/cast restrictions | **deferred — `backlog.md` §2.3** | Its first sentence needs "any zone from which it could be played", and that is `can_begin_to_cast`'s hard-coded `Zone::Hand`. Its second sentence is `codebase-state.md` item 75's gap and has nothing to grant *with*. Card: none until §2.3 |
 | 113.6f zone-of-play restrictions | **deferred — §2.3** | This *is* flashback, and §2.3 blocks all 210 |
@@ -2646,11 +2627,12 @@ deferrals are somebody else's row — and decision 1b, which took ~180 lines of
 mechanical sweep out of the estimate and replaced them with two `Condition`
 leaves.
 
-**Built 2026-09-14, and the table below is the plan. Three rows moved**, each
+**Built 2026-09-14, and the table below is the plan. Four rows moved**, each
 recorded where it happened: decision 2's field move grew a copy and two doors
 (the +16.5% measurement), `arrive_in_zone` appeared as a shared door
-`put_token_into` needed too, and `specdb.py`'s `ENTRY_RE` turned out to be
-eating five atoms.
+`put_token_into` needed too, `specdb.py`'s `ENTRY_RE` turned out to be
+eating five atoms, and `CostSubject::applies_from_battlefield` was deleted
+rather than left delegating (0146cc75).
 
 | | Site | Size |
 |---|---|---:|
@@ -2659,7 +2641,7 @@ eating five atoms.
 | `GameObject.timestamp` (CR 613.7d) — the field, `move_object`'s stamp, token and setup creation, `PermanentState.timestamp` deleted, ~16 reads rerouted | `objects/object.rs`, `engine/zones.rs`, `state/{game_state,battlefield}.rs`, `engine/layers/board.rs` | ~130 |
 | `register_static_effects(id, controller, zone)` + `arrive_in_zone`, the shared door `move_object` and `put_token_into` both needed | `state/game_state.rs`, `engine/zones.rs` | ~70 |
 | `cleanup_zone_state`'s narrow zone-general leg + `remove_static_by_source` | `engine/zones.rs`, `state/continuous_effects.rs` | ~50 |
-| `CostSubject::applies_from_battlefield` delegates to the predicate | `types/cost_modification.rs` | ~30 |
+| `CostSubject::applies_from_battlefield` delegates to the predicate (as built: deleted, and `register_static_effects`' CR 113.6 gate replaced its one caller) | `types/cost_modification.rs` | ~30 |
 | Wonder, `PERFORMANCE_POOL` entry, one 113.6c fixture | `cards/phase_lk_cards.rs`, `registry.rs` | ~110 |
 | Tests — the two atoms, the two-ability board, the Jailer interaction, the assertions for 113.6a/h, the `stated_zones` invariant, determinism | `tests/phase_lk_integration_test.rs`, unit | ~300 |
 | Docs — this section, item 9's stub, items 75 and 119 re-derived, §11 item 9 (a)/(b)/(c), A5 closed, fuzz-record | `plans/` | ~280 |
@@ -2746,9 +2728,9 @@ measurement: `plans/archive/layers-architecture-landed.md`, "LL" (evicted
 
 Per phase:
 
-- **Unit tests** in `compute.rs` and `dependency.rs` for algorithm correctness on synthetic effects (no real cards).
-- **Integration tests** in `tests/phaseL{A,B,C,D}_integration_test.rs` for real-card scenarios grounded in the atomic-test index.
-- **Regression suite** — every phase must pass all prior tests unchanged. Especially load-bearing: phase LA must pass all existing 433 tests; phase LB must not regress pump-spell or counter tests.
+- **Unit tests** in `compute.rs` for algorithm correctness on synthetic `CardDataBuilder` objects, and in `board.rs` for the CR 613.8 pass and `depends_on` on real-card boards (Blood Moon, Urborg, Opalescence, Ashaya); most other `engine/layers/` modules carry their own.
+- **Integration tests** in `tests/phase_l*_integration_test.rs`, one file per layers phase from LB on (there is no `phase_la`), and `tests/layer_aware_queries_test.rs`, for real-card scenarios grounded in the atomic-test index.
+- **Regression suite** — every phase must pass all prior tests unchanged. Especially load-bearing at the time: phase LA had to pass all existing 433 tests; phase LB must not regress pump-spell or counter tests.
 
 Not in scope here (too detailed): the exact test list. Driven by the atomic-test phase index at implementation time.
 
@@ -2811,13 +2793,13 @@ Samples from the reviewer's Scryfall query (~420 relevant cards after the given 
 
 Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No evaluator yet. Phase LC builds the evaluator and adds leaves for that phase's cards only.
 
-**Built 2026-09-06 by LI-3, not LC, and smaller than sketched.** The AST is the eight-variant `Condition` in `types/effects.rs` — written for CR 603.4, shared rather than duplicated (§13b decision 5) — and the evaluator is `engine/layers/condition.rs`, a static context only. One leaf was added, and mitigation 1 is what it looks like in practice: `HostMatches(ObjectFilter)` rather than the sketch's `ObjectHasType`/`ObjectHasSubtype`/`ObjectIsTapped` × `ObjectRef` grid, because reusing the filter the rest of the engine already has makes "is an Equipment", "is a creature" and every conjunction one variant instead of a family — and lets `board::condition_reads` ask `filter_reads` what a condition reads rather than enumerating it. **A new leaf is three edits, not two**: the variant, the `holds` arm, and the `condition_reads` arm. The third is the one to remember — a leaf that reads a frame and says so nowhere produces a wrong *order*, not a wrong value, and no test of the leaf alone would catch it. The Phase LC gate's count is 9 of ~25.
+**Built 2026-09-06 by LI-3, not LC, and smaller than sketched.** The AST is the eight-variant `Condition` in `types/effects.rs` — written for CR 603.4, shared rather than duplicated (§13b decision 5) — and the evaluator is `engine/layers/condition.rs`, a static context only. One leaf was added, and mitigation 1 is what it looks like in practice: `HostMatches(ObjectFilter)` rather than the sketch's `ObjectHasType`/`ObjectHasSubtype`/`ObjectIsTapped` × `ObjectRef` grid, because reusing the filter the rest of the engine already has makes "is an Equipment", "is a creature" and every conjunction one variant instead of a family — and lets `board::condition_reads` ask `filter_reads` what a condition reads rather than enumerating it. **A new leaf is an arm in every exhaustive match over `Condition`**, and the compiler lists them: the evaluators (`holds` in `engine/layers/condition.rs`, the resolution's `resolution_condition_holds`), the reads (`board::condition_reads`, the trigger binding's `condition_reads`, `Condition::reads_entry_state`) and `stated_zones` (§13d decision 1b). The reads arms are the ones to remember — a leaf that reads a frame and says so nowhere produces a wrong *order*, not a wrong value, and no test of the leaf alone would catch it. The Phase LC gate's count was 9 of ~25 at LI-3, and 16 on 2026-10-22, besides the combinators `All` and `Not`; it is a gate, so re-count it against the enum when a leaf lands.
 
 ### 15.2 Still open
 
-1. **`compute_characteristics` caching at call-site.** No caching for Phase LA. Revisit after profiling Phase LC when the dependency algorithm runs. Frame cache (§5.2) is required for correctness and is the only cache.
+1. **`compute_characteristics` caching at call-site.** **Closed 2026-09-03** (critical-path item 7a, §12). `compute_characteristics` is memoized across calls in `GameState::layer_memo` (`state/layer_memo.rs`): each frame is stamped with the layer epoch (`GameState::layer_epoch` plus the registry's mutation count) and served only at that epoch, and a debug build checks each hit against `compute_characteristics_uncached` (each frame once, under `audit_each_frame_once`). §5.2's per-pass non-member cache is not a cross-call cache; it bounds only the non-member CDA recursion, and since LI-1 the sequential pass is the termination argument.
 
-2. **Copy-effect snapshot shape (Layer 1b).** `CopiableValues` is referenced as a type in §3.5 but not defined. Needs a concrete struct: likely a trimmed `CardData` containing only copiable characteristics (name, mana cost, color indicator, card types, subtypes, supertypes, rules text, power, toughness, loyalty, defense — per CR 707.2). Resolve at Phase LD kickoff.
+2. **Copy-effect snapshot shape.** **Closed by CV-1 (2026-09-02):** `CopiableValues` is defined in `engine/layers/copy.rs`, and `copy-effects-architecture.md` §3.2 owns its shape. It is Layer 1a, not 1b (§7). The item as it stood: `CopiableValues` was referenced in §3.5 but not defined, and needed a concrete struct of the copiable characteristics per CR 707.2.
 
 3. **Dependency hypothetical-check snapshot performance.** Clone vs. CoW overlay for step-4 frame snapshots. Resolve in Phase LC.
 
@@ -2845,6 +2827,7 @@ Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No 
    Retrofit cost is low either way: the readers added in Phase LD Part B all go through
    `oracle::characteristics::get_effective_abilities`, which can keep returning
    `Vec<AbilityDef>` while a second accessor exposes metadata to whoever needs it.
+   (It returns `Arc<Vec<AbilityDef>>` since A4f, 2026-09-16.)
 
    **Resolved differently at Layer 6 (2026-08-23), and the frame was never touched.**
    CR 613.7a clause 2 is implemented, and it needed no per-ability metadata in
@@ -2878,7 +2861,9 @@ Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No 
    of those timestamps remains the same") needs no code. The first half falls out of reading
    the object's timestamp at compute time; the second half is the `EffectId` tiebreak in
    `effects_in_layer`, which is required because all of an object's static effects now share
-   one timestamp and `remove_by_source` uses `swap_remove`.
+   one timestamp and `remove_by_source` uses `swap_remove`. (Removal has since become an
+   order-preserving `DurationRegistry::retain` over rows kept sorted; the tiebreak stands for
+   the shared timestamps, which is CR 613.7a's "relative order".)
 
 ---
 
