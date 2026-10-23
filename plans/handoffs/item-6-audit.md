@@ -93,6 +93,18 @@ pass re-reads what it touches: a number here is a starting point.
   the inventory a page of its own, the engine map staying an entry point;
   forced prompts decided in `ui/ask.rs`; the checks built here, and the two
   trace pages split to PR 5.
+- Pass 5's fifth PR, the two trace pages, ran in session 5 as #279 on
+  `audit/item-6-trace-pages` (§9). Done:
+  `plans/traces/tr-4d-control-is-announced-by-a-sweep.html` and
+  `tr-5h-every-history-read-is-a-scan-of-one-log.html`, each from traced
+  runs at `50f0b8b8` with every fix it names taken out once in a scratchpad
+  copy of the crate; linked from `triggers-architecture.md` §12's two
+  headings, `codebase-state.md`'s "Found after TR-4d" and "Found by TR-5h"
+  entries and `engineering-practices.md` §7's table, and §18's "owed" bullet
+  gone. TR-5h's damage-fact and gate boards are its own fixtures, since no
+  registered card reads a damage fact or the log from a layer, and its page
+  shows a record's place in its turn reading #265's tally. **Pass 5 is
+  done; the card-homed triage is next.**
 
 ## 1. Why this audit is bigger than the last
 
@@ -1349,32 +1361,6 @@ a dated record. Two were `CLAUDE.md` lines.
 
 The journal keeps every text.
 
-#### PR 5 — the two trace pages (next)
-
-Split from PR 4 (#278) at its design review, as the re-cut allows: PR 4
-built item 185 and the shortcuts' audits (§0). Branch from `main` once
-#278 merges. Each page walks the phase's findings, not its feature list
-(`engineering-practices.md` §7), from traced runs at the PR's commit;
-each is pinned in its `<head>`, linked from its `triggers-architecture.md`
-§12 heading and its `codebase-state.md` entry, and added to §7's table.
-Two to three hours each.
-- `tr-4d-control-is-announced-by-a-sweep.html`: a steal that ends at
-  cleanup, where the sweep's gate must still run once the last row is gone
-  (`control_effects_at_last_sweep`); the first control row, which keeps the
-  frames before it writes (`keep_frames_before_the_first_control_row`); and
-  Ray of Command's three rows with no batch between, where a change not yet
-  announced keeps no newer frame. The table: which frame each look-back
-  reads.
-- `tr-5h-every-history-read-is-a-scan-of-one-log.html`: a span condition
-  ("this turn") answered as a count over rows; `ObjectFilter::ThisTurn`'s
-  damage facts read off each row's frame; and the memo's gate keyed by row
-  kind, turn and combat, noted inside the lookup, beside the write that moves
-  it. The table: what each read scanned, and what it used to read.
-
-**Done when**: both pages written and linked; the full gate and every
-`CLAUDE.md` check pass; §9's pass 5 row names the PR, and §0 gains its
-bullet. Pass 5 is then done, and the card-homed triage is next.
-
 ### Pass 5c — names for the phases ahead
 
 **Added by the owner at #274's merge (2026-10-22), and scoped the same day:**
@@ -1486,6 +1472,6 @@ changed.
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | #274 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup is next |
 | The card-homed triage (1, then its builds in the cleanup) | | added at #272's review |
 | 4. Readiness (2) | | |
-| 5. Docs audit, A6h (5) | #275, #276, #277, #278 | re-cut at #274's merge; item 188 to A6s. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages, next |
+| 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to A6s. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md` §7. Done |
 | 5c. Names for the phases ahead (1) | | added at #274's merge |
 | 6. Scheduling (1) | | |
