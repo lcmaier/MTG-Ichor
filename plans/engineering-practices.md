@@ -282,7 +282,7 @@ comment rule having been applied at each PR's review. So the sweep was a
 328-line source diff over 41 files, and its yield was not length but the
 comments the code had outgrown, each corrected rather than shortened:
 - combat validation's constraints describing the old roadmap's Phase 3/4/5
-  plan, where every caller passes `none()` and RS-3 owns the effects;
+  plan, where every caller passes `none()` and `combat-restrictions` and `combat-requirements` own the effects;
 - `cast_spell`'s "placeholder (601.2d — T18c)" and mana-window placeholder,
   and `AlternativeCost`'s "T18 will wire these into the casting pipeline";
 - CR 707.9d's drop "arrives with … CV-2", and the state check "is TR-6's,
@@ -294,7 +294,7 @@ comments the code had outgrown, each corrected rather than shortened:
   a rename's sed inside a comment;
 - the random agent's "two pieces of state" and "two" non-uniform answers that
   "both exist", three each;
-- two tests crediting "the rule RS-2 fixed", which has not landed;
+- two tests crediting a rule to `cant-cast-play-or-activate`, which has not landed;
 - the dispatch gate's "the zone map is keyed by ability";
 - three of seven type sizes, re-read with a throwaway probe.
 
@@ -1127,7 +1127,7 @@ dishonestly.
 
 **The end state (the owner, 2026-09-28): every official card has a test for
 each of its rulings, and passes it.** The retroactive half is its own
-pre-Phase-8 row, pooled cards first (`roadmap-v2.md` §C, C1). A
+pre-Phase-8 row, pooled cards first (`roadmap-v2.md` §C, `rulings-for-every-card`). A
 `not-expressible` disposition is interim under that rule: it names the
 facility whose landing makes the test writable.
 
@@ -1139,7 +1139,7 @@ and a **pool-first work queue** for the 87.
 **And the reason to build it before the parser, not after.** The other half of
 the owner's plan is a static parser, so that a new set gives most of its cards
 for free and only the complex or genuinely new effects are hand-authored
-(`cost-architecture.md` §6's CP-1 row already leaves that parser a note about
+(`cost-architecture.md` §6's `hybrid-and-phyrexian-payment` row already leaves that parser a note about
 printed symbol order; Phase 8 is where it lands). A parser without this ledger
 is a liability rather than a shortcut: it turns card authoring from a
 deliberate act, where somebody read the card, into a bulk import where nobody
@@ -1506,22 +1506,39 @@ the answer turns out to be "checked, and it holds".
 
 The owner, at #225's review (2026-10-06): codes had become what a reader had
 to decode, a roadmap row's ID, a family's letters and a split's suffix at once.
+Names came first after that, and the docs kept citing the codes, because a
+six-word name does not fit where a reference goes; at #274's merge
+(2026-10-22) the owner asked for the route ahead in names that say what each
+step delivers, and the item 6 audit's pass 5c (#282) retired its codes.
 
 - **A phase has a plain name of a few words**, which comes first wherever it
-  is named: in chat, in its PR's title and in its ✅ heading. A code, where its
-  doc's sequence has one, follows the name (`The why panel's last part: what
-  happened, from the trace (SU-8)`).
-- **No new code families, and no letter suffixes.** A split takes the next code
-  in its doc's sequence, or none; a phase outside every family is named and
-  not coded (`The editor's advanced settings, first part`).
-- **A roadmap row's ID orders work and never names it.** `A6g` says where the
-  dev GUI sat on the route; a PR is named for what it delivers.
+  is named: in chat, in its PR's title and in its ✅ heading. A landed phase's
+  code follows the name (`The why panel's last part: what happened, from the
+  trace (SU-8)`).
+- **A phase or route row still to come is cited by its name, hyphenated in
+  backticks**: `combat-restrictions`, `game-formats`. Two to four
+  lowercase words saying what it delivers, in the CR's words where the CR has
+  them (CR 508.1c's restrictions) or a mechanic's keywords
+  (`convoke-delve-improvise`); "plus" joins parts that are different work, and
+  such a name may run longer (`chosen-color-plus-could-produce`). The form goes
+  wherever a code went — a table cell, a `**Slotted:**` line, a source
+  comment — since the board reads it and `git grep` finds it. A heading the
+  board reads puts it first (`` | **`token-copies` — token copies** | ``,
+  `` ### `token-copies` — … — ✅ 2026-… ``); a branch is `<subsystem>/<name>`.
+- **No new codes.** The families' letters stay on landed phases, which commit
+  messages, PR titles and the archive read in. A track is cited by its
+  subsystem in prose ("the mana phases"), never by its letters. A split names
+  each part for what it delivers (`cant-be-targeted` and
+  `cant-cast-play-or-activate`), never a part 1, a part 2 or a suffix.
+- **A roadmap row's ID orders landed work and never names it.** `A6g` says
+  where the dev GUI sat on the route; a row still to come has its name in its
+  first cell. The codes pass 5c retired are `plans/archive/route-codes-renamed.md`.
 - **The index is generated.** The state-of-play board's "Phases by name" lists
-  every phase the architecture docs name, by name, its code beside it: the
-  landed ones from their ✅ headings, a plain-named one included, and the
-  numbered ones still to build from the docs' headings and sizing tables
-  (`check_state_of_play.py`'s `phase_index`). A phase lands with a ✅ heading,
-  coded or not, or the board cannot see it.
+  every phase the architecture docs name, by its plain name, with what text
+  cites it by: the landed ones from their ✅ headings, a plain-named one
+  included, and the ones still to build from the docs' headings and sizing
+  tables (`check_state_of_play.py`'s `phase_index`). A phase lands with a ✅
+  heading, or the board cannot see it.
 
 ## 5. The spec database as a gate
 
@@ -1687,7 +1704,7 @@ how the dispatcher's candidate lists work, and the count reads multipliers
 through them), critical-path item 6 ✓ (decided phase by phase at its close
 audit, 2026-10-22: TR-1's page and TR-5g's, and TR-4d's control sweep and
 TR-5h's history log, owed then and written in the audit's pass 5, 2026-10-23;
-each heading in `triggers-architecture.md` §12 says why), **RS-2**. Budget
+each heading in `triggers-architecture.md` §12 says why), **`cant-be-targeted`** and **`cant-cast-play-or-activate`**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 
@@ -1781,7 +1798,7 @@ schedulable rather than done:
   subsystem owns each step, and each seam where one reads another's output,
   linked to its architecture doc section and trace page, so a reader moving
   between triggers, copies and replacement has one place to start. **Landed
-  2026-09-29 (row A4d) as `plans/engine-map.md`**: markdown rather than a page
+  2026-09-29 (row `rust-notes`) as `plans/engine-map.md`**: markdown rather than a page
   beside the traces, because it is refreshed where a trace page is pinned, and
   its walk is Spark Double copying Soul Warden beside Master Biomancer, read off
   the trace sink. `plans/check_engine_map.py` keeps it true. The arm check is
@@ -2027,7 +2044,7 @@ the brief says so about itself.
   to a requirement and item 69 closed.
 - **Scheduling (PR #154):** `roadmap-v2.md` §3a's A table (the `A4x` rows) and §3b, this section, and the audited heading
   above; the two after-the-passes artifacts — the codebase map (§7.1's tier 3)
-  and the Rust notes — homed at `roadmap-v2.md` row A4d.
+  and the Rust notes — homed at `roadmap-v2.md` row `rust-notes`.
 
 **What the next run adds, at critical-path item 6's close.** The ratchet's
 second reading against item 138's first, read through the counters rather
@@ -2035,7 +2052,7 @@ than a probe; `plans/panic_surface.py` re-run; the trace-page decision
 recorded on the phase heading (§7); `check_glossary.py --suggest` triaged,
 which is the glossary's own obligation at a phase close; `roadmap-v2.md` §3b's
 table re-derived, since every count in it carries the date it was read; and
-A4d's two artifacts, if still open, because the trigger phase is the largest
+`rust-notes`'s two artifacts, if still open, because the trigger phase is the largest
 new subsystem the map would have to absorb.
 
 **And pass 3 at the midpoint of a long item** (the owner, 2026-10-08, at
@@ -2512,7 +2529,7 @@ four.
 the fields that change game state to be private to the module that performs
 actions. That is about 85 fields and 2,700 read and write sites, several
 bands, and the integration tests read the fields from outside the crate. The
-write check stands in for it. Whether to make them private is A6s's question.
+write check stands in for it. Whether to make them private is `route-review`'s question.
 
 ### 11.4 Randomness: `clippy.toml`
 
