@@ -1338,14 +1338,25 @@ The journal keeps every text.
 
 Branch `audit/item-6-elisions`, opened as a draft at the design stop
 (`review-the-design-doc-before-building`); the build goes on the same branch.
-The inventory is written where the design proposes it, `engine-map.md` §2.8,
-so the review reads the real thing; the record below is not built yet.
+The inventory is written where the review placed it, `plans/elisions.md`; the
+record below is not built yet.
+
+**Decided at the first review round (the owner, 2026-10-22).** Decision 1,
+the record is a note on the event recorder, option (b). Decision 2, a record
+for every forced prompt and elision but the forced priority pass. Decision 4,
+every forced prompt decided in `ui/ask.rs` through the validators' own
+predicates. Decision 3 went the other way: the engine map stays an entry
+point, so the inventory left its §2.8 for a page of its own, `plans/elisions.md`,
+which the map's §2.3 and §2.6 point to and `check_engine_map.py` now reads with
+the same rules (a cited function that disappears fails it). Decision 5 is
+restated below with its context; the owner asked how an elision's premise is
+shown complete, since a wrong one is a silent bug.
 
 **What the inventory found.**
 - **Three classes, not one.** `glossary.md` already defines an **elision**
   narrowly (two or more legal answers, one game) and says a forced prompt is
-  not one; item 185 used the word for both and for skipped work. §2.8 keeps
-  the glossary's words: forced prompts, elisions, skipped work.
+  not one; item 185 used the word for both and for skipped work. The page
+  keeps the glossary's words: forced prompts, elisions, skipped work.
 - **Forced prompts rest on no CR rule.** The tree cites CR 102.2 for them in
   comments across `src` and `tests`; 102.2 is the two-player opponent rule.
   A4k's census found it on 2026-09-18 and left "one comment fix, next time a
@@ -1363,8 +1374,22 @@ so the review reads the real thing; the record below is not built yet.
 - **Skipped work: the dispatcher's gate and the memo have instruments; the
   replacement, restriction and cost gates, the controller fast path with the
   control sweep, and A4q's fold have only their argument.**
-- **Not rows**: a choice the rule makes only among two or more, an empty
-  list (CR 101.3), and a cheaper route that reads everything it depends on.
+- **Not rows**: a choice the rule makes only among two or more, and an empty
+  list (CR 101.3). The first draft listed the legend rule and a single
+  blocker here; the review asked how either could elide, and neither can,
+  so the page names only the cases that sit beside an elision in the code.
+- **CR 603.3b's elision is stricter than the rule needs (the owner's Bristly
+  Bill, Spine Sower question at review).** Its "no target, no mode"
+  conditions say the order decides who chooses against what (CR 603.3c,
+  603.3d). For entries of one def that agree on every fact it reads, it does
+  not: targets and modes are still chosen one entry at a time as each goes on
+  the stack, and since the entries are interchangeable, any order with any
+  sequence of choices gives the same stack as the first order with the same
+  sequence. Several lands entering under Bristly Bill ask an order today, then
+  a target for each, and the order prompt adds no outcome. Dropping the two
+  conditions drops a prompt, so it is a fixture migration and a `differ` A/B
+  (`changing-what-the-engine-asks`), its own PR; the build files it as an
+  item. Tier 2 was not re-read.
 
 **The record (decision 1 picks its stream; this is option (b)'s shape).** One
 record per forced prompt or elision the engine answers itself: who would have
@@ -1433,14 +1458,41 @@ lone damage source, a lone opponent, an entry copy's lone donor, a count of
 zero, a forced combat split or a forced next-damage split; their tests build
 the board.
 
-**Sizing.** About 700 lines written for option (b) with decision 4's (b):
-the recorder's notes ~60, the types and the writer ~90, the log's drawing
-~50, the sites ~80 net, the citation corrections about even, tests ~400.
-Sizings run 1.5–2× on code (`track-the-band-during-the-build`), so 1,000–1,400
-against the 1,500–2,500 band. Decision 5's (a) adds ~250–350. The two trace
-pages are hand-written HTML of the template's size (203–551 lines), which
-the band does not count, at two to three hours each. **One PR fits**; the
-split the re-cut allows is offered as decision 6.
+**Decision 5, restated: the premises nothing checks.** Six rows of the page
+hold only by argument and tests: the replacement, restriction and cost gates;
+the controller shortcut with TR-4d's control sweep; A4q's fold; and the two
+trigger elisions' runtime premise, that a resolving ability reads only the
+facts `trigger_binding_reads` lists. If one is wrong, a card silently does
+nothing, or two orders the engine called one game are not. The instrument
+that has worked is TR-1b's: the same code with the shortcut off, compared.
+- **The gates, the control sweep and the fold**: under the switch
+  `fuzz_games --audit` already sets (`enable_dispatch_audit`), do the skipped
+  work as well and panic with the seed when the answers differ. The gather,
+  `prohibition` and `cost_modifications_for` with the gate forced open; every
+  permanent's controller walked after each sweep and compared with the one
+  announced; the folded clause answered anyway. Each audit gets a test that
+  breaks a leg and sees the panic. ~250–350 lines with tests.
+- **The trigger elisions**: in debug builds, note each fact a resolving
+  triggered ability reads off its entry, at the binding's readers
+  (`bound_objects`, `bound_player`, `bound_amount`, `bound_characteristics`,
+  `triggering_object`, the event view's object reads), and assert at the
+  resolution's end that the def's list holds every one. Every test and debug
+  game then checks the premise. "This object" is read in many places and is
+  the part to scope at the build. ~150–200 lines with tests.
+- (a) Build them here, so item 185 closes with every row checked, and move
+  the trace pages to a PR of their own. (b) File one sized item, slotted at
+  A6e's cleanup, and narrow item 185 to it.
+
+**Sizing.** The record, with decisions 1(b), 2(a) and 4(b): about 700 lines
+written. The recorder's notes ~60, the types and the writer ~90, the log's
+drawing ~50, the sites ~80 net, the citation corrections about even, tests
+~400. Sizings run 1.5–2× on code (`track-the-band-during-the-build`), so
+1,000–1,400 against the 1,500–2,500 band. Decision 5's (a) adds ~400–550
+written, ~600–1,000 calibrated, which puts the PR at 1,600–2,400: inside the
+band, near its top. The two trace pages are hand-written HTML of the
+template's size (203–551 lines), which the band does not count, at two to
+three hours each. **With 5(a) the pages are their own PR, as the re-cut
+allows; with 5(b) one PR holds everything.**
 
 **The trace pages, planned.** Each walks the phase's findings, not its
 feature list (`engineering-practices.md` §7), from traced runs at the build's
