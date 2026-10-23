@@ -1655,4 +1655,186 @@ mod tests {
             format!("Those blocks are illegal: Grizzly Bears ({blocker}) can block only one attacker (CR 509.1a)")
         );
     }
+
+    /// One record of every `GameEvent` variant, each object it carries a
+    /// fresh permanent of `game`'s, and each player a seat.
+    fn every_record(game: &mut GameState) -> Vec<GameEvent> {
+        use crate::engine::replacement::ReplacementInstanceId;
+        use crate::engine::targeting::TargetRef;
+        use crate::events::event::{CombatExit, CounterSubject, EventId, UnattachRoute};
+        use crate::state::game_state::{AbilityIdentity, StepType};
+        use crate::types::effects::CounterType;
+        use crate::types::ids::{AbilityId, UntilReturnId};
+        use crate::types::triggers::{DelayedDuration, TriggerOrigin, TriggerSeq};
+        use crate::types::zones::ZoneChangeAct;
+
+        let mut object = || crate::test_support::put_on_battlefield(game, crate::test_support::vanilla_creature(1, 1, &[]), 0);
+        let ids: Vec<ObjectId> = std::iter::repeat_with(&mut object).take(48).collect();
+        let mut fresh = ids.into_iter();
+        let mut id = || fresh.next().expect("enough objects");
+        let reference = |game: &GameState, id: ObjectId| game.object_ref(id).expect("on the battlefield");
+        let identity = |game: &GameState, source: ObjectId| AbilityIdentity { source: reference(game, source), ability: AbilityId::printed("x", 0) };
+        let lki = |game: &GameState, id: ObjectId| game.lki_now(id).expect("a frame");
+        let (a, b, c, d) = (id(), id(), id(), id());
+        let (counted, countered, controlled, kept) = (id(), id(), id(), id());
+        let (attached, host, former, unattached, unhosted) = (id(), id(), id(), id(), id());
+        let (attacker, walker, blocker, blocked, unblocked, exit, exit_blocked) = (id(), id(), id(), id(), id(), id(), id());
+        vec![
+            GameEvent::ZoneChange {
+                object_id: id(),
+                owner: 0,
+                from: Zone::Battlefield,
+                to: Zone::Graveyard,
+                act: ZoneChangeAct::Destroyed,
+                lki: None,
+                applied: None,
+                new_epoch: 1,
+            },
+            GameEvent::Tapped { object_id: id() },
+            GameEvent::Untapped { object_id: id() },
+            GameEvent::CardDrawn { player_id: 0, card_id: id() },
+            GameEvent::ManaAdded { player_id: 0, source_id: id(), mana: Vec::new(), tapped_for_mana: true, source_lki: None },
+            GameEvent::DamageDealt { source_id: a, target: DamageTarget::Object(b), amount: 1, excess: 0, is_combat: false, source_lki: None },
+            GameEvent::DamagePrevented { target: DamageTarget::Object(c), amount: 1, by: ReplacementInstanceId::StaticAbility(reference(game, d), AbilityId::printed("x", 0)) },
+            GameEvent::PhaseBegin { phase: PhaseType::Precombat, player: 0 },
+            GameEvent::StepBegin { step: StepType::Upkeep, player: 0 },
+            GameEvent::TurnBegin { player: 0, turn_number: 1 },
+            GameEvent::PermanentEnteredBattlefield { object_id: id(), controller: 0 },
+            GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: Some(id()) },
+            GameEvent::AttackersDeclared { attackers: vec![(attacker, AttackTarget::Planeswalker(walker))] },
+            GameEvent::BlockersDeclared { blocks: vec![(blocker, blocked)], unblocked: vec![unblocked] },
+            GameEvent::RemovedFromCombat {
+                removed: vec![CombatExit { object: reference(game, exit), attacking: None, blocking: vec![exit_blocked] }],
+            },
+            GameEvent::SpellCast { spell_id: id(), caster: 0 },
+            GameEvent::AbilityResolved { identity: identity(game, id()), controller: 0 },
+            GameEvent::AbilityActivated { identity: identity(game, id()), controller: 0, mana_ability: false, from: Zone::Battlefield, source_lki: None },
+            GameEvent::Targeted { target: TargetRef::Object(reference(game, id())), by: id(), ability_source: Some(id()), controller: 0, instances: 1 },
+            GameEvent::AbilityTriggered { seq: TriggerSeq(0), origin: TriggerOrigin::Object(identity(game, id())), controller: 0, caused_by: Some(EventId(0)) },
+            GameEvent::DelayedTriggerCreated {
+                id: crate::types::ids::DelayedTriggerId(1),
+                source: id(),
+                controller: 0,
+                rules_text: "".into(),
+                duration: DelayedDuration::Once,
+            },
+            GameEvent::UntilReturnMade { id: UntilReturnId(1), source: id(), controller: 0, returns: vec![id()] },
+            GameEvent::SpellCountered { spell_id: counted, controller: 0, countered_by: id(), lki: lki(game, counted) },
+            GameEvent::AbilityCountered { identity: identity(game, id()), controller: 0, countered_by: countered },
+            GameEvent::SpellFizzled { spell_id: id(), controller: 0 },
+            GameEvent::AbilityFizzled { identity: identity(game, id()), controller: 0 },
+            GameEvent::PlayerLost { player_id: 1 },
+            GameEvent::PlayerWon { player_id: 0 },
+            GameEvent::GameEndedInADraw,
+            GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 },
+            GameEvent::LibraryShuffled { player_id: 0 },
+            GameEvent::CountersPutOn { subject: CounterSubject::Object(id()), counter_type: CounterType::PlusOnePlusOne, n: 1, by: 0, now: 1 },
+            GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(id()), counter_type: CounterType::PlusOnePlusOne, n: 1, by: None, now: 0 },
+            GameEvent::Attached { attachment: attached, host, former_host: Some(former) },
+            GameEvent::Unattached {
+                attachment: reference(game, unattached),
+                former_host: reference(game, unhosted),
+                route: UnattachRoute::HostLeft,
+                lki: None,
+            },
+            GameEvent::ControlChanged { object_id: controlled, from: 0, to: 1, lki: lki(game, controlled) },
+            GameEvent::LeftTheGame { object_id: id(), owner: 1, from: Zone::Battlefield, lki: None },
+            GameEvent::SameZoneMove { object_id: kept, owner: 0, zone: Zone::Battlefield, act: ZoneChangeAct::Destroyed, applied: None, lki: lki(game, kept) },
+            GameEvent::TokenCreated { object_id: id(), owner: 0, zone: Zone::Battlefield, definition: Arc::new(crate::cards::phase_re_cards::goblin_token()) },
+            GameEvent::TokenCeasedToExist { object_id: id() },
+            GameEvent::StateBasedActionPerformed,
+        ]
+    }
+
+    /// Which variant `event` is, by its place in `every_record`. No wildcard,
+    /// so a new variant fails to compile here until it has a place, and then
+    /// fails the coverage check until `every_record` builds one.
+    fn variant(event: &GameEvent) -> usize {
+        match event {
+            GameEvent::ZoneChange { .. } => 0,
+            GameEvent::Tapped { .. } => 1,
+            GameEvent::Untapped { .. } => 2,
+            GameEvent::CardDrawn { .. } => 3,
+            GameEvent::ManaAdded { .. } => 4,
+            GameEvent::DamageDealt { .. } => 5,
+            GameEvent::DamagePrevented { .. } => 6,
+            GameEvent::PhaseBegin { .. } => 7,
+            GameEvent::StepBegin { .. } => 8,
+            GameEvent::TurnBegin { .. } => 9,
+            GameEvent::PermanentEnteredBattlefield { .. } => 10,
+            GameEvent::LifeChanged { .. } => 11,
+            GameEvent::AttackersDeclared { .. } => 12,
+            GameEvent::BlockersDeclared { .. } => 13,
+            GameEvent::RemovedFromCombat { .. } => 14,
+            GameEvent::SpellCast { .. } => 15,
+            GameEvent::AbilityResolved { .. } => 16,
+            GameEvent::AbilityActivated { .. } => 17,
+            GameEvent::Targeted { .. } => 18,
+            GameEvent::AbilityTriggered { .. } => 19,
+            GameEvent::DelayedTriggerCreated { .. } => 20,
+            GameEvent::UntilReturnMade { .. } => 21,
+            GameEvent::SpellCountered { .. } => 22,
+            GameEvent::AbilityCountered { .. } => 23,
+            GameEvent::SpellFizzled { .. } => 24,
+            GameEvent::AbilityFizzled { .. } => 25,
+            GameEvent::PlayerLost { .. } => 26,
+            GameEvent::PlayerWon { .. } => 27,
+            GameEvent::GameEndedInADraw => 28,
+            GameEvent::Scried { .. } => 29,
+            GameEvent::LibraryShuffled { .. } => 30,
+            GameEvent::CountersPutOn { .. } => 31,
+            GameEvent::CountersRemovedFrom { .. } => 32,
+            GameEvent::Attached { .. } => 33,
+            GameEvent::Unattached { .. } => 34,
+            GameEvent::ControlChanged { .. } => 35,
+            GameEvent::LeftTheGame { .. } => 36,
+            GameEvent::SameZoneMove { .. } => 37,
+            GameEvent::TokenCreated { .. } => 38,
+            GameEvent::TokenCeasedToExist { .. } => 39,
+            GameEvent::StateBasedActionPerformed => 40,
+        }
+    }
+
+    /// The two lists of the objects a record names agree: each object
+    /// `for_each_object_named` gives a kept name is printed under it by
+    /// `format_event`, and every object a line prints is one the record
+    /// keeps a name or a frame for, but a zone change's own, which is named
+    /// as it was in the zone it left. Each object is given a sentinel name.
+    #[test]
+    fn every_object_a_line_prints_is_one_its_record_keeps_a_name_for() {
+        let mut game = GameState::new(2, 20);
+        let records = every_record(&mut game);
+        let mut covered: Vec<usize> = records.iter().map(variant).collect();
+        covered.sort_unstable();
+        covered.dedup();
+        assert_eq!(covered, (0..=40).collect::<Vec<_>>(), "every variant has a record");
+
+        let sentinel = |id: ObjectId| format!("Sentinel{}", id.raw());
+        for event in &records {
+            let mut named: Vec<ObjectId> = Vec::new();
+            event.for_each_object_named(|id| named.push(id));
+            let names: NamesAsAnnounced = Some(Arc::new(named.iter().map(|&id| (id, sentinel(id))).collect()));
+            let line = format_event(&game, event, &names, &EventCause::Harness);
+            for &id in &named {
+                let expected = match event.frame_of(id) {
+                    Some(lki) => lki.chars().name.clone(),
+                    None => sentinel(id),
+                };
+                assert!(line.contains(&format!("{expected} (")), "{line:?} does not print {id} as {expected}");
+            }
+            let moved = match event {
+                GameEvent::ZoneChange { object_id, .. } | GameEvent::LeftTheGame { object_id, .. } => Some(*object_id),
+                _ => None,
+            };
+            // Every "#12)", the shape a line names an object in.
+            let printed = line.split('#').skip(1).filter_map(|tail| {
+                let digits: String = tail.chars().take_while(char::is_ascii_digit).collect();
+                tail[digits.len()..].starts_with(')').then(|| digits.parse::<u64>().ok()).flatten()
+            });
+            for printed in printed {
+                let id = ObjectId::from_trace(printed);
+                assert!(named.contains(&id) || moved == Some(id), "{line:?} prints {id}, which its record keeps no name for");
+            }
+        }
+    }
 }
