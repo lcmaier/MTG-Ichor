@@ -485,7 +485,7 @@ fn the_owner_leaving_takes_the_stolen_creature_with_them() {
 /// The residual clause 1 leaves: an object on the stack that is not a card and
 /// that the departing player controls without owning.
 ///
-/// Its printed customer is a copy of a spell (CR 707.10), which CV-4 will
+/// Its printed customer is a copy of a spell (CR 707.10), which `spell-copies` will
 /// produce — `copy-effects-architecture.md` calls it "`is_copy`'s first
 /// writer"; today no production path separates an ability's owner from its
 /// controller, so clause 1 takes every one. What this pins is that the clause

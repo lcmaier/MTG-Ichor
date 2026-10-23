@@ -47,14 +47,14 @@ The split puts the owner's profile into concrete terms: item 42 ranks nowhere fo
 3. **Search that does not cheat.** Today a search over a clone sees opponents' hands and the next draw. The fix is `backlog.md` §2.34's determinization. Search also needs item 140's mid-round fork entry and a way to search over targets and modes, which the priority-boundary fork model either folds into the action or leaves to a harness policy.
 4. **Card breadth.** At 175 cards, whether real decks run will decide adoption more than microseconds will.
 
-**Where the information model goes.** Today §2.9 is row B4. It can sit anywhere in A or B, with a hard back-stop before Phase 8's face-down and reveal cards and before any Phase 10 work. RE-8's close (2026-09-14) declined to pull it forward, and the trigger survey (2026-09-18) read no reason to. This survey adds three things:
+**Where the information model goes.** Today §2.9 is row `information-model`. It can sit anywhere in A or B, with a hard back-stop before Phase 8's face-down and reveal cards and before any Phase 10 work. RE-8's close (2026-09-14) declined to pull it forward, and the trigger survey (2026-09-18) read no reason to. This survey adds three things:
 - **k is floor 1's largest unmeasured factor.** k needs no information model to bound. A throwaway probe that builds a naive Commander observation (the effective characteristics of every public object, one hand, hidden-zone counts) over today's omniscient state, using `Zone::is_public()`, and times it per decision would measure it. The visibility mask adds little on top.
 - **§2.34 found §2.9, as planned, insufficient for honest search.** A query says who may see an object. A search also needs a per-viewer knowledge record, written by reveal, look and scry, and a redeal from it.
 - **That knowledge record is forked state.** It must fork with the game, so it lives on `GameState`, and floor 3 constrains its shape: per-viewer bits per object, bounded by the board, never a per-viewer event history. With the log piped out it cannot be derived from events later, so it has to be materialized at the chokepoint, as the history is.
 
 **So the design moves up and the build does not.**
 - Measure k with the probe now. If k ≪ 1, nothing else about the ordering changes.
-- Merge §2.9 and §2.34 into one design (query, knowledge record, redeal). Give it a slot right after item 6's audit, ahead of Phase 8, in place of "anywhere before the back-stop". That follows the pattern mana provenance (B9) already set: a design pass the owner reviews first, then the build.
+- Merge §2.9 and §2.34 into one design (query, knowledge record, redeal). Give it a slot right after item 6's audit, ahead of Phase 8, in place of "anywhere before the back-stop". That follows the pattern mana provenance (`mana-provenance`) already set: a design pass the owner reviews first, then the build.
 - The build keeps its back-stop. Its cost grows with every reveal, look and scry path written before it, which is the retrofit the back-stop exists to cap.
 
 **What not to do:**

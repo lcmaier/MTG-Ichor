@@ -166,7 +166,7 @@ the enforcement.
 | `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over the destruction's cause, CR 701.8b's two ways | closed by CR 701.8b |
 | `Rewrite` | `types/replacement.rs` | What the effect does to the event: `Prevent`, `Instead(GameActionTemplate)`, `Amount`, `Retarget` (CR 614.9), `EnterWith`, `EnterAfterMoving` (CR 614.13), `EnterUnderControlOf` (CR 616.1b), `EnterAsCopy` (CR 616.1c). RB shipped the first two | **closed** — a new arm needs the CR rule that permits it (§3.2b) |
 | `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event: `ZoneChangeTo`, `RemoveCountersFromAffected`, `DrawCards`, `GainLife`, `LoseLife`, `CreateTokens`, `PlayerWins`, `ProduceMana`. RB shipped the first two, `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters); RE added the rest. **`ZoneChangeTo` names only a destination** and keeps the event's `act` (and the proposal's cause), since a redirected act is still that act (CR 614.6, 701.9c, 701.17c, 608.2c's example): `act` is the act, `to` where it went. It carried its own act, then named its cause, until 2026-09-24 (`codebase-state.md` item 176) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
-| `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order. Derived, not authored: `ReplacementClass::from_rewrite`, called by `ReplacementDef::new`, files `EnterAsCopy` as `CopyAsEnters` (Clone, Spark Double), `EnterUnderControlOf` as `ControlChanging` (a test fixture's Defector only) and every other rewrite as `Other`; `SelfReplacement` (§11 item 3) and `BackFaceUp` (CV-5) have no producer | **closed** — all five ship |
+| `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order. Derived, not authored: `ReplacementClass::from_rewrite`, called by `ReplacementDef::new`, files `EnterAsCopy` as `CopyAsEnters` (Clone, Spark Double), `EnterUnderControlOf` as `ControlChanging` (a test fixture's Defector only) and every other rewrite as `Other`; `SelfReplacement` (§11 item 3) and `BackFaceUp` (`double-faced-cards`) have no producer | **closed** — all five ship |
 | `Uses` | `types/replacement.rs` | `Static`, `Once` or `NextDamage(u64)`, CR 615.7's shield (RD-2; named `Shield(u64)` in the design, §3.3 item 4). `CounterBacked` did not survive contact with the CR (§3.2) | **closed** |
 | `ReplacementInstanceId` | `engine/replacement/instance.rs` | CR 614.5's identity key: `Registered` / `StaticAbility` / `Counter` / `GameRule` | **grows**, one arm per §3.3 gather source |
 | `GameRuleReplacement` | `engine/replacement/instance.rs` | A replacement belonging to no object's text. CR 903.9b is the only member | grows with the rules that behave as effects |
@@ -531,7 +531,7 @@ sacrifice: "If a spell or ability an opponent controls states that something
 happens unless you sacrifice a permanent (as Mogis, God of Slaughter does), you
 can't choose to sacrifice a permanent." So its cause is the `Effect`, not
 `Cost`. Whether "an effect causes" (Library of Leng) includes it
-has no ruling; it goes with CR 118.12a's "unless", which `roadmap-v2.md` A6s
+has no ruling; it goes with CR 118.12a's "unless", which `roadmap-v2.md` `route-review`
 gives an owner.
 
 **Three copies of the fact fold into it.**
@@ -1013,7 +1013,7 @@ spell or ability did (§2b.4, `codebase-state.md` item 261, built in A6r).
 Open:
 - **A payment inside a resolution** (CR 118.12): its cause is the `Effect`, by
   Sigarda's ruling. Whether "an effect causes" (Library of Leng) includes it
-  has no ruling, and it goes with "unless", which A6s gives an owner.
+  has no ruling, and it goes with "unless", which `route-review` gives an owner.
 - **A rider's records and "one or more"**: decision 5 makes an event and its
   rider two events. CR 615.5 says "immediately afterward" of a prevention
   effect's rider, and §4.1a reads every `then` that way. If a judge reads a
@@ -1618,7 +1618,7 @@ the permanent there says are applied after it, and the look-ahead predicts
 neither: `perform_entry` makes it attacking (`attacking`, CR 508.4), and the
 `EnterBattlefield` arm attaches it (`attached_to`, CR 303.4f). A new
 replacement-written member is a field on `EnterMods`, one line there, and a
-read wherever a layer needs it. Face-down (CV-6) is a status, read at 1b; CR 613.2a's copiable "as ...
+read wherever a layer needs it. Face-down (`face-down-and-morph`) is a status, read at 1b; CR 613.2a's copiable "as ...
 enters" P/T is an "as" member at 1a; `backlog.md` §2.2's "as it enters"
 choice record takes the same road.
 
@@ -2053,7 +2053,7 @@ Per `CLAUDE.md`: write it N-player-shaped or pay to retrofit it.
   choose again, APNAP restarts for all outstanding choices. Implement the
   restart; do not assume one pass. **Not built:** phase 1 runs each subject
   group's loop to completion in APNAP order, so a later player's choice cannot
-  send an earlier one back (`codebase-state.md` item 25, slotted at B3).
+  send an earlier one back (`codebase-state.md` item 25, slotted at `multiplayer-rules`).
 
 ### 4.4 What is *not* a replacement effect
 
@@ -2726,11 +2726,11 @@ and a lost player keeps taking turns in any game of three or more.
 `PlayerWins`). Discard: ✅ RE-8's producer beside RB's arm. Scry: ✅ RE-8
 (`GameAction::Scry`). Four rows the tree still lacks, each dispositioned:
 
-- **Turned face up** (CR 614.1e) — **scheduled, owner CV-6**
+- **Turned face up** (CR 614.1e) — **scheduled, owner `face-down-and-morph`**
   (`copy-effects-architecture.md` §4.6 names it now). The table's 2 was an
   undercount: three printed cards say "As [this] is turned face up" (Scryfall
   2026-09-15: Bubble Smuggler, Gift of Doom, Hooded Hydra). The event is the
-  turn-face-up special action CV-6 builds, and the replacement lands with the
+  turn-face-up special action `face-down-and-morph` builds, and the replacement lands with the
   first morph creature that is turned up.
 - **Rolling dice** (CR 706, and CR 705's coins with it) — **deferred, no
   surface**: no primitive, no event, no reader of `GameState.rng` for it.
@@ -3193,7 +3193,7 @@ The titles, in order, so `§9 RD decision N` still lands; each was read against 
 |---|---|---|---|
 | **RD-1 — the damage event's two subjects and its results** | `affected_players`; the CR 120.3 decomposition, `LoseLife.cause`, CR 120.3c; `Rewrite::Amount` with `Multiplier`, `Halve` and `PreventHalf`, and `Rounding`; `Rider` carries `EventSubject` and the event's amount, `AmountExpr::ReplacedAmount` and `Multiply`; `Primitive::Mill` (a stub today) for Angel of Suffering's rider | `set_affects` **1**, `chooser_for` **0** (already right), `Rider`/`resolve_rider` **2**; `perform_action`'s arm **1**, `GameAction::LoseLife` constructions **6**; `Rewrite` exhaustive matches **2** (`from_rewrite`, `apply_rewrite`); `ObjectSet` exhaustive matches **3**, all untouched by construction; `evaluate_amount` **2** leaves; `resolve.rs` **1** stub arm made real. Predicted **~560 engine, ~300 cards, ~750 tests ≈ 1,500–1,700** | medium — the decomposition moves a line of every game's log through a nested proposal, and the A/B's middle arm must show it and nothing else |
 | **RD-2 — CR 615.7 prevention shields, and the loop's unit** | `Primitive::CreateReplacement`, `Uses::NextDamage`, `PreventUpTo`/`PreventRemaining`, consume-after-apply (decision 7), per-subject decisions and the per-instance allocation (decision 3), the rider's prevented amount and `AmountExpr::DamagePrevented` | `apply_replacements` **1** (the group form), `execute_batch_inner` **1**, `consume_use` **1**, `apply_rewrite` **1**; `DecisionProvider::allocate` impls **3** + dispatch; `ChoiceKind` exhaustive matches ≤ **3**; `evaluate_amount` **1**; `resolve.rs` **1** new arm beside `Regenerate`. Predicted **~700 engine, ~250 cards, ~800 tests ≈ 1,800–2,000** | **highest** — the only PR that changes the loop's unit, and the one whose defect shape is a silent wrong choice rather than an error |
-| **RD-3 — damage matched by its source** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c; `AmountRewrite::Plus` (Torbran) and a resolution-created `PreventHalf` (Dark Sphere) | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (RS-2's rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~370 engine, ~400 cards, ~700 tests ≈ 1,400–1,600** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Torbran's; Daunting Defender is 615.10's own example and is target-side only), and the "two customers before a leaf" guard is applied live |
+| **RD-3 — damage matched by its source** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c; `AmountRewrite::Plus` (Torbran) and a resolution-created `PreventHalf` (Dark Sphere) | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (`cant-be-targeted`'s rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~370 engine, ~400 cards, ~700 tests ≈ 1,400–1,600** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Torbran's; Daunting Defender is 615.10's own example and is target-side only), and the "two customers before a leaf" guard is applied live |
 | **RD-4 — redirection and unpreventable damage** | `Rewrite::Retarget(RetargetSpec)` with CR 614.9's re-check at application, `DealDamage.unpreventable` (16 `Primitive::DealDamage` sites, 25 `GameAction::DealDamage` constructions, mechanical), the restriction consult at application, `PlayerSet` on `ApplyReplacement::to` | `apply_rewrite` **1**, `from_rewrite` **1**, the two site counts above; `is_prohibited` callers **+1**. Predicted **~300 engine, ~200 cards, ~500 tests ≈ 1,000–1,200** | low-medium — two independent features that share only the consume-after-apply rule RD-2 lands |
 
 **≈ 5,700–6,500 across four, each at or inside the band, RD-2 at its top —
@@ -3805,7 +3805,7 @@ Shipped **+1,066 / −171** against a predicted 1,100–1,300.
 - **`pending_skips`** — struck (decision 6). Not a deferral: a mechanism that
   should not be built.
 - **CR 802's defending player**, and 800.4f–h's choices by a departed player
-  — B3's ("Before Commander" item 4), with RE-7 having built the seam.
+  — `multiplayer-rules`'s ("Before Commander" item 4), with RE-7 having built the seam.
 - **Extra phases** (CR 500.8) — cut at RE's sizing, re-opened at RE-1's review
   and **taken in**, as RE-10 (**✅ landed 2026-09-14**): the "written once" argument that pulled CR 500.7
   into RE-1 applies one level down and was unkept there (§11 item 49), 46
@@ -4550,7 +4550,7 @@ Each is a §11 item; the number is the pointer.
   first), item 4 (effects off the battlefield — scheduled, A5's third PR;
   **closed 2026-09-16 by RF**, §9), item 14 (CR 903.9b's exemption and a
   refusal — deferred, unreachable).
-- §8a's four kinds: turned face up (CV-6), dice (`backlog.md` §2.31),
+- §8a's four kinds: turned face up (`face-down-and-morph`), dice (`backlog.md` §2.31),
   search (with `backlog.md` §2.5's producer), countering (closed — a zone
   change with a cause).
 - §12's six, re-read 2026-09-15 and amended in place.

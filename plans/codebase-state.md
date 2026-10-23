@@ -13,11 +13,11 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Triggered abilities (CR 603) — ✅ complete, TR-1 to TR-7, 2026-09-18 → 2026-10-22; critical-path item 6 closed with TR-7, and its audit opened the same day.** Detection is the performed-event stream: a batch's records are matched at its close against the settled board, each CR 603.10 look-back class reading a frame the batch kept, and placement drains a queue on `GameState` in APNAP order with CR 603.3b's two tiers. Delayed, "until" and reflexive triggers, state triggers, CR 603.2d's multiplier and one history log kept the whole game are built on that path. `triggers-architecture.md` is authoritative and its §18 is the track in hindsight; the CR 603 row below carries the "not yet" list.
 - **Not started:** CR 802's defending player and CR 800.4f–h's choices by a departed player ("Before Commander" item 4); the information model (`backlog.md` §2.9).
 - **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame, and what a permanent enters with and as is one shape since RG (2026-09-28, `replacement-architecture.md` §3.5); damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
-- **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative; `RestrictionDef` / `Restriction`, the third `DurationRegistry` customer, and `engine::restriction::is_prohibited` — one predicate over *effective* ability lists, checked ahead of the replacement pipeline. Still ahead: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
-- **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), a permanent can enter as a copy (CV-2a, 2026-09-28), and an entry copy makes CR 707.9's exceptions (CV-2b, 2026-09-29).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held in `PermanentState::entered_as` (RG) and loyalty a copiable value; `CopyException`, one arm per sub-rule of CR 707.9, made on the captured values (707.9a–d) and on the entry (707.9e–f, `engine/replacement/entry_copy.rs`), with Spark Double (§4.1a). A copy may last until the end of the game (CV-1b, 2026-10-06), since a move now ends every reference to the object that moved (CR 400.7, main item 10), with Cryptoplasm. Still ahead: CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
-- **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; TR-1 review theme C, 2026-09-22 — the trigger dispatcher's, per ability rather than per object; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
+- **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative; `RestrictionDef` / `Restriction`, the third `DurationRegistry` customer, and `engine::restriction::is_prohibited` — one predicate over *effective* ability lists, checked ahead of the replacement pipeline. Still ahead: `cant-be-targeted` and `cant-cast-play-or-activate` (targeting; casting and activating), `combat-restrictions` and `combat-requirements` (combat), `cant-pay-costs` (costs).
+- **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), a permanent can enter as a copy (CV-2a, 2026-09-28), and an entry copy makes CR 707.9's exceptions (CV-2b, 2026-09-29).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held in `PermanentState::entered_as` (RG) and loyalty a copiable value; `CopyException`, one arm per sub-rule of CR 707.9, made on the captured values (707.9a–d) and on the entry (707.9e–f, `engine/replacement/entry_copy.rs`), with Spark Double (§4.1a). A copy may last until the end of the game (CV-1b, 2026-10-06), since a move now ends every reference to the object that moved (CR 400.7, main item 10), with Cryptoplasm. Still ahead: `token-copies`–`merging-and-meld`; `merging-and-meld` (merging) back-stopped before Phase 8.
+- **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; TR-1 review theme C, 2026-09-22 — the trigger dispatcher's, per ability rather than per object; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on `face-down-and-morph`. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
-- **What is next on the spine:** the rest of the item 6 audit (`plans/handoffs/item-6-audit.md`: the eviction, hygiene and CI, the docs audit A6h, A6e's cleanup, readiness, scheduling), then A6s, the route review, first in "From triggers to Phase 8" (`CLAUDE.md`'s critical path; `roadmap-v2.md` §3a has each step's why). The audit's record is written as a heading below when its handoff goes.
+- **What is next on the spine:** the rest of the item 6 audit (`plans/handoffs/item-6-audit.md`: the eviction, hygiene and CI, the docs audit A6h, A6e's cleanup, readiness, scheduling), then `route-review`, the route review, first in "From triggers to Phase 8" (`CLAUDE.md`'s critical path; `roadmap-v2.md` §3a has each step's why). The audit's record is written as a heading below when its handoff goes.
 - **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding, which the board counts. Five items are reachable and wrong today at the item 6 audit's close-out (59, 204, 207, 211 and 297), each slotted, none unstated. Each target system (Commander, Phase 8's breadth) has a subsection to read before its first ticket.
 - **The architecture docs own their subsystems**, each with its type shapes, phase codes and findings; `CLAUDE.md`'s authority table lists them and `plans/engine-map.md` follows one event through all of them. A subsequent session executes from those, never from this summary.
 ---
@@ -67,7 +67,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 103.5 | Mulligan (London) | ⚠️ **stubbed** — "players always keep their first hand"; `backlog.md` §2.32 | `state/game.rs`, `Game::setup` |
 | 103.5 | Starting hand size | ✅ | `state/game_config.rs`, `state/game.rs:98-104` |
 | 103.8 | The starting player's first draw step | ✅ 103.8a and 103.8c, from the seat count at `Game::new`; 103.8b (Two-Headed Giant) waits for teams, item 196 | `state/game.rs`, `starting_player_skips_first_draw` |
-| 107 | Mana values, X costs, hybrid/Phyrexian symbols (enum) | 🟡 a spell's X: offered at its least legal X, announced from the values the board pays, read in closed form (MA-2, `mana-architecture.md` §3.7); an activated ability's X never asked, hybrid/Phyrexian payment `NotImplemented`, and mana value with X on the stack (202.3e), all CP-1's | `types/mana.rs`, `oracle/x_values.rs`, `can_pay` returns false for hybrid |
+| 107 | Mana values, X costs, hybrid/Phyrexian symbols (enum) | 🟡 a spell's X: offered at its least legal X, announced from the values the board pays, read in closed form (MA-2, `mana-architecture.md` §3.7); an activated ability's X never asked, hybrid/Phyrexian payment `NotImplemented`, and mana value with X on the stack (202.3e), all `hybrid-and-phyrexian-payment`'s | `types/mana.rs`, `oracle/x_values.rs`, `can_pay` returns false for hybrid |
 | 108 | Tokens and cards | ✅ `is_token`, `is_copy` flags | `objects/object.rs` |
 | 109 | Objects, characteristics | ✅ data model | `objects/card_data.rs`, `objects/object.rs` |
 | 110 | Permanents | ✅ `PermanentState` + attachment | `state/battlefield.rs` |
@@ -128,14 +128,14 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 601.2a | Announce spell / move to stack | ✅ | `engine/put_on_stack.rs` (780 lines) |
 | 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `X`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/put_on_stack.rs` |
 | 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/put_on_stack.rs:130–152`, `ui/ask.rs` |
-| 601.2d | Distribution (damage/counters among targets) | ❌ still unbuilt after A4i, and now the only half of `backlog.md` §2.20 left — `roadmap-v2.md` row A4l sizes it | `engine/put_on_stack.rs` |
+| 601.2d | Distribution (damage/counters among targets) | ❌ still unbuilt after A4i, and now the only half of `backlog.md` §2.20 left — `roadmap-v2.md` row `divided-among-targets` sizes it | `engine/put_on_stack.rs` |
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/put_on_stack.rs:175–182` |
 | 601.2f | Determine total cost | ✅ | `engine/cost_determination/total.rs` `determine_total_cost` — the whole step since CM-1 (2026-09-07) |
 | 601.2g | Mana ability activation window | ✅ (SPECIAL-2) | `engine/priority.rs` `run_mana_ability_window` |
 | 601.2h | Pay costs (with rollback on failure) | ✅ for `Cost::SacrificeSelf`, `Cost::TapSelf`, `Cost::PayLife`, `Cost::Mana`; **`Cost::Sacrifice(filter, count)` = `NotImplemented`** (T18c) | `engine/costs.rs` |
 | 601.2i | Spell becomes cast | ✅ | `engine/put_on_stack.rs` |
 | 602 | Activated abilities (activate_ability + rollback) | ✅ structural; **activation restrictions** (sorcery-speed PW, graveyard-activated abilities) ❌ (T19) | `engine/actions.rs` activate_ability |
-| **603** | **Triggered abilities** | ✅ **Phases TR-1 to TR-7 complete (2026-09-18 → 2026-10-22); critical-path item 6 closed with TR-7, and its audit opened the same day.** Detection is the performed-event stream: a batch's records are matched at its close against the settled board (CR 603.2, 603.6a; TR-1), with the look-back frames CR 603.10's classes read (TR-1, TR-2b, TR-4a–d) and the dispatcher audited with its shortcuts off (TR-1b). Each player's and each turn's facts are one history log kept the whole game (TR-2a, TR-5h); "may" and CR 118.12's answer (TR-2b); delayed, "until" and reflexive triggers (CR 603.7, 610.3, 603.12; TR-3a–c); the binding's roles, attacks, blocks, targeting, activation, counters, prevention and excess damage (TR-5a–f); CR 603.2d's multiplier (TR-5g); state triggers and the rule-owned arm (CR 603.8; TR-6); placement in APNAP order with CR 603.3b's two tiers, its queue on `GameState` (TR-1). **Not yet:** modes on a triggered ability (CR 603.3c, `backlog.md` §2.7); "unless [a player] pays" (CR 118.12a; `roadmap-v2.md` A6s gives it an owner — ward, Rhystic Study); linked abilities (CR 603.11, 607; `backlog.md` §2.2, B7); ability copies (CR 707.10b, CV-4); the monarch's and the initiative's triggers (CR 724, 725; Phase 9); loop detection past TR-6's counted stops (CR 731; B14); dredge (`backlog.md` §2.49); `triggers-architecture.md` §13's deferred atoms, each with its owner. §18 there is the track in hindsight. | `engine/triggers/`, `engine/returns.rs`, `state/history_log.rs` |
+| **603** | **Triggered abilities** | ✅ **Phases TR-1 to TR-7 complete (2026-09-18 → 2026-10-22); critical-path item 6 closed with TR-7, and its audit opened the same day.** Detection is the performed-event stream: a batch's records are matched at its close against the settled board (CR 603.2, 603.6a; TR-1), with the look-back frames CR 603.10's classes read (TR-1, TR-2b, TR-4a–d) and the dispatcher audited with its shortcuts off (TR-1b). Each player's and each turn's facts are one history log kept the whole game (TR-2a, TR-5h); "may" and CR 118.12's answer (TR-2b); delayed, "until" and reflexive triggers (CR 603.7, 610.3, 603.12; TR-3a–c); the binding's roles, attacks, blocks, targeting, activation, counters, prevention and excess damage (TR-5a–f); CR 603.2d's multiplier (TR-5g); state triggers and the rule-owned arm (CR 603.8; TR-6); placement in APNAP order with CR 603.3b's two tiers, its queue on `GameState` (TR-1). **Not yet:** modes on a triggered ability (CR 603.3c, `backlog.md` §2.7); "unless [a player] pays" (CR 118.12a; `roadmap-v2.md` `route-review` gives it an owner — ward, Rhystic Study); linked abilities (CR 603.11, 607; `backlog.md` §2.2, `breadth-features`); ability copies (CR 707.10b, `spell-copies`); the monarch's and the initiative's triggers (CR 724, 725; Phase 9); loop detection past TR-6's counted stops (CR 731; `loop-detection`); dredge (`backlog.md` §2.49); `triggers-architecture.md` §13's deferred atoms, each with its owner. §18 there is the track in hindsight. | `engine/triggers/`, `engine/returns.rs`, `state/history_log.rs` |
 | 604 | Static abilities | 🟡 keyword statics via `has_keyword`; continuous-effect statics (P/T, color, type) register via `GameState::register_static_effects` ✅; other non-keyword statics ❌ | `state/game_state.rs` |
 | 605 | Mana abilities | ✅ detection + window + enumeration | `oracle/mana_helpers.rs`, `engine/priority.rs` |
 | 606 | Loyalty abilities | ❌ (T19 pending) |
@@ -143,8 +143,8 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 608 | Resolution of spells and abilities — fizzle, Target vs Choose split | ✅ via T15b refactor (`TargetSpec` → `EffectRecipient`) | `engine/resolve.rs`, `engine/stack.rs` |
 | 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry; 610.3's "until" returns (`engine/returns.rs`, TR-3b); a resolution's "for as long as" row ends as its source leaves (611.2b, TR-3b) | `state/continuous_effects.rs` |
 | 612 | Text-changing effects | ❌ |
-| **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 3 (text), Layer 1b (face-down, CV-6). **Landed since this row was written:** the board-wide pass (LI-1) with the CR 613.8 dependency algorithm (LI-2) and conditional statics (LI-3), all 2026-09-06, `engine/layers/board.rs`; the zone-reaching `ObjectSet` (LJ) and CR 113.6's registration leg (LK), 2026-09-14. Layers 2 and 6 live since 2026-08-23; CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,board,compute,cda,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
-| **614–616** | **Replacement + prevention + interaction** | ✅ **Phases RA–RE complete (2026-08-25 → 2026-09-15, twenty-four PRs); critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal through `execute_actions`, carrying its cause (`ZoneChangeCause` at RA; a `ZoneChangeAct` and an `EventCause` since RH), the CR 603.10a LKI frame, a `BatchId` and its resolution (RA); `apply_replacements` runs CR 616.1a–g between proposal and mutation, with CR 614.4/5/6/7a/17, 616.2, CR 615.5 riders and CR 101.4 APNAP (RB); the CR 614.12 look-ahead frame (RC-4), entering as one event (RC-4b), CR 614.13's auxiliary moves (RC-5); damage with CR 120.3's results, CR 615.7's shields decided per `(batch, subject)`, CR 609.7's sources, CR 614.9's redirection and CR 615.12's unpreventable damage (RD-1–4); skips and the turn queue, draw with its lineage, life, tokens, counters on permanents and players, the game's end and a player leaving it, the discard and scry producers, mana, extra phases and the turn plan (RE-1–10). `Rewrite` is the closed algebra `replacement-architecture.md` §3.2b claims. **Not yet:** CR 614.15 self-replacement (bucket, no producer — §11 item 3); CR 614.1e turned face up (CV-6); CR 614.12b (main item 134); CR 614.12c and 614.14 (`backlog.md` §2.2); CR 614.9's *partial* redirection (`backlog.md` §2.25); CR 615.13's trigger arm (critical-path item 6; the record came with #260); dice (`backlog.md` §2.31) and search (`backlog.md` §2.5, with its producer) as events; CR 121.2c's draw order (main item 122); a substitution keeping the replaced event's `cause` (main item 131); CR 731 (`backlog.md` §2.28). §14 there is the phase in hindsight. |
+| **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 3 (text), Layer 1b (face-down, `face-down-and-morph`). **Landed since this row was written:** the board-wide pass (LI-1) with the CR 613.8 dependency algorithm (LI-2) and conditional statics (LI-3), all 2026-09-06, `engine/layers/board.rs`; the zone-reaching `ObjectSet` (LJ) and CR 113.6's registration leg (LK), 2026-09-14. Layers 2 and 6 live since 2026-08-23; CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,board,compute,cda,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
+| **614–616** | **Replacement + prevention + interaction** | ✅ **Phases RA–RE complete (2026-08-25 → 2026-09-15, twenty-four PRs); critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal through `execute_actions`, carrying its cause (`ZoneChangeCause` at RA; a `ZoneChangeAct` and an `EventCause` since RH), the CR 603.10a LKI frame, a `BatchId` and its resolution (RA); `apply_replacements` runs CR 616.1a–g between proposal and mutation, with CR 614.4/5/6/7a/17, 616.2, CR 615.5 riders and CR 101.4 APNAP (RB); the CR 614.12 look-ahead frame (RC-4), entering as one event (RC-4b), CR 614.13's auxiliary moves (RC-5); damage with CR 120.3's results, CR 615.7's shields decided per `(batch, subject)`, CR 609.7's sources, CR 614.9's redirection and CR 615.12's unpreventable damage (RD-1–4); skips and the turn queue, draw with its lineage, life, tokens, counters on permanents and players, the game's end and a player leaving it, the discard and scry producers, mana, extra phases and the turn plan (RE-1–10). `Rewrite` is the closed algebra `replacement-architecture.md` §3.2b claims. **Not yet:** CR 614.15 self-replacement (bucket, no producer — §11 item 3); CR 614.1e turned face up (`face-down-and-morph`); CR 614.12b (main item 134); CR 614.12c and 614.14 (`backlog.md` §2.2); CR 614.9's *partial* redirection (`backlog.md` §2.25); CR 615.13's trigger arm (critical-path item 6; the record came with #260); dice (`backlog.md` §2.31) and search (`backlog.md` §2.5, with its producer) as events; CR 121.2c's draw order (main item 122); a substitution keeping the replaced event's `cause` (main item 131); CR 731 (`backlog.md` §2.28). §14 there is the phase in hindsight. |
 
 ### CR 7 — Additional Rules
 
@@ -398,7 +398,7 @@ measurement; this is the state ledger. What landed:
   engine's one capture point. CR 613.2c makes copiable values the *output* of
   layer 1, so the capture is `compute_to_ceiling` at `END_OF_LAYER_1`: an
   existing entry point at a ceiling the existing array already indexes, with a
-  `debug_assert` pinning the constant to `LAYER_ORDER` so CV-6's sublayer split
+  `debug_assert` pinning the constant to `LAYER_ORDER` so `face-down-and-morph`'s sublayer split
   is a test failure rather than a silent read one sublayer early. Deliberately
   **not** `EffectiveCharacteristics` reused — that type carries `controller`,
   and `compute.rs`'s `any_control_changing` fast path proves itself on the claim
@@ -485,7 +485,7 @@ on item 10); the ETB path, CR 708 and CR 729, untouched; `is_copy`, still with n
 writer; and `CopiableValues.back_face`, which
 `copy-effects-architecture.md` §3.2 specifies and which was **omitted** — a
 field no producer writes and no reader reads is a Deferred Migrations line bought
-for nothing, and CV-5 adds it in the commit that populates it.
+for nothing, and `double-faced-cards` adds it in the commit that populates it.
 
 **Status 2026-09-02: Phase RC-4 ✅ — CR 614.12's look-ahead frame.** `replacement-architecture.md` §9's RC-4 subsection carries the six findings; this is the state ledger. What landed:
 
@@ -837,7 +837,7 @@ here. None is blocking RB.
     **Sized:** derive `is_mana_ability` for an activated def at the three
     dispatch sites (`mana.rs`, `priority.rs`, `activatable_abilities`)
     instead of reading the tag, ~60–100 lines plus the Toph-named test.
-    **Slotted:** MA-3, whose riders bring mana abilities with other effects: CR
+    **Slotted:** `any-color-plus-painlands-plus-signets`, whose riders bring mana abilities with other effects: CR
     605.1a derived for an activated def at the three dispatch sites, with
     Toph's test.
 
@@ -929,8 +929,8 @@ built, and none of it blocks RC-1 through RC-3.
     **Sized:** a resolution-scoped `Duration` variant retired by a
     hook at the end of the top-level `resolve_effect` call, ~60–80 lines in
     `duration_registry.rs` and `resolve.rs`, plus a one-argument change per
-    card; RS-2 owns it as the next phase touching `Primitive::Restrict`.
-    **Slotted:** RS-2, the next phase touching `Primitive::Restrict`: a
+    card; `cant-cast-play-or-activate` owns it as the next phase touching `Primitive::Restrict`.
+    **Slotted:** `cant-cast-play-or-activate`, the next phase touching `Primitive::Restrict`: a
     resolution-scoped `Duration`, retired at the end of the top-level
     `resolve_effect`.
 
@@ -941,18 +941,18 @@ built, and none of it blocks RC-1 through RC-3.
     carrying one can be registered today and will quietly do nothing.
     `engine/targeting.rs:39` still carries the `T22` TODO that would fix two of
     them; `Menace` and `Intimidate` are `T21b`'s. All four are Tier 1a/1d in
-    `cant-effects-architecture.md` §2.3 and land in RS-2 / RS-3.
+    `cant-effects-architecture.md` §2.3 and land in `cant-be-targeted` / `combat-restrictions`.
 
     **Reachability (2026-09-03):** unreachable — no registered card sets any of
     the four flags (Sigarda's hexproof is deliberately left off,
     `phase_rs_cards.rs:81`).
 
     **Sized:** hexproof and shroud are ~40 lines at
-    `targeting.rs:302` plus `enumerate_legal_selections`, RS-2 (Tier 1a/1d; the
+    `targeting.rs:302` plus `enumerate_legal_selections`, `cant-be-targeted` (Tier 1a/1d; the
     same change as "Before card breadth" item 7); menace and intimidate are ~60
-    lines in combat validation, RS-3.
-    **Slotted:** RS-2 for hexproof and shroud at targeting and enumeration;
-    RS-3a for menace and intimidate in combat validation.
+    lines in combat validation, `combat-restrictions`.
+    **Slotted:** `cant-be-targeted` for hexproof and shroud at targeting and enumeration;
+    `combat-restrictions` for menace and intimidate in combat validation.
 
 16. **Two ETB-time scans read *printed* abilities, and a Layer 1 copy defeats
     both (found 2026-08-29, writing `copy-effects-architecture.md` §4.7).**
@@ -1000,7 +1000,7 @@ built, and none of it blocks RC-1 through RC-3.
 
     **Sized:** one leg on each gate (`gather.rs`, `predicate.rs`),
     ~20 lines each, in the PR that gives Layer 3 a producer.
-    **Slotted:** C2, whose Layer 3 build gives each gate (`gather.rs`,
+    **Slotted:** `text-changing-effects`, whose Layer 3 build gives each gate (`gather.rs`,
     `predicate.rs`) its Layer 3 leg.
 
 ### Found by CV-1 (2026-09-02)
@@ -1039,7 +1039,7 @@ Growth already makes item 10 a live wrong answer is corrected under item 10: no
 registered card returns an object.
 
 66. **`--dump-events` cannot see a characteristic change, and one flag would
-    (C1).** The event stream records performed game actions, which is CR 603.2's
+    (`rulings-for-every-card`).** The event stream records performed game actions, which is CR 603.2's
     question and the right scope; a copy row is not one. A phase whose whole
     output is a characteristic change therefore has no differential instrument —
     CV-1 A/B'd on event streams and could only see the pool change size. Not a
@@ -1057,7 +1057,7 @@ registered card returns an object.
     (2026-09-28): neither of CV-2's A/B arms needs a state diff, since the
     engine arm reads `IDENTICAL` and the shipped arm is a pool change, and
     main item 10's state error, which CV-1b fixes, is its other customer.
-    **Slotted:** CV-3, the next copy phase: its output is a characteristic
+    **Slotted:** `token-copies`, the next copy phase: its output is a characteristic
     change no event diff sees, so `--dump-state` lands with it. CV-1b, named
     before, landed without it.
 
@@ -1155,7 +1155,7 @@ registered card returns an object.
     **Sized:** none here.
     **Slotted:** none — a record of the random agent's tap preference and the
     `--require` copies-per-deck lesson; the CR 732.1 prompt it leaves is item
-    163's, at B13.
+    163's, at `ironworks-loop`.
 
 16e. **96% of layer walks repeat an object nothing has touched, so item 7's
     memoization half is split out as 7a and moved ahead of triggers
@@ -1268,7 +1268,7 @@ registered card returns an object.
 
     **Sized:** none.
     **Slotted:** none — a record that `GameState::remove_from_combat` is CR
-    506.4's implementation, for RS-3a's and TR-5a's combat work to reuse.
+    506.4's implementation, for `combat-restrictions`'s and TR-5a's combat work to reuse.
 
 19. **~~`zone_change_epoch` has one consumer and two counters behind it.~~ — ✅
     CLOSED 2026-10-09 (PR #238).** — archived.
@@ -1374,12 +1374,12 @@ registered card returns an object.
     counter on a card outside the battlefield (suspend, off-battlefield
     keyword counters and Skullbriar are unregistered), and `counters` is still
     `PermanentState`'s.
-    **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23):
+    **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23):
     moving `counters` onto `GameObject` is a design, not a card's mechanical
     fix: what CR 613.7c's `CounterStack.timestamp` means off the battlefield,
     and the clone cost of a map on every object in every zone. Its first
     customer, suspend, casts from exile, which is permission's later builds,
-    so A6s places it beside them.
+    so `route-review` places it beside them.
 
 24. **~~`ReplacementDef.then` is rich enough; the `Effect` tree is not
     (`rb-review.md` F4).~~ — ✅ CLOSED 2026-09-26 (TR-2b).** — archived.
@@ -1433,7 +1433,7 @@ registered card returns an object.
     inside out, a per-member state machine under an outer APNAP round-robin.
     **Revisit at Phase 6**, where triggers make the other half of CR 101.4 live
     anyway; not at RD, which is finished.
-    **Slotted:** B3, CR 800 at four seats, where a redirect onto another seat's
+    **Slotted:** `multiplayer-rules`, CR 800 at four seats, where a redirect onto another seat's
     permanent stops being an accident: phase 1 becomes an APNAP round-robin
     over its groups (CR 101.4d).
 
@@ -1520,7 +1520,7 @@ section never asked.
     at resolution time, with the object-reaching arms reading `ctx.targets`
     through it — is ~150–250 lines; lands with the first set-phrased rider
     (RD/RE) or the first mass-removal spell, whichever comes first.
-    **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23):
+    **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23):
     what is left is a design, `EffectRecipient::Choose` answered at resolution
     (CR 608.2d) across the object-reaching arms and a set the event names
     ("each of them"), with the count above first, which decides between one
@@ -1606,7 +1606,7 @@ section never asked.
     choices off the permanent or the resolving spell, so its assert is gone;
     no leaf reads the mana, and none is added before a registered card does.
     **`StackEntry.cast_from`'s invariant, `cast_from.is_some() == is_spell`,
-    ends at CV-4** for the same reason, and its doc now says so. ATOM-400.7d-001 is covered
+    ends at `spell-copies`** for the same reason, and its doc now says so. ATOM-400.7d-001 is covered
     by `a_kicked_permanent_remembers_what_paid_for_it`, through `cast_spell`.
     The first question's answer: **the source is not a field, it is the
     pool** — the simple pool drops it at `pool.add` — so it moved to item 33,
@@ -1658,7 +1658,7 @@ section never asked.
     **Reachability (2026-09-24):** unreachable — no registered card reads an
     object spent on a cost, and convoke, delve and improvise are not built.
 
-    **Sized:** ~40–60 lines, landing with CV-4 (the first reader through CR
+    **Sized:** ~40–60 lines, landing with `spell-copies` (the first reader through CR
     707.10) or the first Fling-shaped card, whichever comes first. The list
     goes on `StackEntry` beside the cost decisions and is carried to
     `ResolvingObject` and the permanent the same way; the frames come from
@@ -1669,8 +1669,8 @@ section never asked.
     are the customer.
 
     **Reachability (2026-09-03):** unreachable — nothing reads it: no sunburst,
-    no spell copy (CV-4) and no CR 700.14 card is registered.
-    **Slotted:** CV-4, the first reader through CR 707.10, or a Fling-shaped
+    no spell copy (`spell-copies`) and no CR 700.14 card is registered.
+    **Slotted:** `spell-copies`, the first reader through CR 707.10, or a Fling-shaped
     card if one comes first: the payment's chosen objects and players beside
     `CostChoices`.
 
@@ -1696,7 +1696,7 @@ section never asked.
 
     **Sized:** owned by `backlog.md` §2.7, one phase; the field
     costs nothing until then.
-    **Slotted:** B7, whose `backlog.md` §2.7 modal spells are the field's first
+    **Slotted:** `breadth-features`, whose `backlog.md` §2.7 modal spells are the field's first
     writer and reader.
 
 32. **`DeckLimits` is configured and never consulted (found 2026-08-31 by the
@@ -1722,7 +1722,7 @@ section never asked.
     cap in `random_deck` if the harness is to be held to it; lands with the
     `GameConfig::commander()` constructor, whose 100-card singleton limit is the
     first one a fuzz deck would actually break.
-    **Slotted:** B2, whose `GameConfig::commander()` brings the first limit a
+    **Slotted:** `game-formats`, whose `GameConfig::commander()` brings the first limit a
     fuzz deck breaks; `validate` is called from `Game::new`.
 
 33. **The CR 106.6 subsystem has no production consumer on the payment side
@@ -1747,7 +1747,7 @@ section never asked.
     ticketed in the ledger: **T12c**, restricted mana in the casting pipeline;
     **T12d**, the cards and the grants (Cavern of Souls, Boseiju). Grant
     delivery to the cast spell rides item 30's `StackEntry` rail, which landed
-    without it (2026-09-23). **Trigger: `roadmap-v2.md` §3a row B9, a hard
+    without it (2026-09-23). **Trigger: `roadmap-v2.md` §3a row `mana-provenance`, a hard
     back-stop before Phase 8 — see "mana provenance" below.**
     → `plans/cards-unlocked-ledger.md` T12 rows; `roadmap-v2.md` §4;
     `cr-coverage-audit.md` §4's `ManaPool` row.
@@ -1759,7 +1759,7 @@ section never asked.
 
     **Sized:** T12c — `pay_single_cost`'s Mana arm builds a
     `SpendContext` and routes `pay_with_plan`, ~150–250 lines; T12d is the two
-    cards; both land inside B9 below.
+    cards; both land inside `mana-provenance` below.
 
     **Scheduled 2026-09-23 (item 30's capture PR): this item owns mana
     provenance, and it has a slot.** Item 30 landed the mana spent by type,
@@ -1779,7 +1779,7 @@ section never asked.
     the generic split and the colored pips grow a source axis, and that is a
     fixture migration. **A design pass the owner reviews comes first.**
     `ManaSpent`'s body becomes the per-unit record and keeps its accessors.
-    **Slot:** `roadmap-v2.md` §3a B9 and `CLAUDE.md`'s critical path, a hard
+    **Slot:** `roadmap-v2.md` §3a `mana-provenance` and `CLAUDE.md`'s critical path, a hard
     back-stop before Phase 8. **Sized:** T12c's ~150–250 plus the source axis
     and the migration — a phase, not a PR; the design pass sizes it.
 
@@ -1787,7 +1787,7 @@ section never asked.
     An inventory entry carries its restriction and the check takes the
     cost's purpose; `{S}` is a type bit. The per-unit record, its payment
     and the source axis stay this item's pass, after MA-1.
-    **Slotted:** B9, mana provenance: the per-unit record, T12c's
+    **Slotted:** `mana-provenance`: the per-unit record, T12c's
     `SpendContext` routing and T12d's cards, after its design pass.
     **Noted at TR-4a (2026-10-14):** `Lki` carries no `cast`
     (`triggers-architecture.md` §3.11), since no condition leaf reads mana
@@ -1944,7 +1944,7 @@ section never asked.
     **Sized:** (a) one small PR computing `colors` inside `build()`
     with a color-indicator override, before Phase 8; (b) done; (c) none — a
     card.
-    **Slotted:** B7, whose `backlog.md` §2.10 derives colors in `build()`; (c)
+    **Slotted:** `breadth-features`, whose `backlog.md` §2.10 derives colors in `build()`; (c)
     with the first registered card that gains control by an Aura.
 
 ### Found by the RS-1 spine (2026-08-31)
@@ -1997,15 +1997,15 @@ section never asked.
     every edict either sacrifice a player or target a creature.
 
     **The choosing player is the target, not the caster**, which is why this is
-    §4.9's "resolution-time selection path" and not a cast-time one. RS-2 owns
-    the cast-time and targeting sites and RS-1 did not touch them.
+    §4.9's "resolution-time selection path" and not a cast-time one. `cant-cast-play-or-activate` and
+    `cant-be-targeted` own the cast-time and targeting sites and RS-1 did not touch them.
 
-    **Reachability (2026-09-03):** nothing owed — RS-2 owns the cast-time and
+    **Reachability (2026-09-03):** nothing owed — `cant-cast-play-or-activate` owns the cast-time and
     targeting sites.
 
     **Sized:** none.
     **Slotted:** none — a record of why `Primitive::Sacrifice` carries two
-    filters, read by RS-2 when it takes the cast-time and targeting sites.
+    filters, read by `cant-cast-play-or-activate` and `cant-be-targeted` when they take the cast-time and targeting sites.
 
 38. **~~The keyword-derived restriction sweep is asked only of the event's
     subject.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
@@ -2127,7 +2127,7 @@ section never asked.
 
     **Neither is a bug today**, and that is the point of recording them: nothing
     forks. They are the debt a fork-based harness inherits, and the cost grows
-    per phase — RS-1 added one decision site (`sacrifice_of_choice`), RS-2 adds
+    per phase — RS-1 added one decision site (`sacrifice_of_choice`), `cant-be-targeted` and `cant-cast-play-or-activate` add
     six by its own sizing row. **The invariant is cheap as a review rule and
     expensive as a migration**, which is why it is written down before there is
     a customer.
@@ -2318,8 +2318,8 @@ section never asked.
     unless `restriction_ability_sources.contains(&id)` or the registry summary
     reports a Layer 6 grant, which is the same predicate one object at a time,
     exact by the same argument and inheriting the same Layer 1 hole (item 16).
-    **Do it with the first cheap or colorless restriction card**, which RS-2 and
-    RS-3 will both want; until then it is a 10%-shaped cliff nobody is standing
+    **Do it with the first cheap or colorless restriction card**, which `cant-cast-play-or-activate` and
+    the combat phases will both want; until then it is a 10%-shaped cliff nobody is standing
     on. The general lesson is worth more than the item: **a sweep for this defect
     shape would have "fixed" this instance and reported a win it did not earn.**
 
@@ -2328,8 +2328,8 @@ section never asked.
 
     **Sized:** five lines at `predicate.rs:107` — `gather`'s
     per-permanent gate — with the first cheap or colorless restriction card,
-    RS-2.
-    **Slotted:** RS-2, whose first cheap or colorless restriction card opens
+    `cant-cast-play-or-activate`.
+    **Slotted:** `cant-cast-play-or-activate`, whose first cheap or colorless restriction card opens
     the sweep: `gather`'s per-permanent gate at `predicate.rs`.
 
 45. **Engine cost is now a fixture, and it found two determinism violations the
@@ -2439,7 +2439,7 @@ measurement; what follows is what a later phase has to know.
 
     **Sized:** none.
     **Slotted:** none — a record of why `apply_rewrite` keeps `&mut GameState`,
-    re-checked when MA-4's entry choice writes on the object.
+    re-checked when `chosen-color-plus-could-produce`'s entry choice writes on the object.
 
 54. **~~`execute_actions_new_batch` is §4.2's one exception.~~ — ✅ CLOSED
     2026-10-09 (PR #238).** — archived.
@@ -2519,7 +2519,7 @@ measurement; what follows is what a later phase has to know.
     unchanged, and the loud 0/0 stays in the stress pool on purpose — taking
     the Ghoul out is a pool move for a wrong answer the §2.2 phase fixes
     whole.
-    **Slotted:** B7, the lattice's `backlog.md` §2.2 linked abilities (CR 607),
+    **Slotted:** `breadth-features`, the lattice's `backlog.md` §2.2 linked abilities (CR 607),
     whose per-pair exile record Sutured Ghoul's `*/*` CDA reads.
 
 60. **~~Master Biomancer's Mutant clause is unimplemented, and it is not one
@@ -2643,7 +2643,7 @@ effective ability lists behind a three-leg gate; `Effect::CostModification`,
 `Condition::SourceUntapped`, `ChoiceKind::OrderCostReductions`; the castability
 preview reading the locked cost; Thalia (pooled), Goblin Electromancer,
 Trinisphere. `plans/cost-architecture.md` has the design, the sizing of
-CM-2–4 and CP-1, and the Krark-Clan Ironworks loop as the casting pipeline's
+CM-2–4 and `hybrid-and-phyrexian-payment`, and the Krark-Clan Ironworks loop as the casting pipeline's
 integration test; what follows is what a later phase has to know.
 
 **Measured** (`plans/fuzz_ab.py`, 2026-09-07, three arms — `main`, the CM-1
@@ -2708,7 +2708,7 @@ games; with Humility forced beside her, both are on the board in 52%.
     **The invariant it must keep:** a taken reversal undoes the ability's
     cost and its mana together — one without the other is infinite colorless
     mana from Ironworks and Mind Stone alone (`cost-architecture.md` §3.11).
-    **Slotted:** B13, the Krark-Clan Ironworks loop (moved off TR-7 on
+    **Slotted:** `ironworks-loop`, the Krark-Clan Ironworks loop (moved off TR-7 on
     2026-10-13), whose board is the Mind Stone puzzle's: CR 732.1's
     reverse-all offer, `backlog.md` §2.22 row 9.
 
@@ -2828,7 +2828,7 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     already OR'd into source 2's gate and are what catches it, so the cost of
     forgetting is bounded to whatever builds the route. LJ built half the
     route and neither flag needed touching, which is that sentence holding.
-    **Slotted:** PM-0 (B11), which took `backlog.md` §2.3 and designs CR
+    **Slotted:** `permission-design`, which took `backlog.md` §2.3 and designs CR
     113.6e's permissions; the gate's two summary flags catch a stack-reaching
     cost ability.
 
@@ -2998,7 +2998,7 @@ one, so nothing was wrong in practice and nothing moved.
     without being equal ("an artifact" and "a creature" over one artifact
     creature), so summing counts per filter is wrong. ~80 lines and a
     matching `plan_payment` change, with the first card that prints two.
-    **Slotted:** CP-2, the cost actions, whose per-action resource check (CR
+    **Slotted:** `remaining-costs`, the cost actions, whose per-action resource check (CR
     118.3) is where a set-cover pre-check over two object-moving costs is
     designed.
 
@@ -3020,7 +3020,7 @@ one, so nothing was wrong in practice and nothing moved.
     Offering an order that bricks the payment is what would make 732.1's
     cancellation load-bearing, and building the cancellation is the
     alternative to that constraint rather than a companion to it.
-    **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23),
+    **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23),
     with "Before card breadth" item 4's CR 613.7m: each is an order the CR
     hands a player ("in any order", "in the order of that player's choice")
     that the engine takes today, and when one is asked is one design, asked
@@ -3076,7 +3076,7 @@ one, so nothing was wrong in practice and nothing moved.
     **Sized:** with modal spells (`backlog.md` §2.3's neighbourhood), not
     before. Nothing here changes until then; the note exists so that "keyword
     means optional" is not inferred from the variant list.
-    **Slotted:** B7's `backlog.md` §2.7 modal spells, then the first spree card
+    **Slotted:** `breadth-features`'s `backlog.md` §2.7 modal spells, then the first spree card
     (Scryfall: `keyword:spree`), whose per-mode costs are a `Mandatory`
     additional cost.
 
@@ -3229,7 +3229,7 @@ offer, which is item 70. If it ever matters, its owner is item 77.
     independently of cost: pre-tapping commits mana before CR 601.2f locks the
     total, so an agent that does it can never activate a mana ability *inside*
     the window — no Ironworks sacrifice mid-cast, no overpay play.
-    **Slotted:** MA-6, a person's seat, which composes the seat's decorators:
+    **Slotted:** `mana-payment-solver`, a person's seat, which composes the seat's decorators:
     `backlog.md` §2.22 row 5's combat defaults, beside row 7's tap solver.
 
     **The helpers deleted (2026-10-14, A6m's first PR, #249), at the owner's
@@ -3339,7 +3339,7 @@ consequences, and only the first was designed:
     was filed 2026-09-08 because no doc owned CR 310 at all. The 120.3h result
     itself is one flag on `DamageResults` and one block, the same shape as
     120.3c; everything else about battles is the size.
-    **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23):
+    **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23):
     CR 310 is a design, the protector a second control-like relation
     `ObjectFilter` has no leaf for, a battle attacked with its protector as
     the defending player (CR 506.2, 508.5), and the 120.3h result one flag
@@ -3455,7 +3455,7 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
 
     **Sized:** unknown until a card asks; the error is the right answer until
     then.
-    **Slotted:** A4l, CR 601.2d's effect divided among its targets: the six
+    **Slotted:** `divided-among-targets`, CR 601.2d's effect divided among its targets: the six
     printed "prevent the next N … divided as you choose" cards; until then the
     refusal is the answer.
 
@@ -3548,7 +3548,7 @@ this PR added the fields it names.
     the command zone.
     **Sized:** one leg in `damage_sources` once the command zone is
     populated, ~10 lines and a test.
-    **Slotted:** B2, the Commander PR that fills the command zone; re-slotted
+    **Slotted:** `game-formats`, the Commander PR that fills the command zone; re-slotted
     2026-10-09, since "the Commander PR" named no route code.
 
 100. **~~`Primitive::DealDamage` proposes one batch, and that is now a
@@ -3858,16 +3858,16 @@ named RE PR.
      per eligible card per player. **Unblocked as of LK.** The care is the
      ordering ruling above and CR 103.6's interaction with mulligans, which are
      themselves stubbed.
-     **Slotted:** A6s, the route review, at the card-homed triage
+     **Slotted:** `route-review`, the route review, at the card-homed triage
      (2026-10-23): CR 103.6's step is designed beside CR 103.5's mulligans,
-     which A6s places (`setup-architecture.md` names both as its neighbors): a
+     which `route-review` places (`setup-architecture.md` names both as its neighbors): a
      pregame step between `Game::setup`'s opening hands and
      `start_first_turn`, its `DecisionProvider` question and Gemstone Caverns'
      ordering ruling. Leyline of the Void gets its first clause there.
 
 120. **~~`AbilityDef` has no named constructors.~~ — ✅ CLOSED 2026-10-09 (PR
      #238).** — archived.
-     Merged into "Before card breadth" item 10, which C0 builds.
+     Merged into "Before card breadth" item 10, which `card-layer-cleanup` builds.
      **Reachability (2026-10-09):** closed — PR #238.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 120".
 
@@ -3989,7 +3989,7 @@ through RB", and `owed` scoped to three older phases at every RE close.
   path-to-triggers table, extended in proposed order by the between-phases
   rows (the `A4x` family) with what each owes the doc, and the B rows with
   their atoms; §3b explains it; `engineering-practices.md` §9; the codebase map and the Rust notes
-  homed at `roadmap-v2.md` row A4d; this heading, and the handoff deleted.
+  homed at `roadmap-v2.md` row `rust-notes`; this heading, and the handoff deleted.
 
 **The board at the close** (`state-of-play.md`, 2026-09-15): 193 items, three
 reachable and wrong today — 59, 60 and 122, each with an owner — and none
@@ -4007,7 +4007,7 @@ changed in `CLAUDE.md`, by its own rule.
 **What it left open, each with an owner and a size:** the engine items pass 3
 sized — item 138's two levers and two counters, 139 with item 41's test, 140,
 141's two methods, 42's summaries and window — ordered in `roadmap-v2.md`
-§3b; the two after-the-passes artifacts at row A4d, neither started; the
+§3b; the two after-the-passes artifacts at row `rust-notes`, neither started; the
 three wrong-today items.
 
 **Found on the PR's review (2026-09-16):** the UUID review, item 144 below —
@@ -4109,7 +4109,7 @@ lands in nobody's doc. Meanwhile **the corpus knew**: `ATOM-614.17a/b/c/d`,
 | Corpus atoms, uncovered | ~21 | **101**, all uncovered (707: 30, 712: 36, 729: 19, 708: 10, 613.2: 3, 710: 3) |
 | Corpus's own phase tag | Phase 6 / 5-Pre | **CR 707: 23 atoms tagged "Phase 6"** — i.e. the corpus files copy effects *with replacement effects*, and RC–RE does not schedule them |
 | A shipped enum already waiting for it | `ReplacementClass::SelfReplacement` | **`ReplacementClass::CopyOnEnter` and `BackFaceUp`** — two of RB's five buckets, with no producer |
-| On `CLAUDE.md`'s critical path | no (now item 5b) | no — **now item 5c**, phases CV-1–CV-7 |
+| On `CLAUDE.md`'s critical path | no (now item 5b) | no — **now item 5c**, the copy phases |
 | Card population | 1,857 printed + keywords | **517 double-faced** (396 transform + 100 modal + 21 meld), 752 cards printing "copy", 304 face-down producers, 34 mutate |
 
 **Three cells of the original table were wrong, and they are corrected above.**
@@ -4128,7 +4128,7 @@ thing this section is arguing for and its failure modes are worth knowing.
 3) **CR 729, Merging with Permanents, was missing** and CR 613.2a names it in the
    same breath as CR 707: layer 1a is "copy effects (see rule 707) *and changes
    … determined by merging an object with a permanent (see rule 729)*". 19
-   uncovered atoms; 34 mutate cards. **In v1 and scheduled** — phase CV-7, with a
+   uncovered atoms; 34 mutate cards. **In v1 and scheduled** — phase `merging-and-meld`, with a
    back-stop before Phase 8 card breadth, because a multi-component permanent is
    a *fact*: every phase built meanwhile writes code against the
    single-component assumption.
@@ -4424,7 +4424,7 @@ The layer system's designated single-point change site is `oracle/characteristic
    T12c.
    **Slotted:** with the first registered card that keeps unspent mana as steps
    and phases end (Upwelling, Omnath; Scryfall: `o:"lose unspent"`), beside
-   B9's T12c.
+   `mana-provenance`'s T12c.
 
 5. **Timestamps — ✅ live.** — archived.
     **Reachability (2026-09-03):** closed — timestamps are live; the 613.8 half
@@ -4458,7 +4458,7 @@ The layer system's designated single-point change site is `oracle/characteristic
    ~150–250 lines in `apply_effects`, plus CR 613.7a's timestamp for a grantee
    set that moves with the board; lands with the first such card — an
    Aura-granted static after LH, or an Archetype-class lord.
-   **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23):
+   **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23):
    the gather that unions the registry with rows derived from each frame, and
    CR 613.7a's timestamp for a grantee set that moves with the board, are a
    design inside the layer walk, and `engineering-practices.md` §4
@@ -4497,7 +4497,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 7f. **Conditional static abilities — ✅ done (2026-09-06, LI-3).** `Effect::Conditional` lowers to its inner atom's rows, registered unconditionally, and the condition stays on the ability where CR 604.2's existence check already looks: `board::static_ability_still_exists` evaluates it against the pass's *live* board at the row's layer, so a condition reading types sees layer 4 applied. No field on `ContinuousEffect` and no second registry (`layers-architecture.md` §13b decision 5). `engine/layers/condition.rs` is the evaluator; `Condition` gained one leaf, `HostMatches(ObjectFilter)`, for "as long as enchanted permanent is …". **Kird Ape** is the consumer and is in `PERFORMANCE_POOL`. The historical note below is the reason the answer had to be an existence check rather than a gate, and it is kept.
 
-    **Dog Umbra, the worked example this item carried, is still two systems away** — "As long as another player controls enchanted creature, it can't attack or block. Otherwise, this Aura has umbra armor." The condition and the `Host` recipient both exist now (this item and LH-1); what is left is `Effect::Restriction` under a conditional, which lowers to no rows on purpose (CR 101.2 reads the effective ability list instead, so the *condition* has to be read there rather than here — RS-2's), and umbra armor, a replacement effect. (Umbra armor is CR 702.89a; 702.89b renamed the older "totem armor" wording in Oracle, so use umbra armor.)
+    **Dog Umbra, the worked example this item carried, is still two systems away** — "As long as another player controls enchanted creature, it can't attack or block. Otherwise, this Aura has umbra armor." The condition and the `Host` recipient both exist now (this item and LH-1); what is left is `Effect::Restriction` under a conditional, which lowers to no rows on purpose (CR 101.2 reads the effective ability list instead, so the *condition* has to be read there rather than here — `cant-cast-play-or-activate`'s), and umbra armor, a replacement effect. (Umbra armor is CR 702.89a; 702.89b renamed the older "totem armor" wording in Oracle, so use umbra armor.)
 
     **What the arm does *not* do, and why that is the right reading.** The condition is not consulted at registration: a card whose condition is false as it enters still registers its rows, and they apply to nothing until it becomes true. Consulting it at ETB would need a re-registration hook on every board change a condition can read, which is the reconciliation `CLAUDE.md` warns about — existence is decided in the layer walk or it is decided in an oscillating loop outside it.
 
@@ -4553,7 +4553,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     **Layer 1a / 1b — and this entry had the two backwards until 2026-08-29.** `tmnt.txt` says **613.2a Layer 1a: Copiable effects** (copy effects, CR 707, and merging, CR 729) and **613.2b Layer 1b: Face-down**, i.e. copy *then* face-down. The enum has a single `Layer1Copy`. Not reachable today — nothing produces a layer 1 effect. `LAYER_ORDER` in `engine/layers/compute.rs` mirrors the enum, so splitting it later just lengthens that array; the frame-cache ceiling is an index into it, computed at runtime.
 
-    **Both remaining sites corrected 2026-09-02 (CV-1): `compute.rs`'s `LAYER_ORDER` doc and `layers-architecture.md` §7 with its `Layer` code block.** `Layer1Copy` still collapses the two, and now has a producer in 1a; CV-6 splits it, and `layers::copy::END_OF_LAYER_1` is the one integer the split moves — pinned by a `debug_assert` that fires the moment `LAYER_ORDER[1]` stops being `Layer2Control`. The three sites had shared one wrong derivation: *"a Clone copying a face-down creature copies the 2/2 colorless characteristics, not the printed card (CR 707.2)"* is a **correct conclusion from a wrong premise**. The 2/2 does not come from face-down applying first; it is CR 708.2's own "Any listed characteristics are the copiable values of that object's characteristics", with CR 708.10 covering the copy-of-a-face-down case directly. Where it bites is exactly one integer: `copy-effects-architecture.md` §4.6 captures copiable values at the end of layer 1, and a reader who believes 1b is copy takes the ceiling one sublayer too early — a bug that appears only on boards with a face-down creature being copied.
+    **Both remaining sites corrected 2026-09-02 (CV-1): `compute.rs`'s `LAYER_ORDER` doc and `layers-architecture.md` §7 with its `Layer` code block.** `Layer1Copy` still collapses the two, and now has a producer in 1a; `face-down-and-morph` splits it, and `layers::copy::END_OF_LAYER_1` is the one integer the split moves — pinned by a `debug_assert` that fires the moment `LAYER_ORDER[1]` stops being `Layer2Control`. The three sites had shared one wrong derivation: *"a Clone copying a face-down creature copies the 2/2 colorless characteristics, not the printed card (CR 707.2)"* is a **correct conclusion from a wrong premise**. The 2/2 does not come from face-down applying first; it is CR 708.2's own "Any listed characteristics are the copiable values of that object's characteristics", with CR 708.10 covering the copy-of-a-face-down case directly. Where it bites is exactly one integer: `copy-effects-architecture.md` §4.6 captures copiable values at the end of layer 1, and a reader who believes 1b is copy takes the ceiling one sublayer too early — a bug that appears only on boards with a face-down creature being copied.
 
     **~~Keywords are abilities, and we model some of them as markers.~~ ✅ resolved (2026-08-23, Layer 6 phase).** The old entry framed this as "`Primitive::GrantKeyword(Equip)` would set a flag and grant no ability", which understated it. CR 702 has 189 keyword abilities and they do not want one representation. The axis is **does the engine branch on the keyword, or execute it**, crossed with whether it takes a parameter: ① branch/no-param is a flag (flying, trample, vigilance); ② branch/param is a set of *values* (protection from [quality], [type]walk); ③ execute/no-param is a plain `AbilityDef` (storm, prowess, **devoid** — already modelled this way in `phase_le_cards`); ④ execute/param is an `AbilityDef` with args (equip [cost], ward [cost], cycling [cost]).
 
@@ -4588,10 +4588,10 @@ The layer system's designated single-point change site is `oracle/characteristic
     keywords have no frame representation and no registered card; "hexproof
     from" is unmodelled.
 
-    **Sized:** the 1a/1b split is CV-6's, ~30 lines
+    **Sized:** the 1a/1b split is `face-down-and-morph`'s, ~30 lines
     (`END_OF_LAYER_1` moves and its `debug_assert` fires until it does);
     quadrant ② with its first card.
-    **Slotted:** CV-6, which splits `Layer1Copy` into 1a and 1b (CR 613.2a–b);
+    **Slotted:** `face-down-and-morph`, which splits `Layer1Copy` into 1a and 1b (CR 613.2a–b);
     quadrant ② keywords and "hexproof from" arrive with their first cards.
 
 11. **Filter `PlayerRef` resolution — ✅ done (2026-08-23), ahead of Layer 2.**
@@ -4766,7 +4766,7 @@ first.
 
 2. **~~"Any player may activate this ability" is unmodeled (CR 602.1a).~~ — ✅
    CLOSED 2026-10-09 (PR #238).** — archived.
-   Graduated 2026-10-05 to `permission-architecture.md` §3, which B11 builds.
+   Graduated 2026-10-05 to `permission-architecture.md` §3, which permission's builds build.
    **Reachability (2026-10-09):** closed — PR #238.
    Full entry: `plans/archive/codebase-state-closed.md`, "'Before card breadth' item 2".
 
@@ -4833,7 +4833,7 @@ first.
    (`layers-architecture.md` §13a); 613.7m is a decision point (the active
    player orders their own), ~60 lines inside `CreateTokens`' performer, with
    the first distinguishable creation; 613.7n rides LH-2.
-   **Slotted:** A6s, the route review, at the card-homed triage (2026-10-23),
+   **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23),
    with item 79: CR 613.7m's "in the order of that player's choice" is an
    order the engine takes today, and asking it only where the orders' outcomes
    differ is the same design as CR 601.2h's payment order. Its APNAP half,
@@ -4875,7 +4875,7 @@ first.
 
 7. **~~Hexproof and shroud are unenforced in spell targeting.~~ — ✅ CLOSED
    2026-10-09 (PR #238).** — archived.
-   Merged into main item 15, which RS-2 takes with menace and intimidate.
+   Merged into main item 15, which `cant-be-targeted` takes with menace and intimidate.
    **Reachability (2026-10-09):** closed — PR #238.
    Full entry: `plans/archive/codebase-state-closed.md`, "'Before card breadth' item 7".
 
@@ -4927,14 +4927,14 @@ first.
     it and no longer a design.
 
     **Decided at CV-2a's review (the owner, 2026-09-28): both halves, in
-    C0.** The constructors cover every kind (static, spell, activated and
+    `card-layer-cleanup`.** The constructors cover every kind (static, spell, activated and
     mana, beside `authoring::triggered_ability`), with builder methods for the
     two rare fields, and the migration takes every literal in the card files:
     116 on 2026-09-28, against the 31 static ones counted above. And
     `activation_restriction` moves into `AbilityType::Activated`, the one kind
     it means anything for. Today 145 literals write
     `ActivationRestriction::None`, 2 printed cards use anything else, and 19
-    reads compare `AbilityType::Activated`. Inside C0 the edits come before
+    reads compare `AbilityType::Activated`. Inside `card-layer-cleanup` the edits come before
     the moves, as separate commits, so each moved file is a pure rename and
     its history follows it.
 
@@ -4959,8 +4959,8 @@ first.
     compares by value), and the close-out reads identical counters and no
     instruction change. Nothing outside the card files moves; the dev GUI
     reads text and characteristics, never how a tree was written. **Slotted
-    in C0**, after the edits above and before the moves; sized with C0 when
-    it is designed, and C0's second PR if the two pass the band together.
+    in `card-layer-cleanup`**, after the edits above and before the moves; sized with `card-layer-cleanup` when
+    it is designed, and `card-layer-cleanup`'s second PR if the two pass the band together.
 
     **What the transition to a real card list looks like — asked on review
     2026-09-08 and then measured, because both of us were arguing from
@@ -5067,7 +5067,7 @@ first.
     Scheduled at Phase 8's gate (`roadmap-v2.md` §C), with the helper hoist
     above as the same PR's other half: both are "put the card layer in order
     before it triples", and neither is worth doing twice.
-    **Slotted:** C0, which moves cards to per-set files and fixtures to
+    **Slotted:** `card-layer-cleanup`, which moves cards to per-set files and fixtures to
     `cards::fixtures`, and rebuilds every ability and instruction literal from
     `cards/authoring/`.
 
@@ -5244,13 +5244,13 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    **Sized:** `GameConfig::commander()`, a designation on
    `Decklist`, and the flag set in `Game::new`, ~80–120 lines with tests; the
    first PR of the Commander interleave.
-   **Slotted:** B2, `GameConfig::commander()` with a designation on `Decklist`,
+   **Slotted:** `game-formats`, `GameConfig::commander()` with a designation on `Decklist`,
    setting `is_commander` at game setup (CR 903.3, 903.7); item 3, merged here,
    is the same constructor.
 
 3. **~~`GameConfig::commander()` constructor.~~ — ✅ CLOSED 2026-10-09 (PR
    #238).** — archived.
-   Merged into "Before Commander" item 2, which B2 builds.
+   Merged into "Before Commander" item 2, which `game-formats` builds.
    **Reachability (2026-10-09):** closed — PR #238.
    Full entry: `plans/archive/codebase-state-closed.md`, "'Before Commander' item 3".
 
@@ -5303,7 +5303,7 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    `candidate_priority_actions`' attack-target list plus a `ChoiceKind`;
    800.4f–h ~120 with the delegation rule and a fixture each; 800.4i waits on
    the LKI facility and is not sized here.
-   **Slotted:** B3, CR 802's defending-player choice at four seats and CR
+   **Slotted:** `multiplayer-rules`, CR 802's defending-player choice at four seats and CR
    800.4f–i's choices a departed player would make.
 
 ### Cross-cutting — keep this section honest
@@ -5480,7 +5480,7 @@ What the *shape* says, as opposed to what one endpoint suggested:
     and will answer for a graveyard card, but no engine caller asks it about
     one. It becomes wrong with the first rule that does. CR 113.6k's trigger
     conditions landed with item 6 and read no keyword, so CR 702.35's madness
-    (functions in hand, B11) is the one named candidate left.
+    (functions in hand, permission's) is the one named candidate left.
 
     **Sized:** the honest fix is not a zone gate on `seed_frame` — that would
     strip a CDA-granted keyword too. It is to give the frame's keyword set the
@@ -5488,7 +5488,7 @@ What the *shape* says, as opposed to what one endpoint suggested:
     CR 113.6 at the one place a *rules* reader asks. ~60–80 lines and a decision
     about where that place is, which is why it waits for a reader rather than
     being guessed at now.
-    **Slotted:** B11, whose permission checks are the first rules readers of a
+    **Slotted:** `permission-design`, whose permission checks are the first rules readers of a
     card off the battlefield (flash, madness), where CR 113.6 filters the
     keyword set.
 
@@ -5592,7 +5592,7 @@ migration.
      which is what §8c's "two customers before a leaf" asks for before that
      facility is built. Until then the engine's answer is the graveyard and
      this line is the record that the choice is missing.
-     **Slotted:** A6s, the route review, at the card-homed triage
+     **Slotted:** `route-review`, the route review, at the card-homed triage
      (2026-10-23): `backlog.md` §2.25's facility, a replacement whose result
      is more than one event, inserted as members in phase 1, with CR 704.7's
      collapse of two members moving one object turned into a prompt, is a
@@ -5641,7 +5641,7 @@ with its customer named:**
 
      **Sized:** ~15 lines in `substitute`, with Hullbreacher, after §2.19.
      **Slotted:** with the first registered card that replaces a draw with a
-     token creation, Hullbreacher, once MA-3 gives a Treasure its any-color
+     token creation, Hullbreacher, once `any-color-plus-painlands-plus-signets` gives a Treasure its any-color
      mana.
 
 127. **A creation template with a *choice* of def has no shape.** Jinnie Fay,
@@ -5674,7 +5674,7 @@ with its customer named:**
 What is *not* a ledger line, and where each waits: Xorn's and Chatterfang's
 Treasure and Hullbreacher's are `backlog.md` §2.19's (a Treasure def needs
 any-color mana); Academy Manufactor's "one of each" is §2.27's library;
-Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
+Ojer Taq's back face is `double-faced-cards`'s; Chatterfang's variable sacrifice cost is
 `cost-architecture.md`'s.
 ### Found by RE-5 — counters, on permanents and players (2026-09-13)
 
@@ -5719,12 +5719,12 @@ Primal Vigor. Item 43 closed and evicted; `backlog.md` §2.16 graduated.
 What is *not* a ledger line, and where each waits: CR 122.6a's named putter
 was closed on an empty Scryfall query and built at the review (§11 item
 83); Doubling Season's battles are
-`backlog.md` §2.23's; paying {E} is a cost, `cost-architecture.md`'s CP-1
+`backlog.md` §2.23's; paying {E} is a cost, `cost-architecture.md`'s `hybrid-and-phyrexian-payment`
 slot with its first card; proliferate (CR 701.34a) is `backlog.md` §2.5's
 and reads the map this phase built; the additive commutation shapes were
 §2.29's and are built — the review's theme B made the predicate the
 commutation table that entry designed (§11 item 85).
-     **Slotted:** CP-2, whose `Cost::AddCounters` arm is the first cost that
+     **Slotted:** `remaining-costs`, whose `Cost::AddCounters` arm is the first cost that
      puts counters; its proposal carries a cost cause the doublers refuse (CR
      614.16).
 
@@ -5777,8 +5777,8 @@ named:**
      §2.9's per-viewer query answering it; plus the validation half of
      `Cost::Discard`. ~60 lines, and it arrives with §2.9 rather than before —
      a flag written by one card is the shape §2.9 exists to replace.
-     **Slotted:** B4, the information model's build, whose per-viewer query
-     answers CR 701.9c's "without being revealed"; reachable once CP-2 checks
+     **Slotted:** `information-model`, the information model's build, whose per-viewer query
+     answers CR 701.9c's "without being revealed"; reachable once `remaining-costs` checks
      `Cost::Discard`.
 
 131. **~~A same-zone substitute leaves no record, so the act it replaced is
@@ -5907,11 +5907,11 @@ closed. **The last of RE's ten PRs.**
      increments and the turn resets, ~20 lines, CM's), the Gnomes after the
      fill arm. The amount field is the one that changes a proof and is owed
      the standing question when it lands.
-     **Slotted:** MA-7, at the card-homed triage (2026-10-23): CR 106.12b's
+     **Slotted:** `mana-ability-costs`, at the card-homed triage (2026-10-23): CR 106.12b's
      type and amount, and the chosen permanent, are replacements the exact
      check must read (`mana-architecture.md` §3.4), and the amount is the axis
      that makes their order matter (Damping Sphere beside Mana Reflection, its
-     first ruling), which MA-7's fold of replacement effects by state answers;
+     first ruling), which `mana-ability-costs`'s fold of replacement effects by state answers;
      each axis with its fixture there, and `engineering-practices.md` §4.1's
      question at `reads_the_amount`.
 
@@ -5939,11 +5939,11 @@ closed. **The last of RE's ten PRs.**
      substitution may ask. Contamination and Infernal Darkness need none of
      this — their lines are fixtures in `tests/phase_re9_integration_test.rs`.
      Their upkeep halves wait on a cost paid at resolution, "sacrifice it
-     unless you ..." and cumulative upkeep, which A6s gives an owner.
-     **Slotted:** MA-4 and MA-3, at the card-homed triage (2026-10-23): Hall
-     of Gemstone's chosen color is MA-4's (`backlog.md` §2.2's record on the
+     unless you ..." and cumulative upkeep, which `route-review` gives an owner.
+     **Slotted:** `chosen-color-plus-could-produce` and `any-color-plus-painlands-plus-signets`, at the card-homed triage (2026-10-23): Hall
+     of Gemstone's chosen color is `chosen-color-plus-could-produce`'s (`backlog.md` §2.2's record on the
      permanent); Harvest Mage's "one mana of a color of your choice" inside a
-     substitution is MA-3's choice at resolution, where which prompts
+     substitution is `any-color-plus-painlands-plus-signets`'s choice at resolution, where which prompts
      `pipeline::substitute` may ask is designed. Naked Singularity's subtype
      map stays with its card, whose text decides the template's shape.
 
@@ -6095,7 +6095,7 @@ them); and the board's classifier, which had read "not wrong today" as
 
 What is *not* a ledger line, and where each waits: the four §8a event kinds
 are dispositioned in `replacement-architecture.md` §8a itself (turned face
-up → CV-6; dice → `backlog.md` §2.31; search → `backlog.md` §2.5's producer;
+up → `face-down-and-morph`; dice → `backlog.md` §2.31; search → `backlog.md` §2.5's producer;
 countering → closed, a zone change with a cause); Master Biomancer's type
 (item 60) is `backlog.md` §2.30's, a mechanic with no surface; the
 self-replacement producer is `replacement-architecture.md` §11 item 3's,
@@ -6868,7 +6868,7 @@ owner decided it the same day.
      summary's restriction legs stayed bools for that reason.
 
      **Reachability (2026-09-16):** unreachable — no registered card prints
-     a restriction that functions off the battlefield. RS-2
+     a restriction that functions off the battlefield. `cant-cast-play-or-activate`
      (`cant-effects-architecture.md`), where casting and countering
      restrictions land, is the natural home.
 
@@ -6881,7 +6881,7 @@ owner decided it the same day.
      countered", so the restriction leg must not skip a stack source the way
      the gather's skips the entering object — being countered is not
      entering.
-     **Slotted:** RS-2, where casting and countering restrictions land, with a
+     **Slotted:** `cant-cast-play-or-activate`, where casting and countering restrictions land, with a
      zone leg for `is_prohibited` and Abrupt Decay as its card.
 
 147. **`hollow_hands` owes the tests that show a strip in hand turning off
@@ -6902,9 +6902,9 @@ owner decided it the same day.
      **Sized:** one test per keyword, ~30 lines each, in that keyword's own
      phase file, with this fixture as the negative: the ability is usable
      without Hollow Hands and not with it.
-     **Slotted:** PM-0, at the card-homed triage (2026-10-23): an ability that
+     **Slotted:** `permission-design`, at the card-homed triage (2026-10-23): an ability that
      functions from a hand (cycling, channel, CR 113.6j) is
-     `permission-architecture.md`'s, so the build PM-0 sizes for it adds the
+     `permission-architecture.md`'s, so the build `permission-design` sizes for it adds the
      `hollow_hands` negative beside its first test.
 
 148. **Exile is the one zone the Colossus family's tests do not move
@@ -7034,7 +7034,7 @@ owner decided it the same day.
      make a measurement wrong. `python plans/check_rulings.py --queue` is the
      list; it is deliberately not copied into this file, because a list that
      is both generated and transcribed goes stale in the transcription.
-     **Slotted:** C1, every registered card's rulings each linked to a passing
+     **Slotted:** `rulings-for-every-card`, every registered card's rulings each linked to a passing
      test, which reads the pooled 103 and the off-pool 205 unread rulings.
 
 ### Found by A4i — several instances of "target" (2026-09-17)
@@ -7120,7 +7120,7 @@ place.
      `StackEntry.chosen_modes` — once per cast, which is the rate the stored
      list was built to take castability *off*. The stored list stays the
      pre-601.2b one, and today a `Modal` node declares nothing in it.
-     **Slotted:** B7, whose `backlog.md` §2.7 modal spells make the cast walk
+     **Slotted:** `breadth-features`, whose `backlog.md` §2.7 modal spells make the cast walk
      only the chosen modes, `StackEntry.chosen_modes` its input.
 
 154. **`ObjectFilter::OtherThanInstance` is only asked of a `Permanent`
@@ -7149,7 +7149,7 @@ place.
      it. That is the shape CR 601.2c actually describes, so it is a
      simplification as well as a widening; it was not done here because it
      touches `EffectRecipient`, which 146 sites construct.
-     **Slotted:** B7, with `backlog.md` §2.7's modal spells, eight of which
+     **Slotted:** `breadth-features`, with `backlog.md` §2.7's modal spells, eight of which
      print "each mode must target a different player": the exclusion moves to
      the clause.
 
@@ -7201,14 +7201,14 @@ place.
      **The whole CR has three sites for that phrase**, surveyed 2026-09-17:
      **508.1d** (attack requirements), **509.1c** (block requirements) and
      **601.2c** (targeting requirements). There is no fourth. The first two are
-     RS-3b's, already sized as the NP-hard one with a bounded-exact search and a
+     `combat-requirements`'s, already sized as the NP-hard one with a bounded-exact search and a
      cap (`cant-effects-architecture.md` §4.2); this is the third and it is
      unowned.
 
      **It is much the smallest of the three.** Combat searches every creature a
      player controls crossed with attack/block assignments; targeting searches
      one spell's instances — one to four on every printed card — crossed with
-     each instance's legal candidates. Same algorithm, and RS-3b's cap covers it.
+     each instance's legal candidates. Same algorithm, and `combat-requirements`'s cap covers it.
 
      **Not to be confused with "as many as possible"** (CR 101.3, 701.17b,
      701.23d, the 601.2h discard example), which is a *clamp* rather than an
@@ -7224,13 +7224,13 @@ place.
      producer, which by the RE-5 rule (`engineering-practices.md` §4) is owed
      with a fixture test and this line, never "nothing owed".
 
-     **Sized:** small, and it belongs with RS-3b rather than alone — the search,
+     **Sized:** small, and it belongs with `combat-requirements` rather than alone — the search,
      the cap and the "requirements versus restrictions" split are the same code.
      What is A4i-specific is that the announcement loop has to hand the solver
      all the instances at once instead of deciding them one at a time, which is
      ~40 lines at the `announce_targets` seam. Until then the greedy loop is
      exact, because the set of requirements is empty.
-     **Slotted:** RS-3b, whose bounded-exact requirement search and cap answer
+     **Slotted:** `combat-requirements`, whose bounded-exact requirement search and cap answer
      CR 601.2c's targeting requirements beside 508.1d and 509.1c.
 
 158. **"Different from that one" has three axes and the engine expresses one.**
@@ -7260,8 +7260,8 @@ place.
      **Sized:** the modal axis is item 154's ~60 lines (move the exclusion from
      the `ObjectFilter` leaf to the clause, so a `Player` or `Any` filter can
      carry it) plus §2.7's mode work. The copy axis is CV's and is sized there.
-     **Slotted:** CV-4, whose CR 707.10d/e per-target copies carry the copy
-     axis; the modal axis is item 154's, at B7.
+     **Slotted:** `spell-copies`, whose CR 707.10d/e per-target copies carry the copy
+     axis; the modal axis is item 154's, at `breadth-features`.
 
 159. **~~`SelectionFilter::Spell` accepts an activated ability on the stack,
      and `Primitive::CounterSpell` then puts the ephemeral ability object into
@@ -7364,7 +7364,7 @@ the file.
      Doubling Cube pooled it reads 2.3, and each of the 64 reversals read in
      traces is a payment the random agent did not make, none an offer no
      payment covers (item 214). What is left is the solver, a person's seat's
-     convenience (MA-6), and what the check does not read yet, item 213,
+     convenience (`mana-payment-solver`), and what the check does not read yet, item 213,
      unreachable on the registered cards.
 
      **Sized:** the matching ~150–250 lines with tests, its own oracle PR any
@@ -7394,7 +7394,7 @@ the file.
      land), which hides a castable spell — worse for a human than a rewind.
 
      **The owner's direction (2026-09-30, at #202's review).**
-     - **Slotted:** it waits for the payment alphabet (CP-1,
+     - **Slotted:** it waits for the payment alphabet (`hybrid-and-phyrexian-payment`,
        `cost-architecture.md`) and for item 33's mana-provenance design, and
        is designed in one session with them at item 33's slot, before Phase
        8. No payment path pays hybrid, mono-hybrid or Phyrexian mana yet,
@@ -7470,8 +7470,8 @@ the file.
      instructions a cost, and the shapes where it is not enumerated below a
      cap. Measured on `close_out.py`'s board: 30.3K instructions a decision
      against today's 45.6K, because the inventory is taken 17,906 times
-     where today's scan runs 39,617. The build is MA-1 to MA-6 (§6): MA-1
-     is this item's offer, with the rewind counter first, and MA-6 its
+     where today's scan runs 39,617. The build is MA-1 to `mana-payment-solver` (§6): MA-1
+     is this item's offer, with the rewind counter first, and `mana-payment-solver` its
      solver. The six decisions the design was briefed with, and the route,
      are its §7; the owner took every recommendation at #224's review
      (2026-10-05).
@@ -7487,7 +7487,7 @@ the file.
      enumeration; what Ironworks sacrifices after the Cube's doubling pays
      undoubled; and the random agent's window view reads each ability's
      production on the board, without which it declined windows a payment
-     covered (Wild Growth's {G}). The solver customer is MA-6's. Trace page:
+     covered (Wild Growth's {G}). The solver customer is `mana-payment-solver`'s. Trace page:
      `plans/traces/ma-1-a-payment-is-a-matching-not-a-count.html`.
 
 163. **~~CR 603.3b's ordering prompt, classified before it exists — and the
@@ -7496,7 +7496,7 @@ the file.
      Both halves of the ordering are built: the engine declines to ask when
      every order leaves the same game (TR-1, TR-2b), and `ui::AutoOrderTriggers`
      answers the rest in the order offered on a person's seat, under full
-     control's toggle (TR-7). CR 732.1's reversal is item 72's, slotted to B13.
+     control's toggle (TR-7). CR 732.1's reversal is item 72's, slotted to `ironworks-loop`.
      **Reachability (2026-10-22):** closed — PR #269.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 163".
 
@@ -7535,8 +7535,8 @@ the file.
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.
-     **Slotted:** CP-1, as a `differ` PR of its own ahead of the payment work,
-     since CP-1 next touches `cost_determination/total.rs`, where the guard
+     **Slotted:** `hybrid-and-phyrexian-payment`, as a `differ` PR of its own ahead of the payment work,
+     since `hybrid-and-phyrexian-payment` next touches `cost_determination/total.rs`, where the guard
      sits.
 
 ### Found by A4c — the trace sink (2026-09-18)
@@ -7564,7 +7564,7 @@ record, `plans/archive/roadmap-v2-landed.md`.** One thing is owed, by decision 6
      `batch` records and reporting the first `pipeline` or `decision` that
      differs; its first customer is the next stream-moving PR's A/B, which
      today attributes a divergence by hand (`fuzz-record.md`, A4h's block).
-     **Slotted:** MA-6, whose offer at the priority question (item 211) moves
+     **Slotted:** `mana-payment-solver`, whose offer at the priority question (item 211) moves
      the random agent's stream: the first A/B this diff would attribute, built
      in that PR.
 
@@ -7941,7 +7941,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      blocker's half of `can_block`.
 
      **Sized:** the candidates are unsized until each is confirmed.
-     **Slotted:** `roadmap-v2.md` A6s, the route review after triggers, which
+     **Slotted:** `roadmap-v2.md` `route-review`, the route review after triggers, which
      places it among the rows before Phase 8's card breadth (the owner,
      2026-10-22, at #274's merge: confirming a candidate is a read and a
      merge, which is cleanup, so it left A6h's docs audit).
@@ -8086,7 +8086,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** by its design, written first in `layers-architecture.md`. The
      word swaps over a structured ability are the unknown; the renames, the
      gate legs and the record's names are each small.
-     **Slotted:** Phase 8, its own line item (`roadmap-v2.md` §C, C2; the
+     **Slotted:** Phase 8, its own line item (`roadmap-v2.md` §C, `text-changing-effects`; the
      owner, 2026-09-30, since the card pool is small): its design, then its
      build.
 
@@ -8190,10 +8190,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      paragraph as its `rules_text` and read at cast off the effective list
      as a cost modification is (CR 601.2f), so Layer 6 removes it like any
      ability and the option's label is its text. Then ~150–300 lines.
-     **Slotted:** PM-0, the permission design, which designs flashback's
-     graveyard cast (`backlog.md` §2.3, graduated to B11), the first cast from
+     **Slotted:** `permission-design`, the permission design, which designs flashback's
+     graveyard cast (`backlog.md` §2.3, graduated to `permission-architecture.md`), the first cast from
      a zone where an effect strips abilities; CR 113.2b's costs as abilities
-     are designed beside it, and PM's later builds build them.
+     are designed beside it, and `casting-from-other-zones` builds them.
 
 204. **Two test cards carry real cards' names: Cerulean Wisps and
      Moonlace.** Each was written narrower than the card on purpose, to test
@@ -8215,7 +8215,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      whole. The pool's names change, so it is a pool change with its
      re-record (`engineering-practices.md` §3). **Slotted:** the test-card
      cleanup before Phase 8's breadth (the owner, 2026-10-01), with
-     `roadmap-v2.md` §C's C0, which moves the fixtures into
+     `roadmap-v2.md` §C's `card-layer-cleanup`, which moves the fixtures into
      `cards::fixtures`.
 
 ### Found by A6g's playable review (2026-10-02)
@@ -8288,9 +8288,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** ~20 lines of card data and a fixture, Warmaster seeing the
      Archer; every creature type the fourteen need is in `CreatureType`. It
      moves both pools' streams, so it carries a re-record of each. **Slotted:**
-     beside C0 (`roadmap-v2.md` §C), the test-card reorganization before
+     beside `card-layer-cleanup` (`roadmap-v2.md` §C), the test-card reorganization before
      Phase 8's breadth (the owner, 2026-10-02), as its own commit after the
-     move: C0's text keeps behavior out of the move, so the move stays a move.
+     move: `card-layer-cleanup`'s text keeps behavior out of the move, so the move stays a move.
 
 ### Found at SU-3's merge (2026-10-03)
 
@@ -8353,7 +8353,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
      **Sized:** ~330 sites, each read to name the option its position meant,
      so not a sweep by script: `vec![1]` becomes the cast of a named card.
-     About 670 changed lines, a PR of its own. **Slotted:** beside C0, the
+     About 670 changed lines, a PR of its own. **Slotted:** beside `card-layer-cleanup`, the
      test cleanup before Phase 8's breadth (`roadmap-v2.md` §C), as a PR of
      its own (the owner, 2026-10-03, at #216's review).
 
@@ -8390,7 +8390,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      land stops being a lone `Pass`, which `backlog.md` §2.22's rule 1
      answers for the seat, so the window and the random agent are asked far
      more: a fixture migration (item 209), and the agent's stream moves.
-     **Slotted:** MA-6, a person's seat, which builds the shape decided below
+     **Slotted:** `mana-payment-solver`, a person's seat, which builds the shape decided below
      (C): one "add mana" entry offered at a priority question to a seat that
      asks for it. Item 162's design doc, slotted before, was
      `mana-architecture.md`, which put it there.
@@ -8398,14 +8398,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      shapes on `close_out.py`'s board. Offered at every priority point, the
      abilities turn 1,749 forced points a game into decisions; the doc
      recommends one "add mana" entry offered to a seat that asks for it
-     (`SeatMode`, A6j's mechanism), built in MA-6. **Decided (the owner,
-     2026-10-05, at #224's review):** shape C, in MA-6.
+     (`SeatMode`, A6j's mechanism), built in `mana-payment-solver`. **Decided (the owner,
+     2026-10-05, at #224's review):** shape C, in `mana-payment-solver`.
 
 212. **~~How cards are cast, activated and paid for has no census, and SU-7
      found three families with no owner.~~ — ✅ CLOSED 2026-10-05 (the
      census, #223).** — archived. `plans/references/cast-census.md` and its script
      count 127 families by status. The 77 found unowned each have an owner or
-     an exclusion: `permission-architecture.md`, `cost-architecture.md` CP-2,
+     an exclusion: `permission-architecture.md`, `cost-architecture.md` `remaining-costs`,
      item 162's design, SU-8, C, and one excluded. The census's §11 gives
      SU-7's four findings their v1 shapes, and its §12 says what it settles
      for item 162.
@@ -8421,15 +8421,15 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      ability changes. The shapes no registered card has are each read one
      way, named here with the way it errs and its owner:
      - **Not read, so under-offered:** a mana ability fed by mana in any shape
-       but the Cube's (Signets, filters: MA-3), by life, counters or {Q}; a
+       but the Cube's (Signets, filters: `any-color-plus-painlands-plus-signets`), by life, counters or {Q}; a
        triggered mana ability whose amount is "that much" or whose type is
-       "any type that land produced" (MA-3, MA-4); a watcher that functions
+       "any type that land produced" (`any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`); a watcher that functions
        off the battlefield (no printed producer); two pool multipliers of
        different shapes, tried in timestamp order only; the pool's restricted
        units, which a pool multiplier copies free (item 33).
      - **Read loosely, so over-offered:** a permanent that sacrifices itself
        for mana and is also what the cost's own sacrifice must take
-       (Treasure, MA-3); two outlets of different abilities sharing fodder,
+       (Treasure, `any-color-plus-painlands-plus-signets`); two outlets of different abilities sharing fodder,
        each counted with all of it; a watcher limited to one use or once a
        turn, applied to every tap; a check past 4,096 leaves or six effects on
        one production, which leans yes by design (`mana-architecture.md`
@@ -8441,7 +8441,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      is (CR 113.6), and a source no player can see (CR 603.2f). The watchers
      are battlefield abilities, and no registered mana trigger has either
      shape. Asking them in the prediction would change what the random agent
-     is offered, so they ride with the limits, to MA-7.
+     is offered, so they ride with the limits, to `mana-ability-costs`.
      **Two more shapes (2026-10-22, the item 6 audit's pass 3, rows 14 and
      10):** the inventory's prediction, `mana_trigger_adds`
      (`oracle/mana_supply.rs`), passes no referents for an intervening "if"
@@ -8450,15 +8450,15 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      (`mana_added_arm_matches`' prediction passes `lki: None`), where the
      activation reads it as it last existed. Wild Growth has neither shape,
      and no registered `{T}` mana ability moves its own source. ~40–80 lines
-     with MA-7.
+     with `mana-ability-costs`.
      **Reachability (2026-10-22):** unreachable — no registered card has one
      of these shapes; the two MA-1 pools, Ironworks and the Cube, are read
      exactly, together and apart.
-     **Sized:** with MA-7 (`mana-architecture.md` §6, the owner, 2026-10-06),
+     **Sized:** with `mana-ability-costs` (`mana-architecture.md` §6, the owner, 2026-10-06),
      which reads every cost per `Cost` arm; the converters and Treasure stay
-     MA-3's, about 60 lines of the inventory.
-     **Slotted:** MA-7, the check widened, which reads every cost per `Cost`
-     arm; the converters and Treasure are MA-3's.
+     `any-color-plus-painlands-plus-signets`'s, about 60 lines of the inventory.
+     **Slotted:** `mana-ability-costs`, the check widened, which reads every cost per `Cost`
+     arm; the converters and Treasure are `any-color-plus-painlands-plus-signets`'s.
 
 214. **~~The random agent does not pay through Doubling Cube.~~ — ✅ CLOSED 2026-10-18 (PR #259, MA-2).** — archived.
      The agent holds a pool multiplier back until nothing else is offered,
@@ -8515,7 +8515,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Moved by A6l (2026-10-10).** The third cleanup is the duplicate
      inventory's now: the permanents, `legal_blockers` and the opponents are
      item 242's, the `can_pay` pair item 243's, the two `ui/ask.rs` wrappers
-     item 246's, and `static_replacement` and `intrinsic_mana_ability` C0's
+     item 246's, and `static_replacement` and `intrinsic_mana_ability` `card-layer-cleanup`'s
      ("Before card breadth" item 10). The first two stay here.
      **Slotted:** A6e, the hygiene pass of item 6's close audit
      (`engineering-practices.md` §9), which takes the first two cleanups.
@@ -8553,7 +8553,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Reachability (2026-10-22):** unreachable — every registered
      `Conditional` is a static ability's "as long as", with no target in it.
      **Sized:** ~20–40 lines, the condition's kind read by the walk.
-     **Slotted:** CP-2, the cost actions (`cost-architecture.md`), which
+     **Slotted:** `remaining-costs`, the cost actions (`cost-architecture.md`), which
      announces what each cost requires at CR 601.2b, and with it the first
      target a cost can make conditional (`backlog.md` §4's CR 601 cluster).
 
@@ -8568,7 +8568,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      unregistered.
      **Sized:** ~20 lines, the activated def carried on the stack entry.
      **Slotted:** the first registered activated "this ability" copy, Dimir
-     Doppelganger, which waits on B13's graveyard targets (the Ironworks
+     Doppelganger, which waits on `ironworks-loop`'s graveyard targets (the Ironworks
      loop, moved off TR-7 on 2026-10-13).
 
 222. **~~A copy row that carries a triggered ability opens the dispatcher's
@@ -8619,7 +8619,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      704.5m, `ObjectSet::Host`, the why panel, and TR-4b's: an entry's
      `EnterMods.attached_to` and the attachment records), ~150 lines with the
      first Curse.
-     **Slotted:** A6s, the route review, at the card-homed triage
+     **Slotted:** `route-review`, the route review, at the card-homed triage
      (2026-10-23): an attachment that can name a player is a design, the
      host's type on `PermanentState::attached_to` and `GameAction::Attach` and
      every reader of it (CR 704.5m, `ObjectSet::Host`, the why panel, TR-4b's
@@ -8781,7 +8781,7 @@ function by its inputs, its reads and its tests, and its first report over
 a blind calibration and a second opinion. Of 140 entries, 69 are merges. The
 ones on the last-known-information and zone-change surface are items 176 and
 177's inputs (a dated paragraph each); the rest are below. Item 215's
-"helpers built more than once" moves to items 242–244 and C0.
+"helpers built more than once" moves to items 242–244 and `card-layer-cleanup`.
 
 242. **~~The board's queries are built inline beside their helpers, or with no
      helper.~~ — ✅ CLOSED 2026-10-14 (PR #249).** — archived.
@@ -8948,10 +8948,10 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      **Sized:** ~30 lines of code and ~60 of tests: the stack object on
      `AbilityActivated`, the trigger's number on its stack entry, and
      `triggered_by` written or deleted.
-     **Slotted:** CV-4, which builds the copy of an ability that these cards
+     **Slotted:** `spell-copies`, which builds the copy of an ability that these cards
      read.
 
-257. **Storm's count is planned and waits for CV-4.**
+257. **Storm's count is planned and waits for `spell-copies`.**
      `triggers-architecture.md` §3.10 takes "each other spell that
      was cast before it this turn" (CR 702.40a) at the storm spell's
      `SpellCast` record, since a spell cast in response is not before it. It
@@ -8959,7 +8959,7 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      **Reachability (2026-10-22):** unreachable — nothing copies a spell.
      **Sized:** ~15 lines of code and ~50 of tests: every player's casts this
      turn on the record as it is dispatched, read by the copy count.
-     **Slotted:** CV-4, the first phase that can register a storm card, since
+     **Slotted:** `spell-copies`, the first phase that can register a storm card, since
      storm copies spells.
 
 258. **~~CR 400.7j's, 400.7e's and 701.17c's "public zone" is not asked.~~ — ✅ CLOSED 2026-10-15 (PR #254, TR-4d).** — archived.
@@ -8995,7 +8995,7 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
 The owner commissioned a read of the history, the plans and the trigger code
 for habits that cause rework. Two of its findings in the tree are live
 violations that no item named. Each was checked against the tree before it was
-filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
+filed. Its other findings went to the route: `roadmap-v2.md` A6q and `route-review`.
 
 262. **~~An unbatched dispatch swallows its error, so triggers can vanish
      without a word.~~ — ✅ CLOSED 2026-10-13 (PR #248, A6r).** — archived.
@@ -9008,7 +9008,7 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      Done: the draw is `GameAction::GameEndsInADraw`, performed and announced
      with `GameRule::MandatoryLoop` as its cause, and both of the engine's counts
      propose it: the state-based check that keeps performing, and the dispatch
-     that keeps nesting. Loop detection itself is `roadmap-v2.md` B14's.
+     that keeps nesting. Loop detection itself is `roadmap-v2.md` `loop-detection`'s.
      **Reachability (2026-10-21):** closed — PR #268.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 263".
 
@@ -9037,7 +9037,7 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      2026-10-15, at #253's review). A design, not a patch; a harness bound
      (~30 lines, a game past an object count ends as a harness outcome beside
      the turn limit) is only a stopgap for the fuzz runs.
-     **Slotted:** A6s, the route review, which gives `backlog.md` §2.28's
+     **Slotted:** `route-review`, the route review, which gives `backlog.md` §2.28's
      `GameNumber` an owner beside its token board for the performance floors.
 
 265. **A card cast from a graveyard carries no frame.** CR 601.2a's move is
@@ -9057,7 +9057,7 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      §2.3 graduated to).
      **Sized:** ~15 lines: the cast frames the card before its silent move and
      hands the frame to the 601.2i announcement.
-     **Slotted:** PM-0, whose design sizes casting from a non-hand zone.
+     **Slotted:** `permission-design`, whose design sizes casting from a non-hand zone.
 
 266. **~~A card whose one trigger is on itself leaving a zone keeps the zone
      map non-empty wherever it is.~~ — ✅ CLOSED 2026-10-15 (PR #253, TR-4c).** —
@@ -9155,8 +9155,8 @@ with no batch between them; written at the item 6 audit's pass 5.
      defending player with no creature.
      **Sized:** the kept choice, asked as the stack object is made and kept
      on its entry, ~90 lines of code and ~150 of tests (decision 10's
-     costing); the activation's condition is RS-2's own check.
-     **Slotted:** RS-2, the read-side choice points, whose cast, activation
+     costing); the activation's condition is `cant-cast-play-or-activate`'s own check.
+     **Slotted:** `cant-cast-play-or-activate`, the read-side choice points, whose cast, activation
      and target checks the choice is asked in.
 
 ### Found by TR-5f (2026-10-17)
@@ -9177,7 +9177,7 @@ with no batch between them; written at the item 6 audit's pass 5.
      is CR 702.141a's encore (26 cards, `keyword:encore`): "for each
      opponent, create a token that's a copy of this card that attacks that
      opponent this turn if able", where the binding feeds an attack
-     requirement (`cant-effects-architecture.md`'s RS-3a) rather than the
+     requirement (`cant-effects-architecture.md`'s `combat-restrictions`) rather than the
      entry, since the tokens are created before combat. A missing facility,
      not a deferral of TR-5f's: every other way to say the defender is built.
      **Reachability (2026-10-23):** unreachable — no registered card runs an
@@ -9190,7 +9190,7 @@ with no batch between them; written at the item 6 audit's pass 5.
      `Effect::ForEach` over a players `Selector` that binds each player as the
      instruction's named player, with a three-seat fixture "for each opponent,
      create a 1/1 token tapped and attacking that player"; encore's attack
-     requirement stays RS-3a's.
+     requirement stays `combat-restrictions`'s.
 
 ### Found by MA-2 (2026-10-18)
 
@@ -9211,10 +9211,10 @@ with no batch between them; written at the item 6 audit's pass 5.
      **Sized:** each cut with its surface (`mana-architecture.md` §3.7's
      owners): the cut's set built in `oracle::x_values` and its reason's
      line, ~30 lines each beside the surface's own.
-     **Slotted:** B13, at the card-homed triage (2026-10-23), beside item 274:
-     a cut "with mana value X" reads a mana value, and B13 builds the first
+     **Slotted:** `ironworks-loop`, at the card-homed triage (2026-10-23), beside item 274:
+     a cut "with mana value X" reads a mana value, and `ironworks-loop` builds the first
      filter that does; the first cut with a gap is the producer (Detonate;
-     Tamiyo, Compleated Sage once CP-2 gives a loyalty ability its cost).
+     Tamiyo, Compleated Sage once `remaining-costs` gives a loyalty ability its cost).
 
 274. **A cost change that applies by a spell's mana value makes the bound
      on X piecewise.** On the stack a spell's mana value counts X (CR
@@ -9234,9 +9234,9 @@ with no batch between them; written at the item 6 audit's pass 5.
      **Sized:** the thresholds (`X ≥ ceil((m − the rest's mana value) / k)`)
      cutting `ManaComponent` into pieces, one division a piece, and the gate
      testing each piece's first X: ~60 lines of code and ~80 of tests,
-     beside CR 202.3e's on-stack mana value (`cost-architecture.md`'s CP-1
+     beside CR 202.3e's on-stack mana value (`cost-architecture.md`'s `hybrid-and-phyrexian-payment`
      row) (`mana-architecture.md` §3.7).
-     **Slotted:** B13, the Krark-Clan Ironworks loop, at the card-homed triage
+     **Slotted:** `ironworks-loop`, the Krark-Clan Ironworks loop, at the card-homed triage
      (2026-10-23): it builds the first `ObjectFilter` arm that reads a mana
      value (Scrap Trawler's "lesser mana value"), the day
      `filter_reads_mana_value`'s assertion can first fire, so the piecewise
@@ -9304,8 +9304,8 @@ Number 277 was withdrawn in #260 and is not reused.
      "came under your control" (TR-4d's `ControlChanged`), each a `RowFact`
      reading or variant with a fixture filter. Its check, in debug builds:
      each zone change a batch performs writes its row. "Crewed" and "saddled"
-     come with crew and saddle, whose tapping cost is CP-2's, and "turned face
-     up" with CV-6.
+     come with crew and saddle, whose tapping cost is `remaining-costs`'s, and "turned face
+     up" with `face-down-and-morph`.
      **Shaped at TR-5c's review (the owner, 2026-10-18):** for TR-5d's design,
      one history of what each object did this round, the combat's rows
      generalized (an object, the turn, the combat and a fact), which these
@@ -9356,15 +9356,15 @@ Number 277 was withdrawn in #260 and is not reused.
 
 283. **The activation arm cannot ask about a loyalty ability.** "Whenever you
      activate a loyalty ability" is 8 cards (`o:"activate a loyalty ability"
-     (o:whenever or o:when)`), and no card has a loyalty ability until CP-2's
+     (o:whenever or o:when)`), and no card has a loyalty ability until `remaining-costs`'s
      cost arms and `permission-architecture.md`'s timing build them.
      `ActivatesAbility` has no field for it, so such a card cannot be
      written, rather than written wrong.
      **Reachability (2026-10-23):** unreachable — no loyalty ability exists.
      **Sized:** a `loyalty: Option<bool>` on the arm and the record, ~15 lines
      and ~30 of tests.
-     **Slotted:** CP-2, at the card-homed triage (2026-10-23): no ability is a
-     loyalty ability until CP-2's counter arms make its cost, with
+     **Slotted:** `remaining-costs`, at the card-homed triage (2026-10-23): no ability is a
+     loyalty ability until `remaining-costs`'s counter arms make its cost, with
      `permission-architecture.md`'s CR 606.3 timing beside them, so the build
      that makes the first writes on the activation's record whether it is one,
      and the arm reads it.
@@ -9449,7 +9449,7 @@ scan of the history log, and the place in a turn that reads a tally since
      **Sized:** a word per fact naming its objects, as `cast <card>` does,
      each ~40 lines with its test.
      **Slotted:** with the first registered card that narrows one (Caller of
-     the Claw for deaths). A6s's audit of the scenario format reads it first
+     the Claw for deaths). `route-review`'s audit of the scenario format reads it first
      (`roadmap-v2.md`).
 
 ### Found by TR-5d (2026-10-19)
@@ -9465,7 +9465,7 @@ scan of the history log, and the place in a turn that reads a tally since
        prevention and its "when damage is prevented this way" trigger are
        printed in one paragraph, so the trigger refers only to that static
        ability's actions (Outfitted Jouster's too, a digital card). Linked
-       abilities are one of the questions A6s owns.
+       abilities are one of the questions `route-review` owns.
      - **The prevented damage's source.** Judgment of Alexander's "whenever
        damage from a creature is prevented this way ... to that creature" and
        Samite Ministration's "from a black or red source" ask it, and
@@ -9482,7 +9482,7 @@ scan of the history log, and the place in a turn that reads a tally since
      `by` naming a linked static ability or a remembered effect, and CR
      607.2h's link; then ~100–150 lines of code and ~150 of tests, with
      Phyrexian Vindicator and Samite Ministration.
-     **Slotted:** A6s, the route review, where CR 607's linked abilities are
+     **Slotted:** `route-review`, the route review, where CR 607's linked abilities are
      decided (`roadmap-v2.md`); moved from "the first registered card" at
      TR-5d's review (the owner, 2026-10-20), since the record's shape and the
      link are design questions rather than a card's.
@@ -9600,10 +9600,10 @@ scan of the history log, and the place in a turn that reads a tally since
      the original's identity, so once the original has left, the copy still
      on the stack would answer for it.
      **Reachability (2026-10-22):** unreachable — nothing copies an ability
-     until CV-4.
-     **Sized:** ~10 lines: the read skips an entry that is a copy, which CV-4's
+     until `spell-copies`.
+     **Sized:** ~10 lines: the read skips an entry that is a copy, which `spell-copies`'s
      entry says it is.
-     **Slotted:** CV-4, which builds ability copies.
+     **Slotted:** `spell-copies`, which builds ability copies.
 
 295. **`TriggerOrigin::Rule` has no inherent ability yet.** The arm is
      declared (`triggers-architecture.md` §3.8) over an
@@ -9696,7 +9696,7 @@ scan of the history log, and the place in a turn that reads a tally since
      **Sized:** ~10 lines: the rewind takes `cast_from` and its six call sites
      pass it, and a test rewinds a cast from the first zone other than the
      hand.
-     **Slotted:** PM-0, whose design sizes casting from a zone other than the
+     **Slotted:** `permission-design`, whose design sizes casting from a zone other than the
      hand, with item 265.
 
 299. **"Equal to its power" is refused at resolution.** `AmountExpr::SourcePower`
@@ -10001,7 +10001,7 @@ row 57 is item 297.
      since LK (`engine/zone_function.rs`), and `cost-architecture.md` §3.1
      planned to add the source once it existed. The replacement gather's leg
      is RF's, built, and the restriction sweep's is item 146, slotted at
-     RS-2; this one had no item. The first printed customer is a commander's
+     `cant-cast-play-or-activate`; this one had no item. The first printed customer is a commander's
      eminence: The Ur-Dragon's "As long as The Ur-Dragon is in the command
      zone or on the battlefield, other Dragon spells you cast cost {1} less
      to cast" (`o:eminence o:"cost" o:"less"`, 2 cards, Scryfall 2026-10-22);
@@ -10015,7 +10015,7 @@ row 57 is item 297.
      battlefield sweep reading the effective list through `functions_in`,
      and the fast-path gate's printed leg widened to it; ~60–80 lines plus a
      command-zone fixture and its test.
-     **Slotted:** B2, the Commander format and designation, whose commanders
+     **Slotted:** `game-formats`, the Commander format and designation, whose commanders
      put the command zone on the board (`roadmap-v2.md` §3a, "From triggers
      to Phase 8").
 

@@ -390,7 +390,7 @@ fn apply_one_reduction(game: &GameState, mana: &mut ManaComponent, inst: &CostMo
 }
 
 /// The symbols an increase or a reduction may carry today. Hybrid and
-/// Phyrexian are the payment half's (`cost-architecture.md` CP-1), and a
+/// Phyrexian are the payment half's (`cost-architecture.md` `hybrid-and-phyrexian-payment`), and a
 /// hybrid *reduction* is the one shape under which CR 601.2f's ordering
 /// choice has two outcomes (118.7e) — refused in debug, dropped in release,
 /// never guessed at. X has no meaning in a modification at all.
@@ -401,7 +401,7 @@ fn representable(symbol: &ManaSymbol, what: &str) -> bool {
             debug_assert!(
                 false,
                 "a cost {what} carrying {other:?}: hybrid and Phyrexian symbols are not \
-                 payable yet (CP-1), and CR 118.7e makes a hybrid reduction the one case \
+                 payable yet (`hybrid-and-phyrexian-payment`), and CR 118.7e makes a hybrid reduction the one case \
                  where the order of reductions changes the total. Dropped rather than \
                  guessed at."
             );
@@ -620,7 +620,7 @@ mod tests {
 
     /// An X in an additional cost (Thieving Skydiver's kicker) is not
     /// announced at 601.2b yet, so it stays a symbol no payment pays, as
-    /// before (`mana-architecture.md` §3.7: CP-2's amount shape).
+    /// before (`mana-architecture.md` §3.7: `remaining-costs`'s amount shape).
     #[test]
     fn an_additional_costs_x_stays_a_symbol() {
         let base = ManaCost::build(&[ManaType::Blue], 1);

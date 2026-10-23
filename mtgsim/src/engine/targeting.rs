@@ -436,7 +436,7 @@ impl GameState {
 
             // Target and Choose validate identically: hexproof, shroud and
             // protection are not checked for `Target` — `codebase-state.md`,
-            // "Before card breadth" item 7, which is RS-2's.
+            // "Before card breadth" item 7, which is `cant-be-targeted`'s.
             EffectRecipient::Target(filter, count)
             | EffectRecipient::Choose(filter, count) => {
                 validate_target_count(count, bounds, targets.len())?;

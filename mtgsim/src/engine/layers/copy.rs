@@ -32,7 +32,7 @@ use std::sync::Arc;
 /// A named constant rather than a literal at each call site, because the
 /// relationship it asserts is the one a later sublayer split breaks. CR 613.2
 /// gives layer 1 two sublayers — 1a copy, 1b face-down — and `LAYER_ORDER`
-/// collapses them into one slot today. CV-6 will split them; a capture that
+/// collapses them into one slot today. `face-down-and-morph` will split them; a capture that
 /// still stopped at index 1 would then read the values *before* CR 708.2a
 /// synthesized a face-down creature's 2/2, and the bug would appear only on
 /// boards with a face-down creature being copied. The `debug_assert` in
@@ -54,7 +54,7 @@ pub const END_OF_LAYER_1: usize = 1;
 /// a spell copy a new object on the stack with **no row and no layer**
 /// (`copy-effects-architecture.md` §3.3, producer 4), so it needs this type for
 /// the characteristics half and a `StackEntry` half for the rest. The second is
-/// CV-4's to build; putting its fields here now would be a payload no producer
+/// `spell-copies`'s to build; putting its fields here now would be a payload no producer
 /// writes and no reader reads.
 ///
 /// **Deliberately not `EffectiveCharacteristics` reused.** That type carries

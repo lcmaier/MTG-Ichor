@@ -72,8 +72,8 @@ The owner settled the homes on 2026-10-05, at this census's review. Each
 assignment is written where it lives:
 
 - **The permission half → `permission-architecture.md`, a new document**
-  (`roadmap-v2.md` B11). It is designed beside RS-2, so each check's reasons
-  are designed once, and built before B2, since a commander is cast from the
+ . It is designed beside `cant-cast-play-or-activate`, so each check's reasons
+  are designed once, and built before `game-formats`, since a commander is cast from the
   command zone. It graduates `backlog.md` §2.3, §2.8 and §2.11, and "Before
   card breadth" item 2. It is the first consumer of §2.15's effective-value
   query, through the land count `can_play_land` reads. The permission half is CR 601.3's
@@ -84,8 +84,8 @@ assignment is written where it lives:
   caster does not own; abilities that work in a hand or a graveyard;
   activation limits; who may activate; loyalty abilities (311 planeswalkers);
   and land play from other zones.
-- **The cost actions → `cost-architecture.md` CP-2, a new row**
-  (`roadmap-v2.md` B1, before C). It takes the four arms that are neither
+- **The cost actions → `cost-architecture.md` `remaining-costs`, a new row**
+  (before C). It takes the four arms that are neither
   checked nor paid, with their payment prompts, and the payment of a loyalty
   cost. It also takes the shapes the arms need: an amount that can be X, a
   choice between two costs, tapping or untapping other permanents, counters on
@@ -96,7 +96,7 @@ assignment is written where it lives:
 - **Mana production with no owner → `codebase-state.md` item 162's design**,
   the next PR: one mana of any color, Treasure makers, painland riders, "the
   chosen color" and "could produce". §12 lists what that design inherits.
-- **Two payment symbols → CP-1**: the `{C/W}`-style hybrid that CR 107.4e
+- **Two payment symbols → `hybrid-and-phyrexian-payment`**: the `{C/W}`-style hybrid that CR 107.4e
   added, and an activated ability's `{X}`, which the engine never asks for.
 - **The question kinds → SU-8 and each kind's owner** (§9).
 - **Breadth → C, Phase 8.** These are a card over surfaces the row names: the
@@ -123,7 +123,7 @@ with 107 and 702 where those send.
     §3.12).
 
   **Watching:** 118.3 (the resources); 614.17b, under which a "can't" makes a
-  cost unpayable (RS-4); 118.11, under which a cost whose action is replaced
+  cost unpayable (`cant-pay-costs`); 118.11, under which a cost whose action is replaced
   is still paid; 118.10 (one payment per cost); 601.2h's two groups; 732.1.
 - **`AbilityDef`'s activation fields** (CR 602). At v1 they must express:
   - who may activate (602.2, "unless the object specifically says
@@ -152,7 +152,7 @@ with 107 and 702 where those send.
 
   A permission may carry a cost (118.9) and a consequence: flashback exiles
   the card wherever it would go. **Watching:** 601.3's prohibition half
-  (RS-2); 601.3a–f (choices that change a quality; conditional flash;
+  (`cant-cast-play-or-activate`); 601.3a–f (choices that change a quality; conditional flash;
   face-down cards in exile); 601.5; 117.1a's timing; 305.2b and 305.3 ("for
   any reason"); 113.6e–f, under which the ability that permits it functions
   in the zone it permits from.
@@ -184,21 +184,21 @@ exception ("unless the object specifically says otherwise", "usually",
 <!-- cast-census: begin OVERRIDES -->
 | CR | the default | what a card says instead | cards | query (plus `BASE`) | surface | status | owner |
 |---|---|---|---:|---|---|---|---|
-| 601.2 | a spell is cast from its caster's hand ("usually the hand") | a permission names another zone | 485 | `o:/(cast\|play)[^.]* from (your\|a\|their) (graveyard\|exile)\|from the top of your library/` | `can_begin_to_cast` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) |
-| 601.3 | no player may cast a card that a rule or effect does not permit | "you may cast" a card you don't own | 16 | `(o:"you don't own" or o:"opponents own")` | `can_begin_to_cast` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) |
+| 601.2 | a spell is cast from its caster's hand ("usually the hand") | a permission names another zone | 485 | `o:/(cast\|play)[^.]* from (your\|a\|their) (graveyard\|exile)\|from the top of your library/` | `can_begin_to_cast` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) |
+| 601.3 | no player may cast a card that a rule or effect does not permit | "you may cast" a card you don't own | 16 | `(o:"you don't own" or o:"opponents own")` | `can_begin_to_cast` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) |
 | 117.1a | a noninstant spell waits for a main phase and an empty stack | flash | 608 | `kw:flash` | `is_instant_or_has_flash` | built |  |
-| 601.3b | a spell without flash is cast at sorcery timing | "as though it had flash" | 86 | `(o:"as though it had flash" or o:"as though they had flash")` | a permission (CR 609.4) | owned | `backlog.md` §2.24, "as though" (`roadmap-v2.md` B8, before C) |
-| 305.1 | a land is played from its owner's hand | play lands from a graveyard, a library's top or exile | 52 | `o:/play (lands\|land cards)[^.]* from/` | `can_play_land` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) |
-| 305.2 | one land a turn | play additional lands | 39 | `o:"additional land"` | `lands_per_turn` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) |
-| 602.2 | only an object's controller activates its abilities ("unless the object specifically says otherwise") | any player, or only an opponent, may activate | 44 | `(o:"any player may activate" or o:"opponents may activate")` | `can_activate_its_abilities` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) |
-| 602.5 | an ability may be activated any time its controller has priority | "Activate only ..." | 964 | `o:"activate only"` | `ActivationRestriction`, `OnlyAsSorcery` alone | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) |
+| 601.3b | a spell without flash is cast at sorcery timing | "as though it had flash" | 86 | `(o:"as though it had flash" or o:"as though they had flash")` | a permission (CR 609.4) | owned | `backlog.md` §2.24, "as though" (`roadmap-v2.md` `as-though-effects`, before C) |
+| 305.1 | a land is played from its owner's hand | play lands from a graveyard, a library's top or exile | 52 | `o:/play (lands\|land cards)[^.]* from/` | `can_play_land` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) |
+| 305.2 | one land a turn | play additional lands | 39 | `o:"additional land"` | `lands_per_turn` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) |
+| 602.2 | only an object's controller activates its abilities ("unless the object specifically says otherwise") | any player, or only an opponent, may activate | 44 | `(o:"any player may activate" or o:"opponents may activate")` | `can_activate_its_abilities` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) |
+| 602.5 | an ability may be activated any time its controller has priority | "Activate only ..." | 964 | `o:"activate only"` | `ActivationRestriction`, `OnlyAsSorcery` alone | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) |
 | 602.5a | a creature's {T} or {Q} ability waits out summoning sickness | haste, or "as though it had haste" | 642 | `(kw:haste or o:"as though it had haste" or o:"as though they had haste")` | `has_summoning_sickness` | built |  |
-| 113.6 | a permanent's abilities work on the battlefield and a spell's on the stack | an ability that names its zone, or whose cost moves its object | 372 | `o:/~ from your (graveyard\|hand)/` | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) |
-| 106.4 | mana empties between steps and phases | mana that does not empty | 24 | `(o:"don't lose this mana" or o:"doesn't empty" or o:"don't empty")` | `ManaPersistence` | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) |
-| 107.4a | colored mana pays only its own color | spend mana as though it were any color | 50 | `o:"as though it were mana of any"` | `ManaPool::pay` | owned | `backlog.md` §2.24, "as though" (`roadmap-v2.md` B8, before C) |
-| 106.6 | mana is spent on anything | "spend this mana only" | 165 | `o:"spend this mana only"` | `ManaRestriction` | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) |
+| 113.6 | a permanent's abilities work on the battlefield and a spell's on the stack | an ability that names its zone, or whose cost moves its object | 372 | `o:/~ from your (graveyard\|hand)/` | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) |
+| 106.4 | mana empties between steps and phases | mana that does not empty | 24 | `(o:"don't lose this mana" or o:"doesn't empty" or o:"don't empty")` | `ManaPersistence` | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` `mana-provenance`, before C) |
+| 107.4a | colored mana pays only its own color | spend mana as though it were any color | 50 | `o:"as though it were mana of any"` | `ManaPool::pay` | owned | `backlog.md` §2.24, "as though" (`roadmap-v2.md` `as-though-effects`, before C) |
+| 106.6 | mana is spent on anything | "spend this mana only" | 165 | `o:"spend this mana only"` | `ManaRestriction` | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` `mana-provenance`, before C) |
 | 118.9 | a spell's mana cost is paid | a printed alternative cost ("rather than pay") | 155 | `o:"rather than pay"` | `AlternativeCost::Custom`; its pieces are §3's | built |  |
-| 118.9 | a spell's mana cost is paid | an effect's "without paying its mana cost" | 316 | `o:"without paying"` | a permission's cost | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) |
+| 118.9 | a spell's mana cost is paid | an effect's "without paying its mana cost" | 316 | `o:"without paying"` | a permission's cost | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) |
 | 118.8 | only the costs a spell prints | an additional cost another object imposes (the Defilers) | 7 | `o:"additional cost" -o:"as an additional cost to cast this spell"` | `CostChange` has no such arm | **owned** (found unowned) | `cost-architecture.md` §6: one `CostChange` arm with its first card, in C |
 | 601.6 | the caster chooses the targets | "an opponent chooses target" | 2 | `o:"opponent chooses target"` | `ask_select_recipients`'s player | owned | `roadmap-v2.md` C, Phase 8 breadth: a card is a normal diff over surfaces named in the row |
 | 701.9b | the discarding player chooses | "at random", or another player chooses | 84 | `o:/discard[^.]* at random\|chooses a card[^.]* discards/` | `DiscardChooser` | **owned** (found unowned) | `roadmap-v2.md` C, Phase 8 breadth: a card is a normal diff over surfaces named in the row |
@@ -215,42 +215,42 @@ past (118.6a).
 <!-- cast-census: begin COSTS -->
 | family | CR | surface | status | owner | pieces | cards | in a spell's cost |
 |---|---|---|---|---|---:|---:|---:|
-| a cost paid any number of times | 601.2b | 601.2b's announcement cannot ask for a number | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 2 | 2 | 2 |
-| a choice between two costs ("pay {4} or sacrifice") | 118.1 | no arm: a cost is one action | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 53 | 53 | 46 |
+| a cost paid any number of times | 601.2b | 601.2b's announcement cannot ask for a number | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 2 | 2 | 2 |
+| a choice between two costs ("pay {4} or sacrifice") | 118.1 | no arm: a cost is one action | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 53 | 53 | 46 |
 | {T} | 107.5 | `Cost::TapSelf` | built |  | 5,371 | 4,275 | 0 |
 | {Q} | 107.6 | `Cost::UntapSelf` | built |  | 18 | 18 | 0 |
-| a loyalty symbol, [+N] [−N] [0] | 606.4 | no loyalty ability | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 882 | 311 | 0 |
+| a loyalty symbol, [+N] [−N] [0] | 606.4 | no loyalty ability | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 882 | 311 | 0 |
 | ticket counters, {TK} | 107.17a | no arm: a player's counters | **excluded** (found unowned) | `roadmap-v2.md` §7, the excluded tail | 22 | 22 | 0 |
-| mana with a Phyrexian symbol | 107.4f | `ManaSymbol::Phyrexian`, unpaid | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 38 | 38 | 0 |
-| mana with a hybrid or {2/W} symbol | 107.4e | `ManaSymbol::Hybrid`, `MonoHybrid`, unpaid | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 121 | 110 | 0 |
-| mana with {S} | 107.4h | `ManaSymbol::Snow`, unpaid | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) | 37 | 35 | 0 |
-| mana with {X} | 107.3a | `Cost::Mana`; an ability's X is never asked | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 148 | 145 | 0 |
+| mana with a Phyrexian symbol | 107.4f | `ManaSymbol::Phyrexian`, unpaid | owned | `cost-architecture.md` `hybrid-and-phyrexian-payment` (any time) | 38 | 38 | 0 |
+| mana with a hybrid or {2/W} symbol | 107.4e | `ManaSymbol::Hybrid`, `MonoHybrid`, unpaid | owned | `cost-architecture.md` `hybrid-and-phyrexian-payment` (any time) | 121 | 110 | 0 |
+| mana with {S} | 107.4h | `ManaSymbol::Snow`, unpaid | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` `mana-provenance`, before C) | 37 | 35 | 0 |
+| mana with {X} | 107.3a | `Cost::Mana`; an ability's X is never asked | owned | `cost-architecture.md` `hybrid-and-phyrexian-payment` (any time) | 148 | 145 | 0 |
 | mana | 601.2g | `Cost::Mana` | built |  | 5,636 | 5,098 | 20 |
-| an amount of mana the board decides | 107.3 | `Cost::Mana(ManaCost)` holds symbols | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 2 | 2 | 0 |
+| an amount of mana the board decides | 107.3 | `Cost::Mana(ManaCost)` holds symbols | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 2 | 2 | 0 |
 | pay {E} | 107.14 | no arm: a player's counters | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 58 | 52 | 0 |
 | pay N life | 119.4 | `Cost::PayLife` | built |  | 159 | 155 | 5 |
-| pay X life, half your life | 119.4 | `Cost::PayLife(u64)` holds a number; X is announced only from a mana cost (`cast_spell`) | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 11 | 11 | 7 |
+| pay X life, half your life | 119.4 | `Cost::PayLife(u64)` holds a number; X is announced only from a mana cost (`cast_spell`) | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 11 | 11 | 7 |
 | sacrifice ~ | 701.21a | `Cost::SacrificeSelf` | built |  | 1,150 | 1,118 | 0 |
-| sacrifice X, any number or half | 701.21a | `Cost::Sacrifice(_, u32)` holds a number; X is announced only from a mana cost (`cast_spell`) | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 29 | 29 | 15 |
+| sacrifice X, any number or half | 701.21a | `Cost::Sacrifice(_, u32)` holds a number; X is announced only from a mana cost (`cast_spell`) | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 29 | 29 | 15 |
 | sacrifice the enchanted or equipped permanent | 701.21a | no `ObjectFilter` for it | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 3 | 3 | 0 |
 | sacrifice N permanents | 701.21a | `Cost::Sacrifice` | built |  | 841 | 813 | 122 |
-| discard ~ | 113.6m | no arm, and the ability works in a hand | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 73 | 72 | 0 |
+| discard ~ | 113.6m | no arm, and the ability works in a hand | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 73 | 72 | 0 |
 | discard your hand | 701.9a | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 12 | 12 | 1 |
-| discard N cards | 701.9a | `Cost::Discard`, unchecked | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 348 | 342 | 42 |
-| exile ~ from your graveyard | 113.6j | no arm, and the ability works in a graveyard | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 79 | 79 | 0 |
-| exile N cards from a graveyard | 701.13 | `Cost::ExileFromGraveyard`, unchecked | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 105 | 105 | 19 |
+| discard N cards | 701.9a | `Cost::Discard`, unchecked | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 348 | 342 | 42 |
+| exile ~ from your graveyard | 113.6j | no arm, and the ability works in a graveyard | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 79 | 79 | 0 |
+| exile N cards from a graveyard | 701.13 | `Cost::ExileFromGraveyard`, unchecked | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 105 | 105 | 19 |
 | exile cards from your hand | 701.13 | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 37 | 37 | 26 |
 | exile cards from the top of your library | 701.13 | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 8 | 7 | 0 |
 | exile ~ | 701.13 | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 59 | 59 | 0 |
 | exile a permanent you control | 701.13 | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 14 | 14 | 3 |
 | put an exiled card into a graveyard (processors) | 406.3 | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 7 | 7 | 1 |
-| remove N counters from ~ | 122.1 | `Cost::RemoveCounters`, unchecked | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 249 | 235 | 0 |
-| remove X or any number of counters | 122.1 | `Cost::RemoveCounters(_, u32)` holds a number; X is announced only from a mana cost (`cast_spell`) | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 56 | 56 | 0 |
-| remove counters from another permanent | 122.1 | no arm: the arm names the source | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 46 | 45 | 0 |
-| put N counters on ~ | 122.1 | `Cost::AddCounters`, unchecked | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 11 | 10 | 0 |
-| put counters on another permanent, blight | 701.68 | no arm: the arm names the source | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 16 | 15 | 7 |
-| tap N untapped permanents you control | 701.26a | no arm | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 201 | 191 | 12 |
-| untap N tapped permanents | 701.26b | no arm | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 5 | 3 | 0 |
+| remove N counters from ~ | 122.1 | `Cost::RemoveCounters`, unchecked | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 249 | 235 | 0 |
+| remove X or any number of counters | 122.1 | `Cost::RemoveCounters(_, u32)` holds a number; X is announced only from a mana cost (`cast_spell`) | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 56 | 56 | 0 |
+| remove counters from another permanent | 122.1 | no arm: the arm names the source | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 46 | 45 | 0 |
+| put N counters on ~ | 122.1 | `Cost::AddCounters`, unchecked | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 11 | 10 | 0 |
+| put counters on another permanent, blight | 701.68 | no arm: the arm names the source | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 16 | 15 | 7 |
+| tap N untapped permanents you control | 701.26a | no arm | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 201 | 191 | 12 |
+| untap N tapped permanents | 701.26b | no arm | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 5 | 3 | 0 |
 | return ~ to its owner's hand | 118.1 | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 13 | 13 | 0 |
 | return a permanent you control to its owner's hand | 118.1 | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 44 | 44 | 16 |
 | behold a [quality] | 701.4a | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 12 | 12 | 12 |
@@ -338,25 +338,25 @@ additional or alternative cost, not an activated ability.
 
 | who | CR | surface | status | owner | abilities | cards | pattern |
 |---|---|---|---|---|---:|---:|---|
-| any player may activate | 602.2 | no `AbilityDef` field | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 42 | 39 | `\bany player may activate` |
-| only an opponent may activate | 602.2 | no `AbilityDef` field | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 5 | 5 | `\b(only your opponents\|only an opponent\|any opponent\|each opponent) may activate` |
+| any player may activate | 602.2 | no `AbilityDef` field | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 42 | 39 | `\bany player may activate` |
+| only an opponent may activate | 602.2 | no `AbilityDef` field | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 5 | 5 | `\b(only your opponents\|only an opponent\|any opponent\|each opponent) may activate` |
 | its controller (CR 602.2's default) | 602.2 | `can_activate_its_abilities` | built |  | 10,908 | 8,553 | the rest |
 
 | when | CR | surface | status | owner | abilities | cards | pattern |
 |---|---|---|---|---|---:|---:|---|
-| once a game (exhaust and the like) | 602.5b | no `ActivationRestriction` arm | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 9 | 9 | `^exhaust\b\|activate (this ability \|each exhaust ability )?only once\.\|activate only once\b(?! each)` |
-| once or twice each turn | 602.5b | no `ActivationRestriction` arm | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 129 | 127 | `only once each turn\|only twice each turn\|no more than (once\|twice\|\w+ times) each turn\|only (once\|twice) each round` |
-| only if a condition holds | 602.5 | no `ActivationRestriction` arm; `Condition` exists | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 218 | 215 | `activate (this ability \|these abilities \|each .{0,30} )?only (if\|while)\b` |
-| only during a turn, a step or combat | 602.5 | no `ActivationRestriction` arm | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 133 | 133 | `activate (this ability )?only (during\|before\|any time you could cast an instant during)` |
+| once a game (exhaust and the like) | 602.5b | no `ActivationRestriction` arm | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 9 | 9 | `^exhaust\b\|activate (this ability \|each exhaust ability )?only once\.\|activate only once\b(?! each)` |
+| once or twice each turn | 602.5b | no `ActivationRestriction` arm | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 129 | 127 | `only once each turn\|only twice each turn\|no more than (once\|twice\|\w+ times) each turn\|only (once\|twice) each round` |
+| only if a condition holds | 602.5 | no `ActivationRestriction` arm; `Condition` exists | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 218 | 215 | `activate (this ability \|these abilities \|each .{0,30} )?only (if\|while)\b` |
+| only during a turn, a step or combat | 602.5 | no `ActivationRestriction` arm | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 133 | 133 | `activate (this ability )?only (during\|before\|any time you could cast an instant during)` |
 | only as a sorcery | 602.5d | `ActivationRestriction::OnlyAsSorcery` | built |  | 489 | 482 | `activate (this ability \|each .{0,30} )?only as a sorcery` |
 | only as an instant | 602.5e | the default, as `AbilityType::Activated` | built |  | 3 | 3 | `activate (this ability )?only as an instant` |
 | any time with priority (the default) | 602.1 | the default | built |  | 9,974 | 7,880 | the rest |
 
 | where | CR | surface | status | owner | abilities | cards | pattern |
 |---|---|---|---|---|---:|---:|---|
-| from a graveyard | 113.6j | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 200 | 200 | `(exile\|return\|put\|cast\|shuffle) ~ (onto the battlefield )?from your graveyard\|~ is in your graveyard` |
-| from a hand | 113.6m | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 96 | 95 | `^discard ~\|discard ~[,:]\|reveal ~ from your hand\|(exile\|put\|return\|cast) ~ (onto the battlefield )?from your hand\|~ is in your hand` |
-| from exile | 113.6b | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 2 | 2 | `(put\|return\|cast) ~ (onto the battlefield )?from exile\|activate only if ~ is (exiled\|in exile)` |
+| from a graveyard | 113.6j | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 200 | 200 | `(exile\|return\|put\|cast\|shuffle) ~ (onto the battlefield )?from your graveyard\|~ is in your graveyard` |
+| from a hand | 113.6m | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 96 | 95 | `^discard ~\|discard ~[,:]\|reveal ~ from your hand\|(exile\|put\|return\|cast) ~ (onto the battlefield )?from your hand\|~ is in your hand` |
+| from exile | 113.6b | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 2 | 2 | `(put\|return\|cast) ~ (onto the battlefield )?from exile\|activate only if ~ is (exiled\|in exile)` |
 | on the battlefield (CR 113.6's default) | 113.6 | the default | built |  | 10,657 | 8,345 | the rest |
 <!-- cast-census: end ABILITIES -->
 
@@ -368,8 +368,8 @@ sorcery and only once each turn") lands in whichever comes first in row order.
 <!-- cast-census: begin MANA -->
 | what it produces | CR | surface | plays | owner | abilities | cards | the affordability check before MA-1 (item 162) |
 |---|---|---|---|---|---:|---:|---|
-| with "spend this mana only" | 106.6 | `ManaRestriction`; `ManaPool::pay` reads the plain pool | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) | 153 | 151 | counts it as unrestricted |
-| mana that does something when spent, or does not empty | 106.6 | `ManaGrant`, `ManaPersistence`; no payment path reads them | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) | 8 | 8 | counts its mana |
+| with "spend this mana only" | 106.6 | `ManaRestriction`; `ManaPool::pay` reads the plain pool | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` `mana-provenance`, before C) | 153 | 151 | counts it as unrestricted |
+| mana that does something when spent, or does not empty | 106.6 | `ManaGrant`, `ManaPersistence`; no payment path reads them | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` `mana-provenance`, before C) | 8 | 8 | counts its mana |
 | with a non-mana instruction in the same ability (painlands) | 605.1a | `resolve_mana_effect` resolves `ProduceMana` atoms alone | **owned** (found unowned) | `codebase-state.md` item 162's design, the next PR | 129 | 129 | counts its mana |
 | a type another permanent "could produce" | 106.7 | no `ManaOutput` form | **owned** (found unowned) | `codebase-state.md` item 162's design, the next PR | 14 | 14 | skips it |
 | the color or type chosen as it entered | 607.2d | no record of the choice | **owned** (found unowned) | `codebase-state.md` item 162's design, the next PR | 32 | 32 | skips it |
@@ -420,16 +420,16 @@ Ring's two, and Ironworks once per artifact it can sacrifice
 <!-- cast-census: begin CAST -->
 | family | CR | surface | status | owner | clauses | cards | Scryfall, cards | query (plus `BASE`) |
 |---|---|---|---|---|---:|---:|---:|---|
-| cast without paying its mana cost | 118.9 | no permission, and no effect-provided alternative cost | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 315 | 315 | 316 | `o:"without paying"` |
-| cast or play a card its caster does not own | 601.3 | `can_begin_to_cast` asks owner = caster | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 29 | 29 | 30 | `(o:"you don't own" or o:"opponents own" or o:"an opponent owns")` |
-| cast or play from the top of a library | 601.3 | `CannotCast::NotInHand` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 89 | 88 | 94 | `o:/(cast\|play)[^.]*from the top of/` |
-| cast ~ from a graveyard (no keyword) | 601.3 | `CannotCast::NotInHand` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 39 | 39 | 39 | `o:/(cast\|play) ~ from (your\|a) graveyard/` |
-| cast or play other cards from a graveyard | 601.3 | `CannotCast::NotInHand` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 246 | 241 | 300 | `o:/(cast\|play)[^.]*from (your\|a\|their) graveyard/` |
-| cast or play a card from exile | 601.3 | `CannotCast::NotInHand` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 490 | 450 | 464 | `o:/may (cast\|play) (it\|that card\|those cards\|them\|the exiled card\|cards exiled\|one of\|a card exiled\|spells? from among)\|(cast\|play)[^.]*from exile/` |
-| cast as though it had flash | 601.3b | a row granting flash; CR 609.4's permission | owned | `backlog.md` §2.24, "as though" (`roadmap-v2.md` B8, before C) | 91 | 90 | 86 | `(o:"as though it had flash" or o:"as though they had flash")` |
-| cast ~ only at a time or if a condition holds | 601.3 | RS-2's `Cast` arm, `SourceOnly` | owned | `cant-effects-architecture.md` RS-2 (beside A, after A6c) | 66 | 66 | 66 | `o:"cast this spell only"` |
-| a player can't cast | 601.3 | RS-2's `Cast` arm | owned | `cant-effects-architecture.md` RS-2 (beside A, after A6c) | 101 | 99 | 93 | `o:"can't cast"` |
-| play an additional land | 305.2 | `PlayerState::lands_per_turn`, nothing sets it | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 36 | 36 | 39 | `o:"additional land"` |
+| cast without paying its mana cost | 118.9 | no permission, and no effect-provided alternative cost | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 315 | 315 | 316 | `o:"without paying"` |
+| cast or play a card its caster does not own | 601.3 | `can_begin_to_cast` asks owner = caster | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 29 | 29 | 30 | `(o:"you don't own" or o:"opponents own" or o:"an opponent owns")` |
+| cast or play from the top of a library | 601.3 | `CannotCast::NotInHand` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 89 | 88 | 94 | `o:/(cast\|play)[^.]*from the top of/` |
+| cast ~ from a graveyard (no keyword) | 601.3 | `CannotCast::NotInHand` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 39 | 39 | 39 | `o:/(cast\|play) ~ from (your\|a) graveyard/` |
+| cast or play other cards from a graveyard | 601.3 | `CannotCast::NotInHand` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 246 | 241 | 300 | `o:/(cast\|play)[^.]*from (your\|a\|their) graveyard/` |
+| cast or play a card from exile | 601.3 | `CannotCast::NotInHand` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 490 | 450 | 464 | `o:/may (cast\|play) (it\|that card\|those cards\|them\|the exiled card\|cards exiled\|one of\|a card exiled\|spells? from among)\|(cast\|play)[^.]*from exile/` |
+| cast as though it had flash | 601.3b | a row granting flash; CR 609.4's permission | owned | `backlog.md` §2.24, "as though" (`roadmap-v2.md` `as-though-effects`, before C) | 91 | 90 | 86 | `(o:"as though it had flash" or o:"as though they had flash")` |
+| cast ~ only at a time or if a condition holds | 601.3 | `cant-cast-play-or-activate`'s `Cast` arm, `SourceOnly` | owned | `cant-effects-architecture.md` `cant-cast-play-or-activate` (beside A, after A6c) | 66 | 66 | 66 | `o:"cast this spell only"` |
+| a player can't cast | 601.3 | `cant-cast-play-or-activate`'s `Cast` arm | owned | `cant-effects-architecture.md` `cant-cast-play-or-activate` (beside A, after A6c) | 101 | 99 | 93 | `o:"can't cast"` |
+| play an additional land | 305.2 | `PlayerState::lands_per_turn`, nothing sets it | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 36 | 36 | 39 | `o:"additional land"` |
 
 The clause patterns, in row order, against one sentence with `~` for the card's own name; a sentence lands in the first that matches, so the clause column partitions:
 
@@ -454,28 +454,28 @@ overlaps.
 <!-- cast-census: begin KEYWORDS -->
 | family | keywords, cards each | CR | surface | status | owner | cards | Scryfall | query (plus `BASE`) |
 |---|---|---|---|---|---|---:|---:|---|
-| cast from a graveyard | flashback 215, escape 32, retrace 17, jump-start 12, aftermath 27, disturb 25, mayhem 16, harmonize 11 | 601.3 | `AlternativeCost::Flashback`, `Escape`; `CannotCast::NotInHand` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 355 | 355 | `(kw:"flashback" or kw:"escape" or kw:"retrace" or kw:"jump-start" or kw:"aftermath" or kw:"disturb" or kw:"mayhem" or kw:"harmonize")` |
-| exiled by a special action, cast later | foretell 51, plot 39, suspend 70 | 116.2f | no special action but a land play | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 160 | 160 | `(kw:"foretell" or kw:"plot" or kw:"suspend")` |
-| cast while something resolves | cascade 37, discover 30, ripple 5, rebound 34, madness 61, miracle 17 | 608.2g | no cast during a resolution | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 183 | 183 | `(kw:"cascade" or kw:"discover" or kw:"ripple" or kw:"rebound" or kw:"madness" or kw:"miracle")` |
-| cast from the command zone (a commander) | -- | 903.8 | `CannotCast::NotInHand`; `is_commander` is B2's | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | -- | 3,497 | `is:commander` |
-| cast face down | morph 153, megamorph 31, disguise 43 | 708.4 | no face-down spell | owned | `copy-effects-architecture.md` CV-6, face-down (`roadmap-v2.md` B6) | 227 | 227 | `(kw:"morph" or kw:"megamorph" or kw:"disguise")` |
-| cast with other characteristics | prototype 19 | 718.3 | no alternative characteristics | owned | `backlog.md` §2.41, the copy track (`roadmap-v2.md` B6) | 19 | 19 | `(kw:"prototype")` |
+| cast from a graveyard | flashback 215, escape 32, retrace 17, jump-start 12, aftermath 27, disturb 25, mayhem 16, harmonize 11 | 601.3 | `AlternativeCost::Flashback`, `Escape`; `CannotCast::NotInHand` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 355 | 355 | `(kw:"flashback" or kw:"escape" or kw:"retrace" or kw:"jump-start" or kw:"aftermath" or kw:"disturb" or kw:"mayhem" or kw:"harmonize")` |
+| exiled by a special action, cast later | foretell 51, plot 39, suspend 70 | 116.2f | no special action but a land play | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 160 | 160 | `(kw:"foretell" or kw:"plot" or kw:"suspend")` |
+| cast while something resolves | cascade 37, discover 30, ripple 5, rebound 34, madness 61, miracle 17 | 608.2g | no cast during a resolution | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 183 | 183 | `(kw:"cascade" or kw:"discover" or kw:"ripple" or kw:"rebound" or kw:"madness" or kw:"miracle")` |
+| cast from the command zone (a commander) | -- | 903.8 | `CannotCast::NotInHand`; `is_commander` is `game-formats`'s | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | -- | 3,497 | `is:commander` |
+| cast face down | morph 153, megamorph 31, disguise 43 | 708.4 | no face-down spell | owned | `copy-effects-architecture.md` `face-down-and-morph`, face-down | 227 | 227 | `(kw:"morph" or kw:"megamorph" or kw:"disguise")` |
+| cast with other characteristics | prototype 19 | 718.3 | no alternative characteristics | owned | `backlog.md` §2.41, the copy track | 19 | 19 | `(kw:"prototype")` |
 | an alternative cost with an arm | evoke 35, dash 22, overload 27, bestow 43 | 118.9 | `AlternativeCost` arm; each needs a second half | **owned** (found unowned) | `roadmap-v2.md` C, Phase 8 breadth: a card is a normal diff over surfaces named in the row | 127 | 127 | `(kw:"evoke" or kw:"dash" or kw:"overload" or kw:"bestow")` |
 | an alternative cost with no arm | emerge 15, spectacle 11, surge 11, prowl 10, blitz 17, mutate 34, freerunning 12, impending 5, warp 32, sneak 27, web-slinging 10, awaken 15, cleave 12 | 118.9 | `AlternativeCost::Custom` names it; each needs a second half | **owned** (found unowned) | `roadmap-v2.md` C, Phase 8 breadth: a card is a normal diff over surfaces named in the row | 211 | 211 | `(kw:"emerge" or kw:"spectacle" or kw:"surge" or kw:"prowl" or kw:"blitz" or kw:"mutate" or kw:"freerunning" or kw:"impending" or kw:"warp" or kw:"sneak" or kw:"web-slinging" or kw:"awaken" or kw:"cleave")` |
 | kicker | kicker 226 | 702.33 | `AdditionalCost::Kicker`, `Condition::SpellWasKicked` | built |  | 226 | 226 | `(kw:"kicker")` |
 | an additional cost with an arm | buyback 39, entwine 32, casualty 15, bargain 20, strive 20 | 118.8 | `AdditionalCost` arm; each needs a second half | **owned** (found unowned) | `roadmap-v2.md` C, Phase 8 breadth: a card is a normal diff over surfaces named in the row | 126 | 126 | `(kw:"buyback" or kw:"entwine" or kw:"casualty" or kw:"bargain" or kw:"strive")` |
-| an additional cost paid any number of times | multikicker 19, replicate 19, squad 15 | 601.2b | 601.2b's announcement cannot ask for a number | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 53 | 53 | `(kw:"multikicker" or kw:"replicate" or kw:"squad")` |
+| an additional cost paid any number of times | multikicker 19, replicate 19, squad 15 | 601.2b | 601.2b's announcement cannot ask for a number | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 53 | 53 | `(kw:"multikicker" or kw:"replicate" or kw:"squad")` |
 | an additional cost with no arm | splice 30, conspire 11, escalate 9, offspring 20, gift 25, tiered 7 | 118.8 | `AdditionalCost::Custom` names it | **owned** (found unowned) | `roadmap-v2.md` C, Phase 8 breadth: a card is a normal diff over surfaces named in the row | 102 | 102 | `(kw:"splice" or kw:"conspire" or kw:"escalate" or kw:"offspring" or kw:"gift" or kw:"tiered")` |
 | spree | spree 21 | 702.172 | a mode's own additional cost | owned | `codebase-state.md` item 81, spree | 21 | 21 | `(kw:"spree")` |
 | pay with permanents or cards | convoke 104, improvise 23, delve 28, assist 16, offering 6, waterbend 28 | 702.51 | no payment but mana | owned | `codebase-state.md` item 162's design, the next PR | 204 | 204 | `(kw:"convoke" or kw:"improvise" or kw:"delve" or kw:"assist" or kw:"offering" or kw:"waterbend")` |
 | a cost reduction | affinity 74, undaunted 5 | 702.41 | `CostChange::ReduceGeneric` | built |  | 79 | 79 | `(kw:"affinity" or kw:"undaunted")` |
 | reads the mana spent | sunburst 16, converge 28, adamant 18 | 702.44 | `ManaSpent` by type | owned | `codebase-state.md` item 30, what paid (`ManaSpent` by type) | 62 | 62 | `(kw:"sunburst" or kw:"converge" or kw:"adamant")` |
-| an activated ability that works in a hand | cycling 394, typecycling 94, landcycling 91, basic landcycling 36, channel 37, ninjutsu 35, commander ninjutsu 1, transmute 14, forecast 11, bloodrush 13, reinforce 11 | 113.6m | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 516 | 516 | `(kw:"cycling" or kw:"typecycling" or kw:"landcycling" or kw:"basic landcycling" or kw:"channel" or kw:"ninjutsu" or kw:"commander ninjutsu" or kw:"transmute" or kw:"forecast" or kw:"bloodrush" or kw:"reinforce")` |
-| an activated ability that works in a graveyard | unearth 56, embalm 15, eternalize 12, encore 26, scavenge 14 | 113.6m | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 123 | 123 | `(kw:"unearth" or kw:"embalm" or kw:"eternalize" or kw:"encore" or kw:"scavenge")` |
-| tap creatures with total power N | crew 181, saddle 30, station 31 | 702.122 | no arm: tap N untapped creatures | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 242 | 242 | `(kw:"crew" or kw:"saddle" or kw:"station")` |
-| an ability with a use limit | boast 18, exhaust 36, level up 25, outlast 13 | 602.5b | no `ActivationRestriction` arm | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 92 | 92 | `(kw:"boast" or kw:"exhaust" or kw:"level up" or kw:"outlast")` |
+| an activated ability that works in a hand | cycling 394, typecycling 94, landcycling 91, basic landcycling 36, channel 37, ninjutsu 35, commander ninjutsu 1, transmute 14, forecast 11, bloodrush 13, reinforce 11 | 113.6m | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 516 | 516 | `(kw:"cycling" or kw:"typecycling" or kw:"landcycling" or kw:"basic landcycling" or kw:"channel" or kw:"ninjutsu" or kw:"commander ninjutsu" or kw:"transmute" or kw:"forecast" or kw:"bloodrush" or kw:"reinforce")` |
+| an activated ability that works in a graveyard | unearth 56, embalm 15, eternalize 12, encore 26, scavenge 14 | 113.6m | `CannotActivate::NotOnBattlefield` | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 123 | 123 | `(kw:"unearth" or kw:"embalm" or kw:"eternalize" or kw:"encore" or kw:"scavenge")` |
+| tap creatures with total power N | crew 181, saddle 30, station 31 | 702.122 | no arm: tap N untapped creatures | **owned** (found unowned) | `cost-architecture.md` `remaining-costs` (before C) | 242 | 242 | `(kw:"crew" or kw:"saddle" or kw:"station")` |
+| an ability with a use limit | boast 18, exhaust 36, level up 25, outlast 13 | 602.5b | no `ActivationRestriction` arm | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | 92 | 92 | `(kw:"boast" or kw:"exhaust" or kw:"level up" or kw:"outlast")` |
 | equip and its kin | equip 601, fortify 2, reconfigure 17 | 702.6 | `ActivationRestriction::OnlyAsSorcery` | built |  | 620 | 620 | `(kw:"equip" or kw:"fortify" or kw:"reconfigure")` |
-| a planeswalker's loyalty abilities | -- | 606.3 | no loyalty ability | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | -- | 311 | `t:planeswalker` |
+| a planeswalker's loyalty abilities | -- | 606.3 | no loyalty ability | **owned** (found unowned) | `permission-architecture.md` (designed beside `cant-cast-play-or-activate`, built before `game-formats`) | -- | 311 | `t:planeswalker` |
 | a cost paid as a trigger resolves | cumulative upkeep 80, echo 50 | 118.12 | CR 118.12's payment (TR-2b); age counters, item 3 | owned | `roadmap-v2.md` C, Phase 8 breadth: a card is a normal diff over surfaces named in the row | 130 | 130 | `(kw:"cumulative upkeep" or kw:"echo")` |
 <!-- cast-census: end KEYWORDS -->
 
@@ -488,12 +488,12 @@ trigger, dash's return, bestow's Aura) is the card's, in C.
 <!-- cast-census: begin SYMBOLS -->
 | a mana cost with | CR | surface | status | owner | cards | Scryfall | query (plus `BASE`) |
 |---|---|---|---|---|---:|---:|---|
-| a {C/W}-style hybrid | 107.4e | no `ManaSymbol` arm | **owned** (found unowned) | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 1 | 1 | `m:/\{C\/[WUBRG]\}/` |
-| a hybrid Phyrexian symbol | 107.4f | `ManaSymbol::HybridPhyrexian`, unpaid | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 4 | 4 | `m:/\{[WUBRG]\/[WUBRG]\/P\}/` |
-| a Phyrexian symbol | 107.4f | `ManaSymbol::Phyrexian`, unpaid | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 32 | 72 | `is:phyrexian` |
-| a {2/W} symbol | 107.4e | `ManaSymbol::MonoHybrid`, unpaid | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 20 | 20 | `m:/\{2\/[WUBRG]\}/` |
-| a hybrid symbol | 107.4e | `ManaSymbol::Hybrid`, unpaid | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 582 | 600 | `is:hybrid` |
-| {S} | 107.4h | `ManaSymbol::Snow`, unpaid | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) | 2 | 2 | `m:{S}` |
+| a {C/W}-style hybrid | 107.4e | no `ManaSymbol` arm | **owned** (found unowned) | `cost-architecture.md` `hybrid-and-phyrexian-payment` (any time) | 1 | 1 | `m:/\{C\/[WUBRG]\}/` |
+| a hybrid Phyrexian symbol | 107.4f | `ManaSymbol::HybridPhyrexian`, unpaid | owned | `cost-architecture.md` `hybrid-and-phyrexian-payment` (any time) | 4 | 4 | `m:/\{[WUBRG]\/[WUBRG]\/P\}/` |
+| a Phyrexian symbol | 107.4f | `ManaSymbol::Phyrexian`, unpaid | owned | `cost-architecture.md` `hybrid-and-phyrexian-payment` (any time) | 32 | 72 | `is:phyrexian` |
+| a {2/W} symbol | 107.4e | `ManaSymbol::MonoHybrid`, unpaid | owned | `cost-architecture.md` `hybrid-and-phyrexian-payment` (any time) | 20 | 20 | `m:/\{2\/[WUBRG]\}/` |
+| a hybrid symbol | 107.4e | `ManaSymbol::Hybrid`, unpaid | owned | `cost-architecture.md` `hybrid-and-phyrexian-payment` (any time) | 582 | 600 | `is:hybrid` |
+| {S} | 107.4h | `ManaSymbol::Snow`, unpaid | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` `mana-provenance`, before C) | 2 | 2 | `m:{S}` |
 | {X} | 107.3a | offered at its least legal X; `ChooseXValue` offers the X the board pays (`oracle::x_values`) | built |  | 527 | 534 | `m:{X}` |
 | {C} | 107.4c | `ManaSymbol::Colorless` | built |  | 27 | 28 | `m:{C}` |
 | colored and generic only | 107.4a | `ManaSymbol::Colored`, `Generic` | built |  | 30,920 | -- | the rest |
@@ -507,7 +507,7 @@ can't be 0" (`mana-architecture.md` §3.7). CR 601.2b's `ChooseXValue` then
 offers the X the board can pay, read in closed form off CR 601.2f's
 arithmetic and the inventory (`oracle::x_values`). Blaze, Protean Hydra and
 Goblin Negotiation are the registered X spells. An activated ability's `{X}` is still never
-asked (the "mana with {X}" cost row, CP-1's).
+asked (the "mana with {X}" cost row, `hybrid-and-phyrexian-payment`'s).
 
 <!-- cast-census: begin PHRASES -->
 | family | CR | surface | status | owner | cards | query (plus `BASE`) |
@@ -516,9 +516,9 @@ asked (the "mana with {X}" cost row, CP-1's).
 | a triggered mana ability | 605.1b | built (TR-1); affordability skips it | owned | `codebase-state.md` item 162's design, the next PR | 19 | `(o:"tapped for mana" o:"adds") or o:"is tapped for mana, its controller adds"` |
 | replaces the mana a permanent produces | 106.12b | built (RE-9); affordability skips it | owned | `codebase-state.md` item 162's design, the next PR | 10 | `(o:"tapped for mana" o:"instead") or o:"produces twice"` |
 | a spell or non-mana ability that adds mana | 106.3 | `Primitive::ProduceMana` off a resolution | built |  | 19 | `(t:instant or t:sorcery) o:/^add \{/` |
-| spend mana as though it were any color or type | 609.4b | no payment path reads it | owned | `backlog.md` §2.24, "as though" (`roadmap-v2.md` B8, before C) | 49 | `o:"mana as though it were mana of any"` |
-| mana that does not empty | 106.4 | `ManaPersistence`, no payment path reads it | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) | 24 | `(o:"don't lose this mana" or o:"doesn't empty" or o:"don't empty")` |
-| mana that does something when spent | 106.6 | `ManaGrant`, no payment path reads it | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) | 8 | `(o:"spend this mana" -o:"spend this mana only")` |
+| spend mana as though it were any color or type | 609.4b | no payment path reads it | owned | `backlog.md` §2.24, "as though" (`roadmap-v2.md` `as-though-effects`, before C) | 49 | `o:"mana as though it were mana of any"` |
+| mana that does not empty | 106.4 | `ManaPersistence`, no payment path reads it | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` `mana-provenance`, before C) | 24 | `(o:"don't lose this mana" or o:"doesn't empty" or o:"don't empty")` |
+| mana that does something when spent | 106.6 | `ManaGrant`, no payment path reads it | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` `mana-provenance`, before C) | 8 | `(o:"spend this mana" -o:"spend this mana only")` |
 <!-- cast-census: end PHRASES -->
 
 ## 9. The question kinds
@@ -536,7 +536,7 @@ asked (the "mana with {X}" cost row, CP-1's).
 | `ChooseXValue` | the values of X the board can pay | bounds | the least and the most, from `oracle::x_values`'s reasons (MA-2) | built (MA-2) | -- |
 | `ChooseAlternativeCost` | the mana cost and each printed alternative | no | -- | what it ranges over (SU-8) | -- |
 | `ChooseAdditionalCosts` | each optional additional cost | no | -- | what it ranges over (SU-8) | -- |
-| `SelectRecipients` | the objects or players a target or choice may name | yes | `validate_selection`'s reasons, typed | `cant-effects-architecture.md` RS-2 | RS-2 |
+| `SelectRecipients` | the objects or players a target or choice may name | yes | `validate_selection`'s reasons, typed | `cant-effects-architecture.md` `cant-be-targeted` | `cant-be-targeted` |
 | `GenericManaAllocation` | a split of the generic part across the pool | bounds | the clamp that keeps each pip's mana, `ui::ask::generic_split_caps` (MA-2) | built (MA-2) | -- |
 | `OrderCostReductions` | an order of every reduction that applies | no | -- | what it ranges over (SU-8) | -- |
 | `ManaAbilityWindow` | the mana abilities that can pay now | yes | `can_pay_costs`'s `CannotPay`, per ability | built (MA-1) | -- |
@@ -551,7 +551,7 @@ asked (the "mana with {X}" cost row, CP-1's).
 | `ChooseEnteringController` | the opponents still in the game | yes | `not_an_opponent`, CR 102.2 and 800.4a | built (SU-8) | -- |
 | `ChooseEnteringDefender` | what an entering attacker may attack, as its effect allows | no | -- | what it ranges over (SU-8) | -- |
 | `ChooseAuxiliaryZoneChange` | the objects CR 614.13a/b and CR 101.2 allow | yes | `not_auxiliary`, and the "can't" that dropped it | built (SU-8) | -- |
-| `ChooseCopySource` | the permanents the copy effect may copy | yes | the copy effect's words; typed with RS-2's selection reasons | built (SU-8) | -- |
+| `ChooseCopySource` | the permanents the copy effect may copy | yes | the copy effect's words; typed with `cant-be-targeted`'s selection reasons | built (SU-8) | -- |
 | `CommanderToCommandZoneSba` | yes or no | no | -- | what it ranges over (SU-8) | -- |
 | `Discard` | the cards in the hand | no | -- | what it ranges over (SU-8) | -- |
 | `Scry` | the cards looked at | no | -- | what it ranges over (SU-8) | -- |
@@ -569,12 +569,12 @@ the events an ordering's abilities triggered on, and gives three a reason from
 their own filter, each now one check the enumeration shares. The other
 filtered kinds' reasons are their owners':
 
-- `SelectRecipients`, with RS-2, which also types `ChooseCopySource`'s, today
+- `SelectRecipients`, with `cant-be-targeted`, which also types `ChooseCopySource`'s, today
   the copy effect's own words;
 - `ManaAbilityWindow`'s, MA-1 built, and `ChooseXValue`'s and
   `GenericManaAllocation`'s, MA-2 built: the least and the most X with what
   set them, and the clamp on each bucket of the generic split;
-- `ChooseSacrificeForCost`, with CP-2.
+- `ChooseSacrificeForCost`, with `remaining-costs`.
 
 The kinds marked "no" need no reason: every candidate is offered. A why
 asked about anything else says the question does not range over it.
@@ -635,11 +635,11 @@ the battlefield and no keyword family but affinity and equip.
      305.1) and `CannotActivate::NotOnBattlefield` (CR 113.6) become the same
      reason. The owner test leaves `can_begin_to_cast` and `can_play_land` and
      moves inside the permission: 903.8's commander is "a commander they
-     own", Hostage Taker casts one its caster does not. RS-2's prohibition
+     own", Hostage Taker casts one its caster does not. `cant-cast-play-or-activate`'s prohibition
      arrives at the same three checks as a reason naming its source, so both
      arms are designed together.
    - **Owner:** `permission-architecture.md`. **Slot:** its design beside
-     RS-2; its first build before B2.
+     `cant-cast-play-or-activate`; its first build before `game-formats`.
 2. **Who may activate, per ability.**
    - **v1:** a field on `AbilityDef` naming who may activate: its controller
      (CR 602.2's default), any player (39 cards), or only an opponent (5).
@@ -653,7 +653,7 @@ the battlefield and no keyword family but affinity and equip.
    - **v1:** `check_cost_resource` checks each one. Discard and exiling from
      a graveyard each need enough matching cards. Removing counters needs
      enough of the kind; putting counters on a permanent is payable unless a
-     "can't" says otherwise (Solemnity, RS-4). Each is paid through the
+     "can't" says otherwise (Solemnity, `cant-pay-costs`). Each is paid through the
      chokepoint, and its choice (which card, which counter) is asked before
      any payment is performed, as `Cost::Sacrifice`'s is. Counts are amounts
      that can be X, not a `u32`; 96 pieces in §3 need that already, and X
@@ -661,7 +661,7 @@ the battlefield and no keyword family but affinity and equip.
      `cast_spell` reads the mana cost alone. The
      counter arms name their permanent, so "remove a counter from a creature
      you control" and blight are the same arms.
-   - **Owner:** `cost-architecture.md` CP-2. **Slot:** before C, beside CP-1.
+   - **Owner:** `cost-architecture.md` `remaining-costs`. **Slot:** before C, beside `hybrid-and-phyrexian-payment`.
 4. **The 24 question kinds the why does not explain.** Item 212 and #222's
    review reply both said "of 30"; `ChoiceKind` has 27, and the why answers 3.
    - **v1:** §9.
@@ -736,7 +736,7 @@ the paper count. §3's numbers are the ones to cite.
   exile, buyback's return to hand) is named in the row's surface when one
   owner holds it, and is otherwise the card's.
 - **Restrictions that arrive as keywords.** Split second is a prohibition on
-  others (RS-2), and the "can't" census counts its printed half.
+  others (`cant-cast-play-or-activate`), and the "can't" census counts its printed half.
 - **A count is not a cost.** Families are sized by cards waiting on them, not
   by the code they want. One `AmountExpr` in `Cost`'s count arms serves 96
   pieces.

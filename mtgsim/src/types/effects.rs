@@ -1055,7 +1055,7 @@ pub enum SelectionFilter {
     /// stack, and an object referred to by an object on the stack, a waiting
     /// replacement or prevention effect, or a waiting delayed trigger. "A
     /// face-up object in the command zone" needs that zone populated, which is
-    /// B2's (`codebase-state.md` item 99), and `ATOM-609.7a-001` is
+    /// `game-formats`'s (`codebase-state.md` item 99), and `ATOM-609.7a-001` is
     /// `COVERS-PARTIAL` for it.
     DamageSource,
 }

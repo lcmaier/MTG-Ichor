@@ -21,9 +21,9 @@
 > (§2.22 rows 6 and 7), §2.19 (one mana of any color), and the mana half of
 > §2.2's as-enters record.
 > **Companions:**
-> - `cost-architecture.md`. CP-1 pays the symbol alphabet, and its check
->   half is §3.2 here. CP-2 owns the cost actions.
-> - `codebase-state.md` item 33 (mana provenance, `roadmap-v2.md` B9), whose
+> - `cost-architecture.md`. `hybrid-and-phyrexian-payment` pays the symbol alphabet, and its check
+>   half is §3.2 here. `remaining-costs` owns the cost actions.
+> - `codebase-state.md` item 33 (mana provenance, `roadmap-v2.md` `mana-provenance`), whose
 >   seam is §3.6.
 > - `setup-architecture.md` §7c, the why of the three mana prompts (§3.13).
 > - `replacement-architecture.md` (RE-9's mana replacements) and
@@ -48,7 +48,7 @@ mana abilities fire. At 601.2h `plan_payment` decides and `pay_costs`
 performs. A cast the check offered and the pool cannot cover rewinds
 (CR 732.1). This design changes the first step, reads the replacement and
 trigger subsystems' outputs without changing them, and adds forms to what a
-mana ability makes. The payment's performing side stays CP-1's and item 33's.
+mana ability makes. The payment's performing side stays `hybrid-and-phyrexian-payment`'s and item 33's.
 
 **The owner's rule** (2026-09-30, item 162): the check at every priority
 point asks only whether a payment exists. Comparing payments runs once per
@@ -92,13 +92,13 @@ unchanged. What it changes here:
   marks as mana abilities, the same ones the window offers. A rules version
   is one predicate where that classification lives (`cost-architecture.md`
   §3.11), and the inventory follows it.
-- **MA-3's draw inside a mana ability is a frozen-text facility.** The Eggs,
+- **`any-color-plus-painlands-plus-signets`'s draw inside a mana ability is a frozen-text facility.** The Eggs,
   Chromatic Sphere and Selvala draw, and under the new text those abilities
-  use the stack. B13's Ironworks loop (TR-7's until 2026-10-13) tests the
+  use the stack. `ironworks-loop`'s Ironworks loop (TR-7's until 2026-10-13) tests the
   frozen loop and needs it. A painland's
   damage moves no card, so it stays a rider under both texts, and so does
   the window inside a Signet's activation.
-- **Millikin's and Deranged Assistant's "Mill a card"** is CP-2's single-arm
+- **Millikin's and Deranged Assistant's "Mill a card"** is `remaining-costs`'s single-arm
   action under either text (in C); the text decides only whether the ability
   it pays for is a mana ability.
 
@@ -247,7 +247,7 @@ paths.
 
 **The alternatives, and why not** (the owner asked at #225's review):
 - **Flow by augmenting paths** gives the same answer with more work. It is
-  kept for MA-6's solver, which needs the payment, not only its existence.
+  kept for `mana-payment-solver`'s solver, which needs the payment, not only its existence.
 - **A linear program, or any convex relaxation**, is exact where the
   closed form already is: the transportation polytope's vertices are
   integral. It is wrong where the closed form needs help. A relaxation
@@ -284,11 +284,11 @@ measured on the board.
 | hybrid `{W/U}`, and `{C/W}` | the two types | yes, by the same theorem |
 | `{2/W}`, Phyrexian `{W/P}` and `{W/U/P}` | a choice per symbol, paid colored or another way (two generic, or 2 life): enumerate how many of each kind go each way, n+1 choices for n such symbols of one type | yes |
 | `{S}` | a seventh bit, set on a snow permanent's entries | yes for permanents; the pool's snow mana waits for item 33 |
-| `{X}` | a spell's is expanded at its least legal X before the check: 0, or 1 generic under "X can't be 0" (§3.7). An unexpanded `{X}`, an activated ability's, is refused until CP-1 announces it | yes |
+| `{X}` | a spell's is expanded at its least legal X before the check: 0, or 1 generic under "X can't be 0" (§3.7). An unexpanded `{X}`, an activated ability's, is refused until `hybrid-and-phyrexian-payment` announces it | yes |
 
 **Until a payment path pays a symbol, the check refuses it.** Enumeration
 must agree with enforcement (`cost-architecture.md` §3.6): the gate's hybrid
-arm switches on in CP-1's PR, beside `ManaPool::pay`'s, and `{S}` with item
+arm switches on in `hybrid-and-phyrexian-payment`'s PR, beside `ManaPool::pay`'s, and `{S}` with item
 33's. That is today's behavior for those symbols, and nothing is offered
 that the payment would refuse.
 
@@ -346,7 +346,7 @@ gate leans one way only.
   instructions a cost: if every cost on the budget's board met it, 2.9
   points. That cap was the prototype's choice, not a measurement of decks.
   With counting and collapsing it binds only past six *distinct* converters
-  whose outputs a cost's colored pips can use, on one player's board. MA-3
+  whose outputs a cost's colored pips can use, on one player's board. `any-color-plus-painlands-plus-signets`
   states it as a cost (64 combinations a cost) and counts how often a fuzz
   game reaches it. **About 3,600 instructions a cost where present**, from
   the prototype's subsets.
@@ -458,7 +458,7 @@ come with item 33's build.
   record replaces it with the units the purpose may
   spend, which `amount_for` already computes for the special atoms.
 - **What this design builds:** the entry's restriction and the purpose
-  argument, with item 33's build (`roadmap-v2.md` B9), which makes
+  argument, with item 33's build (`roadmap-v2.md` `mana-provenance`), which makes
   restricted mana spendable; until then MA-1 leaves it uncounted.
 - **What item 33 builds:** the per-unit record, the payment that reads it,
   and the source axis on the generic split.
@@ -516,12 +516,12 @@ bounds it.
 **Owners.** MA-2 builds the set shape, the payability interval and the
 printed minimum, with a fixture whose set has a gap. Each other cut lands
 with its surface and reads MA-2's shape:
-- the loyalty −X, with CP-2's counter arms (an amount that can be X);
+- the loyalty −X, with `remaining-costs`'s counter arms (an amount that can be X);
 - a target's mana value, with the first card that prints it, in C;
-- X in an activated ability's mana cost, CP-1's;
-- X in an additional cost, CP-2's amount shape;
+- X in an activated ability's mana cost, `hybrid-and-phyrexian-payment`'s;
+- X in an additional cost, `remaining-costs`'s amount shape;
 - a "can't cast" that names a quality X changes (CR 601.3a: Void Winnower's
-  even mana values), with RS-2's cast prohibitions. `cant-effects-architecture.md`
+  even mana values), with `cant-cast-play-or-activate`'s cast prohibitions. `cant-effects-architecture.md`
   §4.3 plans a reversal after the announcement; the set form lets the same
   check cut instead (§9 says why both are the CR's);
 - a minimum that depends on how the spell is cast (Light Up the Night's
@@ -598,7 +598,7 @@ them as entries for the one cost they serve:
 |---|---|---|
 | convoke (104) | each untapped creature: one, of its colors, or generic | a mana creature keeps its one entry, with its types widened |
 | improvise (23) | each untapped artifact not already an entry: generic only | an artifact that taps for mana is no worse as mana |
-| delve (28) | each card in the graveyard: generic only | CP-2's exile-from-graveyard cost shares the same cards |
+| delve (28) | each card in the graveyard: generic only | `remaining-costs`'s exile-from-graveyard cost shares the same cards |
 | waterbend (28) | artifacts and creatures, for the waterbend cost's own generic only (701.67b) | an eighth bit its generic pips carry |
 | assist (16) | another player's inventory, generic only | over-offers, since that player may refuse (702.132a) |
 | offering (6) | one check per creature it may sacrifice, its mana cost as a reduction | an additional cost that reduces, 601.2f's pipeline |
@@ -632,8 +632,8 @@ point.
   instructions an activation**, the measured cost of a production's own
   proposal (`resolve_mana_effect`, 4,417 calls).
 - **A mana ability's own mana cost opens a window** (605.3a: "activating an
-  ability that requires a mana payment"). B13's Ironworks loop needs it for
-  Chromatic Sphere's `{1}` (`roadmap-v2.md` B13), and Signets need it too.
+  ability that requires a mana payment"). `ironworks-loop`'s Ironworks loop needs it for
+  Chromatic Sphere's `{1}` (`roadmap-v2.md` `ironworks-loop`), and Signets need it too.
 - **The as-enters record's mana half** (`backlog.md` §2.2). A color chosen as the
   permanent enters (CR 614.12a) travels in `EnterMods`, so the look-ahead
   frame reads it. It is kept on the permanent, never in `CopiableValues`
@@ -680,7 +680,7 @@ on the board:
   could have predicted. Building the offer is the inventory at every
   point, and asking it is a round trip. Under C that seat never asked, so
   neither cost is paid (`backlog.md` §2.22's rule 2: a bot's seat takes its
-  policy at construction). Built in MA-6, beside the person's-seat solver.
+  policy at construction). Built in `mana-payment-solver`, beside the person's-seat solver.
 
 ### 3.12 The solver: a payment, not existence
 
@@ -737,28 +737,28 @@ cost if every cost the check read carried it.
 |---|---:|---|---|---|
 | The plain check: several mana at once, listed types sharing a `{T}` | 155, 380 | §3.1–3.2 | **30.3K a decision with §3.4 (26.3K the inventory, 3.6K the scan, 0.4K the checks), against 45.6K today: −2.4 points** | MA-1 |
 | Triggered mana and its replacements | 19, 10 | §3.4, memoized | 3.6K (in the line above); 10.9K unmemoized | MA-1 |
-| One choice for several mana: "any one color", a multiplier on a multi-type entry | 54 | §3.3 enumeration | 2,800 a cost where present; bound 9.5K | MA-1 (the multiplier, on the board); MA-3 (the printed form) |
-| Mana-fed: converters and filters | 175 | §3.3: Signet-shaped exact by a base-mana pip; identical ones counted; other shapes ordered, up to three | 3,600 a cost where present; bound 9.6K | MA-1 (Doubling Cube, registered, exact); MA-3 (Signets) |
+| One choice for several mana: "any one color", a multiplier on a multi-type entry | 54 | §3.3 enumeration | 2,800 a cost where present; bound 9.5K | MA-1 (the multiplier, on the board); `any-color-plus-painlands-plus-signets` (the printed form) |
+| Mana-fed: converters and filters | 175 | §3.3: Signet-shaped exact by a base-mana pip; identical ones counted; other shapes ordered, up to three | 3,600 a cost where present; bound 9.6K | MA-1 (Doubling Cube, registered, exact); `any-color-plus-painlands-plus-signets` (Signets) |
 | Alternatives of different sizes | — | §3.3: each alternative tried, dominated ones dropped | not measurable on the board (4 inventories) | MA-1 |
 | Sacrifice-fed, another permanent | 26 | §3.3 count less the cost's own | one candidate count an inventory where present | MA-1 (Ironworks, registered) |
 | Sacrifice-fed, itself | 117 | an ordinary entry | 0 beyond the plain check | MA-1 |
 | Variable amount; the doubled pool | 60; 1 | evaluated at the inventory (605.3b) | one `evaluate_amount` a source | MA-1 |
-| One mana of any color; Treasure makers | 306 + 21, 347 | a five-type entry; the choice at resolution (§3.10) | 0 at the gate; one prompt an activation | MA-3 |
-| Painland riders | 129 | gate unchanged; the rider through the chokepoint | 0 at the gate; about 22.5K an activation | MA-3 |
-| The chosen color | 32 | the recorded bit; `backlog.md` §2.2's record, its mana half | 0 beyond a read | MA-4 |
-| "Could produce" | 14 | the union, a fixpoint, memoized | one pass over the named set a memo miss | MA-4 |
-| Restricted mana | 153 | §3.6, an edge refused | 2,100 a cost where present; bound 5.6K | item 33's build (`roadmap-v2.md` B9); MA-1 leaves restricted mana uncounted |
+| One mana of any color; Treasure makers | 306 + 21, 347 | a five-type entry; the choice at resolution (§3.10) | 0 at the gate; one prompt an activation | `any-color-plus-painlands-plus-signets` |
+| Painland riders | 129 | gate unchanged; the rider through the chokepoint | 0 at the gate; about 22.5K an activation | `any-color-plus-painlands-plus-signets` |
+| The chosen color | 32 | the recorded bit; `backlog.md` §2.2's record, its mana half | 0 beyond a read | `chosen-color-plus-could-produce` |
+| "Could produce" | 14 | the union, a fixpoint, memoized | one pass over the named set a memo miss | `chosen-color-plus-could-produce` |
+| Restricted mana | 153 | §3.6, an edge refused | 2,100 a cost where present; bound 5.6K | item 33's build (`roadmap-v2.md` `mana-provenance`); MA-1 leaves restricted mana uncounted |
 | X | 527 | the smallest legal X at the gate; the legal set at 601.2b, the bound in closed form, cut by the other rules (§3.7) | 159 a cost; bound 0.4K | MA-2; each cut with its surface |
-| Hybrid, `{C/W}` | 582, 1 | a two-type pip | 0 beyond the plain check | CP-1, against §3.2 |
-| Mono-hybrid, Phyrexian | 20, 36 | counts enumerated | 1,300 a cost where present; bound 3.6K | CP-1, against §3.2 |
-| Convoke | 104 | §3.9 | 2,600 a cost where present; bound 6.9K | MA-5 |
-| Improvise, delve | 23, 28 | §3.9, generic only | 2,350 a cost where present; bound 6.3K | MA-5 |
-| Waterbend | 28 | §3.9, an eighth bit | as convoke | MA-5 |
-| Assist, offering | 16, 6 | §3.9 | another player's inventory; one check a candidate | MA-5, or C with the card (§6) |
-| `{S}` | 2 | §3.2's seventh bit | 0 beyond the plain check | item 33 (B9) |
+| Hybrid, `{C/W}` | 582, 1 | a two-type pip | 0 beyond the plain check | `hybrid-and-phyrexian-payment`, against §3.2 |
+| Mono-hybrid, Phyrexian | 20, 36 | counts enumerated | 1,300 a cost where present; bound 3.6K | `hybrid-and-phyrexian-payment`, against §3.2 |
+| Convoke | 104 | §3.9 | 2,600 a cost where present; bound 6.9K | `convoke-delve-improvise` |
+| Improvise, delve | 23, 28 | §3.9, generic only | 2,350 a cost where present; bound 6.3K | `convoke-delve-improvise` |
+| Waterbend | 28 | §3.9, an eighth bit | as convoke | `convoke-delve-improvise` |
+| Assist, offering | 16, 6 | §3.9 | another player's inventory; one check a candidate | `convoke-delve-improvise`, or C with the card (§6) |
+| `{S}` | 2 | §3.2's seventh bit | 0 beyond the plain check | item 33 (`mana-provenance`) |
 | The window's inventory | — | §3.8 | −4.5K | MA-1 |
-| Mana abilities at priority (item 211) | — | §3.11, shape C | 0 by default | MA-6 |
-| The solver and its decorator | — | §3.12 | ~14K a cast, a person's seat only | MA-6 |
+| Mana abilities at priority (item 211) | — | §3.11, shape C | 0 by default | `mana-payment-solver` |
+| The solver and its decorator | — | §3.12 | ~14K a cast, a person's seat only | `mana-payment-solver` |
 
 The counts are the census's (`plans/references/cast-census.md` §5, §7, §8),
 reproduced from its cache this session (`cast-census.py --no-fetch`). Three
@@ -782,7 +782,7 @@ production text from its first "add", first pattern wins:
 
 Moved to `plans/archive/mana-architecture-landed.md`, "MA-1", when it
 landed: five commits, each an arm that answers one question, read in
-`fuzz-record.md`'s MA-1 block. What carries to MA-2 to MA-6: a change that
+`fuzz-record.md`'s MA-1 block. What carries to MA-2 to `mana-payment-solver`: a change that
 moves what the priority question offers reads the budget off a cost arm
 (today's answers, the new machinery run black-boxed), and "Actions
 reversed" (CR 732.1's word) prices an offer no payment covers, each one a
@@ -799,12 +799,12 @@ card-by-card hunt runs in each PR's brief.
 | PR | Shape | Size | Consumer | Closes |
 |---|---|---|---|---|
 | **MA-1, the inventory and the exact check** | Landed 2026-10-05 (#225): §10, and the archive's "MA-1" for the shape as sized | | | item 162's offer customer |
-| **MA-7, the check widened** (MA-1's review, 2026-10-06) | Every cost a mana ability can have, read per `Cost` arm with no wildcard into what one use spends: its tap (once a payment, since only `{Q}` untaps inside one), itself, counters (their count over N uses), life (one budget with the action's own life payment, CR 119.4), others' sacrifice (one fodder pool), mana in (a pool multiplier's input; a converter's is MA-3's rule). Sorcery timing read, and CR 602.5's "activate only if" conditions once `permission-architecture.md` gives them a surface, in the order one window can change them (Mox Opal beside Krark-Clan Ironworks). The fold of replacement effects by state rather than order: 2^n·n! leaves at six effects become at most 2^n states. The choice search as a dynamic program over what the cost's pips still need, exact with no cap. **Its first commit is the stress board**: Nyxbloom Ancient registered beside Mana Reflection, fifteen distinct dual lands, a pool multiplier and three- to five-color costs, read in callgrind before the dynamic program and after | ~350–450 engine, ~300–400 tests: 650–850 | the stress board; the 116 printed cards whose mana costs life, counters, a tap with another sacrifice, or `{Q}` | item 213; MA-1's review, themes C and D |
+| **`mana-ability-costs`, every cost a mana ability can have, in the check** (MA-1's review, 2026-10-06) | Every cost a mana ability can have, read per `Cost` arm with no wildcard into what one use spends: its tap (once a payment, since only `{Q}` untaps inside one), itself, counters (their count over N uses), life (one budget with the action's own life payment, CR 119.4), others' sacrifice (one fodder pool), mana in (a pool multiplier's input; a converter's is `any-color-plus-painlands-plus-signets`'s rule). Sorcery timing read, and CR 602.5's "activate only if" conditions once `permission-architecture.md` gives them a surface, in the order one window can change them (Mox Opal beside Krark-Clan Ironworks). The fold of replacement effects by state rather than order: 2^n·n! leaves at six effects become at most 2^n states. The choice search as a dynamic program over what the cost's pips still need, exact with no cap. **Its first commit is the stress board**: Nyxbloom Ancient registered beside Mana Reflection, fifteen distinct dual lands, a pool multiplier and three- to five-color costs, read in callgrind before the dynamic program and after | ~350–450 engine, ~300–400 tests: 650–850 | the stress board; the 116 printed cards whose mana costs life, counters, a tap with another sacrifice, or `{Q}` | item 213; MA-1's review, themes C and D |
 | **MA-2, the legal values of X** | Landed 2026-10-18 (#259): §10, and the archive's "MA-2" for the plan as sized | | | `cast-census.md` §8's X row |
-| **MA-3, any color, riders, the nested window** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; the Ironworks loop's three facilities (`roadmap-v2.md` B13) | `backlog.md` §2.19 |
-| **MA-4, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
-| **MA-5, paying with permanents or cards** | §3.9: the entries; the payment prompt in `plan_payment`; the taps and exiles through the chokepoint. Cards: Stoke the Flames, Treasure Cruise, Reverse Engineer, a waterbend card. Assist and offering go here if the hunt keeps it in band, else to C with a card each | ~900 engine, ~1,000 tests: 1,900–2,400 | four cards | `cast-census.md` §7's payment row |
-| **MA-6, a person's seat: the solver and item 211** | §3.12's solver and decorator, wired in `cli_play` and the dev GUI behind the toggle, with a `fuzz_games` flag off by default; §3.11's shape C (a `SeatMode` field, the "add mana" entry, CR 605.3a's window at priority). A GUI PR: `engineering-practices.md` §10's review | ~600 engine and client, ~600 tests: 1,100–1,400 | the CLI and dev GUI person's seat | `backlog.md` §2.18's solver (§2.22 rows 6 and 7), item 211 |
+| **`any-color-plus-painlands-plus-signets`, a color chosen at resolution, a mana ability that does more, a mana ability with a mana cost** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; the Ironworks loop's three facilities (`roadmap-v2.md` `ironworks-loop`) | `backlog.md` §2.19 |
+| **`chosen-color-plus-could-produce`, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
+| **`convoke-delve-improvise`, paying with permanents or cards** | §3.9: the entries; the payment prompt in `plan_payment`; the taps and exiles through the chokepoint. Cards: Stoke the Flames, Treasure Cruise, Reverse Engineer, a waterbend card. Assist and offering go here if the hunt keeps it in band, else to C with a card each | ~900 engine, ~1,000 tests: 1,900–2,400 | four cards | `cast-census.md` §7's payment row |
+| **`mana-payment-solver`, a person's seat: the solver and item 211** | §3.12's solver and decorator, wired in `cli_play` and the dev GUI behind the toggle, with a `fuzz_games` flag off by default; §3.11's shape C (a `SeatMode` field, the "add mana" entry, CR 605.3a's window at priority). A GUI PR: `engineering-practices.md` §10's review | ~600 engine and client, ~600 tests: 1,100–1,400 | the CLI and dev GUI person's seat | `backlog.md` §2.18's solver (§2.22 rows 6 and 7), item 211 |
 
 **Ordering.**
 - **MA-1 landed before SU-8** (decision 7). It removed the wrong offer
@@ -812,17 +812,17 @@ card-by-card hunt runs in each PR's brief.
   `ManaAbilityWindow` line SU-8 would have read off its inventory.
 - **MA-2 moved up to right after TR-5b** (the owner, 2026-10-17, at #258):
   TR-5b's Protean Hydra is an X spell the gate cannot offer. Its inputs are
-  built, MA-1's check and the cost determination's X, and MA-7's mana
+  built, MA-1's check and the cost determination's X, and `mana-ability-costs`'s mana
   ability costs are no part of its X arm.
-- **MA-7 first** (the owner, 2026-10-06, at #225's review): it widens the
-  check that MA-3 to MA-6 extend. It is not urgent for today's games: the
+- **`mana-ability-costs` first** (the owner, 2026-10-06, at #225's review): it widens the
+  check that the mana phases still to come extend. It is not urgent for today's games: the
   choice search never passed 6 leaves in about 150,000 checks over the four
   fuzz boards (2026-10-06). It is the guarantee for v1's Commander boards,
   where Nyxbloom Ancient and many lands do meet.
-- **MA-2 to MA-6** go in `roadmap-v2.md` B, before C. **MA-3 before B13**,
+- **MA-2 to `mana-payment-solver`** go in `roadmap-v2.md` B, before C. **`any-color-plus-painlands-plus-signets` before `ironworks-loop`**,
   the Ironworks loop (TR-7's until 2026-10-13), which needs any-color mana, a
   draw inside a mana ability, and a window inside a mana ability's activation.
-- **CP-1 after MA-1**: its gate half is §3.2's arms.
+- **`hybrid-and-phyrexian-payment` after MA-1**: its gate half is §3.2's arms.
 - **Item 33's design pass after MA-1**: its seam is §3.6.
 
 ---
@@ -852,27 +852,27 @@ seven were taken as recommended at #224's review** (the owner,
    nothing asked of a seat that does not.
 5. **The production shapes.** A spec with four forms; the choice at
    resolution; riders through the resolver; `backlog.md` §2.2's record,
-   its mana half built in MA-4 in §2.2's shape; "could produce" with a fixpoint (§3.10).
+   its mana half built in `chosen-color-plus-could-produce` in §2.2's shape; "could produce" with a fixpoint (§3.10).
 6. **X.** As recommended, with three refinements (§3.7). The gate tests
    the smallest legal X, which is 1 on 17 cards. The bound bisects over the
    previewed total, because a reduction can absorb part of X (replaced at
    #259's review by the closed form, §3.7). And the legal
    X is a set that other rules cut, so `ChooseXValue` gains a set form for
    Tamiyo's −X and Detonate.
-7. **The route.** MA-1 before SU-8; the rest in B before C, MA-3 before
-   B13, the Ironworks loop (§6).
+7. **The route.** MA-1 before SU-8; the rest in B before C, `any-color-plus-painlands-plus-signets` before
+   `ironworks-loop` (§6).
 
 ---
 
 ## 8. Out of scope
 
 - **CR 732.1's reversal** (item 72). It is `backlog.md` §2.22 row 9's,
-  slotted to B13, the Ironworks loop (`codebase-state.md` item 72). The
-  solver's "reverse all when the solver made the taps" is row 9's, not MA-6's.
-- **The payment of hybrid, Phyrexian and `{C/W}`** is CP-1's. Of `{S}` and
+  slotted to `ironworks-loop` (`codebase-state.md` item 72). The
+  solver's "reverse all when the solver made the taps" is row 9's, not `mana-payment-solver`'s.
+- **The payment of hybrid, Phyrexian and `{C/W}`** is `hybrid-and-phyrexian-payment`'s. Of `{S}` and
   restricted mana, item 33's.
 - **CR 609.4b's "spend as though it were mana of any color"** (49 cards) is
-  `backlog.md` §2.24's, with CP-1. At the gate it widens every entry's types,
+  `backlog.md` §2.24's, with `hybrid-and-phyrexian-payment`. At the gate it widens every entry's types,
   one line in §3.1, when it lands.
 - **Mana that does not empty** (24) and mana that does something when spent
   (8) are item 33's.
@@ -898,14 +898,14 @@ seven were taken as recommended at #224's review** (the owner,
   is 0.7 points, not 6.
 - **The window's prompt has no subject at a priority question.**
   `ChoiceKind::ManaAbilityWindow` names the spell or ability being paid for.
-  Shape C's window at priority pays for nothing, so MA-6 makes that field an
+  Shape C's window at priority pays for nothing, so `mana-payment-solver` makes that field an
   `Option` or adds a kind, and decides which with `ChoiceKind::subject()`'s
   match (A4j).
 
 Found by MA-2's plan (2026-10-17, at #259):
 - **The census files an activated ability's `{X}` as unowned.**
   `cast-census.py`'s cost row "mana with {X}" says "an ability's X is never
-  asked", owner none, while `cost-architecture.md`'s CP-1 row claims it
+  asked", owner none, while `cost-architecture.md`'s `hybrid-and-phyrexian-payment` row claims it
   (`activate_ability` never asks, `x_value: None`; 145 cards). The owner
   column is corrected at MA-2's close.
 - **Two plans for Void Winnower's X.** `cant-effects-architecture.md` §4.3
@@ -915,9 +915,9 @@ Found by MA-2's plan (2026-10-17, at #259):
   out of what is offered instead. Both are the CR's: 601.3a lets the cast
   begin, and 601.2e reverses an announcement that makes it illegal. Offering
   only what can be completed is `cost-architecture.md` §3.6's preference, so
-  §3.7's owners list the cut with RS-2, and the choice is RS-2's.
+  §3.7's owners list the cut with `cant-cast-play-or-activate`, and the choice is `cant-cast-play-or-activate`'s.
 - **Mana value with X on the stack** (CR 202.3e) stays `ManaSymbol::X => 0`
-  everywhere. CP-1's row owns it; no registered card reads a spell's mana
+  everywhere. `hybrid-and-phyrexian-payment`'s row owns it; no registered card reads a spell's mana
   value on the stack, so it is not reachable when X spells become castable.
 - **"X can't be 0" is a fixture.** Three paper cards print it on a mana
   cost's X (`o:"X can't be 0" m:{X} -is:digital`, 3, Scryfall 2026-10-17):

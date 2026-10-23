@@ -2,7 +2,7 @@
 
 > **Status:** a slot, not a design. Created 2026-10-05 by `codebase-state.md`
 > item 212's census (`plans/references/cast-census.md`, #223). At its review the
-> owner chose a document of its own, designed beside RS-2 and built before B2.
+> owner chose a document of its own, designed beside `cant-cast-play-or-activate` and built before `game-formats`.
 > No code written. **Authority:** whether a player may begin to cast, play or
 > activate an object, from the zone it is in, now: CR 601.3's "allows" half,
 > 602.2 (who may activate), 602.5 (when), 113.6b–m (from which zone), 305.1–2
@@ -17,15 +17,15 @@
 > builds that query, and §2.15's other values reuse it (`cost-architecture.md`
 > §3.9: one surface for three values).
 > **Companions:**
-> - `cant-effects-architecture.md`: RS-2 builds the prohibition half at the
+> - `cant-effects-architecture.md`: `cant-cast-play-or-activate` builds the prohibition half at the
 >   same three checks, and its §4.3 already argues that permission and
 >   prohibition want one query (Conduit of Worlds grants what Aggressive
 >   Mining removes).
-> - `cost-architecture.md`: what a permission's cost pays, through CP-1 and
->   CP-2.
+> - `cost-architecture.md`: what a permission's cost pays, through `hybrid-and-phyrexian-payment` and
+>   `remaining-costs`.
 > - `backlog.md` §2.24: CR 609.4's "as though", whose permission half holds
->   "as though it had flash" (`roadmap-v2.md` B8).
-> - The copy track: face-down casting (CV-6) and alternative characteristics
+>   "as though it had flash" (`roadmap-v2.md` `as-though-effects`).
+> - The copy track: face-down casting (`face-down-and-morph`) and alternative characteristics
 >   (`backlog.md` §2.41).
 >
 > Phase codes are `PM-*`; branches are `permission/pm-<n>-…`.
@@ -58,7 +58,7 @@ census beside its number):
 **One surface.** SU-7 made each option one check that the enumeration and
 the enforcement both ask: `can_begin_to_cast`, `can_play_land`, and
 `can_activate_its_abilities` with `can_begin_to_activate`. Every family above
-is a question one of those checks answers. RS-2 adds the prohibitions at the
+is a question one of those checks answers. `cant-cast-play-or-activate` adds the prohibitions at the
 same checks, so the two are designed side by side: each check's reasons are
 designed once, and neither half reshapes the other's enum.
 
@@ -94,7 +94,7 @@ designed once, and neither half reshapes the other's enum.
   the zone a spell was cast from. The resolution carries it into a
   permanent's `CastFacts` (`engine/stack.rs`), and the trigger history's
   `RowFact::Cast` reads it (`engine/triggers/history.rs`). CR 903.8's tax,
-  which B2 builds, will read it.
+  which `game-formats` builds, will read it.
 - `oracle::legality::can_play_land` admits the hand alone: `CannotPlayLand::
   NotInHand`. Its count, `PlayerState::lands_per_turn`, is set to 1 and
   nothing changes it: `CannotPlayLand::NoLandDropLeft`.
@@ -105,7 +105,7 @@ designed once, and neither half reshapes the other's enum.
 - `AlternativeCost::Flashback` and `Escape` exist, and no graveyard is ever a
   zone a card is cast from.
 - No loyalty ability exists. Loyalty Probe has none, and the counters its
-  costs move are CP-2's arms.
+  costs move are `remaining-costs`'s arms.
 
 ## 3. What it must express at v1
 
@@ -128,7 +128,7 @@ From the census's rules pass (`cast-census.md` §2):
   restrict the choices after it.
 - **The reason, typed.** `NotPermitted { zone }` replaces `CannotCast::
   NotInHand`, `CannotPlayLand::NotInHand` and `CannotActivate::
-  NotOnBattlefield`, in CR 601.3's and 113.6's words. RS-2's reason names
+  NotOnBattlefield`, in CR 601.3's and 113.6's words. `cant-cast-play-or-activate`'s reason names
   the prohibiting source, beside it.
 - **Who may activate, per ability** (602.2): its controller, any player, or
   only an opponent. A field on `AbilityDef`, read by `can_begin_to_activate`
@@ -150,23 +150,23 @@ From the census's rules pass (`cast-census.md` §2):
 
 ## 4. Seams
 
-- **RS-2.** The prohibition half at the same checks. RS-2's §4.3 contract,
+- **`cant-cast-play-or-activate`.** The prohibition half at the same checks. `cant-cast-play-or-activate`'s §4.3 contract,
   over-approximate at the gate and exact after the announcement, is this
   document's too: a permission that a choice could satisfy is offered, and
   CR 601.2's rewind refuses a cast that does not satisfy it.
-- **B8, "as though".** "Cast as though it had flash" (CR 601.3b, 609.4) stays
+- **`as-though-effects`, "as though".** "Cast as though it had flash" (CR 601.3b, 609.4) stays
   `backlog.md` §2.24's. This document owns a zone, an owner and an activation
   limit, not a fiction.
-- **CP-1 and CP-2.** A permission's alternative cost is an `AlternativeCost`.
-  A loyalty ability's cost is CP-2's counter arms; its timing is 606.3's,
+- **`hybrid-and-phyrexian-payment` and `remaining-costs`.** A permission's alternative cost is an `AlternativeCost`.
+  A loyalty ability's cost is `remaining-costs`'s counter arms; its timing is 606.3's,
   here.
 - **Item 162.** Every zone a permission names adds candidates to the priority
   question, whose candidate list is 18.6% of a close-out run's instructions
   (SU-6's engine arm). The design prices the gather. Item 211's mana
-  abilities at a priority question (CR 605.3a) are MA-6's
+  abilities at a priority question (CR 605.3a) are `mana-payment-solver`'s
   (`mana-architecture.md` §3.11's shape C: one "add mana" entry for a seat
   that asks), not this document's.
-- **B2.** CR 903.8 is the permission; the designation and the tax are B2's.
+- **`game-formats`.** CR 903.8 is the permission; the designation and the tax are `game-formats`'s.
 - **`backlog.md` §2.9.** A permission to cast from a library's top or from
   face-down exile reads what its player can see (601.3f).
 
@@ -182,8 +182,8 @@ Named here so the design session starts from them; none is answered.
    - a permission tied to one object ("for as long as it remains exiled").
 
    Is RS-1's `RestrictionRegistry` the shape for the second and third, as
-   CR 609.4's permission half (B8) already asks?
-2. **The enumeration's cost, priced at four seats.** PM-0 measures the
+   CR 609.4's permission half (`as-though-effects`) already asks?
+2. **The enumeration's cost, priced at four seats.** `permission-design` measures the
    gather on SU-6's engine arm: the candidate list is 18.6% of a close-out
    run's instructions, and 39–40 µs a question on the large board in release
    (`setup-architecture.md` §7c). `castable_spells` walks the hand today, and
@@ -228,13 +228,14 @@ Named here so the design session starts from them; none is answered.
 
 | PR | Shape | Size | Risk |
 |---|---|---|---|
-| **PM-0, who may cast, play or activate: the design** | §5 answered, and the build split and sized against the census's families. Reviewed before any build, with RS-2's reasons designed beside it. It sizes `codebase-state.md` item 265 too: a card cast from a graveyard carries no frame for a "leaves your graveyard" trigger | docs | low |
-| **PM-1 onward** | sized by PM-0. The first carries CR 903.8's command zone, since B2 needs it | — | — |
+| **`permission-design`, who may cast, play or activate: the design** | §5 answered, and the build split and sized against the census's families. Reviewed before any build, with `cant-cast-play-or-activate`'s reasons designed beside it. It sizes `codebase-state.md` item 265 too: a card cast from a graveyard carries no frame for a "leaves your graveyard" trigger | docs | low |
+| **`command-zone-casting` — casting from the command zone** | sized by `permission-design`: CR 903.8's command zone, since `game-formats` needs it | — | — |
+| **`casting-from-other-zones` — flashback and the other casts from elsewhere** | sized by `permission-design`: the cast-from-elsewhere families, alternative costs an effect provides, `codebase-state.md` item 203 | — | — |
 
 **Slot** (`roadmap-v2.md` §3a, "From triggers to Phase 8"; `CLAUDE.md`
-owns the order): after triggers, the route review A6s comes first. Then
-RS-2, with PM-0 designing its reasons beside it so each check's reasons are
+owns the order): after triggers, `route-review` comes first. Then `cant-be-targeted` and
+`cant-cast-play-or-activate`, the second with `permission-design` designing its reasons beside it so each check's reasons are
 designed once (the owner, 2026-10-05), and a card's characteristic sets
-designed beside PM-0. Then PM-1, CR 903.8's command zone, which B2 needs,
-then B2. PM's later builds (flashback and the other cast-from-elsewhere
-families) have their own step, after B13 and before CV-5.
+designed beside `permission-design`. Then `command-zone-casting`, CR 903.8's command zone, which `game-formats` needs,
+then `game-formats`. `casting-from-other-zones` (flashback and the other cast-from-elsewhere
+families) has its own step, after `ironworks-loop` and before `double-faced-cards`.

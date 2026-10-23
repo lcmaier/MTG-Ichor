@@ -26,7 +26,7 @@ OTHER_DOC = re.compile(r"[A-Za-z0-9_\-]+\.(?:md|rs|py|txt)`?\s*$")
 # The eviction table: whole sections that move, and sections part of which moves.
 MOVES = {"0", "1", "2.1", "8", "14", "17"}
 PARTLY = {"11.1": "its reading", "12": "the two re-counts and the TR-4/TR-5 roll-ups",
-          "4.9": "the design input for B14 (~260 of its lines)",
+          "4.9": "the design input for `loop-detection` (~260 of its lines)",
           "15": "the findings pass 1 closes"}
 
 
@@ -177,8 +177,8 @@ def part_named(token, after):
             return "a phase stub (stays)"
         return "the section (doubtful: a reader decides)"
     if token == "4.9":
-        if re.search(r"B14|design input|detect", head, re.I):
-            return "B14's design input (moves)"
+        if re.search(r"B14|loop-detection|design input|detect", head, re.I):
+            return "`loop-detection`'s design input (moves)"
         if re.search(r"draw", head, re.I):
             return "the draw (stays)"
         return "the section (doubtful: a reader decides)"

@@ -268,9 +268,9 @@ Dependency order — each item needs the ones above it. [`CLAUDE.md`](CLAUDE.md)
 | 6a | CR 113.6 — which abilities function in which zone | ✅ 2026-09-16 |
 | 6 | **Triggered abilities (CR 603)** — takes LKI with it | ✅ **2026-10-22**, TR-1–TR-7 ([`plans/triggers-architecture.md`](plans/triggers-architecture.md) §12); its close audit runs now, then the route review |
 
-Beside the spine, not sequenced against it: **"can't" effects** (RS-1 landed; RS-2–RS-4
-open), **copy effects** (CV-1, CV-1b and CV-2 landed; CV-3–CV-7 open), **the mana check**
-(MA-1 and MA-2 landed; MA-3–MA-7 open), and the **Commander and
+Beside the spine, not sequenced against it: **"can't" effects** (RS-1 landed; the rest
+open), **copy effects** (CV-1, CV-1b and CV-2 landed; the rest open), **the mana check**
+(MA-1 and MA-2 landed; the rest open), and the **Commander and
 multiplayer track** — cost modification landed (CM-0–CM-4), CR 903.9a/b landed, N-seat
 games run; the commander tax, `GameConfig::commander()`, designation and CR 802 remain.
 

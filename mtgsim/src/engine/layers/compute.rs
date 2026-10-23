@@ -40,7 +40,7 @@ use crate::state::layer_memo::GatedWalkInput;
 ///
 /// This mirrors the `Layer` enum exactly, and the enum is **not** the CR's full
 /// list: CR 613.2a is copy effects (1a) and CR 613.2b is face-down (1b),
-/// applied after copy, and `Layer1Copy` collapses the two until CV-6 builds
+/// applied after copy, and `Layer1Copy` collapses the two until `face-down-and-morph` builds
 /// 1b. Splitting the slot later just lengthens this array — the ceiling is an
 /// index into it, computed at runtime, so nothing else moves except
 /// `layers::copy::END_OF_LAYER_1`, which a `debug_assert` there pins.

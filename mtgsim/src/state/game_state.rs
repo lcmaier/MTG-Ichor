@@ -104,7 +104,7 @@ pub struct StackEntry {
     /// The zone this spell was cast from (CR 601.2a), captured before the card
     /// moved to the stack.
     ///
-    /// **Invariant: `cast_from.is_some() == is_spell`** — until CV-4, since a
+    /// **Invariant: `cast_from.is_some() == is_spell`** — until `spell-copies`, since a
     /// copy of a spell is a spell and isn't cast (CR 707.10), so it will be
     /// `None` too. An activated ability is
     /// not cast from anywhere — CR 602.2a gives it a *source*, which is a

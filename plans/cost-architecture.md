@@ -3,7 +3,7 @@
 > **Status:** design, authored 2026-09-07 and revised the same day against the
 > owner's review (seven notes and a judge's walkthrough of the Ironworks loop;
 > each is answered where it lands and listed in §11). CM-0 through CM-4 built.
-> CP-1 and CP-2 are sized slots (§6).
+> `hybrid-and-phyrexian-payment` and `remaining-costs` are sized slots (§6).
 > **Authority:** the cost pipeline — what a cost modification *is* in this
 > engine, which objects can have one, where one is discovered, the CR 601.2f
 > order as built, the lock-in, and the phase sequencing for CR 601.2f–h /
@@ -21,8 +21,8 @@
 > reuses; read them before §4. `layers-architecture.md` §11.2 said "Layers
 > don't touch it" and was right — this document is the one that does.
 > **Graduates:** `backlog.md` §2.1 (cost modification and the cost pipeline),
-> both halves: modification is CM-1–CM-4, payment is CP-1 (§6), a sized slot
-> in this document rather than a design. **CP-2, the cost actions**, is a
+> both halves: modification is CM-1–CM-4, payment is `hybrid-and-phyrexian-payment` (§6), a sized slot
+> in this document rather than a design. **`remaining-costs`, the cost actions**, is a
 > second slot. `codebase-state.md` item 212's census found it unowned, and
 > the owner placed it here on 2026-10-05 (§6).
 > **Supersedes:** the cost half of ticket **L15**, whose `TODO(L15)` sat on
@@ -64,7 +64,7 @@ re-litigated:
   edit adds none.
 
 Phase codes: `CM-0` (a rename the first consumer forces), `CM-1`–`CM-4`
-(**c**ost **m**odification), `CP-1` (cost **p**ayment). Branches are
+(**c**ost **m**odification), `hybrid-and-phyrexian-payment` (cost **p**ayment). Branches are
 `cost/cm-<n>-…`.
 
 ---
@@ -259,8 +259,8 @@ every static shape at once; this document adds a source when that exists
 rather than a graveyard sweep now. (The predicate exists since LK, 2026-09-14,
 `engine/zone_function.rs`; the cost gather still sweeps the battlefield alone,
 and unlike the replacement sweep's zone leg (RF) and the restriction sweep's
-(`codebase-state.md` item 146, slotted at RS-2) this one is item 316,
-slotted at B2.)
+(`codebase-state.md` item 146, slotted at `cant-cast-play-or-activate`) this one is item 316,
+slotted at `game-formats`.)
 
 **All three gates see through the wrapper.** Trinisphere prints a
 conditional static — "as long as this artifact is untapped" — so this gate
@@ -357,7 +357,7 @@ arithmetic in one function, the one call `cast_spell` makes at 601.2f.
    base's X stays a variable through steps 3–5 (`ManaComponent::x_symbol_count`,
    read by no modification), and step 6 evaluates it at the announced X
    (`TotalCostInX::locked_at`); `total_cost_in_x` is the total CR 601.2b's
-   announcement of X reads. An additional cost's {X} stays a symbol (§6's CP-2
+   announcement of X reads. An additional cost's {X} stays a symbol (§6's `remaining-costs`
    row). CR 601.2f speaks of "the mana component of the total cost" in
    the singular, and CR 118.8 says additional costs are paid "at the same
    time". The non-mana costs keep their order behind it; **the component goes
@@ -462,7 +462,7 @@ Three things follow, and all three are used:
   **The criterion, and the two prompts it excludes.** **A payer answers a
   prompt when it has exactly one legal answer** — not "the answers are close
   enough", one answer, so being asked cannot change anything. It is matched
-  exhaustively over `ChoiceKind`, so CP-1's announcement prompt and item 72's
+  exhaustively over `ChoiceKind`, so `hybrid-and-phyrexian-payment`'s announcement prompt and item 72's
   reversal each have to pick a side.
 
   `ChooseSacrificeForCost` is out: the sentence above listed it, written before
@@ -558,7 +558,7 @@ what is paid. Before CM-1 the first read the printed cost and the second will
 now lock a modified one, so a Thalia on the board would have offered spells
 the cast then rolled back, and an Electromancer would have withheld spells the
 player could afford — the disagreement `cant-effects-architecture.md` §4.3
-names for RS-2, one phase early. `castable_spells` now previews the total
+names for `cant-cast-play-or-activate`, one phase early. `castable_spells` now previews the total
 through the same `total.rs` (no prompt, §3.4's theorem) against the card's
 in-hand frame, whose controller is its owner (CR 108.4a) and so the
 prospective caster. **Nothing licenses that read but this section.** A cost
@@ -671,7 +671,7 @@ The counter is a fact, and facts are recorded on their first customer
 (`engineering-practices.md` §5). The first customer is the tax, and the tax
 has no payer until `GameConfig::commander()` designates one and casting from
 the command zone exists (`backlog.md` §2.3). **So it ships with `roadmap-v2.md`
-B2**, as one arm in `total.rs` step 1 plus the counter, ~40 lines against this
+`game-formats`**, as one arm in `total.rs` step 1 plus the counter, ~40 lines against this
 pipeline. What this phase leaves ready: the pipeline takes the game, the
 caster and the spell, so the arm has everything it reads at the call.
 
@@ -1059,15 +1059,15 @@ the same player.
 | **CM-2 — the spell's own cost abilities** ✅ | `CostSubject::Itself` (source 2), `CostChange::ReduceGeneric(AmountExpr)`, the evaluator §3.7 argues for (`CountOf` and `SourcePower` over the finished board), affinity lowered to it, the preview reading the hand frame's cost abilities (113.6e). **And the `CardDataBuilder::keyword` → `keyword_flag` rename** (42 sites in 16 `src/` files, 3 in tests; zero behaviour, its own commit), because affinity is the first keyword a builder writes that is not a flag. **Consumers:** Myr Enforcer, Frogmite (affinity for artifacts; one pooled — the pool's first self-reduction and the first `CountOf` at cast time) | 1 source, 1 arm, 1 evaluator (~120), a builder helper, 2 cards, ~250 of tests: ~600 | low-medium — the evaluator is a third reader of `AmountExpr` and item 57's warning is answered in §3.7 |
 | **CM-3 — lock-in's payment side** ✅ | `Cost::Sacrifice(filter, n)` paid through the chokepoint with a `ChoiceKind` for which permanent, as a spell's additional cost and as a mana ability's cost; a mandatory additional cost (`AdditionalCost` today is all optional, CR 118.8b); the mana component is already paid *first* (§3.3), so a split that fails has paid nothing else — and CR 732.1's "any payments already made are canceled" turned out to need nothing added — §3.12 is the answer and the gate. **Consumers:** Altar's Reap + Thunderscape Familiar (CR 601.2h's own example, a named board); Krark-Clan Ironworks + Foundry Inspector (the lock-in through the window, §3.11); Mind Stone (the 732.1 board, its trigger half left for item 6) | 2 payment arms + 1 check arm in `costs.rs`, 1 prompt, 1 `ask_choose_additional_costs` change, 5 cards, ~350 of tests: ~800 | low — payment machinery with the CR's own board and the banned deck's as the tests |
 | **CM-4 — the mana window and the payer** ✅ | `run_mana_ability_window` opens only when the locked mana component is non-empty (601.2g) and then runs until the player declines or no ability is left (605.3a) — it also stopped the moment the pool covered the cost, which was a payer's policy in the engine's loop (§3.11, §8). The policy moved to **two** decorators, not one: `ui::ManaWindowStop<D>` takes the stop, `ui::AutoPayer<D>` takes `GenericManaAllocation` and `OrderCostReductions`, and CM-3's sacrifice choice stays the wrapped provider's (§3.4's criterion). Clients compose; `--no-auto-pay` drops the stack. **Consumers:** the loop's step 3 with CM-3's cards, no new card needed; the fuzz harness | ~35 in the window, ~290 decorators, ~60 wiring, ~330 tests: ~715 | medium — every cast's prompt sequence passes through it; the A/B is the check, and it found the one board where the payer's stop is narrower than the engine's was |
-| **CP-1 — hybrid, Phyrexian and X payment (a sized slot, not a design)** | §2.1's other half. 601.2b's announcement of a nonhybrid equivalent and of Phyrexian halves (a `ChoiceKind`, before 601.2f); `ManaPool::pay`/`can_pay` branches for `Hybrid`, `MonoHybrid`, `Phyrexian`, `HybridPhyrexian` (`pay_life` for the latter, through the chokepoint), and a `ManaSymbol` arm for CR 107.4e's colorless hybrids `{C/W}`, which no arm can hold (one card, Ulalek, Fused Atrocity; item 212's census); an activated ability's `{X}`, which CR 602.2b's run of 601.2b announces and `activate_ability` never asks for (`x_value: None`; 145 cards); the existence check's arms for them, `mana-architecture.md` §3.2, which switch on with the payment's (the AI cannot cast a hybrid card today); `ask_choose_generic_mana_allocation`'s tally; mana value with X on the stack (202.3e — a characteristic, read off the `StackEntry`); `{Q}` exists as `Cost::UntapSelf` and its atoms want annotations. **A note for the Scryfall parser that CP-1 or Phase 8 writes:** a printed cost's symbol order is not WUBRG — two-color costs follow the color wheel's shorter arc ({G}{U}, {R}{W}), shards and wedges have their own — and `ManaCost` equality is *sequence* equality, so a parser must keep the printed order for display and comparisons must be by multiset. `ATOM-107.4e/f-*` (7 `NEW`), `ATOM-202.3*` (7) | 6 sites; ~1 PR | medium — `ManaPool::pay` is on every cast |
-| **CP-2 — the cost actions (a sized slot, not a design)** | Placed here by the owner on 2026-10-05, from `codebase-state.md` item 212's census (`plans/references/cast-census.md` §3; §11, item 3). **The four arms that are neither checked nor paid:** `Cost::Discard` (342 cards), `RemoveCounters` (235), `ExileFromGraveyard` (105) and `AddCounters` (10). Each is checked in `check_cost_resource` and paid through the chokepoint. Its choice (which card, which counter) is asked in `plan_payment` before anything is performed (§3.12), and `payment_order_rank` already ranks them. **The shapes the arms need, built once:** an amount that can be X, or that the board decides (half your life, 3 life for each counter), where an arm holds a fixed number (`PayLife(u64)`, `Sacrifice(_, u32)`, `RemoveCounters(_, u32)`: 96 pieces), with X announced from every cost that holds it (CR 107.3a), since `cast_spell` reads X only from the mana component of the total in X (`total_cost_in_x`: the chosen base, the mana cost or an alternative cost's own X, plus the additional costs' mana), never from a non-mana cost, and Toxic Deluge's X is a life payment in an additional cost; a choice between two costs, "pay {4} or sacrifice" (53); the counter arms naming their permanent, not only the source (removing from another, 45; putting on another, and blight, 15); tapping or untapping other permanents (194, and crew, saddle and station's 242); and the count that multikicker, replicate and squad announce at 601.2b (53). A loyalty ability's cost is the counter arms (311 planeswalkers); its timing is `permission-architecture.md`'s. `ChooseSacrificeForCost`'s why (`setup-architecture.md` §7c) lands here too. **Open for its design: an arm per action, or a cost composed of a choice and a `GameAction`** (the owner's question, 2026-10-05, at the census's review). CR 118.1 calls a cost "an action or payment", and RS-4 already maps each `Cost` arm onto the `GameAction`s it proposes, for CR 614.17b (`cant-effects-architecture.md` §4.6). Written as "choose these objects, then propose this action", a new cost built from existing actions is data rather than a new arm. A custom card (post-v1, `backlog.md` §2.37) could then add one without an engine change, bounded by `GameAction`'s vocabulary, which grows one arm per action by contract. Against it: CR 118.3's resource check and the payment prompt are per action today, so the composed form needs a legality check per `GameAction` kind before anything is proposed. That is the design's question to price. **Not CP-2's: the single-arm actions.** Energy, behold, reveal, return to hand, exile from a hand, a library or the battlefield, mill, exert, collect evidence, forage, waterbend, unattach and a die roll each get one arm with their first card, in C, the rule every row of this table follows. So do the Defilers' additional cost on other spells (CR 118.8; a `CostChange` arm, 7 cards) | 4 arms checked and paid, their prompts, the amount shape across 4 arms, 2 new arms (a choice, tapping others); ~1–2 PRs, sized at its design | low-medium. New prompts, but no registered card pays these costs, so no fixture moves |
+| **`hybrid-and-phyrexian-payment` — hybrid, Phyrexian and X payment (a sized slot, not a design)** | §2.1's other half. 601.2b's announcement of a nonhybrid equivalent and of Phyrexian halves (a `ChoiceKind`, before 601.2f); `ManaPool::pay`/`can_pay` branches for `Hybrid`, `MonoHybrid`, `Phyrexian`, `HybridPhyrexian` (`pay_life` for the latter, through the chokepoint), and a `ManaSymbol` arm for CR 107.4e's colorless hybrids `{C/W}`, which no arm can hold (one card, Ulalek, Fused Atrocity; item 212's census); an activated ability's `{X}`, which CR 602.2b's run of 601.2b announces and `activate_ability` never asks for (`x_value: None`; 145 cards); the existence check's arms for them, `mana-architecture.md` §3.2, which switch on with the payment's (the AI cannot cast a hybrid card today); `ask_choose_generic_mana_allocation`'s tally; mana value with X on the stack (202.3e — a characteristic, read off the `StackEntry`); `{Q}` exists as `Cost::UntapSelf` and its atoms want annotations. **A note for the Scryfall parser that `hybrid-and-phyrexian-payment` or Phase 8 writes:** a printed cost's symbol order is not WUBRG — two-color costs follow the color wheel's shorter arc ({G}{U}, {R}{W}), shards and wedges have their own — and `ManaCost` equality is *sequence* equality, so a parser must keep the printed order for display and comparisons must be by multiset. `ATOM-107.4e/f-*` (7 `NEW`), `ATOM-202.3*` (7) | 6 sites; ~1 PR | medium — `ManaPool::pay` is on every cast |
+| **`remaining-costs` — discard, counters and exile from a graveyard as costs (a sized slot, not a design)** | Placed here by the owner on 2026-10-05, from `codebase-state.md` item 212's census (`plans/references/cast-census.md` §3; §11, item 3). **The four arms that are neither checked nor paid:** `Cost::Discard` (342 cards), `RemoveCounters` (235), `ExileFromGraveyard` (105) and `AddCounters` (10). Each is checked in `check_cost_resource` and paid through the chokepoint. Its choice (which card, which counter) is asked in `plan_payment` before anything is performed (§3.12), and `payment_order_rank` already ranks them. **The shapes the arms need, built once:** an amount that can be X, or that the board decides (half your life, 3 life for each counter), where an arm holds a fixed number (`PayLife(u64)`, `Sacrifice(_, u32)`, `RemoveCounters(_, u32)`: 96 pieces), with X announced from every cost that holds it (CR 107.3a), since `cast_spell` reads X only from the mana component of the total in X (`total_cost_in_x`: the chosen base, the mana cost or an alternative cost's own X, plus the additional costs' mana), never from a non-mana cost, and Toxic Deluge's X is a life payment in an additional cost; a choice between two costs, "pay {4} or sacrifice" (53); the counter arms naming their permanent, not only the source (removing from another, 45; putting on another, and blight, 15); tapping or untapping other permanents (194, and crew, saddle and station's 242); and the count that multikicker, replicate and squad announce at 601.2b (53). A loyalty ability's cost is the counter arms (311 planeswalkers); its timing is `permission-architecture.md`'s. `ChooseSacrificeForCost`'s why (`setup-architecture.md` §7c) lands here too. **Open for its design: an arm per action, or a cost composed of a choice and a `GameAction`** (the owner's question, 2026-10-05, at the census's review). CR 118.1 calls a cost "an action or payment", and `cant-pay-costs` already maps each `Cost` arm onto the `GameAction`s it proposes, for CR 614.17b (`cant-effects-architecture.md` §4.6). Written as "choose these objects, then propose this action", a new cost built from existing actions is data rather than a new arm. A custom card (post-v1, `backlog.md` §2.37) could then add one without an engine change, bounded by `GameAction`'s vocabulary, which grows one arm per action by contract. Against it: CR 118.3's resource check and the payment prompt are per action today, so the composed form needs a legality check per `GameAction` kind before anything is proposed. That is the design's question to price. **Not `remaining-costs`'s: the single-arm actions.** Energy, behold, reveal, return to hand, exile from a hand, a library or the battlefield, mill, exert, collect evidence, forage, waterbend, unattach and a die roll each get one arm with their first card, in C, the rule every row of this table follows. So do the Defilers' additional cost on other spells (CR 118.8; a `CostChange` arm, 7 cards) | 4 arms checked and paid, their prompts, the amount shape across 4 arms, 2 new arms (a choice, tapping others); ~1–2 PRs, sized at its design | low-medium. New prompts, but no registered card pays these costs, so no fixture moves |
 
 **Why the modification/payment seam is where it is** (the owner's question,
-§11 note 7). CP-1 is *sequenced*, not deferred: it sits at 601.2b and 601.2h,
+§11 note 7). `hybrid-and-phyrexian-payment` is *sequenced*, not deferred: it sits at 601.2b and 601.2h,
 on either side of this pipeline, and touches `ManaPool`, the auto-tap and the
 allocation prompt — a disjoint set of sites from §5's. 601.2b's announcement
 runs *before* 601.2f, so the pipeline sees only nonhybrid symbols whether or
-not CP-1 exists, and the one clause of CR 118.7 that CP-1 changes for the
+not `hybrid-and-phyrexian-payment` exists, and the one clause of CR 118.7 that `hybrid-and-phyrexian-payment` changes for the
 pipeline — 118.7e, a hybrid *reduction* symbol — is already an expiry
 condition in §3.4. It blocks breadth that modification does not: every
 hybrid and Phyrexian card is uncastable by the AI today. So it goes right
@@ -1084,11 +1084,11 @@ with a consumer.
 
 **Ordering.** CM-0, CM-1 before RD (`cant-effects-architecture.md` §7.1 row
 10; `replacement-architecture.md` §9 "Interleaved — Commander"). CM-2, CM-3,
-CM-4 and CP-1 any time after CM-1, in any order, except that CM-4's overpay
-test wants CM-3's cards; RS-4 "reads better after" the modification phases.
+CM-4 and `hybrid-and-phyrexian-payment` any time after CM-1, in any order, except that CM-4's overpay
+test wants CM-3's cards; `cant-pay-costs` "reads better after" the modification phases.
 **CM-3 and CM-4 before critical-path item 6**, because §3.11's loop is item
 6's integration test and steps 3–4 are theirs. Nothing here depends on
-RC/RD/RE and nothing in them depends on this. **CP-2 any time before C**
+RC/RD/RE and nothing in them depends on this. **`remaining-costs` any time before C**
 (`roadmap-v2.md` B1). It is a mechanism, not breadth. Built after Phase 8's
 first cards, the `u32` count shape would already be copied into their arms.
 
@@ -1124,7 +1124,7 @@ Re-filed into `Phase 5 Layers (CM-<n> …)` so `owed` gates them, from
 | `ATOM-601.2f-003` | locked before payment | CM-1: the self-tapping sphere — locked at three, tapped in 601.2g, three paid | COVERS-PARTIAL in CM-1 (the mutation is a tap, not an entering increase); **completed in CM-3** — Foundry Inspector settles Mind Stone's total at {1} and Ironworks eats the Inspector inside the window; the leftover colorless is the assertion |
 | `ATOM-601.2f-004` | two reductions, the player orders them | CM-1: two reducers on one instant — the prompt is asked, both apply, every order agrees | COVERS, with the §3.4 note |
 | `ATOM-613.11-002` | increases before reductions | CM-1: Thalia + Electromancer on Lightning Bolt: {R} | COVERS |
-| `ATOM-613.11-001` | game-rule effects read final characteristics | CM-1: Thalia under Humility stops taxing — the cost half of the claim | COVERS-PARTIAL — the atom's board is an attack restriction over an effective color, RS-3a's |
+| `ATOM-613.11-001` | game-rule effects read final characteristics | CM-1: Thalia under Humility stops taxing — the cost half of the claim | COVERS-PARTIAL — the atom's board is an attack restriction over an effective color, `combat-restrictions`'s |
 | `ATOM-118.7-001`, `-002` | reduced to nothing is {0}; free to cast | CM-1: {1}{R} reduced by {2} is {R}; a spell reduced to {0} casts from an empty pool | COVERS |
 | `ATOM-118.7a/b/c/d-001` | the arithmetic | CM-1: unit tests in `total.rs` | COVERS |
 | `ATOM-118.9d-001` | modifications apply to an alternative cost | CM-1: an alternative cost of {R} under Thalia pays {1}{R} | COVERS |
@@ -1135,10 +1135,10 @@ Re-filed into `Phase 5 Layers (CM-<n> …)` so `owed` gates them, from
 | `ATOM-605.3a-001` | a mana ability may be activated while casting | CM-4: the same cast; and COVERS-PARTIAL from the overpay board | COVERS |
 | `ATOM-605.3a-003` | …and while activating an ability (CR 602.2b) | CM-4: Mind Stone's `{1}, {T}, Sacrifice` from an empty pool | COVERS |
 | `ATOM-605.3b-001` | a mana ability resolves at once, never on the stack | CM-4: a Forest tapped with the stack empty before and after | COVERS |
-| `ATOM-107.4e/f-*`, `ATOM-202.3*` | payment | **CP-1** | stay `Backlog`, labelled CP-1 |
+| `ATOM-107.4e/f-*`, `ATOM-202.3*` | payment | **`hybrid-and-phyrexian-payment`** | stay `Backlog`, labelled `hybrid-and-phyrexian-payment` |
 
 `ATOM-118.7e-*`, `-f`, `-g` (hybrid, Phyrexian, snow reductions) and
-`ATOM-601.7-001` stay in `Backlog`: the first three are CP-1's symbols, the
+`ATOM-601.7-001` stay in `Backlog`: the first three are `hybrid-and-phyrexian-payment`'s symbols, the
 last is structural and observes nothing.
 
 **CM-4's four atoms were not re-filed, and checking that was the point.** CM-1
@@ -1150,7 +1150,7 @@ covering them shrinks `owed --all` and cannot grow `owed`; re-filing them into
 `Phase 5 Layers (CM-4 …)` with a `NEW` ticket would be a lateral move between
 two shipped phases that changes no gate, and doing the same to
 `ATOM-605.3a-002` — Rhystic Study's "unless that player pays", which
-`roadmap-v2.md` A6s gives an owner — would have grown `owed` from 9 to 10 for an atom this phase cannot cover.
+`roadmap-v2.md` `route-review` gives an owner — would have grown `owed` from 9 to 10 for an atom this phase cannot cover.
 **`owed` stands at 9, unchanged, and none of the nine is CM's.**
 
 **Two claims of this phase have no atom**, and both say so in the test rather
@@ -1274,11 +1274,11 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
 
 ## 9. Explicitly out
 
-- **Payment** — hybrid, Phyrexian, X mana value, `{Q}`'s annotations: CP-1,
+- **Payment** — hybrid, Phyrexian, X mana value, `{Q}`'s annotations: `hybrid-and-phyrexian-payment`,
   sequenced in §6 with its rationale.
 - **Activated abilities' costs** (12 reducers, the 8 floored ones among them)
   and **resolution-created cost effects**: §3.10, with their shapes.
-- **Commander tax**: §3.8, with B2.
+- **Commander tax**: §3.8, with `game-formats`.
 - **`lands_per_turn`, `max_hand_size`, player hexproof**: `backlog.md` §2.15.
 - **Golden-Tail Trainer**: the *card*, with item 6 — its second ability is an
   attack trigger (item 6 has landed; the card is still unregistered), and a card wearing its name with half its text is what
@@ -1291,7 +1291,7 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
   (`codebase-state.md` item 316, §3.1).
 - **The Ironworks board's trigger half and the 732.1 reversal choice**:
   §3.11 and §8; the reversal was placed with critical-path item 6 rather than
-  with the payer (§8 item 4), and is B13's since 2026-10-13 (`codebase-state.md`
+  with the payer (§8 item 4), and is `ironworks-loop`'s since 2026-10-13 (`codebase-state.md`
   item 72). The window itself is CM-4, built.
 - **An agent that declines to tap the activation's own source for mana**:
   `codebase-state.md` item 83. Legal under CR 605.3a and always a mistake, but
@@ -1301,7 +1301,7 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
   its mana cost"): `permission-architecture.md`, which graduated `backlog.md`
   §2.3 on 2026-10-05. A permission carries its cost.
 - **Who may cast or activate what, from which zone and when**:
-  `permission-architecture.md`. A loyalty ability's cost is CP-2's; its
+  `permission-architecture.md`. A loyalty ability's cost is `remaining-costs`'s; its
   timing (CR 606.3) is that document's.
 
 ---
@@ -1314,7 +1314,7 @@ main item 13, the CM-1 entry, §8's findings as Deferred Migrations items);
 (the payer middleware named, and from CM-3 the staged payment beside it);
 `cant-effects-architecture.md` §7.1 row 10;
 `replacement-architecture.md` §9's "needs a phase marker of its own";
-`roadmap-v2.md` A5 (the rename is CM-0) and B1; `layers-architecture.md`
+`roadmap-v2.md` A5 (the rename is CM-0) and its cost row; `layers-architecture.md`
 §11.2's pointer; the session files for the re-filed atoms and the notes under
 `ATOM-601.2f-004` and `ATOM-118.8d-001`; `engineering-practices.md` §3
 re-recorded whenever the pool moves (CM-1, CM-2, CM-3); and

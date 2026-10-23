@@ -133,7 +133,7 @@ fn artifact_creature(name: &str) -> Arc<CardData> {
 /// legendary permanent or an artifact entering or leaving the battlefield
 /// causes a triggered ability of a permanent you control to trigger, that
 /// ability triggers an additional time." Its flash and its permission to
-/// cast as though with flash are PM's.
+/// cast as though with flash are permission's.
 fn gandalf_the_white() -> Arc<CardData> {
     let legendary_or_artifact = || {
         TriggerSubject::Filter(ObjectFilter::Or(
@@ -529,7 +529,7 @@ fn cat_warrior() -> TokenDef {
     }
 }
 
-/// Ajani, Nacatl Avenger's 0 ability, which a loyalty ability is once CP-2
+/// Ajani, Nacatl Avenger's 0 ability, which a loyalty ability is once `remaining-costs`
 /// builds them: "Create a 2/1 white Cat Warrior creature token. When you
 /// do, if you control a red permanent other than Ajani, he deals damage
 /// equal to the number of creatures you control to any target."
@@ -549,7 +549,7 @@ fn ajanis_zero() -> Effect {
 }
 
 /// Ajani, with a red creature beside him or not, his 0 ability activated
-/// and resolved: an artifact's "{0}: ..." until CP-2 builds loyalty.
+/// and resolved: an artifact's "{0}: ..." until `remaining-costs` builds loyalty.
 fn ajani_activates(game: &mut GameState, red_beside: bool) -> ObjectId {
     let zero = AbilityDef {
         rules_text: "".into(),

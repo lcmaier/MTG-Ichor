@@ -21,7 +21,7 @@
 > postscript is the owner's decision on the substrate, which this document
 > builds on and does not reopen; TR-7's persist loop is the integration
 > test (§12), and `cost-architecture.md` §3.11's Ironworks loop moved to
-> `roadmap-v2.md` B13 on 2026-10-13.
+> `roadmap-v2.md` `ironworks-loop` on 2026-10-13.
 
 ---
 
@@ -219,7 +219,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `AttackersDeclared` | `Attacks { attacker, defender: Option<DefenderFilter>, occurrence: AttackOccurrence, alone, multiplicity }` — CR 508.3a–e's and 506.5's seven readings as three filters, what one triggering event is (an attacker, or what is attacked) and `alone`; `occurrence` was `per: AttackEventPer` until TR-5c, which named the block arm's field with CR 603.2c's word; reads item 11's defender, and only a declared attacker (CR 508.4). **Revised at TR-5a's design (2026-10-16, §12's TR-5e, decision 5)** from an enum of seven, `Creature`, `CreatureAgainst`, `PlayerIsAttacked`, `PlayerAttacksWith`, `PlayerAttacks`, `PlayerAttacksPlayer` and `Alone`, which this row had called five | no; 508.2a's snapshot is the dispatch instant | TR-5e |
 | `BlockersDeclared` | `Blocks { blocker, attacker, occurrence: BlockOccurrence, count: Option<CountIs>, alone, multiplicity }` — CR 509.3a–g's readings as two filters, what one triggering event is (a blocker, a block, a blocked creature or an unblocked one), 509.3e's count and 506.5's `alone`; "that creature" of "blocks or becomes blocked by" is `EventRole::OtherCombatant`. One record per declaration step, written also when nobody blocks, with its unblocked attackers (item 11, CR 509.1h). **Revised at TR-5c's design (2026-10-18)** from `shape: BlockShape`, an enum of five readings with two spellings of one trigger and no place for the count | no; 509.3f's characteristics are the declaration's | TR-5c |
 | `SpellCast` | `CastsSpell { caster: Option<PlayerRef>, spell: Option<ObjectFilter> }` — the stack object is live at dispatch (types, colors, mana value through the layer walk). `from` waits for casting from a zone other than the hand (`backlog.md` §2.3) | no | TR-2a |
-| `AbilityActivated` | `ActivatesAbility { player: Option<PlayerRef>, source: TriggerSubject, mana_ability: Option<bool> }` — both producers write the record, a mana ability's after its costs (CR 605.3a–b), with whether it is one, where its source was and the source's frame if a cost moved it; the arm reads only a source on the battlefield (Harsh Mentor's second ruling). A trigger on a mana ability's activation that could add mana is a mana ability (CR 605.1b). The zone waits for an activation off the battlefield (item 282), a loyalty field for CP-2's loyalty abilities (item 283). "Copy that ability" needs the stack object, which the record does not name (§3.12a, item 256, CV-4) | no | TR-5c |
+| `AbilityActivated` | `ActivatesAbility { player: Option<PlayerRef>, source: TriggerSubject, mana_ability: Option<bool> }` — both producers write the record, a mana ability's after its costs (CR 605.3a–b), with whether it is one, where its source was and the source's frame if a cost moved it; the arm reads only a source on the battlefield (Harsh Mentor's second ruling). A trigger on a mana ability's activation that could add mana is a mana ability (CR 605.1b). The zone waits for an activation off the battlefield (item 282), a loyalty field for `remaining-costs`'s loyalty abilities (item 283). "Copy that ability" needs the stack object, which the record does not name (§3.12a, item 256, `spell-copies`) | no | TR-5c |
 | `AbilityResolved` | `AbilityResolves { identity: IdentityRef }` — `ThisAbility` for CR 603.7h's delayed form, read with the resolution count (§6.5) | no | TR-3 |
 | `SpellCountered` / `AbilityCountered` | `IsCountered { spell: Option<ObjectFilter>, caster: Option<PlayerRef> }`, reading `SpellCountered` only — **never `SpellFizzled`** (question 2; Multani's Presence's ruling). The look-back reads the frame the record carries: the stack object's `Lki` with its `entry` (§3.12a, item 253), whose `StackEntry::caster()` is "a spell you've cast". No printed trigger reads an ability being countered (§12, TR-4d) | yes (603.10e) | TR-4d |
 | `SpellFizzled` / `AbilityFizzled` | **no arm.** CR 608.2b's "doesn't resolve" is not "countered" under the baseline CR, and no printed trigger reads it. An ability's is its own record since #231, named by its identity as `AbilityResolved` is | — | — |
@@ -431,7 +431,7 @@ with one refinement the rulings forced.** Ashling the Pilgrim's ruling
 copy of the ability (Rings of Brighthearth) counts, another creature with
 the same name does not, and a countered one does not — so 603.7h's key is
 `(source, zone_change_epoch, ability)`, and CR 707.10b's copy rule for
-CV-4 is one line: a copied ability's stack entry carries the original's
+`spell-copies` is one line: a copied ability's stack entry carries the original's
 identity. The instance is for dispatch and placement, where two instances
 are two triggers, and for the gates; `AbilityActivated` and
 `AbilityResolved` carry the identity.
@@ -893,7 +893,7 @@ Each fact carries a reader that TR-4a built or one that TR-4b to TR-4d name:
 TR-4a to TR-4d. `cast`, CR 400.7d's facts (the rulings pass's
 Vibrance, "if {R}{R} was spent to cast it" after it left), has no condition
 leaf that reads mana spent, and the card is unregistered. `entry`, a stack
-object's copy for CR 603.10e and CV-4's `copy_of`, was built in TR-4d with
+object's copy for CR 603.10e and `spell-copies`'s `copy_of`, was built in TR-4d with
 item 253: `last_known_information` keeps it for any object framed on the
 stack, and `entry()` reads it.
 
@@ -1056,11 +1056,11 @@ from a known item, so the calibration also bought two findings.
 | `LifeChanged` | holds | holds: per source (CR 119.9); RH-1 folded item 10's `LifeLossCause` into the cause | holds: the modified amount | holds | holds |
 | `AttackersDeclared` | **item 255**: attacker and defender; defender item 11, "them" item 250 → TR-5a | holds: the active player declares (CR 508.1); one put onto the battlefield attacking never attacked (CR 508.4, item 128 → TR-5a) | holds: not replaceable | holds: CR 508.2a's instant is the dispatch | holds |
 | `BlockersDeclared` | **item 255**: blocker and attacker → TR-5a; item 11: one record per declaration step, also when nobody blocks (CR 509.3g) → TR-5c | holds | holds | holds | holds |
-| `SpellCast` | holds: the stack object is live | holds: a copy is not cast (CR 707.10) | holds | **item 257**: storm's "before it" (CR 702.40a) → CV-4 | holds |
+| `SpellCast` | holds: the stack object is live | holds: a copy is not cast (CR 707.10) | holds | **item 257**: storm's "before it" (CR 702.40a) → `spell-copies` | holds |
 | `AbilityResolved` | holds: the identity (CR 603.7h) | holds | holds | holds: the count's last step (§6.5) | holds |
-| `AbilityActivated` | **item 256**: no stack object for "copy that ability" (CR 707.10) → CV-4 | holds | holds | holds | holds |
+| `AbilityActivated` | **item 256**: no stack object for "copy that ability" (CR 707.10) → `spell-copies` | holds | holds | holds | holds |
 | `Targeted` | **item 255**: target and spell or ability (Frost Titan's "that spell") → TR-5a; the arm item 12 → TR-5c | holds: once per spell or ability (§14 question 11) | holds | holds: CR 601.2i | holds |
-| `AbilityTriggered` | **item 256**: a placed trigger keeps no `TriggerSeq` → CV-4 | holds: `caused_by` (CR 603.3b) | holds | holds: dispatched as it is emitted | holds |
+| `AbilityTriggered` | **item 256**: a placed trigger keeps no `TriggerSeq` → `spell-copies` | holds: `caused_by` (CR 603.3b) | holds | holds: dispatched as it is emitted | holds |
 | `SpellCountered`, `AbilityCountered` | holds | holds: `countered_by` and the cause | holds: a redirected counter keeps its act (CR 608.2c) | holds | **item 253**: no frame for CR 603.10e → TR-4d |
 | `SpellFizzled`, `AbilityFizzled` | holds: no reader (§3.3) | holds | holds | holds | holds |
 | `PlayerLost` | holds | holds: why is the cause (CR 603.9) | holds | holds: the leaving's records share its window | holds: CR 603.10f reads the `LeftTheGame` frames |
@@ -1099,7 +1099,7 @@ The rest, row by row where it is not obvious:
 - `ManaAdded`: CR 106.12a triggers "whenever such a mana ability resolves and
   produces mana", and the record is the production a replacement modified.
 - `Targeted` names its target as an `ObjectRef` and its spell or ability by
-  `by`. CV-4's copies and CR 115.7's changed targets each announce a new one,
+  `by`. `spell-copies`'s copies and CR 115.7's changed targets each announce a new one,
   since a copy with new targets is a new targeting.
 - `RememberedObject.left_at` is noted by the two movers whose record follows
   the move at once (`note_delayed_source_moving`). A same-zone move notes
@@ -1213,17 +1213,17 @@ Eleven new items, and one re-slotted, in route order. Item 261 came at #246's re
   opponent") (o:"that creature" or o:" on it" or o:"untap it" or o:"return
   it")`. One facility with item 250: an occurrence keeps both of its record's
   objects as `ObjectRef`s at the dispatch.
-- **Item 256 (CV-4): "copy that ability" has no stack object to copy.**
+- **Item 256 (`spell-copies`): "copy that ability" has no stack object to copy.**
   `AbilityActivated` names the ability by identity, which two activations of
   one ability share. A placed trigger's stack entry keeps no `TriggerSeq`, so
   `AbilityTriggered.seq` finds nothing on the stack. `TriggerBinding.triggered_by`
   is never written. 15 cards: `(o:"when " or o:"whenever ") o:"copy that
-  ability"`, Illusionist's Bracers and Aboleth Spawn among them. CV-4 builds
+  ability"`, Illusionist's Bracers and Aboleth Spawn among them. `spell-copies` builds
   the copy of an ability, and these are its readers.
-- **Item 257 (CV-4): storm's count is planned and has no slot.** §3.10
+- **Item 257 (`spell-copies`): storm's count is planned and has no slot.** §3.10
   takes "each other spell that was cast before it this turn" (CR
   702.40a) at the `SpellCast` record, "authored with the first storm card". 33
-  cards: `kw:storm`. A storm card copies spells, so CV-4 is the first phase
+  cards: `kw:storm`. A storm card copies spells, so `spell-copies` is the first phase
   that can register one, and the count goes in it.
 - **Item 258 (TR-4d): CR 400.7j's, 400.7e's and 701.17c's "public zone" is not asked.** `GameState::find` answers in a hand or a library, so a
   trigger or an effect that moved a card there could still act on it. No
@@ -1345,7 +1345,7 @@ Taken here, for the owner's review:
    Every one of the four sub-phases the 2026-09-24 plan named crossed the band
    once its cards were hunted clause by clause and the multiplier applied, and
    each split on a rule seam with a consumer on each side.
-5. **Storm and "copy that ability" go to CV-4**, the phase that can register
+5. **Storm and "copy that ability" go to `spell-copies`**, the phase that can register
    their cards. Neither is reachable before it.
 6. **A mana source sacrificed for its own mana holds, pending a ruling.** CR
    106.12a triggers as the ability "resolves and produces mana". Crystal Vein
@@ -1828,12 +1828,12 @@ way of leaving is the answer changing, CR 603.3d's removal included, which
 happens before its stack entry exists. "If the object with the ability is
 still in the same zone" needs no code: the identity carries the source's
 `ObjectRef`, and a source that moved is a new object (CR 400.7). A copy of
-a state trigger on the stack (CR 707.10, CV-4) would carry the original's
+a state trigger on the stack (CR 707.10, `spell-copies`) would carry the original's
 identity, and must not keep the original from triggering once the original
 has left (`codebase-state.md` item 294). Immortal Coil's two rulings
 (countered → triggers again at once; resolved without losing → again) are
 the tests, on a fixture carrying its third ability (§12); that fixture
-beside Platinum Angel is CR 104.4b's mandatory loop, `roadmap-v2.md` B14's
+beside Platinum Angel is CR 104.4b's mandatory loop, `roadmap-v2.md` `loop-detection`'s
 first test (§4.9). **Emperor Crocodile's second ruling is the difference
 from an intervening "if"**: a state trigger checks at the trigger only, so
 `intervening_if` is `None` on a `State` condition and the matcher refuses
@@ -1890,7 +1890,7 @@ stack without a target ... a second ability triggers and you pick a
 target") and its last is the count ("you can't sacrifice multiple creatures
 to deal damage multiple times"). 603.12a's "one or more times" is
 `OncePerEvent` over that window; its payment loop is a cost paid at
-resolution, which `roadmap-v2.md` A6s gives an owner (§13).
+resolution, which `roadmap-v2.md` `route-review` gives an owner (§13).
 
 `resolution_records` is also where "this way" and "that many" look ("you
 gain life equal to the damage dealt this way", "discard any number, then
@@ -1990,13 +1990,13 @@ inside one dispatch. **At `DISPATCH_NESTING_LIMIT` (16 nested dispatches)
 the answer is CR 104.4b's draw** (the owner, at the TR-1 review, theme D;
 built in TR-6): the dispatcher proposes §4.9's `GameEndsInADraw`, caused
 `GameRule::MandatoryLoop`, a count standing in for a proof that the chain
-cannot end until `roadmap-v2.md` B14 replaces it. The bound counts a call
+cannot end until `roadmap-v2.md` `loop-detection` replaces it. The bound counts a call
 depth, not a loop: each `AbilityTriggered` is dispatched inside the
 dispatch that queued its trigger (`emit_record` → `dispatch_unbatched` →
 `dispatch`), so a chain of tier-2 triggers is a chain of nested frames on
 the thread the game runs on, and the bound ends it before the thread's
 stack does. TR-6's review drafted the work stack that removes the number,
-which is B14's input (`plans/archive/triggers-architecture-landed.md`,
+which is `loop-detection`'s input (`plans/archive/triggers-architecture-landed.md`,
 "4.8").
 
 `BATCH_NESTING_LIMIT` (32) stays an `Err`, and is a different kind of
@@ -2033,7 +2033,7 @@ one CR 704.3 repetition; item 263's board, Lich's Mirror's loop) and
 `DISPATCH_NESTING_LIMIT` (16 nested dispatches, §4.8). TR-6 added no number,
 and `fuzz_games`' turn limit stands in for what neither count sees.
 
-**Loop detection is `roadmap-v2.md` B14's**, whose row states its principle:
+**Loop detection is `roadmap-v2.md` `loop-detection`'s**, whose row states its principle:
 the engine draws only when it has proved a loop cannot end. Its design input
 from TR-6's review — the two boards the principle separates, the board that
 needs a count, the 12,000-game probe, decisions 1–3 as drafted and the
@@ -2445,7 +2445,7 @@ written on `Does` alone (§6.4).
 order (CR 101.4) and is `Does` if any did; it is built with its first card.
 Item 24's sized `IfYouDo { did, didnt }` is not built, since two conditionals
 read one answer. "Unless [a player] pays [cost]" is a payment inside a
-resolution with no owner yet: `roadmap-v2.md` A6s gives it one. Strict
+resolution with no owner yet: `roadmap-v2.md` `route-review` gives it one. Strict
 Proctor, Frost Titan and every ward wait for it (§13).
 
 ### 6.3 The bound facts, LKI, and CR 603.6's "unable to be found"
@@ -2489,9 +2489,9 @@ per-seat count would restart on a steal (TR-2a, 2026-09-24). The delayed form
 ("when this ability has resolved for the third time this turn") reads the
 same count through `AbilityResolves { identity: ThisAbility }` (TR-3) plus a
 count condition. The instance field is ignored by the count. A copy
-of an ability (CV-4) carries the original's identity on its stack entry
+of an ability (`spell-copies`) carries the original's identity on its stack entry
 and advances the same key — CR 707.10b's "the same ability" — and that
-sentence is what this document owes CV-4.
+sentence is what this document owes `spell-copies`.
 
 **"If this is the Nth time this ability has resolved this turn"** — Omnath,
 Locus of Creation's three branches, Ashling the Pilgrim's third — is not a
@@ -2613,7 +2613,7 @@ player, each seat keeps its own turns (`GameHistory.players`), the gates key on 
 them at the next placement and their delayed triggers stay registered and
 are refused there too — Astral Slide's example.
 
-**Written on today's single-component `PermanentState`, before CV-7 (CR
+**Written on today's single-component `PermanentState`, before `merging-and-meld` (CR
 729).** Which reads key on the permanent and which on a component, so the
 merging phase knows what it inherits: the identity's `source` is the
 permanent — CR 729.2a gives a merged permanent one set of characteristics
@@ -2630,7 +2630,7 @@ permanent leaves" and each component is put into its zone (CR 729.3), and
 an effect that can find the new object "finds all of those objects"
 (729.3c) — so a bound object (`EffectRecipient::Triggering(role)`) for
 "return it to the battlefield" names *N* new objects, and an `Lki`, one frame, the permanent's, must
-let CV-7 say which component's card each lookup means. That is CV-7's to
+let `merging-and-meld` say which component's card each lookup means. That is `merging-and-meld`'s to
 design; this document names it and keys nothing on it.
 
 ---
@@ -2776,7 +2776,7 @@ at least one registered consumer of what it builds, and each closes against
 - TR-4 widens the frame TR-5's combat shapes never read. TR-5a needs only
   TR-2b, so it may move up to just after it.
 - TR-6 asks the state triggers after every dispatch the earlier phases
-  build; its loop detector moved to `roadmap-v2.md` B14 at its review.
+  build; its loop detector moved to `roadmap-v2.md` `loop-detection` at its review.
 - TR-7 is last because its capstone loop reads TR-4's frame and TR-5's
   counters, and its player stops it by choice.
 
@@ -3030,7 +3030,7 @@ existence, the frame of a departure and of damage a `DepartedFrame`, CR
 swallowed a filter's `Err`, and a frame answering for a source the store has
 lost. Item 99's first half and its resolving-object gap: `damage_sources`,
 CR 609.7a's one enumeration, with `ChoiceOption::LastKnown`; its command-zone
-half is B2's. Cornered Crook registered, not pooled (187 → 188). Twenty-four
+half is `game-formats`'s. Cornered Crook registered, not pooled (187 → 188). Twenty-four
 tests; ATOM-603.12-001 covered.
 
 **What moved on the way in.** The gap hunt found twelve facilities the row
@@ -3076,7 +3076,7 @@ ATOM-122.8-001 and ATOM-122.9-001 are covered.
 `controller_since_turn` stayed out of the `Lki` with no reader in TR-4a to
 TR-4d, and `entry` is TR-4d's (§3.11). Item 251 has a resolution half:
 `subject_lki` answers only a look-back arm. Kitchen Finks is unregistered
-until hybrid payment (CP-1), so its seven rulings are tested on fixtures,
+until hybrid payment (`hybrid-and-phyrexian-payment`), so its seven rulings are tested on fixtures,
 each on both keywords. The model pass (§9) found three readings that
 already disagreed in what the branch wrote — "it" per record against per
 occurrence, a resolving spell's cost decisions, and "its owner" of a gone
@@ -3282,7 +3282,7 @@ ATOM-508.2a-001 covered.
 **What moved on the way in.** Review split TR-5f off at CR 508.4 (decision
 9). The build found decision 6's "defending player" in three player
 vocabularies rather than one, and a player reader that finds nobody falling
-to the controller; both fixed. Items 270 and 271 carry what TR-5f and RS-2
+to the controller; both fixed. Items 270 and 271 carry what TR-5f and `cant-cast-play-or-activate`
 owe; item 11 stays open for its blockers half, TR-5c's. +1,286 in code and
 tests (code +727, tests +559), against 1,465–1,680.
 
@@ -3473,7 +3473,7 @@ Items 16, 275, 289 and 290 closed.
 A history row grew from 104 to 112 bytes. The "dealt this way" family the
 design counted at 4 is 24 cards. Review asked the phase's loose ends built
 rather than filed: two were, and item 288 needs CR 607.2h's linked
-abilities and the prevented damage's sources, so it went to A6s.
+abilities and the prevented damage's sources, so it went to `route-review`.
 
 **Measured** (`fuzz-record.md`, TR-5d's block). The arm without item 275
 plays `main`'s games on every table at +0.13% instructions per decision;
@@ -3482,7 +3482,7 @@ together. The two cards' stress distortion is small. TR-5h's held-memory
 gate is asserted over every game together (the owner, 2026-10-20): 3,923 B
 a turn.
 
-**What it leaves.** Item 288, at A6s. TR-5g followed it.
+**What it leaves.** Item 288, at `route-review`. TR-5g followed it.
 
 **Trace page:** no — excess is a fact the batch decides on its record.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5d".
@@ -3552,7 +3552,7 @@ and the stack, so nothing re-arms it. The draw is a performed action,
 it (`codebase-state.md` item 263). `TriggerOrigin::Rule` is declared, over an
 empty `InherentAbility`. Emperor Crocodile is registered and pooled (211 →
 212, 121 → 122); Immortal Coil's state trigger and CR 603.8's example are
-fixtures. Loop detection is `roadmap-v2.md` B14's (§4.9).
+fixtures. Loop detection is `roadmap-v2.md` `loop-detection`'s (§4.9).
 
 **What moved on the way in.** `TriggerBinding::event()` and
 `AbilityTriggered`'s cause became `Option`s, and `EventSubject::Game` is a
@@ -3603,7 +3603,7 @@ forced included. Viscera Seer forced into every `stress` deck lengthens games
 1.5 turns at two seats and 1.8 at four. Code and tests landed at about 1,100
 lines, inside the sized 975–1,300.
 
-**What it leaves.** Item 6's close audit, A6e, then A6h and A6f
+**What it leaves.** Item 6's close audit, A6e, then A6h and `information-model-design`
 (`roadmap-v2.md`).
 
 **Trace page:** no — the loop's cards read what TR-4 to TR-6 built.
@@ -3636,7 +3636,7 @@ their trigger half lands.
 
 | Phase | Atoms (rule ids) | Count |
 |---|---|---|
-| **TR-1** | 117.2a-001; 500.6-001; 502.4-001; 503.1a-001; COMP-UNTAP-TRIGGER-UPKEEP-001; 508.1m-001; 511.2-001; 405.3-001, -002; 603.2-001; 603.2b-001; 603.2c-001; 603.2e-001 (fixture); 603.2f-001; 603.2g-001; 603.3-001; 603.3a-001; 603.3b-001, -002 (the tier, by fixture; Strict Proctor's card waits for CP-1); 603.3d-001; 603.4-001, -002, -003; 603.6-001; 603.6a-001; 603.6b-001, -002; 603.6c-001, -002; 603.10a-001, -002 (partial → full); 605.1b-001; 605.4a-001; 605.5a-001; 106.12a-001 (partial → full); 119.9-001, -002; 113.9-003; 608.2-001; 608.2a-001; 608.2k-001; 614.6-001, 614.8-002, 615.6-001 (partial → full); COMP-CLEANUP-RELOOP-001; 800.4d-001 (partial → full) | 46 — 44 of them Phase 7; ATOM-603.10a-001 carries no phase in the corpus and ATOM-800.4d-001 is Phase 9's, and both are claimed here because their trigger half is this phase's |
+| **TR-1** | 117.2a-001; 500.6-001; 502.4-001; 503.1a-001; COMP-UNTAP-TRIGGER-UPKEEP-001; 508.1m-001; 511.2-001; 405.3-001, -002; 603.2-001; 603.2b-001; 603.2c-001; 603.2e-001 (fixture); 603.2f-001; 603.2g-001; 603.3-001; 603.3a-001; 603.3b-001, -002 (the tier, by fixture; Strict Proctor's card waits for `hybrid-and-phyrexian-payment`); 603.3d-001; 603.4-001, -002, -003; 603.6-001; 603.6a-001; 603.6b-001, -002; 603.6c-001, -002; 603.10a-001, -002 (partial → full); 605.1b-001; 605.4a-001; 605.5a-001; 106.12a-001 (partial → full); 119.9-001, -002; 113.9-003; 608.2-001; 608.2a-001; 608.2k-001; 614.6-001, 614.8-002, 615.6-001 (partial → full); COMP-CLEANUP-RELOOP-001; 800.4d-001 (partial → full) | 46 — 44 of them Phase 7; ATOM-603.10a-001 carries no phase in the corpus and ATOM-800.4d-001 is Phase 9's, and both are claimed here because their trigger half is this phase's |
 | **TR-2a** | 603.1b-001 (fixture); 603.2h-001; 603.2h-002 (partial — its board is Nykthos Paragon's "may"); 608.2h-001; 608.2p-001 (fixture); and 121.2c-001, a Phase 8 atom item 122's rule closes | 6 — 5 of them Phase 7 |
 | **TR-2b** | 603.2h-002 (partial → full); 603.5-001; 118.12-001; 121.5-001 (partial → full); 118.12-002 (partial — a Phase 8 atom whose rule §6.2 builds; its Dermoplasm board waits for morph) | 5 — 4 of them Phase 7, one shared with TR-2a |
 | **TR-3a** | 603.7-001; 603.7a-001; 603.7b-001, -002; 603.7c-001; 603.7d-001; 603.7e-001; 603.7f-001; 603.7g-001 (fixture); 603.7h-001; 107.3n-001; 513.2-001, -002; and 400.7-001, whose whole board is a delayed trigger, from the deferred row | 14 — 13 of TR-3's 20, and CV-1b's partial |
@@ -3646,7 +3646,7 @@ their trigger half lands.
 | **TR-4** | TR-4a: 603.6e-002; 122.8-001; 122.9-001. TR-4b: 603.10c-001, -002, -003; 603.2e-002. TR-4c: 603.6e-001; 400.7f-001. TR-4d: 603.10d-001; 603.10e-001; 603.9-001 (2026-10-12, §12) | 12 |
 | **TR-5** | TR-5e: 508.2a-001, moved from TR-5a at its design (2026-10-16). TR-5b: 122.7-001. TR-5d: 120.10-001, moved from TR-5c at its review (2026-10-18). TR-5g: 603.2d-001 (2026-10-12, §12), split from TR-5d at its design (2026-10-18) | 4 |
 | **TR-6** | 603.8-001, -002 (both covered at its close) | 2 |
-| **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001, BOUNDARY-707.7-001 (linked — §2.2, B7); 603.12a-001 and 605.3a-002 (a cost paid at resolution, "unless [a player] pays" — no owner until `roadmap-v2.md` A6s gives it one; 702.21a-001, -002 (ward = TR-5's event and that payment), Strict Proctor and Frost Titan wait with them); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (convoke's payment — MA-5; a grant at cast that outlives its source — A6s gives it an owner); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
+| **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — `cant-cast-play-or-activate`'s); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001, BOUNDARY-707.7-001 (linked — §2.2, `breadth-features`); 603.12a-001 and 605.3a-002 (a cost paid at resolution, "unless [a player] pays" — no owner until `roadmap-v2.md` `route-review` gives it one; 702.21a-001, -002 (ward = TR-5's event and that payment), Strict Proctor and Frost Titan wait with them); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.9g-001 (copies — CV-2, `spell-copies`, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (convoke's payment — `convoke-delve-improvise`; a grant at cast that outlives its source — `route-review` gives it an owner); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and `hybrid-and-phyrexian-payment`'s); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
 
 Ninety-three of the 133 Phase 7 atoms are owed across the six phases and RH-3 (plus
 the two from outside the phase TR-1 claims, 121.2c-001, which TR-2a claims,
@@ -3697,7 +3697,7 @@ line here, and its text is in the archive.
 7. **The pregame sweep** → archive
 8. **`ResolutionContext`'s rider pair** → archive
 9. **CR 400.7e/f's "find the new object"** through a merged permanent is
-   CV-7's (§10).
+   `merging-and-meld`'s (§10).
 10. **The visibility predicate's `face_down` half** is exact today (no
     face-down permanent exists that is not a `PermanentState` flag) and
     becomes `backlog.md` §2.9's the day a reveal does.
@@ -3705,7 +3705,7 @@ line here, and its text is in the archive.
     `Cost::ExileFromGraveyard` return `Err` from both validation and payment
     (`engine/costs.rs`), which is why Immortal Coil is a fixture (§12, TR-6)
        and Anurid Brushhopper was not TR-3's delayed consumer. Neither is this
-   phase's to build — a cost is `cost-architecture.md`'s, and its CP-2 row
+   phase's to build — a cost is `cost-architecture.md`'s, and its `remaining-costs` row
    names both.
 12. **`backlog.md` §2.2 (linked abilities, CR 607) is unscheduled and
     shares one piece with this design.** None of TR-3's four consumers is a
@@ -3715,7 +3715,7 @@ line here, and its text is in the archive.
        and epoch) is the per-ability memory 607.2a's "the exiled cards" needs,
    and §2.2 should reuse it rather than mint a second one. Miracle's
    603.11 shape waits there (§16). Kept here at the item 6 audit: §2.2 is
-   B7's to build, and A6s only decides it.
+   `breadth-features`'s to build, and `route-review` only decides it.
 13. **Prompts inside a resolution or a batch are not fork points.**
     Placement's prompts run at a priority grant with the queue on
     `GameState` (§5.2); a vote or a CR 616.1 choice keeps its continuation
@@ -3760,7 +3760,7 @@ line here, and its text is in the archive.
 
 - **Modes on a triggered ability** (603.3c) — `backlog.md` §2.7, which
   builds on §5.4's placement.
-- **"Unless [a player] pays"** — no owner yet; `roadmap-v2.md` A6s gives it
+- **"Unless [a player] pays"** — no owner yet; `roadmap-v2.md` `route-review` gives it
   one. Ward (702.21a), Strict Proctor and Frost Titan register with it, on
   TR-5's event.
 - **Linked abilities** (603.11, 607) — `backlog.md` §2.2; miracle's
@@ -3770,16 +3770,16 @@ line here, and its text is in the archive.
   designations, on `TriggerOrigin::Rule`.
 - **Phasing's qualifier** on CR 603.6c (item 6) — with phasing, which
   arrives second.
-- **The per-viewer visibility query** (S1's body) — `backlog.md` §2.9, B4.
+- **The per-viewer visibility query** (S1's body) — `backlog.md` §2.9, `information-model`.
 - **Loop detection Tiers 2 and 3, and the voluntary shortcut** — `roadmap-v2.md`
-  B14, graduating `backlog.md` §2.28: Tier 2's state hash (the archive's
+  `loop-detection`, graduating `backlog.md` §2.28: Tier 2's state hash (the archive's
   §4.9 keeps the review's case for it), and CR 731.3's and 731.5's shortcuts. TR-6's two counted
   stops, `MANDATORY_LOOP_CHECKS` and `DISPATCH_NESTING_LIMIT`, stand until
   then.
-- **CR 707.10b's ability copies** — CV-4, with §6.5's sentence.
+- **CR 707.10b's ability copies** — `spell-copies`, with §6.5's sentence.
 - **Extra steps** (`backlog.md` §2.17's step half; Obeka) and **step-scoped
   durations** (§2.12 there) — their entries; the hooks exist.
-- **"As though" effects** (609.4) — B8.
+- **"As though" effects** (609.4) — `as-though-effects`.
 - **Bounding what the game keeps of its events.** The in-state window
   (item 42's) is bounded since #188, and nothing here reads past one batch.
   The history log grows by design, since "this game" reads it whole (§3.10,
@@ -3794,7 +3794,7 @@ line here, and its text is in the archive.
 
 *What the design owed other documents at authoring — `CLAUDE.md`'s row,
 `roadmap-v2.md` A6, `codebase-state.md`'s pointers, the glossary's terms, and
-the Ironworks loop handed to `roadmap-v2.md` B13 — each delivered by TR-7's
+the Ironworks loop handed to `roadmap-v2.md` `ironworks-loop` — each delivered by TR-7's
 close, moved to `plans/archive/triggers-architecture-landed.md`, "17.", at the
 item 6 audit (2026-10-22).*
 
@@ -3882,22 +3882,22 @@ and MA-1 with MA-2.
   5. Each phase heading in §12 records its decision.
 - **The `owed` gate was armed at TR-6's close** and read clean through the
   close-out; three atoms §13 deferred to owners that never named them went
-  to A6s, which does.
+  to `route-review`, which does.
 
 ### What stays open, and where each waits
 
-- §15: 9 (CV-7), 10 (`backlog.md` §2.9, B4), 11 (CP-2), 12 (§2.2, B7) and
+- §15: 9 (`merging-and-meld`), 10 (`backlog.md` §2.9, `information-model`), 11 (`remaining-costs`), 12 (§2.2, `breadth-features`) and
   13 (items 40 and 233); 5 is `backlog.md` §2.49 and 15 is item 299.
 - §16, each bullet with its owner; "unless [a player] pays" has none until
-  A6s.
+  `route-review`.
 - §13: 37 atoms deferred, each with its owner; `owed` clean.
-- `codebase-state.md`'s wrong-today items: 59 (B7), 204 and 207 (beside
-  C0), 211 (MA-6) and 297 (A6e).
+- `codebase-state.md`'s wrong-today items: 59 (`breadth-features`), 204 and 207 (beside
+  `card-layer-cleanup`), 211 (`mana-payment-solver`) and 297 (A6e).
 
 ### What comes next inherits
 
-A6s decides "unless [a player] pays", CR 607's linked abilities, modal
+`route-review` decides "unless [a player] pays", CR 607's linked abilities, modal
 triggers and the AI harness's type decisions before anything is built
-around them; A6f designs the information model, which §16's per-viewer
+around them; `information-model-design` designs the information model, which §16's per-viewer
 visibility waits on. Items 40 and 233 are the debt a fork-based harness
 inherits.

@@ -588,7 +588,7 @@ pub fn combat_refusal(game: &GameState, error: &CombatError, refused: Declaring)
             format!("{} has flying, and {} has neither flying nor reach", n(attacker), n(blocker)),
             Some("702.9b"),
         ),
-        // A restriction's own words, until RS-3 gives restrictions ids.
+        // A restriction's own words, until `combat-restrictions` gives restrictions ids.
         CombatError::ConstraintViolation(text) => (text.clone(), None),
     }
 }

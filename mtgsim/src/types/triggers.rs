@@ -845,7 +845,7 @@ pub enum TriggerEvent {
     /// "if it isn't a mana ability" excludes as `mana_ability: Some(false)`.
     /// The source is read as it was on the battlefield (Harsh Mentor's second
     /// ruling): off its frame when a cost moved it. Loyalty abilities are
-    /// CP-2's, and the arm asks nothing of them yet.
+    /// `remaining-costs`'s, and the arm asks nothing of them yet.
     ActivatesAbility { player: Option<PlayerRef>, source: TriggerSubject, mana_ability: Option<bool> },
     /// "Whenever [you/a player] cast[s] a [filter] spell" (CR 601.2i). The
     /// spell is on the stack as its record is dispatched, so the filter reads

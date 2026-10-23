@@ -517,7 +517,7 @@ Defaults in the last column apply when the file says nothing. A reference
 | `dealt first-strike damage` | 510.4 | `dealt_first_strike_damage`; refused before the first-strike damage step, and kept to the end of combat as the engine keeps it | no |
 | `then: player p casts <card>`, `then: player p activates <card>` | 117.1, 601.2, 602.2 | a setup action (§5.3), played from the board in file order: a cast from p's hand, or an activation of an ability of a permanent p controls | none |
 | `\| targeting <card>`, `\| targeting player p` | 115.1, 601.2c | the line's answers to CR 601.2c's choices, a target or a "choose": each choice the spell or ability asks takes the next segments it offers, so they read in the card's own order. A card here is a permanent, a card in a graveyard or exile, or a spell an earlier line casts | — |
-| `\| x N` | 107.3a, 601.2b | the X a `casts` line's spell is cast with, answering `ChooseXValue` over an interval or a set (MA-2, `mana-architecture.md` §3.7). A value the engine does not offer stops the line, and so does an X asked of a line with no `x N`; an X never asked, the one legal value, must be the line's. Refused as the file is read on a card whose mana cost has no X, and on an `activates` line, whose X is CP-1's | none |
+| `\| x N` | 107.3a, 601.2b | the X a `casts` line's spell is cast with, answering `ChooseXValue` over an interval or a set (MA-2, `mana-architecture.md` §3.7). A value the engine does not offer stops the line, and so does an X asked of a line with no `x N`; an X never asked, the one legal value, must be the line's. Refused as the file is read on a card whose mana cost has no X, and on an `activates` line, whose X is `hybrid-and-phyrexian-payment`'s | none |
 | `\| ability N` | 602.1 | the ability's place among the permanent's abilities as the layers give them, 1 for the first; never a mana ability, whose mana would wait in a pool no word writes (§5.2) | the permanent's one activated ability |
 | *(a mode)* | 700.2 | not a word: nothing asks for a mode, since `Effect::Modal` cannot resolve (`backlog.md` §2.7). The setup driver matches every `ChoiceKind` with no wildcard, so the PR that adds the prompt adds `mode N` | — |
 
@@ -2164,7 +2164,7 @@ What the engine adds, each under an A/B predicted `IDENTICAL` on every counter:
    is the first its check refuses, in the order the enumeration asked. The
    section answers at every question whether it offers the object or the
    player, and why not only at the three questions these checks build (the
-   priority question and the two declarations). A target's reasons are RS-2's,
+   priority question and the two declarations). A target's reasons are `cant-be-targeted`'s,
    which rewrites target legality (the owner, 2026-10-05).
 3. **A reader of the sink's lines** (SU-8), in `state::trace` beside the
    writer, as its inverse. It gives a record's kind and fields, for the panel
@@ -2488,7 +2488,7 @@ tiers: never offered, from the checks, or offered and then reversed
 
 **What moved on the way in.** `play_land` and `activate_ability` share the
 checks too, and the cast now refuses a land (CR 305.9). A target's reasons
-are RS-2's. The click script edits Everywhere to a Mountain, since one
+are `cant-be-targeted`'s. The click script edits Everywhere to a Mountain, since one
 Everywhere counts as five mana sources (`codebase-state.md` item 162, whose
 design doc is the next PR), and item 211 records that the priority question
 never offers a mana ability. It landed at +1,042 code and +606 tests,
@@ -2764,7 +2764,7 @@ the save, `SU-*`).
 
 ## 11. Out of scope
 
-Hidden information (B4; the dev GUI shows every card); four seats in the GUI
+Hidden information (`information-model`; the dev GUI shows every card); four seats in the GUI
 (the seats PR, §7b's decision 4);
 save, undo and savestates (A6g's tools, SU-4 and SU-5); item 193 (playable); the
 stack and resolved effects as written state (§2), which SU-2's setup actions

@@ -183,7 +183,7 @@ the first table.
 |---|---|---|
 | `GameObject` | face-down state in a non-battlefield zone (foretell, CR 702.143) | feature — a flag, same shape as `is_token` |
 | `PermanentState` | CR 729 components; counters elsewhere | **known facts**, already owned |
-| `CardData` | a back face (CR 712) | **known fact**, phase CV-5 |
+| `CardData` | a back face (CR 712) | **known fact**, phase `double-faced-cards` |
 | `AbilityDef` | a trigger condition; activation restrictions (CR 602.5d); functioning zone (CR 113.6) | trigger condition is **critical-path item 6**; the rest additive |
 | `GameAction` | `Sacrifice`, `Exile`, `LoseGame`, … | feature **by contract** — one arm per variant, `CLAUDE.md` |
 | `ActionContext` | who caused a non-resolution mutation | **known fact**, threaded at RA |
@@ -197,7 +197,7 @@ the first table.
 | `StackEntry` | **what was spent to pay the costs** | **FACT** — §5.1 |
 | `ManaPool` | non-fungible mana — CR 106.6 restrictions, grants, persistence | **no gap in the type** (T12b built it); the *gatekeepers* are unwired — Deferred Migrations item 33. **Corrected 2026-09-24:** true of the restricted track only; the plain pool production uses drops a unit's source at `pool.add` (item 33) |
 | `PlayerState` | continuous effects on player values and rules (CR 402.2, 613.10–613.11); counter *kinds* on players (CR 122.1) | features — `backlog.md` §2.15, §2.16; probed by Winter, Misanthropic Guide |
-| `Zone` | per-viewer visibility; object identity across zones; CR 729 merging | **no gap** — every demand already owned (§2.9, item 6's LKI, CV-7). `is_public()` exists, unconsumed |
+| `Zone` | per-viewer visibility; object identity across zones; CR 729 merging | **no gap** — every demand already owned (§2.9, item 6's LKI, `merging-and-meld`). `is_public()` exists, unconsumed |
 
 **The last three rows were not in the original fourteen — each arrived by
 probe, all on 2026-08-31.** `ManaPool` from `o:"this mana"` (227 cards);
@@ -210,7 +210,7 @@ field-level read cannot see.
 **The list now states its criterion: every type `GameState` transitively
 owns that stores rule-relevant state.** The remainder under it,
 dispositioned rather than swept: `GameConfig` (already probed — item 32's
-`DeckLimits` was its finding); `AttackingInfo`/`BlockingInfo` (RS-3's design
+`DeckLimits` was its finding); `AttackingInfo`/`BlockingInfo` (the combat phases' design
 owns the combat-restriction surface); turn structure (one gap, extra turns —
 `backlog.md` §2.17; skips are replacement effects, CR 614.10); the
 `GameState`-level designations (monarch, initiative — session 9b atoms,
@@ -347,14 +347,14 @@ where each lands, and what CR 707.10 lets a copy keep.
 | Targets, one entry per instance (601.2c, 115.3) | `TargetInstance` | yes | a target that left and came back (400.7) | **built** — `TargetRef` carries the epoch (main item 10, closed by CV-1b, #230) |
 | Modes (601.2b, 700.2) | `chosen_modes`, never written | — (nothing is modal) | a copy keeps them | owned: item 31, `backlog.md` §2.7 |
 | **The objects that paid** (601.2h, 400.7d) | `PaymentPlan.sacrifices`, until the cast completes | **no** | a copy uses the original's (707.10); Fling reads one object's power from its LKI; convoke's objects never move | item 30's open half, sharpened: beside the cost decisions, a list of identities. 34 + 6 readers |
-| **What a copy of the spell gets** (707.10) | planned: CV-4's "`StackEntry` clone plus a new `ObjectId`" | planned | a clone keeps `cast_from`, `mana_spent` and `controller`, and 707.10 gives the copy none of the original's | `copy-effects-architecture.md` §4.4 amended |
+| **What a copy of the spell gets** (707.10) | planned: `spell-copies`'s "`StackEntry` clone plus a new `ObjectId`" | planned | a clone keeps `cast_from`, `mana_spent` and `controller`, and 707.10 gives the copy none of the original's | `copy-effects-architecture.md` §4.4 amended |
 | **Storm's count** (702.40a) | planned: the history log's cast rows ordered before the spell's own | planned | a spell cast in response is not "before it"; 33 cards | `triggers-architecture.md` §3.10 amended |
-| A mana unit's source; restrictions (106.6, 107.4h) | dropped by the plain pool at `pool.add` | no | per unit | owned: item 33, slot B9 |
+| A mana unit's source; restrictions (106.6, 107.4h) | dropped by the plain pool at `pool.add` | no | per unit | owned: item 33, slot `mana-provenance` |
 
 **Pass 3 files no new item.** Production records each cost fact at its own
 moment. The one it does not record, the objects that paid, was already item
 30's open half. The findings are planned shapes around those facts:
-- CV-4's clone would keep three things a copy doesn't get (CR 707.10).
+- `spell-copies`'s clone would keep three things a copy doesn't get (CR 707.10).
 - Item 30's objects must sit with what a copy keeps, the same split #181 made
   for kicked (CR 707.10).
 - Storm's count would be read at the wrong moment (CR 702.40a).
@@ -371,7 +371,7 @@ hold no fact about the game:
 - `nesting`, whose type `NestingGuards` guards the engine rather than a rule;
 - two id allocators, `next_trigger_seq` and `next_object_id`.
 
-**Carried to pass 3 from §3's run, and answered there.** CV-4's clone would
+**Carried to pass 3 from §3's run, and answered there.** `spell-copies`'s clone would
 keep `mana_spent`, and also `cast_from` and `controller`, so
 `copy-effects-architecture.md` §4.4 is amended. The multikicker count is a
 feature: `CostChoices.additional` can repeat an entry, and the announcement
@@ -420,9 +420,9 @@ names something an object or a player keeps, as 702.82b's "it devoured" and
   plus the turn it happened, carried into the cast at 601.2a because the spell
   is a new object;
 - morph's and disguise's X (702.37f, 702.168e): `PermanentState.x_value`,
-  written by the action that turns the permanent face up (CV-6).
+  written by the action that turns the permanent face up (`face-down-and-morph`).
 
-**Combat (508, 509) was re-read rather than swept**, since RS-3 owns its
+**Combat (508, 509) was re-read rather than swept**, since `combat-restrictions` and `combat-requirements` own its
 restrictions. `AttackingInfo.target` records 508.1b's choice, and `is_blocked`
 keeps 509.1h's "remains blocked". TR-5e put each declared attacker's
 defender on the `AttackersDeclared` record (item 11). What 508.7a's "still
@@ -613,7 +613,7 @@ is derivable; where each name was read is not, and the gate needs the names.
     `TokenCreated` record carries, after any replacement substituted
     another. Empty outside a creation, saved for a nested one. CR 111.13's
     copy of a permanent spell is no creation and has no row; CR 707.2's
-    token copies (CV-3) will make their definition from the copiable values,
+    token copies (`token-copies`) will make their definition from the copiable values,
     which a row can hold as it holds any other.
 - **Added by CL-1 (2026-10-21)**:
   - `arrivals_since_last_sba_check`: what CR 704.5d and 704.6d can match since the last
@@ -697,7 +697,7 @@ none makes an existing assumption false.
 - **CR 204.2, color indicator.** `CardData.color_indicator` has **zero readers
   and zero writers**; `compute_characteristics` seeds Layer 5 from `card.colors`
   alone. Dead forward-looking scaffolding — Deferred Migrations, not a fact —
-  and its own doc comment names the phase that makes it live (CV-5).
+  and its own doc comment names the phase that makes it live (`double-faced-cards`).
 - **CR 607.4, an ability in more than one linked pair.** Constrains the
   representation before it exists: a link cannot be one `Option<AbilityId>` on
   `AbilityDef`. A free constraint for whoever takes linked abilities.
@@ -768,7 +768,7 @@ was travelling under another mechanic's section number. → backlog §2.2, §3.
   → item 175, sharpened.
 - **CR 603.2h's gate keyed without its controller** (pass 2). →
   `triggers-architecture.md` §3.5, §6.4, §7, amended.
-- **What a copy of a spell gets** (pass 3). CV-4's planned `StackEntry` clone
+- **What a copy of a spell gets** (pass 3). `spell-copies`'s planned `StackEntry` clone
   would keep `cast_from`, `mana_spent` and `controller`. →
   `copy-effects-architecture.md` §4.4, amended.
 - **Storm's count, read at resolution** (pass 3). →

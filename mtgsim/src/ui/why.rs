@@ -268,8 +268,8 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
 /// and the generic split; and two read the trace, when a replay has one: the
 /// effects a CR 616.1 choice has applied already, and the triggered
 /// abilities asked about the events an ordering's abilities triggered on.
-/// The other filtered kinds' reasons are their owners': a target's RS-2's, a
-/// sacrifice's CP-2's (`setup-architecture.md` §8).
+/// The other filtered kinds' reasons are their owners': a target's `cant-be-targeted`'s, a
+/// sacrifice's `remaining-costs`'s (`setup-architecture.md` §8).
 fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: Option<&[TraceRecord]>) -> Vec<WhyLine> {
     let offered = question.options.iter().any(|option| names(option, about));
     match (&question.context.kind, about) {

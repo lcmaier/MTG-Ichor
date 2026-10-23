@@ -22,7 +22,7 @@
 //!
 //! Tier 2 (the event chokepoint) plus Tier 3 (withholding a replacement
 //! effect). The axis-2 arms — casting, activating, targeting, attacking,
-//! blocking, paying costs — are RS-2/RS-3/RS-4's and are not in
+//! blocking, paying costs — are `cant-be-targeted`'s, `cant-cast-play-or-activate`'s, the combat phases' and `cant-pay-costs`'s and are not in
 //! [`Restriction`](crate::types::restriction::Restriction) yet, on
 //! `types::replacement`'s rule: an arm no enforcement point consults is a card
 //! that silently does nothing.

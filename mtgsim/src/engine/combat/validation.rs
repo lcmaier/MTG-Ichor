@@ -54,14 +54,14 @@ impl std::fmt::Display for CombatError {
 }
 
 // ---------------------------------------------------------------------------
-// Attack constraints (every caller passes `none()` until RS-3)
+// Attack constraints (every caller passes `none()` until `combat-restrictions`)
 // ---------------------------------------------------------------------------
 
 /// Restrictions and requirements that apply to the set of declared attackers.
 ///
 /// Every caller passes [`Self::none`]: the validator checks defender itself,
 /// and the "can't attack" and "attacks each combat if able" effects these
-/// would carry are `cant-effects-architecture.md`'s RS-3.
+/// would carry are `cant-effects-architecture.md`'s `combat-restrictions` and `combat-requirements`.
 pub struct AttackConstraints {
     pub restrictions: Vec<AttackRestriction>,
     pub requirements: Vec<AttackRequirement>,
@@ -86,7 +86,7 @@ pub enum AttackRequirement {
 }
 
 impl AttackConstraints {
-    /// No constraints: what every caller passes until RS-3.
+    /// No constraints: what every caller passes until `combat-restrictions` and `combat-requirements`.
     pub fn none() -> Self {
         AttackConstraints {
             restrictions: Vec::new(),
@@ -96,14 +96,14 @@ impl AttackConstraints {
 }
 
 // ---------------------------------------------------------------------------
-// Block constraints (every caller passes `none()` until RS-3)
+// Block constraints (every caller passes `none()` until `combat-restrictions`)
 // ---------------------------------------------------------------------------
 
 /// Restrictions, requirements, and blocking limits for declared blockers.
 ///
 /// Every caller passes [`Self::none`]: the validator checks flying and reach
 /// itself, and menace, intimidate and the effects these would carry ("can
-/// block an additional creature") are `cant-effects-architecture.md`'s RS-3.
+/// block an additional creature") are `cant-effects-architecture.md`'s `combat-restrictions` and `combat-requirements`.
 pub struct BlockConstraints {
     pub restrictions: Vec<BlockRestriction>,
     pub requirements: Vec<BlockRequirement>,
@@ -128,7 +128,7 @@ pub enum BlockRequirement {
 }
 
 impl BlockConstraints {
-    /// No constraints: what every caller passes until RS-3.
+    /// No constraints: what every caller passes until `combat-restrictions` and `combat-requirements`.
     pub fn none() -> Self {
         BlockConstraints {
             restrictions: Vec::new(),
@@ -189,7 +189,7 @@ pub fn validate_attackers(
 /// Check set-level attack constraints (restrictions and requirements).
 ///
 /// A no-op over [`AttackConstraints::none`], which every caller passes until
-/// RS-3 builds the "can't attack" and "must attack" effects.
+/// `combat-restrictions` and `combat-requirements` build the "can't attack" and "must attack" effects.
 fn check_attack_set_constraints(
     proposed: &[(ObjectId, AttackTarget)],
     constraints: &AttackConstraints,
@@ -222,7 +222,7 @@ fn check_attack_set_constraints(
     }
 
     // Requirements: only that a required creature is present. CR 508.1d's
-    // maximum, as many requirements obeyed as possible, is RS-3's.
+    // maximum, as many requirements obeyed as possible, is `combat-requirements`'s.
     for requirement in &constraints.requirements {
         match requirement {
             AttackRequirement::MustAttackIfAble(id) => {
@@ -328,7 +328,7 @@ pub fn validate_blockers(
 /// Check set-level block constraints.
 ///
 /// A no-op over [`BlockConstraints::none`], which every caller passes until
-/// RS-3.
+/// `combat-restrictions` and `combat-requirements`.
 fn check_block_set_constraints(
     proposed: &[(ObjectId, ObjectId)],
     constraints: &BlockConstraints,

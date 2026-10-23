@@ -913,7 +913,7 @@ pub fn put_in_exile(game: &mut GameState, card_data: Arc<CardData>, player: Play
 ///
 /// Which cards may start there is the format's rule, not the zone's: CR
 /// 903.3's legendary creature for Commander, something else for a custom
-/// format, which `roadmap-v2.md` B2's designation owns. This skips it, as a
+/// format, which `roadmap-v2.md` `game-formats`'s designation owns. This skips it, as a
 /// test board skips building a deck.
 pub fn put_in_command_zone(game: &mut GameState, card_data: Arc<CardData>, player: PlayerId) -> ObjectId {
     game.create_in_zone(GameObject::new(card_data, player, Zone::Command))

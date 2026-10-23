@@ -78,7 +78,7 @@ use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 /// # What is deliberately absent
 ///
 /// **Hexproof**, which she prints, is Tier 1d — a restriction on *targeting*,
-/// which is a choice rather than an event, and is RS-2's `BeTargeted` arm
+/// which is a choice rather than an event, and is `cant-be-targeted`'s `BeTargeted` arm
 /// (`codebase-state.md` item 15: the `KeywordFlag` is constructible and enforced
 /// nowhere). Flying is on the card because `KeywordFlag::Flying` is enforced.
 /// Shipping her without hexproof is the Blood Moon precedent: the clause the
