@@ -9,7 +9,7 @@
 use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
 use super::text::{draw_step_skipped, every_turn_fact, in_combat_from};
 use crate::engine::layers::compute::seed_frame;
-use crate::state::history_log::RowFact;
+use crate::state::history_log::{RowFact, FIRST_TURN};
 use crate::engine::layers::intrinsic::intrinsic_entry_counter_kind;
 use crate::engine::layers::types::EffectOrigin;
 use crate::objects::object::GameObject;
@@ -307,7 +307,7 @@ impl<'g> Writer<'g> {
         let state = self.state;
         let turn = state.turn_number;
         let mut casts = Vec::new();
-        for row in state.history.log.rows_newest_first().take_while(|row| row.turn >= 1) {
+        for row in state.history.log.rows_of_turns(FIRST_TURN..=turn) {
             let (RowFact::Cast { from }, Some(frame)) = (row.fact, &row.frame) else { continue };
             if row.player != Some(player) {
                 continue;

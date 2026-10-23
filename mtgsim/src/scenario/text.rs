@@ -384,18 +384,7 @@ fn parse_history_line(scenario: &mut Scenario, player: usize, span: HistorySpan,
 
 /// Every `TurnFact`, each with its word.
 pub(super) fn every_turn_fact() -> impl Iterator<Item = TurnFact> {
-    [
-        TurnFact::SpellsCast,
-        TurnFact::CardsDrawn,
-        TurnFact::LifeGained,
-        TurnFact::LifeGainEvents,
-        TurnFact::LifeLost,
-        TurnFact::LifeLossEvents,
-        TurnFact::DamageTaken,
-        TurnFact::ControlledCreaturesDied,
-        TurnFact::AttackersDeclared,
-    ]
-    .into_iter()
+    TurnFact::ALL.into_iter()
 }
 
 /// A `TurnFact` as a history row spells it. Exhaustive, so a new fact fails

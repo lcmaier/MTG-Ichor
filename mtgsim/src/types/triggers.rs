@@ -25,6 +25,7 @@ use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
 use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, TokenDef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
+use crate::types::history::TurnFact;
 use crate::types::mana::ManaType;
 use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
 
@@ -565,6 +566,7 @@ counted_enum! {
         EnteredBattlefield,
         AttackersDeclared,
         BlockersDeclared,
+        BecameBlocked,
         Targeted,
         AbilityActivated,
         AbilityTriggered,
@@ -616,6 +618,7 @@ impl EventKind {
             GameEvent::PermanentEnteredBattlefield { .. } => EventKind::EnteredBattlefield,
             GameEvent::AttackersDeclared { .. } => EventKind::AttackersDeclared,
             GameEvent::BlockersDeclared { .. } => EventKind::BlockersDeclared,
+            GameEvent::BecameBlocked { .. } => EventKind::BecameBlocked,
             GameEvent::Targeted { .. } => EventKind::Targeted,
             GameEvent::AbilityActivated { .. } => EventKind::AbilityActivated,
             GameEvent::AbilityTriggered { .. } => EventKind::AbilityTriggered,
@@ -1061,7 +1064,9 @@ impl TriggerEvent {
                 EventKindMask::of(EventKind::EnteredBattlefield)
             }
             TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
-            TriggerEvent::Blocks { .. } => EventKindMask::of(EventKind::BlockersDeclared),
+            // CR 509.3c's "becomes blocked" by an effect as well as by a
+            // declaration.
+            TriggerEvent::Blocks { .. } => EventKindMask::of(EventKind::BlockersDeclared).with(EventKind::BecameBlocked),
             TriggerEvent::BecomesTarget { .. } => EventKindMask::of(EventKind::Targeted),
             TriggerEvent::ActivatesAbility { .. } => EventKindMask::of(EventKind::AbilityActivated),
             TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
@@ -1080,6 +1085,47 @@ impl TriggerEvent {
             TriggerEvent::AbilityResolves { .. } => EventKindMask::of(EventKind::AbilityResolved),
             TriggerEvent::CreatesToken { .. } => EventKindMask::of(EventKind::TokenCreated),
             TriggerEvent::Scries { .. } => EventKindMask::of(EventKind::Scried),
+        }
+    }
+
+    /// The fact whose records a "first time each turn" on this arm counts its
+    /// record's place among, the player's own this turn (§3.5): a cast, a
+    /// draw, a gain or a loss of life (CR 119.9 makes each its own event).
+    /// `None` for an arm no record of which has a place. The history's
+    /// writer places exactly these (`state::history::PLACED_FACTS`), and the
+    /// registry admits "the first time" only on them or a targeting.
+    pub fn placed_fact(&self) -> Option<TurnFact> {
+        match self {
+            TriggerEvent::CastsSpell { .. } => Some(TurnFact::SpellsCast),
+            TriggerEvent::DrawsCard { .. } => Some(TurnFact::CardsDrawn),
+            TriggerEvent::GainsLife { .. } => Some(TurnFact::LifeGainEvents),
+            TriggerEvent::LosesLife { .. } => Some(TurnFact::LifeLossEvents),
+            TriggerEvent::ZoneChange { .. }
+            | TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::DamageDealt { .. }
+            | TriggerEvent::DamageIsPrevented { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::EntersBattlefield { .. }
+            | TriggerEvent::Attacks { .. }
+            | TriggerEvent::Blocks { .. }
+            | TriggerEvent::BecomesTarget { .. }
+            | TriggerEvent::ActivatesAbility { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::CountersPutOn { .. }
+            | TriggerEvent::CountersRemovedFrom { .. }
+            | TriggerEvent::BecomesAttached { .. }
+            | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::CreatesToken { .. }
+            | TriggerEvent::Scries { .. } => None,
         }
     }
 
@@ -1374,7 +1420,7 @@ impl TriggerEvent {
             | (TriggerEvent::ControlChanges { .. }, GameEvent::ZoneChange { .. })
             | (TriggerEvent::ControlChanges { .. }, GameEvent::LeftTheGame { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
-            | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. }) => None,
+            | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. } | GameEvent::BecameBlocked { .. }) => None,
             // Every arm, by name, so a new arm does not compile until it says what
             // this projection is for it; the record never matches the arm otherwise.
             (
@@ -1456,7 +1502,7 @@ impl TriggerEvent {
             | (TriggerEvent::TurnBegins { .. }, GameEvent::TurnBegin { .. })
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
-            | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. })
+            | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. } | GameEvent::BecameBlocked { .. })
             | (TriggerEvent::BecomesTarget { .. }, GameEvent::Targeted { .. })
             | (TriggerEvent::ActivatesAbility { .. }, GameEvent::AbilityActivated { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
@@ -1890,6 +1936,9 @@ struct LkiBody {
     /// CR 108.3. The store loses a token at CR 704.5d and an object whose
     /// owner leaves at CR 800.4a, and this is then the one place it is kept.
     owner: PlayerId,
+    /// CR 111.1: whether it was a token, which no characteristic says and
+    /// the store forgets once CR 704.5d has removed it.
+    token: bool,
     /// CR 707.10's decisions about the spell it was.
     cost_choices: CostChoices,
     /// `None` for an object that left a zone other than the battlefield.
@@ -1921,6 +1970,7 @@ impl Lki {
         object: ObjectRef,
         frame: Arc<EffectiveCharacteristics>,
         owner: PlayerId,
+        token: bool,
         cost_choices: CostChoices,
         permanent: Option<&PermanentState>,
         entry: Option<&StackEntry>,
@@ -1940,7 +1990,17 @@ impl Lki {
             }
         });
         let entry = entry.map(|entry| Arc::new(entry.clone()));
-        Lki(Arc::new(LkiBody { object, frame, owner, cost_choices, permanent, entry }))
+        Lki(Arc::new(LkiBody { object, frame, owner, token, cost_choices, permanent, entry }))
+    }
+
+    /// The bytes its body holds beside its frame, which a held-memory
+    /// reading adds to the frames it counts (`HistoryLog::row_bytes_held`).
+    pub fn bytes_beside_its_frame(&self) -> usize {
+        let permanent = self.0.permanent.as_ref().map_or(0, |p| {
+            p.counters.capacity() * std::mem::size_of::<(CounterType, u32)>()
+                + p.attached_by.capacity() * std::mem::size_of::<ObjectId>()
+        });
+        std::mem::size_of::<LkiBody>() + 2 * std::mem::size_of::<usize>() + permanent
     }
 
     /// The existence that left.
@@ -1960,6 +2020,11 @@ impl Lki {
 
     pub fn owner(&self) -> PlayerId {
         self.0.owner
+    }
+
+    /// Whether it was a token (CR 111.1).
+    pub fn was_token(&self) -> bool {
+        self.0.token
     }
 
     pub fn cost_choices(&self) -> &CostChoices {
@@ -2100,6 +2165,8 @@ mod tests {
             ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None }),
             ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object_id: id, controller: 0 }),
             ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![(id, AttackTarget::Player(1))] }),
+            ("BlockersDeclared", GameEvent::BlockersDeclared { blocks: vec![(id, id)], unblocked: Vec::new() }),
+            ("BecameBlocked", GameEvent::BecameBlocked { attacker: id }),
             ("AbilityTriggered", GameEvent::AbilityTriggered {
                 seq: TriggerSeq(0),
                 origin: TriggerOrigin::Object(identity),
@@ -2115,7 +2182,8 @@ mod tests {
                 attachment: identity.source,
                 former_host: identity.source,
                 route: crate::events::event::UnattachRoute::HostLeft,
-                lki: None,
+                attachment_lki: None,
+                former_host_lki: None,
             }),
             ("DamagePrevented", GameEvent::DamagePrevented {
                 target: DamageTarget::Player(0),
@@ -2170,6 +2238,17 @@ mod tests {
             (
                 TriggerEvent::Attacks { attacker: this, defender: None, occurrence: AttackOccurrence::Attacker, alone: false, multiplicity: each },
                 &["AttackersDeclared"],
+            ),
+            (
+                TriggerEvent::Blocks {
+                    blocker: TriggerSubject::Any,
+                    attacker: TriggerSubject::ThisObject,
+                    occurrence: BlockOccurrence::Blocked,
+                    count: None,
+                    alone: false,
+                    multiplicity: each,
+                },
+                &["BlockersDeclared", "BecameBlocked"],
             ),
             (TriggerEvent::CastsSpell { caster: None, spell: None }, &["SpellCast"]),
             (TriggerEvent::ShufflesLibrary { player: None }, &["LibraryShuffled"]),

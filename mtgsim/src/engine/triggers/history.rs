@@ -14,10 +14,10 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::events::event::{DamageTarget, EventId, GameEvent};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
-use crate::state::history_log::{HistoryRow, RowFact, RowKind};
+use crate::state::history_log::{HistoryRow, RowFact, RowKind, FIRST_TURN};
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::ObjectOrPlayer;
+use crate::types::triggers::{Lki, ObjectOrPlayer};
 use crate::types::zones::{Zone, ZoneChangeAct};
 use crate::state::layer_memo::GatedWalkInput;
 
@@ -35,6 +35,7 @@ struct RowDraft {
     player: Option<PlayerId>,
     object: Option<ObjectRef>,
     frame: Option<Arc<EffectiveCharacteristics>>,
+    last_known: Option<Lki>,
     fact: RowFact,
 }
 
@@ -106,6 +107,8 @@ impl GameState {
         for stamp in &stamps {
             self.draft_history_rows(stamp.seq, window, &mut drafts);
         }
+        #[cfg(debug_assertions)]
+        self.assert_each_zone_change_has_its_row(&stamps, &drafts);
         let mut stamp_of = stamps.iter().peekable();
         let mut kinds_written = [false; RowKind::COUNT];
         for (seq, draft) in drafts {
@@ -118,6 +121,7 @@ impl GameState {
                 player: draft.player,
                 object: draft.object,
                 frame: draft.frame,
+                last_known: draft.last_known,
                 fact: draft.fact,
             };
             kinds_written[row.fact.kind() as usize] = true;
@@ -138,6 +142,27 @@ impl GameState {
         }
     }
 
+    /// Each zone change these records hold writes its row: a move that is
+    /// no entry, cast or draw its own `LeftZone`, and an entry its
+    /// `EnteredBattlefield` off the entry's record in the same window. A
+    /// cast's row is its `SpellCast`'s and a draw's its `CardDrawn`'s, each
+    /// announced after its move, outside any batch for an opening hand
+    /// (CR 103.5, 121.5, 601.2i).
+    #[cfg(debug_assertions)]
+    fn assert_each_zone_change_has_its_row(&self, stamps: &[RowStamp], drafts: &[(EventId, RowDraft)]) {
+        for stamp in stamps {
+            let Some(GameEvent::ZoneChange { object_id, to, act, .. }) = self.events.record(stamp.seq).map(|r| &r.event) else { continue };
+            let written = match (to, act) {
+                (_, ZoneChangeAct::Cast | ZoneChangeAct::Drawn) => true,
+                (Zone::Battlefield, _) => drafts.iter().any(|(_, draft)| {
+                    matches!(draft.fact, RowFact::EnteredBattlefield { .. }) && draft.object.is_some_and(|object| object.id == *object_id)
+                }),
+                _ => drafts.iter().any(|(seq, draft)| *seq == stamp.seq && matches!(draft.fact, RowFact::LeftZone { .. })),
+            };
+            debug_assert!(written, "zone change {:?} of {object_id} to the {to:?} wrote no history row", stamp.seq);
+        }
+    }
+
     fn bump_rows_written(&mut self, kinds_written: &[bool; RowKind::COUNT]) {
         for kind in RowKind::ALL.into_iter().filter(|kind| kinds_written[*kind as usize]) {
             self.bump_layer_epoch_if_read(GatedWalkInput::Rows(kind));
@@ -152,7 +177,7 @@ impl GameState {
                 let key = (identity.source, identity.ability.definition());
                 *self.history.resolutions_this_turn.entry(key).or_insert(0) += 1;
             }
-            HistoryUpdate::CardDrawn { player } if self.turn_number != 0 && self.in_own_draw_step(*player) => {
+            HistoryUpdate::CardDrawn { player } if self.turn_number >= FIRST_TURN && self.in_own_draw_step(*player) => {
                 if let Some(history) = self.history.players.get_mut(*player) {
                     history.drew_in_draw_step();
                 }
@@ -179,7 +204,7 @@ impl GameState {
     /// log's rows of the turn, this window's earlier records, then it.
     fn place_in_turn(&self, update: &HistoryUpdate, placed_this_window: &[((PlayerId, TurnFact), u64)]) -> Option<u64> {
         let (player, fact) = update.placed_among()?;
-        if self.turn_number == 0 {
+        if self.turn_number < FIRST_TURN {
             return None;
         }
         let logged = self.history.count_in_turn(player, fact, self.turn_number);
@@ -190,7 +215,7 @@ impl GameState {
     /// A counted draw's place in its player's own draw step (CR 504).
     fn place_in_draw_step(&self, update: &HistoryUpdate) -> Option<u64> {
         match update {
-            HistoryUpdate::CardDrawn { player } if self.turn_number != 0 && self.in_own_draw_step(*player) => {
+            HistoryUpdate::CardDrawn { player } if self.turn_number >= FIRST_TURN && self.in_own_draw_step(*player) => {
                 Some(self.history.players.get(*player)?.this_draw_step())
             }
             _ => None,
@@ -206,9 +231,13 @@ impl GameState {
     /// event left it, read before anything is written.
     fn draft_history_rows(&self, seq: EventId, window: &[EventId], drafts: &mut Vec<(EventId, RowDraft)>) {
         let Some(record) = self.events.record(seq) else { return };
-        let mut draft_history_row = |player: Option<PlayerId>, object: Option<ObjectRef>, frame, fact| {
-            drafts.push((seq, RowDraft { player, object, frame, fact }));
+        // A row about an object that had left by the event keeps its
+        // record's last known information, which the store no longer answers
+        // for; every other row keeps none.
+        let mut draft_history_row = |player: Option<PlayerId>, object: Option<ObjectRef>, frame, last_known, fact| {
+            drafts.push((seq, RowDraft { player, object, frame, last_known, fact }));
         };
+        let departed = |lki: &Lki| (Some(lki.object()), Some(Arc::clone(lki.frame())), Some(lki.clone()));
         // `object`'s characteristics as this window left it. Read now if it is
         // still the object the record named. If it moved again later in this
         // window it became a new object (CR 400.7), and the record of that
@@ -230,19 +259,19 @@ impl GameState {
                 if let (Some((object, frame)), Some(from)) =
                     (current(*spell_id), self.stack_entries.get(spell_id).and_then(|entry| entry.cast_from))
                 {
-                    draft_history_row(Some(*caster), Some(object), frame, RowFact::Cast { from });
+                    draft_history_row(Some(*caster), Some(object), frame, None, RowFact::Cast { from });
                 }
             }
             GameEvent::CardDrawn { player_id, card_id } => {
                 if let Some((object, frame)) = current(*card_id) {
-                    draft_history_row(Some(*player_id), Some(object), frame, RowFact::Drew);
+                    draft_history_row(Some(*player_id), Some(object), frame, None, RowFact::Drew);
                 }
             }
             GameEvent::LifeChanged { player_id, old, new, .. } if new > old => {
-                draft_history_row(Some(*player_id), None, None, RowFact::GainedLife((new - old) as u64));
+                draft_history_row(Some(*player_id), None, None, None, RowFact::GainedLife((new - old) as u64));
             }
             GameEvent::LifeChanged { player_id, old, new, .. } if new < old => {
-                draft_history_row(Some(*player_id), None, None, RowFact::LostLife((old - new) as u64));
+                draft_history_row(Some(*player_id), None, None, None, RowFact::LostLife((old - new) as u64));
             }
             // Where it came from is its zone change's, in the same window; a
             // token comes from none (CR 111.2).
@@ -252,7 +281,11 @@ impl GameState {
                     _ => None,
                 });
                 if let Some((object, frame)) = current(*object_id) {
-                    draft_history_row(Some(*controller), Some(object), frame, RowFact::EnteredBattlefield { from });
+                    debug_assert!(
+                        self.battlefield.get(object_id).is_none_or(|entry| entry.entered_battlefield_turn == self.turn_number),
+                        "{object_id}'s entry row and its own entry turn disagree"
+                    );
+                    draft_history_row(Some(*controller), Some(object), frame, None, RowFact::EnteredBattlefield { from });
                 }
             }
             // A draw, a cast and an entry are their own rows.
@@ -262,28 +295,32 @@ impl GameState {
                 let became = ObjectRef { id: *object_id, zone_change_epoch: *new_epoch };
                 let fact = RowFact::LeftZone { from: *from, to: *to, act: *act, became };
                 match lki {
-                    Some(lki) => draft_history_row(Some(lki.chars().controller), Some(lki.object()), Some(Arc::clone(lki.frame())), fact),
-                    None => draft_history_row(Some(*owner), Some(became), frame_as_left(became), fact),
+                    Some(lki) => {
+                        let (object, frame, last_known) = departed(lki);
+                        draft_history_row(Some(lki.chars().controller), object, frame, last_known, fact);
+                    }
+                    None => draft_history_row(Some(*owner), Some(became), frame_as_left(became), None, fact),
                 }
             }
             GameEvent::SameZoneMove { owner, zone, act, lki, .. } => {
                 let fact = RowFact::LeftZone { from: *zone, to: *zone, act: *act, became: lki.object() };
-                draft_history_row(Some(*owner), Some(lki.object()), Some(Arc::clone(lki.frame())), fact);
+                draft_history_row(Some(*owner), Some(lki.object()), Some(Arc::clone(lki.frame())), None, fact);
             }
             GameEvent::LeftTheGame { owner, from, lki: Some(lki), .. } => {
-                draft_history_row(Some(*owner), Some(lki.object()), Some(Arc::clone(lki.frame())), RowFact::LeftTheGame { from: *from });
+                let (object, frame, last_known) = departed(lki);
+                draft_history_row(Some(*owner), object, frame, last_known, RowFact::LeftTheGame { from: *from });
             }
             GameEvent::LeftTheGame { object_id, owner, from, lki: None } => {
-                draft_history_row(Some(*owner), self.object_ref(*object_id), None, RowFact::LeftTheGame { from: *from });
+                draft_history_row(Some(*owner), self.object_ref(*object_id), None, None, RowFact::LeftTheGame { from: *from });
             }
             // A source that left before dealing it deals it as it last existed
             // (CR 608.2h).
             GameEvent::DamageDealt { source_id, target, amount, excess, is_combat, source_lki } => {
-                let (object, frame) = match source_lki {
-                    Some(lki) => (Some(lki.object()), Some(Arc::clone(lki.frame()))),
+                let (object, frame, last_known) = match source_lki {
+                    Some(lki) => departed(lki),
                     None => match current(*source_id) {
-                        Some((object, frame)) => (Some(object), frame),
-                        None => (None, None),
+                        Some((object, frame)) => (Some(object), frame, None),
+                        None => (None, None, None),
                     },
                 };
                 let to = match target {
@@ -292,27 +329,32 @@ impl GameState {
                 };
                 if let Some(to) = to {
                     let fact = RowFact::DealtDamage { to, amount: *amount, excess: *excess, combat: *is_combat };
-                    draft_history_row(controller(&frame), object, frame, fact);
+                    draft_history_row(controller(&frame), object, frame, last_known, fact);
                 }
             }
             GameEvent::AttackersDeclared { attackers } => {
                 for &(attacker, target) in attackers {
                     if let Some((object, frame)) = current(attacker) {
-                        draft_history_row(Some(self.active_player), Some(object), frame, RowFact::Attacked(target));
+                        draft_history_row(Some(self.active_player), Some(object), frame, None, RowFact::Attacked(target));
                     }
                 }
             }
             GameEvent::BlockersDeclared { blocks, .. } => {
                 for &(blocker, attacker) in blocks {
                     if let (Some((object, frame)), Some(attacker)) = (current(blocker), self.object_ref(attacker)) {
-                        draft_history_row(controller(&frame), Some(object), frame, RowFact::Blocked(attacker));
+                        draft_history_row(controller(&frame), Some(object), frame, None, RowFact::Blocked(attacker));
                     }
+                }
+            }
+            GameEvent::BecameBlocked { attacker } => {
+                if let Some((object, frame)) = current(*attacker) {
+                    draft_history_row(controller(&frame), Some(object), frame, None, RowFact::BecameBlocked);
                 }
             }
             GameEvent::RemovedFromCombat { removed } => {
                 for exit in removed {
                     let frame = frame_as_left(exit.object);
-                    draft_history_row(controller(&frame), Some(exit.object), frame, RowFact::RemovedFromCombat { attacking: exit.attacking });
+                    draft_history_row(controller(&frame), Some(exit.object), frame, None, RowFact::RemovedFromCombat { attacking: exit.attacking });
                 }
             }
             GameEvent::Targeted { target, ability_source, controller: targeting, .. } => {
@@ -320,9 +362,9 @@ impl GameState {
                 match target {
                     TargetRef::Object(object) => {
                         let frame = frame_as_left(*object);
-                        draft_history_row(controller(&frame), Some(*object), frame, fact);
+                        draft_history_row(controller(&frame), Some(*object), frame, None, fact);
                     }
-                    TargetRef::Player(player) => draft_history_row(Some(*player), None, None, fact),
+                    TargetRef::Player(player) => draft_history_row(Some(*player), None, None, None, fact),
                 }
             }
             _ => {}
@@ -344,5 +386,36 @@ impl GameState {
             GameEvent::PhaseBegin { phase: PhaseType::Combat, .. } => HistoryUpdate::CombatBegan,
             _ => return None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::history::PLACED_FACTS;
+    use crate::types::triggers::{Multiplicity, TriggerEvent};
+
+    /// "The first time each turn" is one list, read three ways: the arms the
+    /// registry admits it on (`TriggerEvent::placed_fact`), the records the
+    /// writer places (`placed_among`) and the facts each player's tally keeps
+    /// (`PLACED_FACTS`). An arm admitted whose records got no place would
+    /// never trigger, and say nothing.
+    #[test]
+    fn the_placed_facts_agree() {
+        let each = Multiplicity::PerOccurrence;
+        let arms_and_their_records = [
+            (TriggerEvent::CastsSpell { caster: None, spell: None }, HistoryUpdate::SpellCast { caster: 0 }),
+            (TriggerEvent::DrawsCard { player: None, multiplicity: each, place: None }, HistoryUpdate::CardDrawn { player: 0 }),
+            (TriggerEvent::GainsLife { player: None, multiplicity: each }, HistoryUpdate::LifeGained { player: 0 }),
+            (TriggerEvent::LosesLife { player: None, multiplicity: each }, HistoryUpdate::LifeLost { player: 0 }),
+        ];
+        let mut counted = Vec::new();
+        for (arm, record) in &arms_and_their_records {
+            let fact = arm.placed_fact().unwrap_or_else(|| panic!("{arm:?} can say the first time"));
+            assert_eq!(record.placed_among(), Some((0, fact)), "{arm:?}'s records are placed among {fact:?}");
+            assert!(PLACED_FACTS.contains(&fact), "the tally keeps {fact:?}");
+            counted.push(fact);
+        }
+        assert!(PLACED_FACTS.iter().all(|fact| counted.contains(fact)), "every fact the tally keeps is an arm's");
     }
 }

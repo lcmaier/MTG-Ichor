@@ -1662,8 +1662,9 @@ impl EntryWrites {
     fn unmatches(&self, filter: &ObjectFilter, negated: bool) -> bool {
         match filter {
             // An entry is the one write that makes an object have entered
-            // this turn, and none makes it attack or block.
-            ObjectFilter::ThisTurn(ObjectFact::Entered) => negated,
+            // this turn, been cast this turn or come under its controller's
+            // control this turn, and none makes it attack, block or die.
+            ObjectFilter::ThisTurn(ObjectFact::Entered | ObjectFact::WasCast | ObjectFact::CameUnderControl) => negated,
             // Identity, and control and ownership, which no 616.1e member writes.
             ObjectFilter::All
             | ObjectFilter::Token

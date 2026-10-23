@@ -885,7 +885,7 @@ impl GameState {
     /// passes on as a batch's caller does (a batched record's dispatch is the
     /// batch's, at its close).
     fn emit_record(&mut self, event: GameEvent, stamp: EventStamp, ctx: Option<&ActionContext>) -> Result<(), String> {
-        let names = self.names_as_announced(&event);
+        let names = self.names_as_announced(&event, &stamp.cause);
         self.trace(|| {
             let mut r = Record::new(RecordKind::Event);
             r.field_u64("index", self.events.next_seq().0 as u64);
@@ -905,15 +905,34 @@ impl GameState {
         Ok(())
     }
 
-    /// The names `event`'s objects are announced under, where one is not its
-    /// card's; `None` on nearly every event.
-    fn names_as_announced(&mut self, event: &GameEvent) -> NamesAsAnnounced {
+    /// The names `event`'s objects and its `cause`'s are announced under,
+    /// where one is not its card's; `None` on nearly every event. The source
+    /// of the ability the record is about, or of the one resolving, is named
+    /// as it last existed once it has left the battlefield, by the frame that
+    /// ability keeps (CR 113.7a), where the card's own name would read as the
+    /// card in its new zone.
+    fn names_as_announced(&mut self, event: &GameEvent, cause: &EventCause) -> NamesAsAnnounced {
+        let mut named: Vec<ObjectId> = Vec::new();
+        event.for_each_object_named(|id| named.push(id));
+        named.extend(cause.object_named());
+        let source = event.ability_source().or_else(|| self.resolving.as_ref()?.identity.map(|identity| identity.source));
+        let departed = source.filter(|&source| self.find(source).is_none()).and_then(|source| self.lki_kept_for(source));
+        let departed = departed.map(|lki| (lki.object().id, lki.chars().name.clone()));
         let mut names: Vec<(ObjectId, String)> = Vec::new();
-        event.for_each_object_named(|id| {
-            if let Some(name) = self.name_unless_printed(id) {
+        for id in named {
+            if names.iter().any(|(kept, _)| *kept == id) {
+                continue;
+            }
+            let name = match &departed {
+                Some((left, name)) if *left == id && !self.battlefield.contains_key(&id) => {
+                    (self.objects.get(&id).is_none_or(|object| object.card_data.name != *name)).then(|| name.clone())
+                }
+                _ => self.name_unless_printed(id),
+            };
+            if let Some(name) = name {
                 names.push((id, name));
             }
-        });
+        }
         (!names.is_empty()).then(|| Arc::new(names))
     }
 
@@ -1032,9 +1051,9 @@ mod tests {
         game.bump_layer_epoch();
         let (diagnostics, lines) = (format!("{:?}", game.diagnostics), trace.lines().len());
 
-        let names = game.names_as_announced(&GameEvent::Tapped { object_id: clone });
+        let names = game.names_as_announced(&GameEvent::Tapped { object_id: clone }, &EventCause::Harness);
         assert_eq!(names.as_deref(), Some(&vec![(clone, "Grizzly Bears".to_string())]));
-        assert_eq!(game.names_as_announced(&GameEvent::Tapped { object_id: bears }), None);
+        assert_eq!(game.names_as_announced(&GameEvent::Tapped { object_id: bears }, &EventCause::Harness), None);
         assert_eq!(format!("{:?}", game.diagnostics), diagnostics);
         assert!(game.layer_memo.get(clone, game.layer_epoch()).is_none(), "the walk's frame stayed in the memo");
         assert_eq!(trace.lines().len(), lines);
@@ -1055,7 +1074,7 @@ mod tests {
         let row = registered(card, Layer::Layer1Copy, timestamp, EffectModification::CopyFrom(Arc::new(values)));
         game.continuous_effects.add(row);
 
-        let names = game.names_as_announced(&GameEvent::CardDrawn { player_id: 0, card_id: card });
+        let names = game.names_as_announced(&GameEvent::CardDrawn { player_id: 0, card_id: card }, &EventCause::Harness);
         assert_eq!(names.as_deref(), Some(&vec![(card, "Grizzly Bears".to_string())]));
     }
 }

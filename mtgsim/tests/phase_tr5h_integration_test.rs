@@ -364,6 +364,7 @@ fn a_gone_sources_history_filter_reads_its_owner_off_its_last_known_information(
         game.object_ref(relic).unwrap(),
         compute_characteristics(&game, relic).unwrap(),
         0,
+        false,
         CostChoices::NONE,
         game.battlefield.get(&relic),
         None,

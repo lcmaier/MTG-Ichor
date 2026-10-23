@@ -907,7 +907,7 @@ fn an_unattach_whose_host_left_carries_the_hosts_frame() {
         .events()
         .skip(before)
         .filter_map(|e| match e {
-            GameEvent::Unattached { lki, .. } => Some(lki.as_ref().map(|lki| lki.object())),
+            GameEvent::Unattached { attachment_lki: None, former_host_lki, .. } => Some(former_host_lki.as_ref().map(|lki| lki.object())),
             _ => None,
         })
         .collect();

@@ -76,7 +76,7 @@ fn attachment_records(game: &GameState) -> Vec<GameEvent> {
 }
 
 fn unattached(attachment: ObjectRef, former_host: ObjectRef, route: UnattachRoute) -> GameEvent {
-    GameEvent::Unattached { attachment, former_host, route, lki: None }
+    GameEvent::Unattached { attachment, former_host, route, attachment_lki: None, former_host_lki: None }
 }
 
 fn existence(game: &GameState, id: ObjectId) -> ObjectRef {

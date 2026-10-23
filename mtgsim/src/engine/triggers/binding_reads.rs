@@ -208,12 +208,8 @@ impl TriggerDef {
 /// Aura spell" has no row to ask, so it is refused until rows keep them.
 fn can_tell_a_first_time_each_turn(arm: &TriggerEvent) -> bool {
     match arm {
-        TriggerEvent::CastsSpell { .. }
-        | TriggerEvent::DrawsCard { .. }
-        | TriggerEvent::GainsLife { .. }
-        | TriggerEvent::LosesLife { .. } => true,
         TriggerEvent::BecomesTarget { by, .. } => !matches!(by, TargetedBy::Spell(Some(_))),
-        _ => false,
+        _ => arm.placed_fact().is_some(),
     }
 }
 
@@ -386,7 +382,11 @@ fn object_fact_reads(f: &ObjectFact) -> TriggerBindingReads {
         | ObjectFact::WasBlocked
         | ObjectFact::Entered
         | ObjectFact::WasDealtDamage
-        | ObjectFact::WasDealtExcessDamage => {
+        | ObjectFact::WasDealtExcessDamage
+        | ObjectFact::Died
+        | ObjectFact::PutHere { .. }
+        | ObjectFact::WasCast
+        | ObjectFact::CameUnderControl => {
             TriggerBindingReads::NONE
         }
         ObjectFact::DealtDamageTo { player, .. } => player.as_ref().map_or(TriggerBindingReads::NONE, player_ref_reads),
@@ -427,6 +427,7 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         | Primitive::ExtraPhases { .. }
         | Primitive::Regenerate
         | Primitive::RemoveFromCombat
+        | Primitive::BecomeBlocked
         | Primitive::RemoveAllDamage
         | Primitive::Tap
         | Primitive::Untap
