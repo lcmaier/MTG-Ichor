@@ -227,6 +227,12 @@ pub struct ResolvingObject {
     /// the earlier ones' records from here (`EventWindow::resolution_records`),
     /// for "the damage dealt this way".
     pub began_at: crate::events::event::EventId,
+    /// The facts of its triggered ability's entry the resolution has read, in
+    /// a debug build: what the ability's def must name, since CR 603.3b's and
+    /// 603.7b's elisions compare entries on what it names (`plans/elisions.md`
+    /// §3).
+    #[cfg(debug_assertions)]
+    pub(crate) binding_reads_noted: std::cell::Cell<crate::engine::triggers::binding_reads::TriggerBindingReads>,
 }
 
 /// One CR 500.7 extra turn in the queue: who takes it, and which turn it is.
@@ -773,9 +779,10 @@ pub struct GameState {
     /// member's frame sees an earlier member leave (item 174). A move takes its own;
     /// each batch drops the rest once it has performed.
     pub(crate) lki_captures: Vec<crate::engine::triggers::LkiCapture>,
-    /// The dispatch audit's snapshots and counts, in a game that turned it on
-    /// (`enable_dispatch_audit`); `None` otherwise, which is all a dispatch
-    /// or a batch pays.
+    /// The dispatch audit's snapshots and counts, in a game that turned the
+    /// audit on (`enable_audit`), which is also what turns on every other
+    /// shortcut's audit (`engine::audit`); `None` otherwise, which is all a
+    /// dispatch or a batch pays.
     pub(crate) dispatch_audit: Option<Box<crate::engine::triggers::DispatchAudit>>,
 
     // --- The performed stream ---

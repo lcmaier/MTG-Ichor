@@ -79,6 +79,8 @@ impl GameState {
             // add to them too (CR 608.2h).
             kept_lki: std::mem::take(&mut entry.kept_lki),
             began_at: self.events.next_seq(),
+            #[cfg(debug_assertions)]
+            binding_reads_noted: std::cell::Cell::default(),
         });
         // `resolving` is a layer-walk input (`compute::base_controller`'s
         // third arm), so both writes bump.
@@ -153,7 +155,7 @@ impl GameState {
             replaced_amount: None,
             damage_prevented: None,
             trigger: entry.trigger.clone(),
-        };
+                    };
         // CR 603.2h at resolution: an instance whose action its controller has
         // already taken this turn resolves and does nothing (Nykthos Paragon's
         // fourth ruling); otherwise it acts, and that takes the action.
@@ -165,6 +167,10 @@ impl GameState {
             .map(|identity| (identity, entry.controller));
         if action_gate.is_none_or(|key| !self.history.action_taken_this_turn.contains(&key)) {
             let answer = self.resolve_effect_with_announced_targets(&entry.effect, &entry.chosen_targets, &ctx, dp)?;
+            #[cfg(debug_assertions)]
+            if let (Some(binding), Some(resolving)) = (&entry.trigger, &self.resolving) {
+                binding_reads_are_named(binding, resolving.binding_reads_noted.get(), object_id);
+            }
             // CR 603.2h asks whether the action was *taken*: a declined "may"
             // leaves the gate open (Nykthos Paragon's first and third rulings).
             if let Some(key) = action_gate
@@ -309,6 +315,26 @@ impl GameState {
 
         Ok(())
     }
+}
+
+/// A triggered ability's resolution read only facts of its entry its def
+/// names. CR 603.3b's and 603.7b's elisions treat two entries that agree on
+/// what the def names as one game (`plans/elisions.md` §3), so a fact read
+/// and not named is a premise of theirs broken; checked in debug builds, where
+/// every test and debug game asks it.
+#[cfg(debug_assertions)]
+fn binding_reads_are_named(
+    binding: &crate::types::triggers::TriggerBinding,
+    read: crate::engine::triggers::binding_reads::TriggerBindingReads,
+    resolving: crate::types::ids::ObjectId,
+) {
+    let named = binding.def.trigger_binding_reads();
+    debug_assert!(
+        named.contains(read),
+        "{} resolved reading facts of its entry its def does not name (read {read:?}, named {named:?}): \
+         `trigger_binding_reads` is missing a fact, and CR 603.3b's elision may order two entries that differ in it",
+        resolving,
+    );
 }
 
 #[cfg(test)]

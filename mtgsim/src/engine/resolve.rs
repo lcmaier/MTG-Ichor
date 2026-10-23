@@ -105,7 +105,7 @@ impl ResolutionContext {
             replaced_amount: None,
             damage_prevented: None,
             trigger: None,
-        }
+                    }
     }
 
     /// A mana ability's resolution, activated or triggered (CR 605.3b, 605.4a):
@@ -1925,15 +1925,12 @@ impl GameState {
                         ResolvedTarget::Player(_) => None,
                     })
                     .collect();
-                // CR 102.2 — one candidate is not a choice, none is CR 101.3's
-                // impossible instruction and the whole effect does nothing.
-                let donor = match candidates.len() {
-                    0 => return Ok(()),
-                    1 => candidates[0],
-                    _ => crate::ui::ask::ask_choose_copy_source(
-                        dp, self, ctx.controller, ctx.source, &candidates,
-                    ),
-                };
+                // None is CR 101.3's impossible instruction, and the whole
+                // effect does nothing.
+                if candidates.is_empty() {
+                    return Ok(());
+                }
+                let donor = crate::ui::ask::ask_choose_copy_source(dp, self, ctx.controller, ctx.source, &candidates);
                 (donor, recipients)
             }
             CopyRoles::ThisObjectCopiesRecipient => {
@@ -2160,19 +2157,11 @@ impl GameState {
         );
 
         let candidates = crate::oracle::legality::damage_sources(self, None);
-        // CR 102.2 — one candidate is not a choice; none is CR 101.3's
-        // impossible instruction and the effect does nothing.
-        let chosen = match candidates.len() {
-            0 => return Ok(None),
-            1 => candidates[0],
-            _ => crate::ui::ask::ask_choose_damage_source(
-                dp,
-                self,
-                ctx.controller,
-                ctx.source,
-                &candidates,
-            ),
-        };
+        // None is CR 101.3's impossible instruction, and the effect does nothing.
+        if candidates.is_empty() {
+            return Ok(None);
+        }
+        let chosen = crate::ui::ask::ask_choose_damage_source(dp, self, ctx.controller, ctx.source, &candidates);
 
         let mut filled = def.clone();
         if let EventPattern::DealDamage { source: Some(pattern), .. } = &mut filled.pattern {
@@ -2502,6 +2491,7 @@ impl GameState {
             // its creator's (107.3n). A rider resolves no stack object, and has
             // none.
             AmountExpr::X => announced_x
+                .inspect(|_| self.note_binding_read(_ctx, TriggerBindingReads::X))
                 .or_else(|| self.resolving_for(_ctx).and_then(|resolving| resolving.x_value))
                 .ok_or_else(|| format!("{} resolves with no X chosen for AmountExpr::X to read", _ctx.source)),
             // The permanents a selector names, as they are now (CR 608.2h),
@@ -2548,6 +2538,7 @@ impl GameState {
                 let binding = _ctx.trigger.as_ref().ok_or_else(|| {
                     "TriggeringAmount has no meaning outside a triggered ability's resolution".to_string()
                 })?;
+                self.note_binding_read(_ctx, TriggerBindingReads::AMOUNT);
                 self.bound_amount(binding).ok_or_else(|| {
                     format!("{:?} carries no amount for TriggeringAmount to read", binding.event())
                 })
@@ -2559,6 +2550,7 @@ impl GameState {
                 let binding = _ctx.trigger.as_ref().ok_or_else(|| {
                     format!("{:?} has no meaning outside a triggered ability's resolution", expr)
                 })?;
+                self.note_binding_read(_ctx, TriggerBindingReads::CHARACTERISTICS | TriggerBindingReads::event_role(*role));
                 let chars = self.bound_characteristics(binding, *role).ok_or_else(|| {
                     format!(
                         "{:?}: the bound object has left since the event and no last known information answers for it, which is a missed capture",
@@ -2947,6 +2939,18 @@ impl GameState {
         put
     }
 
+    /// Note that the triggered ability resolving for `ctx` read `fact` of its
+    /// entry, which its def must name (`stack::binding_reads_are_named`); a
+    /// debug build's check, so a release build notes nothing.
+    pub(crate) fn note_binding_read(&self, ctx: &ResolutionContext, fact: TriggerBindingReads) {
+        #[cfg(debug_assertions)]
+        if let Some(resolving) = self.resolving_for(ctx) {
+            resolving.binding_reads_noted.set(resolving.binding_reads_noted.get() | fact);
+        }
+        #[cfg(not(debug_assertions))]
+        let _ = (ctx, fact);
+    }
+
     /// The stack object resolving for `ctx`; a CR 615.5 rider resolves none.
     fn resolving_for(&self, ctx: &ResolutionContext) -> Option<&crate::state::game_state::ResolvingObject> {
         self.resolving.as_ref().filter(|resolving| resolving.id == ctx.source)
@@ -2957,6 +2961,7 @@ impl GameState {
     /// while it is still where the effect found it. `None` is the object
     /// being gone, which the primitive meets as an empty target slice.
     pub(crate) fn this_object(&self, ctx: &ResolutionContext) -> Option<ObjectId> {
+        self.note_binding_read(ctx, TriggerBindingReads::SOURCE);
         match ctx.ability_source {
             // Or, for an Aura's trigger on its enchanted permanent leaving, the
             // card the Aura became in its owner's graveyard (CR 400.7f).
@@ -3104,7 +3109,7 @@ mod tests {
             replaced_amount: None,
             damage_prevented: None,
             trigger: None,
-        }
+                    }
     }
 
     #[test]

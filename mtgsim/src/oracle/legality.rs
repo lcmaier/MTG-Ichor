@@ -684,6 +684,8 @@ mod tests {
             trigger: None,
             kept_lki: Vec::new(),
             began_at: game.events.next_seq(),
+            #[cfg(debug_assertions)]
+            binding_reads_noted: std::cell::Cell::default(),
         });
 
         assert_eq!(

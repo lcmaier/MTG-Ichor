@@ -24,7 +24,7 @@ use crate::types::triggers::{
 /// compares, and the event roles of its event it names. Built like
 /// `Channels`: a bit per fact, then a bit per [`EventRole`] it names, then a
 /// bit per event role it needs exactly one object of.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TriggerBindingReads(u32);
 
 impl TriggerBindingReads {
