@@ -9913,3 +9913,33 @@ row 57 is item 297.
      **Sized:** ~5–10 lines and a fixture: route the check through
      `triggering_events_in`, or drop the field.
      **Slotted:** A6e, the cleanup of item 6's close audit.
+
+### Found by the item 6 audit, pass 5 — the docs audit (2026-10-22)
+
+316. **The cost gather sweeps the battlefield alone — it has no zone leg.**
+     `cost_modifications_for` (`engine/cost_determination/gather.rs`) reads
+     two sources: the battlefield's cost-effect sources and the spell's own
+     abilities (CR 113.6d). `register_static_effects` files a cost ability on
+     `cost_modification_ability_sources` only for `Zone::Battlefield`, so a
+     cost ability that functions from another zone is invisible to it. CR
+     113.6's predicate has answered "which abilities function from where"
+     since LK (`engine/zone_function.rs`), and `cost-architecture.md` §3.1
+     planned to add the source once it existed. The replacement gather's leg
+     is RF's, built, and the restriction sweep's is item 146, slotted at
+     RS-2; this one had no item. The first printed customer is a commander's
+     eminence: The Ur-Dragon's "As long as The Ur-Dragon is in the command
+     zone or on the battlefield, other Dragon spells you cast cost {1} less
+     to cast" (`o:eminence o:"cost" o:"less"`, 2 cards, Scryfall 2026-10-22);
+     an emblem's "spells you cast cost {1} less" is the other family.
+     **Reachability (2026-10-22):** unreachable — no registered card prints a
+     cost ability that functions anywhere but the battlefield and its own
+     spell.
+     **Sized:** RF's shape, item 146's twin: a zone set filled at
+     `register_static_effects`' zone doors and retired at
+     `cleanup_zone_state`, a leg in `cost_modifications_for` after the
+     battlefield sweep reading the effective list through `functions_in`,
+     and the fast-path gate's printed leg widened to it; ~60–80 lines plus a
+     command-zone fixture and its test.
+     **Slotted:** B2, the Commander format and designation, whose commanders
+     put the command zone on the board (`roadmap-v2.md` §3a, "From triggers
+     to Phase 8").
