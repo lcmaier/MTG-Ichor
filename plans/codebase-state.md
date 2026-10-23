@@ -5136,32 +5136,12 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    Full entry: `plans/archive/codebase-state-closed.md`, "Before Triggered
    abilities (CR 603)" item 3.
 
-6. **CR 603.6c's *phased-in* qualifier has no implementation, and the matcher
-   will need it.** The rule names CR 800.4a's departure in as many words —
-   "leaves-the-battlefield abilities trigger when a permanent moves from the
-   battlefield to another zone, **or when a phased-in permanent leaves the game
-   because its owner leaves the game**" — so a `GameEvent::LeftTheGame` from
-   the battlefield fires them, and RE-7 puts the CR 603.10a frame on the event
-   for the matcher to read. What it cannot express is the qualifier: a permanent
-   that is **phased out** does not trigger, and phasing (CR 702.26) is not built
-   (this file, "Phasing (CR 702.26) — sized 2026-08-26, not started"). Every
-   permanent is phased in today, so the frame is unconditional and correct;
-   the day phasing lands it needs a condition, and the day the matcher lands it
-   needs to know that.
-
-   **Reachability (2026-10-23):** unreachable — nothing can phase a permanent
-   out, and the matcher reads `LeftTheGame` unconditionally, which is exact
-   while every permanent is phased in.
-
-   **Sized:** one predicate at the frame's `if` in `owned_objects_leave`,
-   ~5 lines, inside whichever of the two arrives second.
-
-   **Phase (2026-09-18):** not this phase's — the matcher (TR-1) reads `LeftTheGame` unconditionally and the qualifier lands with phasing, which arrives second; `triggers-architecture.md` §3.3's `LeftTheGame` row and §16.
-   **Slotted:** A6e's cleanup builds it in `history-and-frame-records` (the
-   card-homed triage, 2026-10-23): CR 603.6c's phased-in test at the frame's
-   `if` in `owned_objects_leave`, ~5 lines, with a fixture that stages
-   `PermanentState::phased_out` on a permanent whose owner leaves the game;
-   phasing's own build reads the same field.
+6. **~~CR 603.6c's *phased-in* qualifier has no implementation, and the matcher will need it.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+   `move_carries_frame` frames no phased-out permanent (CR 702.26b), and the
+   matcher's `LeftTheGame` arm reads only a framed departure, so a
+   phased-out permanent leaving with its owner triggers nothing.
+   **Reachability (2026-10-23):** closed — PR #284.
+   Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 6".
 
 8. **~~"Whenever you create one or more tokens" has one key.~~ — ✅ CLOSED
    2026-10-09 (PR #238).** — archived.
@@ -8867,8 +8847,9 @@ ones on the last-known-information and zone-change surface are items 176 and
      object a non-filter `ObjectSet` names) and T16 (the "as long as" peel).
      #251 fixed T10, T11 and T12's first site, each shown failing first.
      **Widened by TR-5c's model pass (2026-10-18):** the inventory §3.7's
-     T17's log half, T19 (the mana part of a cost list), T20 (which role
-     holds several objects) and T21's three small ones; #261 fixed T17
+     T19 (the mana part of a cost list), T20 (which role holds several
+     objects) and T21's three small ones, and T17's log half, which PR
+     #284 fixed with item 297; #261 fixed T17
      and T18, each shown failing first, and merged eight others.
 
 ### Found by items 176 and 177's design (2026-10-10)
@@ -9277,52 +9258,43 @@ with no batch between them; written at the item 6 audit's pass 5.
 
 Number 277 was withdrawn in #260 and is not reused.
 
-278. **Effects that make blocks write no record.** Only the declaration writes
-     a block (`engine/combat/steps.rs`). CR 509.3a's "becomes a blocker as the
-     result of an effect", 509.3c's "becomes blocked by an effect" and 509.4's
-     creature put onto the battlefield blocking each trigger, or do not, by
-     rules the block arm reads off its record: "target unblocked attacking
-     creature becomes blocked" (Curtain of Light, Dazzling Beauty, Trap
-     Runner) and Aetherplasm's blocking entry, 4 cards, none built
-     (`triggers-architecture.md` §12, TR-5c's re-read). Each writes its own
-     record when it is built, which the arm's occurrences read, and the
-     combat's rows record it.
+278. **A creature an effect makes a blocker, or puts onto the battlefield
+     blocking, writes no record.** CR 509.3a's "becomes a blocker as the
+     result of an effect" and 509.4's creature put onto the battlefield
+     blocking (Aetherplasm) each trigger, or do not, by rules the block arm
+     reads off its record. CR 509.3c's "becomes blocked by an effect" is
+     built (`Primitive::BecomeBlocked`, `GameEvent::BecameBlocked`, and the
+     debug check that a performer's new block has its record; PR #284).
+     What is left needs the arm first: "whenever a creature blocks a
+     creature" (CR 509.3b, which an entered blocker never triggers) and
+     "becomes blocked by a creature" (509.3d, which it does) are one shape,
+     `BlockOccurrence::Block` over two filters, so the arm cannot say which
+     side it watches.
      **Reachability (2026-10-23):** unreachable — no registered card makes a
-     block by an effect.
-     **Sized:** per effect, its performer's record and the arm's reading of
-     it, ~40 lines of code and ~60 of tests; ATOM-509.4-001 with the first.
-     **Slotted:** A6e's cleanup builds it in `history-and-frame-records` (the
-     card-homed triage, 2026-10-23): one effect that makes a block, its
-     performer's record and the block arm reading it (CR 509.3c), with a
-     fixture "target unblocked attacking creature becomes blocked", and
-     ATOM-509.4-001's blocking entry beside it while the band holds. Its
-     check, in debug builds: every blocked attacker and every blocker the
-     combat holds has a block record this combat, so an effect that blocks
-     with no record fails a test.
+     creature a blocker or puts one onto the battlefield blocking.
+     **Sized:** the arm's watched side, ~20 lines; the entry's blocking (its
+     controller's choice of attacker, CR 509.4a's refusal) and its record,
+     ~60; ~80 of tests, ATOM-509.4-001 among them.
+     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters`
+     with the combat builds, the arm's watched side decided first (moved
+     there on 2026-10-23 by PR #284, which built CR 509.3c's half).
 
-279. **The "this turn" object facts with no writer yet.** `ObjectFilter::ThisTurn`
-     and `ThisCombat` ask `ObjectFact`'s seven facts, the ones whose writers
-     exist: `Attacked`, `Blocked`, `WasBlocked`, `Entered`, and since TR-5h
-     the damage facts. TR-5c's census found the rest,
-     each a fact and its writer: "was dealt damage" and "dealt damage to" (45
-     cards, rows off `DamageDealt`); "died", "discarded", "milled", "put into
-     a graveyard" (52, rows off the zone change, keyed by the object the move
-     made, CR 400.7); "was cast" (11, the permanent's `cast` facts); "crewed"
-     or "saddled" (13, keywords not built); "came under your control" and
-     "turned face up" (1 each).
+279. **The "this turn" object facts whose mechanics are not built.**
+     `ObjectFilter::ThisTurn` and `ThisCombat` ask `ObjectFact`'s facts. TR-5c's
+     census found each with its writer; built are the combat's, "entered",
+     the damage facts (PR #262, TR-5h), and since PR #284 "died" (CR
+     700.4) and the zone-change facts ("milled", "discarded", "put into a
+     graveyard", `ObjectFact::PutHere`), each read off the history log's
+     rows by the object the move made (CR 400.7), "was cast" (the
+     permanent's CR 400.7d facts) and "came under your control" (its
+     control's start), with the debug check that each zone change writes its
+     row. Left: "crewed" and "saddled" (13 cards), keywords not built, and
+     "turned face up" (1).
      **Reachability (2026-10-23):** unreachable — no registered card asks one
      of these facts.
-     **Sized:** the damage rows ~40 lines of code and ~60 of tests; the
-     zone-change rows ~45 and ~70; each other fact ~15 and ~30 with its
-     writer.
-     **Slotted:** A6e's cleanup builds it in `history-and-frame-records` (the
-     card-homed triage, 2026-10-23): the zone-change facts ("died",
-     "discarded", "milled", "put into a graveyard", keyed by the object the
-     move made, CR 400.7), "was cast" and "came under your control" (TR-4d's
-     `ControlChanged`), each a `RowFact` reading or variant with a fixture
-     filter. Its check, in debug builds: each zone change a batch performs
-     writes its row. "Crewed" and "saddled" come with crew and saddle, whose
-     tapping cost is `remaining-costs`'s, and "turned face up" with
+     **Sized:** each ~15 lines and ~30 of tests with its writer.
+     **Slotted:** "crewed" and "saddled" with crew and saddle, whose tapping
+     cost is `remaining-costs`'s, and "turned face up" with
      `face-down-and-morph`.
      **Shaped at TR-5c's review (the owner, 2026-10-18):** for TR-5d's design,
      one history of what each object did this round, the combat's rows
@@ -9343,8 +9315,8 @@ Number 277 was withdrawn in #260 and is not reused.
      **The damage half built (2026-10-19, PR #262, TR-5h):** the history log
      is that one history, kept for the whole game, its gate keyed by kind of
      row; `ObjectFact::WasDealtDamage` and `DealtDamageTo { player, combat }`
-     read its damage rows. The zone-change facts and the rest stay slotted as
-     above, each a `RowFact` reading or variant with its first card.
+     read its damage rows. The zone-change facts, "was cast" and "came
+     under your control" built at PR #284 (above).
 
 280. **~~No amount reads a player's turn summary.~~ — ✅ CLOSED 2026-10-19 (PR #262, TR-5h).** — archived.
      `AmountExpr::History(span, count)` reads a `HistoryCount` as a number,
@@ -9433,30 +9405,14 @@ Trace page: `plans/traces/tr-5h-every-history-read-is-a-scan-of-one-log.html`
 scan of the history log, and the place in a turn that reads a tally since
 #265; written at the item 6 audit's pass 5.
 
-286. **A history row keeps a frame, not the store's facts beside it.** A
-     filter leaf no frame answers reads the store by the row's id, which
-     answers for the object now: whether it was a token (a token's row reads
-     nothing once CR 704.5d has removed it), its counters then, the owner of
-     an object the store has lost. "For each nontoken creature that died this
-     turn" (Caller of the Claw, Gorma, the Gullet, Rise of the Dread Marn,
-     Tobias, Doomed Conqueror, Vile Redeemer; `o:"nontoken creature" o:"this
-     turn" (o:died OR o:"put into")`, 6 cards, 2026-10-19) answers right
-     today only because `Not` keeps a refusal; "tokens that died this turn"
-     counts none. `Lki` carries the owner and the counters but not
-     token-ness either.
-     **Reachability (2026-10-23):** unreachable — no registered card narrows a
-     history count by a fact the store holds.
-     **Sized:** a departure row keeps its record's last known information
-     beside its frame, `Lki` gains whether it was a token, and the filter's
-     `Token` leaf reads it; ~40 lines and ~50 of tests, with a held-memory
-     reading, since the information is larger than a frame.
-     **Slotted:** A6e's cleanup builds it in `history-and-frame-records` (the
-     card-homed triage, 2026-10-23): a departure row keeps its record's last
-     known information beside its frame, `Lki` gains whether it was a token,
-     and the `Token` leaf reads it, with fixtures "for each nontoken creature
-     that died this turn" and its token twin, and a held-memory reading. Its
-     check, in debug builds: a history read that asks the store about an
-     object its row says departed fails.
+286. **~~A history row keeps a frame, not the store's facts beside it.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+     `Lki` keeps whether its object was a token; a row about an object that
+     had left by its event keeps its record's last known information, which
+     a history count hands its filter; the `Token` leaf reads it. A debug
+     check fails a filter leaf that asks the store about an object whose
+     last known information its asker holds.
+     **Reachability (2026-10-23):** closed — PR #284.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 286".
 
 287. **The scenario names its casts and counts the rest.** A save writes each
      cast by its card's name (`setup-architecture.md` §5.1), so a count
@@ -9464,7 +9420,10 @@ scan of the history log, and the place in a turn that reads a tally since
      and damage are written as counts, and a card that narrows one of those
      on a reloaded board asks rows with no frame, which is loud in a debug
      build. No registered card narrows one; the round-trip test would meet it
-     first.
+     first. Entries are not written at all: "arrived this turn" sets the
+     permanent's entry turn, which `ObjectFact::Entered` reads, and no entry
+     row, so a count of the turn's entries on a reloaded board would miss it
+     (item 306's decision, 2026-10-23).
      **Reachability (2026-10-22):** unreachable — no registered card narrows
      a count of draws, deaths, attacks or damage.
      **Sized:** a word per fact naming its objects, as `cast <card>` does,
@@ -9680,32 +9639,15 @@ scan of the history log, and the place in a turn that reads a tally since
 
 ### Found by the item 6 audit, pass 1 — the close-out (2026-10-22)
 
-297. **The log names a departed copy by its card where the line above names
-     it as it left.** A record that carries last known information names its
-     object through it (`as_it_left`, `ui/display.rs`), so a Clone that left
-     as Blood Artist reads "Blood Artist (Clone, #61)". A record that carries
-     none, `Unattached`, `AbilityActivated`, `AbilityResolved` and
-     `ManaAdded` among them, names it through `name_with_id`, which falls
-     back to the card's printed name once the object has left and no name was
-     kept: "Clone (#61)" on the next line. Two answers to which frame names an
-     object in the log, the display's and the trigger binding's
-     (`record_frame`, `triggers/binding.rs`); pass 3's row 57 in the audit's
-     discovery, which found it.
-     **Reachability (2026-10-22):** reachable — wrong today, and the dev
-     GUI's log shows it. `fuzz_games --pool stress --require "Clone,Rancor,Holy
-     Strength,Bonesplitter,Angelic Destiny" --copies 3 --games 100 --seed 57
-     --dump-events <file>`, game 14: "621: ZoneChange: Blood Artist (Clone,
-     #61) … Battlefield -> Exile", then "622: Unattached: Angelic Destiny
-     (#30) from Clone (#61) (HostLeft)". Discovery also found
-     `AbilityActivated` and `AbilityResolved` lines for a Clone copying Samite
-     Censer-Bearer, and a `ManaAdded` line for one copying Krark-Clan
-     Ironworks under March of the Machines.
-     **Sized:** ~25 lines: one `GameEvent::frame_of(id)` that `record_frame`
-     and `as_it_left` both read, and the log fixtures it moves
-     (`event_log_test`, the trace pages).
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `history-and-frame-records`, with the duplicate rows it merges
-     (`plans/handoffs/item-6-audit.md`, pass 3).
+297. **~~The log names a departed copy by its card where the line above names it as it left.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+     `GameEvent::frame_of` is the frame a record keeps for an object it
+     names, which `record_frame` and the log both read, so every name on a
+     line with a frame names a departed copy as it left; an ability's
+     departed source is named at announcement by the frame its ability
+     keeps, and a cause's object as the record's others are. Item 247's T17
+     log half went with it.
+     **Reachability (2026-10-23):** closed — PR #284.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 297".
 
 298. **A cast that rewinds puts the card in its owner's hand, wherever it was
      cast from.** CR 732.1: "If the action was casting a spell, the spell
@@ -9826,25 +9768,11 @@ row 57 is item 297.
      (`plans/handoffs/item-6-audit.md`, pass 4) prices the zone leg's filter
      on it (the cleanup's plan, decision 3).
 
-303. **Which facts carry a place in their player's turn is listed four
-     times, and one way the lists can disagree is silent.** The kinds whose
-     arms can say "the first time each turn" (`triggers-architecture.md`
-     §3.5): `can_tell_a_first_time_each_turn`
-     (`engine/triggers/binding_reads.rs`, the registry's gate, by arm),
-     `HistoryUpdate::placed_among` (`engine/triggers/history.rs`, by record),
-     `PLACED_FACTS` (`state/history.rs`, the turn's tally) and the ordinal
-     `within_once_per_turn_limit` reads (`engine/triggers/dispatch.rs`). An
-     arm the gate refuses is refused loudly. An arm the gate admits that
-     `placed_among` gives no place never fires, with no error: the inventory's
-     §3.7 keep covers only the loud direction. Row 7.
-     **Reachability (2026-10-22):** unreachable — the gate's four placed
-     arms are exactly `placed_among`'s and `PLACED_FACTS`' four kinds (a
-     cast, a draw, a life gain, a life loss); its targeting arm is answered
-     by the turn's targeting rows instead.
-     **Sized:** ~20 lines: one `TriggerEvent` to `Option<TurnFact>` map the
-     others read, or a test that the four lists agree.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `history-and-frame-records`.
+303. **~~Which facts carry a place in their player's turn is listed four times, and one way the lists can disagree is silent.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+     `TriggerEvent::placed_fact` is the arm's side, which the registry's
+     gate reads; a test checks it against `placed_among` and `PLACED_FACTS`.
+     **Reachability (2026-10-23):** closed — PR #284.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 303".
 
 304. **`event_roles` declares object roles some of its arms' events never
      carry.** `TriggerEvent::event_roles` (`types/triggers.rs`) is what the
@@ -9865,38 +9793,21 @@ row 57 is item 297.
      **Slotted:** A6e, the cleanup of item 6's close audit, in
      `trigger-matcher-merges`.
 
-305. **An unattach keeps one end's frame when both ends leave in one
-     event.** CR 603.10c looks back in time for an unattach.
-     `GameEvent::Unattached` carries one `lki: Option<Lki>` (`events/event.rs`),
-     which `announce_unattached_by_leaving` (`engine/actions.rs`) fills with
-     the end that left, and which `record_frame` (`engine/triggers/binding.rs`)
-     and `subject_read_looking_back` (`engine/triggers/dispatch.rs`) read. When
-     the attachment and its host leave together, an arm reading the other
-     end reads it as it is now. Item 290's close says each end carries its
-     frame; one does. Row 26.
-     **Reachability (2026-10-22):** reachable — not wrong: Grafted Wargear and
-     its host leave together when a player leaves a four-seat game (CR
-     800.4a), but the Wargear reads no `Attachment` role (`--players 4
-     --require "Grafted Wargear" --seed 2601`, game 3).
-     **Sized:** ~20 lines and a `GameEvent` field: a frame per departed end.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `history-and-frame-records`.
+305. **~~An unattach keeps one end's frame when both ends leave in one event.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+     `GameEvent::Unattached` carries `attachment_lki` and `former_host_lki`:
+     the leaving end's departure frame, and the other end's when the same
+     event takes it, off the frame its batch took (`frame_taken_for`).
+     **Reachability (2026-10-23):** closed — PR #284.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 305".
 
-306. **Whether an object entered this turn is stored twice, and the two
-     disagree both ways.** `PermanentState::entered_battlefield_turn`
-     (`state/battlefield.rs`), which `ObjectFact::Entered` reads through
-     `answer_or_refuse` (`engine/object_filter.rs`), and the history log's
-     entry rows, which `draft_history_rows` (`engine/triggers/history.rs`)
-     writes. `test_support.rs` resets the field after the row is written; a
-     scenario's "arrived this turn" sets the field with no row. Row 34.
-     **Reachability (2026-10-22):** reachable — not wrong: a scenario
-     permanent loaded "arrived this turn" (Grizzly Bears) disagrees, but
-     nothing reads the entry rows and no registered card uses
-     `ObjectFact::Entered`.
-     **Sized:** ~20 lines: one store, chosen before anything reads the entry
-     rows.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `history-and-frame-records`.
+306. **~~Whether an object entered this turn is stored twice, and the two disagree both ways.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+     The permanent's own entry turn is the store, carried by its last known
+     information, which `ObjectFact::Entered` reads: CR 614.12's look-ahead
+     and the entering batch ask it before the window that writes the row
+     closes. The entry rows are the turn's events, for a count of entries,
+     and a debug check holds each to its permanent.
+     **Reachability (2026-10-23):** closed — PR #284.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 306".
 
 307. **Entering attacking is asked of the event's controller and performed
      for the effective one.** CR 506.3b: a creature put onto the battlefield
@@ -9943,81 +9854,43 @@ row 57 is item 297.
      **Slotted:** A6e, the cleanup of item 6's close audit, in
      `trigger-matcher-merges`.
 
-310. **Two lists of the objects a record names, kept in step by nothing.**
-     `GameEvent::for_each_object_named` (`events/event.rs`), which the trace's
-     `names_as_announced` (`state/trace.rs`) reads to keep each name as it was
-     announced, and `format_event` (`ui/display.rs`), which prints them, each
-     match `GameEvent`'s variants. They cannot merge, since `format_event`
-     needs each object's role, so a variant one names and the other does not
-     loses a name or prints one nobody kept. Row 56.
-     **Reachability (2026-10-22):** unreachable — the two agree today.
-     **Sized:** ~50 lines: a test that gives every object each variant
-     carries a sentinel name and checks that both lists find it.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `history-and-frame-records`.
+310. **~~Two lists of the objects a record names, kept in step by nothing.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+     A sentinel test builds one record of every `GameEvent` variant and
+     checks both lists name the same objects, a new variant failing it
+     through an exhaustive match.
+     **Reachability (2026-10-23):** closed — PR #284.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 310".
 
-311. **A `LeftTheGame` binding carries no object.** `single_object`
-     (`engine/triggers/dispatch.rs`), `draft_history_rows`
-     (`engine/triggers/history.rs`) and `read_at_trigger`
-     (`engine/triggers/binding.rs`) each answer which existence a move that
-     makes no new object names (`LeftTheGame`, `SameZoneMove`). For
-     `LeftTheGame` the object's store entry is gone before the event is
-     announced, so the binding holds none. Row 58.
-     **Reachability (2026-10-22):** reachable — not wrong: Banishing Light's
-     "until" and Ray of Command's delayed arm match it in four-seat play, but
-     neither reads the object (`--players 4 --require "Banishing Light"
-     --seed 58`, game 16).
-     **Sized:** ~8 lines and a ~60-line four-seat test, failing first.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `history-and-frame-records`.
+311. **~~A `LeftTheGame` binding carries no object.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+     `single_object` names a framed `LeftTheGame`'s existence off its frame,
+     so "its power" reads a creature that left the game with its owner.
+     **Reachability (2026-10-23):** closed — PR #284.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 311".
 
-312. **A card exiled from a hidden zone and returned to the battlefield gets
-     no frame.** `capture_lki`, `objects_lki_is_kept_for` and `hand_over_lki`
-     (`engine/triggers/dispatch.rs`) decide which movers a keeper reads;
-     `perform_zone_change` (`engine/actions.rs`) decides which the batch
-     frames. A card in exile that came from a hidden zone is not framed on
-     its way to the battlefield, and is framed on its way to the graveyard.
-     Row 60.
-     **Reachability (2026-10-22):** unreachable — Flickerwisp and Banishing
-     Light return what they exiled from the battlefield, which no keeper
-     reads.
-     **Sized:** ~5 lines and a ~40-line test; the predicate then folds into
-     the one rule for which moves carry a frame (the work-list's row 61, ~25
-     lines with it).
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `history-and-frame-records`.
+312. **~~A card exiled from a hidden zone and returned to the battlefield gets no frame.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+     `move_carries_frame` is the one rule for which moves carry a frame, and
+     an entry asks the keepers as a zone change does, so a card put onto the
+     battlefield from exile leaves its frame with a trigger that reads it.
+     Rows 61, 62 and 42 merged with it.
+     **Reachability (2026-10-23):** closed — PR #284.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 312".
 
-313. **A sacrificed source is untapped on its activation record and tapped
-     on its departure frame.** For a `{T}, sacrifice` ability,
-     `source_before_paying` and `announce_activation`
-     (`engine/put_on_stack.rs`) and `activate_mana_ability`
-     (`engine/mana.rs`) record the source as it was before its costs, and
-     `capture_lki` and `hand_over_lki` (`engine/triggers/dispatch.rs`) frame
-     it as it left, tapped. Which is CR 113.7a's last known information for
-     the source is a reading of CR 602.2b and 605.3a against it, first. Row 63.
-     **Reachability (2026-10-22):** reachable — not wrong: Mind Stone and Dark
-     Sphere produce it (`--require "Mind Stone,Dark Sphere" --seed 63`), and
-     nothing a registered card has reads `was_tapped` off the record.
-     **Sized:** ~30 lines and a ~40-line test, after the reading.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `history-and-frame-records`.
+313. **~~A sacrificed source is untapped on its activation record and tapped on its departure frame.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+     The reading: CR 601.2h pays the costs in an order, and a {T} only while
+     the permanent is there, so CR 113.7a's last known information is the
+     source tapped. `pay_costs` takes the source's frame right before the
+     first cost that can move it (`PaidCosts`), which the activation and the
+     mana carry.
+     **Reachability (2026-10-23):** closed — PR #284.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 313".
 
-314. **"The first time each turn" is answered two ways, and a filtered arm
-     refuses a later match.** `within_once_per_turn_limit`
-     (`engine/triggers/dispatch.rs`) reads the record's ordinal, its place
-     among its player's facts of that kind this turn (`placed_among` and
-     `place_in_turn`, `engine/triggers/history.rs`; `DrawOrdinals::matches`,
-     `types/zones.rs`), where `can_tell_a_first_time_each_turn`
-     (`engine/triggers/binding_reads.rs`) admits the arm. On a filtered
-     `CastsSpell` arm, an instant cast and then a creature, the ordinal counts
-     the instant and refuses the creature. Whether "the first time" counts
-     the arm's matches or the kind's is a rules reading against
-     `triggers-architecture.md` §3.5's "first of its kind", first. Row 65.
-     **Reachability (2026-10-22):** unreachable — Vengeful Warchief's arm is
-     unfiltered.
-     **Sized:** ~40–80 lines and fixtures, after the reading.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `history-and-frame-records`.
+314. **~~"The first time each turn" is answered two ways, and a filtered arm refuses a later match.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
+     The reading: the printed cards count the kind they name over the whole
+     turn (Kalamax, the Stormsire's and Plan for All Outcomes' rulings). A
+     filtered cast arm's first time is the first of the caster's spells this
+     turn its filter admits, read off the turn's cast rows.
+     **Reachability (2026-10-23):** closed — PR #284.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 314".
 
 315. **`AbilityTriggers`' "caused by" checks only the record's kind.**
      `is_caused_by` (`engine/triggers/dispatch.rs`) answers "the event that

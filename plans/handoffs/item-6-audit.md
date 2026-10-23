@@ -124,8 +124,17 @@ pass re-reads what it touches: a number here is a starting point.
 - A6e's cleanup, session 6, opened on `audit/item-6-cleanup-plan` off
   #282's merge. Its plan is pass 3's "The cleanup's plan": 60 items and 40
   merge rows in eight themed PRs, each item's **Slotted:** line naming its
-  PR. The first PR, `history-and-frame-records`, is built on the same
-  branch once the plan is reviewed.
+  PR; it merged as #283, with the four decisions as recommended. The first
+  PR, `history-and-frame-records`, ran as #284 on
+  `audit/history-and-frame-records` off #283's merge (§9). Done: items 286,
+  297, 303, 305, 306, 310, 311, 312, 313 and 314 and "Before Triggered
+  abilities" 6 closed, items 278 and 279 built and narrowed, the 12 merge
+  rows, item 247's T17 log half, and `--pool fixtures` in the checked
+  sitting. Items 313 and 314's readings were not judgment calls: the CR's
+  cost order and the printed cards' rulings decide them. Left to another
+  PR: CR 509.4's blocking entry, item 278's remainder, which needs the block
+  arm to say which side it watches, re-slotted to
+  `layers-combat-and-counters`. The next PR is `resolution-context-rider`.
 
 ## 1. Why this audit is bigger than the last
 
@@ -1930,7 +1939,7 @@ changed.
 | Discovery (session 1: Workflows A, B and C, pass 2's script) | #271 | the work-lists under passes 1, 2, 3 and 5 |
 | 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
 | 2. Eviction (1) | #273 | one PR: the whole sections and §4.9's `loop-detection` input moved, the 22 amendments collapsed into the text they overruled (−239 lines), 8 outside citations re-pointed; `triggers-architecture.md` 4,736 → 3,853, the archive 5,618 → 7,067 |
-| 3. Hygiene and CI (1–2), then A6e's cleanup (8) | #274, #283 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup, #283 (draft): the plan, 60 items and 40 merge rows in eight themed PRs, each item's **Slotted:** line naming its PR; `history-and-frame-records` is built on the same branch once the plan is reviewed |
+| 3. Hygiene and CI (1–2), then A6e's cleanup (8) | #274, #283, #284 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup, #283: the plan, 60 items and 40 merge rows in eight themed PRs, each item's **Slotted:** line naming its PR. Its first PR, `history-and-frame-records`, #284: 11 items closed, 278 and 279 built and narrowed (278's CR 509.4 entry to `layers-combat-and-counters`), the 12 merge rows, `--pool fixtures` |
 | The card-homed triage (1, then its builds in the cleanup) | #280 | one PR: the 51 items dispositioned in their `**Slotted:**` lines with verdicts re-dated, 31 builds for A6e's cleanup with their fixtures and six consistency checks, 14 to rows (`route-review`, `ironworks-loop`, `mana-ability-costs`, `chosen-color-plus-could-produce` and `any-color-plus-painlands-plus-signets`, `permission-design`, `remaining-costs`), 5 kept with their cards, item 109 closed, item 273 to `ironworks-loop`; the fixture pool priced for the owner |
 | 4. Readiness (2) | | |
 | 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to `route-review`. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md` §7. Done |
