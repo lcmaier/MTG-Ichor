@@ -1021,34 +1021,33 @@ impl GameState {
     ///
     /// **And every other mover a keeper reads, from whatever zone** (CR
     /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
-    /// triggering event is about, a card a draw trigger named. The move hands
-    /// the frame to each keeper that reads the mover (`hand_over_lki`).
-    pub(crate) fn capture_lki<'a>(&mut self, decided: impl Iterator<Item = &'a GameAction>) {
+    /// triggering event is about, a card a draw trigger named, a card put
+    /// onto the battlefield from exile. The move hands the frame to each
+    /// keeper that reads the mover (`hand_over_lki`).
+    ///
+    /// Each decided action comes with whether a replacement applied to it,
+    /// since a move one kept in its zone is announced with a frame and an
+    /// untouched one performs nothing.
+    pub(crate) fn capture_lki<'a>(&mut self, decided: impl Iterator<Item = (&'a GameAction, bool)>) {
         let mut kept_for: Option<Vec<ObjectRef>> = None;
-        for action in decided {
-            match action {
-                GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
-                | GameAction::Destroy { object, .. } => {
+        for (action, replaced) in decided {
+            let (object, from, to) = match action {
+                GameAction::Destroy { object, .. } => {
                     if self.battlefield.contains_key(object) {
                         self.capture_frame(*object);
                     }
+                    continue;
                 }
                 // A replacement keeping the object where it was (CR 614.6): the
                 // record of the act it replaced carries the object as it was.
-                GameAction::ZoneChange { object, from, to, .. } if zone_change_looks_back(*from, Some(*to)) || from == to => {
-                    self.capture_frame(*object);
-                }
-                GameAction::EnterBattlefield { object, from: Some(from), .. }
-                    if zone_change_looks_back(*from, Some(Zone::Battlefield)) =>
-                {
-                    self.capture_frame(*object);
-                }
-                GameAction::ZoneChange { object, .. } => {
-                    let kept_for = kept_for.get_or_insert_with(|| self.objects_lki_is_kept_for());
-                    if self.object_ref(*object).is_some_and(|r| kept_for.contains(&r)) {
+                GameAction::ZoneChange { object, from, to, .. } if from == to => {
+                    if replaced {
                         self.capture_frame(*object);
                     }
+                    continue;
                 }
+                GameAction::ZoneChange { object, from, to, .. } => (*object, *from, *to),
+                GameAction::EnterBattlefield { object, from: Some(from), .. } => (*object, *from, Zone::Battlefield),
                 GameAction::PlayerLoses { player } => {
                     for id in self.battlefield_ids_ordered() {
                         if self.departs_with(id, *player) {
@@ -1061,10 +1060,28 @@ impl GameState {
                             self.capture_frame(object.id);
                         }
                     }
+                    continue;
                 }
-                _ => {}
+                _ => continue,
+            };
+            if self.move_carries_frame(object, from, Some(to)) {
+                self.capture_frame(object);
+                continue;
+            }
+            let kept_for = kept_for.get_or_insert_with(|| self.objects_lki_is_kept_for());
+            if self.object_ref(object).is_some_and(|r| kept_for.contains(&r)) {
+                self.capture_frame(object);
             }
         }
+    }
+
+    /// Whether the move of `id` out of `from` for `to` (`None`: the game)
+    /// carries the frame its batch took on its record: one of CR 603.10a's
+    /// classes (`zone_change_looks_back`), of an object that was there to
+    /// leave. A token whose entry is still being decided has no entry to look
+    /// back at (`create_tokens`).
+    pub(crate) fn move_carries_frame(&self, id: ObjectId, from: Zone, to: Option<Zone>) -> bool {
+        zone_change_looks_back(from, to) && (from != Zone::Battlefield || self.battlefield.contains_key(&id))
     }
 
     /// The objects some keeper keeps last known information for
@@ -1190,8 +1207,7 @@ impl GameState {
     /// classes; a token whose entry is still being decided has no entity and
     /// nothing to look back at (`create_tokens`).
     pub(crate) fn hand_over_before_leaving(&mut self, id: ObjectId, from: Zone, to: Option<Zone>) -> Option<Lki> {
-        let entering_token = from == Zone::Battlefield && !self.battlefield.contains_key(&id);
-        let lki = if zone_change_looks_back(from, to) && !entering_token { self.take_captured_lki(id, from) } else { None };
+        let lki = if self.move_carries_frame(id, from, to) { self.take_captured_lki(id, from) } else { None };
         self.hand_over_lki(id, lki.as_ref());
         self.note_delayed_source_moving(id);
         lki

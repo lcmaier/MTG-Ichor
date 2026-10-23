@@ -8,12 +8,13 @@ use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::events::event::{GameEvent, UnattachRoute};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_on_battlefield, setup_game, setup_two_player_game, test_dp, vanilla_creature};
+use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_ctx, test_dp, vanilla_creature};
 use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::triggers::{EventRole, TriggerSubject};
+use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerEvent, TriggerSubject};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 
 // ---------------------------------------------------------------------------
 // An unattach, each end as it left (CR 603.10c)
@@ -111,5 +112,44 @@ fn a_creature_that_left_the_game_is_its_triggers_object() {
         game.resolve_top_of_stack(&test_dp()).unwrap();
         game.perform_sba_and_triggers(&test_dp()).unwrap();
     }
+    assert_eq!(game.players[0].life_total, 23);
+}
+
+// ---------------------------------------------------------------------------
+// Which moves carry a frame (CR 113.7a, 603.10a)
+// ---------------------------------------------------------------------------
+
+/// "Whenever a card is put into exile from your hand, you gain life equal to
+/// its power."
+fn fixture_exiles_tithe() -> std::sync::Arc<mtgsim::objects::card_data::CardData> {
+    let exiled_from_hand = TriggerEvent::ZoneChange {
+        subject: TriggerSubject::Filter(ObjectFilter::All),
+        change: ZoneChangePattern { from: Some(Zone::Hand), to: Some(Zone::Exile), act: None },
+        by: None,
+        owner: None,
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller);
+    CardDataBuilder::new("Fixture Exile's Tithe")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(exiled_from_hand, gain)))
+        .build()
+}
+
+/// A 3/3 exiled from a hand, then put onto the battlefield from exile while
+/// the trigger that read it waits on the stack. "Its power" is the card's as
+/// it last existed in exile (CR 113.7a, 608.2h), so the move to the
+/// battlefield hands its frame to the trigger, as a move to the graveyard
+/// does.
+#[test]
+fn a_card_put_onto_the_battlefield_from_exile_leaves_its_frame_with_a_trigger_that_reads_it() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, fixture_exiles_tithe(), 0);
+    let card = put_in_hand(&mut game, vanilla_creature(3, 3, &[]), 0);
+    game.change_zone(card, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(game.stack.len(), 1, "the trigger waits");
+    game.change_zone(card, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.players[0].life_total, 23);
 }
