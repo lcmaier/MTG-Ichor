@@ -104,7 +104,14 @@ pass re-reads what it touches: a number here is a starting point.
   gone. TR-5h's damage-fact and gate boards are its own fixtures, since no
   registered card reads a damage fact or the log from a layer, and its page
   shows a record's place in its turn reading #265's tally. **Pass 5 is
-  done; the card-homed triage is next.**
+  done.**
+- The card-homed triage, session 5b, ran as one PR, #280, on
+  `audit/item-6-card-homed-triage` (§9). All 51 items have a disposition in
+  their `**Slotted:**` lines and a verdict re-dated 2026-10-23: 31 built
+  before breadth in A6e's cleanup, 14 re-slotted to rows, 5 kept with their
+  cards, and item 109 closed, found fixed. The triage section below has the
+  builds by theme and the pool question priced. **Pass 5c, the names for
+  the phases ahead, is next.**
 
 ## 1. Why this audit is bigger than the last
 
@@ -206,7 +213,7 @@ sessions are ordinary ones, one PR at a time in the main folder:
 | 5. The docs audit's fixes | plain, a session per PR | 5 | 4 (pass 5, re-cut at #274's merge) |
 | 5b. The card-homed triage | plain; a single verifier at most | the triage (§4) | 1, docs |
 | 5c. Names for the phases ahead | plain; the design reviewed first | pass 5c | 1 |
-| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 3–6, and 1–2 for the builds |
+| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 3–6, and 2–3 for the builds (#280's count) |
 | 7. Readiness | plain; measurement | 4 | 2 |
 | 8. Scheduling | plain | 6 | 1 |
 
@@ -877,6 +884,42 @@ one or two band-sized PRs that ride A6e's cleanup sessions. The ones that
 need a design go to rows and build nothing here. Item 284's check, in the
 cleanup, then guards whatever stays card-homed.
 
+**Done (#280, 2026-10-23).** Each item was read once, its verdict re-dated
+and its disposition written into its `**Slotted:**` line; the PR's body has
+the table, item by item, with the reason and, for a build, its fixture and
+check. Re-counted, 28 of the 51 state a size of 60 lines or less, 17 more,
+and 6 give none in lines. The board's card-homed count went from 51 to 5.
+
+- **Built before breadth: 31,** slotted to A6e's cleanup, about 3,500 lines
+  with tests by their own `**Sized:**` lines. Six write a record and carry a
+  consistency check in debug builds: 17 (no registry row outlives the object
+  its duration names), 61 (one entry event's auxiliary moves in one batch),
+  "Before card breadth" 6 (a blocker's damage only among the attackers it
+  blocks), 278 (a block record for every block), 279 (a row for every zone
+  change) and 286 (no history read asks the store about a departed object).
+  Two themes of about a band each: resolution, replacement and batches (17,
+  20, 26, 61, 62, 90 with 106, 94, 134, 148, 155, 268, 272, 281, 299 and
+  "Before Layers" 13), about 1,800 lines; layers, combat, counters and the
+  history ("Before Layers" 16 with 184, "Before card breadth" 1, 3, 5 and 6,
+  "Before Triggered abilities" 6, 86, 117, 190, 205, 206, 278, 279 and 286),
+  about 1,700. Sizings have run 1.5–2× on code, so the cleanup's sizing may
+  cut a third PR.
+- **To a row: 14.** A6s places nine, each a design: 23, 28, 79 with "Before
+  card breadth" 4 (one question: when an order the CR hands a player is
+  asked), 87, 119, 125, 227 and "Before Layers" 7, which leaves
+  `roadmap-v2.md` §3a's off-the-route sentence. B13 takes 274 and its
+  partner 273, which had read as route-homed only through a parenthetical
+  CP-2; MA-7 takes 133, MA-4 and MA-3 take 240, PM-0 takes 147 and CP-2
+  takes 283.
+- **Kept with their cards: 5,** each with its reason: 12, 63, 80, 127 and
+  135. Item 284's check guards them.
+- **Closed: item 109,** found fixed by #239 (item 229) and #250.
+
+**The pool question, priced** in the PR's body for the owner's decision:
+none, as today; the fixtures in `stress`; or a third pool run only in the
+`fuzz-checked` job, where the consistency checks fire, about 14 s for 50
+games at four threads by that job's own stress reading.
+
 ### Pass 4 — readiness
 
 **Goal:** is the engine on track for the harness use case? Two PRs.
@@ -1470,7 +1513,7 @@ changed.
 | 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
 | 2. Eviction (1) | #273 | one PR: the whole sections and §4.9's B14 input moved, the 22 amendments collapsed into the text they overruled (−239 lines), 8 outside citations re-pointed; `triggers-architecture.md` 4,736 → 3,853, the archive 5,618 → 7,067 |
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | #274 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup is next |
-| The card-homed triage (1, then its builds in the cleanup) | | added at #272's review |
+| The card-homed triage (1, then its builds in the cleanup) | #280 | one PR: the 51 items dispositioned in their `**Slotted:**` lines with verdicts re-dated, 31 builds for A6e's cleanup with their fixtures and six consistency checks, 14 to rows (A6s, B13, MA-7, MA-4 and MA-3, PM-0, CP-2), 5 kept with their cards, item 109 closed, item 273 to B13; the fixture pool priced for the owner |
 | 4. Readiness (2) | | |
 | 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to A6s. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md` §7. Done |
 | 5c. Names for the phases ahead (1) | | added at #274's merge |
