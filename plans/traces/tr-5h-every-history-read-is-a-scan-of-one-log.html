@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to main at 50f0b8b8 (#278's merge), the commit its traces were run
+  at, and the frozen CR `tmnt`; written at the item 6 audit's pass 5, after
+  TR-5h landed (2026-10-19) and after #265 gave a record's place in its turn
+  a tally. Never maintained — a later phase that changes these paths gets
+  its own page. Self-contained: fonts from Google Fonts, mermaid from
+  jsDelivr, nothing else.
+-->
+<title>Every History Read Is a Scan of One Log — TR-5h</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6; --surface: #FFFFFF; --surface-2: #EAF0F0; --ink: #1B2226; --muted: #5B6770; --line: #D5DCDD;
+    --real: #1F6F78; --real-tint: #E3F0F1; --frame: #B0701A; --frame-tint: #FBF1DF; --new: #6B4FA0; --new-tint: #EEE9F7;
+    --changed: #2E7D4F; --changed-tint: #E4F2EA; --decide: #8A2F3B; --decide-tint: #F8E8EA; --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif; --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8; --muted: #93A0A5; --line: #2E393D;
+      --real: #58B7BF; --real-tint: #163338; --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97; --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8; --muted: #93A0A5; --line: #2E393D;
+    --real: #58B7BF; --real-tint: #163338; --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97; --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-top: 0.6rem; }
+  .pin { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.7rem; margin-right: 0.4rem; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.95rem; background: var(--surface); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; background: var(--surface-2); }
+  .wrap { overflow-x: auto; }
+  .trace { counter-reset: step; margin: 1rem 0 2rem; padding: 0; list-style: none; }
+  .trace li { position: relative; padding: 0.7rem 0 0.7rem 3.2rem; border-left: 2px solid var(--line); margin-left: 1rem; }
+  .trace li::before { counter-increment: step; content: counter(step); position: absolute; left: -1.05rem; top: 0.7rem; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+  .trace li.new { border-left-color: var(--new); }
+  .trace li.new::before { border-color: var(--new); color: var(--new); }
+  .trace li.changed { border-left-color: var(--changed); }
+  .trace li.changed::before { border-color: var(--changed); color: var(--changed); }
+  .trace li.decide { border-left-color: var(--decide); }
+  .trace li.decide::before { border-color: var(--decide); color: var(--decide); }
+  .fn { font-family: var(--mono); font-weight: 600; font-size: 0.86em; }
+  .read { display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 4px; padding: 0.05rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+  .read.board { background: var(--real-tint); color: var(--real); }
+  .read.frame { background: var(--frame-tint); color: var(--frame); }
+  .read.player { background: var(--decide-tint); color: var(--decide); }
+  .read.state { background: var(--new-tint); color: var(--new); }
+  .read.log { background: var(--changed-tint); color: var(--changed); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; font-size: 0.9rem; color: var(--muted); margin: 1rem 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -0.05rem; }
+  .legend .n::before { background: var(--new); }
+  .legend .c::before { background: var(--changed); }
+  .legend .d::before { background: var(--decide); }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 8px; padding: 0.9rem 1.2rem; margin: 1.2rem 0; }
+  .callout.rule { border-left-color: var(--real); }
+  .callout.before { border-left-color: var(--decide); }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 1.2rem 0; overflow-x: auto; }
+  small { color: var(--muted); }
+</style>
+
+<div class="page">
+
+<h1>Every History Read Is a Scan of One Log</h1>
+<p class="lede">Before TR-5h the game's past lived in five stores, each shaped for the reader that asked for it: per-player summaries of counts, a "since your last turn" snapshot, card-type slots, combat rows and targeting rows. TR-5h replaced them with one log, <code>state::history_log</code>: a row per event a card can ask about later, each with its object's frame as the event left it. Every "this turn" count, filter and condition became a scan over those rows, and the layer memo keys a read by what it scanned. This page walks three such reads, and the one that stopped being a scan after TR-5h.</p>
+<p class="meta"><span class="pin">main @ 50f0b8b8</span><span class="pin">CR tmnt</span><span class="pin">2026-10-23, item 6 audit</span> Design: <code>plans/triggers-architecture.md</code> §3.10 and §12's TR-5h heading; the archive's "TR-5h" (<code>plans/archive/triggers-architecture-landed.md</code>), with the census that motivated it and what the build corrected. Tests: <code>mtgsim/tests/phase_tr5h_integration_test.rs</code>, and TR-2a's for the two registered cards. Each trace is a board replayed at 50f0b8b8 by a probe outside the tree, with <code>test_support::install_trace_file</code> on; the probe printed the log's rows and the layer epoch, which the sink does not record. <b>record N</b> is an event's place in the event log; <b>seq N</b> is the trace line; <b>row seq N</b> is the record a log row was written from.</p>
+
+<h2>The map</h2>
+<div class="prose">
+<p>A <b>row</b> (<code>HistoryRow</code>) is one fact about one subject: the record it was written from, its turn, which of the turn's combats had begun, whose event it was, the object it was about as the existence it was (CR 400.7), that object's frame, and the fact (<code>RowFact</code>: a cast, a draw, a gain or a loss of life, an entry, a move, damage dealt, an attack, a block, a removal from combat, a targeting). One writer, <code>advance_history</code>, writes them as each window is dispatched, before anything is matched against it. The rows sit in chunks of sixteen behind <code>Arc</code>s, newest first, so a clone copies one pointer.</p>
+<p>Three readers scan them. A span condition or amount (<code>Condition::ThisTurn</code>, <code>LastTurn</code>, <code>SinceYourLastTurn</code>, <code>ThisGame</code>, <code>AmountExpr::History</code>) maps its span to turns and sums the rows (<code>HistoryLog::count</code>). An object fact (<code>ObjectFilter::ThisTurn</code>, <code>ThisCombat</code>) asks the turn's rows of one kind whether they name the object (<code>rows_during</code>). And the turn's targeting rows answer "the first time it became a target this turn". Each lookup <b>notes</b> what it scanned into the layer walk that asked: the turn number, the kind of row, and for "this combat" the combat count.</p>
+</div>
+<div class="wrap">
+<table>
+<tr><th>Trace</th><th>Board</th><th>The question it answers</th><th>Test</th></tr>
+<tr><td><b>A</b></td><td>Vengeful Warchief and Paladin of Atonement, player 0's; two Grizzly Bears hit player 0 in one batch, then one hits again; then two upkeeps</td><td>How are "the first time each turn" and "if you lost life last turn" answered off the rows?</td><td>TR-2a's <code>the_first_time_each_turn_is_the_records_place_in_its_turn</code> and <code>paladin_reads_last_turns_loss_whatever_else_happened</code></td></tr>
+<tr><td><b>B</b></td><td>"Creatures that dealt combat damage to an opponent this turn get +1/+0", with three Grizzly Bears dealing damage three ways; then one flickered</td><td>What does a damage fact read off a row, and why does a flicker end it?</td><td><code>dealt_combat_damage_to_an_opponent_reads_whom_and_how</code></td></tr>
+<tr><td><b>C</b></td><td>"Creatures get +1/+0 as long as you've gained life this turn", with Vampire Nighthawk dealing damage; then a draw, a Bears' damage, a new turn</td><td>What does the memo key a history read by, which writes move it, and why is a row's frame taken twice?</td><td><code>a_rows_frame_sees_the_rows_of_its_own_window</code></td></tr>
+</table>
+</div>
+<div class="prose">
+<p>Vengeful Warchief, Paladin of Atonement, Grizzly Bears and Vampire Nighthawk are registered. No registered card reads a damage fact, or reads the log from a layer, at this commit: B's and C's banners are TR-5h's own fixtures, the tests' boards with registered creatures where the tests use vanilla ones. The third registered reader, Relentless Assault ("untap all creatures that attacked this turn"), reads the attack rows through the same <code>rows_during</code> as B.</p>
+</div>
+
+<h3>The writer and the readers, with TR-5h's nodes coloured</h3>
+<pre class="mermaid">
+flowchart TD
+  WIN["a window is dispatched: its records"] --> AH["advance_history"]:::new
+  AH --> CT["per record: count (resolutions, the draw step, a combat begun),<br/>place_in_turn, note_counted"]:::changed
+  CT --> DR["draft each record's rows:<br/>a departure's frame, else the object as the window left it"]:::new
+  DR --> PR["GameHistory::push_row: each player's tally, then the log"]:::new
+  PR --> BK["bump_layer_epoch_if_read(Rows(kind)) for each kind written"]:::new
+  BK --> MV{"did the epoch move?"}
+  MV -->|"yes: a drafted frame read a kind this window wrote"| RF["draft again, reframe_newest, bump again"]:::new
+  MV -->|no| GATE["the dispatcher's gate, then matching"]
+  RF --> GATE
+  SC["Condition::ThisTurn / LastTurn / SinceYourLastTurn / ThisGame,<br/>AmountExpr::History"]:::changed --> TOT["GameHistory::total: turns_of(span)"]:::new
+  TOT --> CNT["HistoryLog::count: notes TurnNumber, Rows(kind);<br/>sums added_to_count, each row asked of 'of' by its frame"]:::new
+  OF["ObjectFilter::ThisTurn / ThisCombat"]:::changed --> RD["rows_during: notes TurnNumber, Rows(kind),<br/>and CombatCount for this combat"]:::new
+  TL["TriggerLimit::FirstTimeEachTurn"] --> PL["the record's place_in_turn, written at its count"]
+  TURN["begin_turn"] --> TN["bump_layer_epoch_if_read(TurnNumber)"]:::new
+  MEMO[("the layer memo: each stored frame<br/>with the keys its walk noted")]:::new
+  PR -.->|"the rows"| CNT
+  PR -.->|"the rows"| RD
+  CT -.->|"the place"| PL
+  CNT -.->|"notes"| MEMO
+  RD -.->|"notes"| MEMO
+  BK -.->|"asks: did a frame read it?"| MEMO
+  TN -.->|"asks"| MEMO
+  classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
+  classDef changed fill:#E4F2EA,stroke:#2E7D4F,color:#1B2226;
+</pre>
+<div class="legend"><span class="n">new in TR-5h</span><span class="c">changed in TR-5h: the same name, reading the log</span></div>
+
+<h2>Trace A — "the first time each turn" and "last turn"</h2>
+<div class="prose">
+<p>Turn 1, player 0 active. Vengeful Warchief (#21: "Whenever you lose life for the first time each turn, put a +1/+1 counter on this creature") and Paladin of Atonement (#22: "At the beginning of each upkeep, if you lost life last turn, put a +1/+1 counter on this creature") are player 0's. Two Grizzly Bears (#23, #24) are player 1's. Each entry wrote an <code>EnteredBattlefield</code> row (row seq 0 to 3) carrying the permanent's frame.</p>
+</div>
+<ol class="trace">
+<li><span class="fn">execute_actions([DealDamage ×2])</span><span class="read log">log</span> one batch, each Bears dealing 1 to player 0: records 4 to 7, a <code>DamageDealt</code> and a <code>LifeChanged</code> for each.</li>
+<li class="new"><span class="fn">advance_history · place_in_turn</span><span class="read state">state</span> before the gate, so a card that arrives later in the turn still reads what came before it (Vengeful Warchief's fourth ruling). For each loss, its place among player 0's losses this turn: <code>count_in_turn(0, LifeLossEvents, 1)</code>, which is 0, plus this window's losses already placed, plus 1. Record 5 is the first, record 7 the second (<code>note_counted</code>).</li>
+<li class="new"><span class="fn">push_row</span><span class="read log">log</span> row seq 4, <code>DealtDamage { to: Player(0), amount: 1, combat: false }</code>, about #23, its frame a 2/2 under player 1; row seq 5, <code>LostLife(1)</code> for player 0, no object; rows seq 6 and 7 the same for #24.</li>
+<li><span class="fn">match_candidates</span><span class="read log">log</span> the Warchief's arm, "you lose life", against each record: the damage records refuse (seq 24, 26, <code>condition</code>); record 5 matches (seq 25); record 7 is refused by its limit (seq 27): <code>FirstTimeEachTurn</code> asks <code>place_in_turn() == Some(1)</code>. One trigger, one counter.</li>
+<li><span class="fn">a third hit</span><span class="read log">log</span> records 11 and 12. Record 12's place is 3, and the limit refuses it (seq 47).</li>
+<li class="changed"><span class="fn">player 1's upkeep · the intervening if</span><span class="read log">log</span> turn 2. <code>StepBegin: Upkeep</code> is record 24, and Paladin's "each upkeep" arm matches it (seq 112). Its "if" (CR 603.4) is <code>Condition::LastTurn(HistoryCount { You, LifeLost })</code>: <code>history_holds</code> → <code>GameHistory::total</code> → <code>turns_of(LastTurn, 0, 2)</code>, which is turn 1 only, the turn before this one whoever's it was → <code>HistoryLog::count</code>. The scan walks back from the newest row, skips turn 2's, and sums each turn 1 row <code>added_to_count</code> admits: the three <code>LostLife(1)</code> rows, 3. At least 1, and a gain would not have offset it (Paladin's first ruling: only whether you lost life, not how much or what you gained): Paladin gets its counter, the "if" asked again the same way as the ability resolves. Asked "this turn", the same count reads turn 2's rows and finds none.</li>
+<li><span class="fn">player 0's upkeep</span><span class="read log">log</span> turn 3, record 43. Last turn is turn 2, which wrote no loss: refused by the intervening if (seq 216).</li>
+</ol>
+<div class="callout before prose">
+<p><b>The one read that is not a scan at this commit.</b> Step 2's <code>count_in_turn</code> reads a tally. TR-5h shipped it as a scan of the turn's rows, once for every counted record, which is quadratic in the turn: a token wipe stacking 8,000 "whenever a creature dies, target player loses 1 life and you gain 1 life" triggers wrote 16,000 life rows and slowed each resolution tenfold. #265 (<code>5c3e943f</code>, 2026-10-20) gave each player's <code>PlayerHistory</code> a <code>TurnTally</code> of the four facts a record is placed among, for the newest turn the log has a row of. It is not a second store: it is summed by the log's own <code>added_to_count</code>, written only by <code>GameHistory::push_row</code> (the one way a row is written; <code>HistoryLog::push</code> is <code>pub(super)</code>), and an earlier turn, or a fact it does not keep, is still read off the log. <code>the_turn_tally_counts_what_the_log_counts</code> holds the two equal.</p>
+</div>
+
+<h2>Trace B — the damage facts</h2>
+<div class="prose">
+<p>Player 0's Veteran's Banner (#1): "Creatures that dealt combat damage to an opponent this turn get +1/+0", whose affected set is <code>ObjectFilter::ThisTurn(DealtDamageTo { player: Some(Opponent), combat: true })</code>. Grizzly Bears #2 (the raider) and #3 (the pinger) are player 0's; Grizzly Bears #4 is player 1's.</p>
+</div>
+<ol class="trace">
+<li><span class="fn">DealDamage(#2 → player 1, combat)</span><span class="read log">log</span> records 4 and 5. Row seq 4: <code>DealtDamage { to: Player(1), amount: 1, combat: true }</code>, its object (#2, epoch 0), its player 0, the source's controller; row seq 5, <code>LostLife(1)</code> for player 1.</li>
+<li class="new"><span class="fn">bump_layer_epoch_if_read(Rows(DealtDamage))</span><span class="read state">state</span> the Banner's walks noted the damage rows when its filter scanned them, so the write moves the epoch (13 → 14). A drafted frame read that kind, so the window's frames are taken again: the raider walks as a 3/2 (seq 19), and <code>reframe_newest</code> writes it onto row seq 4. The row's frame is the raider as the event left it, the Banner on: the event its own row records turned it on (CR 603.10).</li>
+<li><span class="fn">two more</span><span class="read log">log</span> the pinger deals 1 noncombat damage to player 1 (row seq 6, <code>combat: false</code>); player 1's Bears deals 1 combat damage to player 0 (row seq 8, <code>to: Player(0)</code>). Each moves the epoch the same way.</li>
+<li class="changed"><span class="fn">object_matches_filter · ObjectFilter::ThisTurn</span><span class="read log">log</span> each creature's walk asks the filter. The existence is the object's current one (or, for an object gone, the one its last known information kept). <code>players_dealt_damage_by(existence, combat_only: true, turn 1, ThisTurn)</code> → <code>rows_during</code>, which notes <code>TurnNumber</code> and <code>Rows(DealtDamage)</code> and keeps turn 1's damage rows; of those, the rows about this existence, their players where the damage was combat. The raider: [1], an opponent of the Banner's controller, 3/2. The pinger: none, its row is noncombat, 2/2. Player 1's Bears: [0], which is "you", 2/2.</li>
+<li><span class="fn">a flicker</span><span class="read board">board</span> the raider is exiled and returned: a new object (CR 400.7), the same id with zone-change epoch 2. Row seq 4 names epoch 0, so nothing matches, and it is a 2/2.</li>
+</ol>
+<div class="callout prose">
+<p><b>What a damage fact reads, and what a row's frame is for.</b> Neither damage fact reads a frame. <code>DealtDamageTo</code> reads each damage row's object, recipient and combat flag; <code>WasDealtDamage</code> reads the same rows' <code>to</code> (<code>was_dealt_damage_this_turn_reads_the_rows_dealt_to_it</code>). The frame is what a count narrowed by <code>of</code> asks: "creatures with power 3 or greater that died this turn" reads each death row's frame through <code>frame_matches</code>, so a creature pumped to 4/2 before it died counts and its 2/2 graveyard card does not (<code>a_narrowed_count_reads_the_object_as_its_row_kept_it</code>). Before TR-5h no store held a damage fact: the combat rows held attacks, blocks and removals, and TR-5d's first draft would have added a fourth kind to them.</p>
+</div>
+
+<h2>Trace C — the gate, beside the writes that move it</h2>
+<div class="prose">
+<p>Player 0's Lifted Banner (#21): "Creatures get +1/+0 as long as you've gained life this turn", a static whose condition is <code>Condition::ThisTurn(HistoryCount { You, LifeGainEvents }, AtLeast(1))</code>. Vampire Nighthawk (#22, 2/3, lifelink) and Grizzly Bears (#23) are player 0's. Each step below names the key that moved the epoch, read off a print the probe added to <code>bump_layer_epoch_if_read</code> in a copy of the crate.</p>
+</div>
+<ol class="trace">
+<li class="new"><span class="fn">compute_characteristics(Nighthawk)</span><span class="read log">log</span> seq 8, epoch 30. The Banner's condition: <code>history_holds</code> → <code>HistoryLog::count(LifeGainEvents, 1..=1)</code>, which notes <code>TurnNumber</code> and <code>Rows(Life)</code> into the walk before it scans. No gain row: off, a 2/3. The memo stores the frame with those two keys.</li>
+<li><span class="fn">DealDamage(Nighthawk → player 1, 2)</span><span class="read log">log</span> one event with its lifelink gain (CR 702.15b): records 3 (<code>DamageDealt</code>), 4 (player 1, 20 → 18) and 5 (player 0, 20 → 22).</li>
+<li class="new"><span class="fn">advance_history · the draft</span><span class="read frame">frame</span> the rows are drafted with their objects as the window left them, the Nighthawk's from the memo, still a 2/3, and written: row seq 3 <code>DealtDamage</code>, row seq 4 <code>LostLife(2)</code> for player 1, row seq 5 <code>GainedLife(2)</code> for player 0. Kinds written: damage and life. <code>Rows(DealtDamage)</code>: no stored frame read it, nothing moves. <code>Rows(Life)</code>: the step 1 frame read it at this epoch, so it moves, 30 → 31.</li>
+<li class="new"><span class="fn">advance_history · the reframe</span><span class="read frame">frame</span> the epoch moved, so a frame drafted in step 3 left out the window's own rows. The window's frames are drafted again (seq 21: the Nighthawk at epoch 31, the count now 1, a 3/3), written onto the newest rows by <code>reframe_newest</code>, and the kinds bumped again, 31 → 32. Row seq 3's frame is a 3/3, the Nighthawk as the event left it.</li>
+<li><span class="fn">a draw</span><span class="read state">state</span> player 0 draws: a <code>Drew</code> row. No stored frame read a draw row, so no gated key fires; the one move the epoch makes is not the gate's.</li>
+<li class="changed"><span class="fn">DealDamage(Bears → player 1, 1)</span><span class="read state">state</span> a damage row and a <code>LostLife(1)</code> row for player 1. <code>Rows(Life)</code> moves the epoch (33 → 34), and the reframe moves it again (34 → 35). The key is the kind of row, not whose: player 1's loss throws away a frame that counted player 0's gains, and the next walk answers the same, a 3/2 Bears.</li>
+<li class="new"><span class="fn">begin_turn · bump_layer_epoch_if_read(TurnNumber)</span><span class="read state">state</span> turn 2 begins: every frame that read the turn number is dropped (35 → 36). The Banner's count is over turn 2's rows now, none, and the Nighthawk is a 2/3 again.</li>
+</ol>
+<div class="prose">
+<p><b>The combat count</b> is the third key: <code>rows_during</code> notes it for a "this combat" question, and a combat beginning bumps it (<code>advance_history</code>'s count of <code>CombatBegan</code>), so "creatures that attacked this combat" stands through a draw and falls at the next combat of the turn (CR 500.8's additional combats make that a different question from "this turn"). No board here asks it.</p>
+</div>
+<div class="callout before prose">
+<p><b>With the note taken out of the lookup.</b> In a copy of the crate, <code>HistoryLog::count</code> without its <code>Rows</code> note: the step 1 frame keys on the turn number alone, step 3 moves nothing, and the next read of the Nighthawk is served from the memo. The debug build's memo audit, which walks fresh against every hit, stops it: "layer memo served a stale frame for #22 at epoch 30", served 2/3 against fresh 3/3. The note lives inside the lookup so that no reader can leave it out; a filter over two facts notes both.</p>
+<p><b>With the reframe skipped.</b> Step 4 removed: row seq 3 keeps the 2/3 drafted in step 3 while the board has a 3/3, and the test fails on exactly that. The build first wrote the rows after their frames and lost this (the archive's "A row's frame sees its own window's rows"); the gate already says when it matters, since a bump of a kind the window wrote moves the epoch only if a frame read it.</p>
+</div>
+
+<h2>Where the reads differ</h2>
+<div class="prose"><p>What each read scans at 50f0b8b8, the keys it notes, and what it read before TR-5h.</p></div>
+<div class="wrap">
+<table>
+<tr><th>Read</th><th>On this page</th><th>Scans</th><th>Notes</th><th>Before TR-5h</th></tr>
+<tr><td>A span count: "last turn", "this turn" (<code>Condition::LastTurn</code>, <code>ThisTurn</code>)</td><td>Paladin of Atonement (A, step 6); Lifted Banner (C)</td><td>the span's turns, newest row first, summing <code>added_to_count</code></td><td><code>TurnNumber</code>, <code>Rows(kind)</code></td><td>one slot of a 24-count <code>TurnSummary</code>: <code>PlayerHistory::last_turn</code>, <code>this_turn</code></td></tr>
+<tr><td>"This game", "since your last turn"</td><td>—</td><td>turns 1 to now; the turns after your last (<code>PlayerHistory::your_last_turn</code>)</td><td>the same</td><td>the <code>this_game</code> summary; a seats × seats snapshot taken at your last turn, subtracted from it</td></tr>
+<tr><td>A count narrowed by <code>of</code></td><td>— (<code>a_count_narrowed_by_what_its_spells_were</code>)</td><td>the same rows, each asked of its frame (<code>frame_matches</code>)</td><td>the same, and what the filter reads</td><td><code>SpellsCastOfType</code>'s fifteen card-type slots; any other narrowing had no slot</td></tr>
+<tr><td>A record's place in its turn ("the first time each turn")</td><td>Vengeful Warchief (A, steps 2 and 4)</td><td>the newest turn's <code>TurnTally</code> since #265, else the turn's rows; plus the window's earlier placements</td><td>none: written on the record at its count</td><td>the player's this-turn summary's count, read just after the record was added to it</td></tr>
+<tr><td>A damage fact (<code>DealtDamageTo</code>, <code>WasDealtDamage</code>)</td><td>Veteran's Banner (B)</td><td>the turn's damage rows (<code>rows_during</code>), by existence</td><td><code>TurnNumber</code>, <code>Rows(DealtDamage)</code>; <code>CombatCount</code> for this combat</td><td>none: no store held it</td></tr>
+<tr><td>An attack, a block, a removal</td><td>— (Relentless Assault reads the attack rows)</td><td>the turn's rows of that kind</td><td>the same keys</td><td><code>CombatHistory</code>, its rows kept a round</td></tr>
+<tr><td>"The first time it became a target this turn"</td><td>—</td><td>the turn's targeting rows (<code>targetings_of_turn</code>), ordered by record</td><td>— (read at the trigger)</td><td><code>TargetingHistory</code></td></tr>
+<tr><td>A row's own frame</td><td>B, step 2; C, steps 3 and 4</td><td>the object as the window left it, its own rows included</td><td>—</td><td>no rows carried frames</td></tr>
+<tr><td>The memo's gate</td><td>C</td><td>—</td><td>a key per kind of row, the turn number, the combat count</td><td>one key, <code>GatedWalkInput::Histories</code>, the turn number and every count together: any history write dropped every frame that read any history</td></tr>
+</table>
+</div>
+
+<h2>What TR-5h changed, and what reads otherwise</h2>
+<div class="prose">
+<p><b>Why one log.</b> Five phases had reshaped the history, each for the reader in front of it, and the census TR-5h's design ran found 124 cards counting by what the things were at the time ("for each Zubera that died this turn", "the total mana value of other spells you've cast this turn"), which no number of slots holds and every slot costs every clone. A row per event, kept for the whole game, answers every span a card names, printed or custom, and a new fact is a <code>RowFact</code> variant and a writer arm, never a store. A clone copies one pointer: floor 3 read 2.2 KB lower per clone at TR-5h's close, and a game holds 2.7 to 4.6 KB a turn (<code>fuzz-record.md</code>, TR-5h's block).</p>
+<p><b>What a row is.</b> An event, never the board: its frame is a departure's last known information, or the object as the window left it, the window's own rows included (B's step 2, C's step 4). And a frame, not the store's facts beside it: whether the object was a token, its counters, the owner of an object the store has lost are read from the store by the row's id, which answers for the object now (item 286).</p>
+<p><b>What reads otherwise, at this commit.</b> Three things a card asks about the past are not scans, each on purpose. A record's place in its turn reads the tally #265 keeps with the log (A's callout). "Entered this turn" is the permanent's own fact, its entered turn, read off the permanent or its last known information (<code>ObjectFact::Entered</code>). And the abilities' own gates (what has triggered, been done once, or resolved this turn) stay keyed by ability, as TR-5h's design kept them: rule gates no reader filters. The draw step's count is a field beside the log because no turn can hold it: a turn can have two draw steps (CR 500.8).</p>
+<p><b>Still open</b> (<code>codebase-state.md</code>, "Found by TR-5h"): item 286, above, waiting for the first registered card that narrows a count by token-ness or counters; and item 287, the scenario that names its casts and states the rest as counts. Item 279's other facts (counters, taps, activations, token creations) each join as a variant with their first card.</p>
+</div>
+
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", securityLevel: "loose" });
+</script>
+</body>
+</html>
