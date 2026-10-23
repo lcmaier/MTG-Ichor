@@ -2015,8 +2015,8 @@ panel reports.
   **101.2** watch them: a "can't" is checked ahead of every replacement and
   wins. So "why didn't it die?" is as often a "can't" (indestructible, CR
   702.12b) as a replacement. **CR 704.3** watches every state-based death, and
-  the cause names its rule (`ZoneChangeCause::DestroyedBySba` is 704.5g,
-  `ZeroToughness` is 704.5f). **CR 608.2b** is an event that never happens: a
+  the cause names its rule (`StateBasedAction::LethalDamage` is 704.5g and
+  704.5h, with act `Destroyed`; `ZeroToughness` is 704.5f, with act `Put`). **CR 608.2b** is an event that never happens: a
   spell whose every target is illegal does not resolve.
 - **Triggers.** CR 603 owns them. **CR 113.6** watches which abilities function
   in which zone, and an ability that does not function there is never asked.

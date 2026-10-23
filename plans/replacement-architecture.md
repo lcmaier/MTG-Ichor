@@ -127,7 +127,9 @@ Three invariants fall out, and each is load-bearing:
    `Game::setup`'s opening hands and `Scenario::build`'s board are written
    before the first turn by a caller holding no `DecisionProvider`, through the
    engine's construction doors, and emit nothing (`setup-architecture.md`
-   §3.2), so `// CAST-ROLLBACK:` stays the one exemption in play.
+   §3.2), so the exemptions in play stay the two write tags: `// CAST-ROLLBACK:`
+   and `// NOT REPLACEABLE:`, a write no replacement effect can watch for (CR
+   614.1).
 3. **`GameAction` carries semantics the state delta cannot.** "Destroyed" is not
    "moved to graveyard" (CR 701.8b); "drawn" is not "put into hand" (CR 121.5);
    "sacrificed" is not "destroyed". These are `cause` fields on the action, set
@@ -157,11 +159,11 @@ the enforcement.
 | `GameAction` | `engine/actions.rs` | The proposal vocabulary — what a caller asks for, before CR 614 sees it | **grows**, one variant per replaceable event kind (§8a) |
 | `ActionContext` | `engine/actions.rs` | `{ dp, cause }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt; `cause` is the proposal's `EventCause` (§2b.3), one constructor per kind, and what the performer's records name | grows only if a new input every mutation needs appears |
 | `ZoneChangeAct` | `types/zones.rs` | What a move did, in the CR's word (§2b.2), kept through a redirect. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per keyword action that moves an object |
-| `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, nine fields in declaration order: `pattern` + `affected_objects` + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
+| `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, its fields in declaration order: `pattern` + `affected_objects` + `affected_players` + `by` (the cause, §2b.7) + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
 | `EventPattern` | `types/replacement.rs` | Which events an effect watches. Ships 6 arms: `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy`, `CounterChange` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
 | `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over the destruction's cause, CR 701.8b's two ways | closed by CR 701.8b |
-| `Rewrite` | `types/replacement.rs` | What the effect does to the event. **Ships 2 arms, not §3.2b's 5**: `Prevent` and `Instead(GameActionTemplate)` | **closed** — `Amount`, redirection and the rest land with the phase that can apply them |
-| `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters). **`ZoneChangeTo` names only a destination** and keeps the event's `cause`, since a redirected act is still that act (CR 614.6, 701.9c, 701.17c, 608.2c's example): `cause` is the act, `to` where it went. It carried its own cause until 2026-09-24 (`codebase-state.md` item 176) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
+| `Rewrite` | `types/replacement.rs` | What the effect does to the event: `Prevent`, `Instead(GameActionTemplate)`, `Amount`, `Retarget` (CR 614.9), `EnterWith`, `EnterAfterMoving` (CR 614.13), `EnterUnderControlOf` (CR 616.1b), `EnterAsCopy` (CR 616.1c). RB shipped the first two | **closed** — a new arm needs the CR rule that permits it (§3.2b) |
+| `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters). **`ZoneChangeTo` names only a destination** and keeps the event's `act` (and the proposal's cause), since a redirected act is still that act (CR 614.6, 701.9c, 701.17c, 608.2c's example): `act` is the act, `to` where it went. It carried its own act until 2026-09-24 (`codebase-state.md` item 176). It carried its own cause until 2026-09-24 (`codebase-state.md` item 176) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
 | `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order | **closed** — all five ship; only `Other` has a producer |
 | `Uses` | `types/replacement.rs` | `Static` or `Once`. `CounterBacked` did not survive contact with the CR (§3.2) | **closed** — `Shield(u64)` is CR 615.7's and lands with RD |
 | `ReplacementInstanceId` | `engine/replacement/instance.rs` | CR 614.5's identity key: `Registered` / `StaticAbility` / `Counter` / `GameRule` | **grows**, one arm per §3.3 gather source |
@@ -1053,7 +1055,7 @@ Today: `DealDamage`, `DrawCard`, `GainLife`, `LoseLife`, `ZoneChange`, `Untap`,
 | `BeginStep` / `BeginPhase` / `BeginTurn` | 614.10 | RE | skips replace these — RE-1, proposed by a turn queue `advance_turn` drains, which is also CR 500.7's extra turns (`backlog.md` §2.17) |
 | `Scry { player, n }` | 701.22 | RE | RE-8, with `Primitive::Scry`; Eligeth replaces it |
 | `ProduceMana` | 106.6a | RE | RE-9; one proposal from the two silent writers `mana.rs` and `resolve.rs` hold today |
-| `PlayerLoses { player, reason }` / `PlayerWins { player }` | 104.2b, 104.3e, 704.5a–c, 704.7 | RE | added by §8a's audit (2026-08-24); RE-6, where the four SBA loops become batch members |
+| `PlayerLoses { player }` / `PlayerWins { player }` | 104.2b, 104.3e, 704.5a–c, 704.7 | RE | added by §8a's audit (2026-08-24); RE-6, where the four SBA loops become batch members; its reason folded into the cause at RH-2 (§2b.11, decision 12) |
 | `CreateTokenIn { object, zone }` | 111, 704.5d | RE | RE-4: the substituted form of a token's entry — an *appearance*, not a move — and the second deliberate no-`EventPattern` variant after `Attach` |
 | `ShuffleLibrary { player }` | 701.24a | RF | the third no-`EventPattern` variant — nothing printed says "would shuffle … instead" — and the first in-game writer of a library's order; proposed by `Primitive::ShuffleLibrary`, the rider of Darksteel Colossus's "shuffle it into its owner's library" (CR 701.24c) |
 
@@ -1067,9 +1069,10 @@ Three rules for `act`, all learned the hard way elsewhere in this tree:
 
 - **The caller sets it.** `Primitive::Sacrifice` knows it is sacrificing;
   `perform_action` cannot recover that from `(from, to)`.
-- **Nothing may branch on `act` outside the replacement pipeline and the
-  trigger matcher.** It is not a general-purpose tag; a third reader is a third
-  place for it to drift.
+- **Only the replacement pipeline, the trigger matcher, the history writer
+  (`triggers/history.rs`) and a resolution's own "this way" count
+  (`AmountExpr::DiscardedThisWay`) branch on `act`.** It is not a
+  general-purpose tag; each further reader is another place for it to drift.
 - **No catchall variant.** No `Other`, no `Unknown`, no `#[non_exhaustive]`.
   This is the whole of what makes the enum cheap to extend later — see §11's
   "the one that blocks". A site with no honest act to give is a site whose
@@ -1190,8 +1193,10 @@ an `EventPattern` arm without a corresponding `GameAction` change is the smell
 this contract exists to catch.
 
 Within an arm, constraints on the event's fields reuse existing vocabulary —
-`ObjectFilter`, `PlayerRef`, `ZoneChangeCause`, `CardType` — rather than
-inventing per-mechanic predicates. "If a **red source you control** would deal
+`ObjectFilter`, `PlayerSet`, `ZoneChangePattern` (its `act: ZoneChangeAct`),
+`CardType` — rather than inventing per-mechanic predicates. What caused an
+event is not an arm's field: it is `ReplacementDef::by`, the same
+`SourceFilter` a "can't" uses. "If a **red source you control** would deal
 damage to an opponent or a permanent an opponent controls" (Torbran, Thane of
 Red Fell) is `And(ByColor(Red), ByController(You))` on the source, and on the
 target it is **both** of CR 614.1's halves: `ObjectSet::Filter {
@@ -1237,12 +1242,20 @@ pub enum Rewrite {
     /// CR 614.5's doublers, CR 615.7's partial prevention, CR 122.6a's
     /// "enters with N more". Scales or offsets the event's numeric field.
     Amount(AmountRewrite),
-    /// CR 614.9 redirection, CR 616.1b control-changing. Changes who or what
-    /// the event is about, leaving its kind alone.
+    /// CR 614.9 redirection. Changes who or what the event is about, leaving
+    /// its kind alone.
     Retarget(RetargetSpec),
     /// CR 614.1c/d -- modify the *parameters* of an entering permanent
-    /// (tapped, counters, controller, copy-of) without changing the event.
-    EnterWith(EnterMods),
+    /// (status, counters, characteristic edits) without changing the event.
+    EnterWith(EnterModsTemplate),
+    /// CR 614.13 -- moves made as the entry is decided (devour), which the
+    /// counters it enters with are computed from.
+    EnterAfterMoving(AuxiliaryMove),
+    /// CR 616.1b -- the permanent enters under another player's control.
+    EnterUnderControlOf(PlayerRef),
+    /// CR 614.1c / 616.1c -- the permanent enters as a copy; a later copy
+    /// replaces an earlier one rather than merging with it.
+    EnterAsCopy(EntryCopyTemplate),
     /// CR 614.1a's general "instead" -- replace the event with a different
     /// proposed action. The escape hatch, and the only unbounded arm.
     Instead(GameActionTemplate),
@@ -1255,7 +1268,7 @@ replaced with other events", so arbitrary event-for-event substitution is a
 rule, not a design gap — and it costs nothing, because the substitute is a
 `GameAction`, a vocabulary that already has to exist.
 
-The other four arms exist because those are the cases where the replacement is
+The other arms exist because those are the cases where the replacement is
 *not* a substitution, and flattening them into `Instead` would lose information
 the pipeline needs:
 
@@ -1269,13 +1282,19 @@ the pipeline needs:
 - `EnterWith` has to **accumulate across CR 616.1f iterations** while the
   permanent does not yet exist, and be readable by the CR 614.12 look-ahead
   (§5) as "replacement effects that have already modified how it enters".
+- `EnterUnderControlOf` and `EnterAsCopy` are their own arms because CR
+  616.1b and 616.1c name a class by what the effect does, and the class is
+  derived from the arm (`ReplacementClass::from_rewrite`); a later copy
+  replaces an earlier one where `EnterWith`'s writes merge (§3.5).
+- `EnterAfterMoving` is CR 614.13's: its moves are made while the entry is
+  being decided, and applying it prompts.
 - `Prevent` is distinguishable from an `Instead` that produces nothing because
   CR 615.13 lets triggers fire on damage *being prevented*, and CR 615.12
   ("prevention effects are still applied … those effects won't prevent any
   damage, but any additional effects they have will take place") needs the
   engine to know a prevention was attempted.
 
-A sixth arm is a claim that CR 614/615 permits an operation this list omits. It
+A new arm is a claim that CR 614–616 permits an operation this list omits. It
 should arrive with the rule number that says so; absent one, it belongs in
 `Instead` or in `then`.
 
@@ -1575,10 +1594,14 @@ proposal's members are named for what they are, and only the permanent says
 `entered_as`.
 
 **One constructor.** `PermanentState::entering` is the only function that
-turns an `EnterMods` into an entity, for the performer and for the CR 614.12
-look-ahead alike, which differ only in the timestamps they pass. A new member
-is a field on `EnterMods`, one line there, and a read wherever a layer needs
-it. Face-down (CV-6) is a status, read at 1b; CR 613.2a's copiable "as ...
+turns a replacement's half of `EnterMods` (status, counters, copy, edits) into
+an entity, for the performer and for the CR 614.12 look-ahead alike, which
+differ only in the timestamps they pass. The two members the effect putting
+the permanent there says are applied after it, and the look-ahead predicts
+neither: `perform_entry` makes it attacking (`attacking`, CR 508.4), and the
+`EnterBattlefield` arm attaches it (`attached_to`, CR 303.4f). A new
+replacement-written member is a field on `EnterMods`, one line there, and a
+read wherever a layer needs it. Face-down (CV-6) is a status, read at 1b; CR 613.2a's copiable "as ...
 enters" P/T is an "as" member at 1a; `backlog.md` §2.2's "as it enters"
 choice record takes the same road.
 
@@ -1621,10 +1644,10 @@ a leaf from matching to not matters.
 | Field | Half | What it writes on the entering object | Leaves it can unmatch |
 |---|---|---|---|
 | `status` | with | the tapped status (CR 110.5a: not a characteristic) | none directly; see the last row |
-| `counters`, +1/+1 | with | power and toughness up, at 7c (CR 122.1a) | `PowerLE` |
-| `counters`, −1/−1 | with | power and toughness down, at 7c | `PowerLE` under a `Not` |
-| `counters`, a keyword kind | with | a keyword, at 6 (CR 122.1b) | none: no leaf reads keywords |
-| `counters`, any other kind | with | nothing | none |
+| `counters`, +1/+1 | with | power and toughness up, at 7c (CR 122.1a) | `PowerLE`; and `WithCounters` counting that kind or every kind (`kind: None`): `AtMost` directly, `AtLeast` under a `Not`, `Exactly` either way |
+| `counters`, −1/−1 | with | power and toughness down, at 7c | `PowerLE` under a `Not`; `WithCounters` as above |
+| `counters`, a keyword kind | with | a keyword, at 6 (CR 122.1b) | `WithCounters` as above; no leaf reads keywords |
+| `counters`, any other kind | with | no characteristic | `WithCounters` as above |
 | `copy` | as | every copiable value, at 1a; and the counters and status its CR 707.9e exceptions add (CV-2b), into `counters` and `status` | every characteristic leaf. Exempt, since only CR 616.1c writes it and 616.1c's step never shares a bucket with 616.1e's; its 707.9e writes are made at the same step |
 | `edits`, one that adds | as | a value, at the edit's layer | the leaf for that value, under a `Not`: `Not(BySubtype(Mutant))` |
 | `edits`, one that sets or removes | as | a whole axis, at the edit's layer | every leaf on that axis |
@@ -1658,10 +1681,11 @@ them.
 | Arm | Entry placement: "enters as", not copiable (CR 707.2's last sentence) | Copy placement (CV-2b, `copy-effects-architecture.md` §4.1a): inside `CopiableValues` (CR 707.9b) |
 |---|---|---|
 | `Types(TypeChange)` | layer 4; **built**, for Master Biomancer | 1a; **built** (CV-2b), for Spark Double's "isn't legendary" and Copy Artifact's "in addition" |
-| `Colors(ColorChange)` | layer 5 | 1a |
+| `Colors(ColorChange)` | layer 5; not yet an arm of the enum | 1a |
 | `GainsAbility(AbilityDef)`, `GainsKeyword(KeywordFlag)` | layer 6. Registration then files the gained ability, as it files a copy's, because every gate's printed leg must see it (`CLAUDE.md`) | 1a; **built** (CV-2b), on fixtures shaped as Phantasmal Image and Mockingbird. Registration files the gained ability because it reads the captured list |
 | `PowerToughness(i32, i32)` | 7b for another object's effect. The object's own "as ... enters" that sets P/T is copiable (CR 613.2a), a third placement at 1a | 1a; **built** (CV-2b), on a Quicksilver Gargantuan-shaped fixture |
-| `Name(String)`, `ManaCost(Option<ManaCost>)`, `Loyalty(i32)` | none: copiable values only (CR 707.2) | 1a; `Name` **built** (CV-2b), on a Sakashima-shaped fixture |
+| `GainsThisAbility` | none: refused at every entry (`has_entry_placement`), since only an ability's resolution has an ability to name | 1a, for an ability's resolution copy only (CV-1b, Cryptoplasm): `with_this_ability` makes it a `GainsAbility` of the resolving ability at the capture |
+| `Name(String)`; `ManaCost(Option<ManaCost>)` and `Loyalty(i32)`, not yet arms of the enum | none: copiable values only (CR 707.2) | 1a; `Name` **built** (CV-2b), on a Sakashima-shaped fixture |
 
 The entry placement lowers an edit through the function `Primitive::ChangeType`
 lowers through (`TypeChange::modifications`), so an edit and a continuous
@@ -2664,7 +2688,9 @@ and a lost player keeps taking turns in any game of three or more.
   performed as a `ZoneChange` out of the stack with `ZoneChangeCause::Countered`
   (`Primitive::CounterSpell`, `resolve.rs`), which `EventPattern::ZoneChange
   { cause }` has watched since RB, so Guile's "instead exile that spell" is a
-  `ZoneChangeTo(Exile)` the pipeline expresses today. What Guile still lacks
+  `ZoneChangeTo(Exile)` the pipeline expresses today. (RH-1 renamed both
+  since: the move's `act: ZoneChangeAct::Countered`, watched through
+  `EventPattern::ZoneChange`'s `change.act`.) What Guile still lacks
   is its rider — "you may play that card without paying its mana cost" —
   which is `backlog.md` §2.3's, casting from a non-hand zone.
 

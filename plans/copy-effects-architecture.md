@@ -186,7 +186,7 @@ those clauses are one shared CR 707.10c prompt.
 | Tier | Mechanism the engine must build | CR | Cards | Clauses | Built? |
 |---|---|---|---:|---:|---|
 | **A** | Token copy — `CreateToken` carrying copiable values | 707.1, 111.1 | **306** | 318 | ❌ |
-| **B** | Enters as a copy — a CR 616.1c replacement | 707.5, 616.1c | **69** | 69 | ❌ (bucket ships, no producer) |
+| **B** | Enters as a copy — a CR 616.1c replacement | 707.5, 616.1c | **69** | 69 | ✅ CV-2a, CV-2b (`Rewrite::EnterAsCopy`), with the facilities §4.1a's "Not in CV-2" table names still owed |
 | **C** | Becomes a copy — a Layer 1a continuous effect | 707.4, 707.2c | **81** | 81 | ❌ (`Layer1Copy` is a stub) |
 | **D** | Spell / ability copy — a stack object, **no layer** | 707.10 | **306** | 542 | ❌ |
 | **E** | Cast a copy — create in the zone, then cast | 707.12–14 | **47** | 73 | ❌ |
@@ -1187,22 +1187,25 @@ origin and duration — not by `ObjectSet`):
 
 > **Resolved by CV-1b (2026-10-06, §7d).** The rule is item 10's, keyed on
 > the affected object as this section asked. `move_object` prunes the mover
-> from every row that names it, beside `remove_by_source` and never instead
-> of it. CR 400.7a–c's exceptions are taken narrowly: a permanent spell keeps
+> from every row that names it, beside `remove_rows_ending_with` (the
+> battlefield sweep that ends a static ability's rows and a resolution's rows
+> that end with their source) and never instead of it. CR 400.7a–c's exceptions are taken narrowly: a permanent spell keeps
 > its continuous rows and a prevention effect watching damage from it, and
 > nothing else. An indefinite copy row now ends when its subject moves, and
 > a copy that lasts retires the earlier copies of its object, which it hides
 > for as long as both exist (`retire_earlier_copies_of`, the review round).
 >
 > **CR 400.7's twelve exceptions, and who owns each** (the review, 2026-10-07).
-> Two keep a row today's cards can make, and `break_references_to` spares
-> them; five are a permission's, and the prune spares nothing for them yet.
+> Two keep a row today's cards can make: `break_references_to` spares 400.7a's
+> continuous rows, and `move_object` re-points 400.7c's prevention shield at
+> the permanent; five are a permission's, and the prune spares nothing for
+> them yet.
 >
 > | CR | What carries over, or is found | Where | State |
 > |---|---|---|---|
 > | 400.7a | an effect on a permanent spell changing characteristics or control | the prune spares every continuous row from the stack to the battlefield | ✅; 400.7a-002, a text change, waits on Layer 3 (`backlog.md`) |
 > | 400.7b | a static grant, to a permanent spell, of an ability that works on the battlefield (611.3d) | the grant's filter ("creature spells you cast") stops matching the permanent, so the resolution writes a row | ✗ PM-0 (`permission-architecture.md` §5 question 6); ATOM-400.7b-001 |
-> | 400.7c | prevention of damage from a permanent spell | the prune spares it (`prevents_damage_from`) | ✅ |
+> | 400.7c | prevention of damage from a permanent spell | the shield names its chosen source by identity (`SourcePattern.object`, an `ObjectRef`), which the prune never reaches; `move_object` re-points it at the permanent (`prevents_damage_from`) | ✅ |
 > | 400.7d | facts a permanent keeps about the spell it was | `PermanentState.cast` (main item 9); mana spent is B9 | ✅ but mana provenance |
 > | 400.7e | a zone-change trigger finding the new object | TR-4 | 400.7e-001, -002 |
 > | 400.7f | a leaves-the-battlefield trigger finding the Auras | TR-4 | 400.7f-001 |
@@ -1234,7 +1237,8 @@ prevention effects. A copy row on a permanent is none of those.
 
 **And a fact worth recording**, because it is the kind that gets expensive late:
 item 10's subject-keyed teardown must run *alongside* `remove_by_source`, not
-instead of it. Every static ability's rows are torn down by source, a printed
+instead of it (since CV-1b, alongside `remove_rows_ending_with`, which also
+spares a resolution's row whose duration outlives its source). Every static ability's rows are torn down by source, a printed
 one's and those a permanent that entered as a copy registered off the copied
 list, and a subject-keyed pass alone would leave them on a permanent that
 changed zones.
