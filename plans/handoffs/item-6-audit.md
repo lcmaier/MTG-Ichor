@@ -1449,6 +1449,150 @@ the band. **Order:** after pass 5's PRs and the card-homed triage, which
 edit the same lines; before A6e's cleanup, so the cleanup's PRs and pass 6's
 scheduling table are written in the new names.
 
+#### The design (2026-10-23, for the owner's review)
+
+**Re-counted on `305e6195`** (#280's merge), the same way: the 27 codes are
+1,228 mentions in the live docs and 43 in source, test and dev GUI comments,
+over 61 files, on 874 distinct lines. `RS-2` alone is 149. The plan's figures
+predate pass 5 and the triage, whose `**Slotted:**` lines were written in
+these codes. The board reads 149 route-homed, 5 card-homed, 12 records, 0
+homeless and **5** reachable — wrong today at that commit (the brief said 4;
+the board is current at `305e6195`, so the check is "unchanged from 5").
+
+**The problem the scheme solves.** `engineering-practices.md` §4.2 (#225's
+review) already puts a phase's plain name first in a title and its code
+after. The docs kept citing the code anyway, 1,228 times, because a name of
+six words does not fit where a reference goes: a table cell, a `**Slotted:**`
+line, the critical path, a source comment's "until RS-3". The board's
+machinery also needs one exact token per phase: `ROUTE_TOKEN_RE` finds a
+`**Slotted:**` line's homes by shape, and `--slotted` greps for one. So the
+reference form has to stay short and exact; what changes is that it is made
+of words.
+
+**The scheme.**
+- **A phase still to come, and a route row still to come, is cited by its
+  name: two to four lowercase words saying what it delivers, hyphenated, in
+  backticks** — `combat-restrictions`, `commander-format`. Wherever the old
+  code stood: prose, tables, `**Slotted:**` lines, source comments, the
+  critical path. A title or a ✅ heading writes the same words with spaces
+  and a capital, then a dash and what a reader needs beside them ("Combat
+  restrictions — menace, evasion, landwalk"); a heading the board reads keeps
+  the backticked form first (below). A branch is `<subsystem>/<name>`
+  (`cant-effects/combat-restrictions`), the subsystem being the owning
+  architecture doc's, or `route/` for a roadmap row.
+- **Names use the CR's words where the CR has them** (CR 508.1c's
+  "restrictions", 508.1d's "requirements") and a mechanic's keyword where one
+  names the work (`convoke-delve-improvise`); no CR numbers, no abbreviations
+  beyond `CLAUDE.md`'s three, and unique across the route.
+- **No new codes.** A phase written from here on is named, never coded; the
+  families (`RS`, `CV`, `CP`, `MA`, `PM`, `TR` …) close, and their letters
+  stay only on landed phases. A track is cited by its subsystem in prose
+  ("the mana phases", "permission's later builds"), never by its letters.
+- **A split names each part for what it delivers**: `combat-restrictions`
+  and `combat-requirements`, not a part 1 and a part 2, and no suffix. The
+  whole's name goes to the record below, or stays as prose for the pair.
+- **Landed codes are untouched** — commit messages, PR titles, the board's
+  landed table and `plans/archive/` read in them, and nobody rewrites those.
+  A phase that lands under a name keeps the name; its ✅ heading carries it.
+
+This replaces §4.2's second and third bullets in the sweep; the first (name
+first) and fourth (the generated index) stand.
+
+**The scope's edges** — the codes the plan did not list, each in or out:
+
+| Code | Mentions | | Why |
+|---|---:|---|---|
+| `B1` cost, `B5` (RS-3a, RS-4, RS-3b), `B6` (CV-3 … CV-7), `B11` permission, `B12` mana | 40, 11, 17, 51, 4 | in, as prose | Rows that group a track. Their phases get names, so a row ID left beside them is the one code a reader still decodes. Cited by subsystem, no hyphenated name; `B11`'s three `**Slotted:**` lines name `permission-design`, which sizes the builds |
+| `RS-3`, the combat pair | 18 + 13 in source | in | The family of two named phases; each mention names the one it means, or both |
+| `PM`, `RS`, `CV`, `CP` as a track's letters | 54 | in where forward | "PM's later builds" is a forward step on the critical path; a mention of a landed track stays |
+| `B7`, the lattice | 18 | in | Forward, and seven `**Slotted:**` lines home on it, so it needs a name the board reads |
+| `A6f`, the information-model design | 24 | in | Forward, on item 6's line, not in flight; pairs with `B4`'s build |
+| `A4d`, the Rust notes | 9 | in | Forward, and missing from the plan's list |
+| `C0`–`C2`, Phase 8's named PRs | 48, 15, 10 | in | Forward route rows cited by code, four `**Slotted:**` lines on `C0` |
+| `A6e`, `A6h` | 118, 28 | out | The audit in flight; they land as codes |
+| Phase 8, 9, 10; `§D`, `§E` | — | out | Already named ("Phase 9 formats and multiplayer"); numbered like the items |
+
+With the edges the sweep is about 1,500 mentions on 1,075 lines over 69
+files.
+
+**The names**, old code to new, are `plans/archive/route-codes-renamed.md`:
+a record, since every live mention moves and only a reader of an old commit
+message, PR title or archive page still meets the codes. `git grep RS-2`
+finds it. §4.2 and the board's "Phases by name" point to it. **No glossary
+entries**: `check_glossary.py`'s first assertion wants every term in
+`mtgsim/src`, and a phase name is the route's word, not the code's.
+
+**The gates that move**, all in `check_state_of_play.py` but the last two:
+- `ROUTE_TOKEN_RE` gains a backticked hyphenated name, and a name counts as
+  a token only when the route defines it, so `` `cant-effects-architecture.md` ``
+  or a backticked phrase in a `**Slotted:**` line never reads as a home.
+- `route_ids` collects the names from the three places that define them:
+  the architecture docs' sizing tables and headings, `roadmap-v2.md`'s rows
+  (a forward row's first cell becomes its name, landed rows keep their IDs),
+  and ✅ headings.
+- `DEFINED_RE`, `LANDED_HEADING_RE` with `CODE_RE`, and the ✅-heading reader
+  beside them accept a backticked name where a code stands
+  (`` | **`token-copies` — a second constructor …** | ``,
+  `` ### `token-copies` — token copies — ✅ 2026-… ``). `PM-1 onward`, which
+  the board misses today, becomes `command-zone-casting`'s row and
+  "permission's later builds".
+- `--slotted` takes a name (`--slotted combat-restrictions`); the board's
+  example and the index's "Code" column, read "for older text", gain a
+  "Cited as" column for the phases not yet landed.
+- **New:** `--check` fails a retired code in a live doc, reading the record's
+  first column; `plans/handoffs/` and the archive exempt. Otherwise the next
+  brief writes `RS-2` again and nothing notices.
+- `selftest` gains a name-homed line, a backticked non-name and a landed
+  name.
+- `plans/references/comment-census.py`'s `PHASE_CODE` gains the backticked
+  names, so §2.1's census counts "until `combat-restrictions`" as it counted
+  "until RS-3".
+- `plans/references/cast-census.py`'s owner keys (`"RS-2"`, `"B2"`, `"PM"`)
+  are renamed and its page edited to match; it fetches from Scryfall, so the
+  page is not regenerated.
+
+**The check that the homes held** is per item, not by total: the board's
+`home()` for every open item before and after, by a probe, identical. A
+mistyped name reads as no token, so a total could hide two items swapping.
+
+**`CLAUDE.md`'s critical path** in the new names, the "After 6" block (four
+lines become six; the file goes from 198 lines to 200, with 5b, 5c and 6
+rewritten inside their lines):
+
+```
+**After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
+`route-review`; four-player Commander end to end — `cant-target-or-cast`; `permission-design` with a card's characteristic sets designed beside it; `command-zone-casting`;
+`commander-format`; `multiplayer-rules`; `information-model` — then what Phase 8 is gated on: `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`' permission half;
+`hybrid-and-phyrexian-payment`, `discard-and-counter-costs`; `mana-ability-costs`, `any-color-and-riders`, `chosen-color-mana`, `convoke-delve-improvise`, `mana-payment-solver`;
+`mana-provenance`; `ironworks-loop`; permission's later builds; `double-faced-cards` with the other characteristic sets; `token-copies`, `spell-copies`; `face-down-and-morph`;
+`merging-and-meld`; `divided-among-targets`; `loop-detection`. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
+```
+
+Its lines run to about 190 characters, where today's run to about 165;
+`CLAUDE.md` checks lines, not width.
+
+**Sized:** the sweep's ~1,075 lines, about as many additions, plus the
+gates (~150 with the selftest), §4.2 (~20) and this design and the record
+(~200): about 1,450 additions, inside the band, so one PR. Source comments
+are 53 of those lines, the only ones §4's code-and-tests count sees. **Lines
+are not re-wrapped**: a name runs longer than its code, so some lines pass
+the docs' width, and a re-wrap would re-flow whole paragraphs and bury the
+substitutions in the diff.
+
+**For the owner:**
+1. **The cited form.** The hyphenated name in backticks (recommended), or
+   prose names with no fixed form. Prose reads best, but a paraphrase defeats
+   `git grep`, and the board's `**Slotted:**` reader would need a list of
+   phrases and would mis-home an item silently on a variant; branches would
+   need a separate slug anyway. The cost of the recommendation is longer
+   lines and a code-looking token in prose.
+2. **The edges**, each as the table above says: all in but `A6e`, `A6h` and
+   the numbered phases.
+3. **The names**, in the record's table. They are proposals; a name the
+   owner rewrites is one edit before the sweep and many after it.
+4. **The retired-code check** in `--check`, recommended: about 20 lines,
+   and it is what keeps the sweep swept.
+
 ### Pass 6 — scheduling
 
 **Goal:** one table, §9's shape: each open track phase and lattice entry,
