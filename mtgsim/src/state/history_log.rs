@@ -92,6 +92,9 @@ pub enum RowFact {
     /// CR 509.1: declared as a blocker of this attacking creature, a row for
     /// each creature it blocks.
     Blocked(ObjectRef),
+    /// CR 509.1h: the row's attacking creature became blocked by an effect,
+    /// which no creature blocks. A row of the combat's blocks.
+    BecameBlocked,
     /// CR 506.4, 511.3: what it was attacking as it left combat.
     RemovedFromCombat { attacking: Option<AttackTarget> },
     /// CR 115.1: by a spell rather than an ability, controlled by `controller`.
@@ -116,7 +119,7 @@ impl RowFact {
             RowFact::LeftTheGame { .. } => RowKind::LeftTheGame,
             RowFact::DealtDamage { .. } => RowKind::DealtDamage,
             RowFact::Attacked(_) => RowKind::Attacked,
-            RowFact::Blocked(_) => RowKind::Blocked,
+            RowFact::Blocked(_) | RowFact::BecameBlocked => RowKind::Blocked,
             RowFact::RemovedFromCombat { .. } => RowKind::RemovedFromCombat,
             RowFact::BecameTarget { .. } => RowKind::BecameTarget,
             RowFact::Stated { fact, .. } => kind_counted(fact),
@@ -357,13 +360,18 @@ impl HistoryLog {
     /// Was `object` declared as a blocker in `span` of turn `turn` (CR
     /// 509.1)? One put onto the battlefield blocking never was (CR 509.4).
     pub(crate) fn blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
-        self.rows_during(turn, span, RowKind::Blocked, note).any(|row| row.object == Some(object))
+        self.rows_during(turn, span, RowKind::Blocked, note).any(|row| row.object == Some(object) && matches!(row.fact, RowFact::Blocked(_)))
     }
 
-    /// Did `object` become a blocked creature as blockers were declared in
-    /// `span` of turn `turn` (CR 509.1h)? The blockers' rows name it.
+    /// Did `object` become a blocked creature in `span` of turn `turn` (CR
+    /// 509.1h)? The rows of the creatures declared blocking it name it, and
+    /// an effect's block is its own row.
     pub(crate) fn was_blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
-        self.rows_during(turn, span, RowKind::Blocked, note).any(|row| row.fact == RowFact::Blocked(object))
+        self.rows_during(turn, span, RowKind::Blocked, note).any(|row| match row.fact {
+            RowFact::Blocked(attacker) => attacker == object,
+            RowFact::BecameBlocked => row.object == Some(object),
+            _ => false,
+        })
     }
 
     /// Did the card `object` get where it is by dying in `span` of turn

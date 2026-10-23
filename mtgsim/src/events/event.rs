@@ -179,6 +179,11 @@ pub enum GameEvent {
     /// for the step, written when nobody blocks too, since CR 509.3g's
     /// "attacks and isn't blocked" reads the declaration whole.
     BlockersDeclared { blocks: Vec<(ObjectId, ObjectId)>, unblocked: Vec<ObjectId> },
+    /// CR 509.1h: an unblocked attacking creature became blocked by an
+    /// effect, no creature blocking it. "Whenever this becomes blocked"
+    /// reads it (CR 509.3c); "becomes blocked by a creature" never does
+    /// (509.3d).
+    BecameBlocked { attacker: ObjectId },
     /// CR 506.4, 511.3: permanents removed from combat at once, each with
     /// what it was attacking or blocking as it was removed, which CR 508.5
     /// reads once its creature has left combat. No replaceable event
@@ -622,7 +627,8 @@ impl GameEvent {
             | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
             | DamagePrevented { target: DamageTarget::Object(id), .. }
             | SpellCast { spell_id: id, .. }
-            | SpellFizzled { spell_id: id, .. } => each(*id),
+            | SpellFizzled { spell_id: id, .. }
+            | BecameBlocked { attacker: id } => each(*id),
             AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
                 each(identity.source.id)
             }

@@ -1861,6 +1861,77 @@ impl GameState {
 
     /// Announce what [`Self::remove_from_combat`] removed, as one event, or
     /// nothing when it removed nothing.
+    /// The combat's blocks, each blocked attacker and each blocking creature:
+    /// what a performer's check compares before and after it acts.
+    #[cfg(debug_assertions)]
+    pub(crate) fn combat_blocks(&self) -> (Vec<ObjectId>, Vec<ObjectId>) {
+        let (mut blocked, mut blocking) = (Vec::new(), Vec::new());
+        for (id, entry) in self.battlefield_ordered() {
+            if entry.attacking.as_ref().is_some_and(|attack| attack.is_blocked) {
+                blocked.push(id);
+            }
+            if entry.blocking.as_ref().is_some_and(|block| !block.blocking.is_empty()) {
+                blocking.push(id);
+            }
+        }
+        (blocked, blocking)
+    }
+
+    /// Every attacker blocked and every creature blocking since `before`,
+    /// the combat's blocks then, is named by a record from `since` on: a
+    /// declaration, or an effect's block (CR 509.1h). A performer that blocks
+    /// and announces nothing fails here, since no "blocks" or "becomes
+    /// blocked" trigger would see it. Records a test's resolution outside any
+    /// resolution has flushed are read off the recorder.
+    #[cfg(debug_assertions)]
+    pub(crate) fn assert_blocks_announced(&self, before: &(Vec<ObjectId>, Vec<ObjectId>), since: crate::events::event::EventId) {
+        let (blocked, blocking) = self.combat_blocks();
+        if blocked.iter().chain(&blocking).all(|id| before.0.contains(id) || before.1.contains(id)) {
+            return;
+        }
+        let window_from = self.events.held().first().map_or(self.events.next_seq(), |record| record.seq);
+        let flushed = if since < window_from && self.events.recorder().is_some() { self.recorded_events().records().to_vec() } else { Vec::new() };
+        let records: Vec<&crate::events::event::EventRecord> = match since < window_from {
+            true => flushed.iter().filter(|record| record.seq >= since).collect(),
+            false => self.events.records_since(since).iter().collect(),
+        };
+        for attacker in blocked.iter().filter(|id| !before.0.contains(id)) {
+            let announced = records.iter().any(|record| match &record.event {
+                GameEvent::BecameBlocked { attacker: named } => named == attacker,
+                GameEvent::BlockersDeclared { blocks, .. } => blocks.iter().any(|(_, named)| named == attacker),
+                _ => false,
+            });
+            debug_assert!(announced, "{attacker} became blocked and no record says so");
+        }
+        for blocker in blocking.iter().filter(|id| !before.1.contains(id)) {
+            let announced = records.iter().any(|record| match &record.event {
+                GameEvent::BlockersDeclared { blocks, .. } => blocks.iter().any(|(named, _)| named == blocker),
+                _ => false,
+            });
+            debug_assert!(announced, "{blocker} began blocking and no record says so");
+        }
+    }
+
+    /// CR 509.1h: each of `ids` that is an unblocked attacking creature
+    /// becomes a blocked creature, blocked by no creature. Returns the ones
+    /// that did, in `ids`' order, each of which its record names.
+    pub(crate) fn become_blocked(&mut self, ids: &[ObjectId]) -> Vec<ObjectId> {
+        let mut blocked = Vec::new();
+        for &id in ids {
+            // NOT REPLACEABLE: CR 509.1h, `Primitive::BecomeBlocked`'s write.
+            if let Some(attack) = self.battlefield.get_mut(&id).and_then(|entry| entry.attacking.as_mut())
+                && !attack.is_blocked
+            {
+                attack.is_blocked = true;
+                blocked.push(id);
+            }
+        }
+        if !blocked.is_empty() {
+            self.bump_layer_epoch_if_read(GatedWalkInput::Combat);
+        }
+        blocked
+    }
+
     pub(crate) fn announce_removal_from_combat(&mut self, removed: Vec<CombatExit>, cause: EventCause) -> Result<(), String> {
         if removed.is_empty() {
             return Ok(());

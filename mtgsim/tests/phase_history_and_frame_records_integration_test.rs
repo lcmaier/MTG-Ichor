@@ -2,7 +2,10 @@
 //! object that is gone, and the history log's rows as every "this turn"
 //! fact's one store (`plans/handoffs/item-6-audit.md`, pass 3's cleanup).
 
-use mtgsim::cards::authoring::triggers::{leaves_the_battlefield, triggered_ability, whenever};
+use mtgsim::cards::authoring::triggers::{becomes_blocked, becomes_blocked_by, blocks, leaves_the_battlefield, triggered_ability, whenever};
+use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::types::effects::{SelectionFilter, TargetCount};
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::phase_rd_cards::dark_sphere;
 use mtgsim::engine::actions::{ActionContext, GameAction};
@@ -436,4 +439,62 @@ fn a_count_of_tokens_that_died_reads_the_token_the_store_has_lost() {
     let mut game = a_creature_and_a_token_died();
     cast_and_resolve(&mut game, fixture_count_of_the_dead("Fixture Token Tally", ObjectFilter::Token));
     assert_eq!(game.players[0].life_total, 21);
+}
+
+// ---------------------------------------------------------------------------
+// An effect that makes a block (item 278, CR 509.1h, 509.3c)
+// ---------------------------------------------------------------------------
+
+/// "Whenever `event`, you gain `life` life."
+fn fixture_watcher(name: &'static str, event: impl Into<TriggerEvent>, life: u64) -> std::sync::Arc<CardData> {
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(life)), EffectRecipient::Controller);
+    CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(triggered_ability("", whenever(event, gain))).build()
+}
+
+/// Curtain of Light's instruction, "target unblocked attacking creature
+/// becomes blocked", resolved by player 1 at `attacker`.
+fn becomes_blocked_by_an_effect(game: &mut GameState, attacker: ObjectId) {
+    let curtain = put_in_hand(game, CardDataBuilder::new("Fixture Curtain").card_type(CardType::Instant).build(), 1);
+    let ctx = ResolutionContext {
+        source: curtain,
+        ability_source: None,
+        controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(attacker)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    let effect = Effect::Atom(Primitive::BecomeBlocked, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
+    game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(&test_dp()).unwrap();
+        game.perform_sba_and_triggers(&test_dp()).unwrap();
+    }
+}
+
+/// An attacker that becomes blocked by an effect triggers "whenever a
+/// creature becomes blocked" (CR 509.3c), and neither "becomes blocked by a
+/// creature" (509.3d) nor "blocks", since no creature blocks it. Made
+/// blocked again, it was not unblocked, so nothing triggers; and it was
+/// blocked this turn.
+#[test]
+fn an_effect_that_makes_a_block_triggers_becomes_blocked_and_nothing_a_blocker_reads() {
+    let mut game = setup_two_player_game();
+    let creature = || TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature));
+    put_on_battlefield(&mut game, fixture_watcher("Fixture Blocked Watcher", becomes_blocked(creature()), 1), 0);
+    put_on_battlefield(&mut game, fixture_watcher("Fixture Blocker Watcher", becomes_blocked_by(creature(), creature()), 10), 0);
+    put_on_battlefield(&mut game, fixture_watcher("Fixture Blocks Watcher", blocks(creature()), 100), 0);
+    put_on_battlefield(&mut game, banner_over(ObjectFact::WasBlocked), 0);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    mtgsim::test_support::set_attacking(&mut game, attacker, 1);
+
+    becomes_blocked_by_an_effect(&mut game, attacker);
+    assert_eq!(game.players[0].life_total, 21);
+    assert!(game.battlefield[&attacker].attacking.as_ref().is_some_and(|attack| attack.is_blocked && attack.blocked_by.is_empty()));
+    assert_eq!(get_effective_power(&game, attacker), Some(3), "it was blocked this turn");
+
+    becomes_blocked_by_an_effect(&mut game, attacker);
+    assert_eq!(game.players[0].life_total, 21, "already blocked, it becomes nothing (CR 603.2e)");
 }

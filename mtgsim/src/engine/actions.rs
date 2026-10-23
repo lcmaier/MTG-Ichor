@@ -1206,7 +1206,13 @@ impl GameState {
             let Some(action) = member.event else { continue };
             // Each member performs under its own cause, which its records carry.
             let member_ctx = ctx.caused_by(member.cause);
+            #[cfg(debug_assertions)]
+            let blocks_before = (self.combat_blocks(), self.events.next_seq());
             let mut result = self.perform_action(action.clone(), &member_ctx, &member.applied);
+            #[cfg(debug_assertions)]
+            if result.is_ok() {
+                self.assert_blocks_announced(&blocks_before.0, blocks_before.1);
+            }
             // A destruction's move, decided with it, happens right after it
             // (CR 701.8a) and is no event of the batch's own: what the batch
             // performed is the destruction.

@@ -566,6 +566,7 @@ counted_enum! {
         EnteredBattlefield,
         AttackersDeclared,
         BlockersDeclared,
+        BecameBlocked,
         Targeted,
         AbilityActivated,
         AbilityTriggered,
@@ -617,6 +618,7 @@ impl EventKind {
             GameEvent::PermanentEnteredBattlefield { .. } => EventKind::EnteredBattlefield,
             GameEvent::AttackersDeclared { .. } => EventKind::AttackersDeclared,
             GameEvent::BlockersDeclared { .. } => EventKind::BlockersDeclared,
+            GameEvent::BecameBlocked { .. } => EventKind::BecameBlocked,
             GameEvent::Targeted { .. } => EventKind::Targeted,
             GameEvent::AbilityActivated { .. } => EventKind::AbilityActivated,
             GameEvent::AbilityTriggered { .. } => EventKind::AbilityTriggered,
@@ -1062,7 +1064,9 @@ impl TriggerEvent {
                 EventKindMask::of(EventKind::EnteredBattlefield)
             }
             TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
-            TriggerEvent::Blocks { .. } => EventKindMask::of(EventKind::BlockersDeclared),
+            // CR 509.3c's "becomes blocked" by an effect as well as by a
+            // declaration.
+            TriggerEvent::Blocks { .. } => EventKindMask::of(EventKind::BlockersDeclared).with(EventKind::BecameBlocked),
             TriggerEvent::BecomesTarget { .. } => EventKindMask::of(EventKind::Targeted),
             TriggerEvent::ActivatesAbility { .. } => EventKindMask::of(EventKind::AbilityActivated),
             TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
@@ -1416,7 +1420,7 @@ impl TriggerEvent {
             | (TriggerEvent::ControlChanges { .. }, GameEvent::ZoneChange { .. })
             | (TriggerEvent::ControlChanges { .. }, GameEvent::LeftTheGame { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
-            | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. }) => None,
+            | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. } | GameEvent::BecameBlocked { .. }) => None,
             // Every arm, by name, so a new arm does not compile until it says what
             // this projection is for it; the record never matches the arm otherwise.
             (
@@ -1498,7 +1502,7 @@ impl TriggerEvent {
             | (TriggerEvent::TurnBegins { .. }, GameEvent::TurnBegin { .. })
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
-            | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. })
+            | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. } | GameEvent::BecameBlocked { .. })
             | (TriggerEvent::BecomesTarget { .. }, GameEvent::Targeted { .. })
             | (TriggerEvent::ActivatesAbility { .. }, GameEvent::AbilityActivated { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
@@ -2161,6 +2165,8 @@ mod tests {
             ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None }),
             ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object_id: id, controller: 0 }),
             ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![(id, AttackTarget::Player(1))] }),
+            ("BlockersDeclared", GameEvent::BlockersDeclared { blocks: vec![(id, id)], unblocked: Vec::new() }),
+            ("BecameBlocked", GameEvent::BecameBlocked { attacker: id }),
             ("AbilityTriggered", GameEvent::AbilityTriggered {
                 seq: TriggerSeq(0),
                 origin: TriggerOrigin::Object(identity),
@@ -2232,6 +2238,17 @@ mod tests {
             (
                 TriggerEvent::Attacks { attacker: this, defender: None, occurrence: AttackOccurrence::Attacker, alone: false, multiplicity: each },
                 &["AttackersDeclared"],
+            ),
+            (
+                TriggerEvent::Blocks {
+                    blocker: TriggerSubject::Any,
+                    attacker: TriggerSubject::ThisObject,
+                    occurrence: BlockOccurrence::Blocked,
+                    count: None,
+                    alone: false,
+                    multiplicity: each,
+                },
+                &["BlockersDeclared", "BecameBlocked"],
             ),
             (TriggerEvent::CastsSpell { caster: None, spell: None }, &["SpellCast"]),
             (TriggerEvent::ShufflesLibrary { player: None }, &["LibraryShuffled"]),

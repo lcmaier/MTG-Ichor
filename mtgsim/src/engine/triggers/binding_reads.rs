@@ -427,6 +427,7 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         | Primitive::ExtraPhases { .. }
         | Primitive::Regenerate
         | Primitive::RemoveFromCombat
+        | Primitive::BecomeBlocked
         | Primitive::RemoveAllDamage
         | Primitive::Tap
         | Primitive::Untap

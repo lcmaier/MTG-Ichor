@@ -346,6 +346,11 @@ impl GameState {
                     }
                 }
             }
+            GameEvent::BecameBlocked { attacker } => {
+                if let Some((object, frame)) = current(*attacker) {
+                    draft_history_row(controller(&frame), Some(object), frame, None, RowFact::BecameBlocked);
+                }
+            }
             GameEvent::RemovedFromCombat { removed } => {
                 for exit in removed {
                     let frame = frame_as_left(exit.object);

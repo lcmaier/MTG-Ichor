@@ -1109,6 +1109,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 .collect();
             format!("BlockersDeclared: [{}]", pairs.join(", "))
         }
+        BecameBlocked { attacker } => format!("BecameBlocked: {}", named(*attacker)),
         SpellCast { spell_id, caster } => {
             format!("SpellCast: {} casts {}", player_in_log(*caster), named(*spell_id))
         }
@@ -1703,6 +1704,7 @@ mod tests {
             GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: Some(id()) },
             GameEvent::AttackersDeclared { attackers: vec![(attacker, AttackTarget::Planeswalker(walker))] },
             GameEvent::BlockersDeclared { blocks: vec![(blocker, blocked)], unblocked: vec![unblocked] },
+            GameEvent::BecameBlocked { attacker: id() },
             GameEvent::RemovedFromCombat {
                 removed: vec![CombatExit { object: reference(game, exit), attacking: None, blocking: vec![exit_blocked] }],
             },
@@ -1793,6 +1795,7 @@ mod tests {
             GameEvent::TokenCreated { .. } => 38,
             GameEvent::TokenCeasedToExist { .. } => 39,
             GameEvent::StateBasedActionPerformed => 40,
+            GameEvent::BecameBlocked { .. } => 41,
         }
     }
 
@@ -1808,7 +1811,7 @@ mod tests {
         let mut covered: Vec<usize> = records.iter().map(variant).collect();
         covered.sort_unstable();
         covered.dedup();
-        assert_eq!(covered, (0..=40).collect::<Vec<_>>(), "every variant has a record");
+        assert_eq!(covered, (0..=41).collect::<Vec<_>>(), "every variant has a record");
 
         let sentinel = |id: ObjectId| format!("Sentinel{}", id.raw());
         for event in &records {

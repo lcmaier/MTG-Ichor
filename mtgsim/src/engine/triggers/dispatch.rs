@@ -2141,7 +2141,9 @@ impl GameState {
                     }
                 }
             }
-            (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. }) => self.block_events(arm, record, referents),
+            (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. } | GameEvent::BecameBlocked { .. }) => {
+                self.block_events(arm, record, referents)
+            }
             // The source as it was activated, on the battlefield: off its frame
             // when a cost moved it (Harsh Mentor's second ruling).
             (
@@ -2340,6 +2342,18 @@ impl GameState {
     /// creatures that match are the ones it counts, and the occurrence needs
     /// one of them, or `count`'s many (CR 509.3e).
     fn block_events(&self, arm: &TriggerEvent, record: &EventRecord, referents: &TriggerReferents<'_>) -> Vec<TriggeringEventObjects> {
+        // CR 509.3c: an effect's block is a "becomes blocked" with no creature
+        // blocking, so no arm that names a blocker, counts them or asks for
+        // the only one reads it (509.3d, 509.3e, 506.5).
+        if let (
+            TriggerEvent::Blocks { blocker: TriggerSubject::Any, attacker, occurrence: BlockOccurrence::Blocked, count: None, alone: false, .. },
+            GameEvent::BecameBlocked { attacker: blocked },
+        ) = (arm, &record.event)
+        {
+            let watched = self.subject_matches(attacker, Some(*blocked), referents, record.seq, SubjectRead::Now);
+            let attacker = self.subject_after(&record.event, *blocked).filter(|_| watched);
+            return attacker.map(|attacker| TriggeringEventObjects::BlockedBy { attacker, blockers: Vec::new() }).into_iter().collect();
+        }
         let (
             TriggerEvent::Blocks { blocker, attacker, occurrence, count, alone, .. },
             GameEvent::BlockersDeclared { blocks, unblocked },
