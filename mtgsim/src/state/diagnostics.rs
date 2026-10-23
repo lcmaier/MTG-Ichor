@@ -77,45 +77,6 @@ pub struct TriggerDispatchWork {
 }
 
 impl Diagnostics {
-    /// Put back every count `saved`, a clone taken earlier, held: an
-    /// observer's read counts nothing (`GameState::unobserved`).
-    pub(crate) fn restore(&self, saved: Diagnostics) {
-        let Diagnostics {
-            layer_walks,
-            board_walks,
-            memo_hits,
-            layer_frames,
-            dependency_checks,
-            replacement_gathers,
-            restriction_queries,
-            prevention_allocations,
-            replacement_prompts,
-            max_batch_depth,
-            mana_productions,
-            decisions,
-            priority_decisions,
-            actions_reversed,
-            triggers_placed,
-            trigger_dispatch,
-        } = saved;
-        self.layer_walks.set(layer_walks.get());
-        self.board_walks.set(board_walks.get());
-        self.memo_hits.set(memo_hits.get());
-        self.layer_frames.set(layer_frames.get());
-        self.dependency_checks.set(dependency_checks.get());
-        self.replacement_gathers.set(replacement_gathers.get());
-        self.restriction_queries.set(restriction_queries.get());
-        self.prevention_allocations.set(prevention_allocations.get());
-        self.replacement_prompts.set(replacement_prompts.get());
-        self.max_batch_depth.set(max_batch_depth.get());
-        self.mana_productions.set(mana_productions.get());
-        self.decisions.set(decisions.get());
-        self.priority_decisions.set(priority_decisions.get());
-        self.actions_reversed.set(actions_reversed.get());
-        self.triggers_placed.set(triggers_placed.get());
-        self.trigger_dispatch.set(trigger_dispatch.get());
-    }
-
     /// One full CR 613 layer walk actually performed — a top-level query the
     /// memo could not answer, or one of the two readers that bypass it.
     ///
@@ -299,9 +260,9 @@ impl Diagnostics {
     }
 
     /// Every row back to `earlier`, a clone taken before an audit's own reads,
-    /// whichever rows they moved. Destructured whole, so a new row is a
+    /// whichever rows they moved: a debug check's, and any observer's read
+    /// (`GameState::unobserved`). Destructured whole, so a new row is a
     /// compile error here rather than a debug build's drift.
-    #[cfg(debug_assertions)]
     pub(crate) fn rewind_to(&self, earlier: &Diagnostics) {
         let Diagnostics {
             layer_walks,

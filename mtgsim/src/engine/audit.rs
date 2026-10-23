@@ -52,7 +52,7 @@ impl GameState {
         let paused = self.trace.as_ref().map(|trace| trace.pause());
         let answer = read();
         self.layer_memo.restore(memo);
-        self.diagnostics.restore(diagnostics);
+        self.diagnostics.rewind_to(&diagnostics);
         if let (Some(trace), Some(was)) = (&self.trace, paused) {
             trace.resume(was);
         }
