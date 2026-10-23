@@ -12,7 +12,7 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::targeting::TargetRef;
+use crate::engine::targeting::{HeldFrame, TargetRef};
 use crate::events::event::EventId;
 use crate::state::battlefield::AttackTarget;
 use crate::state::layer_memo::GatedWalkInput;
@@ -20,7 +20,7 @@ use crate::types::card_types::CardType;
 use crate::types::counted_enum;
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::ObjectOrPlayer;
+use crate::types::triggers::{Lki, ObjectOrPlayer};
 use crate::types::zones::{Zone, ZoneChangeAct};
 
 /// How many rows a chunk holds. The log is a chain of chunks, each a block of
@@ -52,6 +52,11 @@ pub struct HistoryRow {
     /// That object as it was then (CR 608.2h): its record's frame where the
     /// record carries one, else its frame as the event left it.
     pub frame: Option<Arc<EffectiveCharacteristics>>,
+    /// Its record's last known information, on a row whose object had left
+    /// by the event (a departure, damage from a source gone before it): what
+    /// the store no longer answers for it, whether it was a token, its
+    /// counters, its owner (CR 113.7a). Its frame is `frame`.
+    pub last_known: Option<Lki>,
     pub fact: RowFact,
 }
 
@@ -120,16 +125,18 @@ impl RowFact {
 }
 
 impl HistoryRow {
-    /// Whether the row's object, as its frame keeps it, satisfies `matches`,
-    /// asked with its id and that frame; a card a scenario named is in no
-    /// store, and is `ObjectId::UNASSIGNED`. A row with no frame answers no,
-    /// and a scenario's unnamed count is loud in a debug build: a card that
-    /// narrows it asks what the file did not say (`setup-architecture.md`
-    /// §5.1).
-    pub(crate) fn frame_matches(&self, matches: impl FnOnce(ObjectId, &EffectiveCharacteristics) -> bool) -> bool {
-        match &self.frame {
-            Some(frame) => matches(self.object.map_or(ObjectId::UNASSIGNED, |object| object.id), frame),
-            None => {
+    /// Whether the row's object, as the row keeps it, satisfies `matches`,
+    /// asked with its id and that frame, or its last known information where
+    /// the row keeps one; a card a scenario named is in no store, and is
+    /// `ObjectId::UNASSIGNED`. A row with no frame answers no, and a
+    /// scenario's unnamed count is loud in a debug build: a card that narrows
+    /// it asks what the file did not say (`setup-architecture.md` §5.1).
+    pub(crate) fn frame_matches(&self, matches: impl FnOnce(ObjectId, HeldFrame<'_>) -> bool) -> bool {
+        let id = self.object.map_or(ObjectId::UNASSIGNED, |object| object.id);
+        match (&self.last_known, &self.frame) {
+            (Some(lki), _) => matches(id, HeldFrame::LastKnown(lki)),
+            (None, Some(frame)) => matches(id, HeldFrame::Characteristics(frame)),
+            (None, None) => {
                 debug_assert!(
                     !matches!(self.fact, RowFact::Stated { .. }),
                     "a card narrows a count a scenario stated without naming its objects: {:?}",
@@ -497,9 +504,11 @@ impl HistoryLog {
     /// held-memory reading adds the distinct frames to.
     pub fn row_bytes_held(&self) -> usize {
         let per_chunk = std::mem::size_of::<Chunk>() + 2 * std::mem::size_of::<usize>();
-        std::iter::successors(self.newest.as_deref(), |chunk| chunk.older.as_deref())
+        let last_known: usize = self.rows_newest_first().filter_map(|row| row.last_known.as_ref()).map(Lki::bytes_beside_its_frame).sum();
+        let rows: usize = std::iter::successors(self.newest.as_deref(), |chunk| chunk.older.as_deref())
             .map(|chunk| per_chunk + chunk.rows.capacity() * std::mem::size_of::<HistoryRow>())
-            .sum()
+            .sum();
+        rows + last_known
     }
 }
 
@@ -508,7 +517,7 @@ mod tests {
     use super::*;
 
     fn drew(seq: usize, turn: u32) -> HistoryRow {
-        HistoryRow { seq: EventId(seq), turn, combat: 0, player: Some(0), object: None, frame: None, fact: RowFact::Drew }
+        HistoryRow { seq: EventId(seq), turn, combat: 0, player: Some(0), object: None, frame: None, last_known: None, fact: RowFact::Drew }
     }
 
     fn seqs(log: &HistoryLog) -> Vec<usize> {
@@ -581,7 +590,7 @@ mod tests {
     fn row(log: &mut HistoryLog, object: ObjectRef, turn: u32, fact: RowFact) {
         let seq = EventId(log.len());
         let combat = log.combats_this_turn();
-        log.push(HistoryRow { seq, turn, combat, player: Some(0), object: Some(object), frame: None, fact });
+        log.push(HistoryRow { seq, turn, combat, player: Some(0), object: Some(object), frame: None, last_known: None, fact });
     }
 
     const UNNOTED: &dyn Fn(GatedWalkInput) = &|_| {};

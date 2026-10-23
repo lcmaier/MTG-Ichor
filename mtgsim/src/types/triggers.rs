@@ -1932,6 +1932,9 @@ struct LkiBody {
     /// CR 108.3. The store loses a token at CR 704.5d and an object whose
     /// owner leaves at CR 800.4a, and this is then the one place it is kept.
     owner: PlayerId,
+    /// CR 111.1: whether it was a token, which no characteristic says and
+    /// the store forgets once CR 704.5d has removed it.
+    token: bool,
     /// CR 707.10's decisions about the spell it was.
     cost_choices: CostChoices,
     /// `None` for an object that left a zone other than the battlefield.
@@ -1963,6 +1966,7 @@ impl Lki {
         object: ObjectRef,
         frame: Arc<EffectiveCharacteristics>,
         owner: PlayerId,
+        token: bool,
         cost_choices: CostChoices,
         permanent: Option<&PermanentState>,
         entry: Option<&StackEntry>,
@@ -1982,7 +1986,17 @@ impl Lki {
             }
         });
         let entry = entry.map(|entry| Arc::new(entry.clone()));
-        Lki(Arc::new(LkiBody { object, frame, owner, cost_choices, permanent, entry }))
+        Lki(Arc::new(LkiBody { object, frame, owner, token, cost_choices, permanent, entry }))
+    }
+
+    /// The bytes its body holds beside its frame, which a held-memory
+    /// reading adds to the frames it counts (`HistoryLog::row_bytes_held`).
+    pub fn bytes_beside_its_frame(&self) -> usize {
+        let permanent = self.0.permanent.as_ref().map_or(0, |p| {
+            p.counters.capacity() * std::mem::size_of::<(CounterType, u32)>()
+                + p.attached_by.capacity() * std::mem::size_of::<ObjectId>()
+        });
+        std::mem::size_of::<LkiBody>() + 2 * std::mem::size_of::<usize>() + permanent
     }
 
     /// The existence that left.
@@ -2002,6 +2016,11 @@ impl Lki {
 
     pub fn owner(&self) -> PlayerId {
         self.0.owner
+    }
+
+    /// Whether it was a token (CR 111.1).
+    pub fn was_token(&self) -> bool {
+        self.0.token
     }
 
     pub fn cost_choices(&self) -> &CostChoices {

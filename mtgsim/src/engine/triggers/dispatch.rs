@@ -1184,7 +1184,8 @@ impl GameState {
         let object = self.objects.get(&id)?;
         let cost_choices = self.cost_choices_of(id).unwrap_or(CostChoices::NONE);
         let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
-        Some(Lki::new(existence, frame, object.owner, cost_choices, self.battlefield.get(&id), self.stack_entries.get(&id)))
+        let (permanent, entry) = (self.battlefield.get(&id), self.stack_entries.get(&id));
+        Some(Lki::new(existence, frame, object.owner, object.is_token, cost_choices, permanent, entry))
     }
 
     /// `id`'s last known information with its frame off the layer memo, for
@@ -1922,9 +1923,7 @@ impl GameState {
                         earlier.seq < record.seq
                             && earlier.player == Some(*caster)
                             && matches!(earlier.fact, RowFact::Cast { .. })
-                            && earlier.frame_matches(|id, frame| {
-                                self.object_matches_filter(id, filter, &mut { *referents }, Some(HeldFrame::Characteristics(frame)))
-                            })
+                            && earlier.frame_matches(|id, held| self.object_matches_filter(id, filter, &mut { *referents }, Some(held)))
                     })
                 }
                 _ => record.place_in_turn() == Some(1),

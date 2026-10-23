@@ -21,10 +21,11 @@
 //! `ModeChosen` is resolution-only here and asserts the way `evaluate_amount`'s
 //! resolution-only amounts do.
 
-use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::layers::board::{Board, FrameRef};
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
+use crate::engine::object_filter;
+use crate::engine::targeting::HeldFrame;
 use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
 use crate::state::player::PlayerState;
@@ -334,8 +335,10 @@ pub(super) fn history_total(
     players: &mut FilterPlayers<'_, '_>,
 ) -> u64 {
     let you = players.you();
-    let mut filter_matches =
-        |filter: &ObjectFilter, id, frame: &EffectiveCharacteristics| object_matches_filter(filter, id, frame, players);
+    let mut filter_matches = |filter: &ObjectFilter, id, held: HeldFrame<'_>| match held {
+        HeldFrame::Characteristics(frame) => object_matches_filter(filter, id, frame, players),
+        HeldFrame::LastKnown(lki) => object_filter::evaluate(game, filter, id, &|| Some(lki.chars()), Some(lki), players),
+    };
     let note = |input| board.note_gated_read(input);
     game.history.total(history, span, you, game.turn_number, &mut filter_matches, &note)
 }

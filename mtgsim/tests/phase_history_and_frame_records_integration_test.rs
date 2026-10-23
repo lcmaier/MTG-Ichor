@@ -15,7 +15,8 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{ColorChange, Duration};
-use mtgsim::types::history::ObjectFact;
+use mtgsim::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
+use mtgsim::types::effects::PlayerSet;
 use mtgsim::types::zones::ZoneSet;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::types::ids::AbilityId;
@@ -377,4 +378,62 @@ fn came_under_control_this_turn_starts_with_the_entry() {
     let new = put_on_battlefield_this_turn(&mut game, vanilla_creature(2, 2, &[]), 0);
     assert_eq!(get_effective_power(&game, old), Some(2));
     assert_eq!(get_effective_power(&game, new), Some(3));
+}
+
+// ---------------------------------------------------------------------------
+// A departure row keeps what the store forgets (item 286)
+// ---------------------------------------------------------------------------
+
+/// "You gain 1 life for each [`of`] creature you controlled that died this
+/// turn", an instant costing {1}.
+fn fixture_count_of_the_dead(name: &'static str, of: ObjectFilter) -> std::sync::Arc<CardData> {
+    let died = HistoryCount { players: PlayerSet::You, fact: TurnFact::ControlledCreaturesDied, of: Some(Box::new(of)) };
+    CardDataBuilder::new(name)
+        .mana_cost(ManaCost::build(&[], 1))
+        .card_type(CardType::Instant)
+        .ability(AbilityDef {
+            rules_text: "".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(died))),
+                EffectRecipient::Controller,
+            ),
+        })
+        .build()
+}
+
+/// Player 0's 2/2 and Goblin token both destroyed.
+fn a_creature_and_a_token_died() -> GameState {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let create = GameAction::CreateTokens { defs: vec![mtgsim::cards::phase_re_cards::goblin_token()], controller: 0, attacking: None };
+    game.execute_action(create, &test_ctx()).unwrap();
+    let goblin = *game.battlefield_ids_ordered().iter().find(|&&id| game.objects[&id].is_token).expect("the Goblin");
+    game.execute_actions(vec![GameAction::Destroy { object: bears }, GameAction::Destroy { object: goblin }], &test_ctx()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert!(!game.objects.contains_key(&goblin), "the token ceased to exist (CR 704.5d)");
+    game
+}
+
+/// Caller of the Claw's "for each nontoken creature put into your graveyard
+/// from the battlefield this turn": the 2/2, and not the Goblin.
+#[test]
+fn a_count_of_nontoken_creatures_that_died_reads_whether_each_was_a_token() {
+    let mut game = a_creature_and_a_token_died();
+    cast_and_resolve(&mut game, fixture_count_of_the_dead("Fixture Nontoken Tally", ObjectFilter::Not(Box::new(ObjectFilter::Token))));
+    assert_eq!(game.players[0].life_total, 21);
+}
+
+/// Its twin, "for each token creature that died this turn": the Goblin,
+/// which the store lost once it died, known by its departure's row.
+#[test]
+fn a_count_of_tokens_that_died_reads_the_token_the_store_has_lost() {
+    let mut game = a_creature_and_a_token_died();
+    cast_and_resolve(&mut game, fixture_count_of_the_dead("Fixture Token Tally", ObjectFilter::Token));
+    assert_eq!(game.players[0].life_total, 21);
 }

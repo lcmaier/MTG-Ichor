@@ -242,9 +242,13 @@ fn answer_or_refuse<'f>(
     referents: &mut impl FilterReferents,
 ) -> Result<bool, FilterRefusal> {
     let chars = || frame().ok_or(FilterRefusal::ObjectGone(id));
-    // Read only by the leaves no frame answers: a frame may stand for an
-    // object the store has lost (CR 608.2h).
-    let object = || game.objects.get(&id).ok_or(FilterRefusal::ObjectGone(id));
+    // Read only by the leaves no frame answers, and never of an object whose
+    // last known information the asker holds: that object has left, and the
+    // store answers for whatever it is now (CR 608.2h).
+    let object = || {
+        debug_assert!(last_known.is_none(), "a filter leaf asked the store about {id}, which has left");
+        game.objects.get(&id).ok_or(FilterRefusal::ObjectGone(id))
+    };
     match filter {
         ObjectFilter::All => Ok(true),
         ObjectFilter::ByType(card_type) => Ok(chars()?.types.contains(card_type)),
@@ -258,7 +262,10 @@ fn answer_or_refuse<'f>(
         // CR 111.1 / 707.2 — being a token is a property of the object, not of
         // its characteristics: a copy effect does not make a nontoken
         // permanent a token.
-        ObjectFilter::Token => Ok(object()?.is_token),
+        ObjectFilter::Token => match last_known {
+            Some(lki) => Ok(lki.was_token()),
+            None => Ok(object()?.is_token),
+        },
         // The existence it is, or the one its frame kept (CR 400.7). An entry
         // is the permanent's own fact, and every other is the combat's.
         ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => {
