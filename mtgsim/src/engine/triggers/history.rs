@@ -346,3 +346,34 @@ impl GameState {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::history::PLACED_FACTS;
+    use crate::types::triggers::{Multiplicity, TriggerEvent};
+
+    /// "The first time each turn" is one list, read three ways: the arms the
+    /// registry admits it on (`TriggerEvent::placed_fact`), the records the
+    /// writer places (`placed_among`) and the facts each player's tally keeps
+    /// (`PLACED_FACTS`). An arm admitted whose records got no place would
+    /// never trigger, and say nothing.
+    #[test]
+    fn the_placed_facts_agree() {
+        let each = Multiplicity::PerOccurrence;
+        let arms_and_their_records = [
+            (TriggerEvent::CastsSpell { caster: None, spell: None }, HistoryUpdate::SpellCast { caster: 0 }),
+            (TriggerEvent::DrawsCard { player: None, multiplicity: each, place: None }, HistoryUpdate::CardDrawn { player: 0 }),
+            (TriggerEvent::GainsLife { player: None, multiplicity: each }, HistoryUpdate::LifeGained { player: 0 }),
+            (TriggerEvent::LosesLife { player: None, multiplicity: each }, HistoryUpdate::LifeLost { player: 0 }),
+        ];
+        let mut counted = Vec::new();
+        for (arm, record) in &arms_and_their_records {
+            let fact = arm.placed_fact().unwrap_or_else(|| panic!("{arm:?} can say the first time"));
+            assert_eq!(record.placed_among(), Some((0, fact)), "{arm:?}'s records are placed among {fact:?}");
+            assert!(PLACED_FACTS.contains(&fact), "the tally keeps {fact:?}");
+            counted.push(fact);
+        }
+        assert!(PLACED_FACTS.iter().all(|fact| counted.contains(fact)), "every fact the tally keeps is an arm's");
+    }
+}

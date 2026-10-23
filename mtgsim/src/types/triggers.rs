@@ -25,6 +25,7 @@ use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
 use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, TokenDef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
+use crate::types::history::TurnFact;
 use crate::types::mana::ManaType;
 use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
 
@@ -1080,6 +1081,47 @@ impl TriggerEvent {
             TriggerEvent::AbilityResolves { .. } => EventKindMask::of(EventKind::AbilityResolved),
             TriggerEvent::CreatesToken { .. } => EventKindMask::of(EventKind::TokenCreated),
             TriggerEvent::Scries { .. } => EventKindMask::of(EventKind::Scried),
+        }
+    }
+
+    /// The fact whose records a "first time each turn" on this arm counts its
+    /// record's place among, the player's own this turn (§3.5): a cast, a
+    /// draw, a gain or a loss of life (CR 119.9 makes each its own event).
+    /// `None` for an arm no record of which has a place. The history's
+    /// writer places exactly these (`state::history::PLACED_FACTS`), and the
+    /// registry admits "the first time" only on them or a targeting.
+    pub fn placed_fact(&self) -> Option<TurnFact> {
+        match self {
+            TriggerEvent::CastsSpell { .. } => Some(TurnFact::SpellsCast),
+            TriggerEvent::DrawsCard { .. } => Some(TurnFact::CardsDrawn),
+            TriggerEvent::GainsLife { .. } => Some(TurnFact::LifeGainEvents),
+            TriggerEvent::LosesLife { .. } => Some(TurnFact::LifeLossEvents),
+            TriggerEvent::ZoneChange { .. }
+            | TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::DamageDealt { .. }
+            | TriggerEvent::DamageIsPrevented { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::EntersBattlefield { .. }
+            | TriggerEvent::Attacks { .. }
+            | TriggerEvent::Blocks { .. }
+            | TriggerEvent::BecomesTarget { .. }
+            | TriggerEvent::ActivatesAbility { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::CountersPutOn { .. }
+            | TriggerEvent::CountersRemovedFrom { .. }
+            | TriggerEvent::BecomesAttached { .. }
+            | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::CreatesToken { .. }
+            | TriggerEvent::Scries { .. } => None,
         }
     }
 

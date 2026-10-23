@@ -208,12 +208,8 @@ impl TriggerDef {
 /// Aura spell" has no row to ask, so it is refused until rows keep them.
 fn can_tell_a_first_time_each_turn(arm: &TriggerEvent) -> bool {
     match arm {
-        TriggerEvent::CastsSpell { .. }
-        | TriggerEvent::DrawsCard { .. }
-        | TriggerEvent::GainsLife { .. }
-        | TriggerEvent::LosesLife { .. } => true,
         TriggerEvent::BecomesTarget { by, .. } => !matches!(by, TargetedBy::Spell(Some(_))),
-        _ => false,
+        _ => arm.placed_fact().is_some(),
     }
 }
 

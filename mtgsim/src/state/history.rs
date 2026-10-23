@@ -38,7 +38,7 @@ pub struct PlayerHistory {
 /// The facts a record's place in its turn is counted among (CR 119.9's
 /// second gain this turn, a second spell, a third draw): each player's
 /// [`TurnTally`] keeps them, so placing a record does not walk the turn.
-const PLACED_FACTS: [TurnFact; 4] = [TurnFact::SpellsCast, TurnFact::CardsDrawn, TurnFact::LifeGainEvents, TurnFact::LifeLossEvents];
+pub(crate) const PLACED_FACTS: [TurnFact; 4] = [TurnFact::SpellsCast, TurnFact::CardsDrawn, TurnFact::LifeGainEvents, TurnFact::LifeLossEvents];
 
 /// One player's [`PLACED_FACTS`] summed over the rows of turn `turn`, the
 /// newest turn written, as [`HistoryLog::count`] sums them.
