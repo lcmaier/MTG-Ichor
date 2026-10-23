@@ -236,7 +236,10 @@ Item 6's close audit (`roadmap-v2.md` A6e) takes these with its hygiene pass,
   `queue_pending` (`delayed.rs`) each apply "triggers only once each turn",
   number the trigger and push it; the `AbilityTriggered` emit loop and the
   match-to-pending conversion (`pending_of`) are written twice too. They
-  differ on `caused_by` for an empty match, which no match is.
+  differ on `caused_by` for an empty match, which no match is. *Corrected at
+  the item 6 audit (2026-10-22, pass 3's row 2):* `when_not_done` builds one
+  for a declined "when you don't", and `queue_pending` announces it as
+  caused by record 0, where a state trigger's is `None`.
 - **T3. CR 603.2c's "one or more" fold:** `match_candidates` (`dispatch.rs`)
   and `add_occurrences` (`delayed.rs`); `when_not_done` builds a
   `MatchedTrigger` by hand.
@@ -391,7 +394,7 @@ Each fixed one says so in its owner cell.
 | a spell on the stack (M1) | `is_spell_on_stack` leaves out the resolving spell; `damage_sources` adds it; the audit's `objects_that_may_trigger` admits a resolving ability, which its doc excludes | the Spell filter's one registered user is Counterspell's target, which cannot be the resolving spell (CR 115.5) | item 242, fixed in #249 |
 | a cost's pips of one type (M2) | `colored_count` misses `ManaSymbol::Colorless` | only tests call it | item 243, removed in #250 |
 | the `ManaAdded` arm (M2) | `mana_trigger_adds` matches "this" by id, skips the trigger's limits and asks no CR 113.6 zone | item 213 already records the limits as over-offered; the producer is on the battlefield when asked, so its id is its identity | item 243, the arm shared in #250; the limits, CR 113.6's zones and CR 603.2f's visibility are item 213's |
-| CR 603.7a's "existed before" (T4) | `is_due` reads records of the batch its return was made in | `wait_to_return` makes a return after its exile batch closes, and no rider makes one | item 247 |
+| CR 603.7a's "existed before" (T4) | `is_due` reads records of the batch its return was made in | `wait_to_return` makes a return after its exile batch closes, and no registered rider makes one (a replacement rider running `ExileUntil` can: the item 6 audit, pass 3's row 25) | item 247 |
 | an extra turn still coming (T8) | the waiting panel also asks that the turn's player is in the game | only the panel reads its copy | item 247 |
 | the departed candidate's card (T6) | the audit's has no abilities | `describe` compares no card | item 247 |
 | "it" for an intervening "if" (T10) | asked once per record at the trigger and once per occurrence at resolution | no registered trigger reads "it" in its "if" before TR-4a | fixed in #251 |
@@ -480,7 +483,9 @@ the landed ones.
   role; agreeing wrongly there would elide two different triggers.
 - `can_tell_a_first_time_each_turn` is the reader of `HistoryUpdate::placed_among`'s list;
   were they to part, a valid card would be refused loudly, never answered
-  wrong.
+  wrong. *Half of it (the item 6 audit, pass 3's row 7):* an arm the gate
+  admits that `placed_among` gives no place never fires, silently
+  (`codebase-state.md` item 303).
 - `TargetSubject` and `CountersOn` share a shape and stay apart, as TR-5c's
   design decided, since each reads well only at its own arm.
 - `players_named_by` and `resolve_group_member` answer two questions: who chooses
@@ -538,7 +543,9 @@ context); the save's spans (`GameHistory::turns_of`).
 - A draw's place: `next_draw_ordinals` answers a replacement before the draw
   and the writer's `place_in_turn` the record after it, both off the log;
   the writer's adds the window's earlier placed records, which a draw never
-  has, since each card is counted as its draw ends (A6r).
+  has, since each card is counted as its draw ends (A6r). *Its premise went
+  with TR-5h (the item 6 audit, pass 3's row 28):* `place_in_turn` reads the
+  `TurnTally`, not the log, so the two can be one count.
 - The scenario's landing of a span on a turn: `history_counts_by_turn` lands
   sums, this game less the two rows, and `named_casts_by_turn` lands rows;
   `write.rs`'s `since_your_last_turn_differs` re-derives from the natural
