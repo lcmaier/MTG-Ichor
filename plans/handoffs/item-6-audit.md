@@ -39,6 +39,16 @@ pass re-reads what it touches: a number here is a starting point.
   292, so A6e's cleanup, session 6, sizes against numbered items. Its row
   pointers in the work-list below are still `45d4a130`'s lines; the items
   cite functions.
+- Pass 5's first PR, the contracts, ran in session 5 as #275 on
+  `audit/item-6-docs-contracts` (§9). Done: `CLAUDE.md`'s 6 rows and
+  `engine-map.md`'s 12; every row the six contract-change readers found in
+  another doc, source comments included; the 15 contested rows among those,
+  each fixed or given a reason in #275's body; `engine-map.md` §1.2 read
+  against a probe of its board, and the page re-pinned to `22113bbb`. The
+  doc-reader rows that share a section with a contract row were left for
+  PRs 2 and 3 (replacement §2a's `EventPattern`, `ReplacementClass` and
+  `Uses` rows, copy §2.1's Tier C). Their work-list rows quote the text as
+  it was before #275, so re-read the section before fixing.
 
 ## 1. Why this audit is bigger than the last
 
@@ -973,7 +983,8 @@ the contract sections first:
   a name-existence grep over §4.9–§10. Pass 1's readers covered §13, §15
   and §16; pass 2 moves §0–§2.1, §8, §11.1, §12's re-counts, §14 and §17.
 - **`mana-architecture.md`:** §2, §3.3–§3.6 and §3.9–§9.
-- **`engine-map.md`:** §1.2's replacement, copy and layers steps.
+- **`engine-map.md`:** §1.2's replacement, copy and layers steps (read in
+  #275).
 - **The contract readers:** each grep hit read only as a line, past its
   budget, as their logs list. Most such hits were dated records.
 
@@ -1405,6 +1416,6 @@ changed.
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | #274 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup is next |
 | The card-homed triage (1, then its builds in the cleanup) | | added at #272's review |
 | 4. Readiness (2) | | |
-| 5. Docs audit, A6h (4) | | re-cut at #274's merge; item 188 to A6s |
+| 5. Docs audit, A6h (4) | #275 | re-cut at #274's merge; item 188 to A6s. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PRs 2–4 next |
 | 5c. Names for the phases ahead (1) | | added at #274's merge |
 | 6. Scheduling (1) | | |
