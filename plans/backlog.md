@@ -827,7 +827,7 @@ kept as written for the record.*
   306.8 (damage), 209.2
 - **Verdict** — **the counter half is built and the ability half is not.**
   `CounterType::Loyalty` exists, CR 704.5i's zero-loyalty SBA is implemented and
-  tested (`engine/sba.rs:277`, with `ZoneChangeCause::ZeroLoyalty`), and combat
+  tested (`engine/sba.rs`, act `Put`, cause `StateBasedAction::ZeroLoyalty`), and combat
   already targets planeswalkers (`AttackTarget::Planeswalker`). What is absent
   is any notion of a *loyalty ability*: nothing in the tree names one, so
   neither 306.5d's sorcery-speed restriction nor its one-per-permanent-per-turn
@@ -1503,7 +1503,7 @@ mechanic rather than a migration, which is why it is here and not in
   | 3 | full control | nothing — a switch above the stack: raw or decorated | the toggle | human only | ~100 + tests | **built 2026-09-30 (A6j)**, below |
   | 4 | auto-yield | `PriorityAction` → `Pass` while a yield holds | policy | human only; never a bot's | ~100–150 + tests | **built 2026-09-30 (A6j)**, with row 3 |
   | 5 | combat defaults | `AssignCombatDamage` (2.1 / 2.3 / 3.7), `AssignTrampleDamage` (0.17 / 0.28 / 0.40) | policy | human under the toggle / the agent's own | ~60 + a CR read | item 84's helpers are its body; after 3 |
-  | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below; designed in `mana-architecture.md` (#224), MA-1 |
+  | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below; designed in `mana-architecture.md` (#224): the existence check landed in MA-1 (#225), and the covering set, the solver, is MA-6 (`mana-architecture.md` §3.12) |
   | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6; MA-6 |
   | 8 | auto-order triggers | CR 603.3b's order, once it exists | engine elision for identical triggers; policy for the rest | human under the toggle / the agent's | ~40 + ~30 engine | **built**: the elision in TR-1 and TR-2b, the decorator `ui::AutoOrderTriggers` in TR-7 (2026-10-22, PR #269); classified at birth below |
   | 9 | reversal policy | CR 732.1's offer, keep or reverse all (item 72) | policy | human under the toggle / a bot policy — never silent on a human's | ~15 in row 7; the prompt ~40 in the engine | with item 6 |
@@ -1626,16 +1626,17 @@ mechanic rather than a migration, which is why it is here and not in
   under the toggle, and on a bot's seat **a `fuzz_games` flag that is off by
   default**, because `RandomDecisionProvider`'s tap preference is a measured
   policy and a solver answering for it moves every counter for reasons that
-  are not the engine's (`build_stack`'s own comment). The other customer is
-  **`castable_spells`' affordability**, which is a heuristic overapproximation
-  today (the supplemental doc's §3, `find_mana_sources`): the engine offers a
-  cast the pool cannot cover and rewinds it under CR 732.1, the path A4h had
-  to make state-dependent (item 139) and the enumeration item 138's lever 4
-  prices at 19.2% of instructions. The matching makes the offer exact. That
-  customer is engine-side, moves the random agent's stream — fewer offered
-  casts are different games — and owes its own A/B with `differ` predicted on
-  both pools; the harness prints no rewind count today, so the row's first
-  job is the counter that reads it. **The Arena problem is the preference,
+  are not the engine's (`build_stack`'s own comment). The other customer was
+  **`castable_spells`' affordability**, a heuristic overapproximation (the
+  supplemental doc's §3, `find_mana_sources`) until MA-1 (#225) made the offer
+  exact with `oracle::mana_supply`'s check, Hall's condition
+  (`mana-architecture.md` §3.2): the engine had offered a cast the pool could
+  not cover and rewound it under CR 732.1, the path A4h had to make
+  state-dependent (item 139) and the enumeration item 138's lever 4 priced at
+  19.2% of instructions. Its rewinds are what `fuzz_games` prints as "Actions
+  reversed", and the shapes the check still reads one way are
+  `codebase-state.md` item 213. What remains for the solver is the payment
+  itself, MA-6 (`mana-architecture.md` §3.12). **The Arena problem is the preference,
   not the matching**: when several covering sets exist, which lands stay
   untapped is a question about the rest of the hand and the opponents'
   boards, so the solver takes a preference from its client and breaks ties by
@@ -1661,10 +1662,13 @@ mechanic rather than a migration, which is why it is here and not in
   Every other decorator is a `matches!` and a rule; this one is a graph
   problem, and the size above is for its plainest shape.
   `available_mana_sources` records one `ManaSource` per (permanent, ability,
-  type) and drops the amount, so Sol Ring's {C}{C} counts as one mana, and
-  `find_mana_sources` returns `None` on any hybrid, Phyrexian or X symbol —
-  the heuristic the matching replaces is a one-unit-per-source greedy that
-  gives up on half the symbol alphabet. What the matching must carry: a
+  type) and drops the amount, so Sol Ring's {C}{C} counts as one mana. Before
+  MA-1 (#225), `find_mana_sources` was a one-unit-per-source greedy that
+  returned `None` on any hybrid, Phyrexian or X symbol. MA-1 replaced it for
+  existence with `ManaSupply::covers`, Hall's condition over entries with
+  amounts, which still refuses hybrid and Phyrexian symbols and an activated
+  ability's {X} (CP-1's), and answers whether a payment exists, never which;
+  the solver that returns a covering set is MA-6's. What the matching must carry: a
   producer of *k* units is a vertex of capacity *k*, which makes it a flow
   rather than a matching; a hybrid pip is a vertex with edges to two types;
   an any-color ability (§2.19, unbuilt) is a per-activation choice that
@@ -1703,11 +1707,12 @@ mechanic rather than a migration, which is why it is here and not in
   **Row 9, the reversal (item 72), decided 2026-09-18 and re-derived at review
   — two options, and only two.** Is a reversal even possible in an engine
   that performs every mutation through the chokepoint with replacements
-  applied? *Reverse all* is, and cheaply: `GameState` is `Clone` and a no-log
-  clone is 4–6 µs (item 42's measurement, `codebase-state.md`), so the engine
-  takes one at the window's first activation and, if the player takes CR
-  732.1's offer at the rewind, restores it, truncating `events` to the
-  snapshot's length. That is the rule's "no abilities trigger and no effects
+  applied? *Reverse all* is, and cheaply: `GameState` is `Clone` and a clone
+  costs a few microseconds (`clone-architecture.md`'s readings, against floor
+  2 in `engineering-practices.md` §3.1), so the engine takes one at the
+  window's first activation and, if the player takes CR 732.1's offer at the
+  rewind, restores it. Nothing needs truncating: the event window holds no
+  record at a decision, and a recorder's stream forks with its handle. That is the rule's "no abilities trigger and no effects
   apply as a result of an undone action" by construction — the clone predates
   the tap, the mana, any replacement that applied to it and any trigger it
   queued, which item 40 keeps on `GameState` — and the RNG rewinds with it,

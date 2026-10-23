@@ -229,7 +229,7 @@ holds it: a pull request that adds a field this document does not name fails
 |---|---|---|
 | `PermanentState` *(re-read: `cast`, `cost_choices`)* | an "as it enters" choice (CR 614.12a, 707.6) | feature — `backlog.md` §2.2 |
 | `ResolvingObject` *(for the entry)* | — | **no gap** — carries CR 400.7d's facts and the cost decisions to an "enters with" before the permanent exists |
-| `ReplacementEffectRegistry` | a chosen source (CR 609.7a); targets held across a move (CR 400.7) | feature; main item 10 |
+| `ReplacementEffectRegistry` | a chosen source (CR 609.7a); targets held across a move (CR 400.7) | **built** — `targets: Vec<TargetRef>`, each carrying its epoch, and a chosen source is `SourcePattern.object`, an `ObjectRef` (main item 10, closed by CV-1b, #230) |
 | the applied set (`rider_lineage`, the loop's `lineage`) | which replacement redirected an event, once it has been performed (CR 702.35a) | **FACT** — §5.4 |
 | `EntrySelectionScope` | what an entry's zone change chose, after the batch (CR 614.14, 702.82b) | feature — `backlog.md` §2.2 |
 | `PreventionAllocationScope` | — | **no gap** — CR 615.7, scoped to the batch |
@@ -241,7 +241,7 @@ holds it: a pull request that adds a field this document does not name fails
 | `StackEntry` *(pass 3: `trigger`, `mana_spent`)* | the objects that paid (CR 707.10, 400.7d); what a copy of it may keep (CR 707.10) | item 30's open half, sharpened; `copy-effects-architecture.md` §4.4 amended |
 | `CastFacts`, `CostChoices`, `ManaSpent` *(pass 3)* | a count of payments (multikicker, replicate, squad) | feature: the record can repeat, and the CR 601.2b announcement cannot ask for a number |
 | `ManaPool` *(pass 3, re-read)* | a unit's source; restrictions (CR 106.6, 107.4h) | item 33, as corrected above |
-| `TargetInstance` *(pass 3)* | a target that left and came back (CR 400.7) | main item 10's `target_epochs` |
+| `TargetInstance` *(pass 3)* | a target that left and came back (CR 400.7) | **built** — `TargetRef` carries the epoch, compared at CR 608.2b (main item 10, closed by CV-1b, #230) |
 | `ResolvingObject` *(pass 3)* | — | **no gap** — CR 110.2b's default controller and CR 400.7d's facts, carried past the entry's removal |
 | `GameObject` *(pass 4: `timestamp`)* | — | **no gap** — CR 613.7d–e built; 613.7m is "Before card breadth" item 4 |
 | `PlayerState` *(pass 4: `counters`)* | a team's shared poison (CR 701.34b) | feature, Phase 9's Two-Headed Giant |
