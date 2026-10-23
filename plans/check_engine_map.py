@@ -21,7 +21,11 @@ a file moved, a `GameAction` variant added. This is the re-reader.
    that file's code with comments stripped, or `N` is past the file's end.
 4. Any other code name in backticks (one with `_`, `::` or a capital) occurs
    nowhere in the crate's code.
-5. A `§N` is not a heading of the doc named before it, or of the map itself.
+5. A `§N` is not a heading of the doc named before it, or of the page itself.
+
+Rules 2 to 5 also read `plans/elisions.md`, the inventory of what the engine
+does not ask or compute, whose rows cite functions the same way: a site
+renamed under it would otherwise leave a row describing code that is gone.
 
 **What it reports and does not fail on**, listed under `--drift`: a cited name
 more than two lines from its line, which is what a refresh moves, and the
@@ -39,6 +43,8 @@ if hasattr(sys.stdout, "reconfigure"):
 
 ROOT = Path(__file__).resolve().parent.parent
 MAP = ROOT / "plans" / "engine-map.md"
+#: Pages that cite the tree as the map does, checked by rules 2 to 5.
+CITING_PAGES = [ROOT / "plans" / "elisions.md"]
 SRC = ROOT / "mtgsim" / "src"
 ACTIONS = SRC / "engine" / "actions.rs"
 #: Where a path in the map resolves, in order: `engine/actions.rs` is under src,
@@ -114,12 +120,13 @@ def headings(path: Path) -> set[str]:
 class Reader:
     """One pass over the map, collecting what fails, what drifted and what it named."""
 
-    def __init__(self):
+    def __init__(self, page: Path = MAP):
         self.problems, self.drifted, self.named = [], [], set()
         self.counts = dict.fromkeys(["names", "paths", "links", "sections"], 0)
         sources = list(SRC.rglob("*.rs")) + list((SRC.parent / "tests").rglob("*.rs"))
         self.crate = set().union(*(idents(p) for p in sources))
-        self.own = headings(MAP)
+        self.page = page
+        self.own = headings(page)
         self.file_idents = {}
 
     def cited(self, where, name, file, at):
@@ -181,10 +188,10 @@ class Reader:
         for section in SECTION.findall(rest):
             self.counts["sections"] += 1
             if section not in self.own:
-                self.problems.append(f"{where}: the map has no §{section}")
+                self.problems.append(f"{where}: {self.page.name} has no §{section}")
 
     def line(self, n, line):
-        where = f"engine-map.md:{n}"
+        where = f"{self.page.name}:{n}"
         tokens = SPAN.findall(line)
         context = [t for t in tokens if DIRECTORY.match(t)]
         context += [t.rsplit("/", 1)[0] + "/" for t in tokens if FILE.match(t) and "/" in t]
@@ -198,9 +205,19 @@ class Reader:
         for target in LINK.findall(line):
             if not target.startswith("http"):
                 self.counts["links"] += 1
-                if not (MAP.parent / target).exists():
+                if not (self.page.parent / target).exists():
                     self.problems.append(f"{where}: the link {target} goes nowhere")
         self.sections(where, line)
+
+
+def read_page(reader: Reader, lines: list[str]):
+    """Every line of a page outside a code fence."""
+    fenced = False
+    for n, line in enumerate(lines, 1):
+        if line.startswith("```"):
+            fenced = not fenced
+        elif not fenced:
+            reader.line(n, line)
 
 
 def main() -> int:
@@ -235,12 +252,14 @@ def main() -> int:
     for name in sorted(set(mapped) - set(variants)):
         reader.problems.append(f"the map's arm table lists {name}, which GameAction no longer has")
 
-    fenced = False
-    for n, line in enumerate(lines, 1):
-        if line.startswith("```"):
-            fenced = not fenced
-        elif not fenced:
-            reader.line(n, line)
+    read_page(reader, lines)
+    for page in CITING_PAGES:
+        cited = Reader(page)
+        read_page(cited, read_lines(page))
+        reader.problems += cited.problems
+        reader.drifted += cited.drifted
+        for key, count in cited.counts.items():
+            reader.counts[key] += count
 
     unnamed = sorted(p.relative_to(SRC).as_posix() for p in SRC.rglob("*.rs") if p not in reader.named)
     c = reader.counts
