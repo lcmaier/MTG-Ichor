@@ -8524,9 +8524,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 216. **~~The review pictures are drawn by a test no CI step runs.~~ — ✅
      CLOSED 2026-10-06 (the dev GUI audit, #228).** — archived. The dev GUI's
-     CI job draws them through Mesa's software Vulkan driver and compares
-     none, so a review board that stops reaching its picture's question
-     fails the job; its first run drew all 21 in 18 s.
+     CI job plays each board to its picture's frame and compares none, so a
+     review board that stops reaching its picture's question fails the job;
+     its first run drew all 21 in 18 s through Mesa's software Vulkan driver,
+     and since 2026-10-23 it draws none (`SKIP_SNAPSHOTS`).
      **Reachability (2026-10-06):** closed — the dev GUI audit, #228.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 216".
 
