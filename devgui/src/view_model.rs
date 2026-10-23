@@ -16,6 +16,7 @@ use mtgsim::events::event::EventId;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::triggers::DelayedDuration;
 use mtgsim::ui::auto_yield::Yield;
+use mtgsim::ui::display::delayed_trigger_in_log;
 use mtgsim::ui::waiting::{TriggersIn, Waiting};
 use mtgsim::ui::why::{Why, WhyAbout, WhyLine};
 
@@ -1078,7 +1079,7 @@ fn waiting_zone(waiting: &Waiting) -> Option<ZoneView> {
             TriggersIn::ExtraTurn { player, in_progress: false } => format!("in Player {player}'s extra turn"),
         };
         note(
-            format!("{}'s delayed trigger {}", trigger.source, trigger.id.0),
+            delayed_trigger_in_log(&trigger.source, trigger.id),
             format!("\"{}\"\nPlayer {}'s · {fires} · {turn}", trigger.text, trigger.controller),
         )
     });
