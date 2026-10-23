@@ -915,10 +915,15 @@ and 6 give none in lines. The board's card-homed count went from 51 to 5.
   135. Item 284's check guards them.
 - **Closed: item 109,** found fixed by #239 (item 229) and #250.
 
-**The pool question, priced** in the PR's body for the owner's decision:
-none, as today; the fixtures in `stress`; or a third pool run only in the
-`fuzz-checked` job, where the consistency checks fire, about 14 s for 50
-games at four threads by that job's own stress reading.
+**The pool question: a third pool (the owner, 2026-10-23, at #280's
+review).** `--pool fixtures` is every registered card plus the registered
+fixtures, run only in the `fuzz-checked` job, where the consistency checks
+fire: about 14 s for 50 games at four threads by that job's own stress
+reading, and about 40–60 lines (a `CardPool` arm in `fuzz_games`, fixtures
+registered apart from `default_registry`, a row in `engineering-practices.md`
+§3's table). `stress` stays real cards, and the fixture pool keeps no table.
+It lands in the cleanup with the first build PR whose fixture carries a
+check, so the pool has a consumer; only castable fixtures join it.
 
 ### Pass 4 — readiness
 
