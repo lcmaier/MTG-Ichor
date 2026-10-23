@@ -15,9 +15,10 @@
 //!
 //! # The two battlefield-placement idioms are NOT interchangeable
 //!
-//! [`put_on_battlefield`] routes through [`GameState::place_on_battlefield`] with the
-//! [`EnterMods`] its own intrinsic abilities give it, so CR 306.5b's loyalty
-//! counters and `register_static_effects` both fire and the arrival is announced.
+//! [`put_on_battlefield`] routes through [`place_on_battlefield`], the entry's
+//! performer (`GameState::perform_entry`), with the [`EnterMods`] its own
+//! intrinsic abilities give it, so CR 306.5b's loyalty counters and
+//! `register_static_effects` both fire and the arrival is announced.
 //! [`place_bare`] inserts a [`PermanentState`] directly and does none of it —
 //! which is what a fixture wants when the test counts the events its own action
 //! emitted.
@@ -610,7 +611,7 @@ pub use crate::engine::layers::intrinsic::intrinsic_entry_mods;
 
 /// Put any permanent onto the battlefield **with ETB hooks**.
 ///
-/// Routes through [`GameState::place_on_battlefield`] with
+/// Routes through [`place_on_battlefield`] with
 /// [`intrinsic_entry_mods`], so CR 306.5b's counters and static-effect
 /// registration both fire. Sets `entered_battlefield_turn = 0` so the permanent
 /// is not summoning-sick — it mimics "has been here since before this turn".

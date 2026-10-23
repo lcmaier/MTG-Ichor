@@ -58,11 +58,12 @@ pub const END_OF_LAYER_1: usize = 1;
 /// writes and no reader reads.
 ///
 /// **Deliberately not `EffectiveCharacteristics` reused.** That type carries
-/// `controller` and `control_since_turn`, and `compute.rs`'s
-/// `any_control_changing` fast path proves its own correctness on the claim
-/// that *Layer 2 is the only channel that writes a controller*. A copy row that
-/// could carry one would make that claim false by accident. The duplicated
-/// field list is the price of an existing optimization's soundness argument.
+/// `controller` and `control_since_turn`, and the oracle's
+/// `any_control_changing` fast path (`get_effective_controller`) proves its
+/// own correctness on the claim that *Layer 2 is the only channel that writes
+/// a controller*. A copy row that could carry one would make that claim false
+/// by accident. The duplicated field list is the price of an existing
+/// optimization's soundness argument.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopiableValues {
     pub name: String,

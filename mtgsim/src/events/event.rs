@@ -835,8 +835,8 @@ pub(crate) struct RecordPlaces {
 }
 
 impl RecordPlaces {
-    /// A record the summaries have not counted yet, which is every record as
-    /// it is pushed.
+    /// A record the history has not placed yet, which is every record as it
+    /// is pushed.
     pub(crate) const NOT_COUNTED: RecordPlaces = RecordPlaces { in_turn: None, in_draw_step: None, counted: false };
 
     fn counted(in_turn: Option<u64>, in_draw_step: Option<u64>) -> Self {
@@ -867,9 +867,10 @@ impl EventRecord {
 
     /// Its place among its player's records of the same kind this turn, 1
     /// for the first: what "the first time each turn" reads
-    /// (`triggers-architecture.md` §3.5). Only the kinds a turn summary counts
-    /// have one — a cast, a draw, a gain, a loss — and read by any trigger that
-    /// matches the record then or later in the resolution (CR 603.12).
+    /// (`triggers-architecture.md` §3.5). Only the kinds each player's turn
+    /// tally counts have one (`state::history`) — a cast, a draw, a gain, a
+    /// loss — and read by any trigger that matches the record then or later
+    /// in the resolution (CR 603.12).
     pub fn place_in_turn(&self) -> Option<u64> {
         self.places.in_turn.map(|n| u64::from(n.get()))
     }

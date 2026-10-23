@@ -114,8 +114,8 @@ impl Diagnostics {
         self.memo_hits.set(self.memo_hits.get() + 1);
     }
 
-    /// One frame actually computed — a `compute_to_ceiling` body that ran rather
-    /// than a cache hit.
+    /// One frame actually computed — a pass member's frame seeded, or a
+    /// non-member's walk — rather than a memo hit.
     ///
     /// Read against [`Self::layer_walks`]: the ratio is how much CR 604.2's
     /// existence re-check costs. A walk that needs no sub-frame is 1:1; one that
