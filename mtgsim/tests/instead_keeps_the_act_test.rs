@@ -165,7 +165,7 @@ fn leyline_first_still_offers_academy_because_the_card_was_still_discarded() {
     // Leyline entered first, so it is the first candidate.
     dp.expect_pick_n(PICK_REPLACEMENT, vec![0]);
     dp.expect_pick_n(APPLY_OPTIONAL, vec![0]);
-    // A one-card hand, so Mind Rot's choice is forced (CR 102.2).
+    // A one-card hand, so Mind Rot's choice is forced.
     resolve_at_player(&mut game, mind_rot(), 0, 1, &dp);
 
     assert!(dp.is_empty(), "Academy was offered after Leyline applied");

@@ -64,7 +64,7 @@ use std::sync::Arc;
 
 /// Cast the one card in `player`'s hand and resolve it, with one legal target.
 ///
-/// The LC file's idiom: with a single legal target CR 102.2 makes the choice
+/// The LC file's idiom: with a single legal target the choice is
 /// forced, so nothing is scripted but the cast itself.
 fn cast_and_resolve(game: &mut GameState, cast_index: usize) {
     let decisions = ScriptedDecisionProvider::new();
@@ -428,8 +428,8 @@ fn test_a_pump_that_predates_the_copy_still_applies_to_it() {
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
-    // The one creature on the battlefield while the Growth is cast, so CR
-    // 102.2 forces its target and the test scripts no index into a prompt.
+    // The one creature on the battlefield while the Growth is cast, so its
+    // target is forced and the test scripts no index into a prompt.
     cast_and_resolve(&mut game, 1);
     assert_eq!(get_effective_power(&game, target), Some(4), "1/1 and +3/+3");
 

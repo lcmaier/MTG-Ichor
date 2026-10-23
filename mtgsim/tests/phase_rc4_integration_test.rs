@@ -627,6 +627,8 @@ fn test_a_control_changing_entry_replacement_applies_first_and_asks_nothing() {
     assert_eq!(entry.controller, 1, "CR 616.1b: under an opponent's control");
     assert_eq!(entry.counter_count(CounterType::PlusOnePlusOne), 2, "and the counters still came");
     assert_eq!(entries(&game), vec![(id, 1)]);
+    // "An opponent" with one opponent: answered unasked, and recorded.
+    mtgsim::test_support::assert_not_asked(&game, 0, "ChooseEnteringController", "its one legal answer");
 }
 
 /// Why 616.1b goes first: the controller is what the other replacements read.
@@ -654,7 +656,7 @@ fn test_the_controller_settled_by_cr_616_1b_is_what_later_filters_read() {
 /// "An opponent of your choice" with two opponents is a choice, made by the
 /// effect's controller before the permanent enters (CR 614.12a): the entry the
 /// performer announces already carries its result. Three players, because
-/// with one opponent CR 102.2 leaves nothing to choose.
+/// with one opponent there is nothing to choose.
 // COVERS-PARTIAL: ATOM-614.12a-001
 #[test]
 fn test_three_player_opponent_of_your_choice_is_asked_before_the_entry() {

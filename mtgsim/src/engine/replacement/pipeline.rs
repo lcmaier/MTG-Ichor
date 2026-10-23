@@ -6,6 +6,7 @@ use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, GameEvent, ResolutionStamp};
+use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
@@ -28,7 +29,7 @@ use crate::types::history::{CountIs, ObjectFact};
 use crate::oracle::characteristics::{get_effective_power, get_effective_types, CurrentOrLastKnown};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_take_or_leave;
-use crate::ui::choice_types::ChoiceKind;
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
 use crate::ui::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
 use crate::ui::ask::ask_choose_entering_controller;
@@ -529,6 +530,12 @@ pub(crate) fn apply_replacements(
             // owns these and was dropping them. The fourth shape's check needs
             // the *rewrite* to compute its premise the other way.
             unsuppressed = rest.map(|c| (c.instance, c.members)).collect();
+            if let Some(chooser) = chooser {
+                game.note_unasked(chooser, Unasked::OneGame(Elision::ReplacementOrder), || {
+                    let kind = ChoiceKind::ChooseReplacementEffect { affected_object: subject_object(subject) };
+                    (kind, UnaskedAnswer::Picks(vec![ChoiceOption::Object(first.instance.source)]))
+                });
+            }
             (first, Decided::OrderInvariant)
         } else {
             let Some(chooser) = chooser else {
@@ -649,18 +656,9 @@ pub(crate) fn apply_replacements(
                 if let Some(before) = &before
                     && !unsuppressed.is_empty()
                 {
-                    let saved = game.save_observers();
-                    check_order_invariance(
-                        game,
-                        ctx,
-                        &chosen,
-                        before,
-                        next,
-                        member_subject,
-                        pos,
-                        &unsuppressed,
-                    );
-                    game.restore_observers(saved);
+                    game.unobserved(|| {
+                        check_order_invariance(game, ctx, &chosen, before, next, member_subject, pos, &unsuppressed)
+                    });
                 }
             }
             redirected |= next.as_ref().is_some_and(|next| destination(next) != went_to);
@@ -2989,8 +2987,7 @@ fn entering_controller(
                         chosen.id, object, you
                     ))
                 }
-                [only] => *only,
-                many => ask_choose_entering_controller(ctx.dp, game, you, object, many),
+                some => ask_choose_entering_controller(ctx.dp, game, you, object, some),
             }
         }
         PlayerRef::DefendingPlayer(_) | PlayerRef::AnyDefendingPlayer => {
@@ -3036,7 +3033,6 @@ fn entry_copy_donor(
             match (candidates.as_slice(), chosen.def.optional) {
                 ([], _) => None,
                 (_, true) => ask_may_choose_copy_source(ctx.dp, game, controller, chosen.source, &candidates),
-                ([only], false) => Some(*only),
                 (_, false) => Some(ask_choose_copy_source(ctx.dp, game, controller, chosen.source, &candidates)),
             }
         }

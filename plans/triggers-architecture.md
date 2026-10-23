@@ -2161,6 +2161,12 @@ second matcher had found in the loop, an ability matched through a
 survivor's two lists triggering once per list (CR 603.2c). The first form's
 sizes are in the archive, under TR-1b.
 
+**The other shortcuts (#278).** The same switch, renamed `enable_audit`,
+runs the audits `engine::audit` holds: the replacement, restriction and cost
+gates, the control sweep and the castability fold, each the same sweep with
+its shortcut off. Their reads leave no trace the same way (`unobserved`);
+`plans/elisions.md` §4 lists each.
+
 ---
 
 ## 5. Placement — the stub, drained (CR 603.3)

@@ -10,6 +10,7 @@ use std::sync::Arc;
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::events::event::{EventRecord, GameEvent};
 use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
@@ -268,12 +269,15 @@ impl GameState {
         })?;
         Ok(match recipient {
             EffectRecipient::Triggering(role) => {
+                self.note_binding_read(ctx, TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*role));
                 self.bound_objects(binding, *role).into_iter().map(ResolvedTarget::Object).collect()
             }
             EffectRecipient::TriggeringPlayer => {
+                self.note_binding_read(ctx, TriggerBindingReads::PLAYER);
                 self.bound_player(binding).map(ResolvedTarget::Player).into_iter().collect()
             }
             EffectRecipient::Referred => {
+                self.note_binding_read(ctx, TriggerBindingReads::REFERRED);
                 let objects = binding.referred.objects.iter().filter_map(|r| r.found(self)).map(ResolvedTarget::Object);
                 objects.chain(binding.referred.players.iter().map(|&p| ResolvedTarget::Player(p))).collect()
             }
@@ -329,7 +333,7 @@ mod tests {
             replaced_amount: None,
             damage_prevented: None,
             trigger: None,
-        };
+                    };
         let threaten = Effect::Atom(
             Primitive::GainControl(Duration::UntilEndOfTurn),
             EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),

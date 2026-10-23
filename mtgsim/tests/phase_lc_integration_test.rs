@@ -29,7 +29,7 @@ fn cast_and_resolve_targeted_spell(
 ) {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![cast_index]);
     // No target to script: one legal target on these boards, so the choice
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
     let result = game.run_priority_round(decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 

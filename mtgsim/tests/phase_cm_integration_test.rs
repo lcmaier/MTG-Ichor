@@ -257,7 +257,7 @@ fn test_a_chosen_alternative_cost_is_modified_too() {
     // Options are [the normal cost, the alternative]; take the alternative.
     dp.expect_pick_n(ChoiceKind::ChooseAlternativeCost { spell_id: ObjectId::UNASSIGNED }, vec![1]);
     // Nothing to script: one bucket can take the generic mana, so the split
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
     let cast = cast_from_pool(&mut game, 0, card, &[(ManaType::Red, 2)], &dp);
     assert!(cast.is_ok(), "{cast:?}");
     assert_eq!(game.players[0].mana_pool.total(), 0, "{{1}}{{R}}: the alternative plus the tax");
@@ -831,7 +831,7 @@ fn test_a_reducer_eaten_inside_the_mana_window_does_not_raise_the_locked_cost() 
         vec![],
     );
     // Nothing to script: one bucket can take the generic mana, so the split
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
 
     game.cast_spell(0, stone, &dp).expect("Mind Stone costs {1} under the Inspector");
 
@@ -953,7 +953,7 @@ fn test_one_cost_taking_two_creatures_is_one_event() {
 
     let dp = ScriptedDecisionProvider::new();
     // Nothing to script: one bucket can take the generic mana, so the split
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
     dp.expect_pick_n(
         ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: a, count: 2 },
         vec![0, 1],
@@ -1166,7 +1166,7 @@ fn test_foundry_inspector_reduces_an_x_cost_after_x_is_chosen() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_number(ChoiceKind::ChooseXValue { spell_id: trinket, values: Box::new(LegalXValues::zero_through(4)) }, 4);
     // Nothing to script: one bucket can take the generic mana, so the split
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
 
     game.players[0].mana_pool.add(ManaType::Colorless, 3);
     game.cast_spell(0, trinket, &dp).expect("X=4 costs {3} under the Inspector");
@@ -1503,7 +1503,7 @@ fn test_the_window_keeps_offering_after_the_cost_is_covered() {
         vec![],
     );
     // Nothing to script: one bucket can take the generic mana, so the split
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
 
     game.activate_ability(0, stone, draw, &dp).expect("{1} out of four colorless");
 
@@ -1548,7 +1548,7 @@ fn test_the_payers_stop_ends_the_window_where_the_engine_used_to() {
         vec![1],
     );
     // Nothing to script: one bucket can take the generic mana, so the split
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
     let dp = mtgsim::ui::mana_window_stop::ManaWindowStop::new(inner);
 
     game.activate_ability(0, stone, draw, &dp).expect("{1} out of two colorless");

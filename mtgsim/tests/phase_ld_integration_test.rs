@@ -46,7 +46,7 @@ fn cast_and_resolve_targeted_perm_spell(
 ) {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![cast_index]);
     // No target to script: one legal target on these boards, so the choice
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
     if let Some(alloc) = generic_allocation {
         decisions.expect_allocation(
             ChoiceKind::GenericManaAllocation {
@@ -82,7 +82,7 @@ fn test_liquimetal_adds_artifact_type() {
 
     let decisions = ScriptedDecisionProvider::new();
     // {2}: pool has [Colorless(2)], allocate 1 generic → [1]
-    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt (CR 102.2).
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt.
         None,
     );
 
@@ -113,7 +113,7 @@ fn test_call_to_serve_adds_angel_subtype() {
     let decisions = ScriptedDecisionProvider::new();
     // {1}{W}: pool has [White(2)], allocate 1 generic → [1]
     cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1, // helper uses SelectionFilter::Creature via card, but DP sees All here
-        // Forced split: one bucket, so no prompt (CR 102.2).
+        // Forced split: one bucket, so no prompt.
         None,
     );
 
@@ -143,7 +143,7 @@ fn test_on_serras_wings_adds_legendary() {
 
     let decisions = ScriptedDecisionProvider::new();
     // {3}{W}: pool has [White(4)], allocate 3 generic → [3]
-    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt (CR 102.2).
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt.
         None,
     );
 
@@ -182,7 +182,7 @@ fn test_ensoul_artifact_makes_artifact_creature() {
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Nothing to script: one bucket can take the generic mana, so the split
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 
@@ -214,7 +214,7 @@ fn test_type_change_expires_at_cleanup() {
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
     let decisions = ScriptedDecisionProvider::new();
-    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt (CR 102.2).
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt.
         None,
     );
 

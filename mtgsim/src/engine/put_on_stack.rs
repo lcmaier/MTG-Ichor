@@ -828,8 +828,8 @@ mod tests {
 
         let decisions = ScriptedDecisionProvider::new();
         // No target to script: the Thaumaturgist is the only creature on the
-        // board and the ability takes exactly one, so CR 102.2 makes the
-        // choice forced and `ask_select_recipients` does not prompt.
+        // board and the ability takes exactly one, so the
+        // choice is forced and `ask_select_recipients` does not prompt.
 
         let abilities = crate::oracle::characteristics::get_effective_abilities(&game, thaum);
         let idx = abilities.iter()
@@ -1023,7 +1023,7 @@ mod tests {
             spell_id: card_id,
         }, vec![1]);
         // No split to script: one type in the pool can take the generic mana,
-        // so CR 102.2 makes the answer forced and `ask_choose_generic_mana_
+        // so the answer is forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
 
         game.cast_spell(0, card_id, &decisions).unwrap();
@@ -1199,7 +1199,7 @@ mod tests {
         // Options: [AdditionalCost::Kicker(...)] — index 0 = first (only) additional cost
         decisions.expect_pick_n(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![0]);
         // No split to script: one type in the pool can take the generic mana,
-        // so CR 102.2 makes the answer forced and `ask_choose_generic_mana_
+        // so the answer is forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
 
         game.cast_spell(0, card_id, &decisions).unwrap();

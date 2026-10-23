@@ -46,7 +46,7 @@ fn test_giant_growth_pumps_creature() {
     // Cast Giant Growth: pick_n for priority action (index 1 = CastSpell)
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Nothing to script: the only legal target, so the choice is forced
-    // (CR 102.2) and no prompt is made.
+    // and no prompt is made.
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
     assert!(game.stack.contains(&growth_id));
@@ -83,7 +83,7 @@ fn test_giant_growth_expires_at_cleanup() {
     // Cast and resolve Giant Growth (same as test 1)
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Nothing to script: the only legal target, so the choice is forced
-    // (CR 102.2) and no prompt is made.
+    // and no prompt is made.
     game.run_priority_round(&decisions).unwrap();
 
     game.run_priority_round(&decisions).unwrap();
@@ -139,7 +139,7 @@ fn test_two_giant_growths_stack() {
     // Cast and resolve first Giant Growth
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Nothing to script: the only legal target, so the choice is forced
-    // (CR 102.2) and no prompt is made.
+    // and no prompt is made.
     game.run_priority_round(&decisions).unwrap();
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
@@ -149,7 +149,7 @@ fn test_two_giant_growths_stack() {
     // Cast and resolve second Giant Growth
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Nothing to script: the only legal target, so the choice is forced
-    // (CR 102.2) and no prompt is made.
+    // and no prompt is made.
     game.run_priority_round(&decisions).unwrap();
     game.run_priority_round(&decisions).unwrap();
 
@@ -325,7 +325,7 @@ fn test_anthem_plus_pump_spell() {
     // Cast Giant Growth targeting the creature
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Nothing to script: the only legal target, so the choice is forced
-    // (CR 102.2) and no prompt is made.
+    // and no prompt is made.
     game.run_priority_round(&decisions).unwrap();
 
     // Resolve
@@ -363,7 +363,7 @@ fn test_zhalfirin_shapecraft_sets_base_pt() {
     // Cast Zhalfirin Shapecraft targeting the creature
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Nothing to script: one bucket can take the generic mana, so the split
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 
@@ -404,7 +404,7 @@ fn test_inside_out_switches_pt() {
     // Cast Inside Out targeting the creature
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Nothing to script: one bucket can take the generic mana, so the split
-    // is forced (CR 102.2) and no prompt is made.
+    // is forced and no prompt is made.
     game.run_priority_round(&decisions).unwrap();
 
     // Resolve
@@ -433,7 +433,7 @@ fn test_bull_rush_pumps_power() {
     // Cast Bull Rush
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Nothing to script: the only legal target, so the choice is forced
-    // (CR 102.2) and no prompt is made.
+    // and no prompt is made.
     game.run_priority_round(&decisions).unwrap();
 
     // Resolve
@@ -459,7 +459,7 @@ fn cast_and_resolve_targeted_spell(
 ) {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![cast_index]);
     // No target to script: every board here holds one creature, so the choice
-    // is forced (CR 102.2) and `ask_select_recipients` does not prompt.
+    // is forced and `ask_select_recipients` does not prompt.
     if let Some(alloc) = generic_alloc {
         decisions.expect_allocation(
             ChoiceKind::GenericManaAllocation {
@@ -512,7 +512,7 @@ fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
     assert_eq!(get_effective_toughness(&game, bears_id), Some(3));
 
     // Inside Out {1}{U}: available [Blue(8)] (Red spent) → allocate 1 from Blue
-    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, 1, None);  // one bucket: the split is forced (CR 102.2)
+    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, 1, None);  // one bucket: the split is forced
     // After 7b+7c+7d: swap(6,3) = 3/6
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
@@ -562,7 +562,7 @@ fn test_layer_ordering_cast_in_reverse_order() {
     assert_eq!(get_effective_toughness(&game, bears_id), Some(4));
 
     // Shapecraft {1}{U}: available [Blue(8)] (Red spent) → allocate 1 from Blue
-    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, 1, None);  // one bucket: the split is forced (CR 102.2)
+    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, 1, None);  // one bucket: the split is forced
     // 7b: set 4/3; 7c: +2/+0 → 6/3; 7d: swap → 3/6
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
@@ -593,13 +593,13 @@ fn test_layer_ordering_cast_7c_7d_7b() {
     assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
 
     // Inside Out {1}{U}: available [Blue(10)] (Red spent) → allocate 1 from Blue
-    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, 1, None);  // one bucket: the split is forced (CR 102.2)
+    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, 1, None);  // one bucket: the split is forced
     // 7c: 4/2; 7d: swap → 2/4
     assert_eq!(get_effective_power(&game, bears_id), Some(2));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(4));
 
     // Shapecraft {1}{U}: available [Blue(8)] → allocate 1 from Blue
-    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, 1, None);  // one bucket: the split is forced (CR 102.2)
+    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, 1, None);  // one bucket: the split is forced
     // 7b: 4/3; 7c: +2/+0 → 6/3; 7d: swap → 3/6
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
@@ -625,7 +625,7 @@ fn test_layer_effects_expire_at_cleanup() {
     // Cast all three
     cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, 1, Some(vec![1, 0]));
     cast_and_resolve_targeted_spell(&mut game, &decisions, bull_rush_id, 1, None);
-    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, 1, None);  // one bucket: the split is forced (CR 102.2)
+    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, 1, None);  // one bucket: the split is forced
 
     // 3/6 as expected
     assert_eq!(get_effective_power(&game, bears_id), Some(3));

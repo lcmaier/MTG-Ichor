@@ -58,7 +58,7 @@ use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 /// A two-player game whose every dispatch the audit answers again.
 fn audited_game() -> GameState {
     let mut game = setup_two_player_game();
-    game.enable_dispatch_audit();
+    game.enable_audit();
     game
 }
 

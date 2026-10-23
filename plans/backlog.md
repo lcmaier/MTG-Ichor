@@ -1406,8 +1406,8 @@ mechanic rather than a migration, which is why it is here and not in
      for the first case, since the census read it: `ui/ask.rs` and item 145
      say "CR 102.2", and in `tmnt.txt` 102.2 is the two-player-opponent rule;
      the CR states the general form nowhere, and the anchors are CR 616.1's
-     "two or more" and 601.2f's "if multiple". One comment fix, next time a
-     hand is in the file.
+     "two or more" and 601.2f's "if multiple". Corrected throughout at #278
+     (`plans/elisions.md` §2).
   2. **Every decorator is a policy, and a policy's seat decides where it
      lives.** The answers differ and a rule picks one — declining the window
      once the cost is covered, passing priority, dividing combat damage, which

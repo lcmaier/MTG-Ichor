@@ -18,24 +18,20 @@
 //! asked per ability, `match_def`, and how many triggers one ability makes of
 //! one event. Those are rules, and each has its fixtures.
 //!
-//! **Its reads leave no trace.** The layer memo, the diagnostics and the trace
-//! handle are saved before each and restored after, so an audited game's
-//! counters and trace are an unaudited one's.
+//! **Its reads leave no trace** (`GameState::unobserved`), so an audited
+//! game's counters and trace are an unaudited one's. The switch and the
+//! other shortcuts' audits are `engine::audit`'s.
 
 use std::sync::Arc;
 
 use super::dispatch::{LookBackSnapshot, MatchedTrigger, ObjectSnapshot, TriggerCandidate, TriggerCandidateFrame};
-use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
+use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{BatchId, EventRecord, EventId};
 use crate::objects::card_data::CardDataBuilder;
 use crate::oracle::characteristics::controller_or_owner;
-use crate::state::diagnostics::Diagnostics;
 use crate::state::game_state::GameState;
-use crate::state::layer_memo::LayerMemo;
-use crate::state::trace::TraceHandle;
 use crate::types::effects::Effect;
 use crate::types::ids::{ObjectId, ObjectRef};
-use crate::types::zones::Zone;
 
 /// The audit's state on a game that turned it on.
 #[derive(Debug, Clone, Default)]
@@ -48,24 +44,7 @@ pub struct DispatchAudit {
     triggers: u64,
 }
 
-/// What an observer's read may touch and must put back: the audit's, and an
-/// event record's names (`GameState::emit_record`).
-pub(crate) struct Observers {
-    memo: LayerMemo,
-    diagnostics: Diagnostics,
-    trace: Option<TraceHandle>,
-}
-
 impl GameState {
-    /// Audit every dispatch for the rest of this game (`fuzz_games --audit`).
-    /// The hooks it needs are inside the batch and the dispatch, so the switch
-    /// is the engine's; a second call changes nothing.
-    pub fn enable_dispatch_audit(&mut self) {
-        if self.dispatch_audit.is_none() {
-            self.dispatch_audit = Some(Box::new(DispatchAudit::default()));
-        }
-    }
-
     /// Dispatches answered twice and triggers the two answers agreed on;
     /// `None` in a game that never turned the audit on.
     pub fn dispatch_audit_counts(&self) -> Option<(u64, u64)> {
@@ -76,10 +55,7 @@ impl GameState {
     /// carry a triggered ability, with its list. `None` when the audit is off.
     pub(crate) fn audit_frames(&mut self) -> Option<Vec<ObjectSnapshot>> {
         self.dispatch_audit.as_ref()?;
-        let saved = self.save_observers();
-        let frames = self.objects_that_may_trigger().into_iter().filter_map(|id| self.object_snapshot(id)).collect();
-        self.restore_observers(saved);
-        Some(frames)
+        Some(self.unobserved(|| self.objects_that_may_trigger().into_iter().filter_map(|id| self.object_snapshot(id)).collect()))
     }
 
     /// The audit's snapshot for a control change's window: every object that
@@ -88,14 +64,12 @@ impl GameState {
     /// object is as it was. `None` when the audit is off.
     pub(super) fn audit_frames_before_control_change(&mut self, before: &[ObjectSnapshot]) -> Option<Vec<ObjectSnapshot>> {
         self.dispatch_audit.as_ref()?;
-        let saved = self.save_observers();
-        let frames = self
-            .objects_that_may_trigger()
-            .into_iter()
-            .filter_map(|id| before.iter().find(|frame| frame.lki.object().id == id).cloned().or_else(|| self.object_snapshot(id)))
-            .collect();
-        self.restore_observers(saved);
-        Some(frames)
+        Some(self.unobserved(|| {
+            self.objects_that_may_trigger()
+                .into_iter()
+                .filter_map(|id| before.iter().find(|frame| frame.lki.object().id == id).cloned().or_else(|| self.object_snapshot(id)))
+                .collect()
+        }))
     }
 
     /// Keep a batch's snapshot for its window's dispatch.
@@ -121,9 +95,7 @@ impl GameState {
         snapshots: &[LookBackSnapshot],
         engine: &[MatchedTrigger],
     ) {
-        let saved = self.save_observers();
-        let reference = self.matches_without_shortcuts(window, snapshots);
-        self.restore_observers(saved);
+        let reference = self.unobserved(|| self.matches_without_shortcuts(window, snapshots));
         let describe = |matches: &[MatchedTrigger]| matches.iter().map(|m| self.describe(m)).collect::<Vec<_>>();
         assert_agree(&self.describe_window(window), describe(engine), describe(&reference));
         if let Some(audit) = self.dispatch_audit.as_mut() {
@@ -132,36 +104,10 @@ impl GameState {
         }
     }
 
-    pub(crate) fn save_observers(&mut self) -> Observers {
-        Observers {
-            memo: self.layer_memo.clone(),
-            diagnostics: self.diagnostics.clone(),
-            trace: self.trace.take(),
-        }
-    }
-
-    pub(crate) fn restore_observers(&mut self, saved: Observers) {
-        self.layer_memo = saved.memo;
-        self.diagnostics = saved.diagnostics;
-        self.trace = saved.trace;
-    }
-
-    /// Every object in every zone that could carry a triggered ability: all
-    /// of them on the battlefield and the stack, and elsewhere every object a
-    /// continuous effect could reach or that printed one — an object no row
-    /// reaches has its printed abilities and nothing else. An ability on the
-    /// stack is an object (CR 113.1c) without its source's abilities.
+    /// Every object in every zone that could carry a triggered ability
+    /// (`GameState::objects_that_may_carry`).
     pub(super) fn objects_that_may_trigger(&self) -> Vec<ObjectId> {
-        // NO ROW REACHES: asked only of an object no row reaches, whose
-        // abilities are its printed ones.
-        let printed_trigger =
-            |id: &ObjectId| self.objects.get(id).is_some_and(|o| o.card_data.abilities.iter().any(|a| matches!(a.effect, Effect::Triggered(_))));
-        let mut ids = self.battlefield_ids_ordered();
-        ids.extend(self.stack.iter().copied().filter(|&id| self.is_spell_on_stack(id)));
-        for zone in [Zone::Exile, Zone::Command, Zone::Graveyard, Zone::Hand, Zone::Library] {
-            ids.extend(self.zone_ids_ordered(zone).into_iter().filter(|id| !no_row_reaches(self, *id) || printed_trigger(id)));
-        }
-        ids
+        self.objects_that_may_carry(|effect| matches!(effect, Effect::Triggered(_)))
     }
 
     /// The window's triggers over the candidate set with no shortcut in it.

@@ -38,6 +38,7 @@
 //! end-to-end check is three traced runs of one seed under three
 //! `MTGSIM_HASH_SEED`s, byte-identical.
 
+use std::cell::Cell;
 use std::fmt;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
@@ -169,12 +170,14 @@ impl Write for TraceMemory {
 pub struct TraceHandle {
     sink: Arc<TraceSink>,
     branch: u64,
+    /// Writes nothing while an observer's read runs (`GameState::unobserved`).
+    paused: Cell<bool>,
 }
 
 impl TraceHandle {
     /// The root handle, branch 0.
     pub fn new(sink: &Arc<TraceSink>) -> TraceHandle {
-        TraceHandle { sink: Arc::clone(sink), branch: 0 }
+        TraceHandle { sink: Arc::clone(sink), branch: 0, paused: Cell::new(false) }
     }
 
     /// The sink this handle writes to.
@@ -190,11 +193,21 @@ impl TraceHandle {
     fn write(&self, record: Record) {
         self.sink.write(self.branch, record);
     }
+
+    /// Stop writing, and say whether it had already stopped.
+    pub(crate) fn pause(&self) -> bool {
+        self.paused.replace(true)
+    }
+
+    /// Write again, unless it had stopped before the matching [`Self::pause`].
+    pub(crate) fn resume(&self, was_paused: bool) {
+        self.paused.set(was_paused);
+    }
 }
 
 impl Clone for TraceHandle {
     fn clone(&self) -> Self {
-        TraceHandle { sink: Arc::clone(&self.sink), branch: self.sink.fork(self.branch) }
+        TraceHandle { sink: Arc::clone(&self.sink), branch: self.sink.fork(self.branch), paused: Cell::new(false) }
     }
 }
 
@@ -791,7 +804,9 @@ impl GameState {
     /// sorting a type set — only in a traced game.
     #[inline]
     pub fn trace(&self, build: impl FnOnce() -> Record) {
-        if let Some(handle) = &self.trace {
+        if let Some(handle) = &self.trace
+            && !handle.paused.get()
+        {
             handle.write(build());
         }
     }
@@ -920,10 +935,7 @@ impl GameState {
         let name = match self.layer_memo.get(id, self.layer_epoch()) {
             Some(frame) => frame.name.clone(),
             None => {
-                let saved = self.save_observers();
-                let name = compute_characteristics(self, id).map(|chars| chars.name.clone());
-                self.restore_observers(saved);
-                name?
+                self.unobserved(|| compute_characteristics(self, id).map(|chars| chars.name.clone()))?
             }
         };
         (self.objects.get(&id)?.card_data.name != name).then_some(name)

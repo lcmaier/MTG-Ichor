@@ -14,6 +14,7 @@ use crate::engine::layers::condition::ConditionReferents;
 use super::binding::TriggeringEventView;
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
+use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
@@ -22,6 +23,7 @@ use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerS
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
@@ -65,11 +67,17 @@ impl GameState {
                     continue;
                 }
                 let mine: Vec<TriggerSeq> = entries.iter().map(|t| t.seq).collect();
-                let order: Vec<usize> = if entries.len() >= 2 && !self.trigger_order_cannot_change_outcome(&entries) {
+                let order: Vec<usize> = if entries.len() < 2 {
+                    (0..mine.len()).collect()
+                } else if self.trigger_order_cannot_change_outcome(&entries) {
+                    self.note_unasked(player, Unasked::OneGame(Elision::TriggerOrder), || {
+                        let sources = entries.iter().map(|t| ChoiceOption::Object(t.origin.source())).collect();
+                        (ChoiceKind::OrderTriggers { player, tier }, UnaskedAnswer::Order(sources))
+                    });
+                    (0..mine.len()).collect()
+                } else {
                     let sources: Vec<ObjectId> = entries.iter().map(|t| t.origin.source()).collect();
                     ask_order_triggers(dp, self, player, tier, &sources)
-                } else {
-                    (0..mine.len()).collect()
                 };
                 self.queue_last_placed_first(tier, player, &order);
                 for i in order {

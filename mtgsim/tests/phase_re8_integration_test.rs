@@ -276,7 +276,7 @@ fn test_a_discard_of_two_is_one_batch() {
     assert!(moved[0].batch().is_some());
 }
 
-/// CR 101.3 does as much as it can, and CR 102.2 asks nothing when the choice
+/// CR 101.3 does as much as it can, and nothing is asked when the choice
 /// is forced — a Mind Rot against a one-card hand takes it and prompts nobody.
 #[test]
 fn test_mind_rot_against_a_short_hand_takes_it_all_without_asking() {
@@ -288,7 +288,8 @@ fn test_mind_rot_against_a_short_hand_takes_it_all_without_asking() {
 
     assert!(game.players[1].hand.is_empty());
     assert_eq!(game.players[1].graveyard.len(), 1);
-    assert!(dp.is_empty(), "a forced choice is not a choice (CR 102.2)");
+    assert!(dp.is_empty(), "a forced choice is not asked");
+    mtgsim::test_support::assert_not_asked(&game, 1, "Discard", "its one legal answer");
 }
 
 /// An empty hand discards nothing and announces nothing.

@@ -8,6 +8,7 @@
 //! last one is a property of CR 101.2 rather than a simplification.
 
 use crate::engine::actions::GameAction;
+use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::object_filter::TextReferents;
 use crate::events::cause::EventCause;
@@ -94,6 +95,24 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
 /// sources are swept. Which one is named is a reader's question, never a
 /// rule's: any one forbids it (CR 101.2).
 pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition> {
+    let found = prohibition_sweeping(game, query, Sweep::Gated);
+    if game.audit_on() {
+        let everything = game.unobserved(|| match *query {
+            Query::Event { action, cause, lookahead } => {
+                let fresh = lookahead.map(EntryFrame::uncomputed);
+                prohibition_sweeping(game, &Query::Event { action, cause, lookahead: fresh.as_ref() }, Sweep::Everything)
+            }
+            Query::ApplyReplacement { .. } => prohibition_sweeping(game, query, Sweep::Everything),
+        });
+        let named = |found: Option<Prohibition>| found.map(|p| format!("{p:?}")).into_iter().collect();
+        assert_shortcut_agrees("the restriction sweep's gate", || format!("{query:?}"), named(found), named(everything));
+    }
+    found
+}
+
+/// [`prohibition`]'s sweep, past its gate as the game runs it, or over every
+/// permanent, as its audit does.
+fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option<Prohibition> {
     game.diagnostics.record_restriction_query();
 
     // --- Source 3: keyword abilities -------------------------------------
@@ -111,7 +130,8 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
     // every board the gate skips.** Printed (at ETB, an entry copy's included),
     // granted and copied (the summary's flags; CR 707.2a). Each over-approximates,
     // costing a walk, never an answer; Layer 3 is the route with no leg.
-    let has_static_source = !game.restriction_ability_sources.is_empty()
+    let has_static_source = sweep == Sweep::Everything
+        || !game.restriction_ability_sources.is_empty()
         || game.continuous_effects.summary().any_granted_restriction
         || game.continuous_effects.summary().any_copied_restriction;
     if !has_static_source && game.restrictions.is_empty() {

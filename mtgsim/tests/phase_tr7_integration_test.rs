@@ -679,7 +679,7 @@ fn play_the_loop(game: &mut GameState, player: &LoopPlayer, seat: &dyn DecisionP
 #[test]
 fn the_loop_cast_from_hand_runs_three_times_and_stops_by_choice() {
     let mut game = setup_two_player_game();
-    game.enable_dispatch_audit();
+    game.enable_audit();
     let player = LoopPlayer::new(3);
     let seat = AutoOrderTriggers::new(ManaWindowStop::new(&player));
     let (_, scarecrow) = play_the_loop(&mut game, &player, &seat);

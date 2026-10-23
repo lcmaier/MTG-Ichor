@@ -991,6 +991,20 @@ impl TraceBuffer {
     }
 }
 
+/// The game log's lines for the questions the engine answered without asking
+/// (`events::unasked`), oldest first. The game must be recording.
+pub fn not_asked(game: &GameState) -> Vec<String> {
+    crate::ui::display::format_event_log(game).into_iter().filter(|line| line.starts_with("NotAsked: ")).collect()
+}
+
+/// Panic unless the log says the engine answered `player`'s `kind` question
+/// without asking, for the reason whose words `why` ends the line with.
+pub fn assert_not_asked(game: &GameState, player: PlayerId, kind: &str, why: &str) {
+    let lines = not_asked(game);
+    let head = format!("NotAsked: P{player} {kind}");
+    assert!(lines.iter().any(|line| line.starts_with(&head) && line.ends_with(why)), "no `{head} … {why}` among {lines:#?}");
+}
+
 /// Attach a buffer-backed sink to `game` and write its header. `label` is the
 /// trace's own name for the board, usually the test's.
 pub fn install_trace(game: &mut GameState, label: &str) -> TraceBuffer {

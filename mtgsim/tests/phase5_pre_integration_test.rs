@@ -53,7 +53,7 @@ fn test_nights_whisper_draw_and_life_loss() {
     // [Pass, CastSpell(whisper_id)] → idx 1
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // The colorless is the only mana the pips do not claim, so the split is
-    // forced (CR 102.2) and nothing is asked (`ui::ask::forced_allocation`).
+    // forced and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
 
     cast_and_resolve(&mut game, &decisions);
@@ -101,7 +101,7 @@ fn test_angels_mercy_gains_life() {
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // The colorless is the only mana the pips do not claim, so the split is
-    // forced (CR 102.2) and nothing is asked (`ui::ask::forced_allocation`).
+    // forced and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
 
     cast_and_resolve(&mut game, &decisions);
@@ -175,7 +175,7 @@ fn test_doom_blade_destroys_nonblack_creature() {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // The only nonblack creature, so the target is forced and not asked.
     // The colorless is the only mana the pips do not claim, so the split is
-    // forced (CR 102.2) and nothing is asked (`ui::ask::forced_allocation`).
+    // forced and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
 
     cast_and_resolve(&mut game, &decisions);

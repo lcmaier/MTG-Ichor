@@ -22,7 +22,7 @@
 //! engine path, deliberately, with a re-record attached). It is the cheapest of
 //! the five, it is castable with a single creature on the board because
 //! CR 601.2c lets all three clauses name it, and at that board it asks nothing
-//! at all: one legal choice for a fixed count of one is not a choice (CR 102.2).
+//! at all: one legal choice for a fixed count of one is not a choice.
 //! The other four are registered and unpooled — Plague Spores and Incremental
 //! Growth want boards a random game will not build, and Jagged Lightning's
 //! `TargetCount::Exactly(2)` is the same engine path Seeds of Strength already

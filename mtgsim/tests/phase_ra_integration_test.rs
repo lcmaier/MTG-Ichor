@@ -313,7 +313,7 @@ fn test_a_failed_cast_announces_nothing() {
 /// reproducer, and it used to rewind the cast.
 ///
 /// Each bucket's maximum is what its own pips leave over: Red 1, Green 0. That
-/// leaves one bucket able to take the generic {1}, so CR 102.2 makes the split
+/// leaves one bucket able to take the generic {1}, so the split is
 /// forced and `forced_allocation` answers it: the {1} goes on the Red, the {G}
 /// pip keeps its Green, and the cast completes without a question. The clamp is
 /// what makes the answer unique; see its sibling below for the answer the clamp
@@ -727,7 +727,7 @@ fn test_an_ability_resolving_is_not_a_spell_resolving() {
 
     let decisions = ScriptedDecisionProvider::new();
     // Nothing to script: the only legal target, so the choice is forced
-    // (CR 102.2) and no prompt is made.
+    // and no prompt is made.
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(&game, thaum);
     let idx = abilities
         .iter()

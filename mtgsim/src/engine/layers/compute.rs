@@ -761,7 +761,7 @@ impl FilterReferents for FilterPlayers<'_, '_> {
 /// that does not exist yet (`codebase-state.md` item 13).
 ///
 /// `Opponent` therefore resolves here only while one opponent is left, where
-/// CR 102.2 leaves nothing to choose. With more it means the resolution step
+/// there is nothing to choose. With more it means the resolution step
 /// skipped a choice it owed, so it asserts rather than inventing one.
 fn resolve_set_controller(
     player_ref: &crate::types::effects::PlayerRef,
@@ -802,7 +802,7 @@ fn resolve_set_controller(
         PlayerRef::DefendingPlayer(Antecedent::Triggering(_)) | PlayerRef::AnyDefendingPlayer => None,
         PlayerRef::Opponent => {
             match game.opponents_of(players.you()).as_slice() {
-                // CR 102.2 — exactly one opponent, so nothing was ever chosen.
+                // Exactly one opponent, so nothing was ever chosen.
                 [only] => Some(*only),
                 _ => {
                     debug_assert!(

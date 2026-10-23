@@ -29,6 +29,7 @@
 //! `ReplacementClass::SelfReplacement` currently has a step and no producer.
 
 use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
@@ -206,6 +207,25 @@ pub(crate) fn gather(
     blocked: bool,
     frame: &EntryFrame<'_>,
 ) -> Vec<ReplacementInstance> {
+    let candidates = gather_sweeping(game, action, ctx, blocked, frame, Sweep::Gated);
+    if game.audit_on() {
+        let everything = game.unobserved(|| gather_sweeping(game, action, ctx, blocked, &frame.uncomputed(), Sweep::Everything));
+        let ids = |found: &[ReplacementInstance]| found.iter().map(|c| format!("{:?}", c.id)).collect();
+        assert_shortcut_agrees("the replacement gather's gate", || format!("{action:?}"), ids(&candidates), ids(&everything));
+    }
+    candidates
+}
+
+/// [`gather`]'s sweep, past its gate as the game runs it, or over every
+/// object that could carry a replacement ability, as its audit does.
+fn gather_sweeping(
+    game: &GameState,
+    action: &GameAction,
+    ctx: &ActionContext,
+    blocked: bool,
+    frame: &EntryFrame<'_>,
+    sweep: Sweep,
+) -> Vec<ReplacementInstance> {
     game.diagnostics.record_replacement_gather();
 
     // What *caused* this event, for [`ReplacementDef::by`] — the same value the
@@ -273,7 +293,8 @@ pub(crate) fn gather(
         || !game.zone_replacement_ability_sources.is_empty()
         || !unattributed_zones.is_empty()
         || any_named_unattributed;
-    if !has_static_source
+    if sweep == Sweep::Gated
+        && !has_static_source
         && game.replacement_effects.is_empty()
         && !any_replacement_counter(game)
     {
@@ -286,7 +307,8 @@ pub(crate) fn gather(
     // time. A row reaching the battlefield by zone or by name opens every
     // permanent to a walk, since narrowing it would resolve a filter per
     // permanent per check.
-    let any_unattributed = unattributed_zones.contains(Zone::Battlefield) || any_named_unattributed;
+    let any_unattributed =
+        sweep == Sweep::Everything || unattributed_zones.contains(Zone::Battlefield) || any_named_unattributed;
     for id in game.battlefield_ids_ordered() {
         if any_unattributed || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
@@ -332,49 +354,59 @@ pub(crate) fn gather(
     // 614.12's parenthesis forbids.
     let could_apply = |id: ObjectId, printed: &[ReplacementDef]| printed.iter().any(|def| printed_could_apply(game, id, def, &proposal));
     let mut elsewhere: Vec<(Timestamp, ObjectId)> = Vec::new();
-    if game.trace_on() {
-        // Asking walks the layers, and a walk writes a trace record, so a
-        // traced game asks in timestamp order. Untraced, the sort would cost
-        // every gather for an order nothing reads.
-        // ORDER-FREE: sorted by timestamp next.
-        let mut sources: Vec<(Timestamp, ObjectId, &[ReplacementDef])> = game
-            .zone_replacement_ability_sources
-            .iter()
-            .map(|(&id, printed)| (game.object_timestamp(id), id, &printed[..]))
-            .collect();
-        sources.sort_unstable_by_key(|&(timestamp, _, _)| timestamp);
-        elsewhere.extend(sources.into_iter().filter(|&(_, id, printed)| could_apply(id, printed)).map(|(timestamp, id, _)| (timestamp, id)));
-    } else {
-        // ORDER-FREE: the matches are sorted below, and untraced no walk
-        // records the order it was asked in.
-        for (&id, printed) in game.zone_replacement_ability_sources.iter() {
-            if could_apply(id, printed) {
+    if sweep == Sweep::Everything {
+        // The audit's: every object off the battlefield that could carry one,
+        // asked with no printed precheck.
+        for id in game.objects_that_may_carry(|effect| matches!(effect, Effect::Replacement(_) | Effect::Conditional(..))) {
+            if game.objects.get(&id).is_some_and(|obj| obj.zone != Zone::Battlefield) {
                 elsewhere.push((game.object_timestamp(id), id));
             }
         }
-    }
-    let zone_sweep = unattributed_zones.beyond_battlefield();
-    if any_named_unattributed || !zone_sweep.is_empty() {
-        let mut named: Vec<ObjectId> = Vec::new();
-        if any_named_unattributed {
-            for row in game.continuous_effects.iter().filter(|r| puts_a_replacement_ability(r)) {
-                match &row.affected_objects {
-                    ObjectSet::SourceOnly => named.push(row.source),
-                    ObjectSet::Fixed(ids) => named.extend(ids.iter().copied()),
-                    // A host is a permanent (CR 301.5, 303.4): the battlefield sweep's.
-                    ObjectSet::Host | ObjectSet::Filter { .. } => {}
+    } else {
+        if game.trace_on() {
+            // Asking walks the layers, and a walk writes a trace record, so a
+            // traced game asks in timestamp order. Untraced, the sort would cost
+            // every gather for an order nothing reads.
+            // ORDER-FREE: sorted by timestamp next.
+            let mut sources: Vec<(Timestamp, ObjectId, &[ReplacementDef])> = game
+                .zone_replacement_ability_sources
+                .iter()
+                .map(|(&id, printed)| (game.object_timestamp(id), id, &printed[..]))
+                .collect();
+            sources.sort_unstable_by_key(|&(timestamp, _, _)| timestamp);
+            elsewhere.extend(sources.into_iter().filter(|&(_, id, printed)| could_apply(id, printed)).map(|(timestamp, id, _)| (timestamp, id)));
+        } else {
+            // ORDER-FREE: the matches are sorted below, and untraced no walk
+            // records the order it was asked in.
+            for (&id, printed) in game.zone_replacement_ability_sources.iter() {
+                if could_apply(id, printed) {
+                    elsewhere.push((game.object_timestamp(id), id));
                 }
             }
         }
-        for zone in zone_sweep.iter() {
-            named.extend(game.zone_ids_ordered(zone));
-        }
-        let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
-        for id in named {
-            let off_battlefield =
-                matches!(game.objects.get(&id), Some(obj) if obj.zone != Zone::Battlefield);
-            if off_battlefield && seen.insert(id) {
-                elsewhere.push((game.object_timestamp(id), id));
+        let zone_sweep = unattributed_zones.beyond_battlefield();
+        if any_named_unattributed || !zone_sweep.is_empty() {
+            let mut named: Vec<ObjectId> = Vec::new();
+            if any_named_unattributed {
+                for row in game.continuous_effects.iter().filter(|r| puts_a_replacement_ability(r)) {
+                    match &row.affected_objects {
+                        ObjectSet::SourceOnly => named.push(row.source),
+                        ObjectSet::Fixed(ids) => named.extend(ids.iter().copied()),
+                        // A host is a permanent (CR 301.5, 303.4): the battlefield sweep's.
+                        ObjectSet::Host | ObjectSet::Filter { .. } => {}
+                    }
+                }
+            }
+            for zone in zone_sweep.iter() {
+                named.extend(game.zone_ids_ordered(zone));
+            }
+            let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
+            for id in named {
+                let off_battlefield =
+                    matches!(game.objects.get(&id), Some(obj) if obj.zone != Zone::Battlefield);
+                if off_battlefield && seen.insert(id) {
+                    elsewhere.push((game.object_timestamp(id), id));
+                }
             }
         }
     }

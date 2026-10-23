@@ -572,4 +572,5 @@ fn entries_differing_only_in_an_event_role_the_def_does_not_read_are_not_ordered
     game.perform_sba_and_triggers(&dp).unwrap();
     assert_eq!(game.stack.len(), 2, "both triggered");
     assert!(!dp.kinds().contains(&"OrderTriggers".to_string()), "and nothing asked their order: {:?}", dp.kinds());
+    mtgsim::test_support::assert_not_asked(&game, 0, "OrderTriggers", "every order leaves one game (CR 603.3b)");
 }

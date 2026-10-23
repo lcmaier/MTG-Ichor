@@ -113,7 +113,7 @@ pub enum ChoiceKind {
     ///
     /// Asked only when there are more candidates than the cost needs. With
     /// exactly as many as it needs the payment is forced and nothing is
-    /// asked, which is [`Self::ChooseEnteringController`]'s CR 102.2 shape.
+    /// asked, as with [`Self::ChooseEnteringController`].
     ChooseSacrificeForCost { spell_or_ability_id: ObjectId, count: u32 },
 
     // --- Replacement effects (CR 616.1) ---
@@ -179,8 +179,8 @@ pub enum ChoiceKind {
     /// recheck rather than an enumeration rule.
     ///
     /// Asked only with two or more candidates; with one the choice is forced
-    /// and nothing is asked, which is [`Self::ChooseCopySource`]'s CR 102.2
-    /// shape.
+    /// and nothing is asked, as with
+    /// [`Self::ChooseCopySource`].
     ///
     /// `source` is the object whose effect is choosing — [`Self::
     /// AllocateNextDamage`]'s field, for the same reason: "why am I being
@@ -198,7 +198,7 @@ pub enum ChoiceKind {
     /// CR 616.1b / 614.12a — an entry replacement puts `object` under "an
     /// opponent of your choice" and there is more than one opponent to choose
     /// from. The options are players. With exactly one opponent nothing is
-    /// asked (CR 102.2), and the choice is made before the permanent enters.
+    /// asked, and the choice is made before the permanent enters.
     ChooseEnteringController { object: ObjectId },
 
     /// CR 508.4 — `object` is put onto the battlefield attacking, and its
@@ -277,8 +277,8 @@ pub enum ChoiceKind {
     /// [`Self::ApplyOptionalReplacement`] already carry.
     ///
     /// Not asked at all for CR 701.9b's "at random" shape, which chooses from
-    /// `GameState::rng`, nor when the count is the whole hand (CR 102.2 — a
-    /// forced choice is not a choice).
+    /// `GameState::rng`, nor when the count is the whole hand, which is
+    /// answered unasked.
     Discard { source: Option<ObjectId> },
 
     /// CR 701.22a — which of the cards looked at go on the **bottom** of the
@@ -292,7 +292,7 @@ pub enum ChoiceKind {
     Scry { source: Option<ObjectId>, n: u64 },
 
     /// CR 701.22a's "in any order", asked once per group that has two or more
-    /// cards in it — with one there is no order to choose (CR 102.2), which is
+    /// cards in it — with one there is no order to choose, which is
     /// every Scry 1 and so every prompt Opt makes.
     ///
     /// `bottom` says which group: the cards going to the bottom, or the ones

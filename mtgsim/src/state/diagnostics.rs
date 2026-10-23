@@ -208,8 +208,8 @@ impl Diagnostics {
     /// count measures the pass loop, where this measures what an agent is
     /// handed. Counted in `ui::ask`'s four `validate_*` helpers, which are the
     /// one place every prompt's candidate list and its bounds are both in
-    /// scope — so "two or more answers" is decided per primitive there, and CR
-    /// 102.2's forced choices do not count however the caller spelled them.
+    /// scope — so "two or more answers" is decided per primitive there, and
+    /// forced choices do not count however the caller spelled them.
     pub fn record_decision(&self) {
         self.decisions.set(self.decisions.get() + 1);
     }
@@ -260,9 +260,9 @@ impl Diagnostics {
     }
 
     /// Every row back to `earlier`, a clone taken before an audit's own reads,
-    /// whichever rows they moved. Destructured whole, so a new row is a
+    /// whichever rows they moved: a debug check's, and any observer's read
+    /// (`GameState::unobserved`). Destructured whole, so a new row is a
     /// compile error here rather than a debug build's drift.
-    #[cfg(debug_assertions)]
     pub(crate) fn rewind_to(&self, earlier: &Diagnostics) {
         let Diagnostics {
             layer_walks,

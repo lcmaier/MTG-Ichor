@@ -1450,7 +1450,7 @@ fn temple_bell_rings_the_active_player_first() {
 #[test]
 fn a_survivor_stripped_through_a_land_type_looks_back_to_no_abilities() {
     let mut game = setup_two_player_game();
-    game.enable_dispatch_audit();
+    game.enable_audit();
     let artist = put_on_battlefield(&mut game, blood_artist(), 0);
     let ashaya = put_on_battlefield(&mut game, ashaya_soul_of_the_wild(), 0);
     put_on_battlefield(&mut game, blood_moon(), 1);

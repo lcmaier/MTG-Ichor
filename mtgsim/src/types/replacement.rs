@@ -938,7 +938,7 @@ pub enum Rewrite {
     /// The `PlayerRef` is resolved when the effect is *applied*, relative to
     /// the effect's controller: `You` is Gather Specimens' "under your
     /// control", `Opponent` is Xantcha's "an opponent of your choice". With one
-    /// opponent nothing is chosen (CR 102.2); with more, that player is asked
+    /// opponent nothing is chosen; with more, that player is asked
     /// — and CR 614.12a's "that choice is made before the permanent enters the
     /// battlefield" holds by construction, since the CR 616.1 loop runs ahead
     /// of the performer.

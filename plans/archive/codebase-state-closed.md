@@ -7739,3 +7739,79 @@ the pair, is still covered.
     **Slotted:** A6e, item 6's close audit: `BOUNDARY-DEF-615.1a-001`'s
     out-of-set member is a `TriggerEvent::DamageDealt` ability now, so its
     partial is promoted there.
+
+### Item 185 — closed 2026-10-22 by PR #278 (the item 6 audit's docs audit, pass 5)
+
+Closed by `plans/elisions.md`, the inventory the item asked for: the engine's forced prompts (one legal answer, given unasked), its elisions (several answers, one game) and its skipped work (gates, the memo, A4q's fold), each with its claim, its premise as a property and what checks it. The read found that the forced prompts rest on no CR rule (the tree had cited CR 102.2, the two-player opponent rule, corrected throughout), and that they were decided in two places; every one is now decided in `ui/ask.rs` through the predicate the decision count uses (`pick_unless_forced`, `allocate_unless_forced`). Each forced prompt and elision taken is recorded in the game's log as a `NotAsked:` line (`events::unasked`), which `format_event_log` draws and the dev GUI's `log_lines` does not; the forced priority pass is left to the decision log, since it would add half the game's log at two seats. The replacement, restriction and cost gates, the control sweep and the castability fold gained audits under `--audit` (`engine::audit`), each gate's shown to panic when its printed leg is taken away (`phase_a6h_integration_test.rs`); the trigger elisions' premise, that a resolving ability reads only what `trigger_binding_reads` names, is checked in every debug test and game. Found beside it: item 317.
+
+*Original entry:*
+
+185. **The engine's elisions are argued one site at a time, and nothing
+     inventories them or checks them together.** Every place the engine skips a
+     prompt or skips work, on the claim that doing it could not change the
+     outcome, rests on a premise written beside that one site:
+     - **CR 616.1's ordering prompt.** `pipeline::ordering_cannot_change_outcome`
+       spreads its premises over `classify`, `commutes`, `shared_clauses_hold`,
+       the feeds table (`EntryWrites`, `replacement-architecture.md` §3.5;
+       `filter_is_mods_invariant` until RG), `EventPattern::reads_the_amount` and
+       `EnterModsTemplate::is_fixed`, with `check_order_invariance` in debug
+       builds only. It was corrected in three consecutive PRs
+       (`engineering-practices.md` §4.1), and CV-2's design had to re-argue
+       `filter_is_mods_invariant`'s premise, because `EnterMods.copy` feeds every
+       characteristic (restated in the predicate's doc comment by CV-2a; the
+       doc comment is `EntryWrites`' now).
+     - **Forced choices.** A prompt with one outcome is not asked (main item
+       145; the census's rule 1, `backlog.md` §2.22), and CR 603.3b's trigger
+       order is not asked when no order can change the game
+       (`triggers-architecture.md` §5.2).
+     - **Skipped work.** The fast-path gates (the replacement gather's, the
+       restriction and cost sweeps', the trigger dispatcher's), the layer memo,
+       and A4q's fold of identical clauses. TR-1b's audit checks the
+       dispatcher's gate against a slow reference matcher, and the memo has a
+       debug audit; the rest have no check beside their argument.
+
+     A wrong premise raises nothing. The engine asks one question fewer, or
+     computes one thing fewer, and the answer is wrong only on the board the
+     premise did not foresee. **The owner's note at CV-2's review:** formalize
+     exactly what is elided and why, so the system can be shown sound, since so
+     much breaks silently if it is not.
+
+     **Reachability (2026-10-22):** nothing owed to a known wrong answer, since
+     none is known; the risk is the class. Every new `Rewrite`, `EventPattern` or `EnterMods` arm can falsify a
+     premise written before it, and nothing but review asks.
+
+     **Sized:** unknown until the inventory exists, and the inventory is the
+     first deliverable: each elision, its claim, its premise stated as a
+     property, and what holds it (a proof, a debug assertion or an audit run).
+     The instrument that has already worked is TR-1b's
+     (`triggers-architecture.md` §4.10): the same code with the shortcut off,
+     compared at every site across audited fuzz games. Not CV-2's. Proposed
+     slot: the docs audit at the end of phase 6 (`roadmap-v2.md` A6h), beside
+     item 6's close audit (A6e), which already reads the engine's claims
+     about itself.
+
+     **First piece landed (RG, 2026-09-28):** CR 616.1's entry elision, as
+     `replacement-architecture.md` §3.5's feeds table: its claim, its premise
+     as four properties, and what holds each. Building it found the fourth: a
+     multiplier that applies only once the entry carries counters makes two
+     counter writers an order. RE-5's argument had missed it, and it was
+     reachable on registered cards since RE-5; RG fixed it. The other sites
+     are still owed. Trace page: `plans/traces/rg-an-entry-write-changes-what-applies-next.html`, traces B and C.
+
+     **The loops' elisions, read (A6i, 2026-10-06).** The feedback-loop
+     census sets each loop's skipped work beside its guard
+     (`plans/references/feedback-loops.md` §2–§5): loop 1's ordering elision
+     is the feeds table above; loop 2's pre-check is exhaustive over filter,
+     condition and amount leaves (amounts since item 217 closed); loop 3 skips
+     nothing, and reads some results one check early (item 6); loop 4's gate
+     is TR-1b's audit, and its ordering elision `triggers-architecture.md`
+     §5.2. The forced choices and the fast-path gates outside the loops stay
+     owed.
+     **Built, not only written (the owner, 2026-10-22, at #274's merge):**
+     beside the inventory, an engine record at each elision stating its
+     reason, kept in a game's log at the level of a land tapped for mana: in
+     the log, and not drawn in the dev GUI's.
+     **Slotted:** A6h, the docs audit's fourth PR
+     (`plans/handoffs/item-6-audit.md`, pass 5), which inventories the
+     forced-choice and fast-path elisions left, each with its premise and
+     what holds it, and writes the record.

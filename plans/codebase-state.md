@@ -7774,75 +7774,16 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by the CV-2 design review (2026-09-28)
 
-185. **The engine's elisions are argued one site at a time, and nothing
-     inventories them or checks them together.** Every place the engine skips a
-     prompt or skips work, on the claim that doing it could not change the
-     outcome, rests on a premise written beside that one site:
-     - **CR 616.1's ordering prompt.** `pipeline::ordering_cannot_change_outcome`
-       spreads its premises over `classify`, `commutes`, `shared_clauses_hold`,
-       the feeds table (`EntryWrites`, `replacement-architecture.md` §3.5;
-       `filter_is_mods_invariant` until RG), `EventPattern::reads_the_amount` and
-       `EnterModsTemplate::is_fixed`, with `check_order_invariance` in debug
-       builds only. It was corrected in three consecutive PRs
-       (`engineering-practices.md` §4.1), and CV-2's design had to re-argue
-       `filter_is_mods_invariant`'s premise, because `EnterMods.copy` feeds every
-       characteristic (restated in the predicate's doc comment by CV-2a; the
-       doc comment is `EntryWrites`' now).
-     - **Forced choices.** A prompt with one outcome is not asked (main item
-       145; the census's rule 1, `backlog.md` §2.22), and CR 603.3b's trigger
-       order is not asked when no order can change the game
-       (`triggers-architecture.md` §5.2).
-     - **Skipped work.** The fast-path gates (the replacement gather's, the
-       restriction and cost sweeps', the trigger dispatcher's), the layer memo,
-       and A4q's fold of identical clauses. TR-1b's audit checks the
-       dispatcher's gate against a slow reference matcher, and the memo has a
-       debug audit; the rest have no check beside their argument.
-
-     A wrong premise raises nothing. The engine asks one question fewer, or
-     computes one thing fewer, and the answer is wrong only on the board the
-     premise did not foresee. **The owner's note at CV-2's review:** formalize
-     exactly what is elided and why, so the system can be shown sound, since so
-     much breaks silently if it is not.
-
-     **Reachability (2026-10-22):** nothing owed to a known wrong answer, since
-     none is known; the risk is the class. Every new `Rewrite`, `EventPattern` or `EnterMods` arm can falsify a
-     premise written before it, and nothing but review asks.
-
-     **Sized:** unknown until the inventory exists, and the inventory is the
-     first deliverable: each elision, its claim, its premise stated as a
-     property, and what holds it (a proof, a debug assertion or an audit run).
-     The instrument that has already worked is TR-1b's
-     (`triggers-architecture.md` §4.10): the same code with the shortcut off,
-     compared at every site across audited fuzz games. Not CV-2's. Proposed
-     slot: the docs audit at the end of phase 6 (`roadmap-v2.md` A6h), beside
-     item 6's close audit (A6e), which already reads the engine's claims
-     about itself.
-
-     **First piece landed (RG, 2026-09-28):** CR 616.1's entry elision, as
-     `replacement-architecture.md` §3.5's feeds table: its claim, its premise
-     as four properties, and what holds each. Building it found the fourth: a
-     multiplier that applies only once the entry carries counters makes two
-     counter writers an order. RE-5's argument had missed it, and it was
-     reachable on registered cards since RE-5; RG fixed it. The other sites
-     are still owed. Trace page: `plans/traces/rg-an-entry-write-changes-what-applies-next.html`, traces B and C.
-
-     **The loops' elisions, read (A6i, 2026-10-06).** The feedback-loop
-     census sets each loop's skipped work beside its guard
-     (`plans/references/feedback-loops.md` §2–§5): loop 1's ordering elision
-     is the feeds table above; loop 2's pre-check is exhaustive over filter,
-     condition and amount leaves (amounts since item 217 closed); loop 3 skips
-     nothing, and reads some results one check early (item 6); loop 4's gate
-     is TR-1b's audit, and its ordering elision `triggers-architecture.md`
-     §5.2. The forced choices and the fast-path gates outside the loops stay
-     owed.
-     **Built, not only written (the owner, 2026-10-22, at #274's merge):**
-     beside the inventory, an engine record at each elision stating its
-     reason, kept in a game's log at the level of a land tapped for mana: in
-     the log, and not drawn in the dev GUI's.
-     **Slotted:** A6h, the docs audit's fourth PR
-     (`plans/handoffs/item-6-audit.md`, pass 5), which inventories the
-     forced-choice and fast-path elisions left, each with its premise and
-     what holds it, and writes the record.
+185. **~~The engine's elisions are argued one site at a time, and nothing
+     inventories them or checks them together.~~ — ✅ CLOSED 2026-10-22 (PR #278).** — archived.
+     `plans/elisions.md` is the inventory: forced prompts, elisions and
+     skipped work, each with its claim, its premise and what checks it. Every
+     forced prompt is decided in `ui/ask.rs`, and each forced prompt and
+     elision taken is recorded in the game's log (`events::unasked`); each
+     gate, the control sweep and the castability fold has an audit under
+     `--audit`, and the trigger elisions' premise a debug check.
+     **Reachability (2026-10-22):** closed — PR #278.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 185".
 
 ### Found by CV-2a's review (2026-09-28)
 
@@ -8336,8 +8277,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 210. **~~A debug build's trace carries records a release build's does not.~~
      — ✅ CLOSED 2026-10-06 (SU-8).** — archived. The debug-only order check's
-     call in `apply_replacements` is bracketed by `save_observers` and
-     `restore_observers`, so a debug build's trace and counters are a release
+     call in `apply_replacements` runs inside `unobserved` (`engine::audit`,
+     since #278), so a debug build's trace and counters are a release
      build's. `phase_su8_integration_test` pins the look-ahead walks a release
      build writes, and failed on the tree before the fix.
      **Reachability (2026-10-06):** closed — SU-8.
@@ -9944,3 +9885,29 @@ row 57 is item 297.
      **Slotted:** B2, the Commander format and designation, whose commanders
      put the command zone on the board (`roadmap-v2.md` §3a, "From triggers
      to Phase 8").
+
+317. **CR 603.3b's elision asks the order of one ability's agreeing triggers
+     when they target, where no order can change the game.**
+     `trigger_order_cannot_change_outcome` refuses entries with an instance
+     of "target" or a mode, on the ground that CR 603.3c and 603.3d choose
+     them as each entry goes on the stack, so the order decides who chooses
+     against what. For entries of one def that agree on every fact it reads,
+     it does not: each entry's targets and modes are still chosen one at a
+     time as it is placed, and the entries are interchangeable, so any order
+     with any sequence of choices builds the stack the first order builds
+     with the same sequence. Found by the owner's question at #278's review,
+     several lands entering at once under Bristly Bill, Spine Sower
+     ("Landfall — Whenever a land you control enters, put a +1/+1 counter on
+     target creature."). The tier-2 condition was not re-read.
+     **Reachability (2026-10-22):** reachable — not wrong; a prompt that
+     adds no outcome. Blood Artist, registered and pooled, triggers once per
+     creature that dies and targets a player, so a wipe that kills three asks
+     the order of its three triggers before it asks each one's target.
+     **Sized:** ~5 lines: drop the instance condition, and the mode one,
+     which no registered trigger reaches until `backlog.md` §2.7; §5.2's
+     reasons rewritten; TR-1's `two_triggers_with_targets_are_asked_their_order`
+     restated as "one ability's agreeing triggers are not ordered, and each
+     is still targeted". It drops a prompt the random agent answers, so the
+     stream moves: a `differ` A/B and the fixtures that script the order.
+     **Slotted:** A6e's cleanup, as its own `differ` PR
+     (`plans/handoffs/item-6-audit.md`, pass 3).

@@ -172,7 +172,7 @@ fn one_ability_triggers_once_per_death_across_a_survivors_two_lists() {
 /// A two-player board with the audit on from its first dispatch.
 fn audited_game() -> GameState {
     let mut game = setup_two_player_game();
-    game.enable_dispatch_audit();
+    game.enable_audit();
     game
 }
 
@@ -352,7 +352,7 @@ fn an_audited_game_counts_and_traces_what_an_unaudited_one_does() {
         let mut g = Game::new(GameConfig::test(), vec![deck; 2]).unwrap();
         g.state.record_events();
         if audit {
-            g.state.enable_dispatch_audit();
+            g.state.enable_audit();
         }
         g.reseed(174);
         let trace = install_trace(&mut g.state, "tr-1b");
