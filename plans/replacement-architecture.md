@@ -3,7 +3,8 @@
 > **Status:** design, authored 2026-08-24; revised 2026-08-25 after a
 > grounded-in-code audit — §4.1a (`then` timing, researched), §4.2 (applied-set
 > scope corrected), RA items 11–12 (life-mutation routing), RD's CR 120.3
-> decomposition, and the RA split note. No code written yet.
+> decomposition, and the RA split note. Phases RA to RH have landed since (§9);
+> what stays open is §14's last list.
 > **Authority:** type shapes, the pipeline algorithm, the event vocabulary, and
 > the phase sequencing for CR 614/615/616. Where this contradicts
 > `codebase-state.md`, that file wins on *what exists*; this file wins on *what
@@ -52,7 +53,8 @@ the answer is a number.
 both ends — CR 701's 67 enumerated keyword actions from the top, and what cards
 actually watch from the bottom. `GameAction` projects to ~16 at end of RE and
 ~30 for a Commander-viable pool, against a derived ceiling in the low 40s;
-`Rewrite` stays at 5. For calibration, `Primitive` is already 36 variants and
+`Rewrite` stays at 5 (RD and RG have since added `Retarget` and three entry
+arms, each with the CR rule that permits it, §3.2b). For calibration, `Primitive` is already 36 variants and
 `GameEvent` 28, and neither causes trouble. The single largest structural saving
 is that `ZoneChange { cause }` absorbs eight keyword actions and ~1,500
 trigger-watching cards into one arm.
@@ -160,12 +162,12 @@ the enforcement.
 | `ActionContext` | `engine/actions.rs` | `{ dp, cause }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt; `cause` is the proposal's `EventCause` (§2b.3), one constructor per kind, and what the performer's records name | grows only if a new input every mutation needs appears |
 | `ZoneChangeAct` | `types/zones.rs` | What a move did, in the CR's word (§2b.2), kept through a redirect. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per keyword action that moves an object |
 | `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, its fields in declaration order: `pattern` + `affected_objects` + `affected_players` + `by` (the cause, §2b.7) + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
-| `EventPattern` | `types/replacement.rs` | Which events an effect watches. Ships 6 arms: `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy`, `CounterChange` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
+| `EventPattern` | `types/replacement.rs` | Which events an effect watches: an arm per replaceable `GameAction` variant, from `DealDamage` and `ZoneChange` to `ProduceMana` and `CreateTokens`. RB shipped six — `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy` and `CounterChange`, which RE-5 split into `AddCounters` and `RemoveCounters` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
 | `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over the destruction's cause, CR 701.8b's two ways | closed by CR 701.8b |
 | `Rewrite` | `types/replacement.rs` | What the effect does to the event: `Prevent`, `Instead(GameActionTemplate)`, `Amount`, `Retarget` (CR 614.9), `EnterWith`, `EnterAfterMoving` (CR 614.13), `EnterUnderControlOf` (CR 616.1b), `EnterAsCopy` (CR 616.1c). RB shipped the first two | **closed** — a new arm needs the CR rule that permits it (§3.2b) |
-| `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters). **`ZoneChangeTo` names only a destination** and keeps the event's `act` (and the proposal's cause), since a redirected act is still that act (CR 614.6, 701.9c, 701.17c, 608.2c's example): `act` is the act, `to` where it went. It carried its own act until 2026-09-24 (`codebase-state.md` item 176). It carried its own cause until 2026-09-24 (`codebase-state.md` item 176) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
-| `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order | **closed** — all five ship; only `Other` has a producer |
-| `Uses` | `types/replacement.rs` | `Static` or `Once`. `CounterBacked` did not survive contact with the CR (§3.2) | **closed** — `Shield(u64)` is CR 615.7's and lands with RD |
+| `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event: `ZoneChangeTo`, `RemoveCountersFromAffected`, `DrawCards`, `GainLife`, `LoseLife`, `CreateTokens`, `PlayerWins`, `ProduceMana`. RB shipped the first two, `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters); RE added the rest. **`ZoneChangeTo` names only a destination** and keeps the event's `act` (and the proposal's cause), since a redirected act is still that act (CR 614.6, 701.9c, 701.17c, 608.2c's example): `act` is the act, `to` where it went. It carried its own act, then named its cause, until 2026-09-24 (`codebase-state.md` item 176) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
+| `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order. Derived, not authored: `ReplacementClass::from_rewrite`, called by `ReplacementDef::new`, files `EnterAsCopy` as `CopyAsEnters` (Clone, Spark Double), `EnterUnderControlOf` as `ControlChanging` (a test fixture's Defector only) and every other rewrite as `Other`; `SelfReplacement` (§11 item 3) and `BackFaceUp` (CV-5) have no producer | **closed** — all five ship |
+| `Uses` | `types/replacement.rs` | `Static`, `Once` or `NextDamage(u64)`, CR 615.7's shield (RD-2; named `Shield(u64)` in the design, §3.3 item 4). `CounterBacked` did not survive contact with the CR (§3.2) | **closed** |
 | `ReplacementInstanceId` | `engine/replacement/instance.rs` | CR 614.5's identity key: `Registered` / `StaticAbility` / `Counter` / `GameRule` | **grows**, one arm per §3.3 gather source |
 | `GameRuleReplacement` | `engine/replacement/instance.rs` | A replacement belonging to no object's text. CR 903.9b is the only member | grows with the rules that behave as effects |
 | `ReplacementInstance` | `engine/replacement/instance.rs` | One applicable effect, gathered as a snapshot — the loop mutates state between iterations, so a borrow could not survive a pass | — |
@@ -188,7 +190,8 @@ GameState::execute_action / execute_actions            engine/actions.rs
   ├─ phase 1: DECIDE, in APNAP order of chooser (CR 616.1 + 101.4)
   │    └─ apply_replacements(action)                   replacement/pipeline.rs
   │         ├─ never_happens? → CR 614.7a/120.8/119.10, no event to replace
-  │         ├─ is_blocked?  → CR 614.17 "can't" wins, event dropped (101.2)
+  │         ├─ prohibition() → CR 614.17 "can't" wins (101.2); the event is
+  │         │    dropped unless a self-replacement applies (614.17c)
   │         ├─ gather()     → §3.3's sources           replacement/gather.rs
   │         │    static abilities off the EFFECTIVE ability list, never a
   │         │    registry — which is what lets Humility strip one for free
@@ -451,8 +454,11 @@ no catchall, as `ZoneChangeAct` has none (as built in RH-1, `events/cause.rs`):
   (608.2n), `PermanentSpellResolves` (608.3a), `PermanentSpellCantEnter`
   (608.3e), `TargetsIllegal` (608.2b), `ControllerLeftTheGame` (800.4a, which
   says itself that it "is not a state-based action"), `StateBasedCheck` (704.3's
-  one event, whose members are each their own subrule's), and the records no
-  action makes: a turn, phase or step beginning, an ability triggering (CR
+  one event, whose members are each their own subrule's), `ControlChanges`
+  (613.1b: a change of control, announced by a sweep no performer proposes),
+  `CombatEnds` (511.3's removal from combat), `CombatantTypeChanged` (506.4: an
+  attacker or blocker that stops being a creature), `MandatoryLoop` (104.4b's
+  draw), and the records no action makes: a turn, phase or step beginning, an ability triggering (CR
   603.2) and a triggered ability put on the stack with its targets (603.3).
 
 **Decision 2: a special action is a cause of its own.** CR 116.1 sets special
@@ -1038,25 +1044,29 @@ Open:
 
 ### 3.1 `GameAction` — the replaceable-event vocabulary
 
-Today: `DealDamage`, `DrawCard`, `GainLife`, `LoseLife`, `ZoneChange`, `Untap`,
-`Tap`. The full target vocabulary, with the phase that adds each:
+Every variant, as built, with the phase that added it. A variant with no
+`EventPattern` arm is proposed so its record reaches the performed stream and
+CR 704.3's one board, and nothing printed replaces it.
 
 | Variant | CR | Phase | Note |
 |---|---|---|---|
-| `DealDamage` | 614.2, 615, 609.7 | exists → RD | already routed; combat + spells |
-| `ZoneChange { cause }` | 400.6 | RA | `cause` is new and required |
-| `Destroy { object, source }` | 701.8b, 614.8 | RB | **outer** event; performs an inner `ZoneChange{cause: Destroyed}` |
-| `Untap` / `Tap` | 122.1d, 603.2e | RA (events) → RB | currently silent; stun counters need `Untap` replaceable |
-| `AddCounters { target, kind, n, source }` | 122.1, 614.16 | RB | |
-| `EnterBattlefield { object, controller, mods }` | 614.1c/d, 614.12, 110.5b | RC | **not** `ZoneChange{to: Battlefield}` — carries the *how* |
-| `DrawCards { player, n }` (outer) | 121.2a, 616.1g | RE | contains N `DrawCard` inner events |
-| `GainLife` / `LoseLife` | 119.10 | exists → RE | |
-| `CreateTokens { defs: Vec<TokenDef>, controller }` | 614.16 | RE | **`Vec`, not `(def, n)`** — Academy Manufactor's "one of each", Chatterfang's "those tokens plus that many Squirrels", Divine Visitation's substitution (§3.2c) |
-| `BeginStep` / `BeginPhase` / `BeginTurn` | 614.10 | RE | skips replace these — RE-1, proposed by a turn queue `advance_turn` drains, which is also CR 500.7's extra turns (`backlog.md` §2.17) |
-| `Scry { player, n }` | 701.22 | RE | RE-8, with `Primitive::Scry`; Eligeth replaces it |
-| `ProduceMana` | 106.6a | RE | RE-9; one proposal from the two silent writers `mana.rs` and `resolve.rs` hold today |
+| `DealDamage` | 614.2, 615, 609.7 | exists → RD | combat + spells; its source's LKI rides on it |
+| `ZoneChange { object, from, to, act }` | 400.6 | RA → RH-1 | `act` is caller-set and required (§2b.2); the cause is the proposal's `EventCause` (§2b.3) |
+| `Destroy { object }` | 701.8b, 614.8 | RB | **outer** event; its inner `ZoneChange { to: Graveyard, act: Destroyed }` is decided with it and performed right after (`BatchMember::inner_move`), which of 701.8b's ways being the cause |
+| `Untap` / `Tap` | 122.1d, 603.2e | RA (events) → RB | each announces its transition only (CR 603.2e); stun counters replace `Untap` |
+| `Attach { attachment, host }` / `Unattach { attachment }` | 701.3, 704.5n/p | LH-2 / TR-4b | no `EventPattern` arm; `GameState::attach` and `detach` are the one writer of both sides of the link |
+| `AddCounters { subject, counter, n, by }` / `RemoveCounters { subject, counter, n, by }` | 122.1, 122.6, 614.16 | RB → RE-5 | `subject` is a permanent or a player (`CounterSubject`); `by` is who puts or removes them |
+| `EnterBattlefield { object, from, controller, mods, act }` | 614.1c/d, 614.12, 110.5b | RC | **not** `ZoneChange{to: Battlefield}` — carries the *how*; `from` is `None` for a token, and `act` is the move's |
+| `DrawCards { player, n }` (outer) / `DrawCard { player }` | 121.2a, 616.1g | RE-2 | the outer event contains N inner draws |
+| `GainLife` / `LoseLife` | 119.10 | exists → RE-3 | |
+| `CreateTokens { defs: Vec<TokenDef>, controller, attacking }` | 614.16 | RE-4 | **`Vec`, not `(def, n)`** — Academy Manufactor's "one of each", Chatterfang's "those tokens plus that many Squirrels", Divine Visitation's substitution (§3.2c); `attacking` is CR 508.4's "enters attacking" |
+| `CreateTokenIn { object, zone }` | 111, 704.5d | RE-4 | the substituted form of a token's entry — an *appearance*, not a move — and the second deliberate no-`EventPattern` variant after `Attach` |
+| `TokenCeasesToExist { object }` | 704.5d, 111.7 | TR-4b | no zone change, since it goes to no zone; no `EventPattern` arm |
+| `BeginStep` / `BeginPhase` / `BeginTurn` | 614.10 | RE-1 | skips replace these — proposed by a turn queue `advance_turn` drains, which is also CR 500.7's extra turns (`backlog.md` §2.17) |
+| `Scry { player, n }` | 701.22 | RE-8 | with `Primitive::Scry`; Eligeth replaces it |
+| `ProduceMana` | 106.6a | RE-9 | one proposal for every mana a source makes; its source's LKI rides on it |
 | `PlayerLoses { player }` / `PlayerWins { player }` | 104.2b, 104.3e, 704.5a–c, 704.7 | RE | added by §8a's audit (2026-08-24); RE-6, where the four SBA loops become batch members; its reason folded into the cause at RH-2 (§2b.11, decision 12) |
-| `CreateTokenIn { object, zone }` | 111, 704.5d | RE | RE-4: the substituted form of a token's entry — an *appearance*, not a move — and the second deliberate no-`EventPattern` variant after `Attach` |
+| `GameEndsInADraw` | 104.4a, 104.4b | TR-6 | proposed by the engine's two bounds on a run that does not end, with `GameRule::MandatoryLoop`; no `EventPattern` arm |
 | `ShuffleLibrary { player }` | 701.24a | RF | the third no-`EventPattern` variant — nothing printed says "would shuffle … instead" — and the first in-game writer of a library's order; proposed by `Primitive::ShuffleLibrary`, the rider of Darksteel Colossus's "shuffle it into its owner's library" (CR 701.24c) |
 
 `ZoneChangeAct` (§2b.2) is the semantic carrier that makes CR 701.8b
@@ -1164,9 +1174,10 @@ at least one such counter"), which is where CR 614.4 wants it asked. The CR's
 the instance key — `Counter(ObjectId, CounterType, half)` — not by a count.
 
 `Shield(u64)` survives and belongs to RD. RB ships `Uses { Static, Once }`.
+(RD-2 built it as `NextDamage(u64)`, §3.3 item 4.)
 
 ```rust
-// (shipped)
+// (shipped by RB)
 pub enum Uses { Static, Once }
 ```
 
@@ -1362,7 +1373,7 @@ The one genuine pressure point the pass found is **`AmountRewrite`, not
 total to less than 1 reduces it to 1 instead", 8 cards) is a *clamp against
 player state*, not a scale or an offset. It is one `AmountRewrite` variant with
 8 customers and a clear rule shape, and it is named here so it is budgeted
-rather than discovered.
+rather than discovered. (It shipped as `AmountRewrite::LifeFloor`.)
 
 ### 3.2d Multiplicity lives in a field, not in a set of events
 
@@ -1508,14 +1519,16 @@ the call rather than being inferred.
 Its printed ruling — "two Doubling Seasons … four times the original number,
 three … eight times" — is `Amount(Multiplier(2))` composing *within a single event's*
 CR 616.1f loop, no decomposition anywhere. Two mechanisms, same arithmetic. Both
-belong in the suite: `test_two_teferis_draw_four_not_infinity` and
+belong in the suite: `test_two_thought_reflections_draw_four_not_infinity`
+(Thought Reflection, Teferi's doubling without its draw-step exception) and
 `test_two_doubling_seasons_quadruple`, and the first one hangs rather than fails
 if the lineage rule is wrong, so give it a bounded iteration guard.
 
 `then` resolves through the existing `resolve_effect` path, not new machinery —
-but **after** the pipeline returns, never inside `Rewrite::apply` (§4.1a).
-`Rewrite::apply` itself still needs game state and a `DecisionProvider` for
-`GameActionTemplate` evaluation and optional-effect prompts.
+but **after** the pipeline returns, never inside the rewrite (§4.1a). The
+rewrite itself, `pipeline.rs`'s `apply_rewrite`, still needs game state and a
+`DecisionProvider` for `GameActionTemplate` evaluation and optional-effect
+prompts.
 
 ### 3.3 Where replacement effects come from
 
@@ -1559,7 +1572,11 @@ Sources 3 and 4 need storage. Model it on `ContinuousEffectRegistry`
 (`state/continuous_effects.rs`) — same duration-expiry hooks, same
 `remove_by_source`, same "recompute the summary by full walk rather than
 maintaining incremental counters" discipline, and for the same stated reason:
-a drifting counter shows up as a silently skipped effect.
+a drifting counter shows up as a silently skipped effect. **As built**, both
+wrap one generic, `DurationRegistry` (`state/duration_registry.rs`): the rows,
+the ids and the CR 514.2 expiry hooks. `ReplacementEffectRegistry` is that type
+itself, with no summary and no layer slice; `remove_by_source` has no
+production caller in either.
 
 It differs in two ways, both because replacement effects are not layered:
 
@@ -1713,35 +1730,42 @@ counted beside its query and given a disposition, are
 
 ```
 fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction>
+    # One event shown; as built the loop decides a batch's group of members
+    # together (§4.2), and a rewrite applies to each member it applies to.
     # `riders` collects every applied effect's `then` half, in application
     # order. The caller resolves them AFTER performing the returned event
     # (and even when the return is None) -- §4.1a.
-    applied:  HashSet<ReplacementInstanceId> = inherited  # 3.2d lineage
+    applied:  AppliedReplacements = inherited            # ordered, CR 614.5; kept on the record (§2b.4)
     declined: HashSet<ReplacementInstanceId> = {}        # nothing is exempt
     ev = action
 
     loop:                                                # CR 616.1f
-        cands = gather(game, ev)                         # 3.3, five sources
-                  .filter(applies_to(ev))                # watches() && affects()
+        if never_happens(ev): return None                # CR 614.7a / 120.8 / 119.10
+        blocked = prohibition(game, ev).is_some()        # CR 614.17, ahead of the gather
+        cands = gather(game, ev, blocked)                # 3.3, five sources
+                  .filter(applies_to(ev))                # pattern_watches() && set_affects()
                   .filter(|c| c.exempt_from_614_5        # CR 903.9b
                               || !applied.contains(c.instance))   # CR 614.5
                   .filter(|c| !declined.contains(c.instance))     # see below
-        if cands.is_empty(): return Some(ev)
+        if cands.is_empty(): return if blocked { None } else { Some(ev) }   # 614.17c
 
         choosable = must_choose_among(cands)             # CR 616.1a -> b -> c -> d -> e
-        chooser = affected_chooser(game, ev)             # CR 616.1 / 400.6
+        chooser = chooser_for(game, ev)                  # CR 616.1 / 400.6
         chosen  = if bucket.len() == 1 { bucket[0] }
                   else { ask_choose_replacement(dp, chooser, bucket) }
 
-        if chosen.optional && !ask_apply(dp, chooser, chosen):
-            applied.insert(chosen.instance)              # opportunity taken (CR 614.5)
+        if chosen.optional && !chosen.rewrite.asks_its_own_may()
+           && !ask_take_or_leave(dp, chooser, chosen):
+            applied.decline(chosen.instance)             # opportunity taken (CR 614.5)
             declined.insert(chosen.instance)             # ... and it is final
             continue                                     # ... but no `consume_use`
-        if !chosen.exempt_from_614_5: applied.insert(chosen.instance)
-        chosen.consume_use(game)                         # Uses::Once (Shield: RD)
 
+        (next, outcome) = apply_rewrite(game, ctx, chosen, ev)?   # Rewrite only
+        if !chosen.exempt_from_614_5: applied.apply(chosen.instance)
         if chosen.then is Some(t): riders.push(t)        # queued, NOT resolved (§4.1a)
-        match chosen.rewrite.apply(game, ev, ctx)?:      # Rewrite only
+        consume_use(game, chosen, outcome)               # Uses::Once only if it took effect;
+                                                         # NextDamage by the amount prevented (CR 615.7)
+        match next:
             None     => return None                      # CR 614.6 -- never happens
                                                          # (queued riders still run)
             Some(e)  => ev = e                           # CR 616.1f -- re-gather
@@ -1868,7 +1892,7 @@ about instruction B.
 Worked through, because it pins two behaviors at once — Goggles of Night
 triggers while you control Eligeth, Crossroads Augur ("If you would scry a
 number of cards, draw that many cards instead"; mandatory, no "may"; the `Scry`
-event kind is on §8a's known-missing list):
+event kind was on §8a's known-missing list until RE-8 built it):
 
 1. Instruction 1 proposes `Scry { n: 1 }`. Eligeth rewrites it —
    `Instead(DrawCards { n: 1 })`, an `Instead` that **changes the event's
@@ -1918,13 +1942,13 @@ So `execute_action` gains a batch sibling (shipped RA-3):
 
 ```rust
 pub fn execute_actions(&mut self, batch: Vec<GameAction>, ctx: &ActionContext)
-    -> Result<(), String>;
+    -> Result<Vec<GameAction>, String>;
 ```
 
-**The return type is `()` rather than the `Vec<GameAction>` this section first
-specified.** The performed-action vector has no consumer in RA and the project
-does not add one speculatively; RB restores it the moment `apply_replacements`
-gives it a customer. Nothing else about the signature moved.
+**RA-3 shipped the return type as `()` rather than the `Vec<GameAction>` this
+section first specified**, since the performed-action vector had no consumer in
+RA; RB restored it once `apply_replacements` gave it one. It returns what was
+performed. Nothing else about the signature moved.
 
 The batch shares one batch id (which lands on every emitted `GameEvent`,
 satisfying the CR 603.2c "one or more" trigger requirement that Phase 7
@@ -2027,7 +2051,9 @@ Per `CLAUDE.md`: write it N-player-shaped or pay to retrofit it.
   active-player-first, then turn order. `PlayerId` vectors, never a `bool`.
 - **CR 101.4d** — if a nonactive player's choice forces an earlier player to
   choose again, APNAP restarts for all outstanding choices. Implement the
-  restart; do not assume one pass.
+  restart; do not assume one pass. **Not built:** phase 1 runs each subject
+  group's loop to completion in APNAP order, so a later player's choice cannot
+  send an earlier one back (`codebase-state.md` item 25, slotted at B3).
 
 ### 4.4 What is *not* a replacement effect
 
@@ -2041,9 +2067,10 @@ CR 614.17: **"can't" effects follow similar rules but are not replacement
 effects.** They are checked before the pipeline and they win (CR 101.2). Two
 consequences for this design:
 
-- Indestructible (CR 702.12b) is a "can't", not a replacement. The check that
-  lives in `Primitive::Destroy` today moves into the `Destroy` action's
-  performer, ahead of the pipeline — not into a `ReplacementDef`.
+- Indestructible (CR 702.12b) is a "can't", not a replacement. As built (RS-1)
+  it is a keyword-derived `Restriction::Event` (`restriction::predicate`'s
+  `keyword_restrictions`), asked by `prohibition` at the top of each loop
+  iteration — not a `ReplacementDef`.
 - **CR 614.17c** — an event that can't happen is replaceable *only* by a
   self-replacement effect that changes the event's type. So the pipeline needs a
   `blocked: bool` on the proposal, and when set, `gather` returns only
@@ -2063,7 +2090,9 @@ continuous effects from *its own* static abilities that would apply to it once
 on the battlefield, and (3) continuous effects that already exist and would
 apply to it. CR 614.17d says the same for ETB "can't" effects.
 
-The engine cannot answer that today, and it is not one gap but three:
+The engine could not answer that on 2026-08-24, when this was written, and it
+was not one gap but three (RC-2 to RC-4 closed them; §5d is the overlay as
+built):
 
 | Clause | Blocker in `compute.rs` |
 |---|---|
@@ -2117,7 +2146,8 @@ pub fn compute_as_entering(
   the store — and `base_controller` is perturbed only through the seed. RC-4
   routed exactly those four through one accessor pair on `FrameCache`
   (`entity` and `rows_in_layer`; `engine/layers/lookahead.rs`) and touched
-  nothing else in the walk. A `GameState` clone would work here on budget
+  nothing else in the walk. (`FrameCache` went at LI-1; the pair is the pass's
+  `Board`'s now, in `board.rs`.) A `GameState` clone would work here on budget
   grounds — §11 item 5 prices both call sites — but is the wrong instrument:
   it duplicates the object store and `GameState.rng`, the latter against the
   determinism doctrine outright, and it produces a second live copy of every
@@ -2191,8 +2221,9 @@ The first draft of this section said the overlay "sees a battlefield that
 contains the entering object". Taken literally that is **wrong**: it would put
 Thassa's own `{U}` into her devotion count and enter her tapped under Authority
 of the Consuls, against the printed ruling. The two reads are different
-questions that today happen to share one call, and separating them is the
-overlay's real content:
+questions that then shared one call, and separating them is the overlay's real
+content (the sites are the per-object walk's, before LI-1 replaced it with the
+board pass):
 
 | Read | Sees the entering object? | Sites |
 |---|---|---|
@@ -2257,7 +2288,11 @@ RC-4 did not pull 7f in. Clause (2) is tested with a fixture
 instead — a 2/2 whose own "creatures you control get +1/+1" makes it 3/3 to a
 "creatures with power 2 or less enter tapped" — and the count boundary with
 Keldon Warlord, above. When 7f lands, `test_grist_entering_is_not_a_creature`
-is still the right first test of it.
+is still the right first test of it. (Grist's clause became expressible at LK,
+as CR 113.6c's complement in `Condition::SourceInZone`, and was built at LL as a
+fixture, `phase_ll_cards::grist_insect_clause`, whose tests are in
+`tests/phase_ll_integration_test.rs`; that named test was never written.
+Thassa still waits on a devotion count.)
 
 **It also bounds the risk this section opened with.** The gods looked like
 evidence the look-ahead is unboundedly hairy. What they actually produced is a
@@ -2329,6 +2364,13 @@ filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 
 `engine/layers/lookahead.rs`'s module docs used to carry this; it lives here so
 the source stays a summary and a pointer.
+
+**A record of RC-4; three names have moved since.** LI-1 replaced
+`FrameCache` with the pass's `Board`, so the accessors are `Board::entity` and
+`board.rs`'s `rows_in_layer`; the performer the overlay mirrors is
+`perform_entry`, not `place_on_battlefield`; and LH-2 built CR 613.7e's
+re-timestamp, which the timestamps paragraph calls unmodeled. The design
+stands.
 
 **A read-side overlay, not a clone** (§11 item 5). A `GameState` clone
 duplicates `GameState.rng` against the determinism doctrine and produces a
@@ -2466,32 +2508,39 @@ Double's ruling #7 gets one with CV-2b, on the Kaito board.
 
 ## 6. Engine interaction points
 
+**A plan from 2026-08-24, and every phase in it has landed**, so each row is
+marked ✅. The names are the plan's and are kept as written: since then the
+`EnterBattlefield` arm of `perform_action` performs the entry, which
+`perform_entry` builds (`place_on_battlefield` survives only as a
+`test_support` helper); lifelink's gain is `keywords.rs::add_lifelink_gain`;
+and `StackEntry::cast_from` is `Option<Zone>`, `Some` exactly for a spell.
+
 | Site | Change | Phase |
 |---|---|---|
-| `engine/actions.rs::execute_action` | the pipeline call; gains `ActionContext`; batch sibling `execute_actions` | RA ✅ / RB |
-| `engine/actions.rs::change_zone` | gains `cause` and `ActionContext` | RA |
+| `engine/actions.rs::execute_action` | the pipeline call; gains `ActionContext`; batch sibling `execute_actions` | RA ✅ / RB ✅ |
+| `engine/actions.rs::change_zone` | gains `cause` and `ActionContext` | RA ✅ |
 | `engine/zones.rs::move_object` | performer only; emission moves **out** of it, into `perform_action`'s `ZoneChange` arm — the only place that knows the `cause` and can capture the LKI frame before the object stops being a permanent | RA ✅ |
 | `engine/zones.rs::play_land` | gains `ActionContext`; routes through `change_zone` with `PlayedAsLand`. **Not in the original table** — a fourth chokepoint bypass §11's derivation missed, and the most frequent zone change in the game | RA ✅ |
-| `engine/zones.rs::draw_card` | routes through `execute_action(DrawCard)`; emits `CardDrawn` | RA |
+| `engine/zones.rs::draw_card` | routes through `execute_action(DrawCard)`; emits `CardDrawn` | RA ✅ |
 | `engine/stack.rs` × 3 `// REPLACEMENT-BYPASS:` | closed by naming the state instead of dispatching around it: `GameState::resolving` records the popped object and CR 110.2b's controller, so `remove_from_zone_collection(Stack)` and `init_zone_state` can both consult it and the sites use plain `change_zone` | RA ✅ |
-| `engine/stack.rs::resolve_top_of_stack` — the early pop | **stop popping.** The pattern has no surviving justification (below), and the CR keeps a resolving spell on the stack. Deletes the leniency branch `resolving` needed | RC, with `init_zone_state` |
-| `engine/turns.rs::process_draw_step` | stop calling `draw_card` directly (CR 614.11, 614.10) | RA |
+| `engine/stack.rs::resolve_top_of_stack` — the early pop | **stop popping.** The pattern has no surviving justification (below), and the CR keeps a resolving spell on the stack. Deletes the leniency branch `resolving` needed | RC, with `init_zone_state` ✅ |
+| `engine/turns.rs::process_draw_step` | stop calling `draw_card` directly (CR 614.11, 614.10) | RA ✅ |
 | `engine/turns.rs::process_untap_step` | route through `Untap`; emit `Untapped` (CR 122.1d); **one batch**, per CR 502.1's "simultaneously" | RA ✅ |
-| `engine/costs.rs:150,165` | `Cost::Tap`, `{Q}` — emit `Tapped` | RA |
-| `engine/combat/steps.rs:70` | attackers tap — emit `Tapped` | RA |
-| `engine/combat/resolution.rs::apply_combat_damage` | batch, not a loop (CR 510.2, 615.7) | RA/RD |
-| `engine/put_on_stack.rs::activate_ability` | emit `AbilityActivated`; resolution emits identity-bearing `AbilityResolved` | RA |
-| `state/game_state.rs::StackEntry` | add `cast_from: Zone` — §8c, two customers | RA |
+| `engine/costs.rs:150,165` | `Cost::Tap`, `{Q}` — emit `Tapped` | RA ✅ |
+| `engine/combat/steps.rs:70` | attackers tap — emit `Tapped` | RA ✅ |
+| `engine/combat/resolution.rs::apply_combat_damage` | batch, not a loop (CR 510.2, 615.7) | RA/RD ✅ |
+| `engine/put_on_stack.rs::activate_ability` | emit `AbilityActivated`; resolution emits identity-bearing `AbilityResolved` | RA ✅ |
+| `state/game_state.rs::StackEntry` | add `cast_from: Zone` — §8c, two customers | RA ✅ |
 | `engine/sba.rs` | one CR 704.3 event: gather every condition against one game state, dedupe per object (704.7's same-result collapse), perform as one batch, `cause` on each move | RA ✅ |
-| `engine/resolve.rs::Primitive::Destroy` | lowers to `GameAction::Destroy`, not to `ZoneChange` | RB |
-| `state/game_state.rs::place_on_battlefield` | becomes the *performer* of an already-replaced `EnterBattlefield` | RC |
-| `state/game_state.rs::register_static_effects` | skip `Effect::Replacement` bodies without tripping the loud-lowering assert | RB |
-| `engine/layers/compute.rs` | ✅ RC-3 — the filter membership gate reads the battlefield *zone*, so it admits entering objects (§5c) | RC-3 |
-| `engine/layers/compute.rs` | battlefield reads go through one accessor (overlay seam) | RC-4 |
-| `engine/turns.rs::advance_turn` | gains `dp` (RA); proposes `BeginTurn` / `BeginPhase` / `BeginStep` ahead of each unit and proceeds past a dropped one (CR 614.10, 500.11) — "consults pending skips" was the first draft and is struck, §9 RE decision 6 | RA / RE-1 |
-| `engine/keywords.rs::apply_lifelink` | the gain becomes an `execute_action(GainLife)` proposal — Tainted Remedy-class watchers must see lifelink. Found at audit 2026-08-25: it writes `life_total` directly and *emits* `LifeChanged`, which is exactly how a census of emissions missed it | RA |
-| `engine/costs.rs:184` `Cost::PayLife` | routes through `execute_action(LoseLife)` — CR 119.4 makes paying life a life loss (Bloodletter doubles it). Same audit finding, same emit-without-propose shape | RA |
-| `engine/actions.rs` `DealDamage` performer | CR 120.3 results decomposition — player damage contains a `LoseLife`, planeswalker damage removes loyalty counters (CR 120.3c, unimplemented; tracked in `codebase-state.md`) | RD |
+| `engine/resolve.rs::Primitive::Destroy` | lowers to `GameAction::Destroy`, not to `ZoneChange` | RB ✅ |
+| `state/game_state.rs::place_on_battlefield` | becomes the *performer* of an already-replaced `EnterBattlefield` | RC ✅ |
+| `state/game_state.rs::register_static_effects` | skip `Effect::Replacement` bodies without tripping the loud-lowering assert | RB ✅ |
+| `engine/layers/compute.rs` | ✅ RC-3 — the filter membership gate reads the battlefield *zone*, so it admits entering objects (§5c) | RC-3 ✅ |
+| `engine/layers/compute.rs` | battlefield reads go through one accessor (overlay seam) | RC-4 ✅ |
+| `engine/turns.rs::advance_turn` | gains `dp` (RA); proposes `BeginTurn` / `BeginPhase` / `BeginStep` ahead of each unit and proceeds past a dropped one (CR 614.10, 500.11) — "consults pending skips" was the first draft and is struck, §9 RE decision 6 | RA / RE-1 ✅ |
+| `engine/keywords.rs::apply_lifelink` | the gain becomes an `execute_action(GainLife)` proposal — Tainted Remedy-class watchers must see lifelink. Found at audit 2026-08-25: it writes `life_total` directly and *emits* `LifeChanged`, which is exactly how a census of emissions missed it | RA ✅ |
+| `engine/costs.rs:184` `Cost::PayLife` | routes through `execute_action(LoseLife)` — CR 119.4 makes paying life a life loss (Bloodletter doubles it). Same audit finding, same emit-without-propose shape | RA ✅ |
+| `engine/actions.rs` `DealDamage` performer | CR 120.3 results decomposition — player damage contains a `LoseLife`, planeswalker damage removes loyalty counters (CR 120.3c, unimplemented; tracked in `codebase-state.md`) | RD ✅ |
 
 ### The `ActionContext` plumbing
 
@@ -2500,14 +2549,17 @@ than threading a bare `&dyn DecisionProvider`, thread the struct that also
 carries the two payload requirements from Deferred Migrations item 3:
 
 ```rust
+// As built.
 pub struct ActionContext<'a> {
     pub dp: &'a dyn DecisionProvider,
-    /// The resolution this action belongs to, if any. Two customers:
-    /// CR 614.15 self-replacement effects live here, not in the registry;
-    /// and every emitted `GameEvent` gets stamped with it.
-    pub resolution: Option<&'a ResolutionContext>,
+    /// What caused the proposal (§2b.3); every emitter stamps it.
+    pub cause: EventCause,
 }
 ```
+
+The design carried `resolution: Option<&ResolutionContext>`; since RH-1 the
+resolution reaches the context as `EventCause::Effect`'s `ResolutionStamp`,
+so every record names its cause whether or not a resolution made it.
 
 **The plumbing is small.** Measured 2026-08-24: 7 production `execute_action`
 call sites outside `actions.rs` (6 in `resolve.rs`, 1 in
@@ -2527,7 +2579,7 @@ One new `ChoiceKind`, plus one reused shape:
 /// CR 616.1 — two or more replacement/prevention effects want the same event.
 /// Only asked when there is a genuine choice (2+ candidates in the forced
 /// bucket); a single candidate applies without a prompt.
-ChooseReplacementEffect { affected: ReplacementSubject, event: EventSummary },
+ChooseReplacementEffect { affected_object: Option<ObjectId> },  // None when the event is about the choosing player
 
 /// CR 615.7 — one shield, two or more simultaneous damage sources. Reuses
 /// `allocate`, the same call trample damage already uses.
@@ -2552,7 +2604,10 @@ sweep. A `fuzz_games --seed N` run must still reproduce line-for-line.
 `execute_action` is on every mutation, and the gather sweep reads effective
 abilities for every permanent. That is a `compute_characteristics` call per
 permanent per event — the same quadratic `layers-architecture.md` §12 measured
-for priority sweeps, now on a much hotter path.
+for priority sweeps, now on a much hotter path. (As built, the sweep reads
+only the objects its gate names — `replacement_ability_sources` and the
+summary's legs for granted and copied abilities, `engine-map.md` §2.3 — so an
+ordinary permanent costs a set probe.)
 
 **Do not pre-optimize it.** Follow §12's own ordering:
 
@@ -2616,6 +2671,11 @@ task:
   `GameAction` variant, so a variant added without a performer fails to compile
   or fails the suite rather than becoming a no-op.
 - A `debug_assert!` at each remaining bypass, of which RA leaves zero.
+
+(As built, the guard is a gate rather than visibility: `GameState`'s fields
+stayed `pub`, and `plans/check_invariants.py` fails any write to observable
+state outside `perform_action`'s arms that carries no tag,
+`engineering-practices.md` §11.)
 
 A new card then costs a `GameAction` variant plus a `perform_action` arm plus an
 `EventPattern` arm — three edits in three known places, and per §3.2b usually no
@@ -2776,7 +2836,8 @@ Five of the six are mechanical and four are caught by a compiler or a test. The
 **one genuinely new thing** is "that many": an amount read off the event being
 replaced is `Rewrite`'s `Amount` arm, which §3.2b deliberately did not ship and
 which **RD already owes** for damage multiplication — so even the expensive half
-is on the schedule rather than a surprise.
+is on the schedule rather than a surprise. (RD-1 built `Amount`, and row 4's
+`pattern_matches` is `pattern_watches` since `rb-review.md` C6.)
 
 That is the asymmetry worth stating plainly. "No card does this" is a sound
 reason to leave a mutation outside the vocabulary **because the cost of guessing
@@ -3973,18 +4034,19 @@ Same discipline as the layer phases:
   ordering gets a 4-player form, because APNAP with one nonactive player is the
   same answer as no APNAP at all.
 
-**Four named acid tests**, each pinning a rule the design would otherwise get
-quietly wrong. Write them as the phase's first tests, not its last:
+**The named acid tests**, each pinning a rule the design would otherwise get
+quietly wrong. Write them as the phase's first tests, not its last. The names
+are the plan's; where the test was written under another, the row says so:
 
 | Test | Pins | Fails how |
 |---|---|---|
-| `test_two_teferis_draw_four_not_infinity` | §3.2d lineage inheritance on decomposition | **hangs**, not fails — give it a bounded iteration guard |
+| `test_two_teferis_draw_four_not_infinity` — written as `test_two_thought_reflections_draw_four_not_infinity` (RE-2) | §3.2d lineage inheritance on decomposition | **hangs**, not fails — give it a bounded iteration guard |
 | `test_two_doubling_seasons_quadruple` | `Amount` composing inside one CR 616.1f loop (2ⁿ by the other route) | wrong number |
-| `test_god_entering_does_not_count_itself_for_devotion` | §5a's filters-vs-counts boundary | silently wrong on 15 gods |
+| `test_god_entering_does_not_count_itself_for_devotion` — written on Keldon Warlord as `test_an_entering_count_does_not_include_the_entering_object` (RC-4) | §5a's filters-vs-counts boundary | silently wrong on 15 gods |
 | `test_declined_optional_is_not_reoffered` | §4.1's decline path marking applied without consuming a use | hangs |
 | `test_kalitas_simultaneous_deaths_each_exile_and_make_a_zombie` | §4.2 per-event applied sets — Kalitas's printed ruling | one Zombie instead of N; N−1 cards reach the graveyard |
-| `test_then_rider_resolves_after_the_performed_event` | §4.1a rider timing (CR 615.5) | passes vacuously until events/LKI order is asserted — assert on the event log, not the end state |
-| `test_goggles_with_eligeth_draws_two_and_never_scrys` | §4.1a's instruction split + kind-changing `Instead` (needs the `Scry` event kind — **RE-8, 2026-09-11**: the `Scry` producer lands there with Opt and Eligeth, and the test is written first as `test_opt_with_eligeth_draws_two_and_never_scrys`; the Goggles of Night form scries from a *trigger* and waits for item 6) | wrong draw count, or a scry event exists in the log |
+| `test_then_rider_resolves_after_the_performed_event` — written as `test_the_shield_rider_runs_after_the_event_it_rides_on` and `test_the_kalitas_rider_runs_after_the_exile_it_rides_on` (RB) | §4.1a rider timing (CR 615.5) | passes vacuously until events/LKI order is asserted — assert on the event log, not the end state |
+| `test_goggles_with_eligeth_draws_two_and_never_scrys` | §4.1a's instruction split + kind-changing `Instead` (needs the `Scry` event kind — **RE-8, 2026-09-11**: the `Scry` producer lands there with Opt and Eligeth, and the test is written first as `test_opt_with_eligeth_draws_two_and_never_scrys`; the Goggles of Night form scries from a *trigger*, and Goggles is not registered) | wrong draw count, or a scry event exists in the log |
 
 The first and fourth hang rather than fail, which is the argument for writing
 them before the code they check.
