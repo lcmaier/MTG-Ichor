@@ -1,7 +1,8 @@
 # "Can't" Effects — CR 101.2, 614.17, 613.11
 
 > **Status:** design, authored 2026-08-27 in answer to PR #62's review theme A
-> (`plans/handoffs/rb-review.md`). No code written yet.
+> (`plans/handoffs/rb-review.md`). RS-0 and RS-1 have landed (§7a); RS-2 to
+> RS-4 are unbuilt.
 > **Authority:** the restriction model — type shapes, the enforcement points,
 > where a "can't" is discovered, and the phase sequencing for CR 101.2 / 614.17
 > / 613.11. Where this contradicts `codebase-state.md`, that file wins on *what
@@ -134,8 +135,8 @@ Three ordering facts, only one of which the review named:
    does not depend on the archive plan at all — see point 3.
 3. **`KeywordFlag` already ships four unenforced restrictions.** `Hexproof`,
    `Shroud`, `Menace` and `Intimidate` are constructible and grantable — and
-   two of them are printed by `ui/display.rs` — but **no code reads any of them
-   outside `display.rs`**. Grep is the whole audit: the only `KeywordFlag::`
+   all four are printed by `ui/display.rs::keyword_name` — but **no code reads
+   any of them outside `display.rs`**. Grep is the whole audit: the only `KeywordFlag::`
    references to those four in `src/` are the enum definition, `display.rs`, and
    `land_types.rs`'s hexproof insertion. Cards carrying them can be registered
    today and will quietly do nothing.
@@ -230,18 +231,19 @@ one shared vocabulary rather than four bespoke checks.
 
 | Restriction | Where it would be checked | Today |
 |---|---|---|
-| Indestructible | `is_blocked`, `pipeline.rs:53` | ✅ one hardcoded arm |
-| Can't be regenerated | `push_if_applicable`, `gather.rs:228` | ✅ via a `GameState` `HashSet` |
-| Defender | `validate_attackers`, `validation.rs:187` | ✅ hardcoded |
-| Flying vs. non-reach blocker | `can_block`, `validation.rs:313` | ✅ hardcoded |
+| Indestructible | `restriction::predicate`'s `keyword_restrictions`, asked by `prohibition` at the pipeline's top | ✅ a keyword-derived `Restriction::Event` (RS-1) |
+| Can't be regenerated | `gather.rs::push_if_applicable`, asking `is_prohibited` with `Query::ApplyReplacement` | ✅ a registered `Restriction::ApplyReplacement` (RS-1) |
+| Defender | `oracle/legality.rs::can_attack`, which `validate_attackers` asks | ✅ hardcoded |
+| Flying vs. non-reach blocker | `can_block`, `engine/combat/validation.rs` | ✅ hardcoded |
 | Menace, Intimidate | — | ❌ flag exists, nothing reads it |
-| Hexproof, Shroud | `validate_targets`, `targeting.rs:39` | ❌ flag exists, TODO comment |
+| Hexproof, Shroud | `targeting.rs::validate_targets` | ❌ flag exists; the comment there names RS-2 |
 | Protection | — | ❌ deliberately not a `KeywordFlag` (`keywords.rs` "Five variants used to be here") |
 | Everything in Tiers 1b/1c/1e | — | ❌ |
-| Damage can't be prevented | — | ❌ no prevention machinery at all (Phase RD) |
+| Damage can't be prevented | `DealDamage`'s `unpreventable`, read by the pipeline | ✅ RD-4 (CR 615.12) |
 
-Five hardcoded checks, at five call sites, with no shared vocabulary between
-them. That is the shape the model replaces.
+At authoring (2026-08-27) these were five hardcoded checks at five call sites,
+with no shared vocabulary between them; RS-1 moved the first two onto the
+model, and the combat and targeting rows are RS-2's and RS-3a's (§7).
 
 ### 2.4 The three shapes hiding in the numbers
 
@@ -263,9 +265,12 @@ The clause counts are not the work. Sorted by what each clause actually needs:
   `Primitive::Restrict` the right answer to A3 rather than a primitive per
   mechanic (§6.3).
 - **A condition.** **149 clauses** are CR 508.1c's "or that it can't [X] unless
-  some condition is met" — **138 of them in Tier 1a**. These need
-  `Effect::Conditional`, which is unimplemented and belongs to Phase 6. Scoped
-  out of every phase below, and named so it is not rediscovered.
+  some condition is met" — **138 of them in Tier 1a**. These need a
+  condition on the restriction itself: `RestrictionDef` carries none (it is
+  `{ what }`), and an `unless: Option<Condition>` is the field they wait on.
+  (`Effect::Conditional` resolves since the trigger track, but a resolution's
+  condition is not a static "can't"'s.) Scoped out of every phase below, and
+  named so it is not rediscovered.
 
 The first bullet's three numbers moved when they were measured; the second's
 35% and the third's 149/138 came out of `--decompose` exactly as hand-counted,
@@ -307,7 +312,7 @@ finding one is evidence the buckets were read rather than trusted.
 cause you to sacrifice permanents" — was bucketed into Tier 1e (costs) by a
 regex that saw "sacrifice". It is not a cost restriction: you never pay costs
 for an opponent's spell. Diabolic Edict resolving against you is an *effect*,
-and Sigarda blocks the resulting `ZoneChange { cause: Sacrificed }` **scoped by
+and Sigarda blocks the resulting `ZoneChange { act: Sacrificed }` **scoped by
 what caused it**. It is Tier 2 with a source filter, and it is the family's
 motivating card — Tajuru Preserver, Tamiyo Collector of Tales and The Master,
 Multiplied are the same shape. Five clauses, moved 2026-08-27; Tier 1e fell from
@@ -399,8 +404,10 @@ none — two prohibitions agree), and is never optional. **Five fields
 types rather than one type with a flag.**
 
 The struct is a one-field wrapper today on purpose: `unless: Option<Condition>`
-(§2.4) lands in it when Phase 6 gives `Condition` a meaning, and a bare enum
-would have to become a struct at that point across every reader.
+(§2.4) lands in it with its first card, and a bare enum would have to become a
+struct at that point across every reader. (The plan waited on Phase 6 giving
+`Condition` a meaning; it has one, and a static evaluator since LI-3, so only
+the field and its consults are owed.)
 
 ### 3.3 `Restriction` — the arms, and the growth contract
 
@@ -414,7 +421,14 @@ pub enum Restriction {
     /// addition is `by`, CR 101.2 scoped by what *caused* the event — Sigarda
     /// and the four cards §2.6 names. Provenance is already threaded through
     /// `ActionContext`, so it is a field rather than a mechanism.
-    Event { pattern: EventPattern, affected: ObjectSet, by: Option<SourceFilter> },
+    Event {
+        pattern: EventPattern,
+        affected_objects: ObjectSet,
+        // RE-3: the player half, for "players can't gain life"; `set_affects`
+        // unions it with `affected_objects`.
+        affected_players: PlayerSet,
+        by: Option<SourceFilter>,
+    },
 
     // ---- Axis 2: a choice a player makes (one arm per `ChoiceKind`) ------
     /// CR 508.1c. `ChoiceKind::DeclareAttackers`.
@@ -441,7 +455,7 @@ pub enum Restriction {
     /// CR 115.6. `ChoiceKind::SelectRecipients`.
     BeTargeted { object: ObjectSet, by: Option<SourceFilter> },
     /// CR 614.17b and CR 118. The cost-payment choice kinds.
-    PayCost { player: PlayerRef, cost: CostFilter, purpose: Option<CostPurpose> },
+    PayCost { player: PlayerRef, cost: CostFilter, sites: PaymentSites },  // §4.6
 
     // ---- Axis 3: applying an effect (CR 701.19c, 615.12) -----------------
     /// Withholds a *replacement or prevention effect* rather than blocking an
@@ -463,7 +477,7 @@ pub enum Restriction {
     /// would be a claim that the engine applies effects somewhere else.
     ApplyReplacement {
         kind: ReplacementKindFilter,
-        to: ObjectSet,
+        to_objects: ObjectSet,
         // RD-4: the player half, for CR 615.12 over damage dealt to a player.
         to_players: PlayerSet,
     },
@@ -537,10 +551,15 @@ restriction ability without having a replacement one.
 ```rust
 /// CR 101.2 — is this prohibited right now?
 ///
-/// The one reader of every restriction. `is_blocked` becomes
-/// `is_prohibited(game, &Query::Event(action))`.
+/// The one reader of every restriction. `is_blocked` became
+/// `is_prohibited(game, &Query::Event { action, cause, lookahead })`.
 pub fn is_prohibited(game: &GameState, query: &Query) -> bool;
 ```
+
+As built (`engine/restriction/predicate.rs`), `Query::Event` carries the
+proposal's cause, for a "can't" scoped by source (Sigarda), and CR 614.17d's
+look-ahead frame when the caller holds one; `is_prohibited` is the `is_some` of
+`prohibition`, which names the restriction that matched (§3.7).
 
 One function, so that CR 101.3's "if you can't" (§4.8) is a *caller* rather than
 a parallel mechanism, and so that CR 614.17b's derived check has something to
@@ -557,9 +576,14 @@ the Tier-1 sites are more frequent than the untap step.
 Three commitments, in the order they get made:
 
 1. **An exact gate, not a heuristic.** The same instrument as
-   `replacement_ability_sources`: a set maintained at `place_on_battlefield` and
-   `cleanup_zone_state`, over-approximating (a stripped ability leaves the set
-   populated) and therefore costing a walk and never an answer.
+   `replacement_ability_sources`: `GameState::restriction_ability_sources`,
+   filled by `register_static_effects` as a permanent enters (`perform_entry`,
+   through `make_permanent`) and cleared by `cleanup_zone_state` as it leaves,
+   over-approximating (a stripped ability leaves the set populated) and
+   therefore costing a walk and never an answer. As built the gate has three
+   legs — printed, and the summary's `any_granted_restriction` and
+   `any_copied_restriction` — and the sweep is skipped when all three are
+   empty; the predicate returns early only when the registry is empty too.
 2. **Keyword restrictions do not need the gate**, because
    `get_effective_abilities` is not how they are found — `has_keyword` is, and
    the combat sites already pay for that today.
@@ -621,14 +645,19 @@ though". Combat and costs are the two biggest slices, and both are Tier 1a's
 and Tier 1e's sites.
 
 **Why it lands on this document rather than on a later one.** Combat legality
-has **zero** restriction consults today: `is_prohibited` has seven call sites
-and none is in `engine/combat`. `validate_attackers` reads `entry.tapped` and
-asks `has_keyword` for Defender inline; `can_block` reads `entry.tapped`. §7's
-RS-3a row rewrites **exactly** those functions — the two validators, `can_block`
-and the two enumerators — and re-expresses Defender as data. RS-4 and
+has **zero** restriction consults today: `is_prohibited` and `prohibition` are
+asked by the replacement pipeline, `gather` and the resolution's candidate
+filter, and from nowhere in combat. `oracle/legality.rs::can_attack` reads
+`entry.tapped` and asks `has_keyword` for Defender; `can_be_a_blocker` reads
+`entry.tapped`. `validate_attackers` and `legal_attackers` ask `can_attack`;
+`legal_blockers` and `can_block` (before its pair checks) ask
+`can_be_a_blocker`, and `validate_blockers` reaches it through `can_block`
+(SU-7 made each check one site a side). §7's RS-3a row rewrites **exactly**
+that seam — those two helpers, `can_block`'s pair checks and the two
+set-level checks — and re-expresses Defender as data. RS-4 and
 `cost-architecture.md`'s CP-1 do the same for the payment sites. **The seam an
 "as though" effect needs is cut once, by RS-3a and RS-4, and by nothing else
-between now and then.** Cut it one-sided and the same four functions are
+between now and then.** Cut it one-sided and the same functions are
 rewritten twice.
 
 **The constraint, and it is the whole of what this section asks. Two halves,
@@ -637,20 +666,22 @@ both checkable at RS-3a's review.**
 1. **A consult must be able to say *which* restriction forbade, not only that
    one did.** "Attack as though it didn't have defender" suppresses the
    Defender-derived restriction and nothing else, so a creature that also has a
-   printed "can't attack" stays home. Today `is_prohibited` returns `bool` and
-   `restriction/predicate.rs` returns `true` on the first match, discarding the
-   attribution. **Free at RS-3a** if the combat consult carries the source
-   ability alongside its answer, since the sweep is already standing on the
-   effective ability list when it matches; a rewrite of the predicate
-   afterwards.
+   printed "can't attack" stays home. `is_prohibited` returns `bool`, but
+   since SU-8 (2026-10-06) it is the `is_some` of `restriction::prohibition`,
+   which returns the first match in sweep order (keywords, then the
+   battlefield sweep, then the registry) as a `Prohibition`: the source object
+   and a keyword, a static ability's text or a registered effect. **Half of
+   this is paid:** the attribution exists, but it names *one* restriction, so a
+   Defender-suppressing consult must still see past a Defender-derived match
+   to the next — RS-3a's to build.
 2. **A base-rule clause must read through something interceptable.** CR
    509.1a's "untapped" is a *rule*, not a restriction, so nothing in RS-3a's
    table re-expresses it and Masako has no restriction to suppress — she
    substitutes a value the rule reads. That is the half RS-3a would otherwise
    get wrong by default, because the natural rewrite keeps `entry.tapped`
    inline while moving only the *restriction* checks behind a consult. The ask
-   is one line of discipline: when the four functions are rewritten, each base
-   clause reads through an accessor rather than a field.
+   is one line of discipline: when the seam is rewritten, each base clause
+   reads through an accessor rather than a field.
 
 **What this section does not ask for.** No `PermissionDef`, no `Query` arm, no
 card, no schedule change, and no sizing pass. CR 609.4's mechanism is
@@ -680,13 +711,15 @@ costs. The order is the order §7 builds them in.
 replacement effects but follow similar rules. CR 101.2: the "can't" wins.
 
 **Site.** `pipeline.rs`'s `is_blocked`, already in the right place and already
-re-asked per iteration.
+re-asked per iteration. (RS-1 replaced it with `restriction::prohibition`,
+asked at the same place.)
 
 **Change.** The `match` becomes a `gather`-shaped sweep, and the arm becomes
 data. Indestructible stops being `has_keyword(game, *object, Indestructible)`
 inside a `GameAction::Destroy` arm and becomes a keyword-derived
 `Restriction::Event { pattern: EventPattern::Destroy { source: None },
-affected: ObjectSet::SourceOnly }` — which is source 3, synthesized during the
+affected_objects: ObjectSet::SourceOnly, affected_players: PlayerSet::Nobody,
+by: None }` — which is source 3, synthesized during the
 sweep, and reads identically to how `counter_replacements` synthesizes CR
 122.1c's shield.
 
@@ -701,9 +734,10 @@ removed", which is a `RemoveCounters` block that collides deliberately with
 CR 122.1d's replacement).
 
 **Cost.** The smallest of the six. `EventPattern` already exists, and so do
-`gather`'s two halves of "does this apply" — `watches` and `affects` (named
-`pattern_matches` / `shield_contains` when this was written; renamed closing
-`rb-review.md` C6). The sweep is `gather`'s with the `Rewrite` half deleted.
+`gather`'s two halves of "does this apply" — `pattern_watches` and
+`set_affects` (`pattern_matches` / `shield_contains` when this was written,
+`watches` / `affects` after `rb-review.md` C6, and `pub(crate)` under these
+names at RS-1 so the restriction predicate shares them). The sweep is `gather`'s with the `Rewrite` half deleted.
 
 ### 4.2 Tier 1a — combat, and why it is a solver
 
@@ -953,9 +987,11 @@ Tier-1a restriction from the same card, which is why the two must share a type).
 ### 4.5 Tier 1d — targeting
 
 **Rule.** CR 115.6 and CR 702.11b/702.18a/702.16b. **Site.**
-`targeting.rs::validate_targets` — which already carries the TODO — plus
-`legality.rs::enumerate_legal_selections` and `has_any_legal_choice`, because
-CR 601.2c makes an illegal target an illegal *cast*, so the enumeration and the
+`targeting.rs::validate_targets` — whose comment already names RS-2 — plus
+`legality.rs::enumerate_legal_selections` and
+`mana_helpers.rs::every_instance_has_a_choice` (CR 601.2c's check over every
+instance of "target", which replaced `has_any_legal_choice`), because CR
+601.2c makes an illegal target an illegal *cast*, so the enumeration and the
 validation have to agree.
 
 **Consumers.** Hexproof (336), Shroud (35), Protection (197) — the whole `T22`
@@ -997,20 +1033,21 @@ cost that includes that event."
   derivation has two sources.
 
 **The machinery this needs, sized.** A `Cost → Vec<GameAction>` projection.
-`types/costs.rs::Cost` is a **closed 10-variant enum** and every variant maps
-onto an existing `GameAction` or onto nothing:
+`types/costs.rs::Cost` is a **closed enum** and every variant maps onto an
+existing `GameAction` or onto nothing:
 
 | `Cost` | Projects to |
 |---|---|
-| `Tap` / `Untap` | `GameAction::Tap` / `Untap` |
+| `TapSelf` / `UntapSelf` | `GameAction::Tap` / `Untap` |
 | `PayLife(n)` | `LoseLife` |
-| `SacrificeSelf` / `Sacrifice(..)` | `ZoneChange { cause: Sacrificed }` |
-| `Discard(..)` | `ZoneChange { from: Hand, to: Graveyard, cause: Discarded }` |
+| `SacrificeSelf` / `Sacrifice(..)` | `ZoneChange { act: Sacrificed }` |
+| `Discard(..)` | `ZoneChange { from: Hand, to: Graveyard, act: Discarded }` |
+| `ExileFromGraveyard(..)` | `ZoneChange { from: Graveyard, to: Exile, act: Put }` (CR 701.13a's exile is a `Put`) |
 | `RemoveCounters` / `AddCounters` | `RemoveCounters` / `AddCounters` |
 | `Mana(..)` | nothing — CR 106.6b mana restrictions are a different rule |
 
-So CR 614.17b is a ten-arm match over a closed enum, and it is exact rather than
-approximate. That is the whole cost of the derived path.
+So CR 614.17b is one match over a closed enum, an arm a variant, and it is
+exact rather than approximate. That is the whole cost of the derived path.
 
 #### Does Yasharn need a field, or just a well-placed check?
 
@@ -1099,7 +1136,8 @@ have to answer CR 615.12 the same way. `Restriction::ApplyReplacement` gained
 the `to_players: PlayerSet` this rule needs, because "damage can't be prevented"
 is about damage dealt to *players* as much as to permanents;
 `Restriction::Event` deliberately did not, since no printed "can't" the engine
-can express is about an event whose subject is a player.
+can express is about an event whose subject is a player. (RE-3 gave it
+`affected_players` three days later, for "players can't gain life", §3.3.)
 
 **Consumers.** 155 clauses of "can't be regenerated" and 32 of "damage can't be
 prevented", of which Skullcrack is both halves plus a Tier-2 restriction in one
@@ -1120,10 +1158,13 @@ and because it is the strongest single argument for §3.5's *one* predicate: if
 each enforcement point grew its own inline check, "can they?" would have no
 function to call and would be re-implemented per card.
 
-**It is not buildable yet.** "If they can't, X" needs `Effect::Conditional`,
-which `resolve.rs` currently errors on. Recorded here so the dependency is not
-rediscovered; the predicate is what this design owes it, and Phase 6 owes the
-rest.
+**Half of it is buildable now.** `Effect::Conditional` resolves (CR 608.2c,
+`resolution_condition_holds`), and a single player's "if you can't, X" is
+`Effect::Conditional(Condition::CostAnswer(CostAnswer::Cant), X)` (CR 118.12):
+`Primitive::Sacrifice` records `Cant` when nothing could be sacrificed
+(`tests/phase_tr2b_integration_test.rs`). **Plaguecrafter's per-player answer
+is not:** the walk keeps one `last_cost_answer`, and `Effect::ForEach`, which
+"each player who can't" needs, errors in `resolve.rs`.
 
 ---
 
@@ -1155,9 +1196,13 @@ sacrifice option."* The candidate filter that handles "no creatures" is the same
 one that has to handle "restricted", so this is a **second reason a candidate is
 unavailable**, not a second mechanism.
 
-**Where it goes, and why it is not middleware.** Into candidate enumeration —
-`enumerate_legal_selections` and the resolution-time selection path — as one
-`is_prohibited` call per candidate. `plans/atomic-tests/supplemental-docs/
+**Where it goes, and why it is not middleware.** Into the resolution-time
+selection path, as one `is_prohibited` call per candidate: `resolve.rs`'s
+`choose_as_it_applies` keeps a candidate only if `GameState::admits` lets it
+through, against the event the verb would propose, and a named sacrifice uses
+the same `admits`. `enumerate_legal_selections` does not consult it; the
+targeting consult is RS-2's, asked by the enumeration's targeting callers
+(§4.5). `plans/atomic-tests/supplemental-docs/
 dp-middleware-and-candidate-enumeration.md`'s standing principle is
 **"exclude only options where it can *prove* illegality from static game state
 reads"**, and a restriction check is exactly a static read, so this sits inside
@@ -1186,8 +1231,8 @@ rather than a sixth tier.
 **Scoping.** RS-1 owns the filter for Tier-2 restrictions, because it is the
 phase that makes Sigarda expressible and the phase where a prompt could first
 become wrong. The *consumers* — Plaguecrafter's "if they can't" branch — still
-wait on `Effect::Conditional`, so RS-1 ships the suppression and not the
-fallback. That split is safe in one direction only: suppressing a prompt with no
+wait on a per-player answer (§4.8; `Effect::Conditional` itself resolves), so
+RS-1 ships the suppression and not the fallback. That split is safe in one direction only: suppressing a prompt with no
 fallback is a resolved effect that does nothing, which is CR 101.3's own answer;
 prompting with a fallback would be the wrong order.
 
@@ -1217,7 +1262,8 @@ the pre-batch board — or Solemnity's ruling inverts for a simultaneous entry.
 > 614.17c If an event can't happen, it can only be replaced by a
 > self-replacement effect (see rule 614.15).
 
-RB already implements this: `gather(game, &event, ctx, blocked)` discards
+RB already implements this: `gather(game, &event, ctx, blocked, &frame)` (the
+fifth argument, CR 614.12's frame, came with RC-4) discards
 everything outside `ReplacementClass::SelfReplacement`, and today that means the
 list is empty because nothing produces one. `rb-review.md` K2 records that the
 blocked path therefore always drops the event, which is correct now and stops
@@ -1234,7 +1280,8 @@ ruling —
 > the original event won't happen."
 
 — is exactly a Tier-2 restriction on the *output* of a replacement, resolved by
-re-asking `is_blocked` on the substituted event. RB's loop already produces that
+re-asking on the substituted event: `prohibition`, at the top of every
+iteration of the pipeline's loop, with that iteration's look-ahead frame. RB's loop already produces that
 answer; this design must not move the check outside the loop to get it.
 
 ### 5.3 CR 614.17d — the look-ahead frame, and what RC-4 actually needs
@@ -1359,7 +1406,7 @@ as follows, and the spread across tiers was the point it was making:
 | Grafdigger's Cage | 1b + 2 | `Cast { from: Graveyard\|Library }` **and** `Event { EnterBattlefield }` — one card, two tiers |
 | Conduit of Worlds | 1b | the permission half of `PlayLand`, plus a self-imposed `Cast` restriction |
 | Rakdos, Lord of Riots | 1b | `Cast { spell: SourceOnly }` |
-| Yasharn, Implacable Earth | 1e | `PayCost { purpose: CastOrActivate }` |
+| Yasharn, Implacable Earth | 1e | `PayCost { sites: CAST \| ACTIVATE_NONMANA \| ACTIVATE_MANA }` (§4.6) |
 
 ### 6.2 A2 — `is_blocked`'s match grows one arm per "can't"
 
@@ -1390,7 +1437,7 @@ supersedes it and `codebase-state.md` records that.
 /// can't be regenerated." name its target without a new `ObjectSet` variant.
 ///
 /// **`Duration` is authored, never inferred** — CR 608.2c (§9 finding 1).
-Restrict(Box<RestrictionDef>, Duration),
+Restrict(RestrictionDef, Duration),   // as built, unboxed
 ```
 
 Three cards, three durations, one primitive — which is the test of whether the
@@ -1402,7 +1449,7 @@ Three cards, three durations, one primitive — which is the test of whether the
 | Skullcrack | "Players can't gain life this turn" | `UntilEndOfTurn` |
 | Solemnity | "Counters can't be put on …" | not a resolution at all — a static ability, discovered, no primitive |
 
-`Primitive::CantBeRegenerated` folds into the first row. Skullcrack is *three*
+`Primitive::CantBeRegenerated` folded into the first row at RS-1. Skullcrack is *three*
 `Restrict` atoms in a `Sequence` — two restrictions and a damage atom, across
 two tiers — with zero engine changes, which is the §0 commitment demonstrated on
 the hardest printed case in the corpus.
@@ -1428,7 +1475,8 @@ premise is that a card is data.
 `controller`, a `Duration`, a `created_on_turn`, and the same three expiry hooks
 (`remove_by_source`, `remove_expired_at_cleanup`, `remove_expired_at_turn_start`).
 `GameState::cant_be_regenerated` and `turns.rs:138`'s hand-rolled `.clear()` both
-go away.
+go away. (As built at RS-1, both registries are the one generic
+`DurationRegistry`, RS-0, and the set and the clear are gone.)
 
 **And that closes a real gap, which is the argument for doing it rather than
 leaving A4 as a note.** `turns.rs:138` clears the set at cleanup, i.e. treats
@@ -1458,6 +1506,10 @@ and produced by exactly the hardcoded duration this section removes.
 `{UntilEndOfTurn, UntilYourNextTurn, WhileSourceOnBattlefield, WhileEnchanted,
 WhileEquipped, Indefinite}` — nothing says "for the event this resolution is
 about to perform". `Primitive::Restrict` gets that as its first customer.
+**Not built yet:** RS-1 shipped the primitive without the variant, so a card
+that prints the clause (Plague Spores) authors `UntilEndOfTurn`, and the
+window is still too wide; `codebase-state.md` item 14 sizes the variant and
+slots it at RS-2, the next phase touching `Primitive::Restrict`.
 `Primitive::Regenerate`'s twin, which *is* CR 701.19a's genuinely turn-scoped
 shield, keeps `UntilEndOfTurn`; the two sit next to each other in `resolve.rs`
 with different durations for a reason the CR gives.
@@ -1660,7 +1712,9 @@ Four things to act on rather than read past:
    event — not a continuous effect, so CR 611.2 never engages. §6.4 has the
    consequence: `turns.rs:138`'s cleanup clear is too *broad*, not too narrow,
    and the fix is a resolution-scoped `Duration` variant that does not exist
-   yet.
+   yet. (RS-1 removed the clear; the duration is each card's argument now, and
+   still `UntilEndOfTurn`, so the variant is still owed: `codebase-state.md`
+   item 14.)
 
    **The general lesson is the one worth keeping.** CR 608.2c's instruction is
    literally *"apply the rules of English to the text"*. That is the CR handing
@@ -1700,11 +1754,16 @@ Four things to act on rather than read past:
    This document models only the prohibition half. Whether the permission half
    should share the type is open, and the answer probably arrives with the
    `PlayLand` consumers rather than before them. Do not build both speculatively.
-5. **`lands_per_turn` is still a raw field** (`player.rs:23`, read directly by
-   `player.can_play_land()`). It is L15's step 4 and it is *not* a restriction —
+   (The permission half has a document of its own since 2026-10-05,
+   `permission-architecture.md`, designed beside RS-2 at the same three
+   checks; whether the two share a type is decided there.)
+5. **`lands_per_turn` is still a raw field** (`PlayerState::lands_per_turn`,
+   read by `oracle/legality.rs::can_play_land`; `permission-architecture.md`
+   names its land count as the first consumer of §2.15's query). It is L15's step 4 and it is *not* a restriction —
    it is a computed player-scoped value. Recorded here only so that superseding
    L15 does not lose it; it belongs with the cost-modification phase, which is
-   the other CR 613.11 consumer.
+   the other CR 613.11 consumer. (Its home since is `backlog.md` §2.15,
+   player-scoped continuous effects.)
 6. **CR 613.10 (player-affecting continuous effects) has no home doc.** It is
    adjacent to this work — "an effect might give a player protection from red" —
    and neither `layers-architecture.md` nor this file owns it. Whichever phase
