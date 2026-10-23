@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to main at 50f0b8b8 (#278's merge), the commit its traces were run
+  at, and the frozen CR `tmnt`; written at the item 6 audit's pass 5, after
+  TR-4d landed (2026-10-15) and after TR-5f moved the sweep inside the
+  layer settlement. Never maintained — a later phase that changes these
+  paths gets its own page. Self-contained: fonts from Google Fonts, mermaid
+  from jsDelivr, nothing else.
+-->
+<title>Control Is Announced by a Sweep — TR-4d</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6; --surface: #FFFFFF; --surface-2: #EAF0F0; --ink: #1B2226; --muted: #5B6770; --line: #D5DCDD;
+    --real: #1F6F78; --real-tint: #E3F0F1; --frame: #B0701A; --frame-tint: #FBF1DF; --new: #6B4FA0; --new-tint: #EEE9F7;
+    --changed: #2E7D4F; --changed-tint: #E4F2EA; --decide: #8A2F3B; --decide-tint: #F8E8EA; --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif; --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8; --muted: #93A0A5; --line: #2E393D;
+      --real: #58B7BF; --real-tint: #163338; --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97; --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8; --muted: #93A0A5; --line: #2E393D;
+    --real: #58B7BF; --real-tint: #163338; --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97; --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-top: 0.6rem; }
+  .pin { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.7rem; margin-right: 0.4rem; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.95rem; background: var(--surface); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; background: var(--surface-2); }
+  .wrap { overflow-x: auto; }
+  .trace { counter-reset: step; margin: 1rem 0 2rem; padding: 0; list-style: none; }
+  .trace li { position: relative; padding: 0.7rem 0 0.7rem 3.2rem; border-left: 2px solid var(--line); margin-left: 1rem; }
+  .trace li::before { counter-increment: step; content: counter(step); position: absolute; left: -1.05rem; top: 0.7rem; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+  .trace li.new { border-left-color: var(--new); }
+  .trace li.new::before { border-color: var(--new); color: var(--new); }
+  .trace li.changed { border-left-color: var(--changed); }
+  .trace li.changed::before { border-color: var(--changed); color: var(--changed); }
+  .trace li.decide { border-left-color: var(--decide); }
+  .trace li.decide::before { border-color: var(--decide); color: var(--decide); }
+  .fn { font-family: var(--mono); font-weight: 600; font-size: 0.86em; }
+  .read { display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 4px; padding: 0.05rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+  .read.board { background: var(--real-tint); color: var(--real); }
+  .read.frame { background: var(--frame-tint); color: var(--frame); }
+  .read.player { background: var(--decide-tint); color: var(--decide); }
+  .read.state { background: var(--new-tint); color: var(--new); }
+  .read.log { background: var(--changed-tint); color: var(--changed); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; font-size: 0.9rem; color: var(--muted); margin: 1rem 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -0.05rem; }
+  .legend .n::before { background: var(--new); }
+  .legend .c::before { background: var(--changed); }
+  .legend .d::before { background: var(--decide); }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 8px; padding: 0.9rem 1.2rem; margin: 1.2rem 0; }
+  .callout.rule { border-left-color: var(--real); }
+  .callout.before { border-left-color: var(--decide); }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 1.2rem 0; overflow-x: auto; }
+  small { color: var(--muted); }
+</style>
+
+<div class="page">
+
+<h1>Control Is Announced by a Sweep</h1>
+<p class="lede">A trigger on a change of control looks back to the permanent as it was just before the change (CR 603.10d). But no action changes control: control is the layer walk's output (CR 613.1b), so a row starting or ending moves it and nothing proposes or announces that. TR-4d's answer is a sweep, <code>announce_control_changes</code> in <code>engine/triggers/control.rs</code>: at fixed moments it compares each permanent's controller with the one last announced, announces each difference, and looks back to a frame kept for that purpose. This page walks the three findings that decided how the sweep works: a steal that ends at cleanup, the first control row on a board, and Ray of Command's rows with no batch between them.</p>
+<p class="meta"><span class="pin">main @ 50f0b8b8</span><span class="pin">CR tmnt</span><span class="pin">2026-10-23, item 6 audit</span> Design: <code>plans/triggers-architecture.md</code> §4.5 ("<code>ControlChanged</code> is announced by a sweep of its own") and §12's TR-4d heading; the archive's "TR-4d" (<code>plans/archive/triggers-architecture-landed.md</code>), with the plan as designed, its decision 1 and its review round. Tests: <code>mtgsim/tests/phase_tr4d_integration_test.rs</code>. Each trace is a test's board replayed at 50f0b8b8 by a probe outside the tree, with <code>test_support::install_trace_file</code> on; the probe also printed the two fields the sink does not record. <b>record N</b> is an event's place in the game's event log (its <code>EventId</code>); <b>seq N</b> is the trace line.</p>
+
+<h2>The map</h2>
+<div class="prose">
+<p>Four words carry the page. A permanent's <b>announced controller</b> (<code>PermanentState::announced_controller</code>) is the controller the event stream last announced for it: the one it entered under, until a sweep announces a change. Its <b>kept frame</b> (<code>PermanentState::frame_before_control_change</code>) is the frame the next change of its controller looks back to. <b>The gate</b> decides whether a sweep walks anything: a control-changing row exists now (<code>RegistryScopeSummary::any_control_changing</code>), or one existed at the last sweep (<code>GameState::control_effects_at_last_sweep</code>). A <b>keep</b> (<code>keep_frames_before_control_change</code>) writes the kept frames just before something writes a row.</p>
+<p>The sweep runs at fixed points, all through <code>settle_layer_consequences</code> (TR-5f's settlement, which runs it beside the type-change removal from combat and skips it while the layer epoch is where the last one left it): the head of an outermost batch outside a dispatch, the same batch's close while its window is open, each pass of <code>perform_sba_and_triggers</code>, and the cleanup step after CR 514.2's expiry. A batch's head is a sweep, so a batch needs no keep. The writes that happen outside a batch keep the frames themselves: a row a resolution writes (<code>add_resolution_row</code>), a static's registration (<code>keep_frames_before_the_first_control_row</code>), and the two expiries.</p>
+</div>
+<div class="wrap">
+<table>
+<tr><th>Trace</th><th>Board</th><th>The question it answers</th><th>Test</th></tr>
+<tr><td><b>A</b></td><td>Act of Treason takes a "when you lose control of this, draw two cards" creature; the steal ends at cleanup</td><td>Who announces control going back, once the expiry has removed the last control-changing row?</td><td><code>a_steal_ending_at_cleanup_triggers_for_the_thief_in_a_second_cleanup</code></td></tr>
+<tr><td><b>B</b></td><td>"Creatures you control have 'when you lose control of this, draw a card'"; Act of Treason takes the Bears. Then the same board with the steal a static's</td><td>What does the first change on a board look back to, when no sweep had walked the board before it?</td><td><code>the_first_steal_on_a_board_reads_the_frame_from_before</code>; the static's board is the probe's, not a test's</td></tr>
+<tr><td><b>C</b></td><td>Ray of Command at the same "lose control" creature: untap, steal, haste, a delayed trigger</td><td>Why does the haste row, written after the steal and before any batch, keep no frame?</td><td><code>ray_of_command_steals_from_a_player_who_then_lost_control</code></td></tr>
+</table>
+</div>
+<div class="prose">
+<p>The creature in A and C is the tests' Fixture Betrayer, a 5/5 with "When you lose control of this creature, draw two cards", the shape of Khârn the Betrayer's Sigil. Act of Treason and Ray of Command are registered, and Ray of Command is pooled, so fuzz games and <code>--audit</code> reach the sweep's cleanup path as well as the fixtures do.</p>
+</div>
+
+<h3>The path, with TR-4d's nodes coloured</h3>
+<pre class="mermaid">
+flowchart TD
+  W1["add_resolution_row (a resolution's row)"]:::new --> K
+  W2["a static's registration:<br/>keep_frames_before_the_first_control_row"]:::new --> K
+  W3["an expiry: cleanup, 'until your next turn'"]:::new --> K
+  K["keep_frames_before_control_change(sets_controller)"]:::new --> KG{"a control row exists,<br/>or this row sets a controller?"}
+  KG -->|no| KN["keep nothing"]
+  KG -->|yes| KU{"a change not yet announced?"}
+  KU -->|yes| KN
+  KU -->|no| KW["write each permanent's frame that changed"]
+  P1["execute_batch: head and close (outermost, no dispatch)"] --> S
+  P2["perform_sba_and_triggers: each pass"] --> S
+  P3["cleanup step, after the expiry"] --> S
+  S["settle_layer_consequences:<br/>has the layer epoch moved?"]:::changed --> A["announce_control_changes"]:::new
+  A --> G{"settle_announced_controllers:<br/>a row now, or at the last sweep?"}:::new
+  G -->|neither| X["no-op"]
+  G -->|yes| C["each permanent in battlefield_ids_ordered:<br/>now = walked controller, or entry.controller with no row;<br/>now ≠ announced → a ControlChange,<br/>its kept frame handed back as the frame before"]:::new
+  C --> AN["announce: a ControlChanged per change (lki from that frame),<br/>a LookBackSnapshot of every kept frame,<br/>removal from combat (CR 506.4)"]:::new
+  AN --> D["dispatch the window, or join the batch's open one"]
+  KW -.->|"the kept frame"| C
+  KN -.->|"the earlier kept frame stands"| C
+  classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
+  classDef changed fill:#E4F2EA,stroke:#2E7D4F,color:#1B2226;
+</pre>
+<div class="legend"><span class="n">TR-4d's</span><span class="c">TR-5f's settlement, which runs the sweep since</span></div>
+
+<div class="callout prose">
+<p><b>Why a sweep, and why the frames are kept.</b> A "becomes" event fires on the transition only (CR 603.2e), and control has no performer whose transition could be watched, so the sweep detects the change where computed values are read again: it walks each permanent and compares. What it finds has already happened, so the frame from before has to exist already. While a control row exists the sweep walks every permanent anyway, so it keeps each frame it read for free. Control moves only when the board does (in a batch, in a resolution's row, in a static's registration, in an expiry), so a frame kept at the last of those moments is exactly the board "immediately prior to the event", not merely the board at the last sweep.</p>
+</div>
+
+<h2>Trace A — a steal that ends at cleanup</h2>
+<div class="prose">
+<p>The Fixture Betrayer (#21) is player 1's. Act of Treason resolves for player 0; the owner's trigger resolves; the test moves the turn to the postcombat main phase and lets the game run through the end of turn.</p>
+</div>
+<ol class="trace">
+<li><span class="fn">the board</span><span class="read state">state</span> no control-changing row, so the gate is off. The Betrayer is announced under player 1 and has no kept frame.</li>
+<li class="new"><span class="fn">add_resolution_row(Layer2Control) · keep_frames_before_control_change(true)</span><span class="read board">board</span> Act of Treason's steal is the first control row on the board (Trace B's subject), so the keep walks every permanent and keeps the Betrayer as it is: controller 1 (the walk at epoch 24, seq 4). Then the row is written.</li>
+<li class="changed"><span class="fn">execute_batch(Untap) · settle_layer_consequences</span><span class="read board">board</span> the untap is an outermost batch, and the epoch has moved, so its head settles. The gate is on. The Betrayer walks under player 0 (seq 5), its announced controller is 1: a change. The kept frame (controller 1) is handed back as the frame before, and the frame just walked becomes the kept one.</li>
+<li class="new"><span class="fn">announce</span><span class="read log">log</span> record 1, <code>ControlChanged</code> 1 → 0 (seq 6), its <code>lki</code> built from the frame before: controller 1. Its window is its own and is dispatched now, before the untap's (CR 603.4's instant). The Betrayer's live list refuses (seq 7, <code>condition</code>); its list from before, out of the snapshot, matches (seq 8). The trigger's controller is the frame's, player 1 (CR 603.3a): the owner draws two.</li>
+<li><span class="fn">add_resolution_row(Layer6Ability) · keep(false)</span><span class="read board">board</span> the haste row. The gate is on, so the keep walks (seq 13, controller 0); nothing is waiting to be announced, and the Betrayer's kept frame equals its frame now, so nothing is written. The row is written after, so the kept frame has no haste.</li>
+<li class="new"><span class="fn">cleanup · keep_frames_before_control_change(false)</span><span class="read board">board</span> the cleanup step begins (record 10). Before CR 514.2 ends the "until end of turn" rows, the expiry keeps the frames: the Betrayer's frame now has haste, so its kept frame is written again, controller 0 with haste. Then <code>remove_expired_at_cleanup</code> removes both rows, and <code>any_control_changing</code> is false.</li>
+<li class="new"><span class="fn">settle_announced_controllers</span><span class="read state">state</span> the cleanup step's settlement. No row exists now, but <code>control_effects_at_last_sweep</code> is true, since the last sweep ran with one: the sweep runs. With no row there is nothing to walk; a permanent's controller is the one it entered under, <code>entry.controller</code>, player 1. The announced controller is 0: a change. The flag goes false, so the next sweep is a no-op again.</li>
+<li class="new"><span class="fn">announce</span><span class="read frame">frame</span> record 11, <code>ControlChanged</code> 0 → 1 (seq 60), its <code>lki</code> the frame kept in step 6: controller 0, haste. The live list refuses (seq 62) and the list from before matches (seq 63), for player 0: the thief lost control, and draws two (records 13 to 16).</li>
+<li><span class="fn">CR 514.3a</span><span class="read log">log</span> a trigger is waiting, so the cleanup step grants priority, and another cleanup step begins (record 18), as Ogre Geargrabber's fourth ruling and Ray of Command's third say.</li>
+</ol>
+<div class="callout before prose">
+<p><b>With the gate's second half gone.</b> The re-read's first defect: a gate on <code>any_control_changing</code> alone. The registry's summary is rebuilt as rows go, so at step 7 it says no, and the sweep returns at once. Run that way (the gate cut to <code>if !rows</code> in a copy of the crate), the cleanup step announces nothing, only one cleanup step begins, and the thief draws nothing. Worse, the Betrayer stays announced under player 0 while it walks as player 1's, and every later sweep on a board with no control row is gated off too, so the change is never announced. The flag was first <code>control_announced_away</code>; the review renamed it to what it asks.</p>
+</div>
+
+<h2>Trace B — the first control row</h2>
+<div class="prose">
+<p>A Fixture Banner (#21), player 0's, has a Layer 6 row giving "When you lose control of this creature, draw a card" to the creatures its controller controls. Grizzly Bears (#22) is player 0's. Nothing has changed control. Act of Treason resolves for player 1.</p>
+</div>
+<ol class="trace">
+<li><span class="fn">the board</span><span class="read state">state</span> no control row, so the gate is off: no sweep has walked anything, and no permanent has a kept frame. The Bears has the granted trigger, under player 0.</li>
+<li class="new"><span class="fn">add_resolution_row(Layer2Control) · keep_frames_before_control_change(true)</span><span class="read board">board</span> <code>sets_controller</code> is true, since the row about to be written is a control row, so the keep runs with the gate off. It walks every permanent in <code>battlefield_ids_ordered</code> order and keeps each frame: the Bears' is controller 0, with the granted trigger (the probe's print of the kept frame).</li>
+<li><span class="fn">the row is written</span><span class="read board">board</span> the Bears walks under player 1 now, and without the trigger: the Banner gives it only to its own controller's creatures.</li>
+<li class="new"><span class="fn">execute_batch(Untap) · the sweep</span><span class="read frame">frame</span> the head's sweep finds the Bears' change, 0 → 1, and hands back the frame kept in step 2. Record 2, <code>ControlChanged</code> (seq 4), its <code>lki</code> controller 0 with the trigger.</li>
+<li><span class="fn">match_candidates</span><span class="read frame">frame</span> the Bears' live list has no such trigger, so nothing is refused; its list from before matches (seq 5) for player 0, who draws a card. CR 603.10's "the existence of those abilities ... immediately prior to the event" is the kept frame.</li>
+</ol>
+<div class="prose">
+<p><b>The other site.</b> The same board, with the steal written by a static instead: a probe fixture, "Fixture Usurper", an enchantment with "You control all creatures", put onto the battlefield from player 1's hand by <code>change_zone</code>.</p>
+</div>
+<ol class="trace">
+<li><span class="fn">execute_batch(EnterBattlefield) · head</span><span class="read state">state</span> the entry is an outermost batch; its head's settlement finds the gate off and walks nothing.</li>
+<li class="new"><span class="fn">keep_frames_before_the_first_control_row(Layer2Control)</span><span class="read board">board</span> as the Usurper's static registers its Layer 2 row inside the entry, no control row exists yet, so it keeps every frame first: the Bears at controller 0, with the trigger. A later control row registered inside a batch keeps nothing here, since that batch's head swept with the gate on.</li>
+<li class="changed"><span class="fn">execute_batch · close</span><span class="read log">log</span> the batch's close settles while its window is open, so record 4, <code>ControlChanged</code> 0 → 1 (seq 11), joins the entry's window (batch 0) after records 2 and 3, the entry's own. The list from before matches (seq 14), and player 0 draws.</li>
+</ol>
+<div class="callout before prose">
+<p><b>With no keep before the first row.</b> The re-read's second defect: a frame kept only while a control row exists holds nothing when the first row is written, and the first row is the common case, Act of Treason on a board with no steal in progress. Run with <code>add_resolution_row</code>'s keep passing <code>false</code>, a debug build stops in <code>announce</code>: "#22's controller changed with no frame kept from before it", the assertion that names a site that writes a row without keeping. A release build falls back to the frame now: the record's <code>lki</code> is controller 1 with no trigger, nothing triggers, and nobody draws.</p>
+<p>Decision 1 at TR-4d's design (the owner's): keep the frames at the two places that can write the first control row, a resolution's Layer 2 row and a printed or copied static's registration (a granted static cannot write one, since layers 1–5 refuse a grant). The alternatives were reading the first change off the board now with "you" taken from the record's <code>from</code>, which is wrong where the change moves a "you control" grant, as on this board; and refreshing the frames at every sweep point on every board, a walk of every permanent at every batch head in every game.</p>
+</div>
+
+<h2>Trace C — Ray of Command, with no batch between its rows</h2>
+<div class="prose">
+<p>The Fixture Betrayer (#21) is player 1's. Player 0 casts Ray of Command (#22) at it: "Untap target creature an opponent controls and gain control of it until end of turn. That creature gains haste until end of turn. When you lose control of the creature, tap it." Its order is not Act of Treason's: the untap comes first.</p>
+</div>
+<ol class="trace">
+<li><span class="fn">cast_spell</span><span class="read log">log</span> records 1 to 3: the cast, the targeting, <code>SpellCast</code>. The Betrayer's trigger refuses the cast's record (seq 7).</li>
+<li><span class="fn">resolve · Untap</span><span class="read state">state</span> the untap is a batch (batch 1, seq 12 to 14). Its head settles with the gate off: no control row exists yet. The Betrayer is untapped, so nothing is performed.</li>
+<li class="new"><span class="fn">resolve · Remember(GainControl) · keep(true)</span><span class="read board">board</span> the steal's row is the first control row, so the keep runs: the Betrayer kept at controller 1, its frame from epoch 28 (seq 11's walk, served again by the memo). The row is written, and the epoch moves to 29.</li>
+<li class="new"><span class="fn">resolve · GrantKeywordFlag(Haste) · keep(false)</span><span class="read board">board</span> the gate is on now, so the keep walks: the Betrayer under player 0 (seq 15), its announced controller still 1. <b>A change is waiting to be announced</b>, and it looks back to the frame kept before it, so the keep returns and writes nothing. The haste row is written.</li>
+<li><span class="fn">resolve · CreateDelayedTrigger</span><span class="read log">log</span> record 4 (seq 16), the delayed "When you lose control of the creature, tap it". A registration in the delayed-trigger registry, not a continuous effect: no row, and no keep. So the resolution wrote three things with no batch between them, and two of them were rows.</li>
+<li class="new"><span class="fn">the spell to its graveyard · head</span><span class="read frame">frame</span> Ray of Command's own move is a batch (batch 3), and its head's sweep (seq 18) finds the change, 1 → 0. Record 5 (seq 19), its <code>lki</code> the frame from step 3: controller 1, no haste, the trigger.</li>
+<li><span class="fn">match_candidates</span><span class="read frame">frame</span> the Betrayer's live list refuses (seq 20) and its list from before matches (seq 21), for player 1, who draws two. Ray's delayed trigger is asked of record 5 too and refuses (seq 22): player 0 gained control here and lost none.</li>
+</ol>
+<div class="callout before prose">
+<p><b>With the waiting change ignored.</b> The build met this one: a row written after a change and before any batch. Run with the check removed, step 4 writes the frame it walked, the Betrayer just after the steal (controller 0; no haste yet, since the keep runs before its row). Record 5's <code>lki</code> then names player 0, both lists refuse, and nobody draws: CR 603.3a would make the thief the trigger's controller, and the thief did not lose control. Act of Treason never meets this: its untap comes between the steal and the haste, so the untap's batch head announces the change (Trace A, steps 3 and 4) before the haste row's keep runs, and that keep finds nothing waiting.</p>
+</div>
+
+<h2>Where the reads differ</h2>
+<div class="prose"><p>Which frame each look-back reads, and who kept it.</p></div>
+<div class="wrap">
+<table>
+<tr><th>Read</th><th>A, the steal</th><th>A, the return at cleanup</th><th>B, a resolution's row / a static's</th><th>C, Ray of Command</th></tr>
+<tr><td>Announced at</td><td>the untap's batch head, record 1, a window of its own</td><td>the cleanup step's settlement, record 11</td><td>the untap's batch head, record 2 / the entry batch's close, record 4, in its window</td><td>the spell's move to its graveyard, at that batch's head, record 5</td></tr>
+<tr><td>The sweep's gate</td><td>a row exists</td><td>no row; the last sweep had one (<code>control_effects_at_last_sweep</code>)</td><td>a row exists</td><td>a row exists</td></tr>
+<tr><td>Its "now"</td><td>walked: player 0</td><td><code>entry.controller</code>, no walk: player 1</td><td>walked: player 1</td><td>walked: player 0</td></tr>
+<tr><td>The frame before, kept by</td><td>the first row's keep in <code>add_resolution_row</code></td><td>the cleanup's keep before the expiry</td><td>the first row's keep in <code>add_resolution_row</code> / <code>keep_frames_before_the_first_control_row</code></td><td>the first row's keep; the haste row's keep skipped, a change waiting</td></tr>
+<tr><td>That frame</td><td>controller 1</td><td>controller 0, haste</td><td>controller 0, the granted trigger</td><td>controller 1, no haste</td></tr>
+<tr><td>The live list (every arm but the look-back ones)</td><td>refused</td><td>refused</td><td>has no such trigger</td><td>refused</td></tr>
+<tr><td>The list from before (the look-back arms only)</td><td>matched, for player 1</td><td>matched, for player 0</td><td>matched, for player 0</td><td>matched, for player 1</td></tr>
+<tr><td>Who draws</td><td>the owner, 2</td><td>the thief, 2, in a second cleanup step</td><td>the owner, 1</td><td>the owner, 2</td></tr>
+<tr><td>With the fix taken out</td><td>—</td><td>never announced; the thief draws nothing, and the announced controller stays wrong</td><td>a debug assertion; in release the frame after, and nobody draws</td><td>the frame after the steal; nobody draws</td></tr>
+</table>
+</div>
+
+<h2>What TR-4d changed, and what came after</h2>
+<div class="prose">
+<p><b>Before TR-4d nothing announced a change of control.</b> <code>ControlChanged</code> had no writer: a steal was a row in the registry and a different answer from the next layer walk, and a trigger on it had nothing to match. TR-4d made the change an event the way CR 603.2e's "becomes" events are: detected on the transition, where the computed value is read again, with its own cause, <code>GameRule::ControlChanges</code>, since the sweep cannot tell which effect moved control. The changes one sweep finds are one event, so a "whenever an opponent gains control of a permanent from you" watcher stolen beside another triggers once for each (Zidane, Tantalus Thief's first ruling; <code>a_watcher_stolen_with_another_permanent_triggers_for_each</code>).</p>
+<p><b>What the snapshot holds.</b> Every permanent's kept frame, not only the changed ones': "creatures you control have ..." follows its source to the thief, and the creatures left behind lose what it gave them (<code>a_grant_the_steal_moves_still_triggers_the_creatures_left_behind</code>). The review round replaced a first build's pairing of two frames with this; a list the change left alone answers the same before and after, so the answer is the same by construction.</p>
+<p><b>Since TR-5f</b> the sweep is the first half of <code>settle_layer_consequences</code>, gated on the layer epoch, and it runs at a batch's close as well as its head, so a change a batch causes is announced in that batch's window (Trace B's static board). <b>Since #278</b> (item 185), <code>--audit</code> re-walks every permanent after each sweep and requires its controller to be the one announced, whether or not the gate let the sweep walk (<code>audit_announced_controllers</code>; <code>plans/elisions.md</code>, the control sweep's row), and the dispatch audit matches the change's window against a snapshot of every object that could trigger, each as it was before the change (<code>audit_frames_before_control_change</code>).</p>
+<p><b>Not walked here</b>, because they are records that carry their own frames and are read the way TR-1's page reads a departure: a countered spell's frame with its stack entry (<code>Lki.entry</code>, item 253), a player's loss and the loser's departures (CR 603.9, 603.10f), and the two mill records (items 131 and 258).</p>
+</div>
+
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", securityLevel: "loose" });
+</script>
+</body>
+</html>

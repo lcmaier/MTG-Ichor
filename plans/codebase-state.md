@@ -8980,6 +8980,11 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
 
 ### Found after TR-4d (2026-10-16)
 
+Trace page: `plans/traces/tr-4d-control-is-announced-by-a-sweep.html` — the
+control sweep read by read on the three boards its findings came from: a
+steal ending at cleanup, the first control row, and Ray of Command's rows
+with no batch between them; written at the item 6 audit's pass 5.
+
 267. **~~A permanent whose controller changes stays in combat.~~ — ✅ CLOSED 2026-10-16 (PR #255, TR-5a).** — archived.
      The control sweep removes each changed permanent from combat as part of
      the change (CR 506.4); a blocked attacker stays blocked (CR 509.1h).
@@ -9286,6 +9291,11 @@ Number 277 was withdrawn in #260 and is not reused.
      **Slotted:** A6e, beside its naming sweep (`roadmap-v2.md`).
 
 ### Found by TR-5h (2026-10-19)
+
+Trace page: `plans/traces/tr-5h-every-history-read-is-a-scan-of-one-log.html`
+— a span count, the damage facts and the layer memo's gate, each read as a
+scan of the history log, and the place in a turn that reads a tally since
+#265; written at the item 6 audit's pass 5.
 
 286. **A history row keeps a frame, not the store's facts beside it.** A
      filter leaf no frame answers reads the store by the row's id, which

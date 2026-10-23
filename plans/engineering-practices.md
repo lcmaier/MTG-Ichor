@@ -1662,6 +1662,8 @@ are the template; every page since has a row:
 | `cv-2b-an-exception-is-checked-without-itself.html` | CV-2b | CR 707.9f's check, from traced runs: Spark Double copying a legend, where each conditional exception is checked on a look-ahead of the copy without it; the Kaito board, where the two exceptions read each other's counters and both apply, so neither CR 306.5b nor Oath of Gideon is gathered after; and a later copy in the same entry taking the exception's counter back |
 | `ma-1-a-payment-is-a-matching-not-a-count.html` | MA-1 | "can this player pay this cost" answered as a matching, not a count, on six boards: Everywhere against `{1}{G}`, a Tundra and a Plains under Hall's condition, Mana Reflection on Everywhere, Wild Growth on a Badlands under Mana Reflection, Chainbreaker paying its own `{3}`, eight Plains with Krark-Clan Ironworks and Doubling Cube; the read-by-read table |
 | `tr-5g-a-multiplier-is-read-where-its-trigger-looks.html` | TR-5g | CR 603.2d's count read through the dispatcher's kinds of candidate list: Panharmonicon beside Soul Warden (the live list), Gandalf dying beside a Golem (a departure's frame), a granted multiplier whose granter dies (a snapshot); which list answers which arm |
+| `tr-4d-control-is-announced-by-a-sweep.html` | TR-4d, written at the item 6 audit | CR 603.10d's look-back with no performer to watch: a steal ending at cleanup, which the gate's second half announces; the first control row, kept before it writes, at both sites; Ray of Command's rows with no batch between, where a change not yet announced keeps no newer frame; each fix taken out once; which frame each look-back reads |
+| `tr-5h-every-history-read-is-a-scan-of-one-log.html` | TR-5h, written at the item 6 audit | the history log's three readers: Vengeful Warchief's "first time each turn" and Paladin of Atonement's "last turn", the damage facts with a flicker, and the layer memo's keys beside each write that moves them, with the note and the reframe each taken out once; what each read scans, and what it read before |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
 answered rather than what the answer is.** That is the property the pages above
@@ -1684,8 +1686,8 @@ TR-5g ✓ (decided at its review, 2026-10-20, the same way: the owner asked
 how the dispatcher's candidate lists work, and the count reads multipliers
 through them), critical-path item 6 ✓ (decided phase by phase at its close
 audit, 2026-10-22: TR-1's page and TR-5g's, and TR-4d's control sweep and
-TR-5h's history log owed, for the audit's pass 5; each heading in `triggers-architecture.md` §12
-says why), **RS-2**. Budget
+TR-5h's history log, owed then and written in the audit's pass 5, 2026-10-23;
+each heading in `triggers-architecture.md` §12 says why), **RS-2**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 
