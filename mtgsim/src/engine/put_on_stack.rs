@@ -688,9 +688,10 @@ impl GameState {
                 Some((perm_id, ability_id)) => {
                     if let Err(e) = self.activate_mana_ability(player_id, perm_id, ability_id, decisions) {
                         // Enumeration said this was legal but activation
-                        // failed — likely staleness or a `can_pay_ability_costs`
-                        // over-approximation bug. Blacklist so we can't loop
-                        // on it; the set is bounded by |initial legal|.
+                        // failed: likely staleness, or a cost the window's
+                        // offer re-asked wrongly (`can_pay_costs`). Blacklist
+                        // so we can't loop on it; the set is bounded by
+                        // |initial legal|.
                         eprintln!(
                             "WARN: mana-ability activation failed in 601.2g window \
                              (perm={}, ab={}): {}",

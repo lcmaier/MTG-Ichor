@@ -929,7 +929,7 @@ fn applied_by_words(game: &GameState, step: &LayerStep) -> String {
         AppliedBy::PtCounters { kind, count: 1 } => format!("a {} counter (CR 122.1a)", kind.name()),
         AppliedBy::PtCounters { kind, count } => format!("{count} {} counters (CR 122.1a)", kind.name()),
         AppliedBy::EnteredAsCopy => "the copy it entered as (CR 614.1c, 707.5)".to_string(),
-        AppliedBy::EnteredWith => "what it entered with (CR 614.1c)".to_string(),
+        AppliedBy::EnteredWith => "what it entered as (CR 614.1c)".to_string(),
         AppliedBy::IntrinsicLoyalty => "a planeswalker's intrinsic ability (CR 306.5b)".to_string(),
     };
     match step.timestamp {

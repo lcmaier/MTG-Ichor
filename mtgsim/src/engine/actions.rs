@@ -379,10 +379,13 @@ pub enum GameAction {
     /// permanent spell — the value Layer 2 modifies, not the answer
     /// `get_effective_controller` gives.
     ///
-    /// `mods` starts as whatever the *rules* say the permanent enters with
-    /// (`GameState::default_enter_mods`) and accumulates through
+    /// `mods` starts empty (`EnterMods::NONE`; CR 306.5b's loyalty is an
+    /// ability the walk gives a planeswalker, gathered like any "enters with")
+    /// and accumulates as CR 616.1f iterates:
     /// [`Rewrite::EnterWith`](crate::types::replacement::Rewrite::EnterWith)
-    /// as CR 616.1f iterates.
+    /// merges a status, counters and edits, and
+    /// [`Rewrite::EnterAsCopy`](crate::types::replacement::Rewrite::EnterAsCopy)
+    /// sets the copy.
     ///
     /// `act` is the zone change's, or `None` for a token: a fact about the
     /// event, read by `EventPattern::ZoneChange`'s `act` when it watches an
@@ -1019,7 +1022,8 @@ impl GameState {
     }
 
     /// One batch's two phases, decide and perform, handing back the riders its
-    /// replacements queued for the caller to run (`run_riders`).
+    /// replacements queued for the caller to run (`execute_riders`, or
+    /// `resolve_riders` inside an enclosing window).
     ///
     /// **Split out from its two callers because Rust has no `finally`.**
     /// [`Self::execute_actions`] and [`Self::execute_actions_new_batch`] differ

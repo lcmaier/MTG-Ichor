@@ -33,8 +33,8 @@ pub enum GameEvent {
         /// What was done (`replacement-architecture.md` §2b.2). A redirect
         /// keeps it (CR 614.6).
         ///
-        /// **Only the replacement pipeline and the trigger matcher may branch
-        /// on this.** See [`ZoneChangeAct`](crate::engine::actions::ZoneChangeAct).
+        /// **Only the readers [`ZoneChangeAct`](crate::engine::actions::ZoneChangeAct)
+        /// names may branch on this.**
         act: ZoneChangeAct,
         /// CR 603.10a — the object's characteristics an instant *before* it
         /// moved, for a move in one of the rule's three classes
@@ -782,8 +782,9 @@ pub struct AppliedReplacement {
     /// What its effect's own events are caused by: its source and its
     /// controller as it applied, which may have left or changed hands since.
     pub by: EventCause,
-    /// Whether it changed where the move goes: CR 614.6's modified event is
-    /// then the replacement's, and so is "who exiled it".
+    /// Whether it changed where the move goes, for the log. Who exiled it is
+    /// still the record's cause, the resolving spell's or ability's, a redirect
+    /// included (`replacement-architecture.md` §2b.4).
     pub redirected: bool,
 }
 
@@ -819,11 +820,11 @@ pub struct EventRecord {
     pub stamp: EventStamp,
     /// See [`NamesAsAnnounced`].
     pub names: NamesAsAnnounced,
-    /// Where the turn summaries placed it, once they have counted it.
+    /// Where the history placed it, once it has counted it.
     pub(crate) places: RecordPlaces,
 }
 
-/// A record's places, written when the turn summaries count it: as its window
+/// A record's places, written when the history counts it: as its window
 /// is dispatched, or, for a card of a draw instruction, as that card's draw
 /// ends. Four bytes a place, so the record keeps its size.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -880,7 +881,7 @@ impl EventRecord {
         self.places.in_draw_step.map(|n| u64::from(n.get()))
     }
 
-    /// Whether the turn summaries have counted it.
+    /// Whether the history has counted it.
     pub(crate) fn counted(&self) -> bool {
         self.places.counted
     }
@@ -895,8 +896,8 @@ impl EventRecord {
 /// `AbilityTriggered` names. Nothing reads it after the outermost of those
 /// returns, which is where [`Self::flush`] runs, so at a decision outside a
 /// batch this holds nothing and a clone copies nothing. What the rules read
-/// from the past is materialized instead: the turn summaries (§3.10), and the
-/// records a trigger binds (§3.4). What wants the whole stream attaches a
+/// from the past is materialized instead: the history log's rows
+/// (`state::history_log`, §3.10), and the records a trigger binds (§3.4). What wants the whole stream attaches a
 /// recorder, and the flush hands it every record in order.
 #[derive(Debug, Clone, Default)]
 pub struct EventWindow {
@@ -948,7 +949,7 @@ impl EventWindow {
         self.next_seq += 1;
     }
 
-    /// Mark record `seq` counted by the summaries, with its places.
+    /// Mark record `seq` counted by the history, with its places.
     pub(crate) fn note_counted(&mut self, seq: EventId, in_turn: Option<u64>, in_draw_step: Option<u64>) {
         let Some(first) = self.records.first().map(|r| r.seq) else { return };
         if let Some(record) = seq.0.checked_sub(first.0).and_then(|i| self.records.get_mut(i)) {

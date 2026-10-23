@@ -907,11 +907,15 @@ pub enum EffectRecipient {
     /// Filter-based recipient: every permanent matching the filter.
     ///
     /// Read by the ETB hook to register a static ability's continuous effect,
-    /// and at **resolution** by the primitives that act on more than one object
-    /// at once: `CreateReplacement` makes one row per matching permanent
-    /// (CR 615.11) and `DealDamage` proposes one batch member each. All three
-    /// resolve it the same way, `battlefield_ids_ordered` filtered against the
-    /// resolution's controller **now**, never captured.
+    /// and at **resolution**, where every primitive receives the permanents the
+    /// filter matches as the instruction applies (`affected_permanents`, CR
+    /// 611.2c's set fixed as the effect begins): one row per matching permanent
+    /// for `CreateReplacement` (CR 615.11), one batch member each for
+    /// `DealDamage`, one fixed row for a characteristic or control change. Each
+    /// is `battlefield_ids_ordered` filtered against the resolution's
+    /// controller **now**, never captured. A "can't" (`Restrict`) is the
+    /// exception: CR 611.2c's second sentence keeps its set the filter, read at
+    /// each query.
     ///
     /// **The filter is not written into `ResolutionContext::targets`**: "each
     /// creature" is not a targeting fact (CR 115.1 announces targets as the
@@ -1616,13 +1620,13 @@ impl CharacteristicEdit {
     }
 
     /// Can an "enters as" effect make this edit? The vocabulary has two uses
-    /// (`replacement-architecture.md` §3.5): an edit a permanent enters with,
+    /// (`replacement-architecture.md` §3.5): an edit a permanent enters as,
     /// like Master Biomancer's Mutant, applied at the edit's own layer from
     /// then on; and an edit inside a copy, like Spark Double's "isn't
     /// legendary", made on the copied values. Only `Types` has the first use
     /// built. The other arms exist for copy exceptions and no card enters
-    /// with one yet, so `evaluate_enter_template` refuses an "enters with"
-    /// that makes one, rather than let it do nothing.
+    /// as one yet, so `evaluate_enter_template` refuses an entry edit that
+    /// makes one, rather than let it do nothing.
     pub fn has_entry_placement(&self) -> bool {
         matches!(self, CharacteristicEdit::Types(_))
     }
