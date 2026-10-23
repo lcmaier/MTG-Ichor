@@ -2,13 +2,18 @@
 //! object that is gone, and the history log's rows as every "this turn"
 //! fact's one store (`plans/handoffs/item-6-audit.md`, pass 3's cleanup).
 
+use mtgsim::cards::authoring::triggers::{leaves_the_battlefield, triggered_ability, whenever};
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::events::event::{GameEvent, UnattachRoute};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_on_battlefield, setup_game, setup_two_player_game, test_dp, vanilla_creature};
+use mtgsim::objects::card_data::CardDataBuilder;
+use mtgsim::types::card_types::CardType;
+use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::triggers::{EventRole, TriggerSubject};
 
 // ---------------------------------------------------------------------------
 // An unattach, each end as it left (CR 603.10c)
@@ -75,4 +80,36 @@ fn an_unattach_keeps_no_frame_of_an_end_that_stays() {
     let unattach = the_unattach(&game, since);
     assert!(unattach.frame_of(host).is_some());
     assert!(unattach.frame_of(aura).is_none(), "{unattach:?}");
+}
+
+// ---------------------------------------------------------------------------
+// The object a departure from the game names (CR 800.4a, 603.6c)
+// ---------------------------------------------------------------------------
+
+/// "Whenever a creature leaves the battlefield, you gain life equal to its
+/// power": its power is the creature's as it last existed (CR 608.2h).
+fn fixture_mourners_tithe() -> std::sync::Arc<mtgsim::objects::card_data::CardData> {
+    let creature = TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature));
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller);
+    CardDataBuilder::new("Fixture Mourner's Tithe")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(leaves_the_battlefield(creature), gain)))
+        .build()
+}
+
+/// Player 1 leaves a three-seat game with a 3/3, which leaves the
+/// battlefield as it leaves the game (CR 603.6c). Player 0's watcher binds
+/// that creature as it left, and gains its power.
+#[test]
+fn a_creature_that_left_the_game_is_its_triggers_object() {
+    let mut game = setup_game(3);
+    put_on_battlefield(&mut game, fixture_mourners_tithe(), 0);
+    put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
+    game.execute_action(GameAction::PlayerLoses { player: 1 }, &ActionContext::new(&test_dp())).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(&test_dp()).unwrap();
+        game.perform_sba_and_triggers(&test_dp()).unwrap();
+    }
+    assert_eq!(game.players[0].life_total, 23);
 }

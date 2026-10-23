@@ -2629,6 +2629,9 @@ impl GameState {
     /// token created, the mana's source, the card drawn, or the spell.
     fn single_object(&self, event: &GameEvent) -> TriggeringEventObjects {
         let id = match event {
+            // The existence that left the game, which the store no longer
+            // holds by the time the record is read (CR 800.4a).
+            GameEvent::LeftTheGame { lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
             GameEvent::ZoneChange { object_id, .. }
             | GameEvent::LeftTheGame { object_id, .. }
             | GameEvent::SameZoneMove { object_id, .. }
