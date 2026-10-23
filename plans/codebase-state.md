@@ -1238,13 +1238,13 @@ registered card returns an object.
     `Primitive::Restrict` (a duration the card writes), and no registered card
     uses either; static replacement and restriction abilities never register a
     row.
-    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-    the replacement and restriction registries' sweep on
-    `Duration::ends_with_its_source`, the watched object as an `ObjectRef` so
-    a flicker ends it (CR 400.7), and the control leg on TR-4d's
-    `ControlChanged`, with the three fixtures above. Its check, in debug
-    builds after each performed batch: no row in the three registries whose
-    duration ends with its source names an object that has left the
+    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
+    (the card-homed triage, 2026-10-23): the replacement and restriction
+    registries' sweep on `Duration::ends_with_its_source`, the watched object
+    as an `ObjectRef` so a flicker ends it (CR 400.7), and the control leg on
+    TR-4d's `ControlChanged`, with the three fixtures above. Its check, in
+    debug builds after each performed batch: no row in the three registries
+    whose duration ends with its source names an object that has left the
     battlefield (CR 611.2b).
 
 ### Found by the theme C+E pass (2026-08-30)
@@ -1303,11 +1303,11 @@ registered card returns an object.
     **Reachability (2026-10-23):** unreachable — RS-1's registry exists and
     `turns.rs`'s cleanup still zeroes `damage_marked` unconditionally; none of
     the seven cards is registered.
-    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-    CR 514.2's wipe asks the restriction registry before it removes a
-    permanent's damage, with a fixture static "damage isn't removed from
-    creatures you control during cleanup steps" and a creature that keeps its
-    damage into the next turn.
+    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
+    (the card-homed triage, 2026-10-23): CR 514.2's wipe asks the restriction
+    registry before it removes a permanent's damage, with a fixture static
+    "damage isn't removed from creatures you control during cleanup steps" and
+    a creature that keeps its damage into the next turn.
 
 ### Found by the theme H pass (2026-08-30)
 
@@ -1458,13 +1458,13 @@ registered card returns an object.
     dedupes per object, combat and untap batches are per-object unique, RC-5's
     auxiliary batch names each object once by CR 614.13b, and no registered
     spell proposes one object twice.
-    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-    phase 2's `still_legal`, one arm per `GameAction` variant with no
-    wildcard, skipping a stale member rather than failing the batch (CR
-    608.2b), with a fixture whose one instruction names one creature twice
-    ("exile target creature and target creature", CR 115.3). Its check: a
-    member `still_legal` passed performs without `Err`, asserted in debug
-    builds, so a performer's error stays a bug.
+    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
+    (the card-homed triage, 2026-10-23): phase 2's `still_legal`, one arm per
+    `GameAction` variant with no wildcard, skipping a stale member rather than
+    failing the batch (CR 608.2b), with a fixture whose one instruction names
+    one creature twice ("exile target creature and target creature", CR
+    115.3). Its check: a member `still_legal` passed performs without `Err`,
+    asserted in debug builds, so a performer's error stays a bug.
 
 ### Found by a rider read-through (2026-08-30)
 
@@ -2569,13 +2569,13 @@ measurement; what follows is what a later phase has to know.
     entry as one batch), but no registered card creates two creatures with
     devour at once or grants devour; `grants_devour` in
     `phase_rc5_integration_test.rs` is the only board.
-    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-    one entry event's auxiliary moves performed as one batch and counted by
-    what was performed (CR 701.21a; the card's "for each creature sacrificed
-    this way"), with a fixture that creates two creature tokens with devour at
-    once, the plural entry RE-4 built, and `grants_devour`. Its check, in
-    debug builds: every auxiliary move of one entry event writes its record
-    into one batch.
+    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
+    (the card-homed triage, 2026-10-23): one entry event's auxiliary moves
+    performed as one batch and counted by what was performed (CR 701.21a; the
+    card's "for each creature sacrificed this way"), with a fixture that
+    creates two creature tokens with devour at once, the plural entry RE-4
+    built, and `grants_devour`. Its check, in debug builds: every auxiliary
+    move of one entry event writes its record into one batch.
 
 62. **`AuxiliaryMove` has no chooser field, so "you" is the effect's
     controller — and the two printed shapes disagree.** CR 614.13a says "**you**
@@ -2596,11 +2596,12 @@ measurement; what follows is what a later phase has to know.
 
     **Reachability (2026-10-23):** unreachable — no registered card takes the
     granted-devour road; `grants_devour` is the only board.
-    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-    a granted devour is the entering creature's own ability, so that
-    creature's controller chooses and sacrifices (CR 614.13a's "you", CR
-    109.5), and `grants_devour` asserts it; the chooser field only if the
-    gather cannot give the instance that controller.
+    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
+    (the card-homed triage, 2026-10-23): a granted devour is the entering
+    creature's own ability, so that creature's controller chooses and
+    sacrifices (CR 614.13a's "you", CR 109.5), and `grants_devour` asserts it;
+    the chooser field only if the gather cannot give the instance that
+    controller.
 
 63. **`per_chosen` is a constant per object, and Thromok the Insatiable's is
     not.** "Devour X, where X is the number of creatures devoured this way" —
@@ -3320,10 +3321,11 @@ consequences, and only the first was designed:
     player-side counter this item waited on (`backlog.md` §2.16), so each
     keyword is a flag, a result and a block in `perform_action`'s
     `DealDamage` arm; `backlog.md` §2.6 names the three.
-    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-    infect, wither and toxic as keyword flags, and CR 120.3b, 120.3d and
-    120.3g as `DamageResults` flags proposing `GameAction::AddCounters`, a
-    player's through `CounterSubject::Player`, with a fixture per keyword.
+    **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+    card-homed triage, 2026-10-23): infect, wither and toxic as keyword flags,
+    and CR 120.3b, 120.3d and 120.3g as `DamageResults` flags proposing
+    `GameAction::AddCounters`, a player's through `CounterSubject::Player`,
+    with a fixture per keyword.
 
 87. **CR 120.3h is absent — a battle's defense counters — and so is CR 310.**
     Damage dealt to a battle removes that many defense counters, which is the
@@ -3425,7 +3427,8 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     **Sized:** ~80–120 — a field on the instance and the rider, one
     `EffectRecipient` arm, `resolve_rider` building a context that carries
     both, and the no-op check.
-    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    **Slotted:** A6e's cleanup builds it in
+    `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
     the row's targets threaded onto `ReplacementInstance` and `Rider`, a
     `then` recipient for what the effect targeted, and the rider's
     existence-and-type check (the three rulings above), with a fixture
@@ -3483,7 +3486,8 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     `EffectRecipient::EachOf(PlayerGroup)` exists now (item 122's), and
     `CreateReplacement` refuses it by name. What is left is the per-player
     rows, ~15 lines, with Kitsune Palliator.
-    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+    **Slotted:** A6e's cleanup builds it in
+    `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
     per-player rows in `CreateReplacement` over
     `EffectRecipient::EachOf(PlayerGroup)`, ~15 lines, with a fixture shield
     for "each creature and each player", a row per player as CR 615.11's are
@@ -3692,7 +3696,8 @@ audit is at the end.
      resolution-side fill, which is item 90's — so it is item 90 plus ~20
      lines, and it lands with the first card that needs it. Not stubbed: the
      arm does not exist, so no card can silently do nothing.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     **Slotted:** A6e's cleanup builds it in
+     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
      on item 90's targets, `RetargetSpec::ToFixed` and its fill, with a
      fixture that redirects damage to a target chosen at cast, CR 614.9's
      destination re-check applying.
@@ -3808,10 +3813,10 @@ named RE PR.
      justifies it, ~10 lines; the care is that CR 305.2 counts land plays per
      *turn* and no rule places the reset, so the move needs an argument rather
      than a hunch.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-     the land-drop reset moves to `on_turn_begin`, since CR 305.2's one land
-     is per turn, with a fixture "skip your untap step" and a land played in
-     the turn that skipped it.
+     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+     card-homed triage, 2026-10-23): the land-drop reset moves to
+     `on_turn_begin`, since CR 305.2's one land is per turn, with a fixture
+     "skip your untap step" and a land played in the turn that skipped it.
 
 118. **CR 514.3a's repeated cleanup step announces nothing.** — ✅ closed,
      archived.
@@ -4491,9 +4496,9 @@ The layer system's designated single-point change site is `oracle/characteristic
     **Sized:** `ContinuousEffectDraft` consumed by `add`, the
     struct plus ~26 mechanical sites, ~100 lines; a quiet PR of its own, pairing
     with main item 64's rename.
-    **Slotted:** A6e, the hygiene pass of item 6's close audit
-    (`engineering-practices.md` §9), which takes the `ContinuousEffectDraft`
-    refactor before Phase 8 grows the ~26 sites.
+    **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`, which takes the
+`ContinuousEffectDraft` refactor before Phase 8 grows its literals (44 on
+`50c459d4`).
 
 7f. **Conditional static abilities — ✅ done (2026-09-06, LI-3).** `Effect::Conditional` lowers to its inner atom's rows, registered unconditionally, and the condition stays on the ability where CR 604.2's existence check already looks: `board::static_ability_still_exists` evaluates it against the pass's *live* board at the row's layer, so a condition reading types sees layer 4 applied. No field on `ContinuousEffect` and no second registry (`layers-architecture.md` §13b decision 5). `engine/layers/condition.rs` is the evaluator; `Condition` gained one leaf, `HostMatches(ObjectFilter)`, for "as long as enchanted permanent is …". **Kird Ape** is the consumer and is in `PERFORMANCE_POOL`. The historical note below is the reason the answer had to be an existence check rather than a gate, and it is kept.
 
@@ -4646,10 +4651,11 @@ The layer system's designated single-point change site is `oracle/characteristic
     **Sized:** `Primitive::GainControl` takes a recipient and the
     resolution arm asks the `DecisionProvider` when more than one opponent
     exists, ~80–120 lines with the first of the nine cards.
-    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-    `Primitive::GainControl` names its new controller, and "an opponent" is
-    chosen as the ability resolves (CR 608.2d; the Akroan Horse ruling), asked
-    only above two players, with a three-seat fixture.
+    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
+(the card-homed triage, 2026-10-23): `Primitive::GainControl` names its new
+controller, and "an opponent" is chosen as the ability resolves (CR 608.2d;
+the Akroan Horse ruling), asked only above two players, with a three-seat
+fixture.
 
 14. **The targeting-side `ObjectFilter` could not resolve a `PlayerRef` — ✅
     done (2026-08-23).** — archived.
@@ -4684,11 +4690,12 @@ The layer system's designated single-point change site is `oracle/characteristic
     registrations, `would_be_rows`, `register_copied_static_effects`), or
     the lowering splits a multi-recipient `Sequence` into one group per
     recipient; with the first card that needs it.
-    **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-    beside item 184, `EffectGroup::StaticAbility` keyed by the atom too, so
-    one static ability over two recipient sets is two effects with two locked
-    sets (CR 613.6), with a fixture "creatures you control get +1/+1 and
-    creatures you don't control get −1/−1" written as one ability.
+    **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+    card-homed triage, 2026-10-23): beside item 184,
+    `EffectGroup::StaticAbility` keyed by the atom too, so one static ability
+    over two recipient sets is two effects with two locked sets (CR 613.6),
+    with a fixture "creatures you control get +1/+1 and creatures you don't
+    control get −1/−1" written as one ability.
 
 ### ~~Test-support duplication — cross-cutting~~ ✅ done (2026-08-22)
 
@@ -4758,11 +4765,11 @@ first.
    **Sized:** a battlefield-only type gate in
    `get_effective_power`/`get_effective_toughness`, ~10 lines plus a test, with
    the first Vehicle.
-   **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23): a
-   battlefield-only creature-type gate in
-   `get_effective_power`/`get_effective_toughness` (CR 208.3; off the
-   battlefield a card keeps its printed P/T), with a fixture creature that
-   loses the creature type.
+   **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+card-homed triage, 2026-10-23): a battlefield-only creature-type gate in
+`get_effective_power`/`get_effective_toughness` (CR 208.3; off the battlefield
+a card keeps its printed P/T), with a fixture creature that loses the creature
+type.
 
 2. **~~"Any player may activate this ability" is unmodeled (CR 602.1a).~~ — ✅
    CLOSED 2026-10-09 (PR #238).** — archived.
@@ -4796,11 +4803,11 @@ first.
    **Sized:** `CounterType::Named(&'static str)` and moving
    `Charge` across the line, ~80 lines, with the first card that needs a named
    counter.
-   **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-   `CounterType::Named` with `Charge` and `Growth` moved across the line, and
-   CR 122.1a's other +X/+Y kinds given their arms at the two catch-alls above,
-   with a fixture that puts a named counter and one that puts a +1/+0 counter.
-   The newtype question is decided there.
+   **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+card-homed triage, 2026-10-23): `CounterType::Named` with `Charge` and
+`Growth` moved across the line, and CR 122.1a's other +X/+Y kinds given their
+arms at the two catch-alls above, with a fixture that puts a named counter and
+one that puts a +1/+0 counter. The newtype question is decided there.
 
 4. **CR 613.7e re-timestamping on attachment is unimplemented — and it collides with the determinism doctrine (recorded 2026-08-24).** "An Aura, Equipment, or Fortification receives a new timestamp each time it becomes attached to an object or player." Nothing in the tree ever reassigns `PermanentState.timestamp`, and both CLAUDE.md and `battlefield_ordered`'s docs now state "allocated once per `place_on_battlefield`, never reassigned" as the *determinism* guarantee. `layers-architecture.md` §8 point 3 lists 613.7e as designed, so that doc currently claims more than the code does.
 
@@ -4847,11 +4854,11 @@ first.
 
    **Sized:** the leaf plus a 7c timestamp merge in the shape Layer
    6's keyword counters use, ~100–150 lines, with the first doubling card.
-   **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-   the affected-power leaf and a 7c timestamp merge in the shape Layer 6's
-   keyword counters use (CR 701.10a's doubling is a 7c effect whose addend
-   reads what applied before it), with a fixture doubling beside a pump, in
-   both timestamp orders.
+   **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+card-homed triage, 2026-10-23): the affected-power leaf and a 7c timestamp
+merge in the shape Layer 6's keyword counters use (CR 701.10a's doubling is a
+7c effect whose addend reads what applied before it), with a fixture doubling
+beside a pump, in both timestamp orders.
 
 6. **Multi-attacker block damage is a silent stub.** `engine/combat/resolution.rs`'s multi-block arm: a blocker blocking 2+ attackers assigns *all* its damage to the first living attacker — no `DecisionProvider` choice, no error, CR 510.1d ignored (the comment there has pointed here since 2026-09-15). Unreachable (nothing in the pool grants "can block an additional creature"), and the plumbing to fix it already exists: `GameState.blocker_damage_divisions` is populated from `choose_blocker_damage_division`. Reachable with the first "blocks an additional creature" card. This is the silent-wrong-*choice* cousin of the silent-inertness class the loud-lowering work covered.
 
@@ -4861,12 +4868,12 @@ first.
    **Sized:** read `blocker_damage_divisions` in
    that arm instead of the first living attacker, ~40–60 lines, with
    the first "can block an additional creature" card.
-   **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-   the multi-block arm reads `blocker_damage_divisions` (CR 510.1d), and the
-   same board tells CR 509.3a's once per blocker from 509.3b's once per
-   creature blocked, with a fixture "can block an additional creature" static.
-   Its check, in debug builds: a blocker's damage is divided only among the
-   attackers it blocks.
+   **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+card-homed triage, 2026-10-23): the multi-block arm reads
+`blocker_damage_divisions` (CR 510.1d), and the same board tells CR 509.3a's
+once per blocker from 509.3b's once per creature blocked, with a fixture "can
+block an additional creature" static. Its check, in debug builds: a blocker's
+damage is divided only among the attackers it blocks.
    **Widened by TR-5c (2026-10-18):** the same board is the first that tells
    CR 509.3a's "whenever this creature blocks", once per blocking creature,
    from 509.3b's "blocks a creature", once per creature it blocks. TR-5c's
@@ -5150,11 +5157,11 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    ~5 lines, inside whichever of the two arrives second.
 
    **Phase (2026-09-18):** not this phase's — the matcher (TR-1) reads `LeftTheGame` unconditionally and the qualifier lands with phasing, which arrives second; `triggers-architecture.md` §3.3's `LeftTheGame` row and §16.
-   **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-   CR 603.6c's phased-in test at the frame's `if` in `owned_objects_leave`, ~5
-   lines, with a fixture that stages `PermanentState::phased_out` on a
-   permanent whose owner leaves the game; phasing's own build reads the same
-   field.
+   **Slotted:** A6e's cleanup builds it in `history-and-frame-records` (the
+   card-homed triage, 2026-10-23): CR 603.6c's phased-in test at the frame's
+   `if` in `owned_objects_leave`, ~5 lines, with a fixture that stages
+   `PermanentState::phased_out` on a permanent whose owner leaves the game;
+   phasing's own build reads the same field.
 
 8. **~~"Whenever you create one or more tokens" has one key.~~ — ✅ CLOSED
    2026-10-09 (PR #238).** — archived.
@@ -5528,7 +5535,7 @@ What the *shape* says, as opposed to what one endpoint suggested:
 
     **Reachability (2026-10-22):** reachable — not wrong; a performance question
     on paths a measured game runs thousands of times a turn.
-    **Slotted:** A6e, item 6's close audit, whose hygiene pass reads the
+    **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`, which reads the
     `.clone()` sites in `engine/layers/` and `engine/replacement/` first, with
     a fuzz A/B behind it.
 
@@ -6050,8 +6057,9 @@ ordered after this PR as `replacement-architecture.md` §9 said; and the
 `--dump-events` A/B recipe that counted `Tapped:` land lines because the log
 had no mana lines now has `ManaAdded:` lines to count, which is a note for
 whoever next masks a dump and not a migration.
-     **Slotted:** A6e, the hygiene pass of item 6's close audit, as a PR of its
-     own sweeping the ~48 `ResolutionContext` literals to one `rider` field.
+     **Slotted:** A6e's cleanup, as a PR of its own,
+     `resolution-context-rider`, sweeping the `ResolutionContext` literals (99
+     on `50c459d4`) to one `rider` field.
 
 ### Found by the post-RE audit (2026-09-15)
 
@@ -6102,12 +6110,12 @@ self-replacement producer is `replacement-architecture.md` §11 item 3's,
 with its reachability line there; and the eviction of that document's
 pre-build reasoning is planned section by section in the handoff and opens
 as its own PR after this one merges.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-     an entry choice's cost on `EnterModsTemplate`, paid as the replacement
-     applies (CR 614.12, a shockland as the fixture), and CR 614.12b's
-     payability sweep over a batch's chosen costs, with a fixture plural
-     entry, two such tokens created at once (RE-4's plural batch), for a
-     player who can pay for one.
+     **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
+     (the card-homed triage, 2026-10-23): an entry choice's cost on
+     `EnterModsTemplate`, paid as the replacement applies (CR 614.12, a
+     shockland as the fixture), and CR 614.12b's payability sweep over a
+     batch's chosen costs, with a fixture plural entry, two such tokens
+     created at once (RE-4's plural batch), for a player who can pay for one.
 
 ### Found by the post-RE audit, pass 3 — parallel-play readiness (2026-09-15)
 
@@ -6924,11 +6932,12 @@ owner decided it the same day.
 
      **Sized:** the card, its `Primitive` arm, and one test: a Colossus in exile under
      Pull from Eternity is shuffled into its owner's library instead. Phase 8.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-     a `Primitive` that puts an object into its owner's graveyard
-     (`ZoneChangeAct::Put`, `EventCause::Effect`), with a fixture "put target
-     face-up exiled card into its owner's graveyard" and the Colossus test:
-     one in exile is shuffled into its owner's library instead.
+     **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
+     (the card-homed triage, 2026-10-23): a `Primitive` that puts an object
+     into its owner's graveyard (`ZoneChangeAct::Put`, `EventCause::Effect`),
+     with a fixture "put target face-up exiled card into its owner's
+     graveyard" and the Colossus test: one in exile is shuffled into its
+     owner's library instead.
 
 ### Found by A4g — process-stable ids (PR #158, 2026-09-16)
 
@@ -7177,7 +7186,8 @@ place.
      returns one card, Combine Guildmage, and it reuses one filter — so the
      reachability line above stands. This is the sentence a card author checks
      a new "another target" card against.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     **Slotted:** A6e's cleanup builds it in
+     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
      castability asks for an assignment of every instance at once (CR 601.2c),
      so a later clause narrower than one it excludes is not refused, with a
      fixture "target creature" then "another target creature you control" on
@@ -7840,11 +7850,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      each row evaluates its own filter and the lock records their union; later
      layers apply the union. With the first registered card of the shape, or
      before it.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-     beside "Before Layers" item 16, within the layer an effect starts in each
-     row evaluates its own filter and the lock records their union (CR 613.6),
-     with the throwaway fixture's shape kept as a test: two layer-4 rows over
-     a battlefield creature and a creature card in hand.
+     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+     card-homed triage, 2026-10-23): beside "Before Layers" item 16, within
+     the layer an effect starts in each row evaluates its own filter and the
+     lock records their union (CR 613.6), with the throwaway fixture's shape
+     kept as a test: two layer-4 rows over a battlefield creature and a
+     creature card in hand.
 
 ### Found by the CV-2 design review (2026-09-28)
 
@@ -7983,11 +7994,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      amounts on the primitive and on `EffectModification::SetPowerToughness`,
      27 and 13 sites, or a one-sided primitive for CDAs alone), the key split
      into `Power` and `Toughness`, and a test with a one-sided copy exception.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-     a CDA that names the side it defines (CR 604.3a(1)),
-     `cda::CdaCharacteristic`'s key split into `Power` and `Toughness`, and a
-     fixture one-sided copy exception beside a one-sided CDA; which of the two
-     shapes above is its first decision.
+     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+     card-homed triage, 2026-10-23): a CDA that names the side it defines (CR
+     604.3a(1)), `cda::CdaCharacteristic`'s key split into `Power` and
+     `Toughness`, and a fixture one-sided copy exception beside a one-sided
+     CDA; which of the two shapes above is its first decision.
 
 ### Found by the A6g spike, the dev GUI (2026-09-30)
 
@@ -8237,9 +8248,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** ~30–60 lines with the first such card: the CDA in
      `engine/layers/cda.rs`, or an `EffectModification` arm, each calling
      `Subtypes::insert_every_creature_type`.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-     changeling's CDA in `engine/layers/cda.rs` (CR 702.73a) and a Layer 4
-     `EffectModification` arm for "gains all creature types", each calling
+     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+     card-homed triage, 2026-10-23): changeling's CDA in
+     `engine/layers/cda.rs` (CR 702.73a) and a Layer 4 `EffectModification`
+     arm for "gains all creature types", each calling
      `Subtypes::insert_every_creature_type`, with a fixture changeling and a
      fixture effect of Mirror Entity's shape.
 
@@ -8260,12 +8272,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      "for the entire time the object's card type is removed", so whether a
      later effect that gives the type back gives the subtypes back is read
      against the rulings before it is built.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-     after Layer 4's type arms a subtype stays only while a type it belongs to
-     remains (CR 205.1a, 205.3m), with ATOM-205.1a-004's fixture, the
-     registered Dryad Arbor made noncreature by a fixture effect; whether a
-     type given back gives its subtypes back is read against the rulings
-     first, as above.
+     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+     card-homed triage, 2026-10-23): after Layer 4's type arms a subtype stays
+     only while a type it belongs to remains (CR 205.1a, 205.3m), with
+     ATOM-205.1a-004's fixture, the registered Dryad Arbor made noncreature by
+     a fixture effect; whether a type given back gives its subtypes back is
+     read against the rulings first, as above.
 
 207. **Fourteen registered creatures lack the creature types they print.**
      Citanul Hierophants, Earth Elemental, Giant Spider, Grizzly Bears, Hill
@@ -8517,8 +8529,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      item 242's, the `can_pay` pair item 243's, the two `ui/ask.rs` wrappers
      item 246's, and `static_replacement` and `intrinsic_mana_ability` `card-layer-cleanup`'s
      ("Before card breadth" item 10). The first two stay here.
-     **Slotted:** A6e, the hygiene pass of item 6's close audit
-     (`engineering-practices.md` §9), which takes the first two cleanups.
+     **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`, which takes
+     the first two cleanups.
 
 ### Found by SU-8, what happened, from the trace (2026-10-06)
 
@@ -8847,7 +8859,8 @@ ones on the last-known-information and zone-change surface are items 176 and
      its copy (T8).
      **Sized:** ~200–350 lines over `triggers/dispatch.rs`, `delayed.rs` and
      `audit.rs`, after TR-7, so the merges take the whole phase's shape.
-     **Slotted:** A6e, item 6's close audit, its hygiene pass.
+     **Slotted:** A6e's cleanup, in `trigger-matcher-merges`, with the
+     work-list's rows it names (`plans/handoffs/item-6-audit.md`, pass 3).
      **Widened by TR-4a's model pass (2026-10-14):** the inventory §3.6's
      T12's remaining sites ("its owner" of a gone source, beside
      `owner_of_source`), T14 (the objects a waiting entry names), T15 (which
@@ -9108,7 +9121,8 @@ with no batch between them; written at the item 6 audit's pass 5.
      "that player loses 2 life" with no player costs the controller 2. TR-5e's
      two new player readers skip the instruction instead; this item's
      participant reader does the same.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     **Slotted:** A6e's cleanup builds it in
+     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
      "that player" names its participant as the object readers do (CR 608.2c)
      and the existing `TriggeringPlayer` uses migrate, with fixtures for a
      stolen creature dying under "whenever a creature an opponent controls
@@ -9132,7 +9146,8 @@ with no batch between them; written at the item 6 audit's pass 5.
      files' literals: one `AmountExpr::ValueOf(which object, which value)`,
      the object word shared with `Antecedent` (`ConditionObject` until
      TR-5e's review) and TR-5e's `AttackedBy`.
-     **Slotted:** A6e, the naming sweep beside item 6's close audit.
+     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     beside item 299, which reads `SourcePower` at resolution.
 
 270. **~~"Defending player" for a creature that left combat and stayed on the battlefield names nobody.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f).** — archived.
      Removal from combat is a record, and the combat's history keeps what
@@ -9186,7 +9201,8 @@ with no batch between them; written at the item 6 audit's pass 5.
      **Sized:** `Effect::ForEach` built, with a players `Selector` that binds
      each player as the instruction's named player, ~60 lines of code and ~80
      of tests.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     **Slotted:** A6e's cleanup builds it in
+     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
      `Effect::ForEach` over a players `Selector` that binds each player as the
      instruction's named player, with a three-seat fixture "for each opponent,
      create a 1/1 token tapped and attacking that player"; encore's attack
@@ -9275,13 +9291,14 @@ Number 277 was withdrawn in #260 and is not reused.
      block by an effect.
      **Sized:** per effect, its performer's record and the arm's reading of
      it, ~40 lines of code and ~60 of tests; ATOM-509.4-001 with the first.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-     one effect that makes a block, its performer's record and the block arm
-     reading it (CR 509.3c), with a fixture "target unblocked attacking
-     creature becomes blocked", and ATOM-509.4-001's blocking entry beside it
-     while the band holds. Its check, in debug builds: every blocked attacker
-     and every blocker the combat holds has a block record this combat, so an
-     effect that blocks with no record fails a test.
+     **Slotted:** A6e's cleanup builds it in `history-and-frame-records` (the
+     card-homed triage, 2026-10-23): one effect that makes a block, its
+     performer's record and the block arm reading it (CR 509.3c), with a
+     fixture "target unblocked attacking creature becomes blocked", and
+     ATOM-509.4-001's blocking entry beside it while the band holds. Its
+     check, in debug builds: every blocked attacker and every blocker the
+     combat holds has a block record this combat, so an effect that blocks
+     with no record fails a test.
 
 279. **The "this turn" object facts with no writer yet.** `ObjectFilter::ThisTurn`
      and `ThisCombat` ask `ObjectFact`'s seven facts, the ones whose writers
@@ -9298,14 +9315,15 @@ Number 277 was withdrawn in #260 and is not reused.
      **Sized:** the damage rows ~40 lines of code and ~60 of tests; the
      zone-change rows ~45 and ~70; each other fact ~15 and ~30 with its
      writer.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-     the zone-change facts ("died", "discarded", "milled", "put into a
-     graveyard", keyed by the object the move made, CR 400.7), "was cast" and
-     "came under your control" (TR-4d's `ControlChanged`), each a `RowFact`
-     reading or variant with a fixture filter. Its check, in debug builds:
-     each zone change a batch performs writes its row. "Crewed" and "saddled"
-     come with crew and saddle, whose tapping cost is `remaining-costs`'s, and "turned face
-     up" with `face-down-and-morph`.
+     **Slotted:** A6e's cleanup builds it in `history-and-frame-records` (the
+     card-homed triage, 2026-10-23): the zone-change facts ("died",
+     "discarded", "milled", "put into a graveyard", keyed by the object the
+     move made, CR 400.7), "was cast" and "came under your control" (TR-4d's
+     `ControlChanged`), each a `RowFact` reading or variant with a fixture
+     filter. Its check, in debug builds: each zone change a batch performs
+     writes its row. "Crewed" and "saddled" come with crew and saddle, whose
+     tapping cost is `remaining-costs`'s, and "turned face up" with
+     `face-down-and-morph`.
      **Shaped at TR-5c's review (the owner, 2026-10-18):** for TR-5d's design,
      one history of what each object did this round, the combat's rows
      generalized (an object, the turn, the combat and a fact), which these
@@ -9343,7 +9361,8 @@ Number 277 was withdrawn in #260 and is not reused.
      target.
      **Sized:** the instance walk into `Group`, and the member's fizzle,
      ~30 lines of code and ~50 of tests.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     **Slotted:** A6e's cleanup builds it in
+     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
      the instance walk into `Group` and the target member's own fizzle (CR
      608.2b), with a fixture "exile this creature and target creature without
      flying that's attacking you".
@@ -9387,9 +9406,10 @@ Number 277 was withdrawn in #260 and is not reused.
      game answers differently.
      **Sized:** ~80 lines of Python over this file and the registry's names,
      a CI step, and a named card for each item that names none.
-     **Slotted:** A6e, item 6's close audit, in its cleanup
-     (`plans/handoffs/item-6-audit.md`, pass 3's cleanup), the review already
-     scheduled at the end of triggers (the owner's slot).
+     **Slotted:** A6e, item 6's close audit, in its cleanup's
+     `names-and-hygiene-sweeps` (`plans/handoffs/item-6-audit.md`, pass 3's
+     cleanup), the review already scheduled at the end of triggers (the
+     owner's slot).
 
 285. **Nearly 90 engine functions return tuples whose parts only their docs
      name.** 69 pairs, 9 triples and 2 four-tuples outside the card
@@ -9403,7 +9423,8 @@ Number 277 was withdrawn in #260 and is not reused.
      **Reachability (2026-10-22):** reachable — not wrong: a reader's cost.
      **Sized:** sort the 88 by the rule, then a struct or a split for each
      that fails, mechanical; ~150–300 lines, counted before it runs.
-     **Slotted:** A6e, beside its naming sweep (`roadmap-v2.md`).
+     **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`, beside its
+     naming sweep.
 
 ### Found by TR-5h (2026-10-19)
 
@@ -9429,13 +9450,13 @@ scan of the history log, and the place in a turn that reads a tally since
      beside its frame, `Lki` gains whether it was a token, and the filter's
      `Token` leaf reads it; ~40 lines and ~50 of tests, with a held-memory
      reading, since the information is larger than a frame.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
-     a departure row keeps its record's last known information beside its
-     frame, `Lki` gains whether it was a token, and the `Token` leaf reads it,
-     with fixtures "for each nontoken creature that died this turn" and its
-     token twin, and a held-memory reading. Its check, in debug builds: a
-     history read that asks the store about an object its row says departed
-     fails.
+     **Slotted:** A6e's cleanup builds it in `history-and-frame-records` (the
+     card-homed triage, 2026-10-23): a departure row keeps its record's last
+     known information beside its frame, `Lki` gains whether it was a token,
+     and the `Token` leaf reads it, with fixtures "for each nontoken creature
+     that died this turn" and its token twin, and a held-memory reading. Its
+     check, in debug builds: a history read that asks the store about an
+     object its row says departed fails.
 
 287. **The scenario names its casts and counts the rest.** A save writes each
      cast by its card's name (`setup-architecture.md` §5.1), so a count
@@ -9551,7 +9572,7 @@ scan of the history log, and the place in a turn that reads a tally since
      constructor sites (175 `ReplacementDef::new`, 35 `Restriction::Event`)
      and `set_affects`' 3 call sites. Counted again at A6e's first ticket, and
      split along these three seams if the PR would pass 2,500.
-     **Slotted:** A6e, beside its naming sweep (`roadmap-v2.md`).
+     **Slotted:** A6e's cleanup, in `one-fact-one-type`, beside item 296.
 
 292. **A one-player instruction whose player is gone acts on its controller
      instead.** `resolve_player_for_self` (`engine/resolve.rs`) finds the one
@@ -9579,7 +9600,9 @@ scan of the history log, and the place in a turn that reads a tally since
      **Sized:** the exhaustive match `DealDamage` got, with "no player" an
      answer that does nothing: ~60–80 lines over the resolver and its 12
      call sites, and a fixture for each board, shown failing first.
-     **Slotted:** A6e (the owner, 2026-10-20), beside item 291.
+     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     beside item 268's "that player" and row 39's `named_player` (the owner
+     had put it beside item 291, 2026-10-20).
 
 293. **~~Every state-based check walks every object twice.~~ — ✅ CLOSED 2026-10-21 (PR
      #267, CL-1).** — archived.
@@ -9653,7 +9676,7 @@ scan of the history log, and the place in a turn that reads a tally since
      no token"), so `Condition` holds predicates only. The 22 constructions
      are rewritten, the evaluator's arm moves to the new home, and the other
      four readers lose theirs.
-     **Slotted:** A6e (`roadmap-v2.md`), beside items 291 and 292.
+     **Slotted:** A6e's cleanup, in `one-fact-one-type`, beside item 291.
 
 ### Found by the item 6 audit, pass 1 — the close-out (2026-10-22)
 
@@ -9680,8 +9703,9 @@ scan of the history log, and the place in a turn that reads a tally since
      **Sized:** ~25 lines: one `GameEvent::frame_of(id)` that `record_frame`
      and `as_it_left` both read, and the log fixtures it moves
      (`event_log_test`, the trace pages).
-     **Slotted:** A6e, the cleanup of item 6's close audit, with the
-     duplicate rows it merges (`plans/handoffs/item-6-audit.md`, pass 3).
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `history-and-frame-records`, with the duplicate rows it merges
+     (`plans/handoffs/item-6-audit.md`, pass 3).
 
 298. **A cast that rewinds puts the card in its owner's hand, wherever it was
      cast from.** CR 732.1: "If the action was casting a spell, the spell
@@ -9714,7 +9738,8 @@ scan of the history log, and the place in a turn that reads a tally since
      a cost reduction.
      **Sized:** ~20 lines: the arm, and a test whose source is sacrificed
      before its ability resolves.
-     **Slotted:** A6e's cleanup builds it (the card-homed triage, 2026-10-23):
+     **Slotted:** A6e's cleanup builds it in
+     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
      `AmountExpr::SourcePower` at resolution reads the source's power while it
      is on the battlefield and its kept last known information once it has
      left (CR 113.7a), with a fixture "{T}: this creature deals damage equal
@@ -9747,8 +9772,9 @@ scan of the history log, and the place in a turn that reads a tally since
      resolution writes also covers the Layer 6 case, but it moves Ray of
      Command's announcement ahead of its delayed trigger's creation record,
      a pooled stream, so that wider form carries a re-record.
-     **Slotted:** A6e, the cleanup of item 6's close audit
-     (`plans/handoffs/item-6-audit.md`, pass 3's cleanup).
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `batches-durations-and-control` (`plans/handoffs/item-6-audit.md`, pass
+     3's cleanup).
 
 ### Found by the item 6 audit, pass 3 — hygiene and CI (2026-10-22)
 
@@ -9775,8 +9801,9 @@ row 57 is item 297.
      **Sized:** ~25 lines and a test: the three walks over `lki_keepers`'
      legs, the resolving one included, on a fixture state trigger that keeps
      its state while it resolves, shown failing first.
-     **Slotted:** A6e, the cleanup of item 6's close audit
-     (`plans/handoffs/item-6-audit.md`, pass 3's cleanup).
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `trigger-matcher-merges` (`plans/handoffs/item-6-audit.md`, pass 3's
+     cleanup).
 
 302. **Each caller of `candidates_now` puts the dispatch gate's legs together
      itself, and the dispatch walks the whole zone map.** `detect`,
@@ -9794,8 +9821,10 @@ row 57 is item 297.
      beside a window it cannot read.
      **Sized:** ~25 lines: one constructor for the legs, keyed on the
      window's kinds.
-     **Slotted:** A6e's readiness pass (`plans/handoffs/item-6-audit.md`,
-     pass 4), whose lever list prices the zone leg, then A6e's cleanup.
+     **Slotted:** A6e's cleanup, in `trigger-matcher-merges`, builds the one
+     constructor with today's legs, and A6e's readiness pass
+     (`plans/handoffs/item-6-audit.md`, pass 4) prices the zone leg's filter
+     on it (the cleanup's plan, decision 3).
 
 303. **Which facts carry a place in their player's turn is listed four
      times, and one way the lists can disagree is silent.** The kinds whose
@@ -9814,7 +9843,8 @@ row 57 is item 297.
      by the turn's targeting rows instead.
      **Sized:** ~20 lines: one `TriggerEvent` to `Option<TurnFact>` map the
      others read, or a test that the four lists agree.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `history-and-frame-records`.
 
 304. **`event_roles` declares object roles some of its arms' events never
      carry.** `TriggerEvent::event_roles` (`types/triggers.rs`) is what the
@@ -9832,7 +9862,8 @@ row 57 is item 297.
      debug assert that a bound role is carried. One
      declaration per arm, an `event_shape` type, is the design of the audit's
      §6 decision 2, ~60–100 lines, and nothing found calls for it.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `trigger-matcher-merges`.
 
 305. **An unattach keeps one end's frame when both ends leave in one
      event.** CR 603.10c looks back in time for an unattach.
@@ -9848,7 +9879,8 @@ row 57 is item 297.
      800.4a), but the Wargear reads no `Attachment` role (`--players 4
      --require "Grafted Wargear" --seed 2601`, game 3).
      **Sized:** ~20 lines and a `GameEvent` field: a frame per departed end.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `history-and-frame-records`.
 
 306. **Whether an object entered this turn is stored twice, and the two
      disagree both ways.** `PermanentState::entered_battlefield_turn`
@@ -9863,7 +9895,8 @@ row 57 is item 297.
      `ObjectFact::Entered`.
      **Sized:** ~20 lines: one store, chosen before anything reads the entry
      rows.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `history-and-frame-records`.
 
 307. **Entering attacking is asked of the event's controller and performed
      for the effective one.** CR 506.3b: a creature put onto the battlefield
@@ -9877,7 +9910,8 @@ row 57 is item 297.
      enter under the attacking player.
      **Sized:** ~8 lines, its two callers and a fixture: an
      `is_attacking_player` beside `is_defending_player`, read at both sites.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `resolution-recipients-and-amounts`.
 
 308. **A condition's "you" is read through two different channel lists, and
      a Layer 2 dependency is missed.** CR 109.5's "you" is the source's
@@ -9889,7 +9923,8 @@ row 57 is item 297.
      **Reachability (2026-10-22):** unreachable — no registered static
      lowers to a Layer 2 row.
      **Sized:** ~5 lines and a Layer 2 fixture.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `layers-combat-and-counters`.
 
 309. **A template naming a referred object its arm never remembers is made
      empty, and never triggers, with no error.** CR 603.7c: a delayed
@@ -9905,7 +9940,8 @@ row 57 is item 297.
      `ControlChanges` subject, which it remembers.
      **Sized:** ~10–40 lines of authoring validation and a ~25-line test,
      failing first.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `trigger-matcher-merges`.
 
 310. **Two lists of the objects a record names, kept in step by nothing.**
      `GameEvent::for_each_object_named` (`events/event.rs`), which the trace's
@@ -9917,7 +9953,8 @@ row 57 is item 297.
      **Reachability (2026-10-22):** unreachable — the two agree today.
      **Sized:** ~50 lines: a test that gives every object each variant
      carries a sentinel name and checks that both lists find it.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `history-and-frame-records`.
 
 311. **A `LeftTheGame` binding carries no object.** `single_object`
      (`engine/triggers/dispatch.rs`), `draft_history_rows`
@@ -9931,7 +9968,8 @@ row 57 is item 297.
      neither reads the object (`--players 4 --require "Banishing Light"
      --seed 58`, game 16).
      **Sized:** ~8 lines and a ~60-line four-seat test, failing first.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `history-and-frame-records`.
 
 312. **A card exiled from a hidden zone and returned to the battlefield gets
      no frame.** `capture_lki`, `objects_lki_is_kept_for` and `hand_over_lki`
@@ -9946,7 +9984,8 @@ row 57 is item 297.
      **Sized:** ~5 lines and a ~40-line test; the predicate then folds into
      the one rule for which moves carry a frame (the work-list's row 61, ~25
      lines with it).
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `history-and-frame-records`.
 
 313. **A sacrificed source is untapped on its activation record and tapped
      on its departure frame.** For a `{T}, sacrifice` ability,
@@ -9960,7 +9999,8 @@ row 57 is item 297.
      Sphere produce it (`--require "Mind Stone,Dark Sphere" --seed 63`), and
      nothing a registered card has reads `was_tapped` off the record.
      **Sized:** ~30 lines and a ~40-line test, after the reading.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `history-and-frame-records`.
 
 314. **"The first time each turn" is answered two ways, and a filtered arm
      refuses a later match.** `within_once_per_turn_limit`
@@ -9976,7 +10016,8 @@ row 57 is item 297.
      **Reachability (2026-10-22):** unreachable — Vengeful Warchief's arm is
      unfiltered.
      **Sized:** ~40–80 lines and fixtures, after the reading.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `history-and-frame-records`.
 
 315. **`AbilityTriggers`' "caused by" checks only the record's kind.**
      `is_caused_by` (`engine/triggers/dispatch.rs`) answers "the event that
@@ -9987,7 +10028,8 @@ row 57 is item 297.
      `AbilityTriggers` with `caused_by: Some`.
      **Sized:** ~5–10 lines and a fixture: route the check through
      `triggering_events_in`, or drop the field.
-     **Slotted:** A6e, the cleanup of item 6's close audit.
+     **Slotted:** A6e, the cleanup of item 6's close audit, in
+     `trigger-matcher-merges`.
 
 ### Found by the item 6 audit, pass 5 — the docs audit (2026-10-22)
 
@@ -10042,5 +10084,6 @@ row 57 is item 297.
      restated as "one ability's agreeing triggers are not ordered, and each
      is still targeted". It drops a prompt the random agent answers, so the
      stream moves: a `differ` A/B and the fixtures that script the order.
-     **Slotted:** A6e's cleanup, as its own `differ` PR
-     (`plans/handoffs/item-6-audit.md`, pass 3).
+     **Slotted:** A6e's cleanup, in `trigger-matcher-merges` as its last
+     commit, with a three-arm `differ` A/B (`plans/handoffs/item-6-audit.md`,
+     pass 3's plan, decision 2).

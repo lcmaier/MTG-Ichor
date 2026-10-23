@@ -120,8 +120,12 @@ pass re-reads what it touches: a number here is a starting point.
   (149 route-homed, 5 card-homed, 12 records, 0 homeless). Decided at its
   review (the owner): the hexproof phase split in two, `game-formats` widened
   to the 60-card constructed formats, what is left of Phase 9 put to
-  `route-review`, and no check for a retired code. **A6e's cleanup, session
-  6, is next, written in the names.**
+  `route-review`, and no check for a retired code.
+- A6e's cleanup, session 6, opened on `audit/item-6-cleanup-plan` off
+  #282's merge. Its plan is pass 3's "The cleanup's plan": 60 items and 40
+  merge rows in eight themed PRs, each item's **Slotted:** line naming its
+  PR. The first PR, `history-and-frame-records`, is built on the same
+  branch once the plan is reviewed.
 
 ## 1. Why this audit is bigger than the last
 
@@ -223,7 +227,7 @@ sessions are ordinary ones, one PR at a time in the main folder:
 | 5. The docs audit's fixes | plain, a session per PR | 5 | 4 (pass 5, re-cut at #274's merge) |
 | 5b. The card-homed triage | plain; a single verifier at most | the triage (§4) | 1, docs |
 | 5c. Names for the phases ahead | plain; the design reviewed first | pass 5c | 1 |
-| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 3–6, and 2–3 for the builds (#280's count) |
+| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 8, by the plan in pass 3 (2026-10-23), or 9 if item 317 stays its own |
 | 7. Readiness | plain; measurement | 4 | 2 |
 | 8. Scheduling | plain | 6 | 1 |
 
@@ -670,7 +674,263 @@ Python and a CI step), 269 (seven per-object `AmountExpr` variants, with the
 naming sweep), `AbilityDef.instances`, the naming sweep itself, and the
 model pass's survivors, folded into band-sized PRs by theme
 (`engineering-practices.md` §4). Each that moves a pool carries its own
-A/B; each that changes a hot path, its own callgrind arm.
+A/B; each that changes a hot path, its own callgrind arm. The plan below
+places each.
+
+#### The cleanup's plan (session 6, 2026-10-23)
+
+Sized on `50c459d4`, #282's merge. `check_state_of_play.py --slotted A6e`
+lists 63 open items. Items 138, 142 and 143 are readiness's (pass 4), which
+leaves 60:
+- the card-homed triage's 31 builds;
+- the model pass's 16 filed items, 297 (row 57) and 301–315;
+- item 317;
+- the 12 more that A6e's `roadmap-v2.md` row gives the cleanup: 137,
+  215, 239, 247, 269, 284, 285, 291, 292, 296, 300 and "Before Layers" 7d.
+
+With them go the work-list's 40 merge rows, which no item holds; the naming
+sweep and `AbilityDef.instances` from A6e's `roadmap-v2.md` row; and
+`--pool fixtures`. Each item's **Slotted:** line names its PR, so a
+session's intake is `check_state_of_play.py --slotted <name>`.
+
+**How each is sized.** An item is sized from its own **Sized:** line and a
+row from its figure, both read against the tree. Where a build's line gives
+no test size, its tests count as many lines as its code (#280's rule).
+*Sized* is that sum. *Carried* is the code at 1.5–2×, the overrun sizings
+have run, plus the tests; a counted sweep is carried as counted. The band is
+`engineering-practices.md` §4's 1,500–2,500, code plus tests. "Pools" says
+whether `performance` and `stress` are predicted to move. Every close-out
+runs the A/B and the budget; a PR that moves a pool also owes the
+attribution. "Hot path" names the path whose callgrind read the budget is
+about.
+
+| # | PR | What it delivers | Items | Merge rows | Sized | Carried | Pools | Hot path |
+|---|---|---|---|---|---:|---:|---|---|
+| 1 | `history-and-frame-records` | Every record written, each keeping the object as it was, three of the six record checks, and the fixture pool | 278, 279, 286, 297, 303, 305, 306, 310, 311, 312, 313, 314, "Before Triggered abilities" 6; `--pool fixtures` | 28, 29, 31, 32, 35, 36, 42, 45, 48, 49, 61, 62 | ~1,370 | ~1,700–2,000 | identical: no registered card reads a new row, frame or fact, and the fixtures pool apart | a row per zone change, last known information on a departure row, a `GameEvent` field; and a held-memory reading |
+| 2 | `resolution-context-rider` | `ResolutionContext`'s two rider numbers as one optional value | 137 | — | ~130 | ~130–160 | identical | none |
+| 3 | `trigger-matcher-merges` | The trigger matcher's facts, each written once | 247, 301, 302, 304, 309, 315, and 317 (decision 2) | 2, 3, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 30, 53, 54, 55, 59, 67, 68; and 5 | ~910 | ~1,250–1,600; ~1,350–1,800 with 317 | identical for the merges; with 317 both pools differ, since Blood Artist's order prompts go: a three-arm A/B | the dispatch, and §3.1's audited smoke |
+| 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296 | 46 | ~1,550–1,800 | ~1,700–2,100 | identical | the replacement gather's membership test |
+| 5 | `batches-durations-and-control` | The triage's batches, durations and control builds, two record checks among them | 17, 20, 26, 61, 62, 134, 148, 300, "Before Layers" 13 | — | ~1,390 | ~1,750–2,100 | identical: 300's narrow form keeps Ray of Command's order | phase 2's check per member, the duration sweep per batch |
+| 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307 | 38 | ~1,230 | ~1,500–1,800 | identical | castability's assignment (155) |
+| 7 | `layers-combat-and-counters` | The triage's layer, combat and counter builds, one record check among them | 86, 117, 184, 190, 205, 206, 308, "Before Layers" 16, "Before card breadth" 1, 3, 5 and 6 | 41, 44, 50 | ~1,330 | ~1,650–2,000 | identical | the layer walk |
+| 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 284, 285; the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
+
+That is **60 items and 40 merge rows in 8 PRs**, about 11,000–14,000
+lines carried, 9 if 317 stays its own. Item 291 does not pass the band
+whole, so it is not split. Item 137 is under the band, a PR of its own on
+item 124's precedent that a sweep does not ride inside a rules change.
+
+**What each PR takes.**
+
+1. `history-and-frame-records`.
+   - Item 297: the log names a departed copy by its card where the line
+     above names it as it left. The fix is one `GameEvent::frame_of`, and
+     item 247's T17 log half goes with it. Reachable and wrong today, the
+     board's row.
+   - Item 278: an effect that makes a block writes its record (CR 509.3c),
+     with ATOM-509.4-001's blocking entry. **Check:** every block the combat
+     holds has its record.
+   - Item 279: the zone-change "this turn" facts, "was cast" and "came under
+     your control", read off the history log's rows. **Check:** each zone
+     change a batch performs writes its row.
+   - Item 286: a departure row keeps its record's last known information,
+     which knows a token. **Check:** no history read asks the store about an
+     object its row says departed.
+   - Item 306 (row 34): "entered this turn" stored once. It is decided here,
+     because 279 adds the first row readers.
+   - "The first time each turn": item 303 (row 7) lists the facts placed in
+     a player's turn once, and item 314 (row 65) makes its two answers one
+     after the CR reading.
+   - What a record keeps of an object that is gone:
+     - item 305 (row 26): an unattach frames each end that left;
+     - item 311 (row 58): a `LeftTheGame` binding carries its object;
+     - item 312 (row 60): a card exiled from a hidden zone and returned gets
+       its frame, folded into rows 61 and 62's one rule for which moves carry
+       one;
+     - item 313 (row 63): a sacrificed source's tapped status, one answer
+       after the CR reading.
+   - Item 310 (row 56): a sentinel test that the two lists of the objects a
+     record names agree.
+   - "Before Triggered abilities" 6: CR 603.6c's phased-in qualifier, at the
+     frame's `if`.
+   - `--pool fixtures`: every registered card plus the castable fixtures, in
+     the `fuzz-checked` job, where the checks fire.
+   - The merge rows:
+     - 28, 29, 31, 32, 35 and 36: the history log's turns and counts, each
+       written once;
+     - 42, 61 and 62: a mover's before-move half, and which moves carry a
+       frame;
+     - 45, 48 and 49: the log's words for a replacement, a name and a
+       delayed trigger.
+2. `resolution-context-rider`. Item 137: every resolution that is not a CR
+   615.5 rider writes two `None`s about riders. It becomes one optional
+   value, at 99 literals (48 when the item was filed).
+3. `trigger-matcher-merges`.
+   - Item 247, the inventory's T-entries, each named for what it merges:
+     - T1: a trigger's tail, the first arm, the limits and the intervening
+       "if";
+     - T2: the queue (row 2);
+     - T3: CR 603.2c's fold (rows 21 and 24);
+     - T4: CR 603.7a's "existed before" (row 25);
+     - T6: the candidate for an object (row 3);
+     - T7: the multiplicities and record kinds (rows 17 and 53);
+     - T8: whether an extra turn is still coming, which the waiting panel
+       reads;
+     - T9: rows 8 and 30, and whether an ability is triggered;
+     - T12's other sites: a gone source's owner;
+     - T14: a waiting entry's objects. Its dispatch half is gone, so it is
+       re-read;
+     - T15: which object a non-filter `ObjectSet` names;
+     - T16: the "as long as" peel;
+     - T19: a cost list's mana part;
+     - T20: row 19;
+     - T21: first strike asked three times, and declared attackers derived
+       twice.
+   - Item 301 (row 1): a state trigger's "not left the stack" walks
+     `lki_keepers`' legs, the resolving one included.
+   - Item 302 (row 4): the dispatch gate's legs come from one constructor,
+     with today's legs. Decision 3 places the zone leg's filter.
+   - Item 304 (row 11): `event_roles` is narrowed to what each arm's events
+     carry, with a debug assert.
+   - Item 309 (row 52): a template naming a referred object its arm never
+     remembers is refused when authored.
+   - Item 315 (row 66): `AbilityTriggers`' "caused by" goes through
+     `triggering_events_in`.
+   - Item 317: CR 603.3b's elision stops asking the order of one ability's
+     agreeing triggers (decision 2).
+   - The merge rows: 9, 10, 12, 13, 15, 18, 20, 22, 23, 54, 55, 59, 67 and
+     68, as the work-list says. Row 5 merges as a `PendingTrigger` method.
+     Row 27's two-line tidy and row 69's comments ride along.
+4. `one-fact-one-type`.
+   - Item 291, three things each written as several types:
+     - `Selector` becomes an `ObjectSet`;
+     - `ResolvedTarget`, `DamageTarget`, `CounterSubject` and `EventSubject`
+       become one object-or-player type by id, and `TargetRef` and
+       `ObjectOrPlayer` one by reference;
+     - the affected pair becomes one type (CR 614.1).
+     Row 64 folds the four matchers of an object-or-player slot with it.
+     Counted on the tree, about 1,010 lines name the six id types and about
+     140 write a player-only pair (71 `NO_OBJECTS`, 63
+     `affecting_players`).
+   - Item 296: CR 113.6b/c's zone statements move out of `Condition`, so a
+     `Not(SourceInZone(..))` cannot state a zone silently.
+   - Row 46: the `PlayerRef` that names a player for an entering object,
+     merged keeping the refusal CR 616.1b needs.
+5. `batches-durations-and-control`.
+   - Item 17: "for as long as" ends with the object it names. The
+     replacement and restriction registries are swept, the watched object is
+     read by existence, and the control leg is built. **Check:** no such row
+     outlives that object.
+   - Item 26: batch phase 2 skips a member that is no longer legal (CR
+     608.2b). Its check: a member that passed performs without `Err`.
+   - Items 61 and 62: devour's sacrifices are one batch, counted by what was
+     performed (CR 701.21a), and chosen by the entering creature's controller
+     (CR 109.5). **Check:** one entry event's auxiliary moves write one
+     batch.
+   - Item 134: an entry choice's cost, and CR 614.12b's payability over a
+     batch.
+   - Item 20: CR 514.2's wipe asks the restriction registry.
+   - Item 148: a primitive that puts an exiled card into its owner's
+     graveyard.
+   - "Before Layers" 13: "an opponent gains control", chosen at resolution
+     above two players.
+   - Item 300: two control changes one resolution writes are announced one
+     each, in the narrow form.
+6. `resolution-recipients-and-amounts`.
+   - Items 90 and 106: a resolution-created row keeps its targets for its
+     rider, and `RetargetSpec::ToFixed` reads them.
+   - Item 94: prevention rows per player.
+   - Item 155: castability asks for an assignment of every "target" at
+     once.
+   - Item 268: "that player" names its participant.
+   - Item 272: `Effect::ForEach` over players.
+   - Item 281: `EffectRecipient::Group` takes a target, and each member
+     fizzles alone.
+   - Item 292: a one-player instruction whose player is gone does nothing.
+     Row 39's two more sites go with it.
+   - Items 299 and 269: "equal to its power" is read at resolution, and an
+     object's value becomes one `AmountExpr::ValueOf`.
+   - Item 307 (row 40): entering attacking is asked of the attacking
+     player.
+   - Row 38: one `subjects_from_context` for the recipients that do not
+     target.
+7. `layers-combat-and-counters`.
+   - "Before Layers" 16 and item 184: one effect group per atom, and CR
+     613.6's lock as the union within its layer.
+   - "Before card breadth" 1: a noncreature permanent has no P/T (CR
+     208.3).
+   - "Before card breadth" 3: named counters, and CR 122.1a's other +X/+Y
+     kinds.
+   - "Before card breadth" 5: Layer 7c's doubling (CR 701.10a).
+   - "Before card breadth" 6: multi-block damage (CR 510.1d). **Check:** a
+     blocker's damage goes only among the attackers it blocks.
+   - Item 86: infect, wither and toxic.
+   - Item 117: land drops reset as the turn begins (CR 305.2).
+   - Item 190: a CDA that defines one side of P/T.
+   - Items 205 and 206: "every creature type", and CR 205.1a's correlated
+     subtypes.
+   - Item 308 (row 47): a condition's "you" read through one channel list.
+   - The merge rows: 41 (Aura, Equipment, Fortification by effective
+     subtype), 44 (counters of a kind) and 50 (a condition's source,
+     tapped).
+8. `names-and-hygiene-sweeps`.
+   - The naming sweep: about 30 functions whose names are unclear where
+     they are called. 289 free functions are called from another file today,
+     against about 200 at #243's review, at a median of 2 call sites. The 30
+     are listed at the PR's first ticket.
+   - Item 285: the tuple returns, sorted by `engineering-practices.md` §2b's
+     rule 10.
+   - `AbilityDef.instances`: the list the builder fills, taken out of the
+     231 struct literals that write it, 205 of them empty.
+   - "Before Layers" 7d: `ContinuousEffectDraft`, over 44 literals.
+   - Item 215, MA-1's two cleanups:
+     - the checks as methods on one value holding the inventory;
+     - the memo audits taken over a clone, in debug builds.
+   - Item 239: the `.clone()` audit, 390 sites. The 43 in `engine/layers/`
+     are read first, then the 30 in `engine/replacement/`.
+   - Item 284: the check that a card-homed item is met when its card is
+     registered. It is Python and a CI step, outside the band.
+
+**Placed elsewhere, each with its reason.**
+- Items 138, 142 and 143: readiness, pass 4.
+- Rows kept by the work-list's reasons: 6, 16, 33, 37, 43 and 51, the last
+  because no PR here touches the trace readers.
+- Rows that joined an item with another home:
+  - row 14 and row 10's prediction, item 213 at `mana-ability-costs`;
+  - row 42's cast hand-over, item 265 at `permission-design`;
+  - rows 39 and 64, items 292 and 291 above.
+
+**Why this order.** Records first, for three reasons:
+- it holds the one wrong-today item the audit filed;
+- three of the six records with their checks land in it, so the fixture
+  pool lands with consumers;
+- item 306 decides the "entered this turn" store before item 279 adds its
+  first readers.
+
+Item 137 comes next: it is small, and every build after it writes one
+`None` instead of two. Then the reshapes come before the builds, so the
+builds read and write what stays:
+- the matcher merges, which 17's control leg, 268 and 272 read;
+- items 291 and 296, the types the builds write (decision 4).
+
+The sweeps come last. The names settle once every build has landed, and
+239's reading meets the hot paths as readiness will measure them.
+
+**Decisions at the plan's review.**
+1. **The order**: records first, as above, or the matcher merges first.
+   Recommended: records first.
+2. **Item 317**: it can ride `trigger-matcher-merges` as its last commit,
+   with a three-arm A/B (main, the merges, the merges with 317), or stay
+   its own PR as its slot says. Recommended: ride, one review fewer. The
+   slot predates the sizing, and the third arm keeps the merges' "no
+   behavior moved" readable.
+3. **Item 302**: its slot puts readiness's pricing of the zone leg first,
+   but readiness reads the tree the cleanup leaves. Recommended:
+   `trigger-matcher-merges` builds the one constructor with today's legs,
+   and readiness prices the zone leg's filter on it.
+4. **Item 291**: before the builds, so they write the types that stay and
+   the rename sweeps no new code, or after them, so one sweep covers the
+   builds' references too, about 50–100 lines more. Recommended: before.
 
 #### Work-list (discovery, 2026-10-22)
 
@@ -1670,7 +1930,7 @@ changed.
 | Discovery (session 1: Workflows A, B and C, pass 2's script) | #271 | the work-lists under passes 1, 2, 3 and 5 |
 | 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
 | 2. Eviction (1) | #273 | one PR: the whole sections and §4.9's `loop-detection` input moved, the 22 amendments collapsed into the text they overruled (−239 lines), 8 outside citations re-pointed; `triggers-architecture.md` 4,736 → 3,853, the archive 5,618 → 7,067 |
-| 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | #274 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup is next |
+| 3. Hygiene and CI (1–2), then A6e's cleanup (8) | #274, #283 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup, #283 (draft): the plan, 60 items and 40 merge rows in eight themed PRs, each item's **Slotted:** line naming its PR; `history-and-frame-records` is built on the same branch once the plan is reviewed |
 | The card-homed triage (1, then its builds in the cleanup) | #280 | one PR: the 51 items dispositioned in their `**Slotted:**` lines with verdicts re-dated, 31 builds for A6e's cleanup with their fixtures and six consistency checks, 14 to rows (`route-review`, `ironworks-loop`, `mana-ability-costs`, `chosen-color-plus-could-produce` and `any-color-plus-painlands-plus-signets`, `permission-design`, `remaining-costs`), 5 kept with their cards, item 109 closed, item 273 to `ironworks-loop`; the fixture pool priced for the owner |
 | 4. Readiness (2) | | |
 | 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to `route-review`. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md` §7. Done |
