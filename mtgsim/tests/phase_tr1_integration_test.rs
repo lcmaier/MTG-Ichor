@@ -2114,7 +2114,7 @@ fn an_unkicked_permanent_was_not_kicked() {
 /// CR 707.10 — "a copy of a spell isn't cast", and it copies "additional or
 /// alternative costs". So the permanent a kicked spell's copy becomes was
 /// not cast, spent no mana, and is kicked (Archangel of Wrath's ruling). No
-/// spell copy exists before CV-4, so the entry is staged the way CV-4's
+/// spell copy exists before `spell-copies`, so the entry is staged the way `spell-copies`'s
 /// copy will be: a spell with the original's decisions and no `cast_from`.
 #[test]
 fn a_spell_that_was_not_cast_keeps_its_kicker() {

@@ -12,10 +12,10 @@
 //! cards' rulings and its tests go in its own file. The retroactive half is
 //! not a phase. A sitting is chosen by ruling count, which is orthogonal to
 //! whatever the card files happen to be keyed on — the phase that first needed
-//! a card today, its first printing after `roadmap-v2.md` §C's C0 re-files them
+//! a card today, its first printing after `roadmap-v2.md` §C's `card-layer-cleanup` re-files them
 //! by set — so a sitting's cards are scattered across six of them either way,
 //! and filing its tests to match would scatter one sitting's diff to match.
-//! It appends here instead. C0 moves no test file; it costs each one a changed
+//! It appends here instead. `card-layer-cleanup` moves no test file; it costs each one a changed
 //! `use` line, this one included (`codebase-state.md` "Before card breadth"
 //! item 10, step 3).
 //!

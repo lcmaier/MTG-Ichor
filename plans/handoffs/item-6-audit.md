@@ -5,7 +5,7 @@ phase of critical-path item 6, triggered abilities, landed with it. This is
 the audit `engineering-practices.md` §9 runs at a spine item's close, the
 second after the post-RE audit (`git show 341ebf9:plans/handoffs/post-re-audit.md`).
 It covers `roadmap-v2.md` rows A6e (item 6's close audit) and A6h (the docs
-audit), which sit together on item 6's line before A6f. This file is the
+audit), which sit together on item 6's line before `information-model-design`. This file is the
 plan and the contract: the board lists it under half-finished work until
 the last pass lands, each pass's PR updates §9's status block, and **the PR
 that lands the last pass deletes it**.
@@ -74,8 +74,8 @@ pass re-reads what it touches: a number here is a starting point.
   #276 left among them; the contested rows, each dispositioned in #277's
   body; triggers §4.9–§6, §9 and §10 and mana §2, §3.3–§3.6 and §3.9–§9,
   read; pass 3's dedup claims, annotated where they stand; item 265 on
-  PM-0's row; and item 316, the cost gather's zone leg, filed and slotted
-  at B2. Found beside the rows: item 72 had moved to B13 while five
+  `permission-design`'s row; and item 316, the cost gather's zone leg, filed and slotted
+  at `game-formats`. Found beside the rows: item 72 had moved to `ironworks-loop` while five
   `backlog.md` lines and the mana and cost docs still placed it with item
   6. Left for PR 4: item 185 and the two trace pages.
 - Pass 5's fourth PR, item 185, ran in session 5 as #278 on
@@ -110,8 +110,18 @@ pass re-reads what it touches: a number here is a starting point.
   their `**Slotted:**` lines and a verdict re-dated 2026-10-23: 31 built
   before breadth in A6e's cleanup, 14 re-slotted to rows, 5 kept with their
   cards, and item 109 closed, found fixed. The triage section below has the
-  builds by theme and the pool question priced. **Pass 5c, the names for
-  the phases ahead, is next.**
+  builds by theme and the pool question priced.
+- Pass 5c, the names for the phases ahead, ran in session 5c as one PR,
+  #282, on `audit/item-6-phase-names` (§9). Done: every phase and route row
+  still to come is cited by its name, hyphenated in backticks
+  (`engineering-practices.md` §4.2), in the docs and in source, test and dev
+  GUI comments; the retired codes are `plans/archive/route-codes-renamed.md`;
+  the board reads the names, and every open item's home is the one it had
+  (149 route-homed, 5 card-homed, 12 records, 0 homeless). Decided at its
+  review (the owner): the hexproof phase split in two, `game-formats` widened
+  to the 60-card constructed formats, what is left of Phase 9 put to
+  `route-review`, and no check for a retired code. **A6e's cleanup, session
+  6, is next, written in the names.**
 
 ## 1. Why this audit is bigger than the last
 
@@ -161,8 +171,8 @@ subsystem doc states, and each landed in pieces:
 4. **LL (#191) and A6m (#249, #250), layers.** Hidden zones walked only when
    read; the `ObjectFilter` leaf tables merged; CR 611.2c's affected set.
 5. **MA-1 (#225) and MA-2 (#259), mana and cost.** The exact check, and an
-   {X} spell offered at its least legal X; `cost-architecture.md`'s CP-1 and
-   CP-2 assumptions predate both.
+   {X} spell offered at its least legal X; `cost-architecture.md`'s `hybrid-and-phyrexian-payment` and
+   `remaining-costs` assumptions predate both.
 
 And a sixth outside those docs: the state and clone storage (#188's event
 window, #190, #194, #267), against `CLAUDE.md`'s determinism and chokepoint
@@ -240,7 +250,7 @@ As §9 and the post-RE audit set it:
 - **A stale claim** is rewritten where it stands, never appended to.
 - **A rule** goes to `engineering-practices.md`.
 - **The run's record** is a `### Was critical-path item 6 done, and what
-  sits before A6f? — audited YYYY-MM-DD` heading in `codebase-state.md`,
+  sits before `information-model-design`? — audited YYYY-MM-DD` heading in `codebase-state.md`,
   pointers not prose, written when this file goes; and `engineering-practices.md`
   §9 gains the second instance's per-pass record and what the next run adds.
 
@@ -1285,7 +1295,7 @@ than writing today's value in.
 | mana §3.13 The why of the three mana prompts, `ManaAbilityWindow` bullet (694-695) | "**`ManaAbilityWindow`:** the refusals are the inventory's, one `CannotPay` per mana ability it did not make an entry of, saying why." | ui/why.rs:683-704 (`window_refusals`: `can_pay_costs(..).err()` on each mana ability the window's options leave out; never reads `ManaSupply`), :708-713 (`window_offers`) | **`ManaAbilityWindow`:** the refusals are the window's. For each of the source's mana abilities the window does not offer (its options come from `ManaAbilityWindowOffer`), the `CannotPay` its costs return when they cannot be paid, saying why. A permanent whose abilities can't be activated at all gets that one refusal instead (`ui/why.rs`' `window_refusals`). |
 | permission §2 What the engine has (93-94) | "`StackEntry.cast_from` records the zone a spell was cast from (CR 903.8's tax reads it)." | state/game_state.rs:114-118 (doc comment: CR 903.8 commander tax "neither implemented yet"), field at :124; the reader is engine/stack.rs:69 (`ResolvingObject.cast` -> `CastFacts`); 903.8 appears in src only in comments, now and at 0481f00 | `StackEntry.cast_from` records the zone a spell was cast from. The resolution carries it into a permanent's `CastFacts` (`engine/stack.rs`), and the trigger history's `RowFact::Cast` reads it (`engine/triggers/history.rs`). CR 903.8's tax, which B2 builds, will read it. |
 | permission §4 Seams, "Item 162" bullet (162-164) | "Item 211's mana abilities at a priority question (CR 605.3a) are item 162's offer, not this document's." | plans/codebase-state.md:8360-8372 (item 211 slotted to MA-6, shape C, decided by the owner 2026-10-05 at #224's review); still unbuilt: oracle/mana_helpers.rs:236-239 (`CannotActivate::ManaAbility`), :300 (`can_begin_to_activate`) | Item 211's mana abilities at a priority question (CR 605.3a) are MA-6's (`mana-architecture.md` §3.11's shape C: one "add mana" entry for a seat that asks), not this document's. |
-| permission §6 Sizing and the phase plan, "Slot" (230-233) | PM-0 beside RS-2, which is "beside A, after A6c's item 10" (`roadmap-v2.md` §3a); the first build lands before B2, "which comes first after triggers" (`roadmap-v2.md` B11). | plans/roadmap-v2.md:260 ("Nothing runs beside A any more."), :277-283 (route: A6s, RS-2, PM-0, PM-1, B2); CLAUDE.md "Critical path to v1" (A6s; RS-2; PM-0; PM-1; B2) | **Slot** (`roadmap-v2.md` §3a, "From triggers to Phase 8"; `CLAUDE.md` owns the order): after triggers, the route review A6s comes first. Then RS-2, with PM-0 designing its reasons beside it so each check's reasons are designed once (the owner, 2026-10-05), and a card's characteristic sets designed beside PM-0. Then PM-1, CR 903.8's command zone, which B2 needs, then B2. PM's later builds (flashback and the other cast-from-elsewhere families) have their own step, after B13 and before CV-5. |
+| permission §6 Sizing and the phase plan, "Slot" (230-233) | PM-0 beside RS-2, which is "beside A, after A6c's item 10" (`roadmap-v2.md` §3a); the first build lands before B2, "which comes first after triggers". | plans/roadmap-v2.md:260 ("Nothing runs beside A any more."), :277-283 (route: A6s, RS-2, PM-0, PM-1, B2); CLAUDE.md "Critical path to v1" (A6s; RS-2; PM-0; PM-1; B2) | **Slot** (`roadmap-v2.md` §3a, "From triggers to Phase 8"; `CLAUDE.md` owns the order): after triggers, the route review A6s comes first. Then RS-2, with PM-0 designing its reasons beside it so each check's reasons are designed once (the owner, 2026-10-05), and a card's characteristic sets designed beside PM-0. Then PM-1, CR 903.8's command zone, which B2 needs, then B2. PM's later builds (flashback and the other cast-from-elsewhere families) have their own step, after B13 and before CV-5. |
 | setup §2 What a scenario is, "Plain state is written" (177-179) | "`PlayerHistory` is materialized, and 'nothing derives these from the event stream' (`state/history.rs`), so writing a count is like writing a life total." | state/history.rs:3-8 (module doc: every count is a sum over the history log's rows), :24-30 (`PlayerHistory` holds `own_turn`, `previous_own_turn` and the draw-step draws, no counts); state/history_log.rs:95 (`RowFact::Stated`) | A player's history is such a count, a sum over the history log's rows (`state/history_log.rs`), which one writer, `engine::triggers::history`, writes as each event ends. A scenario writes each count as a `RowFact::Stated` row, that player's on the span's turn, so writing a count is like writing a life total. |
 | setup §3.1 What a scenario's permanent gets, "One road" (250-253) | "`place_on_battlefield`, the `EnterBattlefield` performer, splits at the seam between state and event"; its state half (entity, counters' 613.7c timestamps, memo bump, `register_static_effects`) is the door both use; the performer is that half plus the announcement. | state/game_state.rs:1563 (`GameState::perform_entry`, calls `make_permanent` at :1570), :1666 (`make_permanent`); test_support.rs:927 (`place_on_battlefield`, a test helper calling `game.perform_entry(.., EventCause::Harness)` at :933) | `GameState::perform_entry`, the `EnterBattlefield` performer, splits at the seam between state and event. Its state half, `make_permanent` (the entity, the counters' CR 613.7c timestamps, the memo bump, `register_static_effects`), is the door both use. The construction door, `GameState::create_on_battlefield` (`engine/zones.rs`), is that half alone. The performer is that half, then what only play writes (the announced controller, CR 508.4's entering attacking), then the announcement. `test_support::place_on_battlefield` is a test helper over `perform_entry`. (Also stale, same name, at line 2688 in SU-1's "What shipped".) |
 | setup §3.1 "Every other write goes through the door play uses" (273-274) | "The turn goes through `set_turn_position`, `begin_turn` and `begin_turn_history`, the one writers." | state/game_state.rs:1116 (`GameState::begin_turn`, which calls `self.history.turn_began()` and `PlayerHistory::record_own_turn`); no `begin_turn_history` anywhere | The turn goes through `set_turn_position` and `begin_turn`, the one writers; `begin_turn` also begins the turn's history (`GameHistory::turn_began`, `PlayerHistory::record_own_turn`). |
@@ -1449,13 +1459,156 @@ the band. **Order:** after pass 5's PRs and the card-homed triage, which
 edit the same lines; before A6e's cleanup, so the cleanup's PRs and pass 6's
 scheduling table are written in the new names.
 
+#### The design (2026-10-23, reviewed at #282)
+
+**Re-counted on `305e6195`** (#280's merge), the same way: the 27 codes are
+1,228 mentions in the live docs and 43 in source, test and dev GUI comments,
+over 61 files, on 874 distinct lines. `RS-2` alone is 149. The plan's figures
+predate pass 5 and the triage, whose `**Slotted:**` lines were written in
+these codes. The board reads 149 route-homed, 5 card-homed, 12 records, 0
+homeless and **5** reachable — wrong today at that commit (the brief said 4;
+the board is current at `305e6195`, so the check is "unchanged from 5").
+
+**The problem the scheme solves.** `engineering-practices.md` §4.2 (#225's
+review) already puts a phase's plain name first in a title and its code
+after. The docs kept citing the code anyway, 1,228 times, because a name of
+six words does not fit where a reference goes: a table cell, a `**Slotted:**`
+line, the critical path, a source comment's "until RS-3". The board's
+machinery also needs one exact token per phase: `ROUTE_TOKEN_RE` finds a
+`**Slotted:**` line's homes by shape, and `--slotted` greps for one. So the
+reference form has to stay short and exact; what changes is that it is made
+of words.
+
+**The scheme.**
+- **A phase still to come, and a route row still to come, is cited by its
+  name: two to four lowercase words saying what it delivers, hyphenated, in
+  backticks** — `combat-restrictions`, `game-formats`. Wherever the old
+  code stood: prose, tables, `**Slotted:**` lines, source comments, the
+  critical path. A title or a ✅ heading writes the same words with spaces
+  and a capital, then a dash and what a reader needs beside them ("Combat
+  restrictions — menace, evasion, landwalk"); a heading the board reads keeps
+  the backticked form first (below). A branch is `<subsystem>/<name>`
+  (`cant-effects/combat-restrictions`), the subsystem being the owning
+  architecture doc's, or `route/` for a roadmap row.
+- **Names use the CR's words where the CR has them** (CR 508.1c's
+  "restrictions", 508.1d's "requirements") and a mechanic's keyword where one
+  names the work (`convoke-delve-improvise`); no CR numbers, no abbreviations
+  beyond `CLAUDE.md`'s three, and unique across the route.
+- **No new codes.** A phase written from here on is named, never coded; the
+  families (`RS`, `CV`, `CP`, `MA`, `PM`, `TR` …) close, and their letters
+  stay only on landed phases. A track is cited by its subsystem in prose
+  ("the mana phases", "permission's later builds"), never by its letters.
+- **A split names each part for what it delivers**: `combat-restrictions`
+  and `combat-requirements`, not a part 1 and a part 2, and no suffix. The
+  whole's name goes to the record below, or stays as prose for the pair.
+- **Landed codes are untouched** — commit messages, PR titles, the board's
+  landed table and `plans/archive/` read in them, and nobody rewrites those.
+  A phase that lands under a name keeps the name; its ✅ heading carries it.
+
+This replaces §4.2's second and third bullets in the sweep; the first (name
+first) and fourth (the generated index) stand.
+
+**The scope's edges** — the codes the plan did not list, each in or out:
+
+| Code | Mentions | | Why |
+|---|---:|---|---|
+| `B1` cost, `B5` (RS-3a, RS-4, RS-3b), `B6` (CV-3 … CV-7), `B11` permission, `B12` mana | 40, 11, 17, 51, 4 | in, as prose | Rows that group a track. Their phases get names, so a row ID left beside them is the one code a reader still decodes. Cited by subsystem, no hyphenated name; `B11`'s three `**Slotted:**` lines name `permission-design`, which sizes the builds |
+| `RS-3`, the combat pair | 18 + 13 in source | in | The family of two named phases; each mention names the one it means, or both |
+| `PM`, `RS`, `CV`, `CP` as a track's letters | 54 | in where forward | "PM's later builds" is a forward step on the critical path; a mention of a landed track stays |
+| `B7`, the lattice | 18 | in | Forward, and seven `**Slotted:**` lines home on it, so it needs a name the board reads |
+| `A6f`, the information-model design | 24 | in | Forward, on item 6's line, not in flight; pairs with `B4`'s build |
+| `A4d`, the Rust notes | 9 | in | Forward, and missing from the plan's list |
+| `C0`–`C2`, Phase 8's named PRs | 48, 15, 10 | in | Forward route rows cited by code, four `**Slotted:**` lines on `C0` |
+| `A6e`, `A6h` | 118, 28 | out | The audit in flight; they land as codes |
+| Phase 8, 9, 10; `§D`, `§E` | — | out | Already named ("Phase 9 formats and multiplayer"); numbered like the items |
+
+With the edges the sweep is about 1,500 mentions on 1,075 lines over 69
+files.
+
+**The names**, old code to new, are `plans/archive/route-codes-renamed.md`:
+a record, since every live mention moves and only a reader of an old commit
+message, PR title or archive page still meets the codes. `git grep RS-2`
+finds it. §4.2 and the board's "Phases by name" point to it. **No glossary
+entries**: `check_glossary.py`'s first assertion wants every term in
+`mtgsim/src`, and a phase name is the route's word, not the code's.
+
+**The gates that move**, all in `check_state_of_play.py` but the last two:
+- `ROUTE_TOKEN_RE` gains a backticked hyphenated name. One the route does not
+  define reads as unknown, so a mistyped name alone leaves an item homeless
+  and fails `--check`; a file name like `` `cant-effects-architecture.md` `` is
+  not one, the dot ending the match.
+- `route_ids` collects the names from the three places that define them:
+  the architecture docs' sizing tables and headings, `roadmap-v2.md`'s rows
+  (a forward row's first cell becomes its name, landed rows keep their IDs),
+  and ✅ headings.
+- `DEFINED_RE`, `LANDED_HEADING_RE` with `CODE_RE`, and the ✅-heading reader
+  beside them accept a backticked name where a code stands
+  (`` | **`token-copies` — a second constructor …** | ``,
+  `` ### `token-copies` — token copies — ✅ 2026-… ``). `PM-1 onward`, which
+  the board missed, became `command-zone-casting`'s row and
+  `casting-from-other-zones`'.
+- `--slotted` takes a name (`--slotted combat-restrictions`); the board's
+  example and the index's "Code" column, read "for older text", gain a
+  "Cited as" column for the phases not yet landed.
+- `selftest` gains a name-homed line, a backticked non-name and a landed
+  name.
+- `plans/references/comment-census.py`'s `PHASE_CODE` gains the backticked
+  names, so §2.1's census counts "until `combat-restrictions`" as it counted
+  "until RS-3".
+- `plans/references/cast-census.py`'s owner keys (`"RS-2"`, `"B2"`, `"PM"`)
+  are renamed and its page edited to match; it fetches from Scryfall, so the
+  page is not regenerated.
+
+**The check that the homes held** is per item, not by total: the board's
+`home()` for every open item before and after, by a probe, identical. A
+mistyped name reads as no token, so a total could hide two items swapping.
+
+**`CLAUDE.md`'s critical path** reads in the names inside 200 lines: the
+"After 6" block went from four lines to six.
+
+**Sized:** the sweep's ~1,075 lines, about as many additions, plus the
+gates (~150 with the selftest), §4.2 (~20) and this design and the record
+(~200): about 1,450 additions, inside the band, so one PR. Source comments
+are 53 of those lines, the only ones §4's code-and-tests count sees. **Lines
+are not re-wrapped**: a name runs longer than its code, so some lines pass
+the docs' width, and a re-wrap would re-flow whole paragraphs and bury the
+substitutions in the diff.
+
+**Decided at #282's review (the owner, 2026-10-23):**
+1. **The cited form**: the hyphenated name in backticks.
+2. **The edges**: all in but `A6e`, `A6h` and the numbered phases.
+3. **The names**, with five changes and two consequences for the route:
+   - `cant-target-or-cast` **split** into `cant-be-targeted` and
+     `cant-cast-play-or-activate`. The owner asked whether the two belonged
+     in one phase; they share the read side's query and nothing else, not a
+     site, a consumer or a design partner, since the casting half's checks are
+     where `permission-design`'s permissions land. `cant-effects-architecture.md`
+     §7's row became two.
+   - `commander-format` **widened** to `game-formats`: Commander and the five
+     60-card constructed formats as data, a card's legality read from a table
+     refreshed off Scryfall. It pulls Phase 9's format half ahead of Phase 8;
+     match structure stays out, being the tournament rules'.
+   - **What is left of Phase 9** once `game-formats` and `multiplayer-rules`
+     come forward is `route-review`'s to decide (its row says so).
+   - `remaining-costs` for `discard-and-counter-costs` ("counter" is both a
+     noun and a verb in the CR); `any-color-plus-painlands-plus-signets` for
+     `any-color-and-riders` ("rider" is the replacement pipeline's word
+     already); `chosen-color-plus-could-produce`; `breadth-features` and
+     `card-layer-cleanup` for the two ⚠ names.
+   - Two route steps that had no name got one: `casting-from-other-zones`
+     (permission's later builds) and `split-and-adventure-style-cards` (the
+     other characteristic sets), each a row in its doc.
+4. **The retired-code check: not built.** The owner plans to pare `plans/`
+   down after v1, and the harm a stray code can do is a `**Slotted:**` line
+   that loses its home, which `--check` already fails as homeless.
+
 ### Pass 6 — scheduling
 
 **Goal:** one table, §9's shape: each open track phase and lattice entry,
 what it unlocks in cards (the ledger and the docs' consumer lists, no
 Scryfall count re-derived) and in atoms (`spec.sqlite` by rule prefix, the
-prefixes named), what it needs, and which of A6f's and A6s's questions needs
-it first; then a proposed order for what follows. §3b re-derived; A4d's
+prefixes named), what it needs, and which of `information-model-design`'s and `route-review`'s questions needs
+it first; then a proposed order for what follows. §3b re-derived; `rust-notes`'s
 open artifact, the Rust notes, placed. The pass proposes; the owner
 decides. One PR, which writes §3's two records and deletes this file.
 
@@ -1467,7 +1620,7 @@ decides. One PR, which writes §3's two records and deletes this file.
 | 138, 142, 143 | the throughput target, the panic-surface baseline, the clone table | 4 |
 | 137, 7d, 215 (its two cleanups), 239, 247, 269, 284, 285, 291, 292, 296, 297, 300 | the cleanup; 297 is pass 3's row 57 and 300 the owner's at #272's review, both filed by pass 1 | 3 |
 
-A6h's are 185 and 188 (pass 5). A6s's, 264 and 288, stay with A6s.
+A6h's are 185 and 188 (pass 5). `route-review`'s, 264 and 288, stay with `route-review`.
 
 ## 6. Decisions for the owner
 
@@ -1516,10 +1669,10 @@ changed.
 | Plan | #270 | merged 2026-10-22 |
 | Discovery (session 1: Workflows A, B and C, pass 2's script) | #271 | the work-lists under passes 1, 2, 3 and 5 |
 | 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
-| 2. Eviction (1) | #273 | one PR: the whole sections and §4.9's B14 input moved, the 22 amendments collapsed into the text they overruled (−239 lines), 8 outside citations re-pointed; `triggers-architecture.md` 4,736 → 3,853, the archive 5,618 → 7,067 |
+| 2. Eviction (1) | #273 | one PR: the whole sections and §4.9's `loop-detection` input moved, the 22 amendments collapsed into the text they overruled (−239 lines), 8 outside citations re-pointed; `triggers-architecture.md` 4,736 → 3,853, the archive 5,618 → 7,067 |
 | 3. Hygiene and CI (1–2), then A6e's cleanup (3–6) | #274 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup is next |
-| The card-homed triage (1, then its builds in the cleanup) | #280 | one PR: the 51 items dispositioned in their `**Slotted:**` lines with verdicts re-dated, 31 builds for A6e's cleanup with their fixtures and six consistency checks, 14 to rows (A6s, B13, MA-7, MA-4 and MA-3, PM-0, CP-2), 5 kept with their cards, item 109 closed, item 273 to B13; the fixture pool priced for the owner |
+| The card-homed triage (1, then its builds in the cleanup) | #280 | one PR: the 51 items dispositioned in their `**Slotted:**` lines with verdicts re-dated, 31 builds for A6e's cleanup with their fixtures and six consistency checks, 14 to rows (`route-review`, `ironworks-loop`, `mana-ability-costs`, `chosen-color-plus-could-produce` and `any-color-plus-painlands-plus-signets`, `permission-design`, `remaining-costs`), 5 kept with their cards, item 109 closed, item 273 to `ironworks-loop`; the fixture pool priced for the owner |
 | 4. Readiness (2) | | |
-| 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to A6s. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md` §7. Done |
-| 5c. Names for the phases ahead (1) | | added at #274's merge |
+| 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to `route-review`. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md` §7. Done |
+| 5c. Names for the phases ahead (1) | #282 | added at #274's merge; one PR: the design reviewed, then the sweep — the scheme in `engineering-practices.md` §4.2, the record of the codes, the board reading names with every item's home unchanged, the hexproof phase split, `game-formats` widened, Phase 9's remainder put to `route-review` |
 | 6. Scheduling (1) | | |

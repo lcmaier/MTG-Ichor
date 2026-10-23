@@ -23,27 +23,29 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 1–4, 6b, 7, 7a — the layer system, in place. → `layers-architecture.md` §13a, §13b
 5. Replacement effects (CR 614–616), RA–RE. **RD then RE**, before 6 and commuting with 6b–7:
    triggers read the performed stream, which must be post-replacement truth first
-5b. "Can't" effects (CR 101.2/614.17/613.11), RS-1–RS-4, beside the spine; RS-2 any time, RS-3b needs 7
-5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine; CV-2, then CV-1b with item 10
-   (CR 400.7), both before TR-3, whose returns make new objects; CV-7 (merging) back-stopped before Phase 8
+5b. "Can't" effects (CR 101.2/614.17/613.11), RS-0 and RS-1, then the phases its doc names, beside the spine; `cant-be-targeted` any time, `combat-requirements` needs 7
+5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1 to CV-2b, then the phases its doc names, beside the spine; CV-2, then CV-1b with item 10
+   (CR 400.7), both before TR-3, whose returns make new objects; `merging-and-meld` back-stopped before Phase 8
 6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
    zone-reaching `ObjectSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
-   TR-1–TR-7 in `triggers-architecture.md` §12, MA-2 between TR-5b and TR-5c, B10's design and its build CL-1 after TR-5g, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
-   (`codebase-state.md` items 42 and 179) before TR-2b; then the information-model design, reviewed before any build
+   TR-1–TR-7 in `triggers-architecture.md` §12, MA-2 between TR-5b and TR-5c, B10's design and its build CL-1 after TR-5g, the route in `roadmap-v2.md` §3a's A rows; the bounded-state PR
+   (`codebase-state.md` items 42 and 179) before TR-2b; then `information-model-design`, reviewed before any build
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
-the route review, A6s; four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
-information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-7, MA-3–MA-6; B9; B13, the Ironworks loop; PM's
-later builds; CV-5 with the other characteristic sets; CV-3, CV-4; CV-6; CV-7; A4l; B14, loop detection. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
+`route-review`; four-player Commander end to end — `cant-be-targeted`; `cant-cast-play-or-activate`; `permission-design` with a card's characteristic sets designed beside it;
+`command-zone-casting`; `game-formats`; `multiplayer-rules`; `information-model` — then what Phase 8 is gated on: `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half;
+`hybrid-and-phyrexian-payment`, `remaining-costs`; `mana-ability-costs`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `mana-payment-solver`; `mana-provenance`; `ironworks-loop`;
+`casting-from-other-zones`; `double-faced-cards`, then `split-and-adventure-style-cards`; `token-copies`, `spell-copies`; `face-down-and-morph`; `merging-and-meld`; `divided-among-targets`; `loop-detection`.
+Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
 
 ## Phases by name
 
 Every phase the architecture docs (`plans/*-architecture.md`, globbed) name,
-by its plain name, its code beside it for reading older text. A phase's name
-comes first in chat and titles, and a roadmap row's ID orders work but never
-names it (`engineering-practices.md` §4.2).
+by its plain name, with what text cites it by: a landed phase's code, or a
+phase still to come's name, hyphenated (`engineering-practices.md` §4.2).
+The codes those names replaced are in `plans/archive/route-codes-renamed.md`.
 
 ### Landed
 
@@ -52,7 +54,7 @@ order they landed. **This is where landed status lives** — `CLAUDE.md` owns
 the ordering and says nothing about progress, so there is one answer and it
 is derived.
 
-| Landed | Phase | Code | Doc |
+| Landed | Phase | Cited as | Doc |
 |---|---|---|---|
 | 2026-08-25 | The action context, threaded through the engine | `RA-1` | `replacement-architecture.md` |
 | 2026-08-25 | Routing the silent sites | `RA-2` | `replacement-architecture.md` |
@@ -141,28 +143,32 @@ is derived.
 
 ### Named, not yet landed
 
-A numbered phase a doc defines in a heading or a sizing table's first cell,
-and no ✅ heading records, in the docs' order.
+A phase a doc defines by code or name in a heading or a sizing table's first
+cell, and no ✅ heading records, in the docs' order.
 
-| Phase | Code | Doc |
+| Phase | Cited as | Doc |
 |---|---|---|
-| The read-side choice points | `RS-2` | `cant-effects-architecture.md` |
-| Combat, the predicate half | `RS-3a` | `cant-effects-architecture.md` |
-| Combat, the solver half | `RS-3b` | `cant-effects-architecture.md` |
-| Costs that can't be paid | `RS-4` | `cant-effects-architecture.md` |
-| Token copies | `CV-3` | `copy-effects-architecture.md` |
-| Spell copies | `CV-4` | `copy-effects-architecture.md` |
-| Double-faced cards | `CV-5` | `copy-effects-architecture.md` |
-| Face-down permanents and morph | `CV-6` | `copy-effects-architecture.md` |
-| Merging + meld | `CV-7` | `copy-effects-architecture.md` |
-| Hybrid, Phyrexian and X payment | `CP-1` | `cost-architecture.md` |
-| The cost actions | `CP-2` | `cost-architecture.md` |
-| The check widened | `MA-7` | `mana-architecture.md` |
-| Any color, riders, the nested window | `MA-3` | `mana-architecture.md` |
-| The chosen color and "could produce" | `MA-4` | `mana-architecture.md` |
-| Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
-| A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
-| Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
+| Targeting, the read side | `cant-be-targeted` | `cant-effects-architecture.md` |
+| Casting, playing and activating, the read side | `cant-cast-play-or-activate` | `cant-effects-architecture.md` |
+| Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
+| Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
+| Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
+| Token copies | `token-copies` | `copy-effects-architecture.md` |
+| Spell copies | `spell-copies` | `copy-effects-architecture.md` |
+| Double-faced cards | `double-faced-cards` | `copy-effects-architecture.md` |
+| Face-down permanents and morph | `face-down-and-morph` | `copy-effects-architecture.md` |
+| Split, flip, Adventure, Prototype and Omen cards | `split-and-adventure-style-cards` | `copy-effects-architecture.md` |
+| Merging + meld | `merging-and-meld` | `copy-effects-architecture.md` |
+| Hybrid, Phyrexian and X payment | `hybrid-and-phyrexian-payment` | `cost-architecture.md` |
+| Discard, counters and exile from a graveyard as costs | `remaining-costs` | `cost-architecture.md` |
+| Every cost a mana ability can have, in the check | `mana-ability-costs` | `mana-architecture.md` |
+| A color chosen at resolution, a mana ability that does more, a mana ability with a mana cost | `any-color-plus-painlands-plus-signets` | `mana-architecture.md` |
+| The chosen color and "could produce" | `chosen-color-plus-could-produce` | `mana-architecture.md` |
+| Paying with permanents or cards | `convoke-delve-improvise` | `mana-architecture.md` |
+| A person's seat: the solver and item 211 | `mana-payment-solver` | `mana-architecture.md` |
+| Who may cast, play or activate: the design | `permission-design` | `permission-architecture.md` |
+| Casting from the command zone | `command-zone-casting` | `permission-architecture.md` |
+| Flashback and the other casts from elsewhere | `casting-from-other-zones` | `permission-architecture.md` |
 
 ## Counts
 
@@ -219,11 +225,11 @@ Where each open item is homed, read off its `**Slotted:**` line:
 | **A number used twice in one run** | **0** |
 
 **Both bolded rows fail the check.** A home is a `**Slotted:**` line naming a
-phase code or `roadmap-v2.md` §3a row still to come (Phases 9 and 10 by name,
+phase or `roadmap-v2.md` §3a row still to come (Phases 9 and 10 by number,
 having no rows yet), "with the first registered card that" and the card or
 class, or "none — a record". A line naming only phases that have landed is
 no home: they went without it. A phase reads its intake list at its first
-ticket: `python plans/check_state_of_play.py --slotted TR-3c`.
+ticket: `python plans/check_state_of_play.py --slotted cant-be-targeted`.
 
 ### This is not `specdb owed`, and the two overlap nowhere
 

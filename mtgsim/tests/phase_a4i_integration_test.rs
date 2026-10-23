@@ -432,7 +432,7 @@ fn jagged_lightning_needs_two_creatures_to_be_castable() {
 ///
 /// COVERS-PARTIAL because the atom makes creature A illegal by giving it
 /// protection from red, and protection is not checked at targeting yet —
-/// `cant-effects-architecture.md`'s RS-2. A creature that has left the
+/// `cant-effects-architecture.md`'s `cant-be-targeted`. A creature that has left the
 /// battlefield is the other way to be an illegal target and proves the same
 /// mechanism; the protection board belongs to the phase that can build it.
 #[test]

@@ -70,6 +70,7 @@ TIGHT = re.compile(
 PHASE_CODE = (
     r"\b(?:[A-Z]{2}-\d+[a-z]?|A\d+[a-z]+|Phase [0-9A-Z]+[a-z]?|R[A-H]|L[A-Z]-?\d*|"
     r"[LTD]\d+[a-z]?|CL)\b"
+    r"|`[a-z0-9]+(?:-[a-z0-9]+)+`"  # a phase still to come, by name (engineering-practices.md §4.2)
 )
 DATE = r"\b20\d\d-\d\d(?:-\d\d)?\b"
 PR_NUMBER = r"(?:\bPR\s*#?\d+|#\d{2,})\b"

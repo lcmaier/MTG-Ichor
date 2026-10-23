@@ -1923,7 +1923,7 @@ pub fn divine_visitation() -> Arc<CardData> {
 ///   B]`. → `bard_doubles_each_kind_of_a_mixed_creation`
 /// - *"Copies of permanent spells that resolve become tokens … not created and
 ///   will not be doubled."* → CR 111.13; `GameEvent::TokenCreated`'s doc is
-///   where the engine draws that line, and CV-4 is where the spell copy
+///   where the engine draws that line, and `spell-copies` is where the spell copy
 ///   exists.
 /// - *"All of the tokens enter the battlefield simultaneously … same name,
 ///   color, type …"* → RE-4's batch; `the_extra_tokens_are_the_same_tokens`.

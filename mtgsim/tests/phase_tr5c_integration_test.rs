@@ -654,7 +654,7 @@ fn place_triggers(game: &mut GameState, dp: &ScriptedDecisionProvider) {
 }
 
 /// **Fixture.** Frost Titan's first ability without its payment, which is
-/// CP-1's: "Whenever this creature becomes the target of a spell or ability
+/// `hybrid-and-phyrexian-payment`'s: "Whenever this creature becomes the target of a spell or ability
 /// an opponent controls, counter that spell or ability."
 fn frost_titan_fixture() -> Arc<CardData> {
     let counter = Effect::Atom(Primitive::Counter, EffectRecipient::Triggering(EventRole::SpellOrAbility));

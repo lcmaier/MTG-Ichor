@@ -1466,7 +1466,7 @@ pub enum CopyDonor {
 ///
 /// **A new member is a field here, not an arm anywhere** — the growth
 /// contract: [`Rewrite`] and [`EventPattern`] do not grow, and no reader
-/// outside the performer learns a new shape. Face down is the next one (CV-6).
+/// outside the performer learns a new shape. Face down is the next one (`face-down-and-morph`).
 /// CR 110.5 names it a status, so it joins the first half, and the layer 1b
 /// characteristics it gives are read off the permanent as its counters are at
 /// layer 7c.
@@ -1859,7 +1859,7 @@ pub enum TemplateAmount {
 ///
 /// All five arms exist because the *ordering* is the ladder. `SelfReplacement`
 /// has no producer yet (`replacement-architecture.md` §11 item 3,
-/// fixture-first) and `BackFaceUp` waits on CV-5.
+/// fixture-first) and `BackFaceUp` waits on `double-faced-cards`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReplacementClass {
     /// CR 616.1a / 614.15.

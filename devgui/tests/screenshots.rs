@@ -3,7 +3,10 @@
 //! its prompts, so no seed is hunted for them. `UPDATE_SNAPSHOTS=true cargo
 //! test --test screenshots` redraws them. A plain run compares against the
 //! committed PNGs, which holds on the machine that drew them: another GPU
-//! draws a few pixels differently.
+//! draws a few pixels differently. `SKIP_SNAPSHOTS=true` plays every board
+//! and runs the window to each picture's frame without drawing it, which is
+//! how CI runs this: its runner has no GPU, and egui_kittest asks for one
+//! only to draw.
 
 #[path = "support/games.rs"]
 mod games;
@@ -439,6 +442,14 @@ fn refused() -> WindowState {
     state
 }
 
+/// The picture `harness` shows, unless `SKIP_SNAPSHOTS` is set.
+fn snapshot(harness: &mut Harness<'_>, name: &str) -> SnapshotResult {
+    if std::env::var_os("SKIP_SNAPSHOTS").is_some() {
+        return Ok(());
+    }
+    harness.try_snapshot(name)
+}
+
 fn picture(state: &WindowState, line: &(String, PathBuf), saved: Option<Result<&str, &str>>, name: &str) -> SnapshotResult {
     let mut harness = game_window(state, line, saved);
     if state.replaying.is_some() {
@@ -447,7 +458,7 @@ fn picture(state: &WindowState, line: &(String, PathBuf), saved: Option<Result<&
     } else {
         harness.run();
     }
-    harness.try_snapshot(name)
+    snapshot(&mut harness, name)
 }
 
 /// The game's window with the button or header called `label` clicked
@@ -457,7 +468,7 @@ fn clicked_picture(state: &WindowState, line: &(String, PathBuf), label: &str, n
     harness.run();
     harness.get_by_label(label).click();
     harness.run();
-    harness.try_snapshot(name)
+    snapshot(&mut harness, name)
 }
 
 /// The game's window with the pointer resting on the one thing whose label
@@ -467,7 +478,7 @@ fn hovered_picture(state: &WindowState, line: &(String, PathBuf), label: &str, n
     harness.run();
     harness.get_by_label_contains(label).hover();
     harness.run();
-    harness.try_snapshot(name)
+    snapshot(&mut harness, name)
 }
 
 fn game_window<'a>(state: &'a WindowState, (line, log): &'a (String, PathBuf), saved: Option<Result<&'a str, &'a str>>) -> Harness<'a> {
@@ -505,5 +516,5 @@ fn editor_picture(sample: &str, clicks: &[&str], inputs: &[EditorInput], height:
         draw(ui, &WindowState::default(), &header, Some(&view));
     });
     harness.run();
-    harness.try_snapshot(name)
+    snapshot(&mut harness, name)
 }

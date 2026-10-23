@@ -154,9 +154,10 @@ From `devgui/`, where `cargo run` runs the window:
   whole line.
 - `tests/screenshots.rs`: the window drawn offscreen at the review boards,
   as the pictures in `tests/snapshots/`. A PR shows each picture it changed,
-  old beside new. CI draws them and compares none, since its renderer is not
-  the owner's machine, so a board that stops reaching its picture's question
-  fails there (`codebase-state.md` item 216).
+  old beside new. CI plays each board and runs the window to each picture's
+  frame without drawing it (`SKIP_SNAPSHOTS`), since its renderer is not the
+  owner's machine and its runner has no GPU, so a board that stops reaching
+  its picture's question fails there (`codebase-state.md` item 216).
 - `examples/prompt_cost.rs`: what one question costs the window (§10.4), and
   in a debug build what the layer memo's audit costs it. A PR that touches
   the snapshot or the view model quotes it before and after.

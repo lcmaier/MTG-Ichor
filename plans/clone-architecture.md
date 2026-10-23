@@ -606,7 +606,7 @@ the second by review and §11's "what the gate does not see".
 
 **The problem.** The builds are a Phase 8 gate (the owner, 2026-09-26: the
 floors hold a deep stack before Phase 8 prints the cards that make one).
-`CLAUDE.md` places "B10's builds" after CV-7, near the end of the list Phase 8
+`CLAUDE.md` places "B10's builds" after `merging-and-meld`, near the end of the list Phase 8
 is gated on. Three things bear on the slot:
 - the mid-turn breach is on the pooled board today, and CI cannot see it until
   decision 6 lands;
@@ -618,7 +618,7 @@ is gated on. Three things bear on the slot:
 |---|---|---|
 | **(a) Next, before TR-6** | CI reads every decision from then on; TR-6 and TR-7 are built on the shared stores; the census in §1.2 is today's | the triggers track waits one PR |
 | (b) After TR-7, before A6e | the triggers track closes unbroken; A6e's readiness pass reads the new instrument | two phases that write the queue and the stack land without a mid-turn reading |
-| (c) Where it is, after CV-7 | nothing clones in play until Phase 10's harness | about 30 steps of the route without a mid-turn reading, each adding writers |
+| (c) Where it is, after `merging-and-meld` | nothing clones in play until Phase 10's harness | about 30 steps of the route without a mid-turn reading, each adding writers |
 
 **Taken: (a), CL-1 next** (the owner, 2026-10-21, at #266's review: one PR).
 `CLAUDE.md`'s critical path puts the build beside the design, and
@@ -638,8 +638,8 @@ is gated on. Three things bear on the slot:
 
 - **The players' zones and the source sets** (decision 2): bounded by the
   seats and the board's sources, not by depth or history.
-- **A6f's per-viewer knowledge record.** It is forked state that floor 3
-  bounds, and its design is A6f's. It should be built on CL-1's table, and A6f
+- **`information-model-design`'s per-viewer knowledge record.** It is forked state that floor 3
+  bounds, and its design is `information-model-design`'s. It should be built on CL-1's table, and `information-model-design`
   reads this file.
 - **Sharing across games.** Two games built from one registry share each
   card's `Arc<CardData>` already. Nothing here shares state between games.

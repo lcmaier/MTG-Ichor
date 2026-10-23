@@ -88,11 +88,11 @@ pub enum Layer {
 }
 ```
 
-**As built, Layer 1 is one slot.** The enum above is the target. The engine's `Layer` has a single `Layer1Copy` for both sublayers, in CR 613.2's order (1a copy, then 1b face-down), and only 1a has producers. CV-6 splits the slot when face-down arrives (`copy-effects-architecture.md` §4.6), and `layers::copy::END_OF_LAYER_1` is what the split has to move.
+**As built, Layer 1 is one slot.** The enum above is the target. The engine's `Layer` has a single `Layer1Copy` for both sublayers, in CR 613.2's order (1a copy, then 1b face-down), and only 1a has producers. `face-down-and-morph` splits the slot when face-down arrives (`copy-effects-architecture.md` §4.6), and `layers::copy::END_OF_LAYER_1` is what the split has to move.
 
 **Decision — counter effects are derived, not stored.** Counters remain written to `PermanentState.counters`. When `compute_characteristics` walks layer 7c, it synthesizes virtual `ContinuousEffect`s from the counter map. This avoids double-booking state between the counter map and the effect registry.
 
-**Decision — face-down is also derived.** `PermanentState.face_down: bool` already exists. When set, `compute_characteristics` will synthesize CR 708.2a's characteristics in Layer 1b at compute time (set colorless, lose all abilities, become a 2/2 creature with no name). No registry row is needed: turning something face-down is an action that flips the flag, not an effect. **Not built:** no layer reads the flag yet. CV-6 makes 1b derive from it (`copy-effects-architecture.md` §4.6).
+**Decision — face-down is also derived.** `PermanentState.face_down: bool` already exists. When set, `compute_characteristics` will synthesize CR 708.2a's characteristics in Layer 1b at compute time (set colorless, lose all abilities, become a 2/2 creature with no name). No registry row is needed: turning something face-down is an action that flips the flag, not an effect. **Not built:** no layer reads the flag yet. `face-down-and-morph` makes 1b derive from it (`copy-effects-architecture.md` §4.6).
 
 ### 3.2 `EffectiveCharacteristics`
 
@@ -299,7 +299,7 @@ pub enum EffectModification {
     /// `GrantAbility` is: stored inline it would enlarge every row the walk
     /// iterates, and the registry is cloned with every fork.
     CopyFrom(Arc<CopiableValues>),
-    // NOT BUILT: a face-down arm. CV-6 derives Layer 1b from
+    // NOT BUILT: a face-down arm. `face-down-and-morph` derives Layer 1b from
     // `PermanentState.face_down`, with no row (§3.1).
 
     // --- Layer 2 ---
@@ -729,17 +729,17 @@ produces `EffectModification`s, so that is a wrapper type rather than a redesign
 **Corrected 2026-09-02 (CV-1); this section had the two backwards.** `tmnt.txt`:
 
 - **1a — copiable effects (CR 613.2a).** Copy effects (CR 707) and the merged-permanent characteristics of CR 729.2a. **`EffectModification::CopyFrom(Arc<CopiableValues>)` (a `Box` at CV-1), the phase's one new arm**, applied at `LAYER_ORDER[0]`, replacing every characteristic channel at once — which is what layer 1 means, and why a second layer-1 arm would be a claim that CR 613.2 has a third sublayer.
-- **1b — face-down (CR 613.2b).** Morph, manifest, cloak, disguise, applied **after** copy. `PermanentState.face_down: bool` is the canonical state and the sublayer synthesizes CR 708.2a's characteristics from it — derived from state already owned, the way 7c reads counters, rather than duplicated into the registry. Phase CV-6.
+- **1b — face-down (CR 613.2b).** Morph, manifest, cloak, disguise, applied **after** copy. `PermanentState.face_down: bool` is the canonical state and the sublayer synthesizes CR 708.2a's characteristics from it — derived from state already owned, the way 7c reads counters, rather than duplicated into the registry. Phase `face-down-and-morph`.
 
 **The 2/2 answer does not come from the order.** All three sites that had these backwards justified it with *"a Clone copying a face-down creature must copy the 2/2 colorless characteristics, not the printed card"* — a correct conclusion from a wrong premise. The 2/2 is CR 708.2's own sentence, "Any listed characteristics are the copiable values of that object's characteristics", with CR 708.10 covering the copy-of-a-face-down case directly.
 
-**Where the order does bite is one integer.** CR 613.2c makes copiable values the state at the end of layer 1, and `layers::copy::END_OF_LAYER_1` is the ceiling the capture takes. A reader who believed 1b was copy would stop one sublayer early, and the bug would appear only on a board with a face-down creature being copied — i.e. not before Phase 8. `copiable_values` carries a `debug_assert` that `LAYER_ORDER[END_OF_LAYER_1]` is `Layer2Control`, so CV-6's split is a test failure rather than a silent read.
+**Where the order does bite is one integer.** CR 613.2c makes copiable values the state at the end of layer 1, and `layers::copy::END_OF_LAYER_1` is the ceiling the capture takes. A reader who believed 1b was copy would stop one sublayer early, and the bug would appear only on a board with a face-down creature being copied — i.e. not before Phase 8. `copiable_values` carries a `debug_assert` that `LAYER_ORDER[END_OF_LAYER_1]` is `Layer2Control`, so `face-down-and-morph`'s split is a test failure rather than a silent read.
 
-`Layer1Copy` still collapses both sublayers in the `Layer` enum: 1a has a producer as of CV-1, 1b has none until CV-6. Splitting the variant then just lengthens `LAYER_ORDER`, since the capture's ceiling, `END_OF_LAYER_1`, is a runtime index into it.
+`Layer1Copy` still collapses both sublayers in the `Layer` enum: 1a has a producer as of CV-1, 1b has none until `face-down-and-morph`. Splitting the variant then just lengthens `LAYER_ORDER`, since the capture's ceiling, `END_OF_LAYER_1`, is a runtime index into it.
 
 —> `copy-effects-architecture.md` §5.4 (the finding), §3.2 (`CopiableValues`), §4.6 (why face-down is derived rather than registered).
 
-**Implementation note (face-down), not built:** `PermanentState.face_down: bool` is the canonical state, and nothing in the layer system reads it yet. At CV-6, Layer 1b reads the flag and synthesizes the vanilla-face-down characteristics (empty name, colorless, no abilities, P/T 2/2, types={Creature}). Turning a permanent face-down (morph etc.) is an action that flips the flag, not a registry row. This mirrors the 7c counter approach — derive from state already owned, don't duplicate it in the registry.
+**Implementation note (face-down), not built:** `PermanentState.face_down: bool` is the canonical state, and nothing in the layer system reads it yet. At `face-down-and-morph`, Layer 1b reads the flag and synthesizes the vanilla-face-down characteristics (empty name, colorless, no abilities, P/T 2/2, types={Creature}). Turning a permanent face-down (morph etc.) is an action that flips the flag, not a registry row. This mirrors the 7c counter approach — derive from state already owned, don't duplicate it in the registry.
 
 ---
 
@@ -1528,7 +1528,7 @@ carry the numbers, `fuzz-record.md` the re-recorded tables.
 - **Animate Dead** — triggered abilities (item 6), text-changing effects, and
   enchanting a card in a graveyard.
 - **Aura Finesse** — `Primitive::Attach` plus the pool's first multi-target spell.
-- **Pacifism** — RS-3, which wants item 7 first.
+- **Pacifism** — `combat-restrictions`, which wants item 7 first.
 - **CR 613.7m** APNAP timestamp ordering — same rule family, already ledgered
   under "Before card breadth" item 4, and driven by `CreateTokens` (RE) and
   RC-4 rather than by attachment.
@@ -1769,7 +1769,7 @@ read is answered, and the three boards above are its findings.
   test closed with LI-1.
 - §5.2 rewritten; `resolve_order_within_layer` real; the three boards above
   answered as the CR answers them, in both timestamp orders.
-- RS-3b unblocked in `cant-effects-architecture.md` §7.1; item 7 ✅ in
+- `combat-requirements` unblocked in `cant-effects-architecture.md` §7.1; item 7 ✅ in
   `CLAUDE.md` within its lines; `roadmap-v2.md` A3 ✅;
   `check_state_of_play.py --write`.
 - If the work spans sessions, `plans/handoffs/li-<n>.md` says where to
@@ -1777,7 +1777,7 @@ read is answered, and the three boards above are its findings.
 
 ### Explicitly out
 
-- **`backlog.md` §2.20** (several targets) and **RS-2** — their own PRs.
+- **`backlog.md` §2.20** (several targets) and **`cant-be-targeted`** — their own PRs.
 - **Dependency-ordering-sensitive breadth cards** — the back-stop this phase
   exists to lift, and it lifts only when the cluster lands.
 - **A finer memo key** — §12 "7a" names the levers and neither is a key.

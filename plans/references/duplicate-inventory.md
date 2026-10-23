@@ -166,7 +166,7 @@ report by hand, as above.
 
 A letter and number names a fact: L for the last-known-information and
 zone-change surface (items 176 and 177's), T for the trigger code (A6e's),
-M for the merges outside both, in A6m's two PRs, and C0 for the card-authoring
+M for the merges outside both, in A6m's two PRs, and `card-layer-cleanup` for the card-authoring
 constructors. Where a place is named by function, the function holds the copy.
 
 ### 3.1 Inputs to items 176 and 177's design (`codebase-state.md`, A6d)
@@ -368,14 +368,14 @@ there was no dev GUI PR between them. Both PRs landed, #249 and #250.
   `get_effective_name` with a fallback; and the take-it-or-leave-it prompt,
   three identical bodies in `ui/ask.rs`.
 
-### 3.4 Card authoring — C0
+### 3.4 Card authoring — `card-layer-cleanup`
 
 The static-ability constructors private to three card files
 (`static_replacement` three times, `static_conditional_replacement`,
 `static_restriction`), four token builders that are one vanilla-token
 constructor, and `intrinsic_mana_ability`, documented as mirroring
 `CardDataBuilder::mana_ability_single`. All are `codebase-state.md` "Before
-card breadth" item 10's, decided at CV-2a's review for C0, the
+card breadth" item 10's, decided at CV-2a's review for `card-layer-cleanup`, the
 `cards/authoring` constructors.
 
 ### 3.5 Copies that already disagree
@@ -726,30 +726,30 @@ One table per section, in the report's order; **where** names §3's group.
 
 | # | key | members | verdict | where | why |
 |---:|---|---|---|---|---|
-| 1 | 1.00 | `cards/phase_rd_cards::static_replacement`, `cards/phase_re_cards::static_replacement` | merge | C0 | one static-replacement constructor, private in three card files |
-| 2 | 0.82 | `cards/phase_tr1_cards::saproling_token`, `cards/phase_tr2a_cards::elf_warrior_token` | merge | C0 | token builders; one vanilla-token constructor |
-| 3 | 0.79 | `cards/phase_rd_cards::static_replacement`, `cards/phase_re9_cards::static_replacement` | merge | C0 | as 1 |
-| 4 | 0.79 | `cards/phase_re9_cards::static_replacement`, `cards/phase_re_cards::static_replacement` | merge | C0 | as 1 |
+| 1 | 1.00 | `cards/phase_rd_cards::static_replacement`, `cards/phase_re_cards::static_replacement` | merge | `card-layer-cleanup` | one static-replacement constructor, private in three card files |
+| 2 | 0.82 | `cards/phase_tr1_cards::saproling_token`, `cards/phase_tr2a_cards::elf_warrior_token` | merge | `card-layer-cleanup` | token builders; one vanilla-token constructor |
+| 3 | 0.79 | `cards/phase_rd_cards::static_replacement`, `cards/phase_re9_cards::static_replacement` | merge | `card-layer-cleanup` | as 1 |
+| 4 | 0.79 | `cards/phase_re9_cards::static_replacement`, `cards/phase_re_cards::static_replacement` | merge | `card-layer-cleanup` | as 1 |
 | 5 | 0.78 | `cards/phase_ld_cards::blood_moon`, `cards/phase_ld_cards::self_stripping_land` | keep |  | card definitions, alike by design |
-| 6 | 0.75 | `cards/phase_rd_cards::static_replacement`, `cards/phase_re_cards::static_conditional_replacement` | merge | C0 | the conditional variant of 1 |
-| 7 | 0.75 | `cards/phase_re_cards::static_replacement`, `cards/phase_re_cards::static_conditional_replacement` | merge | C0 | as 6 |
+| 6 | 0.75 | `cards/phase_rd_cards::static_replacement`, `cards/phase_re_cards::static_conditional_replacement` | merge | `card-layer-cleanup` | the conditional variant of 1 |
+| 7 | 0.75 | `cards/phase_re_cards::static_replacement`, `cards/phase_re_cards::static_conditional_replacement` | merge | `card-layer-cleanup` | as 6 |
 | 8 | 0.70 | `types/mana::can_pay_with_context`, `types/mana::can_pay` | merge | M2 | one cost-demand tally; `can_pay_with_context` has only test callers |
-| 9 | 0.68 | `cards/phase_rd_cards::static_replacement`, `cards/phase_re_cards::static_restriction` | merge | C0 | the restriction variant of 1 |
-| 10 | 0.68 | `cards/phase_re_cards::static_replacement`, `cards/phase_re_cards::static_restriction` | merge | C0 | as 9 |
+| 9 | 0.68 | `cards/phase_rd_cards::static_replacement`, `cards/phase_re_cards::static_restriction` | merge | `card-layer-cleanup` | the restriction variant of 1 |
+| 10 | 0.68 | `cards/phase_re_cards::static_replacement`, `cards/phase_re_cards::static_restriction` | merge | `card-layer-cleanup` | as 9 |
 | 11 | 0.68 | `cards/phase5_pre_cards::zhalfirin_shapecraft`, `cards/phase5_pre_cards::inside_out` | keep |  | card definitions, alike by design |
 | 12 | 0.66 | `cards/phase_cm_cards::trinisphere`, `cards/phase_cm_cards::locked_sphere` | keep |  | card definitions, alike by design |
-| 13 | 0.65 | `cards/phase_rb_cards::zombie_token`, `cards/phase_tr1_cards::saproling_token` | merge | C0 | as 2 |
+| 13 | 0.65 | `cards/phase_rb_cards::zombie_token`, `cards/phase_tr1_cards::saproling_token` | merge | `card-layer-cleanup` | as 2 |
 | 14 | 0.65 | `cards/phase_ld_cards::call_to_serve_spell`, `cards/phase_ld_cards::on_serras_wings_spell` | keep |  | card definitions, alike by design |
 | 15 | 0.64 | `oracle/legality::playable_lands`, `oracle/mana_helpers::castable_spells_with` | keep |  | two rules over the hand (CR 305.1, 601.3); their shared "in this player's hand" is M1 |
 | 16 | 0.63 | `ui/ask::ask_order_cost_reductions`, `ui/ask::ask_order_triggers` | keep |  | one prompt per CR decision; the shared body is the prompt protocol, `validate_ordering` already one |
 | 17 | 0.62 | `cards/authoring/triggers::once_per_event`, `types/triggers::multiplicity` | merge | T7 | which arms carry a multiplicity, listed twice; its doc says a new arm joins both |
-| 18 | 0.62 | `cards/authoring/triggers::triggered_ability`, `cards/phase_re9_cards::static_replacement` | merge | C0 | the triggered sibling of 1, already in `cards/authoring` |
+| 18 | 0.62 | `cards/authoring/triggers::triggered_ability`, `cards/phase_re9_cards::static_replacement` | merge | `card-layer-cleanup` | the triggered sibling of 1, already in `cards/authoring` |
 | 19 | 0.62 | `cards/phase_re_cards::parallel_lives`, `cards/phase_re_cards::doubling_season` | keep |  | card definitions, alike by design |
-| 20 | 0.61 | `engine/layers/land_types::intrinsic_mana_ability`, `objects/card_data::mana_ability_single` | merge | C0 | documented as mirroring `mana_ability_single`: one {T}: Add constructor |
-| 21 | 0.61 | `cards/phase_re_cards::static_conditional_replacement`, `cards/phase_re_cards::static_restriction` | merge | C0 | as 6 and 9 |
-| 22 | 0.61 | `cards/phase_rb_cards::zombie_token`, `cards/phase_tr2a_cards::elf_warrior_token` | merge | C0 | as 2 |
-| 23 | 0.60 | `cards/phase_rb_cards::zombie_token`, `cards/phase_re_cards::vanilla_token` | merge | C0 | as 2 |
-| 24 | 0.60 | `cards/phase_re_cards::vanilla_token`, `cards/phase_tr1_cards::saproling_token` | merge | C0 | as 2 |
+| 20 | 0.61 | `engine/layers/land_types::intrinsic_mana_ability`, `objects/card_data::mana_ability_single` | merge | `card-layer-cleanup` | documented as mirroring `mana_ability_single`: one {T}: Add constructor |
+| 21 | 0.61 | `cards/phase_re_cards::static_conditional_replacement`, `cards/phase_re_cards::static_restriction` | merge | `card-layer-cleanup` | as 6 and 9 |
+| 22 | 0.61 | `cards/phase_rb_cards::zombie_token`, `cards/phase_tr2a_cards::elf_warrior_token` | merge | `card-layer-cleanup` | as 2 |
+| 23 | 0.60 | `cards/phase_rb_cards::zombie_token`, `cards/phase_re_cards::vanilla_token` | merge | `card-layer-cleanup` | as 2 |
+| 24 | 0.60 | `cards/phase_re_cards::vanilla_token`, `cards/phase_tr1_cards::saproling_token` | merge | `card-layer-cleanup` | as 2 |
 
 ### one shape, names differ: 6
 

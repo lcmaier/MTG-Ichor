@@ -328,7 +328,7 @@ fn a_source_a_waiting_shield_names_is_offered_after_it_has_left() {
 // COVERS-PARTIAL: ATOM-609.7a-001 -- the permanent, the spell and the
 // three referred-to legs; the fourth category, a face-up object in the
 // command zone (the atom's emblem), waits for the command zone (item 99's
-// second half, B2).
+// second half, `game-formats`).
 #[test]
 fn what_a_waiting_delayed_trigger_names_is_a_source_wherever_it_has_gone() {
     let mut game = setup_two_player_game();

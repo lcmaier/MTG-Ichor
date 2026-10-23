@@ -1,8 +1,8 @@
 # "Can't" Effects — CR 101.2, 614.17, 613.11
 
 > **Status:** design, authored 2026-08-27 in answer to PR #62's review theme A
-> (`plans/handoffs/rb-review.md`). RS-0 and RS-1 have landed (§7a); RS-2 to
-> RS-4 are unbuilt.
+> (`plans/handoffs/rb-review.md`). RS-0 and RS-1 have landed (§7a); `cant-be-targeted`, `cant-cast-play-or-activate`,
+> the two combat phases and `cant-pay-costs` are unbuilt.
 > **Authority:** the restriction model — type shapes, the enforcement points,
 > where a "can't" is discovered, and the phase sequencing for CR 101.2 / 614.17
 > / 613.11. Where this contradicts `codebase-state.md`, that file wins on *what
@@ -236,14 +236,14 @@ one shared vocabulary rather than four bespoke checks.
 | Defender | `oracle/legality.rs::can_attack`, which `validate_attackers` asks | ✅ hardcoded |
 | Flying vs. non-reach blocker | `can_block`, `engine/combat/validation.rs` | ✅ hardcoded |
 | Menace, Intimidate | — | ❌ flag exists, nothing reads it |
-| Hexproof, Shroud | `targeting.rs::validate_targets` | ❌ flag exists; the comment there names RS-2 |
+| Hexproof, Shroud | `targeting.rs::validate_targets` | ❌ flag exists; the comment there names `cant-be-targeted` |
 | Protection | — | ❌ deliberately not a `KeywordFlag` (`keywords.rs` "Five variants used to be here") |
 | Everything in Tiers 1b/1c/1e | — | ❌ |
 | Damage can't be prevented | `DealDamage`'s `unpreventable`, read by the pipeline | ✅ RD-4 (CR 615.12) |
 
 At authoring (2026-08-27) these were five hardcoded checks at five call sites,
 with no shared vocabulary between them; RS-1 moved the first two onto the
-model, and the combat and targeting rows are RS-2's and RS-3a's (§7).
+model, and the combat and targeting rows are `cant-be-targeted`'s and `combat-restrictions`'s (§7).
 
 ### 2.4 The three shapes hiding in the numbers
 
@@ -652,16 +652,16 @@ filter, and from nowhere in combat. `oracle/legality.rs::can_attack` reads
 `entry.tapped`. `validate_attackers` and `legal_attackers` ask `can_attack`;
 `legal_blockers` and `can_block` (before its pair checks) ask
 `can_be_a_blocker`, and `validate_blockers` reaches it through `can_block`
-(SU-7 made each check one site a side). §7's RS-3a row rewrites **exactly**
+(SU-7 made each check one site a side). §7's `combat-restrictions` row rewrites **exactly**
 that seam — those two helpers, `can_block`'s pair checks and the two
-set-level checks — and re-expresses Defender as data. RS-4 and
-`cost-architecture.md`'s CP-1 do the same for the payment sites. **The seam an
-"as though" effect needs is cut once, by RS-3a and RS-4, and by nothing else
+set-level checks — and re-expresses Defender as data. `cant-pay-costs` and
+`cost-architecture.md`'s `hybrid-and-phyrexian-payment` do the same for the payment sites. **The seam an
+"as though" effect needs is cut once, by `combat-restrictions` and `cant-pay-costs`, and by nothing else
 between now and then.** Cut it one-sided and the same functions are
 rewritten twice.
 
 **The constraint, and it is the whole of what this section asks. Two halves,
-both checkable at RS-3a's review.**
+both checkable at `combat-restrictions`'s review.**
 
 1. **A consult must be able to say *which* restriction forbade, not only that
    one did.** "Attack as though it didn't have defender" suppresses the
@@ -673,11 +673,11 @@ both checkable at RS-3a's review.**
    and a keyword, a static ability's text or a registered effect. **Half of
    this is paid:** the attribution exists, but it names *one* restriction, so a
    Defender-suppressing consult must still see past a Defender-derived match
-   to the next — RS-3a's to build.
+   to the next — `combat-restrictions`'s to build.
 2. **A base-rule clause must read through something interceptable.** CR
-   509.1a's "untapped" is a *rule*, not a restriction, so nothing in RS-3a's
+   509.1a's "untapped" is a *rule*, not a restriction, so nothing in `combat-restrictions`'s
    table re-expresses it and Masako has no restriction to suppress — she
-   substitutes a value the rule reads. That is the half RS-3a would otherwise
+   substitutes a value the rule reads. That is the half `combat-restrictions` would otherwise
    get wrong by default, because the natural rewrite keeps `entry.tapped`
    inline while moving only the *restriction* checks behind a consult. The ask
    is one line of discipline: when the seam is rewritten, each base clause
@@ -688,7 +688,7 @@ card, no schedule change, and no sizing pass. CR 609.4's mechanism is
 `backlog.md` §2.24's and is sized there when it is scheduled; the argument for
 not sizing it now is that a design written far ahead of its build goes stale in
 this project, and §2.24 already carries enough to schedule against. This is the
-shape constraint alone, recorded before RS-3a so that it costs nothing.
+shape constraint alone, recorded before `combat-restrictions` so that it costs nothing.
 
 **The other half's constraint, for completeness.** Value substitution beyond
 combat — "crew as though its power were 2 greater", "adapt as though it had no
@@ -808,7 +808,7 @@ when it was measured rather than estimated.
 An earlier draft went straight to "enumerate subsets per connected component".
 That is a correct algorithm and it is the wrong headline, because the measured
 constraint shapes are much better behaved than general 0-1 search. **Every
-coupling constraint RS-3b carries is a threshold on the *number* of attackers**,
+coupling constraint `combat-requirements` carries is a threshold on the *number* of attackers**,
 not on which ones:
 
 | Card text | As a constraint on `t = |attackers|` |
@@ -839,7 +839,7 @@ a creature that cannot attack, so a tapped or restricted goaded creature drops
 out of `R` before the sweep and never inflates it.
 
 **Why this is stated as a proposal, not a result.** The reduction is sound *for
-the constraint shapes RS-3b carries*, and that scoping is doing work: the
+the constraint shapes `combat-requirements` carries*, and that scoping is doing work: the
 falsifiers are already printed and already deferred. **Okk** — "can't attack
 unless a creature **with greater power** also attacks" — and **Scarred Puma** —
 "unless a **black or green** creature also attacks" — are thresholds on a
@@ -850,7 +850,7 @@ generalisation rather than ahead of it. **When they do, the sweep becomes a
 sweep over a count *vector*** — `n^f` where `f` is the number of distinct
 filters mentioned, and `f` is 0 on almost every board.
 
-**So: brainstorm before RS-3b, not during.** This section is the seed, not the
+**So: brainstorm before `combat-requirements`, not during.** This section is the seed, not the
 answer. Three things to settle in that session, written down now so it is not
 started cold: (a) does the count-threshold reduction survive multi-defender
 declarations — CR 506.5's "alone" is global, and goad's "attacks a player other
@@ -891,7 +891,7 @@ codebase's documented contract (`legality.rs:1`, "false positives are harmless,
 false negatives are bugs"), and it is the right one, because the set-level check
 belongs in `validate_attackers` where the CR puts it. Second, **restrictions and
 requirements ship together or not at all**, because 508.1d's answer depends on
-both — so `Restriction` gets a sibling `Requirement` type in RS-3, discovered by
+both — so `Restriction` gets a sibling `Requirement` type in `combat-requirements`, discovered by
 the same sweep, and neither is useful alone.
 
 **Consumers.** Menace and the 48 counting clauses; the fear/intimidate/shadow/
@@ -987,7 +987,7 @@ Tier-1a restriction from the same card, which is why the two must share a type).
 ### 4.5 Tier 1d — targeting
 
 **Rule.** CR 115.6 and CR 702.11b/702.18a/702.16b. **Site.**
-`targeting.rs::validate_targets` — whose comment already names RS-2 — plus
+`targeting.rs::validate_targets` — whose comment already names `cant-be-targeted` — plus
 `legality.rs::enumerate_legal_selections` and
 `mana_helpers.rs::every_instance_has_a_choice` (CR 601.2c's check over every
 instance of "target", which replaced `has_any_legal_choice`), because CR
@@ -1015,7 +1015,7 @@ it. `phase_cv2a_integration_test`'s hexproof donor is the regression.
 > **§3.7 binds this tier too.** "Spend mana as though it were mana of any
 > color" is 62 printed cards and CR 609.4b, which says it changes only how a
 > cost may be paid, never the cost. It is not a restriction; it is enforced at
-> the payment site RS-4 and CP-1 rewrite.
+> the payment site `cant-pay-costs` and `hybrid-and-phyrexian-payment` rewrite.
 
 
 **Rule.** CR 614.17b: "If an event can't happen, a player can't choose to pay a
@@ -1201,7 +1201,7 @@ selection path, as one `is_prohibited` call per candidate: `resolve.rs`'s
 `choose_as_it_applies` keeps a candidate only if `GameState::admits` lets it
 through, against the event the verb would propose, and a named sacrifice uses
 the same `admits`. `enumerate_legal_selections` does not consult it; the
-targeting consult is RS-2's, asked by the enumeration's targeting callers
+targeting consult is `cant-be-targeted`'s, asked by the enumeration's targeting callers
 (§4.5). `plans/atomic-tests/supplemental-docs/
 dp-middleware-and-candidate-enumeration.md`'s standing principle is
 **"exclude only options where it can *prove* illegality from static game state
@@ -1509,7 +1509,7 @@ about to perform". `Primitive::Restrict` gets that as its first customer.
 **Not built yet:** RS-1 shipped the primitive without the variant, so a card
 that prints the clause (Plague Spores) authors `UntilEndOfTurn`, and the
 window is still too wide; `codebase-state.md` item 14 sizes the variant and
-slots it at RS-2, the next phase touching `Primitive::Restrict`.
+slots it at `cant-cast-play-or-activate`, the next phase touching `Primitive::Restrict`.
 `Primitive::Regenerate`'s twin, which *is* CR 701.19a's genuinely turn-scoped
 shield, keeps `UntilEndOfTurn`; the two sit next to each other in `resolve.rs`
 with different durations for a reason the CR gives.
@@ -1527,16 +1527,17 @@ strongest argument in this document for `Duration` being a field on
 **Sized before writing, and split in the doc.** `CLAUDE.md`'s git-workflow
 section is explicit that RB's failure was not keeping it whole but not counting
 first, and that every PR in a split must carry at least one consumer of what it
-builds. Both rules are applied below. Sub-phases are numbered `RS-1` … `RS-4`.
+builds. Both rules are applied below. The landed phases are numbered `RS-0` and `RS-1`; the rest are named (`engineering-practices.md` §4.2).
 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
 | **RS-0 — the shared duration registry** | A `DurationRegistry<T>` that both existing registries *own* and delegate to — composition, not a split (§9 finding 7). Migrate both; no new behaviour | **10** shared methods, **2** of them (`remove_expired_at_cleanup`, `remove_expired_at_turn_start`) character-for-character identical today | low — pure refactor, two existing test suites as the check, and a stated abort condition if `effects_in_layer`'s cache will not compose |
 | **RS-1 — the spine + Tier 2** | `RestrictionDef`, `Restriction::Event`, the registry, the sweep, `is_prohibited`; `Primitive::Restrict`; **§4.9's candidate filter**. Consumers: indestructible moves onto it, `CantBeRegenerated` folds in, Sigarda stops producing a prompt | **3** production sites replaced (`pipeline.rs:53`, `gather.rs:228`, `resolve.rs:638`) and **1** enforcement site for indestructible, which is `pipeline.rs:56` and nothing else; **1** `GameState` field + its init + **1** `turns.rs` clear deleted. New code sized against its two structural twins: `state/replacement_effects.rs` is **259** lines and `gather`'s sweep + gate is ~**120** of `gather.rs`'s 556 | low — it *deletes* two bespoke mechanisms and adds no new call site. **Shipped 2026-08-31**; both halves of that held, and the row was still read as "net-deleting in lines", which it never claimed — `codebase-state.md` item 36. Actual: +1,104/−86 in `src/`, and the anchors in this cell already predicted ~+300 |
-| **RS-2 — the read-side choice points** | `Cast`, `PlayLand`, `ActivateAbility`, `BeTargeted`. Consumers: hexproof + shroud (`T22`), Grafdigger's Cage, Aggressive Mining | **6** enforcement sites (`put_on_stack.rs` legality, `legality.rs::playable_lands`, `activatable_abilities`, `priority.rs` re-derivation, `put_on_stack.rs::activate_ability`, `targeting.rs::validate_targets`) + **2** enumeration sites that must agree (`enumerate_legal_selections`, `has_any_legal_choice`) **Since SU-7 (2026-10-05)** the cast, the land play and the activation each have one check that the enumeration and the enforcement share (`can_begin_to_cast`, `can_play_land`, `can_begin_to_activate`), so each `Cast`, `PlayLand` and `ActivateAbility` arm is asked at one site, and its family's reason enum gains an arm naming the restriction's source, which `ui::display` words for the why panel. RS-2 also types `validate_selection`'s reasons, for the why's target questions (the owner, 2026-10-05, at SU-7). **Designed beside `permission-architecture.md`'s PM-0** (the owner, 2026-10-05, at `codebase-state.md` item 212's census): CR 601.3's allow half lands at the same three checks, so each check's reasons are designed once, RS-2's naming the prohibiting source and PM's `NotPermitted { zone }`. This document's §4.3 already argued they want one query | **medium-high** — the three ability-index sites are the `CLAUDE.md` invariant, and a restriction can now cause a CR 601.2 rewind (§4.3) |
-| **RS-3a — combat, the predicate half** | `Attack`, `Block`, `BeBlocked` as per-creature restrictions. Consumers: menace, the evasion family, landwalk, protection's blocking half, Defender re-expressed as data | **2** validators rewritten (`validate_attackers`, `validate_blockers` + `can_block`), **2** enumerators (`legal_attackers`, `legal_blockers`). Covers **1,267 of 1,277** Tier-1a clauses — the 1,219 per-creature plus the 48 per-attacker blocker counts **Since SU-7 (2026-10-05)** `can_attack` and `can_block` are the per-creature checks the enumerations and the validators share, each returning a `CombatError`, so an `Attack` or `Block` arm is one site a side and a `CombatError` arm naming its source | medium — large surface, but every check is local |
-| **RS-3b — combat, the solver half** | `Requirement`, the coupling graph, the bounded search (§4.2). Consumers: goad, Silent Arbiter, "can't attack alone" | **13** cross-creature clauses + **2** global-cap cards + ~**150** requirement cards. New code, not a migration | **highest** — CR 508.1d is NP-hard in general; this is where the bounded-exact choice and its cap live |
-| **RS-4 — costs that can't be paid (CR 614.17b)** | `PayCost`, the CR 614.17b derivation, the `Cost → GameAction` projection. Consumers: Yasharn, Platinum Emperion | **10**-arm projection over a closed enum; **2** payment sites (`costs.rs`, the `ChooseAdditionalCosts` path) | low, and it is last because 614.17b's derived half needs Tier 2 *and* the authored half is 16 clauses |
+| **`cant-be-targeted` — targeting, the read side** | `BeTargeted`. Consumers: hexproof + shroud (`T22`), protection's targeting half | **1** enforcement site (`targeting.rs::validate_targets`) + **2** enumeration sites that must agree (`enumerate_legal_selections`, `has_any_legal_choice`). It also types `validate_selection`'s reasons, for the why's target questions (the owner, 2026-10-05, at SU-7). Split from the casting half at #282's review (the owner, 2026-10-23): the two share the read side's query and nothing else — not a site, a consumer or a design partner | low — every check is local, and nothing waits on it |
+| **`cant-cast-play-or-activate` — casting, playing and activating, the read side** | `Cast`, `PlayLand`, `ActivateAbility`. Consumers: Grafdigger's Cage, Aggressive Mining | **5** enforcement sites (`put_on_stack.rs` legality, `legality.rs::playable_lands`, `activatable_abilities`, `priority.rs` re-derivation, `put_on_stack.rs::activate_ability`) and the same **2** enumeration sites **Since SU-7 (2026-10-05)** the cast, the land play and the activation each have one check that the enumeration and the enforcement share (`can_begin_to_cast`, `can_play_land`, `can_begin_to_activate`), so each `Cast`, `PlayLand` and `ActivateAbility` arm is asked at one site, and its family's reason enum gains an arm naming the restriction's source, which `ui::display` words for the why panel. **Designed beside `permission-architecture.md`'s `permission-design`** (the owner, 2026-10-05, at `codebase-state.md` item 212's census): CR 601.3's allow half lands at the same three checks, so each check's reasons are designed once, this phase's naming the prohibiting source and permission's `NotPermitted { zone }`. This document's §4.3 already argued they want one query | **medium-high** — the three ability-index sites are the `CLAUDE.md` invariant, and a restriction can now cause a CR 601.2 rewind (§4.3) |
+| **`combat-restrictions` — combat, the predicate half** | `Attack`, `Block`, `BeBlocked` as per-creature restrictions. Consumers: menace, the evasion family, landwalk, protection's blocking half, Defender re-expressed as data | **2** validators rewritten (`validate_attackers`, `validate_blockers` + `can_block`), **2** enumerators (`legal_attackers`, `legal_blockers`). Covers **1,267 of 1,277** Tier-1a clauses — the 1,219 per-creature plus the 48 per-attacker blocker counts **Since SU-7 (2026-10-05)** `can_attack` and `can_block` are the per-creature checks the enumerations and the validators share, each returning a `CombatError`, so an `Attack` or `Block` arm is one site a side and a `CombatError` arm naming its source | medium — large surface, but every check is local |
+| **`combat-requirements` — combat, the solver half** | `Requirement`, the coupling graph, the bounded search (§4.2). Consumers: goad, Silent Arbiter, "can't attack alone" | **13** cross-creature clauses + **2** global-cap cards + ~**150** requirement cards. New code, not a migration | **highest** — CR 508.1d is NP-hard in general; this is where the bounded-exact choice and its cap live |
+| **`cant-pay-costs` — costs that can't be paid (CR 614.17b)** | `PayCost`, the CR 614.17b derivation, the `Cost → GameAction` projection. Consumers: Yasharn, Platinum Emperion | **10**-arm projection over a closed enum; **2** payment sites (`costs.rs`, the `ChooseAdditionalCosts` path) | low, and it is last because 614.17b's derived half needs Tier 2 *and* the authored half is 16 clauses |
 
 **Ordering, and the one hard constraint.**
 
@@ -1545,28 +1546,28 @@ builds. Both rules are applied below. Sub-phases are numbered `RS-1` … `RS-4`.
 
 RS-0 is a pure refactor and lands before RS-1 so that RS-1 *uses* the
 abstraction rather than inventing it. RS-1 is small, deletes more than it adds,
-and can go in parallel with RC-1 through RC-3. RS-2 and RS-4 are independent of
+and can go in parallel with RC-1 through RC-3. `cant-be-targeted`, `cant-cast-play-or-activate` and `cant-pay-costs` are independent of
 the RC/RD/RE line entirely.
 
-**RS-3b should not start before the CR 613.8 dependency cluster** (`CLAUDE.md`
+**`combat-requirements` should not start before the CR 613.8 dependency cluster** (`CLAUDE.md`
 critical-path item 7): evasion is cumulative (CR 509.1b), so a solver reading
 effective characteristics under timestamp-only ordering will produce answers
 that change when 613.8 lands. **✅ Unblocked 2026-09-06** — the cluster landed
 whole (LI-1's board-wide pass, LI-2's dependency loop, LI-3's conditional
 statics), so an effective characteristic a solver reads is now the CR's answer
-and will not move under it. RS-3b is schedulable. **RS-3a does not have that problem** — a
+and will not move under it. `combat-requirements` is schedulable. **`combat-restrictions` does not have that problem** — a
 per-creature predicate reads the same frame every other combat check already
-reads today — which is the second reason to split RS-3 in two rather than the
+reads today — which is the second reason to split combat's "can't"s in two rather than the
 first. The split lets 1,267 of 1,277 clauses land without waiting on item 7.
 
-**What each PR must not do.** RS-1 must not touch a choice site; RS-2 must not
-touch combat; RS-3a must not attempt CR 508.1d; and no RS phase carries the
+**What each PR must not do.** RS-1 must not touch a choice site; `cant-be-targeted` and
+`cant-cast-play-or-activate` must not touch combat; `combat-restrictions` must not attempt CR 508.1d; and no "can't" phase carries the
 "unless" clauses (§2.4). Each of those is the seam where this would otherwise
 become one 5,000-line PR again.
 
-**And one rule every RS phase from 2 onward inherits** (added 2026-09-01):
+**And one rule every "can't" phase after RS-1 inherits** (added 2026-09-01):
 **no decision site may hold state that changes the game's outcome and is not in
-`GameState`.** RS-2's sizing row above names six enforcement sites and two
+`GameState`.** `cant-be-targeted`'s and `cant-cast-play-or-activate`'s sizing rows above name six enforcement sites and two
 enumeration sites, which is the largest single addition of decision sites left
 in this document — so it is the phase where the invariant is cheapest to keep
 and most expensive to break. Retry bookkeeping is exempt (drop it and the game
@@ -1583,13 +1584,13 @@ useful question is "what do I do next", not "what does each doc own".
 **Hold two things in your head, not eleven.**
 
 > **Track R** turns events into things cards can modify (RC → RD → RE).
-> **Track S** turns rules into things cards can forbid (RS-0 → RS-4).
+> **Track S** turns rules into things cards can forbid (RS-0 → `cant-pay-costs`).
 > They meet **once**: RS-1 before RC-4. Everything else is free ordering.
 
 **Superseded for scheduling, 2026-09-04.** Rows 1–8 below are done. The tail
 (9–16) is now `roadmap-v2.md` §3a — one route for every document — which keeps
 this table's two claims (613.8 before triggers; RD and RE before triggers),
-inserts Phase LH before 613.8 and CR 113.6 before triggers, and moves RS-3b
+inserts Phase LH before 613.8 and CR 113.6 before triggers, and moves `combat-requirements`
 behind 613.8 as row 14 already said. `CLAUDE.md`'s critical path was changed to
 match. The table stays as the Track R / Track S reading; schedule from §3a.
 
@@ -1603,12 +1604,12 @@ match. The table stays as the Track R / Track S reading; schedule from §3a.
 | 6 | Themes C + E — naming and hygiene | After the merge, with theme G's comment rule in hand |
 | 7 | **RC-3** — the membership gate | One line, hottest path; its deliverable is the measurement |
 | 8 | **RC-4** — the overlay | The join is satisfied by 3. CR 614.17d asks a question RS-1 gave it |
-| 9 | **RS-2** — casting, activating, targeting | Unlocks hexproof/shroud/protection. Independent of Track R entirely; can slot anywhere from 4 onward |
-| 10 | ~~**Cost modification** — its own small phase~~ ✅ **CM-1 done 2026-09-07** (`plans/cost-architecture.md`; CM-2–4 and CP-1 sized there) | `replacement-architecture.md` §9 asked for it; commander tax runs through it; RS-4 wants it nearby. Not small after all: five PRs and a slot, and its own document |
-| 11 | **RS-4** — costs (CR 614.17b) | Needs RS-1 for the derived half and reads better after 10 |
-| 12 | **RS-3a** — combat, the predicate half | 1,267 of 1,277 Tier-1a clauses. Does **not** need item 7 |
+| 9 | **`cant-be-targeted`**, **`cant-cast-play-or-activate`** — targeting, casting, activating | Unlocks hexproof/shroud/protection. Independent of Track R entirely; can slot anywhere from 4 onward |
+| 10 | ~~**Cost modification** — its own small phase~~ ✅ **CM-1 done 2026-09-07** (`plans/cost-architecture.md`; CM-2–4 and `hybrid-and-phyrexian-payment` sized there) | `replacement-architecture.md` §9 asked for it; commander tax runs through it; `cant-pay-costs` wants it nearby. Not small after all: five PRs and a slot, and its own document |
+| 11 | **`cant-pay-costs`** — costs (CR 614.17b) | Needs RS-1 for the derived half and reads better after 10 |
+| 12 | **`combat-restrictions`** — combat, the predicate half | 1,267 of 1,277 Tier-1a clauses. Does **not** need item 7 |
 | 13 | ~~**CR 613.8** — the dependency cluster~~ ✅ **done 2026-09-06** (LI-1/LI-2/LI-3) | `CLAUDE.md` item 7, hard back-stop before Phase 8 breadth |
-| 14 | **RS-3b** — combat, the solver half | After 13, because evasion is cumulative. **13 is done; this is unblocked** |
+| 14 | **`combat-requirements`** — combat, the solver half | After 13, because evasion is cumulative. **13 is done; this is unblocked** |
 | 15 | **RD**, then **RE** | Damage/prevention, then the remaining event kinds. RD gives Tier 3's other half something to withhold |
 | 16 | **CR 603** — triggers | `CLAUDE.md` item 6; consumes the performed-event stream both tracks feed |
 
@@ -1627,7 +1628,7 @@ home yet, and each is named in §9 or §10 so it is findable rather than lost.
 discovery backwards as a detector and found the next gap with the same shape:
 **copy effects** (CR 707 + 712 + 708 + 729 + Layer 1). As of 2026-08-30 they have
 an owning doc (`plans/copy-effects-architecture.md`), `CLAUDE.md` critical-path
-item **5c**, and phases CV-1–CV-7. Two corrections that document made to the
+item **5c**, and the copy phases. Two corrections that document made to the
 detector's table are worth carrying: the atom count is **101**, not 66, and the
 rules-relevant double-faced population is **517**, not 2,890 (`is:dfc` is mostly
 art-series cards). **Step 8 above changes**: RC-4 does *not* fill the CR 616.1c
@@ -1690,12 +1691,12 @@ Four things to act on rather than read past:
    not in the 38. That is the filter working as designed — a ticket that names
    a future phase *is* "explicitly deferred with a reason written down" — but
    it means **`owed` alone does not show the size of this work**, and a session
-   sizing RS-2 or RS-3 should run `owed --all` and grep.
+   sizing a "can't" phase should run `owed --all` and grep.
 3. **Three atoms marked `ALREADY-IMPL` have zero coverage** (`508.1c-001`,
    `509.1b-001`, `509.1b-003`). The implementations exist (`Defender`, flying);
-   the `COVERS` links do not. RS-3 should add them, and until then the corpus
+   the `COVERS` links do not. `combat-restrictions` should add them, and until then the corpus
    overstates what is proven.
-4. **`specdb.py`'s `SHIPPED_PHASES` gains `Phase RS` when RS-4 lands**, which is
+4. **`specdb.py`'s `SHIPPED_PHASES` gains `Phase RS` when `cant-pay-costs` lands**, which is
    what arms the gate for this work.
 
 ---
@@ -1738,7 +1739,7 @@ Four things to act on rather than read past:
    Void Winnower's rulings show it is over-approximate at the gate and exact
    after announcement, which is `candidate_priority_actions`' existing
    contract. The one new thing is that a **restriction can now cause a CR 601.2
-   rewind**, where today only an unpayable cost can. RS-2 should be reviewed for
+   rewind**, where today only an unpayable cost can. `cant-cast-play-or-activate` should be reviewed for
    that, not for a search.
 3. ~~**`ReplacementDef::is_regeneration` gains its second reader** (§4.7)…
    Phase RD should widen it to a `ReplacementKind`.~~ **Answered by RD's design
@@ -1755,7 +1756,7 @@ Four things to act on rather than read past:
    should share the type is open, and the answer probably arrives with the
    `PlayLand` consumers rather than before them. Do not build both speculatively.
    (The permission half has a document of its own since 2026-10-05,
-   `permission-architecture.md`, designed beside RS-2 at the same three
+   `permission-architecture.md`, designed beside `cant-cast-play-or-activate` at the same three
    checks; whether the two share a type is decided there.)
 5. **`lands_per_turn` is still a raw field** (`PlayerState::lands_per_turn`,
    read by `oracle/legality.rs::can_play_land`; `permission-architecture.md`
@@ -1857,7 +1858,7 @@ Four things to act on rather than read past:
    order, and no wrapper unless it has surface of its own. And `codebase-state.md` item 17's source-scoped expiry hook is now one
    `retain` closure both registries inherit, where it would have been two.
 
-8. **`Restriction` needs a `Requirement` sibling and RS-3 cannot ship without
+8. **`Restriction` needs a `Requirement` sibling and `combat-requirements` cannot ship without
    it** (§4.2). CR 508.1d's maximisation is defined over both, so a restriction
    solver that cannot see "attacks each combat if able" produces wrong answers
    rather than incomplete ones. ~150 printed cards, goad the important one for
@@ -1907,7 +1908,7 @@ Four things to act on rather than read past:
 - **The 149 "unless" clauses** — need `Effect::Conditional` (Phase 6) (§2.4).
 - **CR 106.6b mana-spend restrictions** — the ten "this mana can't be spent
   to…" cards belong with the mana system and ticket `T12d`, not here.
-- **Requirements ("attacks if able")** are *in* scope for RS-3 and only RS-3,
+- **Requirements ("attacks if able")** are *in* scope for `combat-requirements` and only `combat-requirements`,
   because CR 508.1d makes them inseparable from restrictions. They are named
   here so that no earlier phase picks them up.
 - **Restrictions whose source is in another zone** — source 2, deferred on the
@@ -1929,5 +1930,5 @@ Written as part of the PR that lands this file, not after:
 - `plans/replacement-architecture.md` §4.4 — a pointer here, and the RC-4
   dependency named as RS-1 rather than as "theme A".
 
-When RS-4 lands: add `Phase RS` to `specdb.py`'s `SHIPPED_PHASES`, and delete
+When the last "can't" phase lands: add `Phase RS` to `specdb.py`'s `SHIPPED_PHASES`, and delete
 `plans/references/cant-census.py` if §2 has no remaining customer.

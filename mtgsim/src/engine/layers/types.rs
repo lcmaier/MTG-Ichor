@@ -47,7 +47,7 @@ pub enum Layer {
     /// Only 1a has producers: `EffectModification::CopyFrom` rows from
     /// `Primitive::Copy`, and the copy a permanent entered as
     /// (`PermanentState::entered_as`), applied from its state at its own
-    /// timestamp. CV-6 splits the slot when face-down arrives, and
+    /// timestamp. `face-down-and-morph` splits the slot when face-down arrives, and
     /// `layers::copy::END_OF_LAYER_1` is what the split has to move.
     Layer1Copy,
     /// Layer 2 — control-changing effects (CR 613.3).
@@ -143,7 +143,7 @@ pub enum EffectModification {
     /// *characteristic channel*, and this one replaces every channel at once,
     /// which is what layer 1 means. A second layer-1 arm is a claim that CR
     /// 613.2 has a third sublayer; it has two, and the other is face-down,
-    /// which CV-6 derives from `PermanentState` state rather than from a row
+    /// which `face-down-and-morph` derives from `PermanentState` state rather than from a row
     /// (`copy-effects-architecture.md` §4.6).
     CopyFrom(Arc<crate::engine::layers::copy::CopiableValues>),
 

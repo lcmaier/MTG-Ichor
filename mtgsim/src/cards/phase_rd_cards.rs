@@ -131,7 +131,7 @@
 //! rounded down" is a Layer 6 grant of a `Prevent` whose `SourcePattern` names
 //! its own host — a `Self` leaf with exactly one customer, which §8c's guard
 //! says to record rather than add. The card is unregisterable anyway until
-//! RS-2 lands "hexproof as long as it's untapped", and a registered card with
+//! `cant-be-targeted` lands "hexproof as long as it's untapped", and a registered card with
 //! a dead ability under a real name is what `engineering-practices.md` §3
 //! forbids.
 //!

@@ -410,7 +410,7 @@ SEARCHED = [
      [r"o:/enters? (the battlefield )?transformed/"],
      [r"o:/(would enter|enters?) [^.]*(transformed|back face up)[^.]*instead/"],
      "the one hit, Corruption of Towashi, is a trigger on a transformed entry; a transformed entry is an "
-     "instruction's (\"return it transformed\"), and CV-5 (double-faced cards) builds 616.1d's step"),
+     "instruction's (\"return it transformed\"), and `double-faced-cards` builds 616.1d's step"),
     (1, "copy-by-counters", "A copy that becomes applicable once the entry carries counters (CR 616.2), "
                             "which would put a multiplier between two copies (`codebase-state.md` item 189)",
      ("616.2", "707.9e"),
@@ -443,7 +443,7 @@ SEARCHED = [
      [r"o:/whenever [^.]*causes (you|a player|its controller) to add/"],
      ["t:/land/", r"o:/whenever [^.]*(tapped|tap [^.]*) for mana, [^.]*add/"],
      "the one watcher, Caged Sun, names a land's ability, and no land has a triggered mana ability, so no "
-     "chain prints; MA-3 owns what runs inside a mana ability"),
+     "chain prints; `any-color-plus-painlands-plus-signets` owns what runs inside a mana ability"),
 ]
 
 # What the class queries found that closes no loop. `(id, what, terms, why)`.

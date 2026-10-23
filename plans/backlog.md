@@ -79,7 +79,7 @@ rule-level citations this file will accumulate as it fills, not for today's text
 ### 2.1 Cost modification and the cost pipeline — ✅ graduated 2026-09-07 to `cost-architecture.md`
 
 *Both halves are owned there: modification is CM-1 (shipped) to CM-4, payment
-is CP-1, a sized slot. The entry is kept as written for the record.*
+is `hybrid-and-phyrexian-payment`, a sized slot. The entry is kept as written for the record.*
 
 - **Rules** — CR 107.3, 107.4, 107.6; 118.6–118.9; 202.3; 601.2f–601.2h, 601.7
 - **Verdict** — `apply_cost_modifications` is a passthrough stub with a test
@@ -137,7 +137,7 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   **A mana ability reads the first one** (item 212's census, 2026-10-05):
   "one mana of the chosen color" is 32 Commander-legal mana abilities, and
   `codebase-state.md` item 162's design owns them, and builds the record's
-  mana half in this entry's shape: `mana-architecture.md` §3.10, MA-4.
+  mana half in this entry's shape: `mana-architecture.md` §3.10, `chosen-color-plus-could-produce`.
 
   Four constraints on their shape:
   - **Made before the permanent enters (CR 614.12a),** so the choice travels
@@ -154,9 +154,9 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
 ### 2.3 Casting from a non-hand zone — ✅ graduated 2026-10-05 to `permission-architecture.md`
 
 *Owned there since `codebase-state.md` item 212's census (`plans/references/cast-census.md`): the owner placed casting from
-every zone, ownership inside the permission and the reasons beside RS-2's in
-one document, designed beside RS-2 and built before B2. The four cost arms
-below are `cost-architecture.md` CP-2's. The entry is kept as written for the
+every zone, ownership inside the permission and the reasons beside `cant-cast-play-or-activate`'s in
+one document, designed beside `cant-cast-play-or-activate` and built before `game-formats`. The four cost arms
+below are `cost-architecture.md` `remaining-costs`'s. The entry is kept as written for the
 record, corrected where it was wrong.*
 
 - **Rules** — CR 601.3, 601.3f, 117.1a; the CR 702 cast-from-elsewhere keywords
@@ -189,7 +189,7 @@ record, corrected where it was wrong.*
   `Cost::AddCounters`: `can_pay_costs` refuses each as `CannotPay::Unchecked`
   (SU-7) and `pay_single_cost` returns an error. Discard as a cost is about
   384 cards, exile from a graveyard 161 and removing counters 334 (Scryfall,
-  2026-10-05). **All four are `cost-architecture.md` CP-2's** (item 212's
+  2026-10-05). **All four are `cost-architecture.md` `remaining-costs`'s** (item 212's
   census, 2026-10-05). An earlier line here called the first one this entry's,
   and it was not: a discard cost is a payment, not a permission.
 - **Owner** — `permission-architecture.md` (2026-10-05).
@@ -329,13 +329,13 @@ record, corrected where it was wrong.*
   `plans/references/cast-census.md` §7):
   - the keywords that cast or activate from another zone are
     `permission-architecture.md`'s;
-  - crew, saddle and station's tap cost is CP-2's;
+  - crew, saddle and station's tap cost is `remaining-costs`'s;
   - every other alternative or additional cost whose arm exists or is
     `Custom` is C's breadth. Evoke, dash, overload and bestow are 127 cards;
     emerge, spectacle and the rest of that family, 211; buyback, entwine,
     casualty, bargain and strive, 126; splice, offspring, gift and the rest,
     102. Each is a card over the surfaces its census row names. The 601.2b
-    count of multikicker, replicate and squad is CP-2's.
+    count of multikicker, replicate and squad is `remaining-costs`'s.
 - **Atoms** — 20, not re-filed.
 - **Owner** — none yet.
 
@@ -378,7 +378,7 @@ Two more rules matter and both make life easier:
 - **609.4b — spending mana "as though it were mana of any type" affects only
   how a cost is paid.** "It doesn't change that cost, and it doesn't change
   what mana was actually spent" — so this one is `cost-architecture.md`'s
-  payment side (CP-1), not cost *determination*, and it must not touch the
+  payment side (`hybrid-and-phyrexian-payment`), not cost *determination*, and it must not touch the
   locked total. CR 118.14's "mana of any type can be spent" is the same rule.
 
 **The population, counted 2026-09-09.** Scryfall `o:"as though" -is:funny`:
@@ -424,7 +424,7 @@ first is cheap.
 **Rough size.** The permission half (timing, zone, attack/block legality):
 ~600–900, a `PermissionDef` mirroring `RestrictionDef`, `is_permitted` with
 one `Query` arm per site, the sweep, and 3–4 cards. The payment half
-(609.4b): ~200–300 on top of CP-1's payment, and it belongs with it. The
+(609.4b): ~200–300 on top of `hybrid-and-phyrexian-payment`'s payment, and it belongs with it. The
 value-substitution half: **unknown until scoped** — it needs the frame
 generalized past entries, which is RC-4's machinery pointed at a new
 question, and the sizing has to count the decision sites first. Graduates to
@@ -441,16 +441,16 @@ inventory and §0 means it.** Two things now point outward, and the second was
 added 2026-09-09 after the observation that an entry with an owner and a size
 and no slot is not scheduled, it is merely recorded.
 
-1. **The back-stop lives on the route**: `roadmap-v2.md` §3a row **B8**, which
-   puts the permission half after B5 and before Phase 8, gates Phase 8's start
-   on it beside CV-7 and B4, rides the payment half with CP-1, and says why the
+1. **The back-stop lives on the route**: `roadmap-v2.md` §3a row **`as-though-effects`**, which
+   puts the permission half after the combat phases and before Phase 8, gates Phase 8's start
+   on it beside `merging-and-meld` and `information-model`, rides the payment half with `hybrid-and-phyrexian-payment`, and says why the
    value-substitution half deliberately has no date. A back-stop is what turns
    "recorded" into "scheduled", and it could not go in this file: §0 allows six
    fields and no seventh, and "nothing here has a date" is the sentence that
    makes the inventory trustworthy.
 2. **The seam is a constraint on two other phases.**
-   `cant-effects-architecture.md` §3.7 carries a constraint on **RS-3a and
-   RS-4**, written 2026-09-09 and deliberately ahead of this entry's own
+   `cant-effects-architecture.md` §3.7 carries a constraint on **`combat-restrictions` and
+   `cant-pay-costs`**, written 2026-09-09 and deliberately ahead of this entry's own
    scheduling. Those two phases rewrite the combat validators and the payment
    sites, which are the sites an "as though" consult needs, and they are the
    only phases between now and this entry that touch them. §3.7 asks two things
@@ -750,7 +750,7 @@ kept as written for the record.*
 - **The trigger survey's customer (2026-09-18, `plans/references/trigger-survey.md`, table one's 603.2f row):** the dispatcher's visibility gate. CR 603.2f is "visible to all players" at the instant after the event — a *global* bit, a subset of this entry's per-viewer query — and until a reveal exists no hidden-zone object is visible, so `Zone::is_public()` is exact and the triggers doc names the predicate per object for this entry to fill. The survey read it as no reason to move this entry up, the RE-8 answer above standing; the owner decides whether the GUI's nearness does.
 - **Slot (2026-09-25)** — **the design, merged with §2.34, sits right after item
   6's close audit**, ahead of Phase 8, and the owner reviews it before any build
-  (`roadmap-v2.md` A6f). The AI floors' survey
+  (`roadmap-v2.md` `information-model-design`). The AI floors' survey
   (`plans/references/ai-performance-floors.md`) found the query alone
   insufficient for honest search (§2.34), and the knowledge record it adds is
   forked state, which floor 3 bounds by the board. The build keeps its
@@ -817,11 +817,11 @@ kept as written for the record.*
   It pairs naturally with §2.1 — reading a hybrid or Phyrexian symbol for its
   colors is the same symbol-decoding work as paying with one.
 - **Blocks** — devotion (§2.7's CR 700.5a); protection from a color (§2.6);
-  every color-matters card; the color indicator's CV-5 landing.
+  every color-matters card; the color indicator's `double-faced-cards` landing.
 - **Atoms** — 20, across CR 202 (11) and CR 105 (9).
 - **Owner** — none yet.
 
-### 2.11 Loyalty abilities — ✅ graduated 2026-10-05 to `permission-architecture.md` and CP-2
+### 2.11 Loyalty abilities — ✅ graduated 2026-10-05 to `permission-architecture.md` and `remaining-costs`
 
 - **Rules** — CR 306.5 (loyalty as a characteristic), 306.5d (activation),
   306.8 (damage), 209.2
@@ -842,7 +842,7 @@ kept as written for the record.*
   abilities, and its −2 on TR-3's reflexive trigger.
 - **Atoms** — 12, across CR 306 (10) and CR 209 (2).
 - **Owner** — `permission-architecture.md` for the timing (CR 306.5d,
-  606.3), and `cost-architecture.md` CP-2 for the cost, which is the counter
+  606.3), and `cost-architecture.md` `remaining-costs` for the cost, which is the counter
   arms (item 212's census, 2026-10-05; 311 Commander-legal planeswalkers).
 
 ### 2.12 Step- and phase-scoped durations
@@ -962,7 +962,7 @@ CR 704.5c reads it, `GameAction::AddCounters { subject: CounterSubject::Player
 (..) }` puts them on and `Primitive::GetCounters` is Oracle's "you get". Live
 Fast is the producer; Vorinclex's and Winding Constrictor's player halves the
 watchers. Costs paid in energy wait for their first card
-(`cost-architecture.md`'s CP-1 slot). The entry is kept as written for the
+(`cost-architecture.md`'s `hybrid-and-phyrexian-payment` slot). The entry is kept as written for the
 record.*
 
 - **Rules** — CR 122.1's player half; proliferate reads it (CR 701.34a)
@@ -1117,7 +1117,7 @@ mechanic rather than a migration, which is why it is here and not in
   The reversal prompt is main item 72, and CM-4 placed it with critical-path
   item 6 rather than here: reversing a mana ability fails the payer's own
   criterion, and the board it is observable on is waiting for the trigger
-  phase (moved to B13, the Ironworks loop, on 2026-10-13). **And a third thing lives here now (2026-09-07, CM-3):**
+  phase (moved to `ironworks-loop`, on 2026-10-13). **And a third thing lives here now (2026-09-07, CM-3):**
   the *staged* payment Arena offers — delve exiles, convoke taps, a sacrifice,
   all shown and take-back-able until the player confirms the cast. CM-3 made
   that possible without any engine facility by separating deciding from
@@ -1153,8 +1153,8 @@ mechanic rather than a migration, which is why it is here and not in
   13.5% of instructions (`layers-architecture.md` §12), and since MA-1
   (#225) reads them once a window and re-asks only their costs.
 - **Owner** — `plans/mana-architecture.md` (#224): the solver and its
-  decorator are MA-6 (§3.12); the window's inventory landed in MA-1 (§3.8).
-  The reversal prompt stays main item 72's, slotted to B13, the Ironworks
+  decorator are `mana-payment-solver` (§3.12); the window's inventory landed in MA-1 (§3.8).
+  The reversal prompt stays main item 72's, slotted to `ironworks-loop`, the Ironworks
   loop.
 
 ### 2.19 Any-color mana — "Add one mana of any color"
@@ -1199,7 +1199,7 @@ mechanic rather than a migration, which is why it is here and not in
   different surface (`ManaPool::pay`) and stay where they are.
 - **Owner** — `plans/mana-architecture.md` (#224), item 162's design. It
   designs the production families once, for resolution and for the
-  affordability check (§3.10), and builds them in MA-3 and MA-4, before C
+  affordability check (§3.10), and builds them in `any-color-plus-painlands-plus-signets` and `chosen-color-plus-could-produce`, before C
   (the owner, 2026-10-05). The census counts 380 cards with one mana of any color
   and 347 more that make a Treasure. (Recorded here on 2026-09-03 when
   `plans/handoffs/pool-five-color-land.md` was closed; its City of Brass
@@ -1327,7 +1327,7 @@ mechanic rather than a migration, which is why it is here and not in
   amount, and the `DecisionProvider` a prompt that returns numbers rather than
   indices. ~500–700 lines with Arc Lightning as its consumer (the atoms are
   written around its numbers) and Forked Bolt as the cheap pooled option at one
-  mana. `roadmap-v2.md` row **A4l**, back-stopped before Phase 8's breadth,
+  mana. `roadmap-v2.md` row **`divided-among-targets`**, back-stopped before Phase 8's breadth,
   where the 48 "divided as you choose" cards live; it blocks nothing on the
   spine.
 - **The rest of this entry is the record of the design as it was sized**, kept
@@ -1368,7 +1368,7 @@ mechanic rather than a migration, which is why it is here and not in
   (division), ATOM-115.3-001/-002. None claimed; every one of them needs two
   target clauses to build.
 - **Owner** — none yet; **scheduled** in `roadmap-v2.md` §3a beside A,
-  back-stopped before RS-2 and before A6's first PR (2026-09-04), because
+  back-stopped before `cant-be-targeted` and before A6's first PR (2026-09-04), because
   both would otherwise build on the one-recipient shape. (Recorded 2026-09-04
   in LH-1's review: the `effect_recipient` doc had described the first-atom
   rule as "the convention of every card written so far", and the reviewer
@@ -1504,10 +1504,10 @@ mechanic rather than a migration, which is why it is here and not in
   | 3 | full control | nothing — a switch above the stack: raw or decorated | the toggle | human only | ~100 + tests | **built 2026-09-30 (A6j)**, below |
   | 4 | auto-yield | `PriorityAction` → `Pass` while a yield holds | policy | human only; never a bot's | ~100–150 + tests | **built 2026-09-30 (A6j)**, with row 3 |
   | 5 | combat defaults | `AssignCombatDamage` (2.1 / 2.3 / 3.7), `AssignTrampleDamage` (0.17 / 0.28 / 0.40) | policy | human under the toggle / the agent's own | ~60 + a CR read | item 84's helpers are its body; after 3 |
-  | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below; designed in `mana-architecture.md` (#224): the existence check landed in MA-1 (#225), and the covering set, the solver, is MA-6 (`mana-architecture.md` §3.12) |
-  | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6; MA-6 |
+  | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below; designed in `mana-architecture.md` (#224): the existence check landed in MA-1 (#225), and the covering set, the solver, is `mana-payment-solver` (`mana-architecture.md` §3.12) |
+  | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6; `mana-payment-solver` |
   | 8 | auto-order triggers | CR 603.3b's order, once it exists | engine elision for identical triggers; policy for the rest | human under the toggle / the agent's | ~40 + ~30 engine | **built**: the elision in TR-1 and TR-2b, the decorator `ui::AutoOrderTriggers` in TR-7 (2026-10-22, PR #269); classified at birth below |
-  | 9 | reversal policy | CR 732.1's offer, keep or reverse all (item 72) | policy | human under the toggle / a bot policy — never silent on a human's | ~15 in row 7; the prompt ~40 in the engine | B13, the Ironworks loop (item 72) |
+  | 9 | reversal policy | CR 732.1's offer, keep or reverse all (item 72) | policy | human under the toggle / a bot policy — never silent on a human's | ~15 in row 7; the prompt ~40 in the engine | `ironworks-loop` (item 72) |
 
   **Row 2, decided: the payer keeps no answer the engine stopped asking for.**
   `AutoPayer::allocate`'s forced branch and `auto_payer::split_is_forced`
@@ -1637,7 +1637,7 @@ mechanic rather than a migration, which is why it is here and not in
   19.2% of instructions. Its rewinds are what `fuzz_games` prints as "Actions
   reversed", and the shapes the check still reads one way are
   `codebase-state.md` item 213. What remains for the solver is the payment
-  itself, MA-6 (`mana-architecture.md` §3.12). **The Arena problem is the preference,
+  itself, `mana-payment-solver` (`mana-architecture.md` §3.12). **The Arena problem is the preference,
   not the matching**: when several covering sets exist, which lands stay
   untapped is a question about the rest of the hand and the opponents'
   boards, so the solver takes a preference from its client and breaks ties by
@@ -1668,8 +1668,8 @@ mechanic rather than a migration, which is why it is here and not in
   returned `None` on any hybrid, Phyrexian or X symbol. MA-1 replaced it for
   existence with `ManaSupply::covers`, Hall's condition over entries with
   amounts, which still refuses hybrid and Phyrexian symbols and an activated
-  ability's {X} (CP-1's), and answers whether a payment exists, never which;
-  the solver that returns a covering set is MA-6's. What the matching must carry: a
+  ability's {X} (`hybrid-and-phyrexian-payment`'s), and answers whether a payment exists, never which;
+  the solver that returns a covering set is `mana-payment-solver`'s. What the matching must carry: a
   producer of *k* units is a vertex of capacity *k*, which makes it a flow
   rather than a matching; a hybrid pip is a vertex with edges to two types;
   an any-color ability (§2.19, unbuilt) is a per-activation choice that
@@ -1726,13 +1726,13 @@ mechanic rather than a migration, which is why it is here and not in
   reversal is an undo log or a re-simulation of the window's activations from
   the snapshot minus the reversed ones, a facility and not thirty lines, and
   Arena offers undo-all only. So the prompt is *keep* or *reverse all*, ~40
-  lines in the engine, with item 6 as CM-4 placed it (B13 since 2026-10-13). **A decorator may
+  lines in the engine, with item 6 as CM-4 placed it (`ironworks-loop` since 2026-10-13). **A decorator may
   answer it only under the same toggle as auto-yield.** On a human's seat it
   is a prompt-skipping automation — *reverse all* when the solver made the
   taps, since the taps a solver made are the ones it should unmake — and it
   lives inside row 7; on a bot's seat it is a plain policy (`fuzz_games`:
   keep, which is today's stream); **never silently on a human's**. Item 72's
-  placement (B13) does not move, and the invariant it states — the
+  placement (`ironworks-loop`) does not move, and the invariant it states — the
   ability's cost and its mana undone together — is what the restore gives for
   free.
 
@@ -1950,8 +1950,8 @@ mechanic rather than a migration, which is why it is here and not in
   more that say **investigate** without ever printing the word Clue. A further
   **55** create a *legendary* token, which is the missing `supertypes` field
   rather than the missing abilities, and **80** printed tokens are double-faced
-  (CV-5's `back_face`, not this entry's). Copy-shaped tokens — "create a token
-  that's a copy of", 270, plus amass — are **CV-3's** and not here.
+  (`double-faced-cards`'s `back_face`, not this entry's). Copy-shaped tokens — "create a token
+  that's a copy of", 270, plus amass — are **`token-copies`'s** and not here.
 
   **The retrofit argument, which is why this is not simply Phase 8 breadth.**
   A token with no abilities is not a token that is missing something; it is a
@@ -1959,7 +1959,7 @@ mechanic rather than a migration, which is why it is here and not in
   against the current vocabulary is written *around* it — Academy Manufactor is
   already recorded as uncastable for exactly this reason
   (`replacement-architecture.md`, "Out of RE") — and Phase 8 is 643 atoms of
-  writing cards. The same back-stop argument CV-7 won on applies with a larger
+  writing cards. The same back-stop argument `merging-and-meld` won on applies with a larger
   population: **before Phase 8 card breadth**.
 - **Atoms** — `ATOM-111.10-001` (Treasure) and `-002` (Food), both tagged
   Phase 8 and uncovered; `ATOM-111.11-001` (token by name). CR 111.4's
@@ -1994,7 +1994,7 @@ mechanic rather than a migration, which is why it is here and not in
   mana of any color", and so does every Commander mana base; Treasure and
   Gold land with it, and so do Xorn, Chatterfang and Hullbreacher (RE-4's
   template has their shape and waits on the def). (3) The Roles with
-  attach-on-creation, Wicked Role with CR 603, Incubator with CV-5's back
+  attach-on-creation, Wicked Role with CR 603, Incubator with `double-faced-cards`'s back
   face. The vocabulary for all twenty exists since RE-4; nothing in the
   library needs a type change.
 
@@ -2054,8 +2054,8 @@ mechanic rather than a migration, which is why it is here and not in
   mandatory loop), a work stack that removes `DISPATCH_NESTING_LIMIT`, D26's
   seams, and the census of printed mandatory loops by shape that the design
   starts with.
-- **Owner** — `roadmap-v2.md` B14, slotted last before Phase 8 at TR-6's design
-  review (the owner, 2026-10-21). This entry graduates to B14's architecture
+- **Owner** — `roadmap-v2.md` `loop-detection`, slotted last before Phase 8 at TR-6's design
+  review (the owner, 2026-10-21). This entry graduates to `loop-detection`'s architecture
   doc when its design lands. Raised at RE-4's review (R21).
 
 ### 2.29 The suppression predicate as a commutation table — ✅ graduated 2026-09-14 (RE-5's review, theme B)
@@ -2322,7 +2322,7 @@ discover this one training run at a time.
 | **Size** | medium, after §2.9: a per-viewer knowledge record written by the reveal, look and scry paths; a redeal from a viewer that shuffles each library's unknown portion and swaps unknown hand cards with unknown library cards, drawing on `GameState.rng` so a determinized branch is itself seeded and replayable; and a test that a searcher over many samples predicts its next draw no better than chance |
 | **Blocks** | Phase 10's search harness — any look-ahead past what the searcher knows, and any training signal from self-play, which otherwise learns to play against known draws. Nothing on the spine |
 | **Atoms** | none; the CR does not speak to a harness's honesty, and none should be written |
-| **Owner** | — ; filed 2026-09-18 by the owner, from A4j's review. Designed together with §2.9, right after item 6's close (`roadmap-v2.md` A6f, 2026-09-25) |
+| **Owner** | — ; filed 2026-09-18 by the owner, from A4j's review. Designed together with §2.9, right after item 6's close (`roadmap-v2.md` `information-model-design`, 2026-09-25) |
 
 ### 2.35 "Why can't I?" — the permanent that prohibits an action, as an oracle question
 
@@ -2449,14 +2449,14 @@ the matrix waits for the design that needs it.
 
 **Costs are a slot too** (the owner, 2026-10-05, at `codebase-state.md` item
 212's census). `Cost` has ten arms and the cards ask for about fifty actions
-(`plans/references/cast-census.md` §3). `cost-architecture.md` CP-2's design
+(`plans/references/cast-census.md` §3). `cost-architecture.md` `remaining-costs`'s design
 decides between an arm per action and a cost composed of a choice and a
 `GameAction`. With the second, a custom cost built from existing actions is
 data, bounded by `GameAction`'s vocabulary; with the first, every new cost
 action is an engine change. The census's rule for custom cards is the same for
 every slot: a card may compose what the CR's vocabulary defines, and an action
 the CR does not define is an engine change held to a CR-style definition,
-never a runtime extension the replacement pipeline and RS-4's projection
+never a runtime extension the replacement pipeline and `cant-pay-costs`'s projection
 cannot see.
 
 ### 2.38 The v1 GUI (Arena-lite) — what the engine owes it, and its open questions
@@ -2466,7 +2466,7 @@ Commander through a GUI, and `roadmap-v2.md` §6 puts the target between
 XMage's function and Arena's polish: a board that resizes with what is on it,
 and moves that animate. Four things stand between the engine and that client:
 
-- **Nothing answers "what may this seat see".** That is §2.9, built as B4, and
+- **Nothing answers "what may this seat see".** That is §2.9, built as `information-model`, and
   a GUI for one human renders one player's view.
 - **The wire surface is not serializable.** `serde` is not a dependency, and
   `codebase-state.md` main item 141's payload rule is unmet in two places:
@@ -2601,7 +2601,7 @@ builds as several abilities shown once, and both faces of a double-faced card
 readable at once. The engine gives it each ability's own text and the
 paragraph of its card it prints as (`AbilityDef::rules_text`): the dev GUI's
 hover shows a printed ability once by it, and a removed one is a paragraph no
-ability on the object's list prints as. It still needs a back face (CV-5).
+ability on the object's list prints as. It still needs a back face (`double-faced-cards`).
 The type line the same way (the owner, 2026-10-02, at the playable PR's
 review): the copiable values' words in printed order and one the object lost
 faded in place; a card type or supertype an effect gave it in its place in
@@ -2757,7 +2757,7 @@ named them.
 | **Size** | unsized: a design first, against the copy track's shapes, then about a PR per mechanic, casting path included |
 | **Blocks** | about 150 Adventure cards (Scryfall, 2026-09-29: `is:adventure game:paper -is:funny` returns 151, `t:adventure` returns 138), 19 Prototype (`keyword:prototype`), and 13 Omen (`t:omen`) |
 | **Atoms** | 33 in the corpus (CR 715, 718, 720, 702.160) |
-| **Owner** | the copy track: filed with CV-2b (the owner, 2026-09-29). Designed with CV-5's card model beside PM-0, and built after CV-5 (`roadmap-v2.md` §3a, "From triggers to Phase 8", 2026-10-12) |
+| **Owner** | the copy track: filed with CV-2b (the owner, 2026-09-29). Designed with `double-faced-cards`'s card model beside `permission-design`, and built after `double-faced-cards` (`roadmap-v2.md` §3a, "From triggers to Phase 8", 2026-10-12) |
 
 ### 2.42 The board editor's other advanced settings — history, a card's lines, setup actions
 
@@ -2852,11 +2852,11 @@ any zone but the stack). The walk is not.
 | Field | |
 |---|---|
 | **Rules** | CR 701.20 (reveal: shown to all players, and the card stays in its zone, 701.20b), 401.2–401.3 (a library's order is hidden), and the random order of the rest, drawn from `GameState.rng` |
-| **Verdict** | nothing: no primitive walks a library until a card matches a filter. The nearest are `Mill`, `PutTopCardsIntoHand`, `Scry` and `Surveil`, each a fixed count. The walk's shape: reveal from the top one card at a time until one matches, or the library runs out; the match goes where the effect says, the rest where it says, often in a random order. **It waits on the information model**: on A6f's design (`roadmap-v2.md` A6f, §2.9 here) at the least, and on most of B4's build. A reveal changes nothing an omniscient engine can observe, so a walk built before the model writes what each player saw nowhere, and the model's per-viewer record would have to be threaded through it again |
+| **Verdict** | nothing: no primitive walks a library until a card matches a filter. The nearest are `Mill`, `PutTopCardsIntoHand`, `Scry` and `Surveil`, each a fixed count. The walk's shape: reveal from the top one card at a time until one matches, or the library runs out; the match goes where the effect says, the rest where it says, often in a random order. **It waits on the information model**: on `information-model-design`'s design (`roadmap-v2.md` `information-model-design`, §2.9 here) at the least, and on most of `information-model`'s build. A reveal changes nothing an omniscient engine can observe, so a walk built before the model writes what each player saw nowhere, and the model's per-viewer record would have to be threaded through it again |
 | **Size** | unsized. A primitive, its destinations and its rulings' edge cases (an empty library, no match), once the model can record what was revealed to whom |
 | **Blocks** | `o:"until you reveal"`: 80 cards (Scryfall, 2026-10-17). The same walk with exile in place of reveal is cascade and discover, whose cast half `permission-architecture.md`'s census owns ("cast while something resolves"): `o:"exile cards from the top of your library until"` 26, `keyword:cascade` 38, `keyword:discover` 32 |
 | **Atoms** | none of its own: CR 701.20's atoms are the information model's |
-| **Owner** | — ; after A6f's design, with B4 |
+| **Owner** | — ; after `information-model-design`'s design, with `information-model` |
 
 ### 2.47 Counts over the whole game — a game-only row, and counts by name
 
@@ -2870,8 +2870,8 @@ no store today.
 |---|---|
 | **Rules** | none of its own: each count is its fact's own rule, read over the whole game rather than a turn, as every span reads the history log (`triggers-architecture.md` §3.10) |
 | **Verdict** | **Answered in shape by TR-5h's log (2026-10-19, PR #262), which keeps the whole game.** A game-only fact is a count over its rows from turn 1, and pays for nothing it does not read, so the row this entry once proposed is not needed. A count by name narrows the rows by their frames, which hold each object's name as it was; no `ObjectFilter` leaf reads a name yet. A cast from the command zone is a cast row whose `from` says so, which no `TurnFact` separates yet |
-| **Size** | each reading with its first card: a `ByName` filter leaf, ~30 lines and a test, with Approach of the Second Sun, whose six rulings are its tests; a cast count by zone, ~20 lines, with the first command-zone count and B2's designation |
-| **Blocks** | the 17 printed cards that count a player's casts of a commander from the command zone (Captain Vargus Wrath, Commander's Insignia, the Storm cycle), with B2's designation; the two Frodos' count of the Ring tempting you; Approach, Yidaro and Gollum by name; and the custom "this game" cards the owner expects |
+| **Size** | each reading with its first card: a `ByName` filter leaf, ~30 lines and a test, with Approach of the Second Sun, whose six rulings are its tests; a cast count by zone, ~20 lines, with the first command-zone count and `game-formats`'s designation |
+| **Blocks** | the 17 printed cards that count a player's casts of a commander from the command zone (Captain Vargus Wrath, Commander's Insignia, the Storm cycle), with `game-formats`'s designation; the two Frodos' count of the Ring tempting you; Approach, Yidaro and Gollum by name; and the custom "this game" cards the owner expects |
 | **Atoms** | none |
 | **Owner** | — ; each reading with its first registered card |
 
@@ -3062,22 +3062,22 @@ against re-tagging them.
 | `ATOM-613.1a-001` | **partial** — CV-1's `test_later_layers_still_apply_to_the_copy` proves the layer-1 base under a layer-7c add with a "becomes a copy" row; the entering Clone is CV-2's |
 | `ATOM-611.2c-002` | **partial** — `fog_prevents_damage_from_a_creature_that_entered_after_it_resolved` (RD-3, new); Fog is combat damage where the atom's effect is all damage |
 | `ATOM-400.7c-002` | **re-filed** — Phase 8's first token-making planeswalker; the identity half is `ATOM-615.9-001`'s, covered |
-| `ATOM-611.2c-003` | **re-filed** — RS-3 for "can't be blocked"; the lock-in half is Phase 5-Layers' |
+| `ATOM-611.2c-003` | **re-filed** — `combat-restrictions` for "can't be blocked"; the lock-in half is Phase 5-Layers' |
 | `ATOM-614.10b-001` | **re-filed** — critical-path item 6; no printed card says "skip … then" (RE-1's census) and the follow-up is a trigger |
 | `ATOM-614.11b-001` | **re-filed** — §2.26 |
 | `ATOM-614.15-001`, `ATOM-614.15-002`, `ATOM-616.1a-001`, `ATOM-614.17c-001` | **re-filed** — `replacement-architecture.md` §11 item 3, the self-replacement producer, fixture-first |
-| `ATOM-614.17a-001` | **re-filed** — RS-3 (combat) |
-| `ATOM-614.17b-001` | **re-filed** — RS-4 (costs) |
+| `ATOM-614.17a-001` | **re-filed** — `combat-restrictions` |
+| `ATOM-614.17b-001` | **re-filed** — `cant-pay-costs` (costs) |
 | `ATOM-616.1c-001` | **re-filed** — CV-2; the CR 616.1c bucket has existed since RC-4 |
-| `ATOM-701.40f-001` | **re-filed** — CV-6; manifest needs face-down |
+| `ATOM-701.40f-001` | **re-filed** — `face-down-and-morph`; manifest needs face-down |
 | `ATOM-702.176a-001` | **re-filed** — §2.6, after item 6 for the end-step trigger |
-| `ATOM-704.5e-001`, `ATOM-704.5e-002` | **re-filed** — CV-4, CR 707.10a's SBA |
+| `ATOM-704.5e-001`, `ATOM-704.5e-002` | **re-filed** — `spell-copies`, CR 707.10a's SBA |
 | `ATOM-107.3m-001` | **re-filed** — Phase 8's first "enters with X counters" card; X is unreadable at resolution at all today (`codebase-state.md`, the CR 601.2b row), which comes first |
 | `ATOM-607.2b-001`, `ATOM-607.2g-001` | **re-filed** — §2.2 |
 | `COMP-613-LAYERS-FULL-STACK-001` | **re-filed** — Layer 3 is unbuilt and the Clone half is CV-2's; the per-layer atoms it composes are covered one by one |
 | `ATOM-702.15d-001`, `ATOM-702.2d-001` | **kept deferred**, the owner added — §2.8, on CR 113.6 (LK) |
 | `ATOM-702.180a-002` | **re-filed** — §2.6 (harmonize); its exile-instead half is a stack-exit rewrite the pipeline expresses today |
-| nineteen `ATOM-707.*` and `BOUNDARY-707.2c-001` | **owned as they stand** — `copy-effects-architecture.md` §8: CV-2, CV-3, CV-4 |
+| nineteen `ATOM-707.*` and `BOUNDARY-707.2c-001` | **owned as they stand** — `copy-effects-architecture.md` §8: CV-2, `token-copies`, `spell-copies` |
 
 Three things the run learned, for the next close: **a `COVERS-PARTIAL` is enough
 to silence `owed`** — the gate reads the coverage table, which holds partials —

@@ -15,14 +15,14 @@ turns on the difference between them:
   `fuzz_games` and `cli_play` can only build a deck from this, which is why it
   will always be able to contain a fixture.
 
-The card-list reorganization (roadmap-v2 §C's C0) is a move driven by that
+The card-list reorganization (roadmap-v2 §C's `card-layer-cleanup`) is a move driven by that
 classification, so the classification has to be re-runnable rather than a
 number someone wrote down once.
 
     python plans/references/classify_cards.py --first-printings
 
 **The set a card is filed under is its *first* printing**, which is the only
-key that never changes — C0 files the list by it. That costs one request per
+key that never changes — `card-layer-cleanup` files the list by it. That costs one request per
 card and is behind the flag; without it the run is two requests and answers
 only the printing/fixture split, which is what most re-runs want.
 
@@ -160,7 +160,7 @@ def main() -> int:
     print(f"\nfixtures, total         {len(missing) + len(unregistered)}")
 
     if "--first-printings" not in sys.argv:
-        print("\n(pass --first-printings for the set histogram C0 files by)")
+        print("\n(pass --first-printings for the set histogram `card-layer-cleanup` files by)")
         return 0
 
     real = sorted({c["name"] for c in found})

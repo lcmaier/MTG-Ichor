@@ -612,7 +612,7 @@ mod tests {
     // COVERS-PARTIAL: ATOM-609.7a-001 -- the permanent and stack-spell legs,
     // built whole. The referred-to legs are `phase_tr3c_integration_test`'s,
     // and "a face-up object in the command zone" waits for the command zone
-    // (`codebase-state.md` item 99, B2).
+    // (`codebase-state.md` item 99, `game-formats`).
     //
     // COVERS-PARTIAL: BOUNDARY-DEF-609.7a-001 -- in-set (a creature permanent)
     // and out-of-set (a card in hand referred to by nothing); the boundary's
@@ -643,7 +643,7 @@ mod tests {
         assert_eq!(legal.len(), 3, "and nothing else");
 
         // Enumeration and enforcement agree in both directions, the rule
-        // `cant-effects-architecture.md`'s RS-2 states: everything offered
+        // `cant-effects-architecture.md`'s `cant-cast-play-or-activate` states: everything offered
         // validates, and the card in hand does not.
         for choice in &legal {
             assert!(game.validate_selection(&SelectionFilter::DamageSource, choice, 0, FilterIdentity::NONE).is_ok());
@@ -745,7 +745,7 @@ mod tests {
             // The battlefield is empty, so `Any` offers the seats and nothing
             // else and the two lists are the same list.
             assert_eq!(seats(&game, filter.clone()), in_game, "{:?}: the seat is not offered", filter);
-            // Enumeration and enforcement agree in both directions, RS-2's
+            // Enumeration and enforcement agree in both directions, `cant-be-targeted`'s
             // rule, asked here of the seat that left.
             assert!(game
                 .validate_selection(&filter, &ResolvedTarget::Player(3), 0, FilterIdentity::NONE)

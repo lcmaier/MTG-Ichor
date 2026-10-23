@@ -51,7 +51,7 @@ impl GameState {
         }
 
         // `AttackConstraints::none()`: attack requirements and restrictions are
-        // `cant-effects-architecture.md`'s (RS-3).
+        // `cant-effects-architecture.md`'s (`combat-restrictions` and `combat-requirements`).
         validate_attackers(self, active, &proposed, &AttackConstraints::none())
             .map_err(|e| format!("Invalid attackers: {}", e))?;
 

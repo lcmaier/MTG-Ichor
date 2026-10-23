@@ -24,7 +24,7 @@
 //! Axis 1 never grows *here*: a new replaceable event arrives as a `GameAction`
 //! variant and reaches [`Restriction::Event`] through `EventPattern` for free.
 //! An event-shaped arm added to this enum is the smell. Axis 2 is empty
-//! until RS-2/RS-3; every arm it gains must name one `ChoiceKind`.
+//! until `cant-be-targeted`, `cant-cast-play-or-activate` and the combat phases; every arm it gains must name one `ChoiceKind`.
 //!
 //! Matched exhaustively and deliberately not `#[non_exhaustive]`, for
 //! `types::replacement`'s reason: an arm no enforcement point consults is a card

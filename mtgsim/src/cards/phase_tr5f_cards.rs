@@ -102,7 +102,7 @@ pub fn hanweir_garrison() -> Arc<CardData> {
 /// - *Only if it resolves during a main phase* (#1) →
 ///   `relentless_assault_adds_no_phase_outside_a_main_phase`.
 /// - *A creature that attacks each turn if able must attack only once* (#2):
-///   attack requirements are `cant-effects-architecture.md`'s RS-3a, a
+///   attack requirements are `cant-effects-architecture.md`'s `combat-restrictions`, a
 ///   disposition.
 /// - *Cast on an opponent's turn, that opponent's creatures untap and that
 ///   opponent attacks again* (#3) →

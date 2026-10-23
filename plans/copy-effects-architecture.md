@@ -3,7 +3,7 @@
 > **Status:** design, authored 2026-08-29 in answer to `codebase-state.md` →
 > "Was the critical path complete? — audited 2026-08-27", which ran the "can't"
 > discovery backwards as a detector and found this gap. CV-1, CV-2a, CV-2b and
-> CV-1b have landed (§7a–§7d); CV-3 to CV-7 are unbuilt.
+> CV-1b have landed (§7a–§7d); the named phases in §7's table are unbuilt.
 > **Authority:** the copy model — what a copiable value *is* in this engine,
 > which mechanism each population uses, where a copy is produced, and the phase
 > sequencing for CR 707 / 712 / 708 / 729 and CR 613.2's Layer 1. Where this
@@ -59,7 +59,7 @@ deliverable, because the failure mode is a card that silently does nothing.
 **What this does *not* claim.** CR 712 (double-faced cards) is a second card
 model, not a copy mechanism, and §4.5 scopes it as such rather than pretending
 Layer 1 absorbs it. CR 729 (merging) and CR 708 (face-down) are named, sized and
-given phases of their own (**CV-6**, **CV-7**) rather than a type surface here
+given phases of their own (**`face-down-and-morph`**, **`merging-and-meld`**) rather than a type surface here
 — with the one shape constraint they impose recorded in §3.2 so the door stays
 open. And CR 707.10's
 spell copies touch no layer at all; putting them in a "copy phase" because they
@@ -288,14 +288,14 @@ was scaffolding, as `ReplacementClass` was before RB.
 
 | Piece | Where | State |
 |---|---|---|
-| `Layer::Layer1Copy` | `engine/layers/types.rs` | 1a has producers: `CopyFrom` rows from `Primitive::Copy` (CV-1b), and the copy a permanent entered as, from `PermanentState::entered_as` (CV-2a); 1b has none until CV-6 |
-| `LAYER_ORDER` slot | `engine/layers/compute.rs` | Present, index 0. Sublayer split 1a/1b missing (CV-6) |
-| `ReplacementClass::CopyAsEnters` / `BackFaceUp` | `types/replacement.rs` | `CopyAsEnters` (renamed from `CopyOnEnter`) comes from `Rewrite::EnterAsCopy` through `ReplacementClass::from_rewrite` (Clone, Spark Double); `BackFaceUp` has none until CV-5 |
+| `Layer::Layer1Copy` | `engine/layers/types.rs` | 1a has producers: `CopyFrom` rows from `Primitive::Copy` (CV-1b), and the copy a permanent entered as, from `PermanentState::entered_as` (CV-2a); 1b has none until `face-down-and-morph` |
+| `LAYER_ORDER` slot | `engine/layers/compute.rs` | Present, index 0. Sublayer split 1a/1b missing (`face-down-and-morph`) |
+| `ReplacementClass::CopyAsEnters` / `BackFaceUp` | `types/replacement.rs` | `CopyAsEnters` (renamed from `CopyOnEnter`) comes from `Rewrite::EnterAsCopy` through `ReplacementClass::from_rewrite` (Clone, Spark Double); `BackFaceUp` has none until `double-faced-cards` |
 | `GameObject.is_copy: bool` | `objects/object.rs` | No writer. Read by `engine/leaving.rs`'s CR 707.10 "not a card" leg and by the scenario writer (§3.5) |
-| `Primitive::CreateToken` | `engine/resolve.rs` | Proposes `GameAction::CreateTokens` from a `TokenDef`; no token-copy path yet (CV-3) |
+| `Primitive::CreateToken` | `engine/resolve.rs` | Proposes `GameAction::CreateTokens` from a `TokenDef`; no token-copy path yet (`token-copies`) |
 | Copiable-values capture | `layers::copy::copiable_values` | ✅ CV-1, at `END_OF_LAYER_1` |
-| CR 712 faces on `CardData` | — | ❌ — `CardData` has one face (CV-5) |
-| CR 708 face-down state | `PermanentState.face_down` | The flag exists; no layer reads it (CV-6) |
+| CR 712 faces on `CardData` | — | ❌ — `CardData` has one face (`double-faced-cards`) |
+| CR 708 face-down state | `PermanentState.face_down` | The flag exists; no layer reads it (`face-down-and-morph`) |
 
 ### 2.6 The residual
 
@@ -393,7 +393,7 @@ pub struct CopiableValues {
 
 As built (`engine/layers/copy.rs`). The design also carried
 `back_face: Option<Box<CopiableValues>>`, for CR 707.8a's double-faced token
-copy; it is not on the type, and CV-5 adds it with CR 712's faces (§4.5).
+copy; it is not on the type, and `double-faced-cards` adds it with CR 712's faces (§4.5).
 
 Deliberately **not** `EffectiveCharacteristics` reused: that type carries
 `controller` and `control_since_turn`, and CR 707.2 excludes both. A copy that
@@ -431,8 +431,8 @@ All four build the same `CopiableValues`. They differ in what carries it.
 |---|---|---|---|---|---|
 | 1 | A resolution or an activated ability | 707.4, 707.2c | A `ContinuousEffect` row with a `Duration` | C | CV-1 |
 | 2 | A replacement as a permanent enters | 707.5, 616.1c | `Rewrite::EnterAsCopy` → `EnterMods.copy`, then state on the entering permanent's `PermanentState`; no row | B | CV-2 |
-| 3 | Token creation | 707.1, 111.1 | The new object's own `Arc<CardData>`, built from the capture | A | CV-3 |
-| 4 | A copy of a spell or ability | 707.10 | A new stack object; **no row, no layer** | D, E | CV-4 |
+| 3 | Token creation | 707.1, 111.1 | The new object's own `Arc<CardData>`, built from the capture | A | `token-copies` |
+| 4 | A copy of a spell or ability | 707.10 | A new stack object; **no row, no layer** | D, E | `spell-copies` |
 
 Producer 3 is the exception that proves §1.2's rule: a token has **no printed
 card**, so writing its capture into `Arc<CardData>` is not a swap — it is the
@@ -489,7 +489,7 @@ implemented, and the answer is **the capture, and nowhere else**:
   `PermanentState` state rather than registered (§4.6).
 - **CR 729 merging** *is* a Layer 1a copiable effect by CR 729.2a and would use
   `CopyFrom` — but it needs a permanent represented by several components, which
-  is a `PermanentState` change, not a copy change. That is **CV-7** (§6).
+  is a `PermanentState` change, not a copy change. That is **`merging-and-meld`** (§6).
 - **`GameObject.is_copy`** is a *provenance* flag, not a mechanism. It should be
   set by producers 3 and 4 (a token copy, a spell copy) and stay false for 1 and
   2, whose objects are ordinary permanents with a row on them. It has no writer
@@ -497,7 +497,7 @@ implemented, and the answer is **the capture, and nowhere else**:
   `engine/leaving.rs`'s CR 800.4a stack sweep, plus the scenario writer's report.
   That reader needs `is_copy` set on every copy of a spell and never on an
   object represented by a card, and a cast copy of a card (CR 707.12) also
-  satisfies it — so CV-4's first writer must give the flag that meaning, or
+  satisfies it — so `spell-copies`'s first writer must give the flag that meaning, or
   migrate the reader if it deletes the flag.
 
 ---
@@ -541,7 +541,7 @@ Three things this must get right, each with a rule behind it:
 in `types/replacement.rs`, 707.9a–d made on the captured values in
 `engine/layers/copy.rs`, and 707.9e–f decided on the entry in
 `engine/replacement/entry_copy.rs`. CV-1b's "except it has this ability"
-(Dimir Doppelganger) and CV-3's embalm and eternalize reuse the vocabulary
+(Dimir Doppelganger) and `token-copies`'s embalm and eternalize reuse the vocabulary
 whole, so its design and the decisions it rests on stay here, live.
 
 #### The design: an arm per sub-rule of CR 707.9, with open content
@@ -553,7 +553,7 @@ is the retrofit the review asked about. So `CopyException` instead has one arm
 per sub-rule of CR 707.9 that permits an exception, and each arm's content is
 vocabulary the engine already has. It lives in `types/effects.rs` beside
 `CopyRoles`, because CV-1b's "except it has this ability" (Dimir Doppelganger)
-and CV-3's embalm and eternalize are the same algebra.
+and `token-copies`'s embalm and eternalize are the same algebra.
 
 ```rust
 /// CR 707.9 — one exception to a copy effect. One arm per sub-rule: a new
@@ -583,7 +583,7 @@ at the edit's own layer, which leaves it out of the copiable values (CR 707.2's
 last sentence). CV-2b's is the second: inside a copy, where CR 707.9b makes the
 edit part of the copiable values. The "except it has flying" and "base power
 and toughness 1/1" exceptions of Tier C and token copies are this second
-placement too, so CV-1b and CV-3 reuse `CopyException` whole.
+placement too, so CV-1b and `token-copies` reuse `CopyException` whole.
 
 - **A new card is data, printed or custom.** Every 707.9a–c exception edits a
   characteristic on CR 707.2's list, and that list is the definition of
@@ -762,7 +762,7 @@ RE-4's exception), and each lands with its card.
 | changeling | Omni-Changeling, Moritte | a CDA for every creature type |
 | a donor chosen by a resolution | Mystic Reflection | `CopyDonor::Object`, filled at creation in `PatternFill`'s shape, and a "the next time one or more" batch scope |
 | CR 614.13's move with a copy | The Mimeoplasm | `EnterAfterMoving` and `EnterAsCopy` in one application |
-| embalm's token | Vizier of Many Faces | CV-3 |
+| embalm's token | Vizier of Many Faces | `token-copies` |
 | "except it has this ability", the copy's own ability given back to it | Unstable Shapeshifter, Dimir Doppelganger, Vesuvan Doppelganger's upkeep copy (all Tier C) | a `GainsAbility` leaf naming the ability that makes the copy, filled as it applies, since a def cannot contain itself. CV-1b's |
 
 ### 4.2 Tier C — becomes a copy (CR 707.4 / 707.2c)
@@ -891,8 +891,8 @@ Two rules that are easy to miss and cheap to honour:
   counters has none.
 - **CR 707.8a**: a token copy of a double-faced permanent is a *double-faced
   token* with both faces, which is what `CopiableValues.back_face` exists for.
-  Unreachable until CV-5, and the field is the reason CV-5 does not have to
-  revisit CV-3.
+  Unreachable until `double-faced-cards`, and the field is the reason `double-faced-cards` does not have to
+  revisit `token-copies`.
 
 ### 4.4 Tiers D and E — the stack copy (CR 707.10, 707.12)
 
@@ -917,7 +917,7 @@ new `ObjectId`, and the interesting parts are all decision-shaped:
   identity question: the copy keeps the original's `StackEntry.ability_identity`
   (RA-2's `AbilityIdentity`) and advances the same resolution count
   (`triggers-architecture.md` §6.5). No TR phase builds ability copies, and
-  §6.5 and §13 there give them to CV-4, so CV-4 covers spell copies and
+  §6.5 and §13 there give them to `spell-copies`, so `spell-copies` covers spell copies and
   *ability* copies (39 clauses) (§7's row, corrected 2026-10-12, A6p).
 
 **Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 3): the clone is not
@@ -925,7 +925,7 @@ the whole copy.** `StackEntry` now also holds facts about the cast and about
 who put the spell on the stack, and CR 707.10 gives a copy the original's
 value of none of them. The copy resets three fields:
 - `cast_from` becomes `None`: "a copy of a spell isn't cast". The field's own
-  doc already names CV-4.
+  doc already names `spell-copies`.
 - `mana_spent` becomes `ManaSpent::NONE`: mana isn't an object
   (ATOM-707.10-003, Dawnglow Infusion).
 - `controller` becomes the player the copy is put on the stack under, and that
@@ -972,11 +972,11 @@ The seams with this document, both narrow:
 - **CR 616.1d / `ReplacementClass::BackFaceUp`** — "enters transformed" is a
   replacement, and it is the *only* place CR 712 touches the pipeline.
 
-`BackFaceUp` therefore gets its producer in CV-5 and not in RC-4 (§5.1).
+`BackFaceUp` therefore gets its producer in `double-faced-cards` and not in RC-4 (§5.1).
 
 ### 4.6 CR 708 — face-down, and Layer 1b
 
-**304 producers; CV-6, and undesigned here beyond the one constraint it puts on
+**304 producers; `face-down-and-morph`, and undesigned here beyond the one constraint it puts on
 the capture.** CR 708.2 makes the face-down characteristics *be* the copiable
 values, so it is inside layer 1 by definition, and CR 613.2b puts it in sublayer
 1b — after 1a.
@@ -994,7 +994,7 @@ end of 1a*. That is one integer, and §5.4 is about the fact that three files
 named the sublayers in the wrong order when this was written (CV-1 corrected
 them).
 
-**And one event CV-6 owns, named at the post-RE audit (2026-09-15):** the
+**And one event `face-down-and-morph` owns, named at the post-RE audit (2026-09-15):** the
 turn-face-up special action is the event CR 614.1e's replacements watch —
 "As [this permanent] is turned face up …" — and `replacement-architecture.md`
 §8a lists it as the one of its four missing kinds with an owner. Three printed
@@ -1139,7 +1139,7 @@ a different phase wearing RC-4's name.
 |---|---|---|---|
 | `ControlChanging` | 616.1b | **stays in RC-4** | Layer 2 is shipped (critical-path item 4 ✅), so 616.1b is producible today |
 | `CopyOnEnter` | 616.1c | **moves to CV-2** | needs the copy spine |
-| `BackFaceUp` | 616.1d | **moves to CV-5** | needs CR 712 faces |
+| `BackFaceUp` | 616.1d | **moves to `double-faced-cards`** | needs CR 712 faces |
 
 (A record of the 2026-08-29 design pass. CV-2a built 616.1c's producer,
 `Rewrite::EnterAsCopy`, and renamed the bucket `CopyAsEnters`; the RC-B cite
@@ -1168,7 +1168,7 @@ RC-4, never before.
 ### 5.2 The CR 613.8 join — refuted
 
 **The claim to test:** Layer 1 copies generate dependency-ordering-sensitive
-boards, so copy implementation queues behind critical-path item 7 the way RS-3b
+boards, so copy implementation queues behind critical-path item 7 the way `combat-requirements`
 does.
 
 **Refuted, and the reason is one rule.** CR 707.2b: "Once an object has been
@@ -1193,7 +1193,7 @@ Two footnotes, and neither changes the answer:
   once, outside the walk, means the recursion never happens. This is the engine
   half of §1.3 and the only part of it that is not just restating the CR.
 
-**What this does not claim.** CV-5 (faces) and any future CR 729 work are *not*
+**What this does not claim.** `double-faced-cards` (faces) and any future CR 729 work are *not*
 covered by this argument, because a merged permanent's characteristics come from
 its topmost component and that is a live relationship, not a snapshot. If
 merging is ever built, re-ask 613.8a(b) for it specifically.
@@ -1262,16 +1262,16 @@ origin and duration — not by `ObjectSet`):
 > | CR | What carries over, or is found | Where | State |
 > |---|---|---|---|
 > | 400.7a | an effect on a permanent spell changing characteristics or control | the prune spares every continuous row from the stack to the battlefield | ✅; 400.7a-002, a text change, waits on Layer 3 (`backlog.md`) |
-> | 400.7b | a static grant, to a permanent spell, of an ability that works on the battlefield (611.3d) | the grant's filter ("creature spells you cast") stops matching the permanent, so the resolution writes a row | ✗ PM-0 (`permission-architecture.md` §5 question 6); ATOM-400.7b-001 |
+> | 400.7b | a static grant, to a permanent spell, of an ability that works on the battlefield (611.3d) | the grant's filter ("creature spells you cast") stops matching the permanent, so the resolution writes a row | ✗ `permission-design` (`permission-architecture.md` §5 question 6); ATOM-400.7b-001 |
 > | 400.7c | prevention of damage from a permanent spell | the shield names its chosen source by identity (`SourcePattern.object`, an `ObjectRef`), which the prune never reaches; `move_object` re-points it at the permanent (`prevents_damage_from`) | ✅ |
-> | 400.7d | facts a permanent keeps about the spell it was | `PermanentState.cast` (main item 9); mana spent is B9 | ✅ but mana provenance |
+> | 400.7d | facts a permanent keeps about the spell it was | `PermanentState.cast` (main item 9); mana spent is `mana-provenance` | ✅ but mana provenance |
 > | 400.7e | a zone-change trigger finding the new object | TR-4 | 400.7e-001, -002 |
 > | 400.7f | a leaves-the-battlefield trigger finding the Auras | TR-4 | 400.7f-001 |
-> | 400.7g | a granted cast ability (Snapcaster Mage's flashback) on the spell | the cast spares its grant from the prune | ✗ PM-0, question 6; no atom |
-> | 400.7h | the rest of an effect finding the spell it let be cast | the same | ✗ PM-0; no atom |
-> | 400.7i | the rest of an effect finding the land it let be played | the same | ✗ PM-0; no atom |
+> | 400.7g | a granted cast ability (Snapcaster Mage's flashback) on the spell | the cast spares its grant from the prune | ✗ `permission-design`, question 6; no atom |
+> | 400.7h | the rest of an effect finding the spell it let be cast | the same | ✗ `permission-design`; no atom |
+> | 400.7i | the rest of an effect finding the land it let be played | the same | ✗ `permission-design`; no atom |
 > | 400.7j | the rest of an effect finding what it moved to a public zone | CR 608.2b's check runs once, as the resolution begins (`stack.rs`), and a later step finds the object by id | ✅; what a step does there is its primitive's (400.7j-001, Phase 8) |
-> | 400.7k | after an uncast madness card, effects finding the discarded card | madness's permission (§1's census, "cast while something resolves") | ✗ PM-0, question 6; no atom |
+> | 400.7k | after an uncast madness card, effects finding the discarded card | madness's permission (§1's census, "cast while something resolves") | ✗ `permission-design`, question 6; no atom |
 > | 400.7m | stickers, and their effects, across public zones | `backlog.md` §2.45, scoped in by the owner (2026-10-07) where session 1 had ruled CR 123 out | ✗ no owner doc yet |
 
 **Scheduling consequence:** **CV-1 shipped turn-bounded Tier C, CV-2 ships
@@ -1309,7 +1309,7 @@ changed zones.
 > `Layer` block, `codebase-state.md`, and `compute.rs`'s `LAYER_ORDER` doc. The
 > order is 1a copy, 1b face-down. 1a has producers (`CopyFrom` rows from
 > `Primitive::Copy`, and entry copies through `PermanentState::entered_as`), and
-> 1b has none until CV-6. The one integer is `layers::copy::END_OF_LAYER_1`,
+> 1b has none until `face-down-and-morph`. The one integer is `layers::copy::END_OF_LAYER_1`,
 > pinned by `copiable_values`'s `debug_assert`. The pass 5 docs audit
 > (2026-10-22) corrected the inversion's last echoes in `layers-architecture.md`
 > (§3.1, §3.2, §3.5, §7's implementation note, §15.2 item 2, and Phase LD's
@@ -1386,15 +1386,15 @@ argument is about coupling, not worth:
 
 | Population | Cards | Phase | Why here in the order |
 |---|---:|---|---|
-| Tier D/E — spell and cast copies | 306 + 47 | **CV-4** | Zero coupling to layers, registry or pipeline. Can land first or last; nothing waits on it |
+| Tier D/E — spell and cast copies | 306 + 47 | **`spell-copies`** | Zero coupling to layers, registry or pipeline. Can land first or last; nothing waits on it |
 | Tier C — becomes a copy | 81 | **CV-1** | The spine every other CV phase carries |
 | Tier B — enters as a copy | 69 | **CV-2** | Needs RC-2's `EnterBattlefield` event |
-| Tier A — token copies | 306 | **CV-3** | Needs CV-1's capture; nothing needs it |
-| CR 712 transform + modal DFC | 496 | **CV-5** | A second card model. 486 Commander-legal and **120 can be a commander** |
-| **Face-down** (CR 708) | **304 producers** | **CV-6** | Layer 1b, and CR 707.2 makes copiable values depend on face-down status — so it is coupled to CV-1's capture ceiling and to nothing else. Its bulk is a *casting* mechanism (CR 708.4: alternative costs, a turn-face-up special action), which is why it is its own phase rather than a rider on CV-1 |
-| **Merging** (CR 729) + **meld** (CR 712.4) | 34 + 21 | **CV-7** | The multi-component `PermanentState`. Last in this track because it is the largest structural change, **and it is the one with a back-stop**: before Phase 8 card breadth, for the fact reason above |
-| **Flip cards** (CR 710) | 25 | **CV-5** | Rides along once faces exist; CR 729.2h already couples them to merging |
-| Garth One-Eye (707.13), Magar (707.14) | 2 | **CV-4** | Cheap once the capture exists; the CR names each individually |
+| Tier A — token copies | 306 | **`token-copies`** | Needs CV-1's capture; nothing needs it |
+| CR 712 transform + modal DFC | 496 | **`double-faced-cards`** | A second card model. 486 Commander-legal and **120 can be a commander** |
+| **Face-down** (CR 708) | **304 producers** | **`face-down-and-morph`** | Layer 1b, and CR 707.2 makes copiable values depend on face-down status — so it is coupled to CV-1's capture ceiling and to nothing else. Its bulk is a *casting* mechanism (CR 708.4: alternative costs, a turn-face-up special action), which is why it is its own phase rather than a rider on CV-1 |
+| **Merging** (CR 729) + **meld** (CR 712.4) | 34 + 21 | **`merging-and-meld`** | The multi-component `PermanentState`. Last in this track because it is the largest structural change, **and it is the one with a back-stop**: before Phase 8 card breadth, for the fact reason above |
+| **Flip cards** (CR 710) | 25 | **`double-faced-cards`** | Rides along once faces exist; CR 729.2h already couples them to merging |
+| Garth One-Eye (707.13), Magar (707.14) | 2 | **`spell-copies`** | Cheap once the capture exists; the CR names each individually |
 
 **There is no single total, and an earlier draft's "~1,300 cards" was a sum of
 sets that overlap** — which §2's own header forbids. The two honest headline
@@ -1409,7 +1409,7 @@ numbers, and the measured overlap between them:
   negligible. So the union is **1,628**, and that is the only figure in this
   document that is a sum of anything.
 
-**One thing this section deliberately does not do: design CV-5 through CV-7.**
+**One thing this section deliberately does not do: design `double-faced-cards` through `merging-and-meld`.**
 Their rows above are populations, ordering and the coupling argument — not a
 type surface. DFC is a second card model and merging is a `PermanentState`
 change; each earns its own design pass **when it is next**, on the evidence
@@ -1423,7 +1423,7 @@ close enough to. → §9 item 10.
 
 Sized before writing and split in the doc, per `engineering-practices.md` §4.
 Every PR carries at least one consumer of what it builds. Sub-phases are
-numbered **CV-1 … CV-7** ("copiable values"). `CP` and `LC` were both taken —
+numbered **CV-1 … `merging-and-meld`** ("copiable values"). `CP` and `LC` were both taken —
 `cards-unlocked-ledger.md`'s Running Totals uses `CP-A`…`CP-D` for checkpoints,
 and `layers-architecture.md` §13 uses Phase `LC`.
 
@@ -1432,11 +1432,12 @@ and `layers-architecture.md` §13 uses Phase `LC`.
 | **CV-1 — the capture, the row, and the two legs** | `CopiableValues`, `EffectModification::CopyFrom`, the ceiling-1 capture, `Primitive::Copy`, `RegistryScopeSummary::any_copied_replacement`, and static re-registration off the captured list. Turn-bounded durations only. **Consumer: Cytoshape** — "Choose a nonlegendary creature on the battlefield. Target creature becomes a copy of that creature until end of turn": a resolution, `ObjectSet::Fixed` by CR 611.2c, `UntilEndOfTurn`, no trigger. Plus a Clone-of-an-Anthem probe for §4.7 leg 2 | **1** new `EffectModification` arm; **1** apply site (`compute.rs` layer index 0, which today applies nothing); **1** new field on `RegistryScopeSummary` + its recompute (`continuous_effects.rs:114`); **1** gate leg (`gather.rs:143`); **1** re-registration path against `register_static_effects` (`game_state.rs:737`). New type sized against `EffectiveCharacteristics` (12 fields) | **medium-high** — one line in the hottest path in the engine, and `layers-architecture.md` §12 measured an ungated existence check at 5.2×–8.0×. The deliverable is as much the `fuzz_games --games 200 --seed 12345` measurement as the behaviour |
 | **CV-1b — indefinite-duration copies** | ✅ (§7d). `Duration::Indefinite` on a `CopyFrom` row, in one PR with `codebase-state.md` item 10 (CR 400.7). **Consumer: Cryptoplasm**, chosen over Dimir Doppelganger, whose graveyard target is TR-7's facility; and item 189's fixture | **25** clauses (§2.4); sized ~900 with item 10 | §7d |
 | **CV-2a, CV-2b — enters as a copy** | Two PRs: CV-2a ✅ (§7b), CV-2b ✅ (§7c; its vocabulary is §4.1a). **CV-2a:** `PermanentState.entered_as_copy`, `Rewrite::EnterAsCopy`, the CR 707.6 choice and copiable loyalty; **consumer: Clone**. **CV-2b:** CR 707.9's exceptions; **consumer: Spark Double** | §7c | medium — RC-2 and RC-4 have landed |
-| **CV-3 — token copies** | A second `Arc<CardData>` constructor from `CopiableValues`; CR 707.10f's permanent-spell-copy-becomes-a-token path. **Consumer: "create a token that's a copy of target creature"** | **1** constructor beside `TokenDef::card_data` (`types/effects.rs`, called by `create_tokens` in `engine/actions.rs`); **1** `Primitive::CreateToken` arm (`resolve.rs`, which proposes `GameAction::CreateTokens`; how a copy token reaches it is CV-3's decision) | low — no row, no layer, no duration |
-| **CV-4 — spell copies** | `StackEntry` copy, CR 707.10c's retarget prompt, 707.10d/e's per-target copies, 707.10a's cease-to-exist SBA, and `is_copy`'s first writer. **Consumer: Fork, then Zada** | **542** clauses but **1** new object path; **186** clauses are the 707.10c prompt alone; **1** new SBA. CR 707.10b's ability copies (**39** clauses) are CV-4's too: `triggers-architecture.md` §6.5 and §13 give them here, and no TR phase builds them (corrected 2026-10-12, A6p). Their readers' records ride with them: `codebase-state.md` items 256 ("copy that ability") and 257 (storm's count) | medium — largest population, and the retarget prompt reuses `enumerate_legal_selections` rather than inventing a path |
-| **CV-5 — double-faced cards (CR 712)** | A back face on `CardData`, a face-up-side bit, CR 712.2 transform as a status change, 712.3 modal cast-time choice, 707.8's capture-the-up-face line, and the `BackFaceUp` producer for 616.1d. Each face keeps its own rules text and abilities, so a client can show both at once (the owner, 2026-10-01: Arena does, and v1's GUI needs it). **Consumer: one transform creature and one modal DFC land** | **496** cards; touches `CardData`, the cast path (712.3's face choice), and one line of CV-1's capture | **highest** — it is a second card model, and it is the phase most likely to want its own split once someone counts `CardData`'s readers |
-| **CV-6 — face-down permanents and morph (CR 708)** | Layer 1b, `PermanentState.face_down`, 708.2a's synthesized 2/2, the CR 708.4 cast-face-down path and the turn-face-up special action. **Consumer: one morph creature, cast and turned up** | **304** producers; **1** new sublayer in `LAYER_ORDER`; the bulk is the *casting* path, not the layer | medium-high — **unsized here on purpose.** The layer half is small and known; the casting half needs its own count of `put_on_stack.rs`'s alternative-cost sites before anyone commits a number |
-| **CV-7 — merging + meld (CR 729, 712.4)** | A multi-component `PermanentState`, 729.2a's topmost-component characteristics as a Layer 1a copiable effect, 729.3's component separation, 729.3b's exile timestamp ordering, and 729.3d's replacement-applies-to-all-components | 34 + 21 cards; **the largest structural change in this document** and the only one that touches a type every phase reads | **highest, and it has a back-stop** — before Phase 8 card breadth (§6). **Unsized here on purpose**; it earns its own design pass |
+| **`token-copies` — token copies** | A second `Arc<CardData>` constructor from `CopiableValues`; CR 707.10f's permanent-spell-copy-becomes-a-token path. **Consumer: "create a token that's a copy of target creature"** | **1** constructor beside `TokenDef::card_data` (`types/effects.rs`, called by `create_tokens` in `engine/actions.rs`); **1** `Primitive::CreateToken` arm (`resolve.rs`, which proposes `GameAction::CreateTokens`; how a copy token reaches it is `token-copies`'s decision) | low — no row, no layer, no duration |
+| **`spell-copies` — spell copies** | `StackEntry` copy, CR 707.10c's retarget prompt, 707.10d/e's per-target copies, 707.10a's cease-to-exist SBA, and `is_copy`'s first writer. **Consumer: Fork, then Zada** | **542** clauses but **1** new object path; **186** clauses are the 707.10c prompt alone; **1** new SBA. CR 707.10b's ability copies (**39** clauses) are `spell-copies`'s too: `triggers-architecture.md` §6.5 and §13 give them here, and no TR phase builds them (corrected 2026-10-12, A6p). Their readers' records ride with them: `codebase-state.md` items 256 ("copy that ability") and 257 (storm's count) | medium — largest population, and the retarget prompt reuses `enumerate_legal_selections` rather than inventing a path |
+| **`double-faced-cards` — double-faced cards (CR 712)** | A back face on `CardData`, a face-up-side bit, CR 712.2 transform as a status change, 712.3 modal cast-time choice, 707.8's capture-the-up-face line, and the `BackFaceUp` producer for 616.1d. Each face keeps its own rules text and abilities, so a client can show both at once (the owner, 2026-10-01: Arena does, and v1's GUI needs it). **Consumer: one transform creature and one modal DFC land** | **496** cards; touches `CardData`, the cast path (712.3's face choice), and one line of CV-1's capture | **highest** — it is a second card model, and it is the phase most likely to want its own split once someone counts `CardData`'s readers |
+| **`face-down-and-morph` — face-down permanents and morph (CR 708)** | Layer 1b, `PermanentState.face_down`, 708.2a's synthesized 2/2, the CR 708.4 cast-face-down path and the turn-face-up special action. **Consumer: one morph creature, cast and turned up** | **304** producers; **1** new sublayer in `LAYER_ORDER`; the bulk is the *casting* path, not the layer | medium-high — **unsized here on purpose.** The layer half is small and known; the casting half needs its own count of `put_on_stack.rs`'s alternative-cost sites before anyone commits a number |
+| **`split-and-adventure-style-cards` — split, flip, Adventure, Prototype and Omen cards** | The other characteristic sets `backlog.md` §2.41 names, on the card model `permission-architecture.md`'s `permission-design` settles beside it: which characteristics a spell is cast with, and which a card has elsewhere. Named at #282's review (the owner, 2026-10-23) for every card that casts as one of several faces, so a mechanic printed after the baseline rules joins it | sized by `permission-design` | — |
+| **`merging-and-meld` — merging + meld (CR 729, 712.4)** | A multi-component `PermanentState`, 729.2a's topmost-component characteristics as a Layer 1a copiable effect, 729.3's component separation, 729.3b's exile timestamp ordering, and 729.3d's replacement-applies-to-all-components | 34 + 21 cards; **the largest structural change in this document** and the only one that touches a type every phase reads | **highest, and it has a back-stop** — before Phase 8 card breadth (§6). **Unsized here on purpose**; it earns its own design pass |
 
 ### 7a. CV-1 — the capture, the row and the two legs — ✅ 2026-09-02
 
@@ -1501,7 +1502,7 @@ decided yes at the design review: the look-ahead of a copy not yet made, on
 a plain legend, on the Kaito board, and under a later copy that takes a
 counter back.
 
-→ The design, live, where CV-1b and CV-3 reuse it: §4.1a. The re-derivation,
+→ The design, live, where CV-1b and `token-copies` reuse it: §4.1a. The re-derivation,
 the sites, size, tests and arms, and what the building changed:
 `plans/archive/copy-effects-architecture-landed.md`, "CV-2b" (evicted
 2026-09-29).
@@ -1553,23 +1554,23 @@ scope, what the hunt changed, the arms and the tests).
 adds a track. Its own summary framing extends cleanly:
 
 > **Track R** turns events into things cards can modify (RC → RD → RE).
-> **Track S** turns rules into things cards can forbid (RS-0 → RS-4).
-> **Track V** turns objects into things cards can become (CV-1 → CV-7).
+> **Track S** turns rules into things cards can forbid (RS-0 → `cant-pay-costs`).
+> **Track V** turns objects into things cards can become (CV-1 → `merging-and-meld`).
 > Track V meets Track R **twice**: RC-2 before CV-2, and RC-4 keeps 616.1b while
 > giving 616.1c up to CV-2.
 
 | Change to §7.1's list | Why |
 |---|---|
 | Step 8 (**RC-4**) loses 616.1c | §5.1 — it cannot produce one |
-| **CV-4** may be inserted anywhere from step 4 onward | No coupling to either existing track |
-| **CV-1 → CV-2 → CV-3**, after RC-2 and RC-4 | The spine, then its consumers |
-| **CV-5** after CV-1, before Phase 8 card breadth | 496 cards, 120 of them potential commanders |
+| **`spell-copies`** may be inserted anywhere from step 4 onward | No coupling to either existing track |
+| **CV-1 → CV-2 → `token-copies`**, after RC-2 and RC-4 | The spine, then its consumers |
+| **`double-faced-cards`** after CV-1, before Phase 8 card breadth | 496 cards, 120 of them potential commanders |
 | **CV-1b** with item 10 as its consumer, after CV-2 — ✅ 2026-10-06 (§7d) | §5.3 — the indefinite 25; item 10 sized 2026-09-03, and Clone must be on the board before subject-keyed teardown is proven to leave Tier B's source-torn rows alone |
-| **CV-6**, **CV-7** after CV-5; CV-7 before Phase 8 card breadth | §6 — CV-7's multi-component permanent is a *fact*, and the back-stop is the same one item 7 has |
+| **`face-down-and-morph`**, **`merging-and-meld`** after `double-faced-cards`; `merging-and-meld` before Phase 8 card breadth | §6 — `merging-and-meld`'s multi-component permanent is a *fact*, and the back-stop is the same one item 7 has |
 
 **Everything this document names now has an owner**, which was not true of the
 earlier draft: CR 708 and CR 729 were "real, sized, and belong to nobody", which
-is exactly the condition the detector exists to find. They are CV-6 and CV-7.
+is exactly the condition the detector exists to find. They are `face-down-and-morph` and `merging-and-meld`.
 What is deliberately *not* here is their design (§6's closing note) — an owner
 and an ordering is what a plan owes them; a type surface is what the phase
 itself owes, on the evidence available then.
@@ -1596,11 +1597,11 @@ else in Phase 9, and neither tag names a phase this project schedules:
 
 | Corpus tag | Maps to | Count |
 |---|---|---:|
-| `D5`, `D5 (copy system)`, `D5 + Phase 7/9` | **CV-1 … CV-4** | 26 |
-| `NEW — DFC *` (712) | **CV-5** | 34 |
-| `NEW — Meld *` (712) | **CV-7** | ~7 |
-| `NEW — Face-down *` (708) | **CV-6** | 10 |
-| `NEW — Merged permanent *` (729) | **CV-7** | 19 |
+| `D5`, `D5 (copy system)`, `D5 + Phase 7/9` | **CV-1 … `spell-copies`** | 26 |
+| `NEW — DFC *` (712) | **`double-faced-cards`** | 34 |
+| `NEW — Meld *` (712) | **`merging-and-meld`** | ~7 |
+| `NEW — Face-down *` (708) | **`face-down-and-morph`** | 10 |
+| `NEW — Merged permanent *` (729) | **`merging-and-meld`** | 19 |
 | `NEW — Layer 1 sublayer / copiable values` (613.2) | **CV-1**, and §5.4 | 3 |
 
 Four things to act on rather than read past:
@@ -1620,7 +1621,7 @@ Four things to act on rather than read past:
    `specdb.py build` regenerates from the session files, and rewriting 23
    authored atoms to fit a phase name is exactly the kind of edit that makes a
    corpus agree with a plan instead of with the rules.
-3. **`specdb.py`'s `SHIPPED_PHASES` gains nothing until CV-5 lands**, and it
+3. **`specdb.py`'s `SHIPPED_PHASES` gains nothing until `double-faced-cards` lands**, and it
    should not gain `Phase 9` even then — Phase 9 also holds meld, face-down and
    merging, which §6 scopes out. The honest gate for this track is the CR
    707 / 613.2 slice, checked by hand at each CV phase's exit.
@@ -1646,7 +1647,7 @@ Four things to act on rather than read past:
    deliberately not made here (no `.rs` changes in this pass). **Done** by
    2026-09-28: the comment, now at `types/replacement.rs:1661`, names CV-2.
    (Rewritten since: the comment above `ReplacementClass` now says only that
-   `SelfReplacement` has no producer and `BackFaceUp` waits on CV-5.)
+   `SelfReplacement` has no producer and `BackFaceUp` waits on `double-faced-cards`.)
 
 3. **Layer 1's sublayers are named backwards in three places** (§5.4), with a
    correct conclusion drawn from a wrong premise in all three. Corrected in
@@ -1680,11 +1681,11 @@ Four things to act on rather than read past:
    questions, and CR 707.11 ("an effect that refers to a permanent by name still
    tracks it even if it becomes a copy of something else") needs neither. The
    field exists, has no writer, and the honest options are: give it a precise
-   CR 707.10a meaning in CV-4, or delete it and let CV-4 introduce what it
-   actually needs. **Recommend deciding in CV-4, not before** — a flag with no
+   CR 707.10a meaning in `spell-copies`, or delete it and let `spell-copies` introduce what it
+   actually needs. **Recommend deciding in `spell-copies`, not before** — a flag with no
    reader has no cost, and inventing a meaning in CV-1 would be speculative.
    (Since RE-7 it has one reader, CR 800.4a's stack sweep in
-   `engine/leaving.rs`, which reads it as "a copy of a spell, not a card"; CV-4
+   `engine/leaving.rs`, which reads it as "a copy of a spell, not a card"; `spell-copies`
    decides against that reader, §3.5.)
 
 6. **Open: does the capture belong at ceiling "end of layer 1" or at a
@@ -1700,7 +1701,7 @@ Four things to act on rather than read past:
    > `END_OF_LAYER_1`, a `const` beside it, with a `debug_assert` pinning what
    > the constant asserts — that it names layer 1's slot in `LAYER_ORDER` and
    > moves when that array does. Spelled at each call site instead, a later
-   > sublayer split (CV-6 adds 1b) would silently take every capture one
+   > sublayer split (`face-down-and-morph` adds 1b) would silently take every capture one
    > sublayer too early, which is Section 5.4's failure mode: visible only on a
    > board with a face-down creature being copied, i.e. not before Phase 8.
 
@@ -1708,8 +1709,8 @@ Four things to act on rather than read past:
    copy question.** "The copy is considered to be the same ability by effects
    that count how many times that ability has resolved during the turn" is the
    same durable `(source, ability)` identity RA-2 built `AbilityIdentity` for.
-   39 clauses, CV-4's (§7; `triggers-architecture.md` §6.5 and §13), named
-   here so CV-4 keeps §6.5's sentence.
+   39 clauses, `spell-copies`'s (§7; `triggers-architecture.md` §6.5 and §13), named
+   here so `spell-copies` keeps §6.5's sentence.
 
 8. **The clause is the wrong unit for copying, and `cant-census.py`'s success
    with it does not transfer.** A "can't" card can carry several *independent*
@@ -1734,7 +1735,7 @@ Four things to act on rather than read past:
    Sibling: 616.1d's `BackFaceUp` is fine, because "enters with its back face up"
    is the CR's own wording.
 
-10. **This document should not design CV-5, CV-6 or CV-7, and §6 deliberately
+10. **This document should not design `double-faced-cards`, `face-down-and-morph` or `merging-and-meld`, and §6 deliberately
     does not.** They have populations, an owner and an ordering; they do not have
     a type surface, and giving them one now would be designing three phases
     ahead of the first line of code. **The honest risk this document carries is
@@ -1744,7 +1745,7 @@ Four things to act on rather than read past:
     path is *blocked* on more design: RC-1 is a pure deletion sized at 11 sites,
     RS-0 is a pure refactor, RS-1 is net-deleting, and none of the three needs
     this file. **The recommendation, stated where a later reader will find it:
-    build the next thing, and let CV-5–CV-7 be designed when they are next.**
+    build the next thing, and let `double-faced-cards`, `face-down-and-morph` and `merging-and-meld` be designed when they are next.**
 
 11. **`specdb owed`'s default filter has now failed to surface both of the two
     large gaps anyone has gone looking for**, and that is a pattern rather than
@@ -1769,13 +1770,13 @@ Four things to act on rather than read past:
     the phase filter. `ATOM-707.5-002` is filed under Phase 7, which
     `SHIPPED_PHASES` leaves out, so even `owed --all` never lists it.
 
-12. **CR 729.3d reaches into the RB pipeline, and CV-7 is where it lands.**
+12. **CR 729.3d reaches into the RB pipeline, and `merging-and-meld` is where it lands.**
     "If multiple replacement effects could be applied to the event of a merged
     permanent leaving the battlefield … applying one of those replacement effects
     to the object applies it to all components" — that is a CR 614.5 applied-set
     question about an object that is several objects, and it is a sibling of
     `rb-review.md` H9's per-member-vs-per-affected-object question. Named so that
-    whoever answers H9 for Phase RD knows a second customer exists, and so CV-7
+    whoever answers H9 for Phase RD knows a second customer exists, and so `merging-and-meld`
     does not discover it.
 
 ---
@@ -1783,7 +1784,7 @@ Four things to act on rather than read past:
 ## 10. Explicitly out of scope
 
 **Out of scope for this document is not out of scope for v1** — §6 withdrew that
-framing. CR 708 (CV-6), CR 729 + meld (CV-7) and CR 710 are *scheduled and
+framing. CR 708 (`face-down-and-morph`), CR 729 + meld (`merging-and-meld`) and CR 710 are *scheduled and
 undesigned*: they have an owner, an ordering and a population here, and they get
 their type surfaces from their own passes. What follows is out of scope
 outright.
@@ -1792,7 +1793,7 @@ outright.
   not need it.
 - **Text-changing effects (Layer 3)** — unbuilt and owed: about 20
   vintage-legal cards need it (`engine/layers/types.rs`, `codebase-state.md`
-  item 195). It is slotted as Phase 8's line item C2 (`roadmap-v2.md` §C),
+  item 195). It is slotted as Phase 8's line item `text-changing-effects` (`roadmap-v2.md` §C),
   designed in `layers-architecture.md`. It is also §4.7's *other* missing gate
   leg, so the rule in §4.7 is written to cover it in advance.
 - **Re-tagging the corpus** — §8 item 2.
@@ -1841,5 +1842,5 @@ RC-4's body. The list as written:
   sound" claim, per `rb-review.md` I9, to "sound until Layer 1 or Layer 3 exist".
 - `plans/replacement-architecture.md` §9 — RC-4's bucket list, per §5.1.
 
-When CV-5 lands: delete `plans/references/copy-census.py` if §2 has no remaining
+When `double-faced-cards` lands: delete `plans/references/copy-census.py` if §2 has no remaining
 customer.

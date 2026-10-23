@@ -715,7 +715,7 @@ enum ManaAbilityCost<'a> {
     SacrificesOthers { filter: &'a ObjectFilter, needs: u32 },
     MultipliesThePool { input: &'a ManaCost },
     /// A cost this phase does not read: a converter fed by other mana
-    /// (MA-3), life, counters, an untap, or nothing at all.
+    /// (`any-color-plus-painlands-plus-signets`), life, counters, an untap, or nothing at all.
     NotCounted,
 }
 

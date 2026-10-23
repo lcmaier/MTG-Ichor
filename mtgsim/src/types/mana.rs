@@ -162,9 +162,9 @@ impl ManaCost {
     }
 
     /// What the cost asks of mana, or `None` for a symbol no payment path
-    /// pays yet: hybrid and its kin are CP-1's, {S} item 33's. An {X} is
+    /// pays yet: hybrid and its kin are `hybrid-and-phyrexian-payment`'s, {S} item 33's. An {X} is
     /// refused too: a spell's is expanded before the check asks
-    /// ([`Self::with_x_as`]), and an activated ability's is CP-1's.
+    /// ([`Self::with_x_as`]), and an activated ability's is `hybrid-and-phyrexian-payment`'s.
     pub fn demand(&self) -> Option<ManaDemand> {
         let (demand, every_symbol) = self.tally();
         every_symbol.then_some(demand)

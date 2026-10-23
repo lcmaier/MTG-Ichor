@@ -352,7 +352,7 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause:
 /// One entry, and the census makes it the largest single consumer in the
 /// document: **524 printed cards** have indestructible (2026-08-31). Hexproof, shroud, menace
 /// and intimidate are the next four (`codebase-state.md` item 15) and are Tier
-/// 1a/1d — RS-2's and RS-3a's, because they forbid a *choice* rather than an
+/// 1a/1d — `cant-be-targeted`'s and `combat-restrictions`'s, because they forbid a *choice* rather than an
 /// event, so none of them belongs in this function.
 fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<(KeywordFlag, RestrictionDef)> {
     use crate::oracle::characteristics::has_keyword;

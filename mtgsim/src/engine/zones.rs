@@ -340,7 +340,7 @@ impl GameState {
     /// Play a land from its owner's hand to the battlefield (special action,
     /// not a spell). Playing one from another zone, as Conduit of Worlds
     /// allows, is a permission, which `cant-effects-architecture.md` §4.3
-    /// asks with the same query as a prohibition (RS-2).
+    /// asks with the same query as a prohibition (`cant-cast-play-or-activate`).
     pub fn play_land(
         &mut self,
         player_id: PlayerId,
