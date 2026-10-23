@@ -4,6 +4,7 @@
 
 use mtgsim::cards::authoring::triggers::{leaves_the_battlefield, triggered_ability, whenever};
 use mtgsim::cards::phase_lh_cards::holy_strength;
+use mtgsim::cards::phase_rd_cards::dark_sphere;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::events::event::{GameEvent, UnattachRoute};
 use mtgsim::oracle::characteristics::get_effective_power;
@@ -173,4 +174,30 @@ fn a_card_put_onto_the_battlefield_from_exile_leaves_its_frame_with_a_trigger_th
     game.change_zone(card, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.players[0].life_total, 23);
+}
+
+// ---------------------------------------------------------------------------
+// A source a cost moved, as it last existed (CR 113.7a, 601.2h)
+// ---------------------------------------------------------------------------
+
+/// Dark Sphere's "{T}, Sacrifice this artifact": the {T} is paid before the
+/// sacrifice, so the artifact last existed on the battlefield tapped (CR
+/// 113.7a). Its activation's record and its departure's keep that one
+/// answer.
+#[test]
+fn a_source_sacrificed_for_its_cost_is_tapped_on_its_activation_and_its_departure() {
+    let mut game = setup_two_player_game();
+    let sphere = put_on_battlefield(&mut game, dark_sphere(), 0);
+    let since = game.recorded_events().len();
+    game.activate_ability(0, sphere, 0, &test_dp()).unwrap();
+
+    let recorded = game.recorded_events();
+    let tapped_on = |kind: fn(&GameEvent) -> bool| {
+        let record = recorded.events().skip(since).find(|e| kind(e)).expect("recorded");
+        record.frame_of(sphere).and_then(|lki| lki.was_tapped())
+    };
+    let departure = tapped_on(|e| matches!(e, GameEvent::ZoneChange { from: Zone::Battlefield, .. }));
+    let activation = tapped_on(|e| matches!(e, GameEvent::AbilityActivated { .. }));
+    assert_eq!(departure, Some(true));
+    assert_eq!(activation, Some(true), "the activation reads it as it left, after its {{T}}");
 }

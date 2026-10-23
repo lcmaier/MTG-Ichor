@@ -22,7 +22,7 @@ use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::{TargetInstance, TargetRef};
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
@@ -57,22 +57,6 @@ impl std::fmt::Display for SorceryTiming {
             SorceryTiming::NotAMainPhase => "Sorcery speed is only available during a main phase",
             SorceryTiming::StackNotEmpty => "Sorcery speed requires an empty stack",
         })
-    }
-}
-
-/// An activation's source as its costs found it, which the activation's
-/// record names: the zone it was activated from, and its last known
-/// information where a cost could move it.
-pub(crate) struct SourceBeforePaying {
-    zone: Zone,
-    lki: Option<Lki>,
-}
-
-impl SourceBeforePaying {
-    /// Its last known information, where a cost has since moved `source`,
-    /// the existence that was activated; `None` while it is where it was.
-    pub(crate) fn lki_if_it_moved(&self, game: &GameState, source: ObjectRef) -> Option<Lki> {
-        self.lki.clone().filter(|_| game.object_ref(source.id) != Some(source))
     }
 }
 
@@ -287,7 +271,7 @@ impl GameState {
         // and CR 601.2 rewinds the whole cast either way. A bare `?` here left
         // the card on the stack to resolve unpaid (`codebase-state.md` 16c).
         let mana_spent = match self.pay_costs(&plan, player_id, card_id, &actx) {
-            Ok(spent) => spent,
+            Ok(paid) => paid.mana,
             Err(e) => {
                 self.rollback_cast_to_hand(card_id)?;
                 return Err(e);
@@ -441,27 +425,21 @@ impl GameState {
     /// is taken only where a cost can move it ("an ability of an artifact"
     /// still reads a sacrificed one as it was): it costs a layer walk, and most
     /// activations, a land's for mana among them, pay nothing that moves it.
-    pub(crate) fn source_before_paying(&self, source: ObjectId, costs: &[Cost]) -> Result<SourceBeforePaying, String> {
-        let zone = self.get_object(source)?.zone;
-        let lki = if costs.iter().any(Cost::can_move_its_source) { self.lki_now(source) } else { None };
-        Ok(SourceBeforePaying { zone, lki })
-    }
-
     /// CR 602.2b's and 605.3a's announcement, once the costs are paid:
-    /// `identity` activated by `controller` from the zone its source was in,
-    /// with the source as it was when a cost moved it. With the activator's
-    /// provider, since a triggered mana ability on it resolves at the dispatch
-    /// (CR 605.1b, 605.4a).
+    /// `identity` activated by `controller` from `from`, the zone its source
+    /// was in, with the source as it last was there where a cost moved it
+    /// (`PaidCosts`). With the activator's provider, since a triggered mana
+    /// ability on it resolves at the dispatch (CR 605.1b, 605.4a).
     pub(crate) fn announce_activation(
         &mut self,
         identity: AbilityIdentity,
         controller: PlayerId,
         mana_ability: bool,
-        before_paying: &SourceBeforePaying,
+        from: Zone,
+        source_lki: Option<Lki>,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        let source_lki = before_paying.lki_if_it_moved(self, identity.source);
-        let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from: before_paying.zone, source_lki };
+        let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from, source_lki };
         self.emit_event_with_provider(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
     }
 
@@ -567,7 +545,7 @@ impl GameState {
 
         // Pay ability costs (CR 602.2b) the way CR 601.2h pays a spell's: check,
         // ask how the generic part is split, then pay.
-        let before_paying = self.source_before_paying(source_id, &ability_costs)?;
+        let from = self.get_object(source_id)?.zone;
         if let Err(e) = self.can_pay_costs(&ability_costs, player_id, source_id) {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e.to_string());
@@ -580,17 +558,21 @@ impl GameState {
                 return Err(e);
             }
         };
-        if let Err(e) = self.pay_costs(&plan, player_id, source_id, &actx) {
-            self.rollback_ability_activation(ability_obj_id);
-            return Err(e);
-        }
+        let paid = match self.pay_costs(&plan, player_id, source_id, &actx) {
+            Ok(paid) => paid,
+            Err(e) => {
+                self.rollback_ability_activation(ability_obj_id);
+                return Err(e);
+            }
+        };
 
         // CR 602.2b runs 601.2i: the ability becomes activated once its costs
         // are paid, its targets first as a spell's are. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
         self.announce_targeted_records(ability_obj_id, activating, decisions)?;
-        self.announce_activation(identity, player_id, false, &before_paying, decisions)?;
+        let source_lki = paid.source_lki_if_it_moved(self, identity.source);
+        self.announce_activation(identity, player_id, false, from, source_lki, decisions)?;
 
         Ok(())
     }

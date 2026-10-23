@@ -56,15 +56,15 @@ impl GameState {
         // before anything moves.
         let paying = ActionContext::paying_cost(dp, player_id, permanent_id);
         let source = self.object_ref(permanent_id).ok_or_else(|| format!("Permanent {permanent_id} is in no zone"))?;
-        let before_paying = self.source_before_paying(permanent_id, &ability.costs)?;
+        let from = self.get_object(permanent_id)?.zone;
         let plan = self.plan_payment(&ability.costs, player_id, permanent_id, &paying)?;
-        self.pay_costs(&plan, player_id, permanent_id, &paying)?;
+        let paid = self.pay_costs(&plan, player_id, permanent_id, &paying)?;
 
         // CR 605.3a: activated, and announced as it is, before it resolves
         // (605.3b).
         let identity = crate::state::game_state::AbilityIdentity { source, ability: ability_id };
-        self.announce_activation(identity, player_id, true, &before_paying, dp)?;
-        let moved = before_paying.lki_if_it_moved(self, source);
+        let moved = paid.source_lki_if_it_moved(self, source);
+        self.announce_activation(identity, player_id, true, from, moved.clone(), dp)?;
 
         // CR 106.12: "to 'tap [a permanent] for mana' is to activate a mana
         // ability of that permanent that includes the {T} symbol in its
