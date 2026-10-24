@@ -41,10 +41,14 @@ pub enum ObjectInformation<'a> {
     /// rides the `Lki` type: a control change's, a move a replacement kept in
     /// its zone.
     LastKnown(&'a Lki),
-    /// The object's characteristics as its asker holds them, with no facts
-    /// beside them, which are read live: CR 614.12's look-ahead for an
-    /// entering permanent, a history row's frame as the event left the
-    /// object, or a frame its asker already walked.
+    /// The catch-all: characteristics the asker already holds, for whatever
+    /// moment it asks about, and the asker owns which moment that is. Every
+    /// fact beyond the characteristics (tapped, attacking) is read live.
+    /// Today's five: a spell being cast (cost determination, CR 601.2f); a
+    /// permanent about to enter, plain or as a copy (CR 614.12); a
+    /// survivor's list from just before a batch (`LookBackSnapshot`, CR
+    /// 603.10); a history row's object as the event left it; and a live
+    /// object whose list the asker already walked.
     Characteristics(ObjectId, &'a EffectiveCharacteristics),
 }
 
