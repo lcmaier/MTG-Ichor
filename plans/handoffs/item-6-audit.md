@@ -831,10 +831,12 @@ item 124's precedent that a sweep does not ride inside a rules change.
        shape the LKI store replaced;
      - item 30's "what paid" for a cost, which `pay_costs` returns only as
        mana, so a sacrificed creature is read back off the batch;
-     - `ObjectInformation::Characteristics`, which holds three moments
-       (walked now, entering under CR 614.12, and before under CR
-       603.10), each with one reader; the census decides whether each
-       moment gets its own arm.
+     - `ObjectInformation::Characteristics`, built in four places for
+       three moments the board does not show: a spell being cast (cost
+       determination, CR 601.2f), an object about to enter (the
+       replacement gather and the entry copy, CR 614.12), and a survivor
+       before an event (a trigger candidate, CR 603.10); the census
+       decides whether each moment gets its own arm.
 2. `resolution-context-rider`. Item 137: every resolution that is not a CR
    615.5 rider writes two `None`s about riders. It becomes one optional
    value, at 99 literals (48 when the item was filed).
