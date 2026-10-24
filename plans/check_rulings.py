@@ -175,7 +175,7 @@ if hasattr(sys.stdout, "reconfigure"):
 ROOT = Path(__file__).resolve().parent.parent
 LEDGER = ROOT / "plans" / "rulings-ledger.json"
 PRACTICES = ROOT / "plans" / "engineering-practices.md"
-REGISTER_HEADING = "### 3.4b "
+REGISTER_HEADING = "### When a ruling and the CR disagree"
 REGISTRY = ROOT / "mtgsim" / "src" / "cards" / "registry.rs"
 CODE_DIRS = [ROOT / "mtgsim" / "src", ROOT / "mtgsim" / "tests"]
 
