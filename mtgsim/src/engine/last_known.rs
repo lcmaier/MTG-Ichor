@@ -19,8 +19,12 @@ use crate::types::triggers::Lki;
 use crate::types::zones::Zone;
 
 /// Every existence of one object that has ended with its move framed, each as
-/// it last existed, in the order they ended: none for most objects, one for
-/// most that left, more for a commander or a card a loop keeps returning.
+/// it last existed, in the order they ended, which is their epochs' order:
+/// none for most objects, one for most that left, more for a commander or a
+/// card a loop keeps returning. An older existence stays readable after a
+/// newer one has ended too: a sacrificed creature's ability deals its damage
+/// as the creature was, though the card has since been exiled from the
+/// graveyard (CR 608.2h). The type is what the table stores for an object.
 #[derive(Debug, Clone, Default)]
 pub struct EndedExistences(Vec<Lki>);
 
@@ -34,9 +38,11 @@ pub struct LkiStore {
 
 impl LkiStore {
     /// `existence`'s last known information, once it has ended and its move
-    /// was framed.
+    /// was framed: the object's slot, then its epoch.
     pub fn of(&self, existence: ObjectRef) -> Option<&Lki> {
-        self.ended.get(&existence.id)?.0.iter().rev().find(|lki| lki.object() == existence)
+        let ended = &self.ended.get(&existence.id)?.0;
+        let at = ended.binary_search_by_key(&existence.zone_change_epoch, |lki| lki.object().zone_change_epoch).ok()?;
+        Some(&ended[at])
     }
 
     /// File the last known information of an existence ending now.
@@ -45,8 +51,8 @@ impl LkiStore {
         match self.ended.get_mut(&id) {
             Some(ended) => {
                 debug_assert!(
-                    ended.0.iter().all(|kept| kept.object() != lki.object()),
-                    "{id}'s existence ended twice"
+                    ended.0.last().is_none_or(|last| last.object().zone_change_epoch < lki.object().zone_change_epoch),
+                    "{id}'s existences ended out of their epochs' order"
                 );
                 ended.0.push(lki);
             }

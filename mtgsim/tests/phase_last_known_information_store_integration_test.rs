@@ -91,6 +91,26 @@ fn a_cost_that_moves_its_own_source_frames_it_from_any_zone() {
     assert_eq!(game.last_known(in_hand).map(|lki| lki.object()), Some(in_hand));
 }
 
+/// One object's existences stay apart: a creature that dies, and whose card
+/// is then exiled from the graveyard, has ended twice, and each existence is
+/// read by its own epoch (CR 400.7), the older still as the permanent it was,
+/// as an ability its sacrifice paid for reads it (CR 608.2h).
+#[test]
+fn each_ended_existence_of_one_object_is_read_by_its_own_epoch() {
+    let mut game = setup_two_player_game();
+    let id = card_in(&mut game, Zone::Battlefield, 0);
+    let creature = game.object_ref(id).expect("on the battlefield");
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).expect("it dies");
+    let card = game.object_ref(id).expect("in the graveyard");
+    game.change_zone(id, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("exiled");
+
+    let as_creature = game.last_known(creature).expect("the creature's");
+    let as_card = game.last_known(card).expect("the graveyard card's");
+    assert_eq!((as_creature.object(), as_card.object()), (creature, card));
+    assert!(as_creature.was_tapped().is_some(), "a permanent's facts");
+    assert!(as_card.was_tapped().is_none(), "a card's, which has none");
+}
+
 // ---------------------------------------------------------------------------
 // The store's bound: fewer entries than the history log has rows, in any game
 // ---------------------------------------------------------------------------
