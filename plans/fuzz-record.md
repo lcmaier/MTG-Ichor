@@ -37,6 +37,38 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-24 for item 318** (#285, `last-known-information-store`:
+one LKI store keyed by existence, the keepers' lists and the second captures
+gone, the four view types folded into `ObjectInformation`; A6e's cleanup PR
+1b). No card moves, so no table is re-recorded. One `close_out.py` sitting
+against **main** `0e599b9` (#284's merge); **store** `3cc52da` is the branch's
+last commit.
+
+**Predictions, written in `triggers-architecture.md` §3.11 before the build:**
+- every game identical on both pools at two seats and four, and the
+  engine-work rows identical but Memo hits, lower by `pay_costs`' captures,
+  0.4 to 1.6 a game;
+- instructions per decision within ±0.3%;
+- the clone floors at 40 allocations, or 39, at the worst four-seat decision,
+  bytes within 0.1 KB; held memory about 4,200 B a turn.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, store vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Layer walks`, performance / stress | 394 → 394 / 422 → 422 | 798 → 798 / 955 → 954 |
+| `Memo hits`, performance / stress | 55,202 → 55,201 / 57,393 → 57,392 | 155,049 → 155,048 / 183,270 → 183,269 |
+| audit, store, dispatches agreed, performance / stress | 175,509 / 173,877 | 337,915 / 353,342 |
+| instructions / decision, callgrind, the Commander board | | 0.7438 M → 0.7430 M, **−0.12%** |
+| clone, worst decision (`clone_bound_test`; two seats from its two-seat copy) | 28 → 29 allocations, 3.2 KB | 39 → 40 allocations, 6.4 → 6.5 KB |
+| held, log and store together (`history_held_test`) | | 4,043 → 4,265 B a turn |
+
+**The one move beyond the Memo hits: a layer walk at four seats in `stress`.**
+`pay_costs` framed the source before every cost that could move it, and in
+two cases of three the cost moved something else (the probe: 53 of 79 at two
+seats in `performance`). A frame taken and never used can be a memo miss,
+whose walk goes with it. The clone's extra allocation is the id table's outer
+vector (decision 2).
+
 **Measured 2026-10-22 for item 185** (#278: the record of each question not
 asked, every forced prompt decided in `ui/ask.rs`, the shortcuts' audits; the
 item 6 audit's pass 5). No card moves, so no table is re-recorded. One
