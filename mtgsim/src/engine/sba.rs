@@ -100,6 +100,7 @@ impl CollapsedResult {
             | GameAction::LoseLife { .. }
             | GameAction::Untap { .. }
             | GameAction::Tap { .. }
+            | GameAction::BecomeBlocked { .. }
             | GameAction::Attach { .. }
             | GameAction::AddCounters { .. }
             | GameAction::EnterBattlefield { .. }

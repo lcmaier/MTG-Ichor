@@ -541,26 +541,6 @@ impl GameState {
     ) -> Result<(), String> {
         // Every mutation a primitive proposes belongs to *this* resolution
         // (CR 614.15 / the resolution stamp on each emitted event).
-        #[cfg(debug_assertions)]
-        let blocks_before = (self.combat_blocks(), self.events.next_seq());
-        let resolved = self.perform_primitive(primitive, recipient, targets, ctx, dp, walk);
-        #[cfg(debug_assertions)]
-        if resolved.is_ok() {
-            self.assert_blocks_announced(&blocks_before.0, blocks_before.1);
-        }
-        resolved
-    }
-
-    /// [`Self::resolve_primitive`]'s instruction, performed.
-    fn perform_primitive(
-        &mut self,
-        primitive: &Primitive,
-        recipient: &EffectRecipient,
-        targets: &[ResolvedTarget],
-        ctx: &ResolutionContext,
-        dp: &dyn DecisionProvider,
-        walk: &mut ResolutionWalk,
-    ) -> Result<(), String> {
         let actx = ActionContext::resolving(dp, ctx);
         if let Some(acted_on) = walk.remembering.as_mut() {
             acted_on.extend_from_slice(targets);
@@ -1527,7 +1507,7 @@ impl GameState {
 
             // === Combat and damage housekeeping ===
 
-            Primitive::Tap => {
+            Primitive::Tap | Primitive::BecomeBlocked => {
                 // One batch: CR 608.2f processes a spell's actions over several
                 // objects simultaneously.
                 let batch = self.events_for(primitive, targets, ctx)?;
@@ -1546,15 +1526,6 @@ impl GameState {
                 let objects = self.affected_permanents(recipient, targets, ctx);
                 let removed = self.remove_from_combat(&objects);
                 self.announce_removal_from_combat(removed, ctx.cause())
-            }
-            // NOT REPLACEABLE: CR 509.1h. A status an effect gives, as removal
-            // from combat is (above), announced by the writer.
-            Primitive::BecomeBlocked => {
-                let objects = self.affected_permanents(recipient, targets, ctx);
-                for attacker in self.become_blocked(&objects) {
-                    self.emit_event(GameEvent::BecameBlocked { attacker }, ctx.cause())?;
-                }
-                Ok(())
             }
 
             // NOT REPLACEABLE: a direct write because nothing replaces *this* removal — Pyramids, the
@@ -2297,6 +2268,7 @@ impl GameState {
                 self.objects.get(&object).map(|obj| GameAction::ZoneChange { object, from: obj.zone, to, act: ZoneChangeAct::Put })
             }
             Primitive::Tap => is_permanent.then_some(GameAction::Tap { object }),
+            Primitive::BecomeBlocked => is_permanent.then_some(GameAction::BecomeBlocked { attacker: object }),
             Primitive::Untap => is_permanent.then_some(GameAction::Untap { object }),
             Primitive::AddCounters { counter, amount, by } => match is_permanent {
                 false => None,

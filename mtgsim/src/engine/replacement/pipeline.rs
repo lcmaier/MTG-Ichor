@@ -222,6 +222,7 @@ fn event_amount(action: &GameAction) -> Option<u64> {
         | GameAction::ZoneChange { .. }
         | GameAction::Untap { .. }
         | GameAction::Tap { .. }
+        | GameAction::BecomeBlocked { .. }
         | GameAction::Attach { .. }
         | GameAction::Unattach { .. }
         | GameAction::TokenCeasesToExist { .. }

@@ -122,6 +122,7 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         GameAction::ZoneChange { object, .. } => EventSubject::Object(*object),
         GameAction::Untap { object } => EventSubject::Object(*object),
         GameAction::Tap { object } => EventSubject::Object(*object),
+        GameAction::BecomeBlocked { attacker } => EventSubject::Object(*attacker),
         GameAction::Destroy { object, .. } => EventSubject::Object(*object),
         GameAction::EnterBattlefield { object, .. } => EventSubject::Object(*object),
         // CR 614.16's "under your control": the tokens are created for a

@@ -1912,26 +1912,6 @@ impl GameState {
         }
     }
 
-    /// CR 509.1h: each of `ids` that is an unblocked attacking creature
-    /// becomes a blocked creature, blocked by no creature. Returns the ones
-    /// that did, in `ids`' order, each of which its record names.
-    pub(crate) fn become_blocked(&mut self, ids: &[ObjectId]) -> Vec<ObjectId> {
-        let mut blocked = Vec::new();
-        for &id in ids {
-            // NOT REPLACEABLE: CR 509.1h, `Primitive::BecomeBlocked`'s write.
-            if let Some(attack) = self.battlefield.get_mut(&id).and_then(|entry| entry.attacking.as_mut())
-                && !attack.is_blocked
-            {
-                attack.is_blocked = true;
-                blocked.push(id);
-            }
-        }
-        if !blocked.is_empty() {
-            self.bump_layer_epoch_if_read(GatedWalkInput::Combat);
-        }
-        blocked
-    }
-
     pub(crate) fn announce_removal_from_combat(&mut self, removed: Vec<CombatExit>, cause: EventCause) -> Result<(), String> {
         if removed.is_empty() {
             return Ok(());

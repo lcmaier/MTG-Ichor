@@ -256,6 +256,13 @@ pub enum GameAction {
         object: ObjectId,
     },
 
+    /// CR 509.1h's "an effect says that it becomes blocked": an unblocked
+    /// attacking creature becomes a blocked one that no creature blocks. A
+    /// replacement effect may watch it, as it may any event (CR 614.1).
+    BecomeBlocked {
+        attacker: ObjectId,
+    },
+
     /// Attach an Aura, Equipment or Fortification to a permanent (CR 701.3a).
     ///
     /// A proposal because CR 603's "becomes attached" triggers read the
@@ -652,9 +659,13 @@ fn can_enter_attached(game: &GameState, id: ObjectId) -> bool {
     .any(|subtype| crate::oracle::characteristics::has_subtype(game, id, subtype))
 }
 
-/// What an object leaving a zone takes with it, read before it moves
-/// ([`GameState::depart`]): its frame, if the move carries one, and each
-/// attachment the move ends, as (attachment, former host, route).
+/// What an object leaving a zone takes with it, read at the last moment
+/// before it moves ([`GameState::depart`]) and announced after: its frame,
+/// if the move carries one, and each attachment the move ends, as
+/// (attachment, former host, route). The attachments are read off the board
+/// then, not off the frame, which was taken as the batch began: an earlier
+/// member of the same batch may have ended one already (a host destroyed
+/// beside its Aura), and the frame would still show it.
 pub(crate) struct Departure {
     pub(crate) frame: Option<Lki>,
     unattached: Vec<(ObjectRef, ObjectRef, UnattachRoute)>,
@@ -1729,6 +1740,21 @@ impl GameState {
                 entry.tapped = true;
                 self.bump_layer_epoch_if_read(GatedWalkInput::TappedStatus);
                 self.emit_event(GameEvent::Tapped { object_id: object }, ctx.cause)?;
+                Ok(())
+            }
+
+            GameAction::BecomeBlocked { attacker } => {
+                // CR 603.2e: "becomes blocked" is a transition, so an attacker
+                // already blocked, or no longer attacking, becomes nothing.
+                let Some(attack) = self.battlefield.get_mut(&attacker).and_then(|entry| entry.attacking.as_mut()) else {
+                    return Ok(());
+                };
+                if attack.is_blocked {
+                    return Ok(());
+                }
+                attack.is_blocked = true;
+                self.bump_layer_epoch_if_read(GatedWalkInput::Combat);
+                self.emit_event(GameEvent::BecameBlocked { attacker }, ctx.cause)?;
                 Ok(())
             }
 

@@ -190,6 +190,7 @@ table, the enum and the match disagree.
 | `Attach` | `GameState::attach`, nothing if already there; an `Unattached` from the old host, then `Attached` | — |
 | `Unattach` | `GameState::detach`, nothing if attached to nothing (CR 704.5n, 704.5p); `Unattached` | — |
 | `Tap` | on the transition only; `Tapped` | — |
+| `BecomeBlocked` | an unblocked attacker only, on the transition (CR 509.1h, 603.2e); `BecameBlocked` | — |
 | `AddCounters` | counters on a permanent or a player; `CountersPutOn`, with its putter and the count left | — |
 | `RemoveCounters` | as many as there are (CR 609.3); `CountersRemovedFrom` only if any, with its remover where a player is one | — |
 | `Destroy` | the outer event only; its `ZoneChange` to the graveyard, decided with it in phase 1 (`decide_destruction_moves`, item 248), is performed right after it | — |
