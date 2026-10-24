@@ -1008,8 +1008,9 @@ method. (Until LK, 2026-09-14, the zone half was
 `CostSubject::applies_from_battlefield`, a second predicate; LK moved it into
 `functioning_zones` and deleted the method, `layers-architecture.md` §13d.)
 
-**What the spell-side match reads.** `object_matches_filter_of_source(spell,
-filter, source_controller, source, Some(HeldFrame::Characteristics(frame)))`,
+**What the spell-side match reads.**
+`object_matches_filter_of_source(ObjectInformation::Characteristics(spell,
+frame), filter, source_controller, source)`,
 the one `ObjectFilter` table (`layers-architecture.md` §3.4) asked for the cost
 ability's source, with the frame the gather already holds for the spell,
 `compute_characteristics(game, spell)` (`object_matches_filter_in_frame` until

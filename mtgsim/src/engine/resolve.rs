@@ -8,7 +8,8 @@ use crate::engine::layers::types::{
 };
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, EventId, GameEvent, ResolutionStamp};
-use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, HeldFrame, TargetInstance};
+use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
+use crate::oracle::characteristics::ObjectInformation;
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::battlefield::AttackTarget;
@@ -2339,7 +2340,7 @@ impl GameState {
     fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
         let named = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
         let identity = FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None).naming(named);
-        self.object_matches_filter(id, filter, &mut TextReferents { game: self, you: ctx.controller, identity }, None)
+        self.object_matches_filter(ObjectInformation::Current(id), filter, &mut TextReferents { game: self, you: ctx.controller, identity })
     }
 
     /// CR 701.6a — a spell countered goes to its owner's graveyard, through
@@ -2347,16 +2348,16 @@ impl GameState {
     /// goes with it. An object that is no spell on the stack is not one to
     /// counter this way.
     fn counter_spell(&mut self, id: ObjectId, ctx: &ResolutionContext, actx: &ActionContext) -> Result<(), String> {
-        // Its controller and its frame read while it is a spell, as the record
-        // keeps them (CR 108.4a: a card in a graveyard has none; CR 603.10e
-        // looks back at the spell).
+        // Its controller read while it is a spell (CR 108.4a: a card in a
+        // graveyard has none), and its frame as the move took it, for CR
+        // 603.10e's look-back at the spell.
         if !self.stack.contains(&id) || !self.is_spell_on_stack(id) {
             return Ok(());
         }
         let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id) else { return Ok(()) };
-        let lki =
-            self.lki_now(id).ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
+        let spell = self.object_ref(id).ok_or_else(|| format!("countering {id}, which is in no zone"))?;
         self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, actx)?;
+        let lki = self.lki(spell).cloned().ok_or_else(|| format!("countering {id}, which left the stack unframed"))?;
         let countered = crate::events::event::GameEvent::SpellCountered { spell_id: id, controller, countered_by: ctx.source, lki };
         self.emit_event(countered, actx.cause)
     }
@@ -2525,9 +2526,8 @@ impl GameState {
             // permanent whose ability it is (CR 113.7a), not the ability.
             AmountExpr::History(span, history) => {
                 let (you, source) = (_ctx.controller, _ctx.effect_source());
-                let mut filter_matches = |filter: &ObjectFilter, id, held: HeldFrame<'_>| {
-                    self.object_matches_filter_of_source(id, filter, you, source, Some(held))
-                };
+                let mut filter_matches =
+                    |filter: &ObjectFilter, object: ObjectInformation<'_>| self.object_matches_filter_of_source(object, filter, you, source);
                 Ok(self.history.total(history, *span, you, self.turn_number, &mut filter_matches, &|_| {}))
             }
             AmountExpr::TargetPower => {
@@ -2791,7 +2791,7 @@ impl GameState {
                 Some(named) => {
                     let names_player = |who: &PlayerRef, player: PlayerId| self.resolve_player_ref(who, &[], ctx).ok() == Some(player);
                     let matches_permanent = |filter: &ObjectFilter, id: ObjectId| {
-                        self.object_matches_filter_of_source(id, filter, ctx.controller, ctx.effect_source(), None)
+                        self.object_matches_filter_of_source(ObjectInformation::Current(id), filter, ctx.controller, ctx.effect_source())
                     };
                     self.what_can_be_attacked()
                         .into_iter()
@@ -2861,13 +2861,13 @@ impl GameState {
     }
 
     /// CR 113.7a, 608.2h — the ability's source's last known information,
-    /// once it has left the zone it was in: what the resolving object carries
-    /// for it (`ResolvingObject::lki_of`), the creature that died for a
-    /// trigger on its own death. `None` while the source is there, and for a
-    /// spell, which resolves where it was cast. A source no frame was kept
-    /// for reads where it is now.
+    /// once it has left the zone it was in, as the resolving object reads it
+    /// (`lki_as_resolving_reads`): the creature that died for a trigger
+    /// on its own death. `None` while the source is there, and for a spell,
+    /// which resolves where it was cast. A source nothing framed reads where
+    /// it is now.
     fn source_lki(&self, ctx: &ResolutionContext) -> Option<Lki> {
-        self.lki_kept_by_resolving(ctx.ability_source?).cloned()
+        self.lki_as_resolving_reads(ctx.ability_source?).cloned()
     }
 
     /// What `Effect::Remember`'s instruction acted on, as it left them (CR

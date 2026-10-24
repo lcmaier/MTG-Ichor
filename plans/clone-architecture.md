@@ -134,9 +134,9 @@ same `&mut` walk).
 **Since CL-1 (§7, decision 3)** each of the eight reads first and writes only
 what matches. The aura check collects its matches, then writes those.
 `for_each_lki_keeper` is gone: its walk is `lki_keepers`, by `&`, read by
-`objects_lki_is_kept_for` and by `hand_over_lki`, which writes only the
-matched keepers through `kept_lki_slot`. The battlefield's four sweeps read
-first too.
+`objects_lki_is_kept_for`. Since #285 no keeper is written at all: the frame
+goes into the LKI store, an `ObjectTable` like the rest (`triggers-architecture.md`
+§3.11). The battlefield's four sweeps read first too.
 
 Under copy-on-write, shapes 1, 2, 3 and 5 copy what they change. Shape 4 copies
 everything a fork holds, and the check's sweep does it at every check. **The

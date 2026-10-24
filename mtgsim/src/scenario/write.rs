@@ -136,6 +136,7 @@ impl<'g> Writer<'g> {
             control_effects_at_last_sweep: _, // the control sweep's, settled at load
             settled_layer_epoch: _,           // the settlement's gate
             lki_captures: _,
+            lki_store: _,           // what left before the board was written, which a scenario states none of, as its rows keep no frames
             dispatch_audit: _,
             events: _,
             trace: _,
@@ -308,7 +309,7 @@ impl<'g> Writer<'g> {
         let turn = state.turn_number;
         let mut casts = Vec::new();
         for row in state.history.log.rows_of_turns(FIRST_TURN..=turn) {
-            let (RowFact::Cast { from }, Some(frame)) = (row.fact, &row.frame) else { continue };
+            let (RowFact::Cast { from }, Some(frame)) = (row.fact, row.frame.characteristics()) else { continue };
             if row.player != Some(player) {
                 continue;
             }
@@ -323,7 +324,7 @@ impl<'g> Writer<'g> {
             // AS PRINTED: a named cast reloads as its card's printed frame. A
             // row with no object is a loaded named cast, which is that frame.
             let reloads_as_cast = row.object.map(|object| {
-                state.objects.get(&object.id).is_some_and(|obj| **frame == seed_frame(&obj.card_data, frame.controller, frame.control_since_turn))
+                state.objects.get(&object.id).is_some_and(|obj| *frame == seed_frame(&obj.card_data, frame.controller, frame.control_since_turn))
             });
             if reloads_as_cast == Some(false) {
                 self.report(format!("player {player}'s {} as it was cast, which its printed card does not say", frame.name));

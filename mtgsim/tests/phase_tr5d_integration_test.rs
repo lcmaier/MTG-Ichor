@@ -24,7 +24,7 @@ use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GeneratedBy};
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, StepType};
@@ -637,11 +637,14 @@ fn delayed_draws_of_two_xs_still_ask_their_order() {
 }
 
 /// CR 113.7a: one delayed trigger made while its source was there and one
-/// made after it left keep different information about it, so the order of
-/// "put two +1/+1 counters on it" is asked; two made while it stays are not
-/// (Protean Hydra's, in `phase_tr5b_integration_test`).
+/// made after it left read one last known information of it, since the
+/// source's existence ended once, so the order of "put two +1/+1 counters on
+/// it" changes nothing and is not asked, as for two made while it stays
+/// (Protean Hydra's, in `phase_tr5b_integration_test`). Each trigger used to
+/// keep its own list, and the one made after the source left, outside a
+/// resolution, kept none, which made the two look different.
 #[test]
-fn delayed_triggers_on_either_side_of_their_source_leaving_ask_their_order() {
+fn delayed_triggers_on_either_side_of_their_source_leaving_agree_on_it() {
     let mut game = setup_two_player_game();
     let card = vanilla_creature(1, 1, &[]);
     let id = put_on_battlefield(&mut game, Arc::clone(&card), 0);
@@ -657,7 +660,32 @@ fn delayed_triggers_on_either_side_of_their_source_leaving_ask_their_order() {
     let dp = RecordingDecisionProvider::picking(0);
     end_step(&mut game, &dp);
 
-    assert_eq!(dp.kinds(), vec!["OrderTriggers"]);
+    assert!(dp.kinds().is_empty(), "nothing to order: {:?}", dp.kinds());
+}
+
+/// CR 113.7a, 608.2h: a delayed trigger made after its source left reads the
+/// source as it left. The creature dies with two +1/+1 counters, and a
+/// delayed trigger made after, outside any resolution, gains life equal to
+/// the number it had: 2, not the 0 of the card in the graveyard.
+#[test]
+fn a_delayed_trigger_made_after_its_source_left_reads_it_as_it_left() {
+    let mut game = setup_two_player_game();
+    let card = vanilla_creature(1, 1, &[]);
+    let id = put_on_battlefield(&mut game, Arc::clone(&card), 0);
+    let source = game.object_ref(id).expect("it is there");
+    let counters = GameAction::AddCounters { subject: CounterSubject::Object(id), counter: CounterType::PlusOnePlusOne, n: 2, by: 0 };
+    game.execute_action(counters, &ActionContext::new(&test_dp())).expect("the counters go on");
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&test_dp())).expect("it dies");
+    let gain = at_the_next_end_step(Effect::Atom(
+        Primitive::GainLife(AmountExpr::SourceCounters(CounterType::PlusOnePlusOne)),
+        EffectRecipient::Controller,
+    ));
+    make_delayed(&mut game, &gain, source, card, None);
+    let before = life(&game, 0);
+
+    end_step(&mut game, &test_dp());
+
+    assert_eq!(life(&game, 0), before + 2, "the two counters it had");
 }
 
 // ---------------------------------------------------------------------------
@@ -907,7 +935,7 @@ fn an_unattach_whose_host_left_carries_the_hosts_frame() {
         .events()
         .skip(before)
         .filter_map(|e| match e {
-            GameEvent::Unattached { attachment_lki: None, former_host_lki, .. } => Some(former_host_lki.as_ref().map(|lki| lki.object())),
+            GameEvent::Unattached { attachment_left: false, former_host, .. } => Some(e.frame_of(former_host.id, &game.lki_store).map(|lki| lki.object())),
             _ => None,
         })
         .collect();

@@ -124,8 +124,8 @@ fn waiting_trigger(game: &GameState, delayed: &DelayedTrigger) -> Option<Waiting
         }
     };
     let id = delayed.source.id;
-    let source = match &delayed.source_lki {
-        Some(lki) if game.find(delayed.source).is_none() => object_label(game, id, &lki.chars().name),
+    let source = match game.lki(delayed.source) {
+        Some(lki) if game.find(delayed.source).is_none() => object_label(game, id, &lki.characteristics().name),
         _ => named(game, id),
     };
     Some(WaitingTrigger {

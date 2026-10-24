@@ -1593,7 +1593,7 @@ pub struct TriggerBinding {
     /// CR 704.5m's check while the trigger waits, set at that move.
     ///
     /// The one field written after the ability triggered. It lives here
-    /// rather than beside `kept_lki` on the three entries because the binding
+    /// rather than on the three entries because the binding
     /// travels from the pending trigger to the stack and into the resolution
     /// by itself, and so would a copy of the ability (CR 707.10); on the
     /// entries, every one of those hand-offs would have to carry it.
@@ -1801,13 +1801,6 @@ pub struct DelayedTrigger {
     /// leaves the battlefield" knows its own departure and no later move of
     /// a new object with the same id.
     pub source_left_at: Option<EventId>,
-    /// CR 113.7a, 608.2h — `source`'s last known information once it has
-    /// left the zone it was in when this was created: kept as it left, or
-    /// as this was created if it had already gone. Its trigger carries it to
-    /// the stack, and its intervening "if" reads the source off it. `None`
-    /// while the source is still there, and after a move nothing frames: CR
-    /// 601.2a's, out of a hidden zone.
-    pub source_lki: Option<Lki>,
     /// What its stack object is built from (CR 603.3's "the text of the
     /// ability that created it"), held because the source may be gone by
     /// then.
@@ -1917,15 +1910,15 @@ impl RememberedObject {
 
 /// An object's last known information (CR 113.7a, 608.2h): the existence
 /// that left (CR 400.7), its characteristics as it last existed in the zone it
-/// left, and the facts about it that no layer computes. A departure record
-/// carries one (CR 603.10a), and so does damage a source deals after it left.
-/// A holder of a `kept_lki` that reads an object — its source, or one of its
-/// triggering event's objects — keeps one when the object leaves the zone the
-/// holder expected it in (`triggers-architecture.md` §6.1), since the
-/// departure is a later event than the one that triggered.
+/// left, and the facts about it that no layer computes. The LKI store keeps
+/// one for each existence that ended with its move framed
+/// (`engine::last_known`), and a departure record carries the same one (CR
+/// 603.10a), as does damage a source deals after it left. A survivor's frame
+/// from just before an event takes this shape too: a control change's, and a
+/// move a replacement kept in its zone.
 ///
-/// One body behind one pointer: the record and every entry that keeps it
-/// share it, and handing it over clones the pointer.
+/// One body behind one pointer, which the store and every record that
+/// carries it share.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lki(Arc<LkiBody>);
 
@@ -1937,8 +1930,8 @@ struct LkiBody {
     /// owner leaves at CR 800.4a, and this is then the one place it is kept.
     owner: PlayerId,
     /// CR 111.1: whether it was a token, which no characteristic says and
-    /// the store forgets once CR 704.5d has removed it.
-    token: bool,
+    /// the object store forgets once CR 704.5d has removed it.
+    is_token: bool,
     /// CR 707.10's decisions about the spell it was.
     cost_choices: CostChoices,
     /// `None` for an object that left a zone other than the battlefield.
@@ -1970,7 +1963,7 @@ impl Lki {
         object: ObjectRef,
         frame: Arc<EffectiveCharacteristics>,
         owner: PlayerId,
-        token: bool,
+        is_token: bool,
         cost_choices: CostChoices,
         permanent: Option<&PermanentState>,
         entry: Option<&StackEntry>,
@@ -1990,7 +1983,7 @@ impl Lki {
             }
         });
         let entry = entry.map(|entry| Arc::new(entry.clone()));
-        Lki(Arc::new(LkiBody { object, frame, owner, token, cost_choices, permanent, entry }))
+        Lki(Arc::new(LkiBody { object, frame, owner, is_token, cost_choices, permanent, entry }))
     }
 
     /// The bytes its body holds beside its frame, which a held-memory
@@ -2009,7 +2002,7 @@ impl Lki {
     }
 
     /// The characteristics it last had.
-    pub fn chars(&self) -> &EffectiveCharacteristics {
+    pub fn characteristics(&self) -> &EffectiveCharacteristics {
         &self.0.frame
     }
 
@@ -2024,7 +2017,7 @@ impl Lki {
 
     /// Whether it was a token (CR 111.1).
     pub fn was_token(&self) -> bool {
-        self.0.token
+        self.0.is_token
     }
 
     pub fn cost_choices(&self) -> &CostChoices {
@@ -2102,9 +2095,6 @@ pub struct PendingTrigger {
     /// what placement announces (603.3d).
     pub instances: Vec<EffectRecipient>,
     pub binding: TriggerBinding,
-    /// The last known information of the objects it names that have left
-    /// since it triggered.
-    pub kept_lki: Vec<Lki>,
     /// CR 107.3n — a delayed trigger's X, its creating spell's or ability's,
     /// which its stack object carries; `None` for an object's trigger.
     pub x_value: Option<u64>,
@@ -2182,8 +2172,8 @@ mod tests {
                 attachment: identity.source,
                 former_host: identity.source,
                 route: crate::events::event::UnattachRoute::HostLeft,
-                attachment_lki: None,
-                former_host_lki: None,
+                attachment_left: false,
+                former_host_left: false,
             }),
             ("DamagePrevented", GameEvent::DamagePrevented {
                 target: DamageTarget::Player(0),

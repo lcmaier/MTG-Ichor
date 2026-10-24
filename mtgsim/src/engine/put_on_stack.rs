@@ -217,7 +217,6 @@ impl GameState {
             cast_from: Some(cast_from),
             ability_identity: None,
             trigger: None,
-            kept_lki: Vec::new(),
         };
         self.set_stack_entry(entry);
 
@@ -271,7 +270,7 @@ impl GameState {
         // and CR 601.2 rewinds the whole cast either way. A bare `?` here left
         // the card on the stack to resolve unpaid (`codebase-state.md` 16c).
         let mana_spent = match self.pay_costs(&plan, player_id, card_id, &actx) {
-            Ok(paid) => paid.mana,
+            Ok(spent) => spent,
             Err(e) => {
                 self.rollback_cast_to_hand(card_id)?;
                 return Err(e);
@@ -428,7 +427,7 @@ impl GameState {
     /// CR 602.2b's and 605.3a's announcement, once the costs are paid:
     /// `identity` activated by `controller` from `from`, the zone its source
     /// was in, with the source as it last was there where a cost moved it
-    /// (`PaidCosts`). With the activator's provider, since a triggered mana
+    /// (the LKI store's). With the activator's provider, since a triggered mana
     /// ability on it resolves at the dispatch (CR 605.1b, 605.4a).
     pub(crate) fn announce_activation(
         &mut self,
@@ -532,7 +531,6 @@ impl GameState {
             cast_from: None,
             ability_identity: Some(identity),
             trigger: None,
-            kept_lki: Vec::new(),
         };
         self.set_stack_entry(stack_entry);
 
@@ -558,20 +556,18 @@ impl GameState {
                 return Err(e);
             }
         };
-        let paid = match self.pay_costs(&plan, player_id, source_id, &actx) {
-            Ok(paid) => paid,
-            Err(e) => {
-                self.rollback_ability_activation(ability_obj_id);
-                return Err(e);
-            }
-        };
+        if let Err(e) = self.pay_costs(&plan, player_id, source_id, &actx) {
+            self.rollback_ability_activation(ability_obj_id);
+            return Err(e);
+        }
 
         // CR 602.2b runs 601.2i: the ability becomes activated once its costs
         // are paid, its targets first as a spell's are. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
         self.announce_targeted_records(ability_obj_id, activating, decisions)?;
-        let source_lki = paid.source_lki_if_it_moved(self, identity.source);
+        // Where its cost moved it, as it left (CR 608.2h).
+        let source_lki = self.lki(identity.source).cloned();
         self.announce_activation(identity, player_id, false, from, source_lki, decisions)?;
 
         Ok(())

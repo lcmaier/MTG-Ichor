@@ -207,7 +207,6 @@ fn stack_object_with(
         cast_from: if is_spell { Some(Zone::Hand) } else { None },
         ability_identity: None,
         trigger: None,
-        kept_lki: Vec::new(),
     });
     id
 }

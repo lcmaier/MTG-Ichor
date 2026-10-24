@@ -10,7 +10,7 @@ use super::error::{ScenarioError, ScenarioErrorKind};
 use super::setup::{ResolvedSetupAction, SetupActions};
 use super::text::{draw_step_skipped, in_combat_from, position_word};
 use crate::engine::layers::compute::seed_frame;
-use crate::state::history_log::{HistoryRow, RowFact, FIRST_TURN};
+use crate::state::history_log::{HistoryRow, RowFact, RowFrame, FIRST_TURN};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::cards::registry::CardRegistry;
 use crate::engine::resolve::ResolvedTarget;
@@ -455,7 +455,7 @@ impl<'s> Loader<'s> {
                 if on_turn == t && count > 0 {
                     let seq = self.state.events.next_seq();
                     let fact = RowFact::Stated { fact, count };
-                    let row = HistoryRow { seq, turn: t, combat: 0, player: Some(player), object: None, frame: None, last_known: None, fact };
+                    let row = HistoryRow { seq, turn: t, combat: 0, player: Some(player), object: None, frame: RowFrame::None, fact };
                     self.state.history.push_row(row);
                     self.state.bump_layer_epoch_if_read(GatedWalkInput::Rows(fact.kind()));
                 }
@@ -463,10 +463,10 @@ impl<'s> Loader<'s> {
             // A named cast is its printed card as cast from a hand, an object
             // in no store.
             for cast in casts.iter().filter(|cast| cast.turn == t) {
-                let frame = Some(Arc::new(seed_frame(&cast.card, cast.player, t)));
+                let frame = RowFrame::AsTheEventLeftIt(Arc::new(seed_frame(&cast.card, cast.player, t)));
                 let seq = self.state.events.next_seq();
                 let fact = RowFact::Cast { from: Zone::Hand };
-                self.state.history.push_row(HistoryRow { seq, turn: t, combat: 0, player: Some(cast.player), object: None, frame, last_known: None, fact });
+                self.state.history.push_row(HistoryRow { seq, turn: t, combat: 0, player: Some(cast.player), object: None, frame, fact });
                 self.state.bump_layer_epoch_if_read(GatedWalkInput::Rows(fact.kind()));
             }
         }

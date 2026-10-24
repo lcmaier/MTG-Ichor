@@ -908,16 +908,16 @@ impl GameState {
     /// The names `event`'s objects and its `cause`'s are announced under,
     /// where one is not its card's; `None` on nearly every event. The source
     /// of the ability the record is about, or of the one resolving, is named
-    /// as it last existed once it has left the battlefield, by the frame that
-    /// ability keeps (CR 113.7a), where the card's own name would read as the
-    /// card in its new zone.
+    /// as it last existed once it has left the battlefield, while an ability
+    /// that reads it remains (CR 113.7a), where the card's own name would
+    /// read as the card in its new zone.
     fn names_as_announced(&mut self, event: &GameEvent, cause: &EventCause) -> NamesAsAnnounced {
         let mut named: Vec<ObjectId> = Vec::new();
         event.for_each_object_named(|id| named.push(id));
         named.extend(cause.object_named());
         let source = event.ability_source().or_else(|| self.resolving.as_ref()?.identity.map(|identity| identity.source));
-        let departed = source.filter(|&source| self.find(source).is_none()).and_then(|source| self.lki_kept_for(source));
-        let departed = departed.map(|lki| (lki.object().id, lki.chars().name.clone()));
+        let departed = source.filter(|&source| self.find(source).is_none()).and_then(|source| self.lki_as_a_keeper_reads(source));
+        let departed = departed.map(|lki| (lki.object().id, lki.characteristics().name.clone()));
         let mut names: Vec<(ObjectId, String)> = Vec::new();
         for id in named {
             if names.iter().any(|(kept, _)| *kept == id) {

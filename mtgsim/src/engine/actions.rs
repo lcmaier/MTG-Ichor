@@ -659,18 +659,6 @@ fn can_enter_attached(game: &GameState, id: ObjectId) -> bool {
     .any(|subtype| crate::oracle::characteristics::has_subtype(game, id, subtype))
 }
 
-/// What an object leaving a zone takes with it, read at the last moment
-/// before it moves ([`GameState::depart`]) and announced after: its frame,
-/// if the move carries one, and each attachment the move ends, as
-/// (attachment, former host, route). The attachments are read off the board
-/// then, not off the frame, which was taken as the batch began: an earlier
-/// member of the same batch may have ended one already (a host destroyed
-/// beside its Aura), and the frame would still show it.
-pub(crate) struct Departure {
-    pub(crate) frame: Option<Lki>,
-    unattached: Vec<(ObjectRef, ObjectRef, UnattachRoute)>,
-}
-
 /// Which of CR 120.3's results a damage event has, read off the target.
 ///
 /// > 120.3. Damage dealt to a permanent or player has one or more of the
@@ -1190,7 +1178,7 @@ impl GameState {
         // The departing members' own frames, for the same reason: taken as each
         // moved, a later one would see an earlier one gone (item 174).
         let frames_from = self.lki_captures.len();
-        self.capture_lki(decided.iter().filter_map(|m| Some((m.event.as_ref()?, m.applied.len() > 0))));
+        self.capture_lki(decided.iter().filter_map(|m| Some((m.event.as_ref()?, m.applied.len() > 0, m.cause))));
         // The dispatch audit's snapshot of every object that could carry a
         // triggered ability, when it is on (§4.10).
         let audit_frames = self.audit_frames();
@@ -1704,7 +1692,7 @@ impl GameState {
                     // CR 701.3d: leaving the first host is becoming unattached
                     // from it, in the same event and ahead of the attach.
                     if let (Some(former), Some(moved)) = (unattached_from, self.object_ref(attachment)) {
-                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, None, None, ctx.cause)?;
+                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, false, false, ctx.cause)?;
                     }
                     self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
                 }
@@ -1725,7 +1713,7 @@ impl GameState {
                     return Ok(());
                 };
                 self.detach(attachment);
-                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, None, None, ctx.cause)
+                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, false, false, ctx.cause)
             }
 
             GameAction::Tap { object } => {
@@ -2108,37 +2096,6 @@ impl GameState {
         self.announce_unattached_by_leaving(departure, cause)
     }
 
-    /// What `id` leaving `from` for `to` (`None`: the game) takes with it,
-    /// before it moves: its frame, handed to every keeper that reads it (CR
-    /// 603.10a, 113.7a), and what the move unattaches (CR 701.3d). The one
-    /// before-move half of both performers that take an object out of a zone,
-    /// whose record and unattaches announce it after.
-    pub(crate) fn depart(&mut self, id: ObjectId, from: Zone, to: Option<Zone>) -> Departure {
-        let frame = self.hand_over_before_leaving(id, from, to);
-        Departure { frame, unattached: self.unattached_by_leaving(id) }
-    }
-
-    /// CR 701.3d — what a permanent's leaving the battlefield unattaches,
-    /// read before it moves, since the move drops every link it is in
-    /// (`cleanup_zone_state`): itself from its host, then whatever is attached
-    /// to it, in the order they were attached. Each end is the existence it is
-    /// before the move. Empty for anything not on the battlefield.
-    pub(crate) fn unattached_by_leaving(&self, id: ObjectId) -> Vec<(ObjectRef, ObjectRef, UnattachRoute)> {
-        let (Some(entry), Some(leaving)) = (self.battlefield.get(&id), self.object_ref(id)) else {
-            return Vec::new();
-        };
-        let from_host = entry
-            .attached_to
-            .and_then(|host| self.object_ref(host))
-            .map(|host| (leaving, host, UnattachRoute::AttachmentLeft));
-        let from_it = entry
-            .attached_by
-            .iter()
-            .filter_map(|&attachment| self.object_ref(attachment))
-            .map(|attachment| (attachment, leaving, UnattachRoute::HostLeft));
-        from_host.into_iter().chain(from_it).collect()
-    }
-
     /// **The only emitter of `GameEvent::SameZoneMove`**: a move a replacement
     /// kept in `zone`, which `perform_zone_change` performed by not moving it.
     fn announce_same_zone_move(
@@ -2153,22 +2110,6 @@ impl GameState {
         let lki = lki.ok_or_else(|| format!("{object} was kept in the {zone:?} with no frame to announce it by"))?;
         let owner = self.get_object(object)?.owner;
         self.emit_event(GameEvent::SameZoneMove { object_id: object, owner, zone, act, applied, lki }, cause)
-    }
-
-    /// A departure's unattaches, announced after its own record by the
-    /// performer that moved it, under the move's cause, each carrying the
-    /// leaving object's frame.
-    pub(crate) fn announce_unattached_by_leaving(&mut self, departure: Departure, cause: EventCause) -> Result<(), String> {
-        let Departure { frame: leaving_frame, unattached } = departure;
-        for (attachment, former_host, route) in unattached {
-            // The other end, if this event takes it too, as its batch framed it.
-            let (attachment_lki, former_host_lki) = match route {
-                UnattachRoute::AttachmentLeft => (leaving_frame.clone(), self.frame_taken_for(former_host).cloned()),
-                _ => (self.frame_taken_for(attachment).cloned(), leaving_frame.clone()),
-            };
-            self.announce_unattached(attachment, former_host, route, attachment_lki, former_host_lki, cause)?;
-        }
-        Ok(())
     }
 
     /// **The only emitter of `GameEvent::ZoneChange`.** Three callers, each of
@@ -2202,11 +2143,11 @@ impl GameState {
         attachment: ObjectRef,
         former_host: ObjectRef,
         route: UnattachRoute,
-        attachment_lki: Option<Lki>,
-        former_host_lki: Option<Lki>,
+        attachment_left: bool,
+        former_host_left: bool,
         cause: EventCause,
     ) -> Result<(), String> {
-        self.emit_event(GameEvent::Unattached { attachment, former_host, route, attachment_lki, former_host_lki }, cause)?;
+        self.emit_event(GameEvent::Unattached { attachment, former_host, route, attachment_left, former_host_left }, cause)?;
         Ok(())
     }
 

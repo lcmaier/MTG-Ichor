@@ -146,6 +146,12 @@ impl ForkCopy for crate::types::triggers::PendingTrigger {
     type Held = CopiedAlone<Self>;
 }
 
+/// One object's ended existences: 24 bytes and a list on the heap, written
+/// once per framed departure of that object.
+impl ForkCopy for crate::engine::last_known::EndedExistences {
+    type Held = CopiedAlone<Self>;
+}
+
 /// One table chunk: the items of 32 consecutive ids, and which are there.
 #[derive(Clone)]
 struct TableChunk<E> {
@@ -278,6 +284,13 @@ impl<T: ForkCopy> ObjectTable<T> {
             other.chunks.get(index).and_then(Option::as_ref).is_some_and(|theirs| Arc::ptr_eq(chunk, theirs))
         };
         self.chunks.iter().enumerate().filter(|(index, chunk)| chunk.as_ref().is_some_and(|chunk| !shared(*index, chunk))).count()
+    }
+
+    /// The bytes the table itself holds, its vector of chunk pointers and its
+    /// chunks, the items' own heap apart: what a held-memory reading adds.
+    pub fn bytes_held(&self) -> usize {
+        let chunk = std::mem::size_of::<TableChunk<T::Held>>() + 2 * std::mem::size_of::<usize>();
+        self.chunks.capacity() * std::mem::size_of::<Option<Arc<TableChunk<T::Held>>>>() + self.chunks.iter().flatten().count() * chunk
     }
 }
 

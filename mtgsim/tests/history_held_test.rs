@@ -1,6 +1,9 @@
 //! What a game holds for its history log (`triggers-architecture.md` §12,
-//! TR-5h): the rows and the frames they keep alive, read at item 143's
-//! checkpoints through each game's end, beside what one clone copies.
+//! TR-5h) and its LKI store (§3.11): the rows and the frames they keep alive,
+//! and the store's entries no row shares, read at item 143's checkpoints
+//! through each game's end, beside what one clone copies. The store's bytes
+//! are read here because no test can bound them: a body's counters and
+//! attachments, and a frame's abilities, have no fixed size.
 //!
 //! The log is kept for the whole game, so what a game holds grows with its
 //! events; no clone copies it (a clone copies the chain's head). **At most
@@ -29,7 +32,9 @@ use mtgsim::engine::layers::types::EffectiveCharacteristics;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
-use mtgsim::state::history_log::HistoryLog;
+use mtgsim::state::game_state::GameState;
+use mtgsim::state::history_log::RowFrame;
+use mtgsim::types::ids::ObjectRef;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -61,17 +66,34 @@ fn commander_game(registry: &CardRegistry, game_seed: u64) -> (Game, ManaWindowS
     (game, dp)
 }
 
-/// The log's rows, and each distinct frame they point to, whole.
-fn held_bytes(log: &HistoryLog) -> (u64, usize) {
+/// The log's rows and the LKI store's entries, and each distinct frame they
+/// point to, whole. A store entry whose row holds the same last known
+/// information adds only the store's own bytes.
+fn held_bytes(state: &GameState) -> (u64, usize) {
+    let log = &state.history.log;
     let mut seen: HashSet<*const EffectiveCharacteristics> = HashSet::new();
     let mut frames = 0u64;
-    for frame in log.rows_newest_first().filter_map(|row| row.frame.as_ref()) {
+    let mut frame_bytes = |frame: &Arc<EffectiveCharacteristics>| {
         if seen.insert(Arc::as_ptr(frame)) {
             let (_, heap) = clone_cost(&**frame);
             frames += (std::mem::size_of::<EffectiveCharacteristics>() + 2 * std::mem::size_of::<usize>()) as u64 + heap;
         }
+    };
+    let mut on_rows: HashSet<ObjectRef> = HashSet::new();
+    for row in log.rows_newest_first() {
+        if let Some(frame) = row.frame.frame() {
+            frame_bytes(frame);
+        }
+        if let RowFrame::LastKnown(lki) = &row.frame {
+            on_rows.insert(lki.object());
+        }
     }
-    (log.row_bytes_held() as u64 + frames, seen.len())
+    let mut store = state.lki_store.bytes_held() as u64;
+    for lki in state.lki_store.entries().filter(|lki| !on_rows.contains(&lki.object())) {
+        store += lki.bytes_beside_its_frame() as u64;
+        frame_bytes(lki.frame());
+    }
+    (log.row_bytes_held() as u64 + store + frames, seen.len())
 }
 
 #[test]
@@ -94,7 +116,7 @@ fn a_game_holds_its_log_within_the_gate() {
         // What the game holds, as the reading's line says it.
         let mut read = |game: &Game, turns: u32, at: String| -> u64 {
             let log = &game.state.history.log;
-            let (held, frames) = held_bytes(log);
+            let (held, frames) = held_bytes(&game.state);
             let (allocations, clone_bytes) = clone_cost(&game.state);
             let per_turn = held / u64::from(turns.max(1));
             readings.push(format!(

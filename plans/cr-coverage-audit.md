@@ -321,7 +321,7 @@ already planned for them.
 | The event's facts: who, and how much (603.2c, 608.2c) | the records, by `EventId`; nothing prunes the log within a game | yes | one trigger per occurrence or per window (TR-1); "that many" sums the records | no gap |
 | **The object a move made** (400.7e, 603.6c) | `TriggerBinding.subject`, the epoch **at dispatch**; the `ZoneChange` record has none | **no**: the move stamps it and the dispatch reads it later | a second move before the window's dispatch; a `OncePerEvent` "them" (59 cards) | item 177 |
 | The appearance before a departure (603.10a) | `LkiCapture`, then `ZoneChange.lki`; `LookBackSnapshot` for survivors | yes (TR-1, TR-1b) | status built in TR-4a (item 14); the other two classes are item 15's (TR-4c) | no gap beyond those |
-| **A source's last known information after it triggered** (113.7a, 608.2h) | planned: §6.1's `kept_lki`, typed `Lki`, which §3.11 widens | planned | **the cost decisions**: §3.11 carried `cast` only, and #181 moved kicked, bargained and evoked out of it. 72 "if it was kicked" triggers | item 169 sharpened; §3.11 amended |
+| **A source's last known information after it triggered** (113.7a, 608.2h) | planned: §6.1's `kept_lki`, typed `Lki`, which §3.11 widens; since #285 the LKI store | planned | **the cost decisions**: §3.11 carried `cast` only, and #181 moved kicked, bargained and evoked out of it. 72 "if it was kicked" triggers | item 169 sharpened; §3.11 amended |
 | **The intervening "if" at the trigger** (603.4) | `settled_holds` when the window closes | **no**, for a window with a rider: the rider has run (615.5) | a rider that changes the condition; a rider's newcomer asked about an earlier record (603.6a) | item 175 sharpened |
 | **"Do this only once each turn"** (603.2h) | planned: `action_taken_this_turn`, keyed by the ability | planned | **a control change**: the rule keys the gate on "its source's controller". 34 cards | §3.5, §6.4 and §7 amended |
 | A state trigger's re-arm (603.8); "only once each turn" | planned: sets of `AbilityIdentity`, which carries the epoch | planned | a zone change resets both (400.7) | no gap |
@@ -451,7 +451,7 @@ ruling says "you'll copy it using its last known information".
 
 | Fact | Where it lives | Recorded when it exists? | The rules that watch it | Verdict |
 |---|---|---|---|---|
-| **The last known information of a source or a bound object that left a zone other than the battlefield** (113.7a, 608.2h) | planned: §6.1's `kept_lki`, written by `capture_lki` | **no**: that frames what leaves the battlefield, and TR-4 widens it to 603.10a's three classes only | a card revealed in a hand leaves before the trigger resolves (God-Eternal Kefnet's ruling); a spell is countered before its copy trigger resolves, and the copy is still made (Double Vision's and Galvanic Iteration's rulings); 603.10e's `IsCountered` look-back | **item 169, sharpened; `triggers-architecture.md` §6.1 and §3.11 and `copy-effects-architecture.md` §4.4, amended.** `(o:"when " or o:"whenever ") o:"copy that spell"` 70; with `"copy that card"`, 3 |
+| **The last known information of a source or a bound object that left a zone other than the battlefield** (113.7a, 608.2h) | planned: §6.1's `kept_lki`, written by `capture_lki`; since #285 the LKI store | **no**: that frames what leaves the battlefield, and TR-4 widens it to 603.10a's three classes only | a card revealed in a hand leaves before the trigger resolves (God-Eternal Kefnet's ruling); a spell is countered before its copy trigger resolves, and the copy is still made (Double Vision's and Galvanic Iteration's rulings); 603.10e's `IsCountered` look-back | **item 169, sharpened; `triggers-architecture.md` §6.1 and §3.11 and `copy-effects-architecture.md` §4.4, amended.** `(o:"when " or o:"whenever ") o:"copy that spell"` 70; with `"copy that card"`, 3 |
 | **The player a payment chose** (702.174a) | nowhere: `CostChoices.additional` holds the cost definitions paid | **no** | a copy of the spell keeps the opponent, and a permanent that enters as a copy does not (Into the Flood Maw's ruling), which is CR 707.10's side | **item 30, sharpened.** `kw:gift` 25. Behold's objects (701.4, `o:"behold"` 24) join the list |
 
 **Three of pass 4's four findings are the re-sweep's shape again**: a fact
@@ -626,6 +626,14 @@ is derivable; where each name was read is not, and the gate needs the names.
     a new filter at the doors (`clone-architecture.md` decision 5).
     `last_sba_check_epoch` stays, in a debug build only, as the window the
     old walk's assertion reads.
+- **Added by `last-known-information-store` (2026-10-24)**:
+  - `lki_store`: CR 113.7a's last known information, one entry per
+    existence that has ended with its move framed (CR 400.7), kept for the
+    game and keyed by object (`triggers-architecture.md` §3.11). It holds
+    what each `Lki` holds, so what the CR can require that it cannot is the
+    body's gap, not the store's: CR 400.7d's facts about how a spell was
+    cast, which §3.11 leaves out until a leaf reads mana spent. A move
+    nothing reads is not framed, which no rule asks about later.
 
 ---
 

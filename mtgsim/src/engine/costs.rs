@@ -22,9 +22,9 @@ use crate::types::costs::Cost;
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
 use crate::types::effects::ObjectFilter;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::oracle::characteristics::ObjectInformation;
+use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSpent, ManaType};
-use crate::types::triggers::Lki;
 use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
 use crate::types::zones::Zone;
 
@@ -103,25 +103,6 @@ const RANK_MANA: u8 = 0;
 const RANK_MUTATES: u8 = 1;
 const RANK_MOVES_AN_OBJECT: u8 = 2;
 
-/// What paying a total cost leaves behind beyond the payment itself.
-pub struct PaidCosts {
-    /// The mana it spent (CR 601.2h), which CR 400.7d's facts keep.
-    pub mana: ManaSpent,
-    /// The source as the first cost that could move it found it, every cost
-    /// that moves nothing paid first (`payment_order_rank`): what it last
-    /// was where it was, if that cost moved it (CR 113.7a). `None` where no
-    /// cost could.
-    source_lki: Option<Lki>,
-}
-
-impl PaidCosts {
-    /// The source's last known information, where a cost has since moved
-    /// `source`, the existence whose costs these were; `None` while it is
-    /// where it was.
-    pub(crate) fn source_lki_if_it_moved(&self, game: &GameState, source: ObjectRef) -> Option<Lki> {
-        self.source_lki.clone().filter(|_| game.object_ref(source.id) != Some(source))
-    }
-}
 
 /// Where a cost sits in the order the engine pays a total cost.
 ///
@@ -293,7 +274,7 @@ impl GameState {
         crate::oracle::board::permanents_controlled_by(self, player_id)
             .into_iter()
             .filter(|&id| match source {
-                Some(source) => self.object_matches_filter_of_source(id, filter, player_id, source, None),
+                Some(source) => self.object_matches_filter_of_source(ObjectInformation::Current(id), filter, player_id, source),
                 None => self.object_matches_filter_for_instance(id, filter, player_id, crate::engine::targeting::FilterIdentity::NONE),
             })
             .collect()
@@ -377,21 +358,20 @@ impl GameState {
     /// cancellation because [`payment_order_rank`] makes it unreachable — see
     /// the debug assertion below, which is where that claim is enforced.
     ///
-    /// Returns the mana spent, which only the pool knows once it has been paid.
+    /// Returns the mana spent (CR 601.2h), which only the pool knows once it
+    /// has been paid and CR 400.7d's facts keep. A cost that moved an object
+    /// left that object's last known information in the LKI store, framed by
+    /// the cost's own batch (CR 113.7a).
     pub fn pay_costs(
         &mut self,
         plan: &PaymentPlan,
         player_id: PlayerId,
         source_id: ObjectId,
         ctx: &ActionContext,
-    ) -> Result<PaidCosts, String> {
+    ) -> Result<ManaSpent, String> {
         let mut moved_an_object = false;
         let mut spent = ManaSpent::NONE;
-        let mut source_lki = None;
         for (idx, cost) in plan.ordered.iter().enumerate() {
-            if cost.can_move_its_source() && source_lki.is_none() {
-                source_lki = self.lki_now(source_id);
-            }
             let result = self.pay_single_cost(
                 cost, player_id, source_id, plan, idx, &mut spent, ctx,
             );
@@ -414,7 +394,7 @@ impl GameState {
                 moved_an_object = true;
             }
         }
-        Ok(PaidCosts { mana: spent, source_lki })
+        Ok(spent)
     }
 
     /// Pay a single cost from the plan. Internal helper.
@@ -542,7 +522,7 @@ mod tests {
         ctx: &crate::engine::actions::ActionContext,
     ) -> Result<ManaSpent, String> {
         let plan = game.plan_payment(costs, player, source, ctx)?;
-        game.pay_costs(&plan, player, source, ctx).map(|paid| paid.mana)
+        game.pay_costs(&plan, player, source, ctx)
     }
 
     fn setup_with_forest() -> (GameState, crate::types::ids::ObjectId) {

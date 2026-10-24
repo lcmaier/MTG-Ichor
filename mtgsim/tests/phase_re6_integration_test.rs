@@ -131,7 +131,6 @@ fn stage_spell_with(
         cast_from: Some(Zone::Hand),
         ability_identity: None,
         trigger: None,
-        kept_lki: Vec::new(),
     });
     id
 }

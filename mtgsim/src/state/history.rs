@@ -12,13 +12,13 @@
 
 use std::ops::RangeInclusive;
 
-use crate::engine::targeting::HeldFrame;
+use crate::oracle::characteristics::ObjectInformation;
 use crate::state::game_state::AbilityIdentity;
 use crate::state::history_log::{HistoryLog, HistoryRow, added_to_count};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
 use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
-use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectRef, PlayerId};
 
 /// One player's history beside the log.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -190,13 +190,13 @@ impl GameHistory {
         span: HistorySpan,
         you: PlayerId,
         now: u32,
-        filter_matches: &mut dyn FnMut(&ObjectFilter, ObjectId, HeldFrame<'_>) -> bool,
+        filter_matches: &mut dyn FnMut(&ObjectFilter, ObjectInformation<'_>) -> bool,
         note: &dyn Fn(GatedWalkInput),
     ) -> u64 {
         let counts_for = |player: PlayerId| history.players.contains(you, player);
         let mut of = |row: &HistoryRow| match &history.of {
             None => true,
-            Some(filter) => row.frame_matches(|id, held| filter_matches(filter, id, held)),
+            Some(filter) => row.frame_matches(|object| filter_matches(filter, object)),
         };
         self.log.count(history.fact, self.turns_of(span, you, now), &counts_for, &mut of, note)
     }
@@ -235,7 +235,7 @@ impl GameHistory {
 mod tests {
     use super::*;
     use crate::events::event::EventId;
-    use crate::state::history_log::RowFact;
+    use crate::state::history_log::{RowFact, RowFrame};
 
     const DRAWN: TurnFact = TurnFact::CardsDrawn;
 
@@ -243,7 +243,7 @@ mod tests {
     fn drew(history: &mut GameHistory, player: PlayerId, turn: u32, count: u64) {
         let fact = RowFact::Stated { fact: DRAWN, count };
         let seq = EventId(history.log.len());
-        history.push_row(HistoryRow { seq, turn, combat: 0, player: Some(player), object: None, frame: None, last_known: None, fact });
+        history.push_row(HistoryRow { seq, turn, combat: 0, player: Some(player), object: None, frame: RowFrame::None, fact });
     }
 
     /// A turn's count is its rows, whoever's turn it was; a turn with none
@@ -271,7 +271,7 @@ mod tests {
         for gained in [3, 1] {
             let seq = EventId(history.log.len());
             let fact = RowFact::GainedLife(gained);
-            history.push_row(HistoryRow { seq, turn: 3, combat: 0, player: Some(1), object: None, frame: None, last_known: None, fact });
+            history.push_row(HistoryRow { seq, turn: 3, combat: 0, player: Some(1), object: None, frame: RowFrame::None, fact });
         }
         for (player, fact) in [(0, DRAWN), (1, DRAWN), (0, TurnFact::LifeGainEvents), (1, TurnFact::LifeGainEvents)] {
             assert_eq!(history.count_in_turn(player, fact, 3), history.count(player, fact, 3..=3), "{fact:?} for player {player}");

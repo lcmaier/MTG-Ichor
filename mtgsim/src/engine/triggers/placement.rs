@@ -143,11 +143,12 @@ impl GameState {
                 .collect()
         };
         // The source by identity, not the origin: a delayed trigger's origin
-        // is its own registry number, which no two share. Two made on either
-        // side of the source leaving carry different information about it
-        // (CR 113.7a).
+        // is its own registry number, which no two share. Each reads the
+        // source's last known information as its own records frame it, else
+        // as the LKI store keeps it, the one for that existence (CR 113.7a).
         let source = a.origin.source_ref();
-        let same_source = source == b.origin.source_ref() && a.lki_of(source) == b.lki_of(source);
+        let same_source = source == b.origin.source_ref()
+            && self.lki_as_read_by(Some(x), source) == self.lki_as_read_by(Some(y), source);
         (unread(TriggerBindingReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))
             && (unread(TriggerBindingReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
             && (unread(TriggerBindingReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))
@@ -226,7 +227,6 @@ impl GameState {
             cast_from: None,
             ability_identity: Some(identity),
             trigger: Some(pending.binding.clone()),
-            kept_lki: pending.kept_lki.clone(),
         };
         let chosen = entry.chosen_targets.clone();
         self.set_stack_entry(entry);

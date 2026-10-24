@@ -140,10 +140,6 @@ pub struct StackEntry {
     /// activated ability; the resolution reads the intervening "if" and
     /// "that object" off it.
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
-    /// The last known information of the objects it names — its source, its
-    /// trigger's subject — that have left since it was put on the stack (CR 113.7a;
-    /// `triggers-architecture.md` §6.1). An activated ability's too.
-    pub kept_lki: Vec<crate::types::triggers::Lki>,
 }
 
 impl StackEntry {
@@ -215,13 +211,10 @@ pub struct ResolvingObject {
     /// ability has resolved this turn". `None` for a spell.
     pub identity: Option<AbilityIdentity>,
     /// Its trigger's binding, for a triggered ability: the objects of its
-    /// triggering event are, with `identity`'s source, what it names, so an
-    /// object its own effect moves hands it a frame too (CR 608.2h's "the
-    /// effect has moved it"), and the frames their record carries answer
-    /// `lki_of`. `None` for a spell or an activated ability.
+    /// triggering event are, with `identity`'s source, what it names, and the
+    /// frames their record carries answer before the LKI store does
+    /// (`lki_as_read_by`). `None` for a spell or an activated ability.
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
-    /// The last known information the entry kept, and any its own effect adds.
-    pub kept_lki: Vec<crate::types::triggers::Lki>,
     /// Where this resolution starts in the event window: the number its first
     /// record would take, whatever that record is. A later instruction reads
     /// the earlier ones' records from here (`EventWindow::resolution_records`),
@@ -779,6 +772,10 @@ pub struct GameState {
     /// member's frame sees an earlier member leave (item 174). A move takes its own;
     /// each batch drops the rest once it has performed.
     pub(crate) lki_captures: Vec<crate::engine::triggers::LkiCapture>,
+    /// The LKI store: how each existence that has ended last existed, written
+    /// by the move that ends it and kept for the game (CR 113.7a, 608.2h;
+    /// `engine::last_known`).
+    pub lki_store: crate::engine::last_known::LkiStore,
     /// The dispatch audit's snapshots and counts, in a game that turned the
     /// audit on (`enable_audit`), which is also what turns on every other
     /// shortcut's audit (`engine::audit`); `None` otherwise, which is all a
@@ -1078,6 +1075,7 @@ impl GameState {
             control_effects_at_last_sweep: false,
             settled_layer_epoch: u64::MAX,
             lki_captures: Vec::new(),
+            lki_store: crate::engine::last_known::LkiStore::default(),
             dispatch_audit: None,
             events: EventWindow::new(),
             trace: None,
@@ -2900,7 +2898,6 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
-    kept_lki: Vec::new(),
 };
         assert!(entry.chosen_alternative_cost.is_none());
         assert!(entry.additional_costs_paid.is_empty());

@@ -26,7 +26,7 @@ use crate::types::replacement::{
 };
 use crate::types::zones::{DrawFilter, Zone};
 use crate::types::history::{CountIs, ObjectFact};
-use crate::oracle::characteristics::{get_effective_power, get_effective_types, CurrentOrLastKnown};
+use crate::oracle::characteristics::{get_effective_power, get_effective_types, ObjectInformation};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_take_or_leave;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
@@ -2914,7 +2914,7 @@ fn retarget_destination(
         // own hand. A source that left before dealing it is asked as it last
         // existed (CR 608.2h).
         RetargetSpec::ToDamageSourceController => {
-            CurrentOrLastKnown { id: damage_source, lki: damage_source_lki }.controller(game).map(DamageTarget::Player)
+            ObjectInformation::of(damage_source, damage_source_lki).controller(game).map(DamageTarget::Player)
         }
     }
 }
@@ -3366,7 +3366,7 @@ pub(crate) fn not_auxiliary(
     // The move is the effect's own (CR 614.13), so its "another" is other than
     // the effect's source.
     let chooses_it = match cause.resolution() {
-        Some(stamp) => game.object_matches_filter_of_source(id, &aux.filter, you, stamp.source, None),
+        Some(stamp) => game.object_matches_filter_of_source(ObjectInformation::Current(id), &aux.filter, you, stamp.source),
         None => game.object_matches_filter_for_instance(id, &aux.filter, you, crate::engine::targeting::FilterIdentity::NONE),
     };
     if !chooses_it {

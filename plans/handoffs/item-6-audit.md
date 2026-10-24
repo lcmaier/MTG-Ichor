@@ -136,7 +136,12 @@ pass re-reads what it touches: a number here is a starting point.
   arm to say which side it watches, re-slotted to
   `layers-combat-and-counters`. Added at its review (the owner,
   2026-10-24): `last-known-information-store`, item 318, the PR after it.
-  The next PR is that one, its design note first.
+  It ran as #285 on `audit/last-known-information-store`: the design note
+  first, its four decisions taken at its review (`triggers-architecture.md`
+  §3.11), then the build on the same branch. Item 318 closed. The next PR is
+  `practices-rules-page` (1c), which rewrites the whole of
+  `engineering-practices.md` as a short page of rules, §2c's per-keeper
+  example, which this PR retired, among them.
 
 ## 1. Why this audit is bigger than the last
 
@@ -792,6 +797,15 @@ item 124's precedent that a sweep does not ride inside a rules change.
    archive and to the subsystem docs they belong to, as the fuzz tables did
    to `fuzz-record.md`; a rule a script can check is listed as a gate to
    build. After the store, so §2c is rewritten once.
+   - Asked at #285's review (the owner, 2026-10-24): whether the rules
+     belong in `CLAUDE.md` instead. `CLAUDE.md` is at its 200-line limit,
+     so the page is linked from it, unless the owner chooses otherwise at
+     1c's review.
+   - The page's example of a design that mirrors the CR is
+     `departure_read` in `engine/triggers/dispatch.rs`, which the owner
+     named at #285's review: an arm that looks back reads a departing
+     object as its record framed it, and any other arm reads it as it is
+     now, two match arms for CR 603.10 and 603.6c.
 1d. `concept-census-and-register`, added at #284's review (the owner,
    2026-10-24). The model pass asked whether a fact is computed twice, a
    question about functions; nobody asked whether a CR concept is held in
@@ -803,6 +817,26 @@ item 124's precedent that a sweep does not ride inside a rules change.
    `check_*.py` family: a new field holding an owned concept fails without
    its line. Before `one-fact-one-type`, whose scope its findings set, and
    `trigger-matcher-merges`.
+   - The question the census asks first of each concept is its key, before
+     its storage: TR-2b chose where last known information lived by how
+     long each keeper needed it, and the key CR 400.7 gives it, the
+     existence, came only with item 318.
+   - Candidates named at #285's review (the owner, 2026-10-24), each to
+     be confirmed or cleared by the census:
+     - survivor frames: an object as it was before an event it survived
+       (`ControlChanged`'s and `SameZoneMove`'s frames, `LookBackSnapshot`,
+       `frame_before_control_change`), held per record;
+     - which record ended an existence, held by each keeper that reads it
+       (`DelayedTrigger.source_left_at`, `RememberedObject.left_at`), the
+       shape the LKI store replaced;
+     - item 30's "what paid" for a cost, which `pay_costs` returns only as
+       mana, so a sacrificed creature is read back off the batch;
+     - `ObjectInformation::Characteristics`, the catch-all its doc names
+       as one: characteristics the asker holds, for five moments today (a
+       spell being cast, CR 601.2f; a permanent about to enter, CR 614.12;
+       a survivor's list from just before a batch, CR 603.10; a history
+       row's object as the event left it; a live list already walked). The
+       census decides whether it stays one arm, honestly named, or splits.
 2. `resolution-context-rider`. Item 137: every resolution that is not a CR
    615.5 rider writes two `None`s about riders. It becomes one optional
    value, at 99 literals (48 when the item was filed).
@@ -919,6 +953,16 @@ item 124's precedent that a sweep does not ride inside a rules change.
      they are called. 289 free functions are called from another file today,
      against about 200 at #243's review, at a median of 2 call sites. The 30
      are listed at the PR's first ticket.
+   - Three rules the owner set at #285's review (2026-10-24), each swept
+     here:
+     - `chars` is spelled `characteristics`, since a programmer reads it as
+       characters first: about 400 lines in `src/` and `tests/` name a local,
+       a field or a parameter `chars`, beside the accessors #285 renamed;
+     - an `EventId` is never called `seq`, a name left over from
+       `EventSeq`: about 210 lines, the matchers' parameters, the locals and
+       `EventRecord.seq` among them;
+     - a name that says last known information with other words in it
+       takes the `lki_` prefix, as `lki_as_read_by` does.
    - Item 285: the tuple returns, sorted by `engineering-practices.md` §2b's
      rule 10.
    - `AbilityDef.instances`: the list the builder fills, taken out of the
@@ -1975,7 +2019,7 @@ changed.
 | Discovery (session 1: Workflows A, B and C, pass 2's script) | #271 | the work-lists under passes 1, 2, 3 and 5 |
 | 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
 | 2. Eviction (1) | #273 | one PR: the whole sections and §4.9's `loop-detection` input moved, the 22 amendments collapsed into the text they overruled (−239 lines), 8 outside citations re-pointed; `triggers-architecture.md` 4,736 → 3,853, the archive 5,618 → 7,067 |
-| 3. Hygiene and CI (1–2), then A6e's cleanup (8) | #274, #283, #284 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup, #283: the plan, 60 items and 40 merge rows in eight themed PRs, each item's **Slotted:** line naming its PR. Its first PR, `history-and-frame-records`, #284: 11 items closed, 278 and 279 built and narrowed (278's CR 509.4 entry to `layers-combat-and-counters`), the 12 merge rows, `--pool fixtures` |
+| 3. Hygiene and CI (1–2), then A6e's cleanup (8) | #274, #283, #284, #285 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup, #283: the plan, 60 items and 40 merge rows in eight themed PRs, each item's **Slotted:** line naming its PR. Its first PR, `history-and-frame-records`, #284: 11 items closed, 278 and 279 built and narrowed (278's CR 509.4 entry to `layers-combat-and-counters`), the 12 merge rows, `--pool fixtures`. PR 1b, `last-known-information-store`, #285: item 318 closed, one LKI store keyed by existence, the keepers' lists and the second captures gone, the four view types folded into `ObjectInformation` |
 | The card-homed triage (1, then its builds in the cleanup) | #280 | one PR: the 51 items dispositioned in their `**Slotted:**` lines with verdicts re-dated, 31 builds for A6e's cleanup with their fixtures and six consistency checks, 14 to rows (`route-review`, `ironworks-loop`, `mana-ability-costs`, `chosen-color-plus-could-produce` and `any-color-plus-painlands-plus-signets`, `permission-design`, `remaining-costs`), 5 kept with their cards, item 109 closed, item 273 to `ironworks-loop`; the fixture pool priced for the owner |
 | 4. Readiness (2) | | |
 | 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to `route-review`. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md` §7. Done |

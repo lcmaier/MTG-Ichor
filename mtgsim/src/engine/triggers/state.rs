@@ -85,7 +85,6 @@ impl GameState {
                     referred: Referred::default(),
                     source_found_in_graveyard: None,
                 },
-                kept_lki: Vec::new(),
                 x_value: None,
             });
             queued.push((seq, origin, m.controller));

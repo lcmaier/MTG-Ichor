@@ -12,11 +12,11 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::events::event::{EventRecord, GameEvent};
-use crate::oracle::characteristics::CurrentOrLastKnown;
-use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
+use crate::oracle::characteristics::ObjectInformation;
+use crate::state::game_state::GameState;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{EventRole, Lki, PendingTrigger, TriggerBinding, TriggerEvent, TriggeringEventObjects};
+use crate::types::triggers::{EventRole, Lki, TriggerBinding, TriggerEvent, TriggeringEventObjects};
 
 /// The frame `record` carries for its object `id`, as `arm` reads it: a
 /// departure's CR 603.10a frame for an arm that looks back, an unattach's end
@@ -24,8 +24,8 @@ use crate::types::triggers::{EventRole, Lki, PendingTrigger, TriggerBinding, Tri
 /// before the event, as it last existed (`GameEvent::source_lki`). A "from
 /// anywhere" arm's object is the object after the move (CR 603.6c), read
 /// where it went.
-pub(crate) fn record_frame<'r>(arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> Option<&'r Lki> {
-    let lki = record.event.frame_of(id)?;
+pub(crate) fn record_frame<'r>(game: &'r GameState, arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> Option<&'r Lki> {
+    let lki = record.event.frame_of(id, &game.lki_store)?;
     (record.event.source_lki().is_some() || arm.looks_back()).then_some(lki)
 }
 
@@ -35,56 +35,22 @@ pub(crate) fn record_frame<'r>(arm: &TriggerEvent, record: &'r EventRecord, id: 
 /// or a move a replacement kept in its zone, which the arm matched it by;
 /// and on the board otherwise. Neither object left, so as the ability
 /// resolves it is read as it is then (CR 608.2h).
-pub(crate) fn read_at_trigger<'r>(arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> CurrentOrLastKnown<'r> {
+pub(crate) fn read_at_trigger<'r>(game: &'r GameState, arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> ObjectInformation<'r> {
     let stayed = match &record.event {
         GameEvent::ControlChanged { lki, .. } | GameEvent::SameZoneMove { lki, .. } => Some(lki).filter(|lki| lki.object().id == id),
         _ => None,
     };
-    CurrentOrLastKnown { id, lki: record_frame(arm, record, id).or(stayed) }
+    ObjectInformation::of(id, record_frame(game, arm, record, id).or(stayed))
 }
 
 /// Each object of the binding's one triggering event that its record carries
 /// a frame for, with that frame (`record_frame`). Nothing for a "one or more"
 /// binding, which has no single triggering event.
-pub(crate) fn record_frames(binding: &TriggerBinding) -> impl Iterator<Item = (ObjectRef, &Lki)> {
+pub(crate) fn record_frames<'a>(game: &'a GameState, binding: &'a TriggerBinding) -> impl Iterator<Item = (ObjectRef, &'a Lki)> {
     let arm = binding.event();
     binding.triggering_event().into_iter().flat_map(move |event| {
-        event.objects.objects().filter_map(move |(_, object)| Some((object, record_frame(arm?, &event.record, object.id)?)))
+        event.objects.objects().filter_map(move |(_, object)| Some((object, record_frame(game, arm?, &event.record, object.id)?)))
     })
-}
-
-/// The last known information a stack object carries for `object` (CR
-/// 113.7a, 608.2h), once `object` has left: the frame its trigger's record
-/// carries for it (`record_frame`), else what it kept as `object` left later.
-/// `None` while `object` has not left. The one reading of the rule, which an
-/// object on the stack and the object resolving both ask through `lki_of`.
-fn carried_lki<'a>(object: ObjectRef, trigger: Option<&'a TriggerBinding>, kept: &'a [Lki]) -> Option<&'a Lki> {
-    let mut frames = trigger.into_iter().flat_map(record_frames);
-    match frames.find(|(named, _)| *named == object) {
-        Some((_, lki)) => Some(lki),
-        None => kept.iter().find(|frame| frame.object() == object),
-    }
-}
-
-impl StackEntry {
-    /// The last known information it carries for `object` (`carried_lki`).
-    pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
-        carried_lki(object, self.trigger.as_ref(), &self.kept_lki)
-    }
-}
-
-impl ResolvingObject {
-    /// The last known information it carries for `object` (`carried_lki`).
-    pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
-        carried_lki(object, self.trigger.as_ref(), &self.kept_lki)
-    }
-}
-
-impl PendingTrigger {
-    /// The last known information it carries for `object` (`carried_lki`).
-    pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
-        carried_lki(object, Some(&self.binding), &self.kept_lki)
-    }
 }
 
 /// The objects of a trigger's triggering event, as a condition reads them
@@ -96,7 +62,7 @@ pub enum TriggeringEventView<'a> {
     None,
     /// When the ability triggers: one triggering event's objects, each as
     /// `read_at_trigger` reads it.
-    AtTrigger { arm: &'a TriggerEvent, record: &'a EventRecord, objects: &'a TriggeringEventObjects },
+    AtTrigger { game: &'a GameState, arm: &'a TriggerEvent, record: &'a EventRecord, objects: &'a TriggeringEventObjects },
     /// As the ability resolves: the binding's one triggering event, as
     /// `GameState::triggering_object` reads it.
     Resolving { game: &'a GameState, binding: &'a TriggerBinding },
@@ -112,11 +78,11 @@ impl<'a> TriggeringEventView<'a> {
     }
 
     /// The object that played `role`, as it is read here.
-    pub fn object(self, role: EventRole) -> Option<CurrentOrLastKnown<'a>> {
+    pub fn object(self, role: EventRole) -> Option<ObjectInformation<'a>> {
         match self {
             TriggeringEventView::None => None,
-            TriggeringEventView::AtTrigger { arm, record, objects } => {
-                objects.get(arm.role_as_recorded(role)).map(|object| read_at_trigger(arm, record, object.id))
+            TriggeringEventView::AtTrigger { game, arm, record, objects } => {
+                objects.get(arm.role_as_recorded(role)).map(|object| read_at_trigger(game, arm, record, object.id))
             }
             TriggeringEventView::Resolving { game, binding } => game.triggering_object(binding, role),
         }
@@ -133,8 +99,8 @@ impl<'a> TriggeringEventView<'a> {
     }
 
     /// The one of its objects that is `id`, as `object` reads it.
-    pub fn object_with_id(self, id: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
-        EventRole::ALL.into_iter().filter_map(|role| self.object(role)).find(|object| object.id == id)
+    pub fn object_with_id(self, id: ObjectId) -> Option<ObjectInformation<'a>> {
+        EventRole::ALL.into_iter().filter_map(|role| self.object(role)).find(|object| object.id() == id)
     }
 }
 
@@ -197,44 +163,44 @@ impl GameState {
     /// "How it last existed" comes from one of two places. When its record
     /// framed it — a dies trigger's creature, a source that left before
     /// dealing damage — that frame. When it left later, say sacrificed in
-    /// response, the resolving trigger kept its frame as it went
-    /// ([`Self::lki_kept_by_resolving`]). `None` when the trigger has no
-    /// single triggering event, or when the object left and nothing was kept,
-    /// which is a missed capture.
+    /// response, the LKI store's ([`Self::lki_as_resolving_reads`]).
+    /// `None` when the trigger has no single triggering event, or when the
+    /// object left and nothing framed it, which is a missed capture.
     pub(crate) fn triggering_object<'a>(
         &'a self,
         binding: &'a TriggerBinding,
         role: EventRole,
-    ) -> Option<CurrentOrLastKnown<'a>> {
+    ) -> Option<ObjectInformation<'a>> {
         let object = binding.triggering_object(role)?;
-        let lki = match record_frame(binding.event()?, &binding.triggering_event()?.record, object.id) {
+        let lki = match record_frame(self, binding.event()?, &binding.triggering_event()?.record, object.id) {
             Some(lki) => Some(lki),
             None if self.find(object).is_some() => None,
-            None => Some(self.lki_kept_by_resolving(object)?),
+            None => Some(self.lki_as_resolving_reads(object)?),
         };
-        Some(CurrentOrLastKnown { id: object.id, lki })
+        Some(ObjectInformation::of(object.id, lki))
     }
 
-    /// How `object` last existed, as the spell or ability now resolving
-    /// remembers it — for an object its text names that has left the zone
-    /// it expected (CR 113.7a, 608.2h): a dies trigger's own creature, or a
-    /// creature sacrificed to pay the ability's cost. A stack object keeps
-    /// these as they leave because the board can no longer say what they
-    /// were. `None` while `object` is still there.
-    pub(crate) fn lki_kept_by_resolving(&self, object: ObjectRef) -> Option<&Lki> {
-        self.resolving.as_ref()?.lki_of(object)
+    /// How `object` last existed, as a spell or ability whose trigger is
+    /// `trigger` reads it once `object` has left (CR 113.7a, 608.2h): the frame
+    /// its trigger's record carries for it (`record_frame`), else the LKI
+    /// store's. `None` while `object` has not left. A waiting trigger, a stack
+    /// object and the resolving object all read it this way.
+    pub(crate) fn lki_as_read_by<'a>(&'a self, trigger: Option<&'a TriggerBinding>, object: ObjectRef) -> Option<&'a Lki> {
+        let mut frames = trigger.into_iter().flat_map(|binding| record_frames(self, binding));
+        match frames.find(|(named, _)| *named == object) {
+            Some((_, lki)) => Some(lki),
+            None => self.lki(object),
+        }
     }
 
-    /// How `object` last existed, as any spell or ability that reads it keeps
-    /// it (CR 113.7a): the one resolving, a trigger waiting to be put on the
-    /// stack, one on the stack, or a delayed trigger whose source it is.
-    /// `None` while `object` is still there, or once nothing reads it.
-    pub(crate) fn lki_kept_for(&self, object: ObjectRef) -> Option<&Lki> {
-        let stacked = self.stack.iter().filter_map(|id| self.stack_entries.get(id));
-        self.lki_kept_by_resolving(object)
-            .or_else(|| self.pending_triggers.iter().find_map(|pending| pending.lki_of(object)))
-            .or_else(|| stacked.into_iter().find_map(|entry| entry.lki_of(object)))
-            .or_else(|| self.delayed_triggers.iter().find_map(|delayed| delayed.source_lki.as_ref().filter(|lki| lki.object() == object)))
+    /// How `object` last existed, as the spell or ability now resolving reads
+    /// it — for an object its text names that has left the zone it expected
+    /// (CR 113.7a, 608.2h): a dies trigger's own creature, or a creature
+    /// sacrificed to pay the ability's cost. `None` while `object` is still
+    /// there, and while nothing resolves.
+    pub(crate) fn lki_as_resolving_reads(&self, object: ObjectRef) -> Option<&Lki> {
+        let resolving = self.resolving.as_ref()?;
+        self.lki_as_read_by(resolving.trigger.as_ref(), object)
     }
 
     /// What a resolving condition reads about the objects its text names
@@ -247,7 +213,7 @@ impl GameState {
         binding: Option<&'a TriggerBinding>,
     ) -> ConditionReferents<'a> {
         ConditionReferents {
-            source_lki: source.and_then(|source| self.lki_kept_by_resolving(source)),
+            source_lki: source.and_then(|source| self.lki_as_resolving_reads(source)),
             triggering_event: match binding {
                 Some(binding) => TriggeringEventView::Resolving { game: self, binding },
                 None => TriggeringEventView::None,
@@ -349,7 +315,7 @@ mod tests {
         let recorded = game.recorded_events();
         let record = recorded.records().iter().rev().find(|r| matches!(r.event, GameEvent::ControlChanged { .. })).expect("announced");
         let arm = TriggerEvent::ControlChanges { subject: TriggerSubject::Any, from: Some(PlayerRef::You), to: None };
-        let read = read_at_trigger(&arm, record, creature).characteristics(&game).expect("it exists");
+        let read = read_at_trigger(&game, &arm, record, creature).characteristics(&game).expect("it exists");
         assert_eq!(read.power, Some(3));
     }
 }

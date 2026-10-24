@@ -1449,7 +1449,7 @@ mod tests {
 
         // CR 704.5n's unattach, announced with its route.
         let has_event = game.recorded_events().events().any(|e| {
-            matches!(e, crate::events::event::GameEvent::Unattached { attachment, former_host, route: crate::events::event::UnattachRoute::AttachedToNothing, attachment_lki: None, former_host_lki: None }
+            matches!(e, crate::events::event::GameEvent::Unattached { attachment, former_host, route: crate::events::event::UnattachRoute::AttachedToNothing, attachment_left: false, former_host_left: false }
                 if attachment.id == equip_id && former_host.id == land_id)
         });
         assert!(has_event);

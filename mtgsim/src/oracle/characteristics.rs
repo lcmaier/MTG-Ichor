@@ -9,7 +9,6 @@ use std::sync::Arc;
 use crate::state::layer_memo::GatedWalkInput;
 use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::targeting::HeldFrame;
 use crate::objects::card_data::AbilityDef;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
@@ -27,43 +26,82 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool
         .unwrap_or(false)
 }
 
-/// CR 608.2h's read of an object an effect asks about: its last known
-/// information when it has left the zone the effect expected it in, which the
-/// event then carries as `lki`, and its current information otherwise. A
-/// source dealing damage after it left is the customer (CR 609.7a, 702.15c,
-/// 702.2e): what it is, what it has, whose it is, and what a filter says of it.
+/// An object as a reader takes it, named for CR 608.2h's "current
+/// information" and "last known information" (113.7a, 603.10): live, as it
+/// last existed once it has left the zone the reader expected it in, or as
+/// characteristics alone. A source dealing damage after it left is the
+/// customer (CR 609.7a, 702.15c, 702.2e): what it is, what it has, whose it
+/// is, and what a filter says of it.
 #[derive(Clone, Copy)]
-pub struct CurrentOrLastKnown<'a> {
-    pub id: ObjectId,
-    pub lki: Option<&'a Lki>,
+pub enum ObjectInformation<'a> {
+    /// Still the existence the reader expects: read live, through the layers.
+    Current(ObjectId),
+    /// As it last existed: an ended existence's `Lki`, from the LKI store or a
+    /// record. A survivor's frame from just before an event rides it, as it
+    /// rides the `Lki` type: a control change's, a move a replacement kept in
+    /// its zone.
+    LastKnown(&'a Lki),
+    /// The catch-all: characteristics the asker already holds, for whatever
+    /// moment it asks about, and the asker owns which moment that is. Every
+    /// fact beyond the characteristics (tapped, attacking) is read live.
+    /// Today's five: a spell being cast (cost determination, CR 601.2f); a
+    /// permanent about to enter, plain or as a copy (CR 614.12); a
+    /// survivor's list from just before a batch (`LookBackSnapshot`, CR
+    /// 603.10); a history row's object as the event left it; and a live
+    /// object whose list the asker already walked.
+    Characteristics(ObjectId, &'a EffectiveCharacteristics),
 }
 
-impl CurrentOrLastKnown<'_> {
+impl<'a> ObjectInformation<'a> {
+    /// `id` read by `lki` where it has one, and live otherwise.
+    pub fn of(id: ObjectId, lki: Option<&'a Lki>) -> Self {
+        lki.map_or(ObjectInformation::Current(id), ObjectInformation::LastKnown)
+    }
+
+    /// The object's id.
+    pub fn id(&self) -> ObjectId {
+        match self {
+            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _) => *id,
+            ObjectInformation::LastKnown(lki) => lki.object().id,
+        }
+    }
+
+    /// Its last known information, where it is read by it.
+    pub fn lki(&self) -> Option<&'a Lki> {
+        match self {
+            ObjectInformation::LastKnown(lki) => Some(lki),
+            ObjectInformation::Current(_) | ObjectInformation::Characteristics(..) => None,
+        }
+    }
+
     /// Which object it is, as an `ObjectRef`: for one that left, the object
     /// that left, else the object now. A moved object is a new object (CR
     /// 400.7), and a "choose a source" prevention (CR 609.7a) remembers its
     /// source this way, so it still matches damage from that source after the
     /// source has left the battlefield.
     pub fn existence(&self, game: &GameState) -> Option<ObjectRef> {
-        match self.lki {
-            Some(lki) => Some(lki.object()),
-            None => game.object_ref(self.id),
+        match self {
+            ObjectInformation::LastKnown(lki) => Some(lki.object()),
+            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _) => game.object_ref(*id),
         }
     }
 
     pub fn characteristics(&self, game: &GameState) -> Option<Arc<EffectiveCharacteristics>> {
-        match self.lki {
-            Some(lki) => Some(Arc::clone(lki.frame())),
-            None => compute_characteristics(game, self.id),
+        match self {
+            ObjectInformation::LastKnown(lki) => Some(Arc::clone(lki.frame())),
+            ObjectInformation::Current(id) => compute_characteristics(game, *id),
+            ObjectInformation::Characteristics(_, chars) => Some(Arc::new((*chars).clone())),
         }
     }
 
     /// What it is attacking (CR 506.3), as it is now, or as it left the
     /// battlefield. `None` for a creature not attacking.
     pub fn attacking(&self, game: &GameState) -> Option<AttackTarget> {
-        match self.lki {
-            Some(lki) => lki.attacking(),
-            None => game.battlefield.get(&self.id)?.attacking.as_ref().map(|attack| attack.target),
+        match self {
+            ObjectInformation::LastKnown(lki) => lki.attacking(),
+            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _) => {
+                game.battlefield.get(id)?.attacking.as_ref().map(|attack| attack.target)
+            }
         }
     }
 
@@ -85,16 +123,17 @@ impl CurrentOrLastKnown<'_> {
 
     /// Its controller (CR 109.5), or its owner while it has none.
     pub fn controller(&self, game: &GameState) -> Option<PlayerId> {
-        match self.lki {
-            Some(lki) => Some(lki.chars().controller),
-            None => controller_or_owner(game, self.id),
+        match self {
+            ObjectInformation::LastKnown(lki) => Some(lki.characteristics().controller),
+            ObjectInformation::Current(id) => controller_or_owner(game, *id),
+            ObjectInformation::Characteristics(_, chars) => Some(chars.controller),
         }
     }
 
     /// `filter` asked of it for the effect whose source is `source`, "you"
     /// being `you` (CR 109.5).
     pub fn matches(&self, game: &GameState, filter: &ObjectFilter, you: PlayerId, source: ObjectId) -> bool {
-        game.object_matches_filter_of_source(self.id, filter, you, source, self.lki.map(HeldFrame::LastKnown))
+        game.object_matches_filter_of_source(*self, filter, you, source)
     }
 }
 

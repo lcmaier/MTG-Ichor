@@ -50,7 +50,7 @@ impl GameState {
             crate::oracle::characteristics::get_effective_controller(self, object_id)
                 .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
 
-        let mut entry = self.take_stack_entry(object_id)
+        let entry = self.take_stack_entry(object_id)
             .ok_or_else(|| format!("No StackEntry for object {}", object_id))?;
 
         // CR 110.2b's default. `StackEntry.controller` is written once at
@@ -75,9 +75,6 @@ impl GameState {
             x_value: entry.x_value,
             identity: entry.ability_identity,
             trigger: entry.trigger.clone(),
-            // The resolution reads them here, where its own effect's moves
-            // add to them too (CR 608.2h).
-            kept_lki: std::mem::take(&mut entry.kept_lki),
             began_at: self.events.next_seq(),
             #[cfg(debug_assertions)]
             binding_reads_noted: std::cell::Cell::default(),
@@ -407,7 +404,6 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
-    kept_lki: Vec::new(),
 });
         id
     }
@@ -536,7 +532,6 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
-    kept_lki: Vec::new(),
 });
         id
     }
@@ -615,7 +610,6 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
-    kept_lki: Vec::new(),
 });
         id
     }
@@ -676,7 +670,6 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
-    kept_lki: Vec::new(),
 });
         id
     }
@@ -787,7 +780,6 @@ mod tests {
             cast_from: Some(Zone::Hand),
             ability_identity: None,
             trigger: None,
-            kept_lki: Vec::new(),
         });
         assert!(game.resolve_top_of_stack(&test_dp()).is_err());
         assert_eq!(game.resolving, None, "cleared even when resolution errors out");
