@@ -1155,10 +1155,10 @@ impl GameState {
         self.last_known_information(id, compute_characteristics(self, id)?)
     }
 
-    /// The frame a batch in progress took of `object` and has not handed
-    /// over yet: `object` is about to leave in the event being performed.
-    pub(crate) fn frame_taken_for(&self, object: ObjectRef) -> Option<&Lki> {
-        self.lki_captures.iter().find(|capture| capture.object == object)?.lki.as_ref()
+    /// Whether a batch in progress framed `object` and has yet to move it:
+    /// `object` leaves later in the event being performed.
+    pub(crate) fn leaves_later_in_this_batch(&self, object: ObjectRef) -> bool {
+        self.lki_captures.iter().find(|capture| capture.object == object).is_some_and(|capture| capture.lki.is_some())
     }
 
     /// The capture its batch took of `object`, if one did.
@@ -1791,7 +1791,7 @@ impl GameState {
             .filter(|objects| {
                 let triggering_event = match arm.multiplicity() {
                     Multiplicity::PerOccurrence | Multiplicity::OncePerSubject => {
-                        TriggeringEventView::AtTrigger { arm, record, objects }
+                        TriggeringEventView::AtTrigger { game: self, arm, record, objects }
                     }
                     Multiplicity::OncePerEvent => TriggeringEventView::None,
                 };

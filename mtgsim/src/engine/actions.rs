@@ -1692,7 +1692,7 @@ impl GameState {
                     // CR 701.3d: leaving the first host is becoming unattached
                     // from it, in the same event and ahead of the attach.
                     if let (Some(former), Some(moved)) = (unattached_from, self.object_ref(attachment)) {
-                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, None, None, ctx.cause)?;
+                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, false, false, ctx.cause)?;
                     }
                     self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
                 }
@@ -1713,7 +1713,7 @@ impl GameState {
                     return Ok(());
                 };
                 self.detach(attachment);
-                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, None, None, ctx.cause)
+                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, false, false, ctx.cause)
             }
 
             GameAction::Tap { object } => {
@@ -2143,11 +2143,11 @@ impl GameState {
         attachment: ObjectRef,
         former_host: ObjectRef,
         route: UnattachRoute,
-        attachment_lki: Option<Lki>,
-        former_host_lki: Option<Lki>,
+        attachment_left: bool,
+        former_host_left: bool,
         cause: EventCause,
     ) -> Result<(), String> {
-        self.emit_event(GameEvent::Unattached { attachment, former_host, route, attachment_lki, former_host_lki }, cause)?;
+        self.emit_event(GameEvent::Unattached { attachment, former_host, route, attachment_left, former_host_left }, cause)?;
         Ok(())
     }
 

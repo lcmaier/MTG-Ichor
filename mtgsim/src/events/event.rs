@@ -9,6 +9,7 @@ use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
 use crate::engine::actions::ZoneChangeAct;
 use crate::engine::replacement::ReplacementInstanceId;
+use crate::engine::last_known::LkiStore;
 use crate::engine::targeting::TargetRef;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
@@ -422,17 +423,17 @@ pub enum GameEvent {
     /// "that permanent" is read (Grafted Wargear's first ruling). What caused
     /// it is the stamp's, not the route's.
     ///
-    /// Each end that left the battlefield in this event, as it left (CR
-    /// 603.10c): for the two leaving routes the end whose departure
-    /// unattached them, the frame its own record carries, and the other end
-    /// too when the same event takes it, such as an Aura and its host leaving
-    /// with their owner (CR 800.4a).
+    /// Whether each end left the battlefield in this event (CR 603.10c): for
+    /// the two leaving routes the end whose departure unattached them, and
+    /// the other end too when the same event takes it, such as an Aura and its
+    /// host leaving with their owner (CR 800.4a). An end that left is read as
+    /// it left, off the LKI store (`frame_of`).
     Unattached {
         attachment: ObjectRef,
         former_host: ObjectRef,
         route: UnattachRoute,
-        attachment_lki: Option<Lki>,
-        former_host_lki: Option<Lki>,
+        attachment_left: bool,
+        former_host_left: bool,
     },
 
     /// A permanent's controller became `to` from `from` (CR 613.1b): a
@@ -566,16 +567,18 @@ impl GameEvent {
 
     /// The last known information this record carries for `id`, its object
     /// as it last existed before the event (CR 113.7a): a source gone before
-    /// it (`source_lki`), or the object the event itself moved or unattached
-    /// as it left (`lki`, an unattach's end that left). `None` for an object
-    /// the record keeps no frame of.
-    pub fn frame_of(&self, id: ObjectId) -> Option<&Lki> {
-        let named = |lki: &&Lki| lki.object().id == id;
+    /// it (`source_lki`), the object the event itself moved (`lki`), or an
+    /// unattach's end that left in the event, as `store` keeps it. `None` for
+    /// an object the record keeps no frame of.
+    pub fn frame_of<'a>(&'a self, id: ObjectId, store: &'a LkiStore) -> Option<&'a Lki> {
         match self {
-            GameEvent::Unattached { attachment_lki, former_host_lki, .. } => {
-                attachment_lki.iter().chain(former_host_lki).find(named)
+            GameEvent::Unattached { attachment, former_host, attachment_left, former_host_left, .. } => {
+                [(attachment, attachment_left), (former_host, former_host_left)]
+                    .into_iter()
+                    .find(|&(end, left)| *left && end.id == id)
+                    .and_then(|(end, _)| store.of(*end))
             }
-            _ => self.source_lki().or_else(|| self.lki().map(|(lki, ..)| lki)).filter(named),
+            _ => self.source_lki().or_else(|| self.lki().map(|(lki, ..)| lki)).filter(|lki| lki.object().id == id),
         }
     }
 

@@ -775,7 +775,7 @@ pub struct GameState {
     /// The LKI store: how each existence that has ended last existed, written
     /// by the move that ends it and kept for the game (CR 113.7a, 608.2h;
     /// `engine::last_known`).
-    pub(crate) last_known: crate::engine::last_known::LkiStore,
+    pub last_known: crate::engine::last_known::LkiStore,
     /// The dispatch audit's snapshots and counts, in a game that turned the
     /// audit on (`enable_audit`), which is also what turns on every other
     /// shortcut's audit (`engine::audit`); `None` otherwise, which is all a

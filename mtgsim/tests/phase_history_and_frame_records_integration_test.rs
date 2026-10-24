@@ -64,8 +64,8 @@ fn an_unattach_keeps_both_ends_when_both_leave_in_one_event() {
 
     let unattach = the_unattach(&game, since);
     assert!(matches!(unattach, GameEvent::Unattached { route: UnattachRoute::AttachmentLeft, .. }), "{unattach:?}");
-    assert!(unattach.frame_of(aura).is_some(), "the end whose departure unattached them");
-    let host_as_it_left = unattach.frame_of(host).expect("the host, which left in the same event");
+    assert!(unattach.frame_of(aura, &game.last_known).is_some(), "the end whose departure unattached them");
+    let host_as_it_left = unattach.frame_of(host, &game.last_known).expect("the host, which left in the same event");
     assert_eq!(host_as_it_left.chars().power, Some(3), "as it was, enchanted");
 }
 
@@ -79,7 +79,7 @@ fn an_unattach_keeps_both_ends_when_their_owner_leaves_the_game() {
     game.execute_action(GameAction::PlayerLoses { player: 1 }, &ActionContext::new(&test_dp())).unwrap();
 
     let unattach = the_unattach(&game, since);
-    assert!(unattach.frame_of(aura).is_some() && unattach.frame_of(host).is_some(), "{unattach:?}");
+    assert!(unattach.frame_of(aura, &game.last_known).is_some() && unattach.frame_of(host, &game.last_known).is_some(), "{unattach:?}");
 }
 
 /// Only the host leaves: the Aura stays on the battlefield, so the unattach
@@ -92,8 +92,8 @@ fn an_unattach_keeps_no_frame_of_an_end_that_stays() {
     game.execute_action(GameAction::Destroy { object: host }, &ActionContext::new(&test_dp())).unwrap();
 
     let unattach = the_unattach(&game, since);
-    assert!(unattach.frame_of(host).is_some());
-    assert!(unattach.frame_of(aura).is_none(), "{unattach:?}");
+    assert!(unattach.frame_of(host, &game.last_known).is_some());
+    assert!(unattach.frame_of(aura, &game.last_known).is_none(), "{unattach:?}");
 }
 
 // ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ fn a_source_sacrificed_for_its_cost_is_tapped_on_its_activation_and_its_departur
     let recorded = game.recorded_events();
     let tapped_on = |kind: fn(&GameEvent) -> bool| {
         let record = recorded.events().skip(since).find(|e| kind(e)).expect("recorded");
-        record.frame_of(sphere).and_then(|lki| lki.was_tapped())
+        record.frame_of(sphere, &game.last_known).and_then(|lki| lki.was_tapped())
     };
     let departure = tapped_on(|e| matches!(e, GameEvent::ZoneChange { from: Zone::Battlefield, .. }));
     let activation = tapped_on(|e| matches!(e, GameEvent::AbilityActivated { .. }));

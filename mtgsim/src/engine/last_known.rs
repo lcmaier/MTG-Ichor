@@ -123,17 +123,18 @@ impl GameState {
     }
 
     /// A departure's unattaches, announced after its own record by the
-    /// performer that moved it, under the move's cause, each carrying the
-    /// leaving object's frame.
+    /// performer that moved it, under the move's cause, each saying which ends
+    /// left in the event: the leaving one where its move was framed (CR
+    /// 603.10c), and the other end where its batch takes it later.
     pub(crate) fn announce_unattached_by_leaving(&mut self, departure: Departure, cause: EventCause) -> Result<(), String> {
         let Departure { frame: leaving_frame, unattached } = departure;
+        let left = leaving_frame.is_some();
         for (attachment, former_host, route) in unattached {
-            // The other end, if this event takes it too, as its batch framed it.
-            let (attachment_lki, former_host_lki) = match route {
-                UnattachRoute::AttachmentLeft => (leaving_frame.clone(), self.frame_taken_for(former_host).cloned()),
-                _ => (self.frame_taken_for(attachment).cloned(), leaving_frame.clone()),
+            let (attachment_left, former_host_left) = match route {
+                UnattachRoute::AttachmentLeft => (left, self.leaves_later_in_this_batch(former_host)),
+                _ => (self.leaves_later_in_this_batch(attachment), left),
             };
-            self.announce_unattached(attachment, former_host, route, attachment_lki, former_host_lki, cause)?;
+            self.announce_unattached(attachment, former_host, route, attachment_left, former_host_left, cause)?;
         }
         Ok(())
     }
