@@ -2135,7 +2135,6 @@ fn a_spell_that_was_not_cast_keeps_its_kicker() {
         cast_from: None,
         ability_identity: None,
         trigger: None,
-        kept_lki: Vec::new(),
     });
     resolve_top(&mut game, &test_dp());
     place(&mut game, &test_dp());

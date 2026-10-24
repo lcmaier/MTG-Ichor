@@ -66,7 +66,6 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
         cast_from: Some(Zone::Hand),
         ability_identity: None,
         trigger: None,
-        kept_lki: Vec::new(),
     });
     id
 }

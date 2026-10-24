@@ -430,9 +430,9 @@ fn a_delayed_trigger_sees_its_own_source_leave() {
 
 /// CR 113.7a, 608.2h: a delayed trigger whose source has left reads the
 /// source as it last existed. The creature leaves as a 4/4 before its end
-/// step trigger fires: the registry keeps the frame it left with, and the
-/// trigger carries it onto the stack, where the source's characteristics are
-/// read from it.
+/// step trigger fires: the LKI store keeps the frame it left with, and the
+/// trigger, waiting and then on the stack, names the existence that left, so
+/// the source's characteristics are read from it.
 #[test]
 fn a_delayed_trigger_keeps_the_frame_its_source_left_with() {
     let mut game = setup_two_player_game();
@@ -447,18 +447,18 @@ fn a_delayed_trigger_keeps_the_frame_its_source_left_with() {
         by: 0,
     };
     game.execute_action(counters, &test_ctx()).unwrap();
-    assert!(game.delayed_triggers[0].source_lki.is_none(), "its source is still there");
+    assert_eq!(game.delayed_triggers[0].source, herald_then);
+    assert!(game.last_known(herald_then).is_none(), "its source is still there");
 
     game.change_zone(herald, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
-    let kept = game.delayed_triggers[0].source_lki.as_ref().map(|lki| lki.chars().power);
+    let kept = game.last_known(herald_then).map(|lki| lki.chars().power);
     assert_eq!(kept, Some(Some(4)), "the 4/4 that left");
 
     advance_to(&mut game, 0, StepType::End);
-    let pending_lki = &the_delayed_pending(&game).kept_lki;
-    assert_eq!(pending_lki.iter().map(|lki| (lki.object(), lki.chars().power)).collect::<Vec<_>>(), vec![(herald_then, Some(4))]);
+    assert_eq!(the_delayed_pending(&game).origin.source_ref(), herald_then, "waiting");
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     let on_stack = &game.stack_entries[game.stack.last().unwrap()];
-    assert_eq!(on_stack.kept_lki.iter().map(|lki| lki.object()).collect::<Vec<_>>(), vec![herald_then], "onto the stack");
+    assert_eq!(on_stack.ability_identity.map(|identity| identity.source), Some(herald_then), "onto the stack");
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 21);
 }
@@ -477,7 +477,7 @@ fn a_spells_delayed_trigger_keeps_the_spell_as_it_left_the_stack() {
     game.resolve_top_of_stack(&test_dp()).unwrap();
     let delayed = &game.delayed_triggers[0];
     assert_eq!(delayed.source, cast);
-    let frame = delayed.source_lki.as_ref().map(|lki| lki.chars().types.contains(&CardType::Instant));
+    let frame = game.last_known(delayed.source).map(|lki| lki.chars().types.contains(&CardType::Instant));
     assert_eq!(frame, Some(true), "the instant spell, framed as it left the stack");
 }
 

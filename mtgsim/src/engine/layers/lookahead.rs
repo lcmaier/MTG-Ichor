@@ -227,7 +227,6 @@ mod tests {
             x_value: Some(3),
             identity: None,
             trigger: None,
-            kept_lki: Vec::new(),
             began_at: game.events.next_seq(),
             #[cfg(debug_assertions)]
             binding_reads_noted: std::cell::Cell::default(),

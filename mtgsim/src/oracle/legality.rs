@@ -348,8 +348,15 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
             .collect()
     };
     let mut referred: Vec<ObjectRef> = Vec::new();
+    // What a trigger names, by the existences its binding took.
+    fn named(trigger: Option<&crate::types::triggers::TriggerBinding>) -> impl Iterator<Item = ObjectRef> + '_ {
+        trigger.into_iter().flat_map(|binding| binding.triggering_events.iter()).flat_map(|event| event.objects.objects()).map(|(_, object)| object)
+    }
+    // An object it reads that has left since: the one whose last known
+    // information the LKI store holds (CR 113.7a).
+    let left = |object: &ObjectRef| game.last_known(*object).is_some();
     for entry in game.stack.iter().filter_map(|id| game.stack_entries.get(id)) {
-        let as_it_left = |object: ObjectRef| entry.lki_of(object).map_or(object, |lki| lki.object());
+        let as_it_left = |object: ObjectRef| game.last_known_as_read_by(entry.trigger.as_ref(), object).map_or(object, |lki| lki.object());
         let binding = entry.trigger.as_ref();
         referred.extend(entry.ability_identity.map(|identity| as_it_left(identity.source)));
         let objects = binding.into_iter().flat_map(|b| b.triggering_events.iter()).flat_map(|e| e.objects.objects());
@@ -360,14 +367,14 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
         for instance in &entry.chosen_targets {
             referred.extend(objects_of(&instance.chosen));
         }
-        referred.extend(entry.kept_lki.iter().map(|d| d.object()));
+        referred.extend(entry.ability_identity.map(|identity| identity.source).into_iter().chain(named(entry.trigger.as_ref())).filter(left));
     }
     if let Some(resolving) = &game.resolving {
-        let as_it_left = |object: ObjectRef| resolving.lki_of(object).map_or(object, |lki| lki.object());
+        let as_it_left = |object: ObjectRef| game.last_known_as_read_by(resolving.trigger.as_ref(), object).map_or(object, |lki| lki.object());
         referred.extend(resolving.identity.map(|identity| as_it_left(identity.source)));
         let objects = resolving.trigger.iter().flat_map(|b| b.triggering_events.iter()).flat_map(|e| e.objects.objects());
         referred.extend(objects.map(|(_, object)| as_it_left(object)));
-        referred.extend(resolving.kept_lki.iter().map(|d| d.object()));
+        referred.extend(resolving.identity.map(|identity| identity.source).into_iter().chain(named(resolving.trigger.as_ref())).filter(left));
     }
     for row in game.replacement_effects.iter() {
         referred.extend(row.def.pattern.chosen_damage_source());
@@ -682,7 +689,6 @@ mod tests {
             x_value: None,
             identity: None,
             trigger: None,
-            kept_lki: Vec::new(),
             began_at: game.events.next_seq(),
             #[cfg(debug_assertions)]
             binding_reads_noted: std::cell::Cell::default(),

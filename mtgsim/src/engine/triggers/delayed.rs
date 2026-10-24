@@ -81,12 +81,6 @@ impl GameState {
         };
         let id = DelayedTriggerId(self.next_delayed_trigger_id);
         self.next_delayed_trigger_id += 1;
-        // A source already gone as this is made, such as a dies trigger's own,
-        // is known only by what its resolution kept (CR 113.7a).
-        let source_lki = match self.find(provenance.source) {
-            Some(_) => None,
-            None => self.lki_kept_by_resolving(provenance.source).cloned(),
-        };
         let owner = self.owner_of_source(provenance.source)?;
         let created = GameEvent::DelayedTriggerCreated {
             id,
@@ -101,7 +95,6 @@ impl GameState {
             def: Arc::clone(&template.def),
             source: provenance.source,
             source_left_at: None,
-            source_lki,
             source_card: provenance.source_card,
             controller: provenance.controller,
             owner,
@@ -161,7 +154,7 @@ impl GameState {
             return None;
         }
         if let Some(condition) = &reflexive.def.intervening_if {
-            let objects = ConditionReferents { source_lki: reflexive.source_lki.as_ref(), triggering_event: TriggeringEventView::None };
+            let objects = ConditionReferents { source_lki: self.last_known(reflexive.source), triggering_event: TriggeringEventView::None };
             if !settled_holds(condition, self, reflexive.source.id, Some(reflexive.controller), objects) {
                 return None;
             }
@@ -175,7 +168,6 @@ impl GameState {
             event: EventIndex(0),
             triggering_events: Vec::new(),
             mana: false,
-            source_lki: None,
             // CR 603.2d's last sentence: a reflexive trigger is never counted.
             additional: 0,
         };
@@ -192,7 +184,7 @@ impl GameState {
         if let Some(object) = self.objects.get(&source.id) {
             return Ok(object.owner);
         }
-        self.lki_kept_by_resolving(source).map(Lki::owner).ok_or_else(|| {
+        self.last_known_as_resolving_reads(source).map(Lki::owner).ok_or_else(|| {
             format!("{} is gone, and the resolution kept no last known information to say who owned it", source.id)
         })
     }
@@ -406,7 +398,7 @@ impl GameState {
         }
         // CR 603.4 at the trigger, "you" its controller (CR 109.5), and its
         // source as it last existed once it has left (CR 113.7a, 400.7).
-        let source = TriggerSource { object: delayed.source.id, controller: delayed.controller, lki: delayed.source_lki.as_ref() };
+        let source = TriggerSource { object: delayed.source.id, controller: delayed.controller, lki: self.last_known(delayed.source) };
         let triggering_events = self.triggers_whose_intervening_if_holds(&delayed.def, arm, record, triggering_events, source)?;
         Ok((event, triggering_events))
     }
@@ -441,7 +433,6 @@ impl GameState {
             event,
             triggering_events,
             mana: false,
-            source_lki: None,
             // CR 603.2d's last sentence: nor a delayed one.
             additional: 0,
         };
@@ -603,7 +594,6 @@ fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
             referred: delayed.referred.clone(),
             source_found_in_graveyard: None,
         },
-        kept_lki: delayed.source_lki.iter().cloned().collect(),
         x_value: delayed.x_value,
     }
 }

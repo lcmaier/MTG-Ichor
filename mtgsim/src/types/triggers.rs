@@ -1593,7 +1593,7 @@ pub struct TriggerBinding {
     /// CR 704.5m's check while the trigger waits, set at that move.
     ///
     /// The one field written after the ability triggered. It lives here
-    /// rather than beside `kept_lki` on the three entries because the binding
+    /// rather than on the three entries because the binding
     /// travels from the pending trigger to the stack and into the resolution
     /// by itself, and so would a copy of the ability (CR 707.10); on the
     /// entries, every one of those hand-offs would have to carry it.
@@ -1801,13 +1801,6 @@ pub struct DelayedTrigger {
     /// leaves the battlefield" knows its own departure and no later move of
     /// a new object with the same id.
     pub source_left_at: Option<EventId>,
-    /// CR 113.7a, 608.2h — `source`'s last known information once it has
-    /// left the zone it was in when this was created: kept as it left, or
-    /// as this was created if it had already gone. Its trigger carries it to
-    /// the stack, and its intervening "if" reads the source off it. `None`
-    /// while the source is still there, and after a move nothing frames: CR
-    /// 601.2a's, out of a hidden zone.
-    pub source_lki: Option<Lki>,
     /// What its stack object is built from (CR 603.3's "the text of the
     /// ability that created it"), held because the source may be gone by
     /// then.
@@ -1917,15 +1910,15 @@ impl RememberedObject {
 
 /// An object's last known information (CR 113.7a, 608.2h): the existence
 /// that left (CR 400.7), its characteristics as it last existed in the zone it
-/// left, and the facts about it that no layer computes. A departure record
-/// carries one (CR 603.10a), and so does damage a source deals after it left.
-/// A holder of a `kept_lki` that reads an object — its source, or one of its
-/// triggering event's objects — keeps one when the object leaves the zone the
-/// holder expected it in (`triggers-architecture.md` §6.1), since the
-/// departure is a later event than the one that triggered.
+/// left, and the facts about it that no layer computes. The LKI store keeps
+/// one for each existence that ended with its move framed
+/// (`engine::last_known`), and a departure record carries the same one (CR
+/// 603.10a), as does damage a source deals after it left. A survivor's frame
+/// from just before an event takes this shape too: a control change's, and a
+/// move a replacement kept in its zone.
 ///
-/// One body behind one pointer: the record and every entry that keeps it
-/// share it, and handing it over clones the pointer.
+/// One body behind one pointer, which the store and every record that
+/// carries it share.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lki(Arc<LkiBody>);
 
@@ -2102,9 +2095,6 @@ pub struct PendingTrigger {
     /// what placement announces (603.3d).
     pub instances: Vec<EffectRecipient>,
     pub binding: TriggerBinding,
-    /// The last known information of the objects it names that have left
-    /// since it triggered.
-    pub kept_lki: Vec<Lki>,
     /// CR 107.3n — a delayed trigger's X, its creating spell's or ability's,
     /// which its stack object carries; `None` for an object's trigger.
     pub x_value: Option<u64>,

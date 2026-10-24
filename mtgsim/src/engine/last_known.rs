@@ -84,17 +84,21 @@ impl GameState {
     }
 
     /// What `id` leaving `from` for `to` (`None`: the game) takes with it,
-    /// before it moves: its frame, handed to every keeper that reads it (CR
-    /// 603.10a, 113.7a), and what the move unattaches (CR 701.3d). The one
+    /// before it moves: the frame its batch took of it, filed in the LKI store
+    /// (CR 113.7a), which its record carries too for a move in one of CR
+    /// 603.10a's classes; and what the move unattaches (CR 701.3d). The one
     /// before-move half of both performers that take an object out of a zone,
-    /// whose record and unattaches announce it after.
+    /// whose record and unattaches announce it after. A token whose entry is
+    /// still being decided has no entity and nothing to look back at
+    /// (`create_tokens`).
     pub(crate) fn depart(&mut self, id: ObjectId, from: Zone, to: Option<Zone>) -> Departure {
-        let captured = self.object_ref(id).and_then(|object| self.frame_taken_for(object).cloned());
-        let frame = self.hand_over_before_leaving(id, from, to);
-        if let Some(lki) = frame.clone().or(captured) {
-            self.last_known.write(lki);
+        let looks_back = self.zone_change_looks_back_at(id, from, to);
+        let captured = if looks_back { self.take_captured_lki(id, from) } else { self.take_named_lki(id) };
+        if let Some(lki) = &captured {
+            self.last_known.write(lki.clone());
         }
-        Departure { frame, unattached: self.unattached_by_leaving(id) }
+        self.note_delayed_source_moving(id);
+        Departure { frame: captured.filter(|_| looks_back), unattached: self.unattached_by_leaving(id) }
     }
 
     /// CR 701.3d — what a permanent's leaving the battlefield unattaches,

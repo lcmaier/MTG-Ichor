@@ -2861,13 +2861,13 @@ impl GameState {
     }
 
     /// CR 113.7a, 608.2h — the ability's source's last known information,
-    /// once it has left the zone it was in: what the resolving object carries
-    /// for it (`ResolvingObject::lki_of`), the creature that died for a
-    /// trigger on its own death. `None` while the source is there, and for a
-    /// spell, which resolves where it was cast. A source no frame was kept
-    /// for reads where it is now.
+    /// once it has left the zone it was in, as the resolving object reads it
+    /// (`last_known_as_resolving_reads`): the creature that died for a trigger
+    /// on its own death. `None` while the source is there, and for a spell,
+    /// which resolves where it was cast. A source nothing framed reads where
+    /// it is now.
     fn source_lki(&self, ctx: &ResolutionContext) -> Option<Lki> {
-        self.lki_kept_by_resolving(ctx.ability_source?).cloned()
+        self.last_known_as_resolving_reads(ctx.ability_source?).cloned()
     }
 
     /// What `Effect::Remember`'s instruction acted on, as it left them (CR
