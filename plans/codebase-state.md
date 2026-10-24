@@ -5137,7 +5137,7 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    abilities (CR 603)" item 3.
 
 6. **~~CR 603.6c's *phased-in* qualifier has no implementation, and the matcher will need it.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
-   `move_carries_frame` frames no phased-out permanent (CR 702.26b), and the
+   `zone_change_looks_back_at` frames no phased-out permanent (CR 702.26b), and the
    matcher's `LeftTheGame` arm reads only a framed departure, so a
    phased-out permanent leaving with its owner triggers nothing.
    **Reachability (2026-10-23):** closed — PR #284.
@@ -9868,7 +9868,7 @@ row 57 is item 297.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 311".
 
 312. **~~A card exiled from a hidden zone and returned to the battlefield gets no frame.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
-     `move_carries_frame` is the one rule for which moves carry a frame, and
+     `zone_change_looks_back_at` is the one rule for which moves carry a frame, and
      an entry asks the keepers as a zone change does, so a card put onto the
      battlefield from exile leaves its frame with a trigger that reads it.
      Rows 61, 62 and 42 merged with it.

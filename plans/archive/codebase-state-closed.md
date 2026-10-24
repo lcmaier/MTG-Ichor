@@ -8017,7 +8017,7 @@ A sentinel test builds one record of every `GameEvent` variant and checks both l
 
 ### Item 312 — closed 2026-10-23 by PR #284 (`history-and-frame-records`)
 
-`move_carries_frame` is the one rule for which moves carry a frame, and an entry asks the keepers as a zone change does, so a card put onto the battlefield from exile leaves its frame with a trigger that reads it. Rows 61, 62 and 42 merged with it.
+`zone_change_looks_back_at` is the one rule for which moves carry a frame, and an entry asks the keepers as a zone change does, so a card put onto the battlefield from exile leaves its frame with a trigger that reads it. Rows 61, 62 and 42 merged with it.
 
 *Original entry:*
 
@@ -8114,7 +8114,7 @@ The reading: the printed cards count the kind they name over the whole turn (Kal
 
 ### 'Before Triggered abilities' item 6 — closed 2026-10-23 by PR #284 (`history-and-frame-records`)
 
-`move_carries_frame` frames no phased-out permanent (CR 702.26b), and the matcher's `LeftTheGame` arm reads only a framed departure, so a phased-out permanent leaving with its owner triggers nothing.
+`zone_change_looks_back_at` frames no phased-out permanent (CR 702.26b), and the matcher's `LeftTheGame` arm reads only a framed departure, so a phased-out permanent leaving with its owner triggers nothing.
 
 *Original entry:*
 

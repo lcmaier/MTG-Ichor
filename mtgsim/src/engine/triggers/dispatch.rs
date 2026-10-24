@@ -1051,7 +1051,7 @@ impl GameState {
                 GameAction::EnterBattlefield { object, from: Some(from), .. } => (*object, *from, Zone::Battlefield),
                 GameAction::PlayerLoses { player } => {
                     for id in self.battlefield_ids_ordered() {
-                        if self.departs_with(id, *player) && self.move_carries_frame(id, Zone::Battlefield, None) {
+                        if self.departs_with(id, *player) && self.zone_change_looks_back_at(id, Zone::Battlefield, None) {
                             self.capture_frame(id);
                         }
                     }
@@ -1065,7 +1065,7 @@ impl GameState {
                 }
                 _ => continue,
             };
-            if self.move_carries_frame(object, from, Some(to)) {
+            if self.zone_change_looks_back_at(object, from, Some(to)) {
                 self.capture_frame(object);
                 continue;
             }
@@ -1077,13 +1077,13 @@ impl GameState {
     }
 
     /// Whether the move of `id` out of `from` for `to` (`None`: the game)
-    /// carries the frame its batch took on its record: one of CR 603.10a's
-    /// classes (`zone_change_looks_back`), of an object that was there to
-    /// leave. A token whose entry is still being decided has no entry to look
+    /// looks back, so its record carries the frame its batch took: CR
+    /// 603.10a's classes for the zones (`zone_change_looks_back`), asked of an
+    /// object that was there to leave. A token whose entry is still being decided has no entry to look
     /// back at (`create_tokens`), and a phased-out permanent is treated as
     /// though it does not exist (CR 702.26b), so it leaves the game with its
     /// owner unframed and triggers nothing (CR 603.6c's "phased-in").
-    pub(crate) fn move_carries_frame(&self, id: ObjectId, from: Zone, to: Option<Zone>) -> bool {
+    pub(crate) fn zone_change_looks_back_at(&self, id: ObjectId, from: Zone, to: Option<Zone>) -> bool {
         zone_change_looks_back(from, to)
             && (from != Zone::Battlefield || self.battlefield.get(&id).is_some_and(|entry| !entry.phased_out))
     }
@@ -1212,7 +1212,7 @@ impl GameState {
     /// classes; a token whose entry is still being decided has no entity and
     /// nothing to look back at (`create_tokens`).
     pub(crate) fn hand_over_before_leaving(&mut self, id: ObjectId, from: Zone, to: Option<Zone>) -> Option<Lki> {
-        let lki = if self.move_carries_frame(id, from, to) { self.take_captured_lki(id, from) } else { None };
+        let lki = if self.zone_change_looks_back_at(id, from, to) { self.take_captured_lki(id, from) } else { None };
         self.hand_over_lki(id, lki.as_ref());
         self.note_delayed_source_moving(id);
         lki
@@ -1974,7 +1974,7 @@ impl GameState {
             // leaves no graveyard (Erebos's Titan's third ruling). Nothing
             // narrower either — no `to`, no act, no cause. Only a phased-in
             // permanent's, which is one its departure framed
-            // (`move_carries_frame`).
+            // (`zone_change_looks_back_at`).
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
                 GameEvent::LeftTheGame { object_id, owner: moved_owner, from, lki },
