@@ -139,8 +139,9 @@ pass re-reads what it touches: a number here is a starting point.
   It ran as #285 on `audit/last-known-information-store`: the design note
   first, its four decisions taken at its review (`triggers-architecture.md`
   §3.11), then the build on the same branch. Item 318 closed. The next PR is
-  `practices-rules-page` (1c), which rewrites `engineering-practices.md`
-  §2c, the per-keeper example this PR retired.
+  `practices-rules-page` (1c), which rewrites the whole of
+  `engineering-practices.md` as a short page of rules, §2c's per-keeper
+  example, which this PR retired, among them.
 
 ## 1. Why this audit is bigger than the last
 
@@ -796,6 +797,15 @@ item 124's precedent that a sweep does not ride inside a rules change.
    archive and to the subsystem docs they belong to, as the fuzz tables did
    to `fuzz-record.md`; a rule a script can check is listed as a gate to
    build. After the store, so §2c is rewritten once.
+   - Asked at #285's review (the owner, 2026-10-24): whether the rules
+     belong in `CLAUDE.md` instead. `CLAUDE.md` is at its 200-line limit,
+     so the page is linked from it, unless the owner chooses otherwise at
+     1c's review.
+   - The page's example of a design that mirrors the CR is
+     `departure_read` in `engine/triggers/dispatch.rs`, which the owner
+     named at #285's review: an arm that looks back reads a departing
+     object as its record framed it, and any other arm reads it as it is
+     now, two match arms for CR 603.10 and 603.6c.
 1d. `concept-census-and-register`, added at #284's review (the owner,
    2026-10-24). The model pass asked whether a fact is computed twice, a
    question about functions; nobody asked whether a CR concept is held in
@@ -807,6 +817,24 @@ item 124's precedent that a sweep does not ride inside a rules change.
    `check_*.py` family: a new field holding an owned concept fails without
    its line. Before `one-fact-one-type`, whose scope its findings set, and
    `trigger-matcher-merges`.
+   - The question the census asks first of each concept is its key, before
+     its storage: TR-2b chose where last known information lived by how
+     long each keeper needed it, and the key CR 400.7 gives it, the
+     existence, came only with item 318.
+   - Candidates named at #285's review (the owner, 2026-10-24), each to
+     be confirmed or cleared by the census:
+     - survivor frames: an object as it was before an event it survived
+       (`ControlChanged`'s and `SameZoneMove`'s frames, `LookBackSnapshot`,
+       `frame_before_control_change`), held per record;
+     - which record ended an existence, held by each keeper that reads it
+       (`DelayedTrigger.source_left_at`, `RememberedObject.left_at`), the
+       shape the LKI store replaced;
+     - item 30's "what paid" for a cost, which `pay_costs` returns only as
+       mana, so a sacrificed creature is read back off the batch;
+     - `ObjectInformation::Characteristics`, which holds three moments
+       (walked now, entering under CR 614.12, and before under CR
+       603.10), each with one reader; the census decides whether each
+       moment gets its own arm.
 2. `resolution-context-rider`. Item 137: every resolution that is not a CR
    615.5 rider writes two `None`s about riders. It becomes one optional
    value, at 99 literals (48 when the item was filed).
@@ -923,6 +951,16 @@ item 124's precedent that a sweep does not ride inside a rules change.
      they are called. 289 free functions are called from another file today,
      against about 200 at #243's review, at a median of 2 call sites. The 30
      are listed at the PR's first ticket.
+   - Three rules the owner set at #285's review (2026-10-24), each swept
+     here:
+     - `chars` is spelled `characteristics`, since a programmer reads it as
+       characters first: about 400 lines in `src/` and `tests/` name a local,
+       a field or a parameter `chars`, beside the accessors #285 renamed;
+     - an `EventId` is never called `seq`, a name left over from
+       `EventSeq`: about 210 lines, the matchers' parameters, the locals and
+       `EventRecord.seq` among them;
+     - a name that says last known information with other words in it
+       takes the `lki_` prefix, as `lki_as_read_by` does.
    - Item 285: the tuple returns, sorted by `engineering-practices.md` §2b's
      rule 10.
    - `AbilityDef.instances`: the list the builder fills, taken out of the
