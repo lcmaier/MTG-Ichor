@@ -9960,3 +9960,38 @@ row 57 is item 297.
      **Slotted:** A6e's cleanup, in `trigger-matcher-merges` as its last
      commit, with a three-arm `differ` A/B (`plans/handoffs/item-6-audit.md`,
      pass 3's plan, decision 2).
+
+### Found by #284's review (2026-10-24)
+
+318. **Last known information is one CR thing kept in many places, with a
+     lookup for each.** CR 113.7a's last known information is per existence:
+     how one object last was where it was. The engine takes it once, as a
+     batch begins, but keeps it on records (ten fields), proposals (two),
+     the batch's captures (two), each keeper's list (`PendingTrigger`,
+     `StackEntry`, `ResolvingObject`, `DelayedTrigger`: 32 references to
+     `kept_lki`), history rows, `PaidCosts` and `Departure`, and reads it
+     through about fifteen functions (`record_frame`, `frame_of`,
+     `carried_lki`, `lki_kept_by_resolving`, `lki_kept_for`,
+     `frame_taken_for`, `take_named_lki` and the rest) and four view types
+     (`HeldFrame`, `CurrentOrLastKnown`, `TriggerCandidateFrame`,
+     `SubjectRead`). #284 added three of the lookups and a second capture of
+     one frame, which its review found. `engineering-practices.md` §2c's
+     example is this design: TR-2b kept each keeper's list on its entry so
+     it dies with it, and rejected a `GameState` map keyed by `ObjectRef`.
+     That kept each list in step with its entry and left the fact with many
+     homes; the owner decided at #284's review to give it one.
+     **Reachability (2026-10-24):** reachable — not wrong: a maintainer's
+     cost. No game answers differently, and every reader agrees today.
+     **Sized:** several hundred lines changed, more deleted than added; its
+     design note sizes it. It settles the review's LKI comments: `Departure`'s
+     frame half, `PaidCosts`' frame, `lki_kept_for`, `frame_taken_for`, an
+     unattach's two frames, a history row's `frame` beside `last_known`, and
+     the keepers' lists with their hand-over. Three decisions first: which
+     moves write the store (today's rule keeps the keeper walk; every move
+     out of a public zone drops it and moves the engine-work counters); its
+     shape against the clone floors (chunks like the history log's, or a
+     persistent map); and its lifetime (the game, as the history log's
+     departure rows already keep these, or while something can read it).
+     **Slotted:** A6e's cleanup, `last-known-information-store`, the PR after
+     `history-and-frame-records` (the owner, 2026-10-24): its design note
+     reviewed first, then the build on the same branch.

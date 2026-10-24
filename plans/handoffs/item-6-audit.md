@@ -134,7 +134,9 @@ pass re-reads what it touches: a number here is a starting point.
   cost order and the printed cards' rulings decide them. Left to another
   PR: CR 509.4's blocking entry, item 278's remainder, which needs the block
   arm to say which side it watches, re-slotted to
-  `layers-combat-and-counters`. The next PR is `resolution-context-rider`.
+  `layers-combat-and-counters`. Added at its review (the owner,
+  2026-10-24): `last-known-information-store`, item 318, the PR after it.
+  The next PR is that one, its design note first.
 
 ## 1. Why this audit is bigger than the last
 
@@ -716,6 +718,7 @@ about.
 | # | PR | What it delivers | Items | Merge rows | Sized | Carried | Pools | Hot path |
 |---|---|---|---|---|---:|---:|---|---|
 | 1 | `history-and-frame-records` | Every record written, each keeping the object as it was, three of the six record checks, and the fixture pool | 278, 279, 286, 297, 303, 305, 306, 310, 311, 312, 313, 314, "Before Triggered abilities" 6; `--pool fixtures` | 28, 29, 31, 32, 35, 36, 42, 45, 48, 49, 61, 62 | ~1,370 | ~1,700–2,000 | identical: no registered card reads a new row, frame or fact, and the fixtures pool apart | a row per zone change, last known information on a departure row, a `GameEvent` field; and a held-memory reading |
+| 1b | `last-known-information-store` | Last known information in one store, keyed by existence (added at #284's review) | 318 | — | its design note's | — | its decisions' | a frame per move, and the clone floors |
 | 2 | `resolution-context-rider` | `ResolutionContext`'s two rider numbers as one optional value | 137 | — | ~130 | ~130–160 | identical | none |
 | 3 | `trigger-matcher-merges` | The trigger matcher's facts, each written once | 247, 301, 302, 304, 309, 315, and 317 (decision 2) | 2, 3, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 30, 53, 54, 55, 59, 67, 68; and 5 | ~910 | ~1,250–1,600; ~1,350–1,800 with 317 | identical for the merges; with 317 both pools differ, since Blood Artist's order prompts go: a three-arm A/B | the dispatch, and §3.1's audited smoke |
 | 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296 | 46 | ~1,550–1,800 | ~1,700–2,100 | identical | the replacement gather's membership test |
@@ -771,6 +774,13 @@ item 124's precedent that a sweep does not ride inside a rules change.
        frame;
      - 45, 48 and 49: the log's words for a replacement, a name and a
        delayed trigger.
+1b. `last-known-information-store`, added at #284's review (the owner,
+   2026-10-24). Item 318: CR 113.7a's last known information, kept today on
+   records, proposals, captures, each keeper's list, history rows and two
+   payment and departure structs, read through about fifteen functions,
+   becomes one store keyed by existence. Its design note comes first, with
+   three decisions: which moves write it, its shape against the clone
+   floors, and its lifetime.
 2. `resolution-context-rider`. Item 137: every resolution that is not a CR
    615.5 rider writes two `None`s about riders. It becomes one optional
    value, at 99 literals (48 when the item was filed).
@@ -916,7 +926,9 @@ item 124's precedent that a sweep does not ride inside a rules change.
 - item 306 decides the "entered this turn" store before item 279 adds its
   first readers.
 
-Item 137 comes next: it is small, and every build after it writes one
+The store of last known information follows it (#284's review), before
+anything else reads or writes the fact again. Item 137 comes next: it is
+small, and every build after it writes one
 `None` instead of two. Then the reshapes come before the builds, so the
 builds read and write what stays:
 - the matcher merges, which 17's control leg, 268 and 272 read;
