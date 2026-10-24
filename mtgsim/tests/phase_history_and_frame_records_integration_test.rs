@@ -66,7 +66,7 @@ fn an_unattach_keeps_both_ends_when_both_leave_in_one_event() {
     assert!(matches!(unattach, GameEvent::Unattached { route: UnattachRoute::AttachmentLeft, .. }), "{unattach:?}");
     assert!(unattach.frame_of(aura, &game.lki_store).is_some(), "the end whose departure unattached them");
     let host_as_it_left = unattach.frame_of(host, &game.lki_store).expect("the host, which left in the same event");
-    assert_eq!(host_as_it_left.chars().power, Some(3), "as it was, enchanted");
+    assert_eq!(host_as_it_left.characteristics().power, Some(3), "as it was, enchanted");
 }
 
 /// CR 800.4a: a player leaves a three-seat game with an enchanted creature.

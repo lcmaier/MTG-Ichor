@@ -315,10 +315,10 @@ pub(super) enum TriggerCandidateFrame<'a> {
 }
 
 impl TriggerCandidateFrame<'_> {
-    fn chars(&self) -> &EffectiveCharacteristics {
+    fn characteristics(&self) -> &EffectiveCharacteristics {
         match self {
             TriggerCandidateFrame::Live { chars, .. } => chars,
-            TriggerCandidateFrame::LastKnown { lki, .. } => lki.chars(),
+            TriggerCandidateFrame::LastKnown { lki, .. } => lki.characteristics(),
             TriggerCandidateFrame::Before { chars, .. } => chars,
         }
     }
@@ -330,7 +330,7 @@ impl TriggerCandidateFrame<'_> {
         match self {
             TriggerCandidateFrame::LastKnown { lki, .. } => ObjectInformation::LastKnown(lki),
             TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::Before { .. } => {
-                ObjectInformation::Characteristics(id, self.chars())
+                ObjectInformation::Characteristics(id, self.characteristics())
             }
         }
     }
@@ -687,7 +687,7 @@ impl GameState {
         let newcomers = self.newcomer_trigger_carriers(window);
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
-                r.event.lki().is_some_and(|(lki, ..)| lki.chars().abilities.iter().any(is_triggered))
+                r.event.lki().is_some_and(|(lki, ..)| lki.characteristics().abilities.iter().any(is_triggered))
             })
         });
         // The battlefield probe and the named rows read the mask. The zone
@@ -1315,7 +1315,7 @@ impl GameState {
             for frame in &snapshot.frames {
                 let object = frame.lki.object();
                 if self.find(object).is_some() {
-                    before.entry(object.id).or_default().push((k, frame.lki.chars()));
+                    before.entry(object.id).or_default().push((k, frame.lki.characteristics()));
                 }
             }
         }
@@ -1374,11 +1374,11 @@ impl GameState {
         // what the frame does.
         let card = match self.objects.get(&lki.object().id) {
             Some(object) => Arc::clone(&object.card_data),
-            None => Arc::new(frame_card(lki.chars())),
+            None => Arc::new(frame_card(lki.characteristics())),
         };
         TriggerCandidate {
             object: lki.object(),
-            controller: lki.chars().controller,
+            controller: lki.characteristics().controller,
             owner: lki.owner(),
             zone: from,
             host: lki.host(),
@@ -1404,7 +1404,7 @@ impl GameState {
         // granter gave it, the granter gone in the window.
         for frame in snapshots.iter().flat_map(|snapshot| &snapshot.frames) {
             let object = frame.lki.object();
-            if carries_a_trigger_multiplier(frame.lki.chars()) && self.find(object).is_some() && !sources.contains(&object.id) {
+            if carries_a_trigger_multiplier(frame.lki.characteristics()) && self.find(object).is_some() && !sources.contains(&object.id) {
                 sources.push(object.id);
             }
         }
@@ -1412,7 +1412,7 @@ impl GameState {
             self.push_live_candidates(sources, &mut self.lists_before(snapshots), &mut candidates);
         }
         for (lki, from, _) in records.iter().filter_map(|(_, record)| record.event.lki()) {
-            if from == Zone::Battlefield && carries_a_trigger_multiplier(lki.chars()) {
+            if from == Zone::Battlefield && carries_a_trigger_multiplier(lki.characteristics()) {
                 candidates.push(self.departure_candidate(lki, from));
             }
         }
@@ -1486,7 +1486,7 @@ impl GameState {
             return 0;
         }
         let arm = matched.arm();
-        let chars = multiplier.frame.chars();
+        let chars = multiplier.frame.characteristics();
         let referents = TriggerReferents {
             this: ThisObject::Candidate(multiplier.object.id),
             controller: multiplier.controller,
@@ -1557,7 +1557,7 @@ impl GameState {
         // only for what depends on the record (§4.2).
         let mut defs: Vec<TriggerCandidateDef<'_>> = Vec::new();
         for (index, candidate) in candidates.iter().enumerate() {
-            let chars = candidate.frame.chars();
+            let chars = candidate.frame.characteristics();
             for ability in chars.abilities.iter() {
                 let Effect::Triggered(def) = &ability.effect else { continue };
                 // CR 113.6 is asked of each ability: the object is here
@@ -1703,7 +1703,7 @@ impl GameState {
             }
             // CR 113.6k asks each trigger condition where it functions; the
             // pre-pass asked the ability, which is their union.
-            if !condition_functions_in(def, arm, &candidate.frame.chars().types, candidate.zone) {
+            if !condition_functions_in(def, arm, &candidate.frame.characteristics().types, candidate.zone) {
                 continue;
             }
             let triggering_events = self.triggering_events_in(arm, &referents, record);
@@ -2135,7 +2135,7 @@ impl GameState {
                 GameEvent::ZoneChange { from: Zone::Battlefield, lki: Some(lki), .. }
                 | GameEvent::LeftTheGame { from: Zone::Battlefield, lki: Some(lki), .. },
             ) => triggering_event_if(
-                from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.chars().controller, referents))
+                from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.characteristics().controller, referents))
                     && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
             ),
             // A record matches when it passes the arm's three questions, each

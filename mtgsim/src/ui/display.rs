@@ -874,7 +874,7 @@ fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) ->
 /// the record kept for it otherwise.
 fn named_in(game: &GameState, event: &GameEvent, id: ObjectId, announced: &NamesAsAnnounced) -> String {
     match event.frame_of(id, &game.lki_store) {
-        Some(lki) => object_label(game, id, &lki.chars().name),
+        Some(lki) => object_label(game, id, &lki.characteristics().name),
         None => name_with_id(game, id, announced),
     }
 }
@@ -967,7 +967,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             let was = lki.as_ref().map(|f| {
                 // Sorted: `types` is a `HashSet`, and an unsorted log line
                 // differs run to run.
-                let mut names: Vec<String> = f.chars().types.iter().map(|t| format!("{:?}", t)).collect();
+                let mut names: Vec<String> = f.characteristics().types.iter().map(|t| format!("{:?}", t)).collect();
                 names.sort();
                 format!(" ({})", names.join(" "))
             }).unwrap_or_default();
@@ -1821,7 +1821,7 @@ mod tests {
             let line = format_event(&game, event, &names, &EventCause::Harness);
             for &id in &named {
                 let expected = match event.frame_of(id, &game.lki_store) {
-                    Some(lki) => lki.chars().name.clone(),
+                    Some(lki) => lki.characteristics().name.clone(),
                     None => sentinel(id),
                 };
                 assert!(line.contains(&format!("{expected} (")), "{line:?} does not print {id} as {expected}");

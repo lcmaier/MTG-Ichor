@@ -236,7 +236,7 @@ impl GameState {
             drafts.push((seq, RowDraft { player, object, frame, fact }));
         };
         let departed = |lki: &Lki| (Some(lki.object()), RowFrame::LastKnown(lki.clone()));
-        let as_left = |frame: Option<Arc<EffectiveCharacteristics>>| frame.map_or(RowFrame::Unframed, RowFrame::AsTheEventLeftIt);
+        let as_left = |frame: Option<Arc<EffectiveCharacteristics>>| frame.map_or(RowFrame::None, RowFrame::AsTheEventLeftIt);
         // `object`'s characteristics as this window left it. Read now if it is
         // still the object the record named. If it moved again later in this
         // window it became a new object (CR 400.7), and the record of that
@@ -252,7 +252,7 @@ impl GameState {
         };
         // The object `id` is now, and its characteristics as the event left it.
         let current = |id: ObjectId| self.object_ref(id).map(|object| (object, as_left(compute_characteristics(self, id))));
-        let controller = |frame: &RowFrame| frame.chars().map(|chars| chars.controller);
+        let controller = |frame: &RowFrame| frame.characteristics().map(|chars| chars.controller);
         match &record.event {
             GameEvent::SpellCast { spell_id, caster } => {
                 if let (Some((object, frame)), Some(from)) =
@@ -267,10 +267,10 @@ impl GameState {
                 }
             }
             GameEvent::LifeChanged { player_id, old, new, .. } if new > old => {
-                draft_history_row(Some(*player_id), None, RowFrame::Unframed, RowFact::GainedLife((new - old) as u64));
+                draft_history_row(Some(*player_id), None, RowFrame::None, RowFact::GainedLife((new - old) as u64));
             }
             GameEvent::LifeChanged { player_id, old, new, .. } if new < old => {
-                draft_history_row(Some(*player_id), None, RowFrame::Unframed, RowFact::LostLife((old - new) as u64));
+                draft_history_row(Some(*player_id), None, RowFrame::None, RowFact::LostLife((old - new) as u64));
             }
             // Where it came from is its zone change's, in the same window; a
             // token comes from none (CR 111.2).
@@ -296,7 +296,7 @@ impl GameState {
                 match lki {
                     Some(lki) => {
                         let (object, frame) = departed(lki);
-                        draft_history_row(Some(lki.chars().controller), object, frame, fact);
+                        draft_history_row(Some(lki.characteristics().controller), object, frame, fact);
                     }
                     None => draft_history_row(Some(*owner), Some(became), as_left(frame_as_left(became)), fact),
                 }
@@ -310,7 +310,7 @@ impl GameState {
                 draft_history_row(Some(*owner), object, frame, RowFact::LeftTheGame { from: *from });
             }
             GameEvent::LeftTheGame { object_id, owner, from, lki: None } => {
-                draft_history_row(Some(*owner), self.object_ref(*object_id), RowFrame::Unframed, RowFact::LeftTheGame { from: *from });
+                draft_history_row(Some(*owner), self.object_ref(*object_id), RowFrame::None, RowFact::LeftTheGame { from: *from });
             }
             // A source that left before dealing it deals it as it last existed
             // (CR 608.2h).
@@ -319,7 +319,7 @@ impl GameState {
                     Some(lki) => departed(lki),
                     None => match current(*source_id) {
                         Some((object, frame)) => (Some(object), frame),
-                        None => (None, RowFrame::Unframed),
+                        None => (None, RowFrame::None),
                     },
                 };
                 let to = match target {
@@ -363,7 +363,7 @@ impl GameState {
                         let frame = as_left(frame_as_left(*object));
                         draft_history_row(controller(&frame), Some(*object), frame, fact);
                     }
-                    TargetRef::Player(player) => draft_history_row(Some(*player), None, RowFrame::Unframed, fact),
+                    TargetRef::Player(player) => draft_history_row(Some(*player), None, RowFrame::None, fact),
                 }
             }
             _ => {}

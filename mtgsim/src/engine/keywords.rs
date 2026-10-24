@@ -78,7 +78,7 @@ pub fn add_lifelink_gain(
         return;
     }
     let controller = match lki {
-        Some(lki) => Some(lki.chars().controller),
+        Some(lki) => Some(lki.characteristics().controller),
         None => crate::oracle::characteristics::get_effective_controller(game, source),
     };
     let Some(player) = controller.or_else(|| game.objects.get(&source).map(|obj| obj.owner)) else {

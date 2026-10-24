@@ -175,7 +175,7 @@ fn history_rows_and_since_your_last_turn() {
     assert_eq!(history.count(0, TurnFact::LifeGained, 1..=now), 10);
     assert_eq!(history.count(0, TurnFact::CardsDrawn, 1..=now), 1, "this game defaults to the two rows' sum");
     assert_eq!(history.count(1, TurnFact::SpellsCast, now..=now), 2, "one unnamed, one named");
-    let named = history.log.rows_of_turn(now).find_map(|row| row.frame.chars().filter(|_| matches!(row.fact, RowFact::Cast { .. })));
+    let named = history.log.rows_of_turn(now).find_map(|row| row.frame.characteristics().filter(|_| matches!(row.fact, RowFact::Cast { .. })));
     assert!(named.is_some_and(|frame| frame.name == "Grizzly Bears" && frame.types.contains(&CardType::Creature)));
     // Player 0 took turn 3, which ended as turn 4 began; player 1's last
     // turn, turn 2, ended as turn 3 began.

@@ -451,7 +451,7 @@ fn a_delayed_trigger_keeps_the_frame_its_source_left_with() {
     assert!(game.lki(herald_then).is_none(), "its source is still there");
 
     game.change_zone(herald, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
-    let kept = game.lki(herald_then).map(|lki| lki.chars().power);
+    let kept = game.lki(herald_then).map(|lki| lki.characteristics().power);
     assert_eq!(kept, Some(Some(4)), "the 4/4 that left");
 
     advance_to(&mut game, 0, StepType::End);
@@ -477,7 +477,7 @@ fn a_spells_delayed_trigger_keeps_the_spell_as_it_left_the_stack() {
     game.resolve_top_of_stack(&test_dp()).unwrap();
     let delayed = &game.delayed_triggers[0];
     assert_eq!(delayed.source, cast);
-    let frame = game.lki(delayed.source).map(|lki| lki.chars().types.contains(&CardType::Instant));
+    let frame = game.lki(delayed.source).map(|lki| lki.characteristics().types.contains(&CardType::Instant));
     assert_eq!(frame, Some(true), "the instant spell, framed as it left the stack");
 }
 

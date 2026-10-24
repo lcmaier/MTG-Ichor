@@ -2002,7 +2002,7 @@ impl Lki {
     }
 
     /// The characteristics it last had.
-    pub fn chars(&self) -> &EffectiveCharacteristics {
+    pub fn characteristics(&self) -> &EffectiveCharacteristics {
         &self.0.frame
     }
 

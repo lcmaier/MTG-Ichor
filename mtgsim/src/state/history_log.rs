@@ -65,7 +65,7 @@ pub struct HistoryRow {
 #[derive(Debug, Clone)]
 pub enum RowFrame {
     /// Nothing: a row about no object, or a count a scenario states.
-    Unframed,
+    None,
     /// The object's characteristics as the event left it.
     AsTheEventLeftIt(Arc<EffectiveCharacteristics>),
     /// An object that had left by the event, a departure or damage from a
@@ -77,7 +77,7 @@ pub enum RowFrame {
 
 impl RowFrame {
     /// The characteristics it keeps, either way.
-    pub fn chars(&self) -> Option<&EffectiveCharacteristics> {
+    pub fn characteristics(&self) -> Option<&EffectiveCharacteristics> {
         self.frame().map(|frame| &**frame)
     }
 
@@ -85,7 +85,7 @@ impl RowFrame {
     /// once.
     pub fn frame(&self) -> Option<&Arc<EffectiveCharacteristics>> {
         match self {
-            RowFrame::Unframed => None,
+            RowFrame::None => None,
             RowFrame::AsTheEventLeftIt(frame) => Some(frame),
             RowFrame::LastKnown(lki) => Some(lki.frame()),
         }
@@ -171,7 +171,7 @@ impl HistoryRow {
         match &self.frame {
             RowFrame::LastKnown(lki) => matches(ObjectInformation::LastKnown(lki)),
             RowFrame::AsTheEventLeftIt(frame) => matches(ObjectInformation::Characteristics(id, frame)),
-            RowFrame::Unframed => {
+            RowFrame::None => {
                 debug_assert!(
                     !matches!(self.fact, RowFact::Stated { .. }),
                     "a card narrows a count a scenario stated without naming its objects: {:?}",
@@ -209,7 +209,7 @@ counted_enum! {
 /// Whose count a row adds to is the fact's to say: a damage row adds to the
 /// player dealt the damage, where the row's player is the source's controller.
 pub fn added_to_count(fact: TurnFact, row: &HistoryRow, counts_for: &dyn Fn(PlayerId) -> bool) -> u64 {
-    let has_type = |card_type: CardType| row.frame.chars().is_some_and(|chars| chars.types.contains(&card_type));
+    let has_type = |card_type: CardType| row.frame.characteristics().is_some_and(|chars| chars.types.contains(&card_type));
     let Some(player) = row.player else { return 0 };
     let (whose, amount) = match (fact, row.fact) {
         (TurnFact::SpellsCast, RowFact::Cast { .. }) | (TurnFact::CardsDrawn, RowFact::Drew) => (player, 1),
@@ -422,7 +422,7 @@ impl HistoryLog {
     pub(crate) fn died(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
         self.rows_during(turn, span, RowKind::LeftZone, note).any(|row| {
             matches!(row.fact, RowFact::LeftZone { from: Zone::Battlefield, to: Zone::Graveyard, became, .. } if became == object)
-                && row.frame.chars().is_some_and(|frame| frame.types.contains(&CardType::Creature))
+                && row.frame.characteristics().is_some_and(|frame| frame.types.contains(&CardType::Creature))
         })
     }
 
@@ -557,7 +557,7 @@ impl HistoryLog {
             .rows_newest_first()
             .filter_map(|row| match &row.frame {
                 RowFrame::LastKnown(lki) => Some(lki.bytes_beside_its_frame()),
-                RowFrame::Unframed | RowFrame::AsTheEventLeftIt(_) => None,
+                RowFrame::None | RowFrame::AsTheEventLeftIt(_) => None,
             })
             .sum();
         let rows: usize = std::iter::successors(self.newest.as_deref(), |chunk| chunk.older.as_deref())
@@ -572,7 +572,7 @@ mod tests {
     use super::*;
 
     fn drew(seq: usize, turn: u32) -> HistoryRow {
-        HistoryRow { seq: EventId(seq), turn, combat: 0, player: Some(0), object: None, frame: RowFrame::Unframed, fact: RowFact::Drew }
+        HistoryRow { seq: EventId(seq), turn, combat: 0, player: Some(0), object: None, frame: RowFrame::None, fact: RowFact::Drew }
     }
 
     fn seqs(log: &HistoryLog) -> Vec<usize> {
@@ -623,11 +623,11 @@ mod tests {
             log.push(drew(seq, 1));
         }
         let fork = log.clone();
-        let framed = || frame.clone().map_or(RowFrame::Unframed, RowFrame::AsTheEventLeftIt);
-        log.reframe_newest(vec![framed(), framed(), framed(), RowFrame::Unframed]);
-        let framed: Vec<bool> = log.rows_newest_first().take(5).map(|row| row.frame.chars().is_some()).collect();
+        let framed = || frame.clone().map_or(RowFrame::None, RowFrame::AsTheEventLeftIt);
+        log.reframe_newest(vec![framed(), framed(), framed(), RowFrame::None]);
+        let framed: Vec<bool> = log.rows_newest_first().take(5).map(|row| row.frame.characteristics().is_some()).collect();
         assert_eq!(framed, [false, true, true, true, false], "oldest first: the newest row took the last frame");
-        assert!(fork.rows_newest_first().all(|row| row.frame.chars().is_none()), "the fork's chunks were copied, not written");
+        assert!(fork.rows_newest_first().all(|row| row.frame.characteristics().is_none()), "the fork's chunks were copied, not written");
     }
 
     #[test]
@@ -646,7 +646,7 @@ mod tests {
     fn row(log: &mut HistoryLog, object: ObjectRef, turn: u32, fact: RowFact) {
         let seq = EventId(log.len());
         let combat = log.combats_this_turn();
-        log.push(HistoryRow { seq, turn, combat, player: Some(0), object: Some(object), frame: RowFrame::Unframed, fact });
+        log.push(HistoryRow { seq, turn, combat, player: Some(0), object: Some(object), frame: RowFrame::None, fact });
     }
 
     const UNNOTED: &dyn Fn(GatedWalkInput) = &|_| {};

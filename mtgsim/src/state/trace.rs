@@ -917,7 +917,7 @@ impl GameState {
         named.extend(cause.object_named());
         let source = event.ability_source().or_else(|| self.resolving.as_ref()?.identity.map(|identity| identity.source));
         let departed = source.filter(|&source| self.find(source).is_none()).and_then(|source| self.lki_as_a_keeper_reads(source));
-        let departed = departed.map(|lki| (lki.object().id, lki.chars().name.clone()));
+        let departed = departed.map(|lki| (lki.object().id, lki.characteristics().name.clone()));
         let mut names: Vec<(ObjectId, String)> = Vec::new();
         for id in named {
             if names.iter().any(|(kept, _)| *kept == id) {

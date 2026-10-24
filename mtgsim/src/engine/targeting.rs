@@ -664,7 +664,7 @@ impl GameState {
                 return object_filter::evaluate(self, filter, id, &|| Some(chars), None, referents);
             }
             ObjectInformation::LastKnown(lki) => {
-                return object_filter::evaluate(self, filter, lki.object().id, &|| Some(lki.chars()), Some(lki), referents);
+                return object_filter::evaluate(self, filter, lki.object().id, &|| Some(lki.characteristics()), Some(lki), referents);
             }
             ObjectInformation::Current(id) => id,
         };

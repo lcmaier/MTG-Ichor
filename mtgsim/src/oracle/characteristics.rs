@@ -120,7 +120,7 @@ impl<'a> ObjectInformation<'a> {
     /// Its controller (CR 109.5), or its owner while it has none.
     pub fn controller(&self, game: &GameState) -> Option<PlayerId> {
         match self {
-            ObjectInformation::LastKnown(lki) => Some(lki.chars().controller),
+            ObjectInformation::LastKnown(lki) => Some(lki.characteristics().controller),
             ObjectInformation::Current(id) => controller_or_owner(game, *id),
             ObjectInformation::Characteristics(_, chars) => Some(chars.controller),
         }

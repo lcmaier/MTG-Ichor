@@ -146,11 +146,11 @@ impl GameState {
                     // which a control change made someone else (CR 603.10).
                     Some(object) => TriggerCandidate {
                         object: lki.object(),
-                        controller: lki.chars().controller,
+                        controller: lki.characteristics().controller,
                         owner: object.owner,
                         zone: object.zone,
                         host: crate::oracle::board::host_of(self, id),
-                        frame: TriggerCandidateFrame::Before { chars: lki.chars(), snapshot: k },
+                        frame: TriggerCandidateFrame::Before { chars: lki.characteristics(), snapshot: k },
                         card: Arc::clone(&object.card_data),
                     },
                     // Moved or gone since the snapshot: as it was then, under
@@ -158,14 +158,14 @@ impl GameState {
                     // that triggered.
                     None => TriggerCandidate {
                         object: lki.object(),
-                        controller: lki.chars().controller,
+                        controller: lki.characteristics().controller,
                         owner: lki.owner(),
                         zone: frame.zone,
                         host: lki.host(),
                         frame: TriggerCandidateFrame::LastKnown { lki, snapshot: Some(k) },
                         card: match self.objects.get(&id) {
                             Some(object) => Arc::clone(&object.card_data),
-                            None => CardDataBuilder::new(&lki.chars().name).build(),
+                            None => CardDataBuilder::new(&lki.characteristics().name).build(),
                         },
                     },
                 };

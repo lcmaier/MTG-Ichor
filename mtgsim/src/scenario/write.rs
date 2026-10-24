@@ -309,7 +309,7 @@ impl<'g> Writer<'g> {
         let turn = state.turn_number;
         let mut casts = Vec::new();
         for row in state.history.log.rows_of_turns(FIRST_TURN..=turn) {
-            let (RowFact::Cast { from }, Some(frame)) = (row.fact, row.frame.chars()) else { continue };
+            let (RowFact::Cast { from }, Some(frame)) = (row.fact, row.frame.characteristics()) else { continue };
             if row.player != Some(player) {
                 continue;
             }

@@ -341,7 +341,7 @@ pub(super) fn history_total(
     let mut filter_matches = |filter: &ObjectFilter, object: ObjectInformation<'_>| match object {
         ObjectInformation::Characteristics(id, frame) => object_matches_filter(filter, id, frame, players),
         ObjectInformation::LastKnown(lki) => {
-            object_filter::evaluate(game, filter, lki.object().id, &|| Some(lki.chars()), Some(lki), players)
+            object_filter::evaluate(game, filter, lki.object().id, &|| Some(lki.characteristics()), Some(lki), players)
         }
         ObjectInformation::Current(id) => {
             board.frame_of(game, id, layer_index).is_some_and(|frame| object_matches_filter(filter, id, &frame, players))
