@@ -1147,7 +1147,7 @@ list.
 - **What is new**: the slot type and its `ForkCopy` line, the write and the
   read, about 80 lines with their tests; `ObjectTable` is used as it is.
 
-**Recommended: B** (changed at #285's review, which asked why A). A
+**Taken: B** (the owner, 2026-10-24, at #285's review, which asked why A). A
 was recommended on the pooled games' entry counts, which bound nothing. A
 lookup in A costs as much as the game is long; in B, as much as one object's
 own history, whatever the game; and the floor pays one allocation for it.
@@ -1210,7 +1210,7 @@ turn against 4,043 on today's pools, which bound nothing.
   5 KB a turn: a regression shows only on boards those games reach, as it
   does for the log today.
 
-**Recommended: A.** It answers TR-2b's objection rather than overriding it:
+**Taken: A** (the owner, 2026-10-24, at #285's review). It answers TR-2b's objection rather than overriding it:
 there is no prune to miss, the store holds fewer entries than the log has
 rows by construction, and its bytes are sampled where the log's are.
 
@@ -1242,15 +1242,16 @@ page (1c), the census (1d), `resolution-context-rider` (2) and
 | | Code shape | Upkeep |
 |---|---|---|
 | A. The census names it, `one-fact-one-type` builds it | this PR changes only where their `&Lki` comes from | the census settles shape 7 first, whose frames ride the `Lki` type today, so the fold is designed once |
-| **B. Fold them here** (recommended, #285's second round) | one type, `ObjectAsRead`, below; about 120 references in 21 files, about 300–500 lines | this PR already rewrites where each view's `&Lki` comes from, so their sites are touched once; shape 7's naming stays the census's, and a split of it adds one arm |
+| **B. Fold them here** (taken) | one type, `ObjectInformation`, below; about 120 references in 21 files, about 300–500 lines | this PR already rewrites where each view's `&Lki` comes from, so their sites are touched once; shape 7's naming stays the census's, and a split of it adds one arm |
 
 **B's type.**
 
 ```rust
-/// An object as a reader takes it (CR 608.2h, 113.7a, 603.10).
-pub enum ObjectAsRead<'a> {
+/// An object as a reader takes it, named for CR 608.2h's "current
+/// information" and "last known information" (113.7a, 603.10).
+pub enum ObjectInformation<'a> {
     /// Still the existence the reader expects: read live, through the layers.
-    Now(ObjectId),
+    Current(ObjectId),
     /// As it last existed: an ended existence's `Lki`, from the store or a
     /// record. Shape 7's frames from just before an event ride it, as they
     /// ride the `Lki` type today.
@@ -1264,7 +1265,7 @@ pub enum ObjectAsRead<'a> {
   (`existence`, `characteristics`, `attacking`, `controller`,
   `defending_player`, a filter's reads) move onto it.
 - `TriggerCandidateFrame` keeps what is its own, which snapshot answers
-  which arms (CR 603.10), around one `ObjectAsRead`.
+  which arms (CR 603.10), around one `ObjectInformation`.
 - `SubjectRead`'s two departed arms become `LastKnown`. Whether the subject
   was a permanent at the event, which set them apart, is read off the record:
   whether the event is that existence's own departure.
@@ -1274,11 +1275,12 @@ pub enum ObjectAsRead<'a> {
 past 2,000 lines, the fold goes to a PR of its own straight after this one,
 its design kept here.
 
-**Recommended: B.** The owner wants one type, and this PR touches the views'
-sites already.
+**Taken: B** (the owner, 2026-10-24, at #285's review, with the name
+`ObjectInformation`). The owner wants one type, and this PR touches the
+views' sites already.
 
-**Predictions for the close-out**, with decision 1 as taken and 2 to 4 as
-recommended:
+**Predictions for the close-out**, written before the build, with the four
+decisions as taken:
 - **Both pools, two seats and four: every game identical**, and the
   engine-work rows identical but Memo hits, lower by `pay_costs`' captures:
   0.4 a game (`performance`, two seats), 0.6 (four), 0.9 (`stress`, two),
