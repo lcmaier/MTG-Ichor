@@ -1930,8 +1930,8 @@ struct LkiBody {
     /// owner leaves at CR 800.4a, and this is then the one place it is kept.
     owner: PlayerId,
     /// CR 111.1: whether it was a token, which no characteristic says and
-    /// the store forgets once CR 704.5d has removed it.
-    token: bool,
+    /// the object store forgets once CR 704.5d has removed it.
+    is_token: bool,
     /// CR 707.10's decisions about the spell it was.
     cost_choices: CostChoices,
     /// `None` for an object that left a zone other than the battlefield.
@@ -1963,7 +1963,7 @@ impl Lki {
         object: ObjectRef,
         frame: Arc<EffectiveCharacteristics>,
         owner: PlayerId,
-        token: bool,
+        is_token: bool,
         cost_choices: CostChoices,
         permanent: Option<&PermanentState>,
         entry: Option<&StackEntry>,
@@ -1983,7 +1983,7 @@ impl Lki {
             }
         });
         let entry = entry.map(|entry| Arc::new(entry.clone()));
-        Lki(Arc::new(LkiBody { object, frame, owner, token, cost_choices, permanent, entry }))
+        Lki(Arc::new(LkiBody { object, frame, owner, is_token, cost_choices, permanent, entry }))
     }
 
     /// The bytes its body holds beside its frame, which a held-memory
@@ -2017,7 +2017,7 @@ impl Lki {
 
     /// Whether it was a token (CR 111.1).
     pub fn was_token(&self) -> bool {
-        self.0.token
+        self.0.is_token
     }
 
     pub fn cost_choices(&self) -> &CostChoices {
