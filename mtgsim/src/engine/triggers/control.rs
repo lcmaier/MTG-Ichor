@@ -172,7 +172,7 @@ impl GameState {
         let ControlSweep { changes, frames_before } = sweep;
         let mut frames: Vec<ObjectSnapshot> = Vec::new();
         for (object, before) in frames_before {
-            if let Some(lki) = self.last_known_information(object, before) {
+            if let Some(lki) = self.lki_with_frame(object, before) {
                 frames.push(ObjectSnapshot { zone: Zone::Battlefield, lki });
             }
         }

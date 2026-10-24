@@ -1110,7 +1110,7 @@ impl GameState {
     /// because where it may be read from depends on when. A batch frames its
     /// movers off the layer memo before it performs, and the fallback in
     /// `take_captured_lki`, reached while one performs, may not read the memo.
-    pub(crate) fn last_known_information(&self, id: ObjectId, frame: Arc<EffectiveCharacteristics>) -> Option<Lki> {
+    pub(crate) fn lki_with_frame(&self, id: ObjectId, frame: Arc<EffectiveCharacteristics>) -> Option<Lki> {
         let object = self.objects.get(&id)?;
         let cost_choices = self.cost_choices_of(id).unwrap_or(CostChoices::NONE);
         let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
@@ -1121,7 +1121,7 @@ impl GameState {
     /// `id`'s last known information with its frame off the layer memo, for
     /// every reader but a performing batch's fallback.
     pub(crate) fn lki_now(&self, id: ObjectId) -> Option<Lki> {
-        self.last_known_information(id, compute_characteristics(self, id)?)
+        self.lki_with_frame(id, compute_characteristics(self, id)?)
     }
 
     /// Whether a batch in progress framed `object` and has yet to move it:
@@ -1152,7 +1152,7 @@ impl GameState {
         debug_assert!(taken.is_some(), "{id} moved from the {from:?} with no frame from its batch");
         taken.or_else(|| {
             let frame = crate::engine::layers::compute::compute_characteristics_uncached(self, id)?;
-            self.last_known_information(id, Arc::new(frame))
+            self.lki_with_frame(id, Arc::new(frame))
         })
     }
 

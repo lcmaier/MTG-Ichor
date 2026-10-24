@@ -899,7 +899,7 @@ leaf that reads mana spent, and the card is unregistered. `entry`, a stack
 object's copy, was built in TR-4d with item 253 for CR 603.10e, and
 `spell-copies`'s `copy_of` is its next reader.
 
-**How a body is made.** `last_known_information` builds the whole body
+**How a body is made.** `lki_with_frame` builds the whole body
 before the batch performs (`capture_frame`): the frame is the memo hit it
 always was, the facts are copied off `PermanentState`, and the cost
 decisions are `GameState::cost_choices_of`'s, the one reader of them
