@@ -267,6 +267,14 @@ jobs:
         working-directory: .
         run: python3 plans/check_invariants.py
 
+      # The practices page stays a page of rules, under its line budget, and a
+      # citation of a doc's section names a heading that exists: a section
+      # number says nothing about where it leads, and an anchor that names no
+      # heading leads nowhere. Reads files only.
+      - name: Practices page and section anchors
+        working-directory: .
+        run: python3 plans/check_practices_page.py
+
   # The guards a release build compiles out, played over every registered card:
   # each `debug_assert!`, and with them the layer walk's and the memo's audits,
   # the mana watcher's and the pipeline's
