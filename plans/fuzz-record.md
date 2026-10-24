@@ -37,6 +37,65 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+## The latest floor readings
+
+The latest reading of each of `engineering-practices.md#the-floors`'s floors,
+replaced in place when it is taken again. `check_state_of_play.py` joins these
+with the limits on that page and draws both on the board, with each floor's
+room; the two tables must name the same floors.
+
+<!-- floor readings: begin -->
+| Floor | Reading | Read on | Where |
+|---|---|---|---|
+| 1. Decisions per loaded physical core-second | 15700 | 2026-10-06 | #225's pooled tree on `performance` at Commander scale, 200 games: 17,900 on one thread, 7.26 times that on 16 threads over 8 physical cores |
+| 2. Allocations per clone | 37 | 2026-10-21 | CL-1's tree: `clone_bound_test` in release at 188 checkpoints and 10,253 decisions over 24 Commander games, the worst `performance` 12353's decision at turn 31, and `clone_fixture_test`'s boards, at most 14 |
+| 2. Microseconds per clone | 1.8 | 2026-10-21 | CL-1's tree, the same 188 checkpoints, at each the median of five means of 2,000 clone-and-drops under the System allocator; the worst checkpoint of three runs, which read 1.75, 1.69 and 1.73. At decisions it is A6e's readiness pass's (`clone-architecture.md` decision 6(d)) |
+| 3. Kilobytes per clone | 8.7 | 2026-10-21 | the same readings, the worst `clone_fixture_test`'s 8,000 stacked triggers; at most 6.7 at a decision |
+<!-- floor readings: end -->
+
+### The floors' standing history
+
+Each floor's readings since it was adopted (2026-09-25), oldest first, with
+what moved it; a new reading is added to its row.
+
+| Floor | Standing |
+|---|---|
+| 1. ≥ 10,000 decisions per loaded physical core-second, Commander scale | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block) |
+| 2. Full-state clone ≤ 10 µs | **Holds** (item 180's fix, 2026-09-25): ≤ 40 allocations over the clone test's 24 games, ≤ 39 since item 183's half fix, `stress` seeds and the budget's own board, worst at `performance` 12358's turn 50. `performance` 12350 read 68 at turn 100 while every fork copied the registry rows' payloads, and reads 34 with them shared (`codebase-state.md` item 180). Time, from the bounded-state PR on the `stress` seeds: ≤ 8.5 µs over three sittings of five Commander games, against up to 1,479 allocations and 136 µs with the log. Since LL a row reaching the hidden zones reads 7.7–9.3 µs at its worst, against 7.1–7.3 without one (item 181, closed). A clone that rebuilds a spiked map (item 183) reads 7.8 µs at its worst on an idle machine, 6.8 before it. A clone taken during a deep stack is back-stopped before Phase 8 (item 183, `roadmap-v2.md` B10). **Read mid-turn at B10's design** (2026-10-21, `clone-architecture.md` §2): 78 allocations at a 22-trigger ordering, 3 of the clone test's 10,253 decisions over 64, none read by the test; 32,014 allocations and 8.2 ms on an 8,000-trigger wipe. **Shared since CL-1** (2026-10-21): at most 37 allocations over those 10,253 decisions and 34 between turns, 14 on the 8,000-trigger stack |
+| 3. ≤ 128 KB per state | **Holds** (the same PR): ≤ 107.1 KB at the end of a 168-turn game, the history bounded by the table; ≤ 112.4 KB with a row reaching the hidden zones (item 181). Breached on one fixture board by item 182, `stress` 12351 under Teferi's clause at 150.4 KB after a stack 29 deep, since a clone copied the maps' high-water capacity. **Holds again since that half of item 183 was fixed** (2026-09-26): ≤ 90.7 KB over the clone test's 210 readings, that game at 73.2. A clone during a deep stack is B10's: 10 MB on an 8,000-trigger wipe, 125 KB at 200 permanents, and 101 KB with no objects left after 2,000 tokens came and went, the layer memo's frames (`clone-architecture.md` §2.4, §2.5). **Since CL-1** (2026-10-21): at most 6.7 KB at every decision and 6.0 between turns, 8.7 KB on the 8,000-trigger stack, 1.5 KB after 4,000 tokens came and went, the memo bounded by the store |
+
+## How to read the cost rows
+
+A block's behavioral rows say what the engine **did**; its five bold rows say
+what it **spent doing it** (`state/diagnostics.rs`). They are fixtures by the
+same argument, a pure function of the seed and the pool, verified identical
+across three runs and across `--threads 1` and `--threads 8`, so a change to
+one means the engine's cost model moved
+(`engineering-practices.md#the-cost-rows`).
+
+- **Layer walks** is the headline. Almost every cost question in this engine
+  reduces to how many full CR 613 walks a game does. Since the epoch memo
+  (item 7a, 2026-09-03) it is the *miss* count: a walk is paid once per object
+  per epoch rather than once per question.
+- **Memo hits** is the rest of the questions. Walks plus hits is what the
+  oracle was asked, and it did not move when the memo landed. A hit share that
+  falls means some writer started bumping the epoch more often; one that rises
+  means the games got more repetitive, not the engine cheaper.
+- **Frames/walk** is what CR 613.7a's existence re-check costs — a walk needing
+  no sub-frame is 1.00, and `layers-architecture.md` §5.2's descending ceiling is
+  what bounds this number instead of letting it iterate.
+- **Dependency checks** is the CR 613.8 loop's slow path (LI-2): the
+  hypotheticals a game ran, each a frame clone per member reached. Zero
+  means the static channel check settled every pair in every layer; with
+  Urborg pooled it reads ~23 per game, nearly all Blood Moon beside Urborg
+  and Humility beside a creature static.
+- **Replacement gathers** and **restriction queries** are the two sweeps that
+  *multiply* into layer walks: one gather can be one walk per permanent. Reading
+  them beside the walk count is how you tell "a sweep got greedy" from "the game
+  got longer".
+
+## The records, newest first
+
 **Measured 2026-10-24 for item 318** (#285, `last-known-information-store`:
 one LKI store keyed by existence, the keepers' lists and the second captures
 gone, the four view types folded into `ObjectInformation`; A6e's cleanup PR

@@ -182,9 +182,9 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 ## Performance floors
 
-The latest reading of each of `engineering-practices.md` §3.1's floors, from
-the table there, and how much room it leaves. A floor with less than 20% room
-is bolded.
+Each floor's limit (`engineering-practices.md#the-floors`) and latest reading
+(`fuzz-record.md#the-latest-floor-readings`), and how much room it leaves. A floor
+with less than 20% room is bolded.
 
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|

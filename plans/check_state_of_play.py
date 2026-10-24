@@ -32,10 +32,11 @@ out of the generated file.
    path. This is the failure that happened: RC-5 landed, its heading said so,
    and `CLAUDE.md` still said "RC-5 next".
 
-3. **The floors' table drifting** — the latest readings of
-   `engineering-practices.md` §3.1's three floors are rendered from the table
-   between its `floors` markers, so a reading taken and not regenerated here
-   fails the check like any other stale number.
+3. **The floors' table drifting** — each floor's limit
+   (`engineering-practices.md#the-floors`) and latest reading
+   (`fuzz-record.md#the-latest-floor-readings`) are rendered from the tables
+   between their markers, so a reading taken and not regenerated here fails
+   the check like any other stale number.
 
 4. **The Deferred Migrations parser drifting** — `selftest()` runs the item
    splitter and the verdict classifier against a fixture before every check,
@@ -462,28 +463,42 @@ def selftest():
     ], f"selftest: defined {defined}"
 
 
-def floors():
-    """`engineering-practices.md` §3.1's latest floor readings, with each one's room.
-
-    The room is how far the reading is from its limit, as a fraction of the
-    limit's side: a reading above a "≥" floor by half is 50%, a reading under a
-    "≤" floor by a third of itself is 33%. The table is the authority; this only
-    copies it and does the division.
-    """
-    text = read("plans/engineering-practices.md")
-    start = text.index("<!-- floors: begin -->")
-    end = text.index("<!-- floors: end -->", start)
+def table_rows(path, marker, width):
+    """The body rows of the four-column table between `<!-- {marker}: begin -->`
+    and its end marker, each as its cells."""
+    text = read(path)
+    start = text.index(f"<!-- {marker}: begin -->")
+    end = text.index(f"<!-- {marker}: end -->", start)
     rows = []
     for line in text[start:end].split("\n"):
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) != 5 or cells[0] in ("Floor", "---") or set(cells[0]) <= set("-"):
+        if len(cells) != width or cells[0] == "Floor" or set(cells[0]) <= set("-"):
             continue
-        floor, limit, reading, read_on, where = cells
+        rows.append(cells)
+    assert rows, f"the table between {path}'s {marker} markers is empty"
+    return rows
+
+
+def floors():
+    """Each floor's limit and latest reading, with the room it leaves.
+
+    The limits are `engineering-practices.md#the-floors`'s, a rule, and the
+    readings `fuzz-record.md#the-latest-floor-readings`, a measurement; the two
+    tables name the same floors in the same order, and this joins them. The room
+    is how far the reading is from its limit, as a fraction of the limit's side:
+    a reading above a "≥" floor by half is 50%, a reading under a "≤" floor by a
+    third of itself is 33%.
+    """
+    limits = table_rows("plans/engineering-practices.md", "floors", 4)
+    readings = table_rows("plans/fuzz-record.md", "floor readings", 4)
+    named = [row[0] for row in limits], [row[0] for row in readings]
+    assert named[0] == named[1], f"the floors' limits and readings name different floors: {named}"
+    rows = []
+    for (floor, limit, _definition, _instrument), (_, reading, read_on, where) in zip(limits, readings):
         sign, bound = limit.split()
         value, bound = float(reading), float(bound)
         room = value / bound - 1 if sign == "≥" else bound / value - 1
         rows.append((floor, limit, reading, read_on, where, room))
-    assert rows, "the floors table between its markers is empty"
     return rows
 
 
@@ -670,9 +685,9 @@ def render():
     L.append("")
     L.append("## Performance floors")
     L.append("")
-    L.append("The latest reading of each of `engineering-practices.md` §3.1's floors, from")
-    L.append("the table there, and how much room it leaves. A floor with less than 20% room")
-    L.append("is bolded.")
+    L.append("Each floor's limit (`engineering-practices.md#the-floors`) and latest reading")
+    L.append("(`fuzz-record.md#the-latest-floor-readings`), and how much room it leaves. A floor")
+    L.append("with less than 20% room is bolded.")
     L.append("")
     L.append("| Floor | Limit | Latest | Room | Read on |")
     L.append("|---|---:|---:|---:|---|")

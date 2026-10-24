@@ -807,12 +807,12 @@ and the dated record of every reading stays in `fuzz-record.md`. The
 "Standing" column above keeps the history and the reasons.
 
 <!-- floors: begin -->
-| Floor | Limit | Reading | Read on | Where |
-|---|---|---|---|---|
-| 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 2026-10-06 | #225's pooled tree on `performance` at Commander scale, 200 games: 17,900 on one thread, 7.26 times that on 16 threads over 8 physical cores |
-| 2. Allocations per clone | ≤ 64 | 37 | 2026-10-21 | CL-1's tree: `clone_bound_test` in release at 188 checkpoints and 10,253 decisions over 24 Commander games, the worst `performance` 12353's decision at turn 31, and `clone_fixture_test`'s boards, at most 14 |
-| 2. Microseconds per clone | ≤ 10 | 1.8 | 2026-10-21 | CL-1's tree, the same 188 checkpoints, at each the median of five means of 2,000 clone-and-drops under the System allocator; the worst checkpoint of three runs, which read 1.75, 1.69 and 1.73. At decisions it is A6e's readiness pass's (`clone-architecture.md` decision 6(d)) |
-| 3. Kilobytes per clone | ≤ 128 | 8.7 | 2026-10-21 | the same readings, the worst `clone_fixture_test`'s 8,000 stacked triggers; at most 6.7 at a decision |
+| Floor | Limit | Definition | Instrument |
+|---|---|---|---|
+| 1. Decisions per loaded physical core-second | ≥ 10000 | at Commander scale (`--deck-size 100 --life 40 --players 4`) under the default bot stack; a decision counted where it reaches the agent; loaded = the one-thread rate × (16-thread speed-up ÷ physical cores) | the readiness pass, counted by a provider innermost in the stack, with callgrind instructions per decision beside it |
+| 2. Allocations per clone | ≤ 64 | CI's proxy for a full-state clone within 10 µs, at item 143's checkpoints, at every decision and on the fixture boards | `clone_bound_test` and `clone_fixture_test` in CI's release step, with `fork_copies_test` beside them |
+| 2. Microseconds per clone | ≤ 10 | a full-state clone, portably ≤ 1/6 of one decision's engine CPU, at the same readings | the readiness pass |
+| 3. Kilobytes per clone | ≤ 128 | deep clone size, bounded by the board's high-water mark and never by the turn count | the same tests, exact bytes with the hash seed pinned |
 <!-- floors: end -->
 
 **Floor 1 is read under a named stack, as it is read on a named board.** Its
