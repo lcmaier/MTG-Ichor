@@ -270,7 +270,7 @@ impl GameState {
         // and CR 601.2 rewinds the whole cast either way. A bare `?` here left
         // the card on the stack to resolve unpaid (`codebase-state.md` 16c).
         let mana_spent = match self.pay_costs(&plan, player_id, card_id, &actx) {
-            Ok(paid) => paid.mana,
+            Ok(spent) => spent,
             Err(e) => {
                 self.rollback_cast_to_hand(card_id)?;
                 return Err(e);
@@ -427,7 +427,7 @@ impl GameState {
     /// CR 602.2b's and 605.3a's announcement, once the costs are paid:
     /// `identity` activated by `controller` from `from`, the zone its source
     /// was in, with the source as it last was there where a cost moved it
-    /// (`PaidCosts`). With the activator's provider, since a triggered mana
+    /// (the LKI store's). With the activator's provider, since a triggered mana
     /// ability on it resolves at the dispatch (CR 605.1b, 605.4a).
     pub(crate) fn announce_activation(
         &mut self,

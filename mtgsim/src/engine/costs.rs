@@ -103,13 +103,6 @@ const RANK_MANA: u8 = 0;
 const RANK_MUTATES: u8 = 1;
 const RANK_MOVES_AN_OBJECT: u8 = 2;
 
-/// What paying a total cost leaves behind beyond the payment itself. A cost
-/// that moved the source left its last known information in the LKI store,
-/// framed by the cost's own batch (CR 113.7a).
-pub struct PaidCosts {
-    /// The mana it spent (CR 601.2h), which CR 400.7d's facts keep.
-    pub mana: ManaSpent,
-}
 
 /// Where a cost sits in the order the engine pays a total cost.
 ///
@@ -365,14 +358,17 @@ impl GameState {
     /// cancellation because [`payment_order_rank`] makes it unreachable — see
     /// the debug assertion below, which is where that claim is enforced.
     ///
-    /// Returns the mana spent, which only the pool knows once it has been paid.
+    /// Returns the mana spent (CR 601.2h), which only the pool knows once it
+    /// has been paid and CR 400.7d's facts keep. A cost that moved an object
+    /// left that object's last known information in the LKI store, framed by
+    /// the cost's own batch (CR 113.7a).
     pub fn pay_costs(
         &mut self,
         plan: &PaymentPlan,
         player_id: PlayerId,
         source_id: ObjectId,
         ctx: &ActionContext,
-    ) -> Result<PaidCosts, String> {
+    ) -> Result<ManaSpent, String> {
         let mut moved_an_object = false;
         let mut spent = ManaSpent::NONE;
         for (idx, cost) in plan.ordered.iter().enumerate() {
@@ -398,7 +394,7 @@ impl GameState {
                 moved_an_object = true;
             }
         }
-        Ok(PaidCosts { mana: spent })
+        Ok(spent)
     }
 
     /// Pay a single cost from the plan. Internal helper.
@@ -526,7 +522,7 @@ mod tests {
         ctx: &crate::engine::actions::ActionContext,
     ) -> Result<ManaSpent, String> {
         let plan = game.plan_payment(costs, player, source, ctx)?;
-        game.pay_costs(&plan, player, source, ctx).map(|paid| paid.mana)
+        game.pay_costs(&plan, player, source, ctx)
     }
 
     fn setup_with_forest() -> (GameState, crate::types::ids::ObjectId) {
