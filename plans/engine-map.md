@@ -14,7 +14,7 @@ fails when a name here stops existing or the chokepoint's arms stop matching
 `GameAction`, and `--drift` lists the lines that moved since the pin (§3).
 
 **Why a markdown page and not a trace page.** A trace page is pinned and never
-maintained (`engineering-practices.md` §7); this page is refreshed, so it sits
+maintained (`engineering-practices.md#trace-pages`); this page is refreshed, so it sits
 with the docs that are maintained. Markdown is also what the check can read
 line by line, what a review diffs line by line, and what `grep` finds. It
 costs the mermaid diagrams: §1.1 is a text sketch instead.
@@ -129,7 +129,7 @@ each, and reads these seams for a fifth loop, finding none.
 
 Every file under `mtgsim/src` is named here, and `--drift` lists one that is
 not (§3); `mod.rs` files declare and re-export only
-(`engineering-practices.md` §6).
+(`engineering-practices.md#module-layout`).
 
 | Module | Owns |
 |---|---|
@@ -310,15 +310,15 @@ The prompts the engine answers itself, and why: `elisions.md` §2, §3.
 
 | Invariant | Lives at | Doc |
 |---|---|---|
-| Characteristics of an object in any zone come through the layers | `oracle/characteristics.rs` → `compute_characteristics` `engine/layers/compute.rs:103`; exemptions tagged `// PRE-LAYER ZONE:`, `// AS PRINTED:` (`printed_faces` `ui/display.rs:172`) and `// NO ROW REACHES:` (`prints_cost_ability` `engine/cost_determination/gather.rs:208`, `objects_that_may_trigger` `engine/triggers/audit.rs:154`), and `register_static_effects` `state/game_state.rs:1984` | `layers-architecture.md` §11.1; the tags, `engineering-practices.md` §11 |
+| Characteristics of an object in any zone come through the layers | `oracle/characteristics.rs` → `compute_characteristics` `engine/layers/compute.rs:103`; exemptions tagged `// PRE-LAYER ZONE:`, `// AS PRINTED:` (`printed_faces` `ui/display.rs:172`) and `// NO ROW REACHES:` (`prints_cost_ability` `engine/cost_determination/gather.rs:208`, `objects_that_may_trigger` `engine/triggers/audit.rs:154`), and `register_static_effects` `state/game_state.rs:1984` | `layers-architecture.md` §11.1; the tags, `engineering-practices.md#invariant-gates` |
 | Ability indices are into the effective list | `activatable_abilities` `oracle/mana_helpers.rs:360`, the re-derivation by id at `engine/priority.rs:143`, `activate_ability` `engine/put_on_stack.rs:484` | `cant-effects-architecture.md` §4.4 |
 | Registry membership is not effect existence | `static_ability_still_exists` `engine/layers/board.rs:1192`, asked per layer; nothing inside the pass calls the top-level entry, and only a non-member's walk recurses, at a strictly lower ceiling: `Board::frame_of` `engine/layers/board.rs:412` | `layers-architecture.md` §5.2 |
 | CDAs are never registry effects | `cda_modifications` `engine/layers/cda.rs:71`; skipped at registration, `state/game_state.rs:2090`; a Layer 6 grant clears the flag at `engine/layers/compute.rs:1211`, in `apply_resolved` | `layers-architecture.md` §6 |
-| No observable mutation outside `perform_action`'s arms | `perform_action` `engine/actions.rs:1461` | `replacement-architecture.md` §2; the gate and its two tags, `engineering-practices.md` §11 |
+| No observable mutation outside `perform_action`'s arms | `perform_action` `engine/actions.rs:1461` | `replacement-architecture.md` §2; the gate and its two tags, `engineering-practices.md#invariant-gates` |
 | A `ZoneChange` names its act and a proposal its cause, with no catchall | `ZoneChangeAct` `types/zones.rs:226`, `EventCause` `events/cause.rs:21` | `replacement-architecture.md` §2b.2, §2b.3 |
 | Performers are loud; callers check legality | the `Untap` arm `engine/actions.rs:1645`; `Primitive::Untap` `engine/resolve.rs:1030` | `replacement-architecture.md` §9 (RA-2) |
 | "Becomes" events fire on the transition only | the `Tap` arm `engine/actions.rs:1706` | CR 603.2e |
-| An observable order goes through the timestamp order | `battlefield_ordered` `state/game_state.rs:1375`, `battlefield_ids_ordered` `state/game_state.rs:1385`, keyed on `PermanentState::timestamp` `state/battlefield.rs:63` | `plans/id-hasher.md` §6; the gate, `engineering-practices.md` §11 |
+| An observable order goes through the timestamp order | `battlefield_ordered` `state/game_state.rs:1375`, `battlefield_ids_ordered` `state/game_state.rs:1385`, keyed on `PermanentState::timestamp` `state/battlefield.rs:63` | `plans/id-hasher.md` §6; the gate, `engineering-practices.md#invariant-gates` |
 | One performer, one emitter | `move_object` `engine/zones.rs:50`, `announce_zone_change` `engine/actions.rs:2133` | `replacement-architecture.md` §11, item 20 |
 | A simultaneous rule needs a batch | `execute_actions` `engine/actions.rs:821`; `execute_actions_new_batch` `engine/actions.rs:999` | `replacement-architecture.md` §4.2 |
 | No outcome-bearing decision state off `GameState` | §2.6 | `codebase-state.md` item 40 |

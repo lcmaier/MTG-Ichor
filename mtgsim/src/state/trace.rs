@@ -1,4 +1,5 @@
-//! The trace sink — tier 2 of `engineering-practices.md` §7.1 (row A4c).
+//! The trace sink — tier 2 of
+//! `trace-pages.md#the-trace-sink-and-the-engine-map` (row A4c).
 //!
 //! # What it is
 //!

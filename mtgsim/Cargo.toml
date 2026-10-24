@@ -34,7 +34,7 @@ test-support = []
 # with its reason, rather than at the site. Each count below is a re-count
 # with that lint's allow removed, dated: a count nothing recomputes goes stale
 # (four of the five had moved by 2026-10-08, and four again by 2026-10-22,
-# `engineering-practices.md` §2.1).
+# `engineering-practices.md#the-comment-sweep`).
 [lints.clippy]
 # 16 sites (2026-10-22). A performer, an `ask_*` or a rules check takes the
 # board, the actor, the event and each bound as its own parameter on purpose;
@@ -57,8 +57,8 @@ large_enum_variant = "allow"
 # with no caller is dead code.
 new_without_default = "allow"
 # 10 sites (2026-10-22), five in tests. A `type` alias used once is a second
-# name for one thing (`engineering-practices.md` §2a); the tuple is read where
-# it is written.
+# name for one thing (`engineering-practices.md#one-line-wrappers`); the tuple
+# is read where it is written.
 type_complexity = "allow"
 # 3 sites (2026-10-22). A row of the dependency matrix is a component number
 # and an index into a mana bag is a mana type — the index is the identity —

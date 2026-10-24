@@ -435,7 +435,7 @@ filed here:
 The zone-statement row is item 173, scheduled into TR-4. Tribute and X
 stay Phase 8's. A rulings sweep over every row was scoped (about 2,000
 cards, 5,467 rulings) and dropped: a card's rulings are read when it is
-registered (`engineering-practices.md` §3.4).
+registered (`engineering-practices.md#rulings`).
 
 ---
 
@@ -570,7 +570,7 @@ records the rule and the row rather than an answer.
    settles the *gain* side the same way ("separate life gain events"). The
    doc decides whether "whenever you lose life" (51 cards) is per record or
    per batch, and reads the printed rulings before it does — this is the
-   shape `engineering-practices.md` §8 warns about, a rule on one side and
+   shape `engineering-practices.md#the-rules-pass` warns about, a rule on one side and
    the ruling on the other.
 4. **CR 122.6's entry counters — which record.** Item 17's shape: counter
    rows on the entry event, or a `CountersChanged` per row announced after

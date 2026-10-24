@@ -287,7 +287,7 @@
 //! putter, which its text says and `ATOM-122.6a-001`'s example gets wrong.
 //! No printed effect names a putter at an entry (Scryfall, 2026-09-14) and
 //! the field is built anyway: the CR states it, and Bold Plagiarist names
-//! one on a proposal (`engineering-practices.md` §4).
+//! one on a proposal (`engineering-practices.md#sizing-a-phase`).
 //!
 //! **A multiplier and a plus do not commute, and the prompt is real.**
 //! Doubling Season beside Hardened Scales is 1 → 2 → 3 or 1 → 2 → 4, and

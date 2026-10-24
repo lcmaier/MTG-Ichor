@@ -1,7 +1,7 @@
 # Fuzz record — the pooled fixture tables, phase by phase
 
 Every `**Re-recorded …**` block the project has written, moved out of
-`engineering-practices.md` §3 on 2026-09-13. §3 had grown to about 2,000 lines
+`engineering-practices.md#cards-and-pools` on 2026-09-13. That section had grown to about 2,000 lines
 and roughly 1,400 of them were record; the rules the section exists for were the
 shorter half of it. The rules stayed there; the numbers came here.
 
@@ -9,7 +9,7 @@ shorter half of it. The rules stayed there; the numbers came here.
 grants authority to anything. Each block is what one PR measured, written after
 that PR's A/B — evidence about a tree that existed on a date, never a target, a
 budget, or a claim about the tree you have now. The rules that govern the
-measuring stay in `engineering-practices.md` §3: which pool answers which
+measuring stay in `engineering-practices.md#cards-and-pools`: which pool answers which
 question, what a row may hold and what it may not (`ms/game` may not, and why),
 and how to read the five bold counter rows. Read those there; read this for what
 the numbers were.
@@ -19,7 +19,7 @@ had stopped being ordered — later phases were appended *below* LI-3 while the
 LI/LH tail kept its original newest-first order — so it was re-sorted on the
 move, same-date ties in merge order. **A phase that moves a pool re-records both
 the `performance` and the `stress` table and adds its block here**; that rule is
-`engineering-practices.md` §3's and stays there, restated here only so the next
+`engineering-practices.md#cards-and-pools`'s and stays there, restated here only so the next
 person appending knows where the numbers go.
 
 **Three runs were reunited with the entries that own them**, because sorting by
@@ -28,7 +28,7 @@ middle of RE-7's block: LI-3's three-arm A/B (what LI-3's summary calls "the
 three-arm table below", 900 lines further down and inside another entry); the
 CR 704.5p fix's fixture re-record, including a table row orphaned from its own
 header; and a run of instrument doctrine from the RD-3 review, which is a rule
-rather than a measurement and went back to `engineering-practices.md` §3. No
+rather than a measurement and went back to `engineering-practices.md#cards-and-pools`. No
 sentence in any of them was changed.
 
 **What the move preserved.** Every `**Re-recorded …**` heading is byte-identical
@@ -1461,8 +1461,8 @@ four-seat `stress` game hit the turn limit: game 553 (seed 1329), a standoff
 with life totals in the hundreds (Words of Worship, Exquisite Archangel),
 where Grafted Wargear was cast on turn 199 of 200.
 
-**Bramble Elemental pooled, at #252's review (2026-10-15).** `engineering-practices.md`
-§3: a phase that opens a new engine path adds one card to the pool, and
+**Bramble Elemental pooled, at #252's review (2026-10-15).**
+`engineering-practices.md#cards-and-pools`: a phase that opens a new engine path adds one card to the pool, and
 Bramble Elemental is the benign reader of the phase's records. The same
 **main** and **engine** arms, and **shipped** `19cf33c`, which carries the
 review's renames too; they change no behavior. Predictions, before the run:
@@ -1703,7 +1703,7 @@ same dispatch counts agreed; instructions per decision 0.6439 M → 0.6441 M,
 **+0.04%**. Every prediction held.
 
 **Re-recorded 2026-10-13 for A6q** (#247: the invariants as checks,
-`engineering-practices.md` §11). No card joins the registry or the pool (188
+`engineering-practices.md#invariant-gates`). No card joins the registry or the pool (188
 registered, 106 pooled), and no pool moved: the record is the budget's, and
 the first reading of the checked sitting. `close_out.py` against **main**
 `62361c6` (#246's merge), with two arms and an attribution arm:
@@ -2526,7 +2526,7 @@ within ±0.3%.
 | instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7527 M → 0.7527 M, **−0.01%** |
 
 Every prediction held. The close-out ran in 110 s. What the audit's scope
-does for a debug window is `engineering-practices.md` §10.4's reading, not
+does for a debug window is `engineering-practices.md#what-one-prompt-costs-the-window`'s reading, not
 this table's: the release binary `fuzz_games` builds has no audit.
 
 **Measured 2026-10-06 for the editor's advanced settings, first part**
@@ -2998,7 +2998,7 @@ was. The engine arms before review, `49ddfac`, and before the stamp,
 `baaf787`, read the same rows and −0.11% and −0.03%.
 
 **Measured 2026-10-01 for A6g's review practices** (the dev GUI's review
-path, `engineering-practices.md` §10), whose one engine change is a loss
+path, `engineering-practices.md#the-dev-gui`), whose one engine change is a loss
 bumping the layer epoch: finding 1 of PR #208's table, `layers-architecture.md`
 §12's list of walk inputs. No pool change. `close_out.py`: **main** `a51afec`
 (#207's merge) against **engine** `81b727f`, the fix's commit and the PR's only
@@ -4027,7 +4027,7 @@ the registry's per-row payloads (`codebase-state.md` item 180). `close_out.py`
 on `ddbf5ad` against `main`: every gameplay row **IDENTICAL** on both pools at two seats and four, no cost row moved, and 0.7675 M → 0.7665 M instructions per decision (**−0.14%**). Round 1's arm read 0.7666 M, so on this board, whose pool has few grants and fewer trigger matches, the `Arc`s cost nothing and save little.
 
 **Calibrated 2026-09-25: does a cycle estimate read CPU better than
-instructions?** (the process PR; `engineering-practices.md` §3.1's budget). The
+instructions?** (the process PR; `engineering-practices.md#the-budget`). The
 owner adopted callgrind for the per-PR budget on one condition: any cycle
 estimate had to rest on data. The sample was six engine builds whose layouts
 differ: 2026-09-15 (UUID ids), A4g's two 2026-09-16 arms, `28a1d18`, `45d32e7`

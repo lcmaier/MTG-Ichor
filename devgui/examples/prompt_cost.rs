@@ -24,10 +24,11 @@
 //!   question's section, and the panel's view at every repaint
 //!   (`setup-architecture.md` §7c).
 //!
-//! A number to read beside a change, not a gate (`engineering-practices.md`
-//! §10.4): the time is the machine's, and the allocations are the code's.
-//! The board defaults to `tests/scenarios/large.scenario`, and the prompt is
-//! the one the engine asks first there.
+//! A number to read beside a change, not a gate
+//! (`engineering-practices.md#what-one-prompt-costs-the-window`): the time is
+//! the machine's, and the allocations are the code's. The board defaults to
+//! `tests/scenarios/large.scenario`, and the prompt is the one the engine asks
+//! first there.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;

@@ -258,8 +258,8 @@ are two pools — `PERFORMANCE_POOL`, the representative board an engine change 
 A/B'd against, and the stress pool that `--pool stress` plays. Kalitas is in the
 second only, and was in neither's way: 50 stress games at seed 12345 produce 202
 Zombie tokens and no panics. (`PERFORMANCE_POOL` was *frozen* until 2026-09-01
-and now grows one card per new engine path — `engineering-practices.md` §3.)
-**Register every card you write** (`plans/engineering-practices.md` §3);
+and now grows one card per new engine path — `engineering-practices.md#cards-and-pools`.)
+**Register every card you write** (`plans/engineering-practices.md#cards-and-pools`);
 `PERFORMANCE_POOL` is what protects the baseline.
 
 **What RB did not unlock, despite appearances.** CR 615's prevention machinery
@@ -392,8 +392,8 @@ print no copy clause at all, which is why §2.2's population table exists.
 Ticket ids are the `TR` phases of `plans/triggers-architecture.md` §12.
 Reachability is `fuzz_games --require` on the shipped arm, `performance`, 200
 games at seed 12345 — resolutions, the games they resolved in, and **copies
-per deck**, which a count is only comparable per (`engineering-practices.md`
-§3). `Triggers placed` is the row the phase added; a triggered mana ability
+per deck**, which a count is only comparable per
+(`engineering-practices.md#cards-and-pools`). `Triggers placed` is the row the phase added; a triggered mana ability
 never reaches it (CR 605.4a).
 
 | Ticket | Cards Unlocked | Example Cards | Status |

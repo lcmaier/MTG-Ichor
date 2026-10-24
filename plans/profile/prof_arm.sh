@@ -1,12 +1,12 @@
 #!/bin/bash
 # prof_arm.sh <crate dir under /mnt/c> <arm dir under ~> <fuzz_games board flags...>
 #
-# One callgrind arm, run inside WSL's Ubuntu-24.04 (engineering-practices.md
-# §3's instruction-count instrument). Copies the crate into the arm directory,
-# builds fuzz_games with debug info, plays the board natively and then under
-# callgrind, and says whether the two agree outside `=== Timing ===`: an
-# instruction count is comparable only between identical games, so a run
-# where they differ is not a reading.
+# One callgrind arm, run inside WSL's Ubuntu-24.04
+# (engineering-practices.md#the-budget's instruction-count instrument). Copies
+# the crate into the arm directory, builds fuzz_games with debug info, plays the
+# board natively and then under callgrind, and says whether the two agree
+# outside `=== Timing ===`: an instruction count is comparable only between
+# identical games, so a run where they differ is not a reading.
 #
 # The board is every flag after the second argument, passed to both runs
 # with `--threads 1`. The Commander-scale baseline in fuzz-record.md is

@@ -226,7 +226,7 @@ plans/check_state_of_play.py --slotted <code>`), and `--check` fails on an open
 item with no home, on one slotted only to phases that have landed, and on a
 number used twice in one run. "The first registered card" is for a fix that is
 mechanical once a card needs it; an item that needs a design decision names a
-phase or a row (`engineering-practices.md` §4, adopted at TR-5d's review).
+phase or a row (`engineering-practices.md#gaps-a-phase-finds`, adopted at TR-5d's review).
 
 **What does not belong here (adopted 2026-09-12, RE-6's review).** A wrong
 answer sized under about thirty lines, with a fixture that can prove it, is
@@ -257,8 +257,8 @@ unreachable", and the phrase is retired.
 review). A facility the CR states is owed whether or not a card prints it —
 a card can be printed next set, and custom card creation is a post-v1 goal.
 The reachability line says "no printed producer", never "nothing owed", and
-a fixture test is the customer until a card is. `engineering-practices.md`
-§4; item 43 is the one that was closed that way and reopened.
+a fixture test is the customer until a card is.
+`engineering-practices.md#gaps-a-phase-finds`; item 43 is the one that was closed that way and reopened.
 
 **Item ids are section-scoped, not unique (decided 2026-09-03).** Four runs
 share the numbers 1–65: the main run, which spans every dated "Found by …"
@@ -558,7 +558,7 @@ for nothing, and `double-faced-cards` adds it in the commit that populates it.
 - **`init_etb_counters` is deleted.** CR 306.5b's loyalty is `GameState::default_enter_mods`, which *seeds the proposal* — so Phase RE's counter doublers will replace it with no further work. It is the first thing in the engine to be modelled as "what the rules say this permanent enters with" rather than as a direct write.
 - **One emitter.** `GameEvent::PermanentEnteredBattlefield` was emitted by `stack.rs` for a resolving permanent spell and by `resolve.rs` for a token, and **not at all for a land drop** — the most frequent entry in the game. The performer emits it now, once, with the *effective* controller (CR 400.7a's Layer 2 row has already moved a stolen permanent spell by then).
 - **`gather` grew source 1a and a gate leg**: the entering permanent itself, read off its effective ability list, ahead of the fast-path gate. Without it every "this permanent enters tapped" is dead text, because `replacement_ability_sources` is written by `register_static_effects` *inside* the performer. `chooser_for_event` reads CR 616.1's chooser off the proposal, because an entering permanent has no controller for `controller_or_owner` to find.
-- **Two cards, one per half of `EnterMods`**: Idyllic Beachfront (CR 110.5b) and Chainbreaker (CR 122.6a). `PERFORMANCE_POOL` 57 → 59; `engineering-practices.md` §3's table re-recorded. A third, **Adaptive Shimmerer**, is registered into the stress pool alone: a 0/0 is the only board state that dies if CR 122.6a's counters arrive after the entry is observable, and until it existed that claim rested on a fixture the registered pool could not build (§3.3).
+- **Two cards, one per half of `EnterMods`**: Idyllic Beachfront (CR 110.5b) and Chainbreaker (CR 122.6a). `PERFORMANCE_POOL` 57 → 59; `engineering-practices.md#cards-and-pools`'s table re-recorded. A third, **Adaptive Shimmerer**, is registered into the stress pool alone: a 0/0 is the only board state that dies if CR 122.6a's counters arrive after the entry is observable, and until it existed that claim rested on a fixture the registered pool could not build (`engineering-practices.md#how-many-cards-a-mechanic-owes`).
 - **Event-stream check**: at 40 games / seed 12345, canonicalized and diffed against a same-day `main` binary with the new cards unregistered, **the only difference is one added `ETB` line per land drop** — 708 on `performance`, 699 on `stress`, zero deletions, zero reorderings.
 
 **One performance finding, and it is about the measurement rather than the code.** RC-2 is the first phase to put static replacement sources into `PERFORMANCE_POOL`, so `gather`'s board-level fast path — "is anything here a replacement source" — is true from the first tapland onward and the sweep walked *every* permanent with a full `compute_characteristics` per proposed action. The exit-criterion A/B ran with the new cards unregistered and so measured the gate closed. A **per-permanent** gate (the same predicate one object at a time, exact by the same argument, byte-identical event streams) is worth **10.3% of total game time on `performance` and 9.2% on `stress`**. The lesson generalizes past this phase: *an A/B that neutralises a PR's card additions measures the engine and not the game*, and both numbers are worth having.
@@ -1094,7 +1094,7 @@ registered card returns an object.
     **Sized:** none.
     **Slotted:** none — a record of the rule that a `ChoiceKind` names the
     question, never the card, which review applies beside
-    `engineering-practices.md` §2b.
+    `engineering-practices.md#names`.
 
 69. **~~Every performance number this project owns is two-player, and v1's
     profile is four~~ ✅ CLOSED 2026-09-15 (the post-RE audit, pass 3) —
@@ -1260,8 +1260,8 @@ registered card returns an object.
     combat phase uses it rather than writing a second one**; a one-line
     `entry.attacking = None` is the version that looks right and is not. No
     action owed before then. (It is also the sizing lesson: a phase split on
-    subsystem lines would have kept it out, which is `engineering-practices.md`
-    §4's rule and why RB ran to +5,475.)
+    subsystem lines would have kept it out, which is
+    `engineering-practices.md#sizing-a-phase`'s rule and why RB ran to +5,475.)
 
     **Reachability (2026-09-03):** nothing owed — a pointer for the combat
     phase.
@@ -1822,8 +1822,8 @@ section never asked.
     defined in `phase_rb_integration_test.rs` and registered in no pool. A
     bespoke fixture can cover an atom while the registered pool cannot build the
     same scenario, so **`specdb` coverage and fuzz reachability are different
-    measurements and neither implies the other.** → `engineering-practices.md`
-    §3.3, which generalizes both halves into a rule.
+    measurements and neither implies the other.** →
+    `engineering-practices.md#how-many-cards-a-mechanic-owes`, which generalizes both halves into a rule.
 
     **Sized as two cards and zero engine change; the second half of that was
     wrong.** Both are non-legendary enchantments whose battlefield-side
@@ -2046,7 +2046,7 @@ section never asked.
     was kept *out of the registry* to protect a number.
 
     Sigarda and Diabolic Edict were added, 55 → 57, and
-    `engineering-practices.md` §3's table was re-recorded — with `ms/game`
+    `engineering-practices.md#cards-and-pools`'s table was re-recorded — with `ms/game`
     **removed** from it, since a stored timing figure was never comparable
     across days and someone will always compare a number that is present. Its
     seed-deterministic rows stay, because those are fixtures rather than
@@ -2069,7 +2069,7 @@ section never asked.
 
     **Sized:** none.
     **Slotted:** none — a record of RS-1's interleaved A/B and the open path's
-    ~1% card cost; ending the pool freeze is `engineering-practices.md` §3's.
+    ~1% card cost; ending the pool freeze is `engineering-practices.md#cards-and-pools`'s.
 
 ### Found by the fork-and-search question (2026-09-01)
 
@@ -2282,7 +2282,7 @@ section never asked.
     `by: Option<PlayerRef>` on `Primitive::AddCounters` and `GetCounters` for
     Bold Plagiarist's shape on a proposal. RE-5 had closed it on 2026-09-13
     on an empty Scryfall query, which the review's rule rejects — the CR is
-    the customer, a printed card is the test (`engineering-practices.md` §4;
+    the customer, a printed card is the test (`engineering-practices.md#gaps-a-phase-finds`;
     `replacement-architecture.md` §11 item 83).
     → `plans/archive/codebase-state-closed.md`.
 
@@ -3094,7 +3094,7 @@ both explicit; `ui::ManaWindowStop` and `ui::AutoPayer`, two `DecisionProvider`
 decorators that clients compose; `--no-auto-pay` on both binaries. Items 70 and
 71 close here and item 72 is placed. No new card — §3.11's step 3 builds out of
 CM-3's registered five — so `PERFORMANCE_POOL` does not move and
-`engineering-practices.md` §3's table is not re-recorded.
+`engineering-practices.md#cards-and-pools`'s table is not re-recorded.
 
 **Why two decorators and not one payer with a scope.** The first design gave
 `ui::AutoPayer<D>` a `PayerScope` enum so each client could take a subset of
@@ -3362,7 +3362,7 @@ worth more than the comments it corrects.
 
 89. **~~A comment can state a measured fact and go stale without any code
     changing.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
-    A record held by `engineering-practices.md` §2, which carries the finding
+    A record held by `engineering-practices.md#comments`, which carries the finding
     and the audit it set.
     **Reachability (2026-10-09):** closed — PR #238.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 89".
@@ -3648,7 +3648,7 @@ audit is at the end.
 
      **Asked at review: should the fuzz harness cap repeated activations of one
      ability? No.** (1) It would make every counter a function of a policy
-     knob, which is what `engineering-practices.md` §3 keeps out of the table —
+     knob, which is what `engineering-practices.md#cards-and-pools` keeps out of the table —
      every historical row would become incomparable. (2) The random agent is
      not biased toward the ability: `candidate_priority_actions` lists it
      **once** however many times it could be paid for, so what the numbers show
@@ -3670,7 +3670,7 @@ audit is at the end.
 
 105. **~~The pool has never contained an ability that can be activated more
      than once.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
-     A rule held by `engineering-practices.md` §3: the first phase whose engine
+     A rule held by `engineering-practices.md#cards-and-pools`: the first phase whose engine
      path is an activated ability pools one.
      **Reachability (2026-10-09):** closed — PR #238.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 105".
@@ -3912,7 +3912,7 @@ so it is a mechanic the surface cannot express and not debt. Trace page:
 ### Is the trigger code ready for TR-4–TR-7? — audited 2026-10-08
 
 Critical-path item 6's midpoint audit, A6k, the first under
-`engineering-practices.md` §9's midpoint rule: 81 PRs after the last comment
+`engineering-practices.md#the-spine-phase-audit`'s midpoint rule: 81 PRs after the last comment
 sweep, with about eight engine PRs before item 6's close. Planned as
 `plans/handoffs/triggers-midpoint-audit.md` (PR #235) and closed by PR #237,
 which deleted it; its last text is that PR's parent. Pointers, not prose.
@@ -3953,7 +3953,7 @@ next spine item was a doc nobody had sized. Planned as
 2026-09-15, and closed by the pass that deleted the handoff — this heading is
 its record, pointers not prose. The handoff's last text is `git show
 341ebf9:plans/handoffs/post-re-audit.md`; the practice it became is
-`engineering-practices.md` §9, which names each pass's instrument and is
+`spine-phase-audit.md`, which names each pass's instrument and is
 where the next run, at item 6's close, starts.
 
 **Yes, with a "not yet" list, and the list is the CR 614–616 row's.** The
@@ -3979,21 +3979,21 @@ through RB", and `owed` scoped to three older phases at every RE close.
   #146–#149):** clippy counted at 114 sites and adopted at `-D warnings`
   with five lints allowed; `check_glossary.py` in CI; the toolchain floor
   measured at 1.88 (`rust-version`) with the pin kept at 1.98; `cargo fmt
-  --check` costed and left to the owner; `engineering-practices.md` §2.1's
+  --check` costed and left to the owner; `engineering-practices.md#the-comment-sweep`'s
   two recorded applications, 17,278 → 15,806 comment lines; twelve `TODO`s
   re-owned, `backlog.md` §2.32 filed for one.
 - **Pass 3, readiness (PR #153):** items 138–143 below — the target as a
   ratchet with its first reading, the retry re-prompt's stale list, the
   round-resume entry point, the serialization boundary and the payload rule,
   the panic surface with `plans/panic_surface.py`, the clone at Commander
-  scale; `engineering-practices.md` §3.1's per-PR budget; `layers-architecture.md`
+  scale; `engineering-practices.md#the-floors`'s per-PR budget; `layers-architecture.md`
   §12's callgrind subsection and the levers ranked by it; `backlog.md`
   §2.22's ask table; item 41 promoted to a requirement and its RNG question
   decided; item 69 closed.
 - **Pass 4, scheduling (PR #154):** `roadmap-v2.md` §3a's A table, the one
   path-to-triggers table, extended in proposed order by the between-phases
   rows (the `A4x` family) with what each owes the doc, and the B rows with
-  their atoms; §3b explains it; `engineering-practices.md` §9; the codebase map and the Rust notes
+  their atoms; §3b explains it; `engineering-practices.md#the-spine-phase-audit`; the codebase map and the Rust notes
   homed at `roadmap-v2.md` row `rust-notes`; this heading, and the handoff deleted.
 
 **The board at the close** (`state-of-play.md`, 2026-09-15): 193 items, three
@@ -4019,7 +4019,7 @@ three wrong-today items.
 both `Uuid` ids replaced by process-stable ones, decided by the owner, sized,
 and `roadmap-v2.md` A4g's row.
 
-**Next:** at critical-path item 6's close, per `engineering-practices.md` §9,
+**Next:** at critical-path item 6's close, per `engineering-practices.md#the-spine-phase-audit`,
 its first duty the ratchet's second reading against item 138's first.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
@@ -4273,7 +4273,7 @@ until 2026-09-01, and since then growing one card per new engine path). The para
 registered into the stress pool only; 50 stress games at seed 12345 give P0 30 /
 P1 20, turns 26.8, spells 19.5, lands 17.2, combat 10.7, creatures died 5.2,
 damage events 25.0, total damage 54.2, life changes 17.7, zero panics and 202
-Zombie tokens. Rules: `plans/engineering-practices.md` §3; both baselines:
+Zombie tokens. Rules: `plans/engineering-practices.md#cards-and-pools`; both baselines:
 `plans/fuzz-record.md`.
 
 ### Fuzz-pool coverage — re-audited 2026-09-01
@@ -4466,7 +4466,7 @@ The layer system's designated single-point change site is `oracle/characteristic
    **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23):
    the gather that unions the registry with rows derived from each frame, and
    CR 613.7a's timestamp for a grantee set that moves with the board, are a
-   design inside the layer walk, and `engineering-practices.md` §4
+   design inside the layer walk, and `engineering-practices.md#gaps-a-phase-finds`
    (2026-10-20) puts a design on the route, not in a card's registration.
    `roadmap-v2.md` §3a had kept it with its first card on 2026-10-12. Item 7g,
    merged here, is the same per-pass derivation.
@@ -5608,7 +5608,7 @@ with `abilities`, `supertypes`, `rules_text`, `enchant_filter`,
 toughness (CR 208.3), lowered by `TokenDef::card_data`; Parallel Lives, Raise
 the Alarm (both pooled), Hordeling Outburst, Hallowed Moonlight, Divine
 Visitation, Bard, King of Dale. Items 46 and 52 and "Before card breadth"
-item 8 closed. **The review's rule** (`engineering-practices.md` §4): an arm
+item 8 closed. **The review's rule** (`engineering-practices.md#gaps-a-phase-finds`): an arm
 the PR's own type opens, with a printed customer and sized under about eighty
 lines, ships in that PR — which is why the kind, the template and
 `enters_tapped` are above rather than below this line. **Left absent, each
@@ -5871,7 +5871,7 @@ closed. **The last of RE's ten PRs.**
        any others are applicable"): a one-mana land under Sphere and
        Reflection is {C} with no choice (the Sphere is not applicable until
        the doubling makes it so), a two-mana land is 1 or 2 by the order.
-       ~20 lines plus the ordering test; `engineering-practices.md` §4.1's
+       ~20 lines plus the ordering test; `engineering-practices.md#the-standing-review-question`'s
        question is owed at the `reads_the_amount` arm. Damping Sphere's
        second ability counts spells cast this turn per player, which nothing
        tracks, so its first line is a fixture until then.
@@ -5899,7 +5899,7 @@ closed. **The last of RE's ten PRs.**
      check must read (`mana-architecture.md` §3.4), and the amount is the axis
      that makes their order matter (Damping Sphere beside Mana Reflection, its
      first ruling), which `mana-ability-costs`'s fold of replacement effects by state answers;
-     each axis with its fixture there, and `engineering-practices.md` §4.1's
+     each axis with its fixture there, and `engineering-practices.md#the-standing-review-question`'s
      question at `reads_the_amount`.
 
 240. **Three of the six printed type-changers want three facilities RE-9 did
@@ -6149,7 +6149,7 @@ Commander-scale board closes item 69.
      cost at most 2.5 points of CPU per game at identical counters, CPU per
      decision once the counters below land, or the PR says why (RE-9's gate,
      `replacement-architecture.md` §11 item 54, now the rule in
-     `engineering-practices.md` §3.1); 2) **a dated reading at each spine
+     `engineering-practices.md#the-budget`); 2) **a dated reading at each spine
      close** — the recurring audit's readiness pass records decisions per
      core-second on both boards beside the previous close's, and it may not
      read worse per decision without a written reason; **the first reading
@@ -6166,13 +6166,13 @@ Commander-scale board closes item 69.
      says a change may not make the engine worse without a reason; the
      floors, from the owner's report (`plans/references/ai-performance-floors.md`),
      say where worse stops being acceptable at all. Their definitions and
-     instruments are `engineering-practices.md` §3.1's:
+     instruments are `engineering-practices.md#the-floors`'s:
      1. at least 10,000 decisions per loaded physical core-second at
         Commander scale, counted where they reach the agent under the
         default bot stack (`backlog.md` §2.22). It holds today (15,600 on
         one thread) and is expected to bind with the triggers phase; a
         decorator that answers more of a seat's prompts is another
-        operating point, not a re-base (`engineering-practices.md` §3.1);
+        operating point, not a re-base (`engineering-practices.md#the-floors`);
      2. a full-state clone of at most 10 µs;
      3. at most 128 KB per state.
      Floors 2 and 3 hold since the bounded-state PR closed items 42 and 179
@@ -6192,7 +6192,7 @@ Commander-scale board closes item 69.
      The rows are new, so no re-record — the fixture tables gain them at the
      next re-record. The reading that watches the target is
      `CPU/game ÷ decisions` in a sitting, never a stored millisecond
-     (`engineering-practices.md` §3).
+     (`engineering-practices.md#cards-and-pools`).
 
      **The definition the table above was measured with is not the one it
      states, and the instrument ships the stated one.** "The engine already
@@ -6244,7 +6244,7 @@ Commander-scale board closes item 69.
      the games that follow a moved stream are different games. A reading is
      comparable across a change that leaves the stream alone and across nothing
      else; the arm that proves this one is the counters-only arm above, and the
-     rule this makes concrete is `engineering-practices.md` §3's, "never A/B any
+     rule this makes concrete is `engineering-practices.md#cards-and-pools`'s, "never A/B any
      number across a pool change", one level up.
 
      **What the count is mostly made of, and why it will fall.**
@@ -6534,7 +6534,7 @@ Commander-scale board closes item 69.
      measure a naive binding, not this engine.
 
      **Proposed, not adopted: a binding floor** beside
-     `engineering-practices.md` §3.1's three. A batched random policy, driven
+     `engineering-practices.md#the-floors`'s three. A batched random policy, driven
      from Python, reaches at least 90% of the engine's own decisions per
      core-second, on bare metal and on a stock Linux VM. The benchmark ships
      with the binding, so a researcher can run it on their own hardware. The
@@ -6716,10 +6716,10 @@ What is *not* a ledger line: the 24 asks classified for the fork model are
 them; item 69 is closed by the Commander-scale measurement and evicted; item
 40's table row and item 41's status are corrected in place; and the
 profile's recipe is `layers-architecture.md` §12's instrument paragraph and
-`engineering-practices.md` §9's readiness pass, not here, because it is a
+`spine-phase-audit.md`'s readiness pass, not here, because it is a
 procedure and not a migration.
      **Slotted:** none — a record of the Commander-scale clone table, which
-     `engineering-practices.md` §9's readiness pass extends at each close
+     `spine-phase-audit.md`'s readiness pass extends at each close
      (A6e).
 
 ### Found by the post-RE audit's pass 4 review — the UUID review (2026-09-16)
@@ -6984,9 +6984,9 @@ owner decided it the same day.
      **Why it is scoped rather than armed.** A gate that failed on all 330 the
      day it landed is a gate nobody could pass, so it would have been turned
      off or worked around within a PR or two; `specdb owed` has the same shape
-     for the same reason (`engineering-practices.md` §5.1). The forward half
+     for the same reason (`engineering-practices.md#the-spec-database`). The forward half
      needs no scoping and has none: a card registered from here on is in scope
-     the moment `--fetch` sees it, which is what makes §3.4 a rule rather than
+     the moment `--fetch` sees it, which is what makes `engineering-practices.md#rulings` a rule rather than
      a habit.
 
      **Reachability (2026-09-17):** reachable but not wrong today — nothing in
@@ -7002,7 +7002,7 @@ owner decided it the same day.
      request that registers it. **Nothing new joins the backlog** — the 308 is
      exactly the rulings on the 93 cards that predate the ledger, and it only
      shrinks, apart from drift adding one to a card nobody has read yet. That
-     weakens the urgency `engineering-practices.md` §3.4a was written with
+     weakens the urgency `engineering-practices.md#the-ledger-and-its-gate` was written with
      ("the last point at which the retroactive half is a sitting rather than a
      project, since the registry only grows"): the registry still only grows,
      but the backlog no longer grows with it.
@@ -7211,7 +7211,7 @@ place.
      `o:/target.{0,20}if able/` returns four and all four are *combat*
      requirements (Dulcet Sirens, Hunt Down, Ravener, Rimehorn Aurochs), which
      are 508.1d/509.1c's. So this is a CR-stated facility with no printed
-     producer, which by the RE-5 rule (`engineering-practices.md` §4) is owed
+     producer, which by the RE-5 rule (`engineering-practices.md#gaps-a-phase-finds`) is owed
      with a fixture test and this line, never "nothing owed".
 
      **Sized:** small, and it belongs with `combat-requirements` rather than alone — the search,
@@ -7600,7 +7600,7 @@ the TR-1 archive beside theme D's. **B** (the authoring surface) is
 `cards::authoring`, whose module carries CR 700.4's `dies` for a land (PR
 #175). **C** (the matcher) is the paragraph above and `fuzz-record.md`'s
 theme C block (PR #176). **D** (the docs and three decisions) is item 167's
-restatement, `engineering-practices.md` §4's band sentence,
+restatement, `engineering-practices.md#sizing-a-phase`'s band sentence,
 `triggers-architecture.md` §3.3, §4.8 and §12, main item 9's `CastFacts`
 paragraph, item 173, and four keeps in the TR-1 archive (PR #177). **E** is
 §3.6's provenance ids as built, item 167 closed by §4.3's snapshot, item 149
@@ -8204,7 +8204,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** ~20–40 lines: each becomes a fixture with an invented name
      and its own text, and the real card is registered only if written
      whole. The pool's names change, so it is a pool change with its
-     re-record (`engineering-practices.md` §3). **Slotted:** the test-card
+     re-record (`engineering-practices.md#cards-and-pools`). **Slotted:** the test-card
      cleanup before Phase 8's breadth (the owner, 2026-10-01), with
      `roadmap-v2.md` §C's `card-layer-cleanup`, which moves the fixtures into
      `cards::fixtures`.
@@ -8487,7 +8487,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      of code that answers correctly.
      **Sized:** about 150–250 lines in all. Slot: the hygiene pass of item
      6's close audit (`roadmap-v2.md` A6e), which asks the third question at
-     every spine close since this review (`engineering-practices.md` §9).
+     every spine close since this review (`engineering-practices.md#the-spine-phase-audit`).
 
      **Re-read by the triggers midpoint audit (2026-10-08).**
      `similar_functions.py` reads 1,146 functions, 26 near-copy pairs and 7
@@ -8615,7 +8615,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      (2026-10-23): an attachment that can name a player is a design, the
      host's type on `PermanentState::attached_to` and `GameAction::Attach` and
      every reader of it (CR 704.5m, `ObjectSet::Host`, the why panel, TR-4b's
-     attachment records), and `engineering-practices.md` §4 (2026-10-20) puts
+     attachment records), and `engineering-practices.md#gaps-a-phase-finds` (2026-10-20) puts
      a design on the route, not in a card's registration; #234's slot with the
      first Curse predates that rule.
 
@@ -8681,7 +8681,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by the triggers midpoint audit (2026-10-08)
 
-`roadmap-v2.md` A6k, under `engineering-practices.md` §9's midpoint rule:
+`roadmap-v2.md` A6k, under `spine-phase-audit.md`'s midpoint rule:
 §9's hygiene pass, and a shape review of the trigger code TR-3c–TR-7 extend
 (`engine/triggers/`, `engine/returns.rs`, `events/event.rs`,
 `types/triggers.rs`), asking which lists hand a position across a call,
@@ -9371,8 +9371,8 @@ Number 277 was withdrawn in #260 and is not reused.
      where it is slotted (44 of 55 did at TR-5c's review), and the check fails
      when a card it names is registered while the item is open, so registering
      Caller of the Claw fails on item 287 until it is closed or re-slotted.
-     Each of the 53 is re-read beside it against `engineering-practices.md`
-     §4's rule (TR-5d's review, 2026-10-20): one that needs a design decision
+     Each of the 53 is re-read beside it against
+     `engineering-practices.md#gaps-a-phase-finds`'s rule (TR-5d's review, 2026-10-20): one that needs a design decision
      moves to a phase or a row.
      **Reachability (2026-10-22):** reachable — not wrong: a process gap; no
      game answers differently.
@@ -9390,7 +9390,7 @@ Number 277 was withdrawn in #260 and is not reused.
      one thing (a map's entry, `(ManaType, u64)`); others are several answers,
      `scenario::text::player_word_text -> (String, String, bool)`,
      `placement::ability_state -> (bool, u32)`, `GameEvent::lki ->
-     Option<(&Lki, Zone, PlayerId)>`. `engineering-practices.md` §2b's rule
+     Option<(&Lki, Zone, PlayerId)>`. `engineering-practices.md#names`'s rule
      10, adopted at that review (the owner, 2026-10-18), says which is which.
      **Reachability (2026-10-22):** reachable — not wrong: a reader's cost.
      **Sized:** sort the 88 by the rule, then a struct or a split for each

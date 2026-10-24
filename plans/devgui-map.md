@@ -4,7 +4,7 @@
 build a board, play every seat of a game on it, and watch the engine answer.
 It names the parts, follows one question from the engine to the window and
 back, and says how each part is reviewed. The rules for GUI code are
-`engineering-practices.md` §10; the window's tools are `setup-architecture.md`
+`engineering-practices.md#the-dev-gui`; the window's tools are `setup-architecture.md`
 §7. Read at `7b7a8bc`, the dev GUI audit's last code commit, 2026-10-06.
 
 ## 1. What it is
@@ -57,8 +57,8 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
    and the question (`Prompt`), sends both as `ToWindow::Prompt`, wakes the
    window, and waits. Nothing writes the game while its question is open, so
    the seat reads it with the layer memo's debug audit checking each frame
-   once (`GameState::audit_each_frame_once`, `engineering-practices.md`
-   §10.4), where a debug build would otherwise walk the board again at every
+   once (`GameState::audit_each_frame_once`,
+   `engineering-practices.md#what-one-prompt-costs-the-window`), where a debug build would otherwise walk the board again at every
    read.
 4. **The window shows it.** `WindowState::receive`, the view model, builds
    what to draw: Lightning Bolt marked clickable, a Pass button. `app.rs`
@@ -98,7 +98,7 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
 
 ## 5. Who computes what
 
-From `engineering-practices.md` §10, and A6g's rule (the owner): **the window
+From `engineering-practices.md#the-dev-gui`, and A6g's rule (the owner): **the window
 draws only the engine's generic surfaces**, the layer output,
 `ChoiceKind::subject()`, the options' ids, `ui::display`'s formatters and the
 trace sink, never a case per mechanic. What it cannot draw from them is an
@@ -116,7 +116,7 @@ gave it (you, a decorator, or the engine's own pass), so a game writes the
 same record whatever its seats were set to. The bridge only puts its lines in
 the files. The save's own lines, where the window was asked, the savestates
 and the moves, are the window's: which questions reach a person is one
-client's choice, so they stay out of the log (`engineering-practices.md` §10).
+client's choice, so they stay out of the log (`engineering-practices.md#the-dev-gui`).
 
 ## 6. Files on disk
 

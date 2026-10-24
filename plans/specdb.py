@@ -963,10 +963,10 @@ def orphans():
 # rather than a report.
 #
 # Phase 6 joined on 2026-09-15, at the post-RE audit: the replacement track
-# (RA–RE, 24 PRs, 2026-08-25 → 2026-09-15) had closed against a scope that
-# did not contain it, so no replacement phase was ever gated by this query
-# (`engineering-practices.md` §5.1). The audit ran it once by hand, triaged
-# every uncovered atom, and armed it.
+# (RA–RE, 24 PRs, 2026-08-25 → 2026-09-15) had closed against a scope that did
+# not contain it, so no replacement phase was ever gated by this query
+# (`engineering-practices.md#the-spec-database`). The audit ran it once by hand,
+# triaged every uncovered atom, and armed it.
 SHIPPED_PHASES = ("ALREADY-IMPL", "Phase 5-Pre", "Phase 5-Layers", "Phase 6", "Phase 7")
 
 

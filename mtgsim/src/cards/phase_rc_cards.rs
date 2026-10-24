@@ -2,16 +2,17 @@
 //! the battlefield (CR 614.1c/d).
 //!
 //! **Two cards on CR 614.1c's own axis, and a third for the ordering.** A
-//! replacement that modifies an entry can change the permanent's *status*
-//! (CR 110.5b) or give it *counters* (CR 122.6a), and those are two fields of
+//! replacement that modifies an entry can change the permanent's *status* (CR
+//! 110.5b) or give it *counters* (CR 122.6a), and those are two fields of
 //! `EnterMods` with two separate performer paths behind them — one writes
-//! `PermanentState.tapped` before anything can look, the other allocates a
-//! CR 613.7c timestamp per kind and puts counters on. A phase that shipped only
-//! the first would leave the second exactly as reachable as CR 616.1's
+//! `PermanentState.tapped` before anything can look, the other allocates a CR
+//! 613.7c timestamp per kind and puts counters on. A phase that shipped only the
+//! first would leave the second exactly as reachable as CR 616.1's
 //! multi-candidate branch was after RB shipped Kalitas alone: covered by a test,
-//! unreachable in a game (`engineering-practices.md` §3.3).
+//! unreachable in a game
+//! (`engineering-practices.md#how-many-cards-a-mechanic-owes`).
 //!
-//! **The third is [`adaptive_shimmerer`], and it is §3.3's own finding applied
+//! **The third is [`adaptive_shimmerer`], and it is that rule's own finding applied
 //! to this phase.** "A bespoke fixture can cover an atom while the registered
 //! pool cannot build the same scenario." The claim at stake is that CR 122.6a's
 //! counters go on *before* anything can observe the permanent — and the only
@@ -255,12 +256,12 @@ pub fn chainbreaker() -> Arc<CardData> {
 /// **This one dies if the counters arrive a moment late**: a 0/0 is what
 /// CR 704.5f is written about.
 ///
-/// **Registered for `engineering-practices.md` §3.3's sharpest finding**, which
-/// is not about counts: *a bespoke fixture can cover an atom while the
-/// registered pool cannot build the same scenario*. The ordering was asserted
-/// against a hand-built 0/0 before this card existed, which proved the engine
-/// and proved nothing about the pool. Colorless, so `random_deck` puts it in
-/// every deck in every game.
+/// **Registered for `engineering-practices.md#how-many-cards-a-mechanic-owes`'s
+/// sharpest finding**, which is not about counts: *a bespoke fixture can cover
+/// an atom while the registered pool cannot build the same scenario*. The
+/// ordering was asserted against a hand-built 0/0 before this card existed,
+/// which proved the engine and proved nothing about the pool. Colorless, so
+/// `random_deck` puts it in every deck in every game.
 ///
 /// **Not in `PERFORMANCE_POOL`.** Registering a card and adding one to that pool
 /// are different acts (§3), and RC-2's new engine path is already measured by
@@ -305,13 +306,13 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
 ///
 /// # Why RC-3 ships a card at all
 ///
-/// `engineering-practices.md` §3.3's axis, not a quota: **RC-3's own claim
-/// needs no new card, and that is argued rather than assumed.** The gate change
-/// widens a path the pool already walks — Blood Moon and Humility are both in
-/// `PERFORMANCE_POOL`, both are filter-scoped layer effects, and RC-2 put two
-/// permanents that enter modified in beside them. A tapland under Blood Moon
-/// and a Scarecrow under Humility are reachable in a fuzz game today and
-/// answered differently the moment the gate moves.
+/// `engineering-practices.md#how-many-cards-a-mechanic-owes`'s axis, not a
+/// quota: **RC-3's own claim needs no new card, and that is argued rather than
+/// assumed.** The gate change widens a path the pool already walks — Blood Moon
+/// and Humility are both in `PERFORMANCE_POOL`, both are filter-scoped layer
+/// effects, and RC-2 put two permanents that enter modified in beside them. A
+/// tapland under Blood Moon and a Scarecrow under Humility are reachable in a
+/// fuzz game today and answered differently the moment the gate moves.
 ///
 /// This card is for a **different** gap, and it is one RC-2 left by mistake.
 /// RC-2 recorded that CR 616.1's multi-candidate branch was unreachable on an
@@ -537,9 +538,9 @@ pub fn dryad_arbor() -> Arc<CardData> {
 ///
 /// The evaluator is one frame per permanent per query — `layers-architecture.md`
 /// §12's quadratic by design — and a card that opens a new engine path adds
-/// itself to the measured pool (`engineering-practices.md` §3). Every walk of
-/// the Warlord asks every permanent's frame at layer 7a's ceiling, memoized
-/// within that walk, so `Frames/walk` is the fixture that moves; the
+/// itself to the measured pool (`engineering-practices.md#cards-and-pools`).
+/// Every walk of the Warlord asks every permanent's frame at layer 7a's ceiling,
+/// memoized within that walk, so `Frames/walk` is the fixture that moves; the
 /// measurement is in RC-4's entry of `codebase-state.md`. Wall of Stone is in
 /// the same pool, which is what makes "non-Wall" live.
 pub fn keldon_warlord() -> Arc<CardData> {
@@ -616,15 +617,16 @@ pub fn keldon_warlord() -> Arc<CardData> {
 ///
 /// # In `PERFORMANCE_POOL`, and why this one rather than Sutured Ghoul
 ///
-/// RC-5 opens a new engine path — an application that prompts and mutates —
-/// and `engineering-practices.md` §3 says a phase that opens one adds a card to
-/// the measured pool. `{2}{R}` is castable in a random game where `{4}{B}{B}{B}`
-/// is not, its candidates are permanents the pool already produces in numbers,
-/// and it is the only registered card that makes a player *choose* how much of
-/// their own board to spend. It also puts a second replacement effect on the
-/// same entry as Root Maze whenever both are out, which is CR 616.1's
-/// multi-candidate branch with a member that is not an `EnterWith` — the case
-/// `ordering_cannot_change_outcome` must refuse to suppress.
+/// RC-5 opens a new engine path — an application that prompts and mutates — and
+/// `engineering-practices.md#cards-and-pools` says a phase that opens one adds
+/// a card to the measured pool. `{2}{R}` is castable in a random game where
+/// `{4}{B}{B}{B}` is not, its candidates are permanents the pool already
+/// produces in numbers, and it is the only registered card that makes a player
+/// *choose* how much of their own board to spend. It also puts a second
+/// replacement effect on the same entry as Root Maze whenever both are out,
+/// which is CR 616.1's multi-candidate branch with a member that is not an
+/// `EnterWith` — the case `ordering_cannot_change_outcome` must refuse to
+/// suppress.
 ///
 /// **Sigarda, Host of Herons is in the same pool and does not stop it**, which
 /// is worth stating because the opposite is the easy assumption. Her sentence
@@ -703,7 +705,7 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
 /// player's own zone rather than from the shared one. Registering only the
 /// first would leave the second exactly as reachable as CR 616.1's
 /// multi-candidate branch was after RB shipped Kalitas alone
-/// (`engineering-practices.md` §3.3).
+/// (`engineering-practices.md#how-many-cards-a-mechanic-owes`).
 ///
 /// It is also the card CR 614.13a is written about — "if Sutured Ghoul and
 /// Runeclaw Bear enter the battlefield from your graveyard at the same time,
@@ -726,8 +728,8 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
 ///
 /// **Not in `PERFORMANCE_POOL`**: `{4}{B}{B}{B}` is barely castable in a random
 /// game, and the pool measures engine cost rather than card coverage
-/// (`engineering-practices.md` §3). It is in the default registry, so
-/// `--pool stress` plays it.
+/// (`engineering-practices.md#cards-and-pools`). It is in the default registry,
+/// so `--pool stress` plays it.
 pub fn sutured_ghoul() -> Arc<CardData> {
     CardDataBuilder::new("Sutured Ghoul")
         .mana_cost(ManaCost::build(

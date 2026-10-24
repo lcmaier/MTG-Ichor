@@ -618,7 +618,7 @@ somewhere else, which is the CR 613.8 dependency it refuses on purpose.
 the pair of tests is the argument above stated twice. The first draft of this
 section shipped no arm at all, on the grounds that Golden-Tail Trainer waits for
 item 6 — but that was an argument about the *card*, and
-`engineering-practices.md` §3 lets a fixture with its own name be a consumer.
+`engineering-practices.md#cards-and-pools` lets a fixture with its own name be a consumer.
 `phase_cm_cards::power_reducer` is that fixture, and its board is the
 entitlement claim made observable: an anthem on the reducer makes it reduce
 more, because the amount is read off the source's **effective** frame.
@@ -646,7 +646,7 @@ them, and 75 + 289 cards is the population. Golden-Tail Trainer's arm
 (`SourcePower` on a battlefield source) is the same evaluator with one more
 match arm, and its card still waits: its second ability is an attack trigger
 (critical-path item 6), and registering it with half its text would wear its
-name while behaving differently (`engineering-practices.md` §3).
+name while behaving differently (`engineering-practices.md#cards-and-pools`).
 
 ### 3.8 Commander tax — waits for designation, and what is ready for it
 
@@ -668,7 +668,7 @@ of the log. It needs two facts and one designation:
   and `can_begin_to_cast` admits only the hand.
 
 The counter is a fact, and facts are recorded on their first customer
-(`engineering-practices.md` §5). The first customer is the tax, and the tax
+(`engineering-practices.md#the-spec-database`). The first customer is the tax, and the tax
 has no payer until `GameConfig::commander()` designates one and casting from
 the command zone exists (`backlog.md` §2.3). **So it ships with `roadmap-v2.md`
 `game-formats`**, as one arm in `total.rs` step 1 plus the counter, ~40 lines against this
@@ -1050,8 +1050,8 @@ the same player.
 
 ## 6. Sizing and the phase plan
 
-**Sized before writing, and split in the doc** (`engineering-practices.md`
-§4). Every PR carries a consumer.
+**Sized before writing, and split in the doc**
+(`engineering-practices.md#sizing-a-phase`). Every PR carries a consumer.
 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
@@ -1108,7 +1108,7 @@ binary did), `plans/
 fuzz_ab.py` against a same-day `main` worktree, three-run determinism on both
 pools, `specdb owed` clean for `Phase 5-Layers`, and `// COVERS:` on exactly
 what each test builds. None qualifies for a trace page: each adds a read, none
-changes how an existing read is answered (`engineering-practices.md` §7).
+changes how an existing read is answered (`engineering-practices.md#trace-pages`).
 
 ---
 
@@ -1173,7 +1173,7 @@ static ability per instance and the gather returns one instance per ability, so
 `total.rs::two_instances_of_affinity_each_apply` covers it and claims no atom;
 the session file carries a note saying so.
 
-**Reachability, not just coverage** (`engineering-practices.md` §3.3). Thalia
+**Reachability, not just coverage** (`engineering-practices.md#how-many-cards-a-mechanic-owes`). Thalia
 is pooled, so the sweep and the increase run in every measured game; Humility
 is pooled, so the strip path does. Electromancer and Trinisphere are in the
 stress pool, and two Electromancers in one deck is what makes the ordering
@@ -1283,7 +1283,7 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
 - **`lands_per_turn`, `max_hand_size`, player hexproof**: `backlog.md` §2.15.
 - **Golden-Tail Trainer**: the *card*, with item 6 — its second ability is an
   attack trigger (item 6 has landed; the card is still unregistered), and a card wearing its name with half its text is what
-  `engineering-practices.md` §3 forbids. Its *mechanism* is in:
+  `engineering-practices.md#cards-and-pools` forbids. Its *mechanism* is in:
   `settled_amount` answers `SourcePower` and `phase_cm_cards::power_reducer`
   is the fixture that consumes it (§3.7). Registering the printed card is then
   a card change with no engine change behind it.
@@ -1317,7 +1317,7 @@ main item 13, the CM-1 entry, §8's findings as Deferred Migrations items);
 `replacement-architecture.md` §9's "needs a phase marker of its own";
 `roadmap-v2.md` A5 (the rename is CM-0) and its cost row; `layers-architecture.md`
 §11.2's pointer; the session files for the re-filed atoms and the notes under
-`ATOM-601.2f-004` and `ATOM-118.8d-001`; `engineering-practices.md` §3
+`ATOM-601.2f-004` and `ATOM-118.8d-001`; `engineering-practices.md#cards-and-pools`
 re-recorded whenever the pool moves (CM-1, CM-2, CM-3); and
 `plans/state-of-play.md` regenerated. **`CLAUDE.md`'s chokepoint section is
 not on this list and CM-3 confirmed it stays off** (§3.12).
@@ -1425,7 +1425,7 @@ required and no mana cost could answer.
 
 Five printed cards in three pairs of a board, two fixtures for the two claims
 no printed card can carry — and the first **rulings pass**
-(`engineering-practices.md` §3.4), which turned eleven Scryfall rulings into
+(`engineering-practices.md#rulings`), which turned eleven Scryfall rulings into
 six tests, two already-covered notes and three named gaps. One of the six is a
 board no atom in the corpus asks for: the Familiar reduces a black-*and*-green
 spell once, which an author writing two colour abilities instead of one `Or`

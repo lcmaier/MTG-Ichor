@@ -1340,7 +1340,7 @@ pub struct EntryCountersTemplate {
     /// that is why the field exists rather than why it does not: the rule
     /// states it, a card can print it next set, and a custom card can write
     /// it — the CR is the customer and a printed card is the test
-    /// (`engineering-practices.md` §4).
+    /// (`engineering-practices.md#gaps-a-phase-finds`).
     pub by: Option<PlayerRef>,
 }
 

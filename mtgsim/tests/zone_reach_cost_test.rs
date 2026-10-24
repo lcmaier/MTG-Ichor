@@ -78,7 +78,7 @@ const FORK_REPS: usize = 7;
 /// A clone's time, as the bounded-state PR read it: the median of five means.
 const CLONE_MEANS: usize = 5;
 const CLONES_PER_MEAN: usize = 400;
-/// Floor 2's CI proxy and floor 3 (`engineering-practices.md` §3.1).
+/// Floor 2's CI proxy and floor 3 (`engineering-practices.md#the-floors`).
 const MAX_ALLOCATIONS: u64 = 64;
 const MAX_BYTES: u64 = 128 * 1024;
 /// Floor 1, in decisions per second on one thread: an upper bound on the

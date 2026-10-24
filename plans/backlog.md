@@ -756,7 +756,7 @@ kept as written for the record.*
   forked state, which floor 3 bounds by the board. The build keeps its
   back-stop, before Phase 8's reveal cards and Phase 10.
 - **Its cost section (the owner, 2026-09-25)** — before review, the design
-  sets a ceiling on each cost against a floor (`engineering-practices.md` §3.1),
+  sets a ceiling on each cost against a floor (`engineering-practices.md#the-floors`),
   and its build PRs are held to those ceilings:
   - the observation cost k per decision: floor 1 scales by 1 + k, so at
     today's 15,600 a k above ~0.56 fails it before triggers add anything;
@@ -1148,7 +1148,7 @@ mechanic rather than a migration, which is why it is here and not in
   60 cards (§2.22's counts), about half the default's decisions: the agent and
   the GPU get half the work per game, and the engine, no slower, becomes the
   tighter constraint. That is another operating point, not a re-base
-  (`engineering-practices.md` §3.1). The engine's own lever applies under
+  (`engineering-practices.md#the-floors`). The engine's own lever applies under
   either stack: the window read every mana ability again at each tap,
   13.5% of instructions (`layers-architecture.md` §12), and since MA-1
   (#225) reads them once a window and re-asks only their costs.
@@ -1710,7 +1710,7 @@ mechanic rather than a migration, which is why it is here and not in
   that performs every mutation through the chokepoint with replacements
   applied? *Reverse all* is, and cheaply: `GameState` is `Clone` and a clone
   costs a few microseconds (`clone-architecture.md`'s readings, against floor
-  2 in `engineering-practices.md` §3.1), so the engine takes one at the
+  2 in `engineering-practices.md#the-floors`), so the engine takes one at the
   window's first activation and, if the player takes CR 732.1's offer at the
   rewind, restores it. Nothing needs truncating: the event window holds no
   record at a decision, and a recorder's stream forks with its handle. That is the rule's "no abilities trigger and no effects
@@ -1780,7 +1780,7 @@ mechanic rather than a migration, which is why it is here and not in
   itself (`codebase-state.md` item 165). (3) **Rows 3 and 4 in one PR** (done, A6j),
   ~250–350 lines with tests — the toggle's first customer is auto-yield and
   auto-yield's counterweight is the toggle, so neither ships alone
-  (`engineering-practices.md` §4's consumer rule, applied to a toggle). Any
+  (`engineering-practices.md#sizing-a-phase`'s consumer rule, applied to a toggle). Any
   time; before the GUI; commutes with A6, and its A/B is `IDENTICAL` by
   construction since `fuzz_games` stacks neither. (4) **Row 5**, after or
   inside (3). (5) **Row 6** as its own oracle PR any time, its affordability
@@ -2093,7 +2093,7 @@ design. The entry is kept as written for the record.*
   ways), and RE-5's Hardened Scales beside Doubling Season is the pair the
   table states as *not* commuting.
 - **Size** — ~150 lines, a refactor of a predicate the standing review
-  question (`engineering-practices.md` §4.1) has corrected three times; wants
+  question (`engineering-practices.md#the-standing-review-question`) has corrected three times; wants
   a session of its own, at the sixth shape.
 - **Blocks** — nothing today; a needless prompt per uncovered pair.
 - **Owner** — none; raised at RE-4's review (R22). **RE-5 added no shape
@@ -2562,7 +2562,7 @@ v1's design chooses its own from them.
 review; noted, not designed). `ui::why` (360 lines at #221) and, by the same
 argument, `ui::display` (1,215) sit in the engine crate's `ui` module, so
 every client says the same words: the CLI, the dev GUI, v1's GUI and an AI
-harness's logs. That is `engineering-practices.md` §10's "engine computes, ui
+harness's logs. That is `engineering-practices.md#the-dev-gui`'s "engine computes, ui
 words, window draws" and `setup-architecture.md` §7c's decision 2. The owner
 kept `why.rs` there at #221 and asked to revisit it at or near v1's release,
 once the engine's relation to the v1 GUI is clear. SU-7 adds the reasons an

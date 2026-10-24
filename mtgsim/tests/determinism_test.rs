@@ -2,9 +2,9 @@
 //!
 //! The fuzz harness advertises reproducibility, and the project's perf protocol
 //! assumes it (on 2026-08-23, "200 games / seed 12345, back to back, ±3% band";
-//! today `engineering-practices.md` §3's interleaved A/B): without it the
-//! two runs being compared are not doing the same amount of work, so a real
-//! regression hides inside the spread and a phantom one appears.
+//! today `engineering-practices.md#cards-and-pools`'s interleaved A/B): without
+//! it the two runs being compared are not doing the same amount of work, so a
+//! real regression hides inside the spread and a phantom one appears.
 //!
 //! Three things have to hold. The randomness has to come from the seed — it
 //! used to come from `rand::rng()`, which is seeded per process, so the seed

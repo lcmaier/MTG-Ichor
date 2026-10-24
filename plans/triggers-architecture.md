@@ -45,7 +45,7 @@ item 6 audit (2026-10-22). The five stand as the doc's budget:*
    (§4.1, §5).
 5. **Performance has one designated lever and a measurement gate**: the
    per-source event-kind mask (§11), and `fuzz_ab.py` at two seats and four
-   against `engineering-practices.md` §3.1's budget, per PR.
+   against `engineering-practices.md#the-budget`, per PR.
 
 ---
 
@@ -190,7 +190,7 @@ kind, and no other axis.** A card that needs a predicate no arm can express
 is a missing field on a `GameEvent` or a missing variant, and the fix goes
 there — a `TriggerEvent` arm with no record behind it is the smell this
 contract exists to catch. An arm ships with its first consumer (§4's rule
-from `engineering-practices.md` §4: an arm the phase's type opens, with a
+from `engineering-practices.md#gaps-a-phase-finds`: an arm the phase's type opens, with a
 printed customer, ships in that PR); an arm whose customer needs a facility
 the phase lacks is a line in §15.
 
@@ -1275,8 +1275,8 @@ ceiling, which `history_total` is now given.
   gone before the event (`gone_before`), the one place the old
   `GoneBeforeThisEvent` came from.
 
-**The split, set here rather than in the moment** (`engineering-practices.md`
-§4): the fold is this PR's last commits, and if the store's commits carry
+**The split, set here rather than in the moment**
+(`engineering-practices.md#sizing-a-phase`): the fold is this PR's last commits, and if the store's commits carry
 past 2,000 lines, the fold goes to a PR of its own straight after this one,
 its design kept here.
 
@@ -2077,7 +2077,7 @@ move into the graveyard, whose stamp names it, for each pending or stacked
 trigger of that Aura (the second). Only the graveyard: an Aura a replacement
 exiles instead (Leyline of the Void) was never put there, and stays where it
 went. That is the CR's text; CR 400.7e and 603.6c would find it in the first
-public zone it went to, and `engineering-practices.md` §3.4b's
+public zone it went to, and `engineering-practices.md#when-a-ruling-and-the-cr-disagree`'s
 `aura-found-in-graveyard` row keeps that reading one switch away. `this_object` reads it once the source itself is gone. Angelic
 Destiny's "return this card" is the consumer; Rancor's "return it" is CR
 400.7e's, read through the binding's subject since RH-3.
@@ -3109,7 +3109,7 @@ scale — `fuzz-record.md`'s TR-1b block, taken with `plans/profile/`: the
 dispatcher is 1.8% of 95.96 G instructions, and the replacement gather 17.7%
 inclusive, which agrees with the probe above.
 
-**A/B predictions, per phase**, in `engineering-practices.md` §3.1's terms —
+**A/B predictions, per phase**, in `engineering-practices.md#the-close-out`'s terms —
 three arms where a pool changes (`main`, the engine with pools unchanged,
 shipped), two seats and four, and the budget is 2.5 points of CPU per
 decision at identical counters:
@@ -3134,7 +3134,7 @@ inside a phase is its own PR, as §9 of the practices requires.
 
 ## 12. Sizing and the phase plan — TR-1 to TR-7
 
-Sized against the tree on 2026-09-18 (`engineering-practices.md` §4: count
+Sized against the tree on 2026-09-18 (`engineering-practices.md#sizing-a-phase`: count
 first) and re-counted on 2026-09-24 and 2026-10-12 (the last two
 subsections, whose bodies are archived). Each PR carries
 at least one registered consumer of what it builds, and each closes against
@@ -3253,7 +3253,7 @@ Warchief and Warmaster are pooled (94 → 96), and all four are in `stress`
 
 **What moved on the way in.** TR-2 split at its re-count (3,115–3,530
 against 2,080–2,575), and "each player" came forward from TR-2b so item 122
-closed here. `engineering-practices.md` §2b, the call-site naming rule, and
+closed here. `engineering-practices.md#names`, the call-site naming rule, and
 its renames. The resolution count moved off the controller's row;
 `AbilityResolves` moved to TR-3. Three fixes rode in: lifelink gains once per
 source per batch (CR 702.15e); CR 305.7's Layer 4 route to an ability list,
@@ -3988,7 +3988,7 @@ lines, inside the sized 975–1,300.
 `plans/archive/triggers-architecture-landed.md` under this heading at the item
 6 audit (2026-10-22). Its "Why the plan keeps missing" — tests run about twice
 their estimate, and every phase's cards need facilities its row never listed —
-is `engineering-practices.md` §4's card-by-card gap hunt.*
+is `engineering-practices.md#sizing-a-phase`'s card-by-card gap hunt.*
 
 ### Re-counted 2026-10-12 (A6p) — TR-4 and TR-5, each in four
 
@@ -4027,7 +4027,7 @@ and the one TR-2b claims in part),
 forty are deferred with an owner each; 93 + 40 = 133, no atom listed twice and none unlisted — checked
 against `spec.sqlite` on 2026-09-18 (400.7-001 moved from the deferrals to
 TR-3a on 2026-10-07), and worth re-checking the same way at each close. The deferrals are re-read at item 6's close audit
-(`engineering-practices.md` §9 pass 1) and any whose owner has landed by
+(`spine-phase-audit.md` pass 1) and any whose owner has landed by
 then is claimed there.
 
 **At TR-6's close (2026-10-21)** Phase 7 joined `SHIPPED_PHASES`, and `owed --phase
@@ -4217,7 +4217,7 @@ and MA-1 with MA-2.
   2026-09-24 and 2026-10-12 (archived from §12) found tests running about
   twice their estimate and each phase's cards needing facilities its row
   never listed; the card-by-card gap hunt became a sizing step
-  (`engineering-practices.md` §4).
+  (`engineering-practices.md#sizing-a-phase`).
 - **The history was reshaped in TR-2a, TR-5b and TR-5h** before it was one
   log kept the whole game (§3.10); one census of every reader before a
   shared store is reshaped is the rule that came of it.
@@ -4237,7 +4237,7 @@ and MA-1 with MA-2.
 
 - **Size against the tree, card by card.** "Why the plan keeps missing", in
   the archive's "Re-counted 2026-09-24", is the paragraph to reread.
-- **A long item gets a midpoint audit** (A6k, `engineering-practices.md` §9),
+- **A long item gets a midpoint audit** (A6k, `spine-phase-audit.md`),
   and a model pass beside the script: A6l's found 11 copies
   `similar_functions.py` did not.
 - **Discovery fans out; fixing stays sequential**

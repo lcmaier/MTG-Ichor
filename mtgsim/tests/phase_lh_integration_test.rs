@@ -308,7 +308,7 @@ fn test_enchant_creature_admits_only_creatures() {
 
 /// In the registry, so `fuzz_games --pool stress` can draw it, and in the
 /// performance pool, so the new arm is measured rather than assumed
-/// (`engineering-practices.md` §3).
+/// (`engineering-practices.md#cards-and-pools`).
 #[test]
 fn test_holy_strength_is_registered_and_in_the_performance_pool() {
     assert!(CardRegistry::default_registry().create("Holy Strength").is_ok());
@@ -626,7 +626,7 @@ fn test_an_equipment_spell_enters_unattached() {
 
 /// Registered, so `fuzz_games --pool stress` can draw it, and pooled, so the
 /// new primitive, the new action and the first activation restriction are
-/// measured rather than assumed (`engineering-practices.md` §3).
+/// measured rather than assumed (`engineering-practices.md#cards-and-pools`).
 #[test]
 fn test_bonesplitter_is_registered_and_in_the_performance_pool() {
     assert!(CardRegistry::default_registry().create("Bonesplitter").is_ok());

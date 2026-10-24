@@ -265,8 +265,8 @@ fn build_deck(registry: &CardRegistry, size: usize) -> Vec<Arc<CardData>> {
 }
 
 /// A board to fork on, named the way the harness names it. `performance` and
-/// `stress` are `engineering-practices.md` §3's two pools; Commander scale is
-/// `fuzz_games --deck-size 100 --life 40 --players 4`.
+/// `stress` are `engineering-practices.md#cards-and-pools`'s two pools;
+/// Commander scale is `fuzz_games --deck-size 100 --life 40 --players 4`.
 struct Board {
     name: &'static str,
     registry: CardRegistry,

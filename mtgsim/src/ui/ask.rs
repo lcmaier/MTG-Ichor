@@ -22,8 +22,8 @@
 //!
 //! The four `validate_*` helpers also carry `codebase-state.md` item 138's
 //! **decision** count — a prompt with two or more legal answers, the unit
-//! `engineering-practices.md` §3.1's ratchet reads CPU in. They are where it
-//! belongs rather than in the 25 bodies: each runs exactly once per prompt,
+//! `engineering-practices.md#the-budget`'s ratchet reads CPU in. They are where
+//! it belongs rather than in the 25 bodies: each runs exactly once per prompt,
 //! with the candidate list and the bounds both in scope, so "two or more
 //! answers" is decided once per primitive rather than once per caller.
 

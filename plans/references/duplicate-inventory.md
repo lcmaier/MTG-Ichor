@@ -131,7 +131,7 @@ repeatable; but on its surface it found 11 facts the report does not list at
 all, three of them copies that already disagree (§3.5's affected set,
 "existed before" and the departed card). So it runs beside the report at
 every close, over the files the branch changed, and over a closing spine
-phase's whole subsystem (`engineering-practices.md` §9, pass 3). It took six
+phase's whole subsystem (`spine-phase-audit.md`, pass 3). It took six
 minutes and about 355,000 tokens for these 14,000 lines; a branch's files are
 a fraction of that. One prompt keeps the runs comparable, §2a's.
 
@@ -696,7 +696,7 @@ at 23, and 2 in tests; `departure_frames` 9, `take_departure_frame` 7,
 `StackEntry` and `ResolvingObject` with their readers. About 140 code sites,
 and about 27 mentions in the live docs, 19 of them in
 `triggers-architecture.md`. The rename keeps the player's sense, and each new
-name is chosen by the call-site rule (`engineering-practices.md` §2b).
+name is chosen by the call-site rule (`engineering-practices.md#names`).
 
 **Built as A6n, #241**, whose body maps each old name to its new one. This
 inventory keeps the old names.

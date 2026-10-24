@@ -2,12 +2,12 @@
 //!
 //! # Why these exist, and why they are not a profiler
 //!
-//! `engineering-practices.md` §3 refuses to store `ms/game`, and it is right to:
-//! a stored timing number is machine drift, so the only honest timing
-//! measurement is an **interleaved A/B in one sitting**. That leaves a gap the
-//! fixtures table cannot fill — an A/B has to be *run*, by someone who already
-//! suspects something. A sweep that tripled the layer walks per game while
-//! every seed-deterministic row stayed the same is the shape these catch.
+//! `engineering-practices.md#cards-and-pools` refuses to store `ms/game`, and
+//! it is right to: a stored timing number is machine drift, so the only honest
+//! timing measurement is an **interleaved A/B in one sitting**. That leaves a
+//! gap the fixtures table cannot fill — an A/B has to be *run*, by someone who
+//! already suspects something. A sweep that tripled the layer walks per game
+//! while every seed-deterministic row stayed the same is the shape these catch.
 //!
 //! So these are the same kind of measurement as "creatures died: 8.6" — a pure
 //! function of the seed and the card pool, comparable across machines and across
@@ -200,7 +200,7 @@ impl Diagnostics {
     }
 
     /// One `DecisionProvider` prompt that had **two or more legal answers** —
-    /// the unit `engineering-practices.md` §3.1's ratchet is read in
+    /// the unit `engineering-practices.md#the-budget`'s ratchet is read in
     /// (`codebase-state.md` item 138).
     ///
     /// **Not the prompt count, and the gap is the point.** The engine asks at

@@ -6,7 +6,7 @@ check_invariants - three of `CLAUDE.md`'s invariants, read off the source.
 decision boundary as rules, and until A6q only review held them. The read of
 the tree on 2026-10-13 found each broken again within weeks of being written.
 Each has a shape a grep can see, and this reads those shapes
-(`engineering-practices.md` §11).
+(`engineering-practices.md#invariant-gates`).
 
     python plans/check_invariants.py      # exit 1 on an untagged site
 

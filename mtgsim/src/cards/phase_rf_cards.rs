@@ -9,15 +9,15 @@
 //! The owner named Blightsteel for this leg. Its clause is the one below plus
 //! infect, and infect (CR 702.90) is not a keyword the engine has, so a
 //! registered Blightsteel would be a card wearing a real name while behaving
-//! differently — the thing `engineering-practices.md` §3 forbids a fixture
-//! and forbids a card twice over. Darksteel Colossus prints the same clause
-//! with only trample and indestructible, both of which the engine plays.
-//! Nexus of Fate is the second shape §3.3 asks a mechanic for: an instant,
-//! never a permanent, whose "from anywhere" is the **stack** — resolving
-//! (CR 608.2n) and being countered (CR 701.6) both put it into a graveyard,
-//! and both are replaced. The other two of the printed five want something
-//! else first: Progenitus protection from everything, Legacy Weapon a
-//! five-color activated exile.
+//! differently — the thing `engineering-practices.md#cards-and-pools` forbids a
+//! fixture and forbids a card twice over. Darksteel Colossus prints the same
+//! clause with only trample and indestructible, both of which the engine plays.
+//! Nexus of Fate is the second shape a mechanic owes: an instant,
+//! never a permanent, whose "from anywhere" is the **stack** — resolving (CR
+//! 608.2n) and being countered (CR 701.6) both put it into a graveyard, and
+//! both are replaced. The other two of the printed five want something else
+//! first: Progenitus protection from everything, Legacy Weapon a five-color
+//! activated exile.
 //!
 //! **Read the board, not the card.** A Colossus dying off the battlefield was
 //! already found by the battlefield sweep; what this phase builds is the leg

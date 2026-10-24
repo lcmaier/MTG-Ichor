@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-close_out - the measuring half of the close-out (engineering-practices.md §3.1), one command.
+close_out - the measuring half of the close-out (engineering-practices.md#the-close-out), one command.
 
     python plans/close_out.py --arm main=origin/main --arm engine=<sha> [--arm shipped=HEAD] \
                               [--require "Card A,Card B"] [--fixtures] [--cpu LABEL | --no-cpu]
@@ -152,7 +152,8 @@ def main():
         # fuzz_games refuses a registered card the pool does not hold, and says which pool does.
         text = sh(flags + ["--pool", "stress"]) if "Use --pool stress" in first.stdout + first.stderr else first.stdout
         print(f"\nreachability, {arms[-1][0]}, {seats} seats, 200 games:\n" + text[text.find("=== Reachability"):].split("\n\n")[0].rstrip())
-    # engineering-practices.md §9, pass 3: the copies the last arm made, each to be merged or kept with its reason.
+    # spine-phase-audit.md, pass 3: the copies the last arm made, each to be
+    # merged or kept with its reason.
     print(f"\ncopies, {arms[-1][0]} against {arms[0][0]}:")
     print(sh([sys.executable, os.path.join(HERE, "similar_functions.py"), "--at", specs[-1][2], "--against", specs[0][2]]))
     print(f"\n{time.time() - t0:.0f}s wall")

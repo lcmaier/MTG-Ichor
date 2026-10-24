@@ -2,9 +2,10 @@
 """
 check_rulings - the rulings ledger, and the gate that keeps it honest.
 
-`engineering-practices.md` §3.4 makes every card a phase registers carry a
+`engineering-practices.md#rulings` makes every card a phase registers carry a
 rulings pass: a card's rulings exist *because players got those cases wrong*,
-so they are a free list of the boards a naive implementation misses. §3.4a
+so they are a free list of the boards a naive implementation misses.
+The archived record's census (`archive/engineering-practices-records.md#34a-how-big-is-the-retroactive-half-and-is-the-tool-worth-building`)
 says what holds that rule up. **Not a verifier** - a ruling is prose and
 nothing compiles prose into an assertion - but a **ledger with a gate**, the
 shape `specdb` already proved one level down: the corpus is fetched, the join
@@ -140,7 +141,7 @@ answers to a question that has one.
 
 # A ruling the engine answers otherwise
 
-`engineering-practices.md` §3.4b (the owner, 2026-09-29): where a ruling
+`engineering-practices.md#when-a-ruling-and-the-cr-disagree` (the owner, 2026-09-29): where a ruling
 contradicts the CR's text and Wizards has acknowledged the contradiction or
 sided with the text, the engine follows the text. The ruling still gets a test
 on its own board, asserting what the engine does instead:
@@ -271,7 +272,7 @@ def scan_deviations():
 
 
 def register_ids():
-    """The ids in engineering-practices.md §3.4b's register: the backticked
+    """The ids in engineering-practices.md#when-a-ruling-and-the-cr-disagree's register: the backticked
     first cell of each table row under that heading."""
     text = PRACTICES.read_text(encoding="utf-8")
     start = text.find("\n" + REGISTER_HEADING)
@@ -333,7 +334,7 @@ def verify(ledger, names, pool, links, deviations=None, register=frozenset()):
                     if rid not in register:
                         bad.append(f"{path}:{line}: {name} #{r['n']} deviates "
                                    f"under {rid!r}, which is not a row of "
-                                   f"engineering-practices.md §3.4b's register")
+                                   f"engineering-practices.md#when-a-ruling-and-the-cr-disagree's register")
             elif not linked and scoped:
                 why = "read" if card.get("read") else "registered after the ledger"
                 bad.append(f"{name} #{r['n']}: no test names it, and no "

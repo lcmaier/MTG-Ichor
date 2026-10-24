@@ -15,7 +15,7 @@ anyone went looking (2026-09-03), and nothing failed when it rotted.
 **Named `check_*.py` on purpose.** CI runs the check scripts and `CLAUDE.md`'s
 exit criteria cite them as a family, so joining the family is what makes a stale
 board fail a pull request rather than sit there. That is the whole mechanism:
-`engineering-practices.md` §1's rule is that a convention which can fail
+`engineering-practices.md#line-budgets`'s rule is that a convention which can fail
 silently is not one.
 
 **Every number here is a file read.** No git, no `gh`, no network, no
@@ -509,7 +509,7 @@ def landed_phases():
     number. **This is the whole list, not a lower bound** — it stopped being
     one on 2026-09-07, when the "can't" and copy tracks got the marker the
     other three already used and `CLAUDE.md` gave up carrying a second copy
-    (`engineering-practices.md` §1). A doc that does not follow the convention
+    (`engineering-practices.md#line-budgets`). A doc that does not follow the convention
     is invisible here, which is the one way this can under-report and the
     reason the convention is written down rather than inferred.
     """
@@ -648,7 +648,7 @@ def render():
     L.append("")
     L.append("Every phase the architecture docs (`plans/*-architecture.md`, globbed) name,")
     L.append("by its plain name, with what text cites it by: a landed phase's code, or a")
-    L.append("phase still to come's name, hyphenated (`engineering-practices.md` §4.2).")
+    L.append("phase still to come's name, hyphenated (`engineering-practices.md#naming-a-phase`).")
     L.append("The codes those names replaced are in `plans/archive/route-codes-renamed.md`.")
     L.append("")
     L.append("### Landed")
@@ -751,7 +751,7 @@ def render():
     L.append("which gained Phase 6 only at the post-RE audit (2026-09-15): until then a")
     L.append("replacement phase closing against \"owed is clean\" was making a claim about three")
     L.append("*other* phases, and what actually gated it was the `// COVERS:` annotation")
-    L.append("discipline. → `engineering-practices.md` §5.")
+    L.append("discipline. → `engineering-practices.md#the-spec-database`.")
     L.append("")
     L.append("## Half-finished work")
     L.append("")
@@ -805,7 +805,7 @@ def oversized_landed():
     row that was wrong for sixteen days (discard) survived unread. The rule is
     `codebase-state.md`'s eviction rule applied to the architecture docs: the
     body moves to `plans/archive/<doc>-landed.md`, the heading stays with a stub
-    and a pointer, and this is the gate (`engineering-practices.md` §4). A
+    and a pointer, and this is the gate (`engineering-practices.md#landing-a-phase`). A
     section's extent runs to the next heading of the same or a higher level, so
     a `#####` inside it cannot hide the overrun.
     """

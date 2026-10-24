@@ -268,7 +268,7 @@ fn allocate(
 }
 
 /// What kept a game from starting, which a person fixes, as against an
-/// engine panic, which is a bug to report (`engineering-practices.md` §10.1,
+/// engine panic, which is a bug to report (`devgui-map.md#the-egui-checklist`,
 /// question 6).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {

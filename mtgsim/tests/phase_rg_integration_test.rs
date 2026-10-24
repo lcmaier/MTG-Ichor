@@ -691,7 +691,8 @@ fn a_planeswalker_has_the_intrinsic_ability_and_a_creature_kaito_does_not() {
 ///   CR 306.5b's ability. He enters with 1.
 ///
 /// He never enters with none, and never with 5. The register row
-/// `lookahead-entry-counters` (`engineering-practices.md` §3.4b) records the
+/// `lookahead-entry-counters`
+/// (`engineering-practices.md#when-a-ruling-and-the-cr-disagree`) records the
 /// ruling that reads this board otherwise, and why the engine follows CR
 /// 614.12's text.
 // COVERS-PARTIAL: ATOM-616.1-001

@@ -868,7 +868,7 @@ the cost.
 | release: no audit | ~6 µs | ~4 ms | the dev GUI's whole rebuild 15.4 s |
 
 So the audit, which re-walks the layers at every memo hit, is about 98% of a
-debug replay, and the same audit is why `engineering-practices.md` §10.4
+debug replay, and the same audit is why `engineering-practices.md#what-one-prompt-costs-the-window`
 measured 125 ms a prompt for the snapshot in debug. Two levers keep the debug
 build and its audit:
 - **The engine at opt-level 1 in the dev GUI's debug build**, two lines in
@@ -877,7 +877,7 @@ build and its audit:
   a second more per engine rebuild and a first build of ~23 s instead of ~14.
   It leaves `cargo test` in `mtgsim/` as it is. Opt-level 2 is no faster here,
   and its rebuild is four times as slow. **Built by the seats PR** (§7b's
-  decision 5), with `engineering-practices.md` §10.4's `prompt_cost` read
+  decision 5), with `engineering-practices.md#what-one-prompt-costs-the-window`'s `prompt_cost` read
   before and after.
 - **No audit while replaying within a session.** An undo or a move to a
   savestate replays answers this window played earlier in the same process,
@@ -913,10 +913,10 @@ opt-level 0 read 0.97 s and 34.9 s. So late in a Commander game a debug
 window waits about 5–7 s for a rebuild with the audit on and about 30 ms with
 it off, and a release window about 20 ms.
 
-Release stays what `engineering-practices.md` §10.4 says it is for, a large
+Release stays what `engineering-practices.md#what-one-prompt-costs-the-window` says it is for, a large
 board: it rebuilds the dev GUI in 15.4 s after an engine change against
 debug's 6.7, and it runs without the audit, which found the engine bug in
-`engineering-practices.md` §10.3. Checkpoints, a clone kept at each round
+`devgui-map.md#random-clicks`. Checkpoints, a clone kept at each round
 start and replayed from, would cut a late undo to a turn's replay, at
 ~100–200 lines and item 140's entry point; with both levers an undo late in a
 Commander game waits ~30 ms in debug, so they are not needed.
@@ -963,7 +963,7 @@ person is answered again at once.
 | After a reload | the same | the record is in the save (decision 4) | the same |
 
 **Decided: B** (the owner, 2026-10-03). Where the window was asked is the
-session's record, not the game's: `engineering-practices.md` §10's rule keeps
+session's record, not the game's: `engineering-practices.md#the-dev-gui`'s rule keeps
 who answered out of the log, so it goes in the save beside the savestates.
 The window plays every seat (§7's "Seats"), so undo goes back to the last
 prompt whichever seat it was for, and steps back through the whole table's
@@ -1002,7 +1002,7 @@ which is the session's record and not the game's.
 | Shape | the log becomes a journal: the engine's answer lines, with the session's lines between them for a window prompt, a savestate and a move back; reading it applies the moves to rebuild the tree | the log stays the engine's record of the line of play the window is on, written again by each rebuild's replay. The save, `<log>.save`, is the session's journal: the start, every answer as the engine wrote it, and the session's own lines | a folder for each session: each branch a whole log, the start and every answer from it, and an index of the savestates, the window prompts and which branch left which |
 | Writing | appended and flushed a line at a time, as the log is today, so a crash loses nothing | the same, into the save | each branch's log as today; the index written again at each change |
 | Reading | one parser; every reader of the game's record (a bug report, a test written from it) applies the moves first | a log is one line of play and replays alone, as now; the save's reader rebuilds the tree | every log replays alone; the index is a save file under another name |
-| `engineering-practices.md` §10 | who answered (the window's prompts) sits in the log | the log is untouched | the log is untouched |
+| `engineering-practices.md#the-dev-gui` | who answered (the window's prompts) sits in the log | the log is untouched | the log is untouched |
 
 **Decided: B, the save a journal** (the owner, 2026-10-03). The engine's
 thread appends to it, since that thread sees every line in order and knows
@@ -1044,8 +1044,8 @@ months. The AI harness plays games by the thousand a minute and opens few of
 them (Phase 10, `roadmap-v2.md` §E). Each record is a start and every answer,
 in the engine's text (§7.3's table), and the engine's replay is what reads one
 back. Where the bytes go, how a record is found again and when it is thrown
-away are each writer's, as layout is a client's (`engineering-practices.md`
-§10). So this decision draws one line: what the engine's text carries so that
+away are each writer's, as layout is a client's
+(`engineering-practices.md#the-dev-gui`). So this decision draws one line: what the engine's text carries so that
 every writer can do its part, which SU-4 builds, and the writers' own choices,
 of which SU-5 builds the dev GUI's and Phase 10's design starts the other two
 from the options below.
@@ -1142,7 +1142,7 @@ diff of the game. The splitter waits for its first writer.
 |---|---|---|---|
 | Shape | a browser lists the folder, and for more than a name reads a record's first lines (format, engine, start) and its last (the outcome) | a row a record (the file, start, seed, seats, turns, outcome), appended at each game's end | a table a record, in SQLite or the like |
 | Performance | a few lines read a file at each browse; nothing while playing | a write a game | a write a game, and a dependency |
-| Upkeep | none, since nothing is kept in step | a second record of each game, kept in step with the files by hand, which a deleted or half-written file leaves wrong (`engineering-practices.md` §2c) | a schema, and a migration at each change to it |
+| Upkeep | none, since nothing is kept in step | a second record of each game, kept in step with the files by hand, which a deleted or half-written file leaves wrong (`engineering-practices.md#one-record-never-two-kept-in-step`) | a schema, and a migration at each change to it |
 
 **Decided: A for the dev GUI**, which loads by path (`--load`) and is browsed
 with the system's file browser. v1's GUI starts from A and moves to C if a
@@ -1201,7 +1201,7 @@ start, so a new save.
   back three prompts and wait for one replay. Savestate is off, since no
   prompt is open.
 
-**`engineering-practices.md` §10's question** for each new surface: would a
+**`engineering-practices.md#the-dev-gui`'s question** for each new surface: would a
 second display client compute the same thing from the same facts?
 
 | Surface | Home | Why |
@@ -1275,7 +1275,7 @@ in the editor (SU-3, §7b).
 > settings, and a `boards/` folder with a folder per board, the owner's
 > direction. At the third, 5: the engine at opt-level 1 in the dev GUI's
 > debug build, in the seats PR. The rest is settled by §7a and
-> `engineering-practices.md` §10, or is this design's own and reviewed with it.
+> `engineering-practices.md#the-dev-gui`, or is this design's own and reviewed with it.
 
 **Where it sits.** Nowhere on the event path: before the first event, on the
 start's side of `Scenario::build`, beside the parser and the writer. It is a
@@ -1327,7 +1327,7 @@ of 30): a board written and read back (`Display`, then `parse`), and built.
 | `large.scenario` (§10.4's) | 188 | 0.20 ms | 0.62 ms | 0.16 ms |
 
 So the loader can check the board at every click, at the click and on the
-window's thread (`engineering-practices.md` §10.1, items 1 and 2): under a
+window's thread (`devgui-map.md#the-egui-checklist`, items 1 and 2): under a
 millisecond in debug on the largest board the tree has.
 
 ### 7b.1 The model
@@ -1761,7 +1761,7 @@ it without losing what the audit catches. One answer is already designed:
 SU-4's switch that skips the audit while replaying (§7.1).
 
 **Answered by the dev GUI audit** (2026-10-06; the readings are
-`engineering-practices.md` §10.4's). The audit is 85–98% of what a debug
+`engineering-practices.md#what-one-prompt-costs-the-window`'s). The audit is 85–98% of what a debug
 window waits at a question, in two parts: the window's own reads at the
 question, the snapshot and each why, about two fifths of it on the large
 review board, and the engine's own work between questions, the rest. The
@@ -1817,7 +1817,7 @@ design against `fb1767a`:
 
 **What it is for.** When the window shows something surprising, the tester has
 two ways to find out why: read the engine's code, or write a trace page by hand
-(`engineering-practices.md` §7). The panel answers in the window instead. A
+(`engineering-practices.md#trace-pages`). The panel answers in the window instead. A
 right-click on a card, a permanent or a player opens it beside the board. It
 says which rules and effects made the thing look the way it does.
 
@@ -1995,7 +1995,7 @@ them next; `roadmap-v2.md` A6g's row calls those phases "where visual testing
 pays most". Events changed are 37% of the registry today, and under a tenth of
 Magic.
 
-**The rules pass** (`engineering-practices.md` §8). For each kind: the rule
+**The rules pass** (`engineering-practices.md#the-rules-pass`). For each kind: the rule
 that owns it, the rule that watches it, and the CR's own words for what the
 panel reports.
 - **Options.** CR 601.2 owns casting. **CR 601.3** watches it: "A player can
@@ -2092,7 +2092,7 @@ to SU-5 ran 1.0–2.5× their estimates on code.
 names, and the measured costs make each cheap at a click.
 - **Characteristics and options are engine surfaces a second client wants
   too.** v1's GUI (`backlog.md` §2.38) will want "why can't I cast this" as
-  much as the dev GUI does. That is `engineering-practices.md` §10's test for
+  much as the dev GUI does. That is `engineering-practices.md#the-dev-gui`'s test for
   an engine surface.
 - **Characteristics come first.** The layer system is the subsystem the
   hand-written trace pages explain most (item 7, LI-1, CV-1, CV-2b, RG). The
@@ -2107,7 +2107,7 @@ kinds filed as items with their slots.
 #### Decision 2 — where the facts come from
 
 **The problem.** The sink records what was consulted, in what order, and with
-what answer (`engineering-practices.md` §7.1), and it records only where an
+what answer (`trace-pages.md#the-trace-sink-and-the-engine-map`), and it records only where an
 emit point sits. For each kind there are three places the facts could come
 from: the sink as it stands, new records, or an engine query asked at the open
 question.
@@ -2275,15 +2275,15 @@ is answered once, at its click, and marked with the question it was asked at.
 the right-click and closed by its ×. The board stays in view, and the log and
 the stack keep the right side. The other choice was a floating window, which
 can cover the very cards it explains. **Decided as recommended** (the owner,
-2026-10-05). Layout is the client's to decide (`engineering-practices.md`
-§10), and nothing in the engine depends on it.
+2026-10-05). Layout is the client's to decide
+(`engineering-practices.md#the-dev-gui`), and nothing in the engine depends on it.
 
 #### Decision 5 — where this design lives
 
 | | Home | Fit |
 |---|---|---|
 | **a** | **this file, §7c**, beside the tools | the panel is built from the tools' parts (§7.1–§7.3): the save's line, the replay and its stop, the seat's loop. `devgui-map.md` §9 already sends a reader to this file for the tools, and the panel's PRs take this file's codes, as SU-4 and SU-5 did |
-| b | `engineering-practices.md` §7, beside the trace pages | the panel is tier 2's reader (§7.1), but that file is process, and a design with decisions and phases does not belong in it |
+| b | `engineering-practices.md#trace-pages`, beside the trace pages | the panel is tier 2's reader (`trace-pages.md#the-trace-sink-and-the-engine-map`), but that file is process, and a design with decisions and phases does not belong in it |
 | c | a new doc on `CLAUDE.md`'s architecture row | the row holds one doc per CR subsystem. This would be its first doc that is not one, which §9 declined for the loader |
 | d | each engine surface in its subsystem's doc, and the panel here | the layer recorder would go in `layers-architecture.md`, and the reasons beside `cost-architecture.md` §3.6's "enumeration and enforcement must agree". That is five places to read one design |
 
@@ -2294,7 +2294,7 @@ an invariant lives:
   the line went beside LI-2's loop in §9, which is what the recorder watches;
 - at SU-7's, `cost-architecture.md` §3.6 gains that the reasons are one check,
   shared by the enumeration and the enforcement;
-- at SU-8's, `engineering-practices.md` §7.1 gains a pointer here, as tier 2's
+- at SU-8's, `trace-pages.md#the-trace-sink-and-the-engine-map` gains a pointer here, as tier 2's
   reader in the window.
 
 `CLAUDE.md` does not change.
@@ -2360,7 +2360,7 @@ its links ask, a log line's too.
   about it. Then right-click the Bears: Giant Growth at layer 7c and the
   Thaumaturgist's switch at 7d say why the damage was or was not lethal.
 
-**Random clicks** (`engineering-practices.md` §10.3) gain right-clicks on the
+**Random clicks** (`devgui-map.md#random-clicks`) gain right-clicks on the
 board, and clicks on the panel's links. A why click must change what the panel
 shows or refresh it, and the engine must answer every why without panicking.
 In debug that runs the explanation's equality assertion against the memo across
@@ -2654,7 +2654,7 @@ byte-identical to `main`'s on both pools at two seats and four, as
 predicted, and instructions per decision +0.14%. On the 188-object board
 the editor's view costs 19 µs a repaint and an edit 142 µs a click in
 release, 104 µs and 278 µs in debug, inside §7b's 0.82 ms
-(`engineering-practices.md` §10.4); the dev GUI's CI test step reads about
+(`engineering-practices.md#what-one-prompt-costs-the-window`); the dev GUI's CI test step reads about
 24 s, as before.
 
 → `plans/archive/setup-architecture-landed.md`, "SU-3" (the build as sized,

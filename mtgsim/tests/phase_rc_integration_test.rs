@@ -223,11 +223,11 @@ fn test_enters_with_counters_under_its_controller() {
 /// performer puts counters on *after* the entry is visible.
 ///
 /// **On a registered card**, which is the point rather than an incidental
-/// choice: `engineering-practices.md` §3.3's sharpest finding is that a bespoke
-/// fixture can cover an atom while the registered pool cannot build the same
-/// scenario, and a 0/0 that enters with counters is exactly the board state
-/// this claim needs. Adaptive Shimmerer is colorless, so `random_deck` puts it
-/// in every deck.
+/// choice: `engineering-practices.md#how-many-cards-a-mechanic-owes`'s sharpest
+/// finding is that a bespoke fixture can cover an atom while the registered
+/// pool cannot build the same scenario, and a 0/0 that enters with counters is
+/// exactly the board state this claim needs. Adaptive Shimmerer is colorless,
+/// so `random_deck` puts it in every deck.
 #[test]
 fn test_zero_toughness_creature_survives_because_counters_arrive_with_it() {
     let mut game = setup_two_player_game();

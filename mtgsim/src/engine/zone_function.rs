@@ -189,11 +189,10 @@ pub fn condition_functions_in(def: &TriggerDef, arm: &TriggerEvent, types: &Card
 /// from your graveyard or from exile" (Scryfall, verified 2026-09-14) is one
 /// statement over two zones, so `==` answers `false` for both of them. Wonder
 /// names one zone today, which is exactly when the bug would be introduced and
-/// not noticed. `engineering-practices.md` §2a is the general rule this is an
-/// instance of.
-/// Whether `ability` is a static ability that functions in `zone` for an
-/// object of `types` (CR 113.6): what a gather of static effects asks before
-/// it reads one's body.
+/// not noticed. `engineering-practices.md#one-line-wrappers` is the general
+/// rule this is an instance of. Whether `ability` is a static ability that
+/// functions in `zone` for an object of `types` (CR 113.6): what a gather of
+/// static effects asks before it reads one's body.
 pub(crate) fn functions_as_static(ability: &AbilityDef, types: &CardTypes, zone: Zone) -> bool {
     ability.ability_type == AbilityType::Static && functions_in(ability, types, zone)
 }
