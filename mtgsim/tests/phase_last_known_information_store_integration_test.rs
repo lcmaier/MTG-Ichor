@@ -225,6 +225,7 @@ fn a_player_leaving_writes_a_row_for_each_object_it_takes() {
             existence
         })
         .collect();
+    // ORDER-FREE: a count.
     let owned_in = |game: &GameState, zone: Zone| game.objects.iter().filter(|(_, object)| object.owner == 1 && object.zone == zone).count();
     let owned: Vec<usize> = ZONES.into_iter().map(|zone| owned_in(&game, zone)).collect();
     let rows_from = |game: &GameState, zone: Zone| {
