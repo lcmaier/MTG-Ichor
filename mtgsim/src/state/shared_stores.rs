@@ -285,6 +285,13 @@ impl<T: ForkCopy> ObjectTable<T> {
         };
         self.chunks.iter().enumerate().filter(|(index, chunk)| chunk.as_ref().is_some_and(|chunk| !shared(*index, chunk))).count()
     }
+
+    /// The bytes the table itself holds, its vector of chunk pointers and its
+    /// chunks, the items' own heap apart: what a held-memory reading adds.
+    pub fn bytes_held(&self) -> usize {
+        let chunk = std::mem::size_of::<TableChunk<T::Held>>() + 2 * std::mem::size_of::<usize>();
+        self.chunks.capacity() * std::mem::size_of::<Option<Arc<TableChunk<T::Held>>>>() + self.chunks.iter().flatten().count() * chunk
+    }
 }
 
 /// The set bits of a chunk's `live` mask, lowest first.

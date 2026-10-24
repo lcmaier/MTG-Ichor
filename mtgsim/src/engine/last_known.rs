@@ -61,6 +61,15 @@ impl LkiStore {
     pub fn entries(&self) -> impl Iterator<Item = &Lki> + '_ {
         self.ended.values().flat_map(|ended| ended.0.iter())
     }
+
+    /// The bytes the store holds beside its entries' bodies and frames: the
+    /// table, each object's slot and its list of pointers.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn bytes_held(&self) -> usize {
+        let slot = std::mem::size_of::<EndedExistences>() + 2 * std::mem::size_of::<usize>();
+        let lists: usize = self.ended.values().map(|ended| slot + ended.0.capacity() * std::mem::size_of::<Lki>()).sum();
+        self.ended.bytes_held() + lists
+    }
 }
 
 /// What an object leaving a zone takes with it, read at the last moment
