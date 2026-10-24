@@ -841,7 +841,7 @@ TR-5f and TR-5c) is in `plans/archive/triggers-architecture-landed.md`,
 each under its phase, and TR-5h's design there says why the log replaced
 them.
 
-### 3.11 `Lki` — the last known information, widened (items 14, 15) — built in TR-4a
+### 3.11 `Lki` — the last known information, in one store (items 14, 15, 318) — the body built in TR-4a, the store designed 2026-10-24
 
 CR 603.10 says "the appearance of objects immediately prior to the
 event"; CR 113.7a and 608.2h call the same fact "last known information",
@@ -851,10 +851,10 @@ Aura's 603.6e trigger and the four "becomes unattached" Equipment each
 read a **status**, which `EffectiveCharacteristics` deliberately does not
 carry (it is the layer walk's output). So the type carries both.
 
-**As built (TR-4a, 2026-10-14): one type, one body behind one `Arc`**
-(`types/triggers.rs`). A hand-over clones one pointer, the record and every
-entry that keeps it share one copy, and `GameEvent` keeps its 72 bytes. The
-body is private, and the readers on the type are its whole surface:
+**The body, as built (TR-4a, 2026-10-14): one type, one body behind one
+`Arc`** (`types/triggers.rs`). Every holder shares the one body, and
+`GameEvent` keeps its 72 bytes. The body is private, and the readers on the
+type are its whole surface:
 
 ```rust
 pub struct Lki(Arc<LkiBody>);
@@ -862,6 +862,7 @@ struct LkiBody {
     object: ObjectRef,                     // the existence that left (CR 400.7)
     frame: Arc<EffectiveCharacteristics>,  // as it last existed, shared with the memo
     owner: PlayerId,                       // CR 108.3
+    token: bool,                           // CR 111.1, which the store forgets at CR 704.5d
     cost_choices: CostChoices,             // CR 707.10's decisions
     permanent: Option<PermanentFacts>,     // `None` off any other zone
     entry: Option<Arc<StackEntry>>,        // the stack object it was (CR 603.10e; TR-4d)
@@ -892,56 +893,255 @@ Each fact carries a reader that TR-4a built or one that TR-4b to TR-4d name:
 | `entry()` | a countered spell's caster, "a spell you've cast" (TR-4d) | 603.10e |
 | `host()` | `HostMatches`, for a source that left; a frame candidate's own host, the dispatcher's and the audit's | 303.4 |
 | `had_attached(id)` | a look-back `TriggerSubject::Host` (item 252) | 603.6e, 603.10a |
+| `was_token()` | `ObjectFilter`'s token leaf through `HeldFrame::LastKnown`, for an object CR 704.5d has removed (item 286) | 111.1 |
 
 **Left out, each until its reader arrives.** `damage_marked` and
 `controller_since_turn`, which this section planned, have no reader in
 TR-4a to TR-4d. `cast`, CR 400.7d's facts (the rulings pass's
 Vibrance, "if {R}{R} was spent to cast it" after it left), has no condition
 leaf that reads mana spent, and the card is unregistered. `entry`, a stack
-object's copy for CR 603.10e and `spell-copies`'s `copy_of`, was built in TR-4d with
-item 253: `last_known_information` keeps it for any object framed on the
-stack, and `entry()` reads it.
+object's copy, was built in TR-4d with item 253 for CR 603.10e, and
+`spell-copies`'s `copy_of` is its next reader.
 
-**The capture.** `last_known_information` builds the whole body before the
-batch performs (`capture_frame`); the frame is the memo hit it always was,
-and the facts are copied off `PermanentState`; the cost decisions are
-`GameState::cost_choices_of`'s, the one reader of them wherever the object
-is: a permanent, a spell on the stack, or the resolving spell, whose entry
-the resolution has taken. The dispatch audit's snapshots are `Lki`s too, so a
-candidate the audit finds gone keeps its host and counters as the
-dispatcher's frame candidate does. `DelayedTrigger.source_lki` replaced the
-bare `source_frame`: kept as the source leaves, or seeded as the trigger is
-made when its source has already gone, as a dies trigger's own has.
+**How a body is made.** `last_known_information` builds the whole body
+before the batch performs (`capture_frame`): the frame is the memo hit it
+always was, the facts are copied off `PermanentState`, and the cost
+decisions are `GameState::cost_choices_of`'s, the one reader of them
+wherever the object is: a permanent, a spell on the stack, or the resolving
+spell, whose entry the resolution has taken.
 
 **The owner** (A6k's review, item 235's follow-up): carried and read.
 `owner_now_or`'s fallback to the controller is gone. `owner_of_source`
-reads the store by id, since ownership never changes (CR 108.3), and else
-the resolving entry's kept `Lki`; a source with neither is a missed capture,
-and the creation refuses. The filter table reads `ByOwner` off a held `Lki`,
-so "a creature an opponent owns" answers for an object whose owner left
-the game (CR 800.4a). `Token` still refuses a gone object: no reader asks it.
+reads the object store by id, since ownership never changes (CR 108.3), and
+else the source's last known information; a source with neither is a missed
+capture, and the creation refuses. The filter table reads `ByOwner` off a
+held `Lki`, so "a creature an opponent owns" answers for an object whose
+owner left the game (CR 800.4a).
 
-`ZoneChange.lki` and `LeftTheGame.lki` carry an `Lki` since TR-2b, and
-`ControlChanged.lki` since TR-4d, so widening the type reached every
-record. **The capture covers CR 603.10a's three classes** (item 15, built in
+**The capture covers CR 603.10a's three classes** (item 15, built in
 TR-4c): `zone_change_looks_back(from, to)` — from the battlefield, from a
 graveyard, and into a hand or library from a zone all players could see, CR
 603.10a's own words for the third class; a Brainstorm put-back from a hand
-was never a shared fact, so it has nothing to look back at and stays `None`.
-Leaving the game counts only from the battlefield (CR 603.6c): a card leaving
-the game from a graveyard leaves no graveyard (Erebos's Titan's third
-ruling). **The
-reader methods live on the type** (the table above), and `TriggerBinding`'s
-readers answer live when the object is still where the event left it and
-from the frame otherwise (CR 608.2h, 113.7a); there is no second view type.
+was never a shared fact, so it has nothing to look back at. Leaving the game
+counts only from the battlefield (CR 603.6c): a card leaving the game from a
+graveyard leaves no graveyard (Erebos's Titan's third ruling).
 `triggering_object` is the one order, which `bound_characteristics` and a
 condition's "it" both read: the record's frame when the matched event was
 the subject's departure **and the arm looks back** (item 251's resolution
 half: a "from anywhere" subject is read where it went), the live object
-while it is still there, and the resolving entry's kept LKI after that
-(§6.1). Item 3's "three ad-hoc reads in `sba.rs`" are two existence probes
-today (`sba.rs:327`, `:425`, both `?` ahead of a subtype read) and not
-frames; the item closes on the reader existing, not on those lines.
+while it is still there, and its last known information after that (§6.1).
+Item 3's "three ad-hoc reads in `sba.rs`" were two existence probes, each a
+`?` ahead of a subtype read, and not frames; the item closed on the reader
+existing, not on those lines.
+
+#### One body per existence, in one store — the design (item 318, 2026-10-24)
+
+*Designed in `last-known-information-store`, A6e's cleanup PR 1b
+(`plans/handoffs/item-6-audit.md`, pass 3), read on `0e599b93`; the build
+goes on the same branch after the owner's review. Until it lands, the tree
+is TR-2b's per-keeper lists, which §6.1 records.*
+
+**The problem.** CR 113.7a's last known information is one thing per
+existence: how one object last was, in the zone it left. The engine takes it
+once, as a batch begins (`capture_lki`), but keeps it in six kinds of
+place, the census's shapes 1 to 6, and reads it through about fifteen
+functions: a record's own frame,
+`record_frame` and `GameEvent::frame_of`; a keeper's list, `carried_lki`,
+`lki_of` three times, `lki_kept_by_resolving` and `lki_kept_for`; a batch's
+captures, `take_named_lki`, `take_captured_lki`, `capture_of` and
+`frame_taken_for`; the hand-over, `hand_over_lki` over `lki_keepers` and
+`kept_lki_slot`; and a cost's own capture, `source_lki_if_it_moved`.
+TR-2b chose the per-keeper lists so each would die with its entry, and
+rejected a `GameState` map for the prune it would need (§6.1). The lists
+kept in step with their entries and left the fact with many homes.
+
+**The census by shape**: who asks, at which moment, for which existence,
+through which function. Six shapes hold one, a seventh holds a frame that
+is not one, and the views below borrow one.
+
+| Shape | Held on, today | Written | Read by (function ← who asks) | When | Which existence | Under the store |
+|---|---|---|---|---|---|---|
+| **1. A departure's own frame** (CR 603.10a, 603.10e) | `ZoneChange.lki`, `LeftTheGame.lki`, `SpellCountered.lki`; `Departure.frame` carries it from `depart` to the record | `capture_lki` before the batch performs, `take_captured_lki` in `depart`; `counter_spell`'s own `lki_now` | `GameEvent::lki` and `frame_of` ← `record_frame` ← `read_at_trigger`, `record_frames`, `triggering_object`; `departure_candidate`, `subject_read_looking_back`, `draft_history_rows`, the log's `named_in`, `fuzz_games`' death count | the window's dispatch; resolution, off the binding's copy; the log, to the game's end | the one the event ended | the record keeps a handle to the store's body, which `depart` returns; the counter's capture goes |
+| **2. An unattach's ends that the same event takes** (CR 603.10c) | `Unattached.attachment_lki`, `former_host_lki` | `announce_unattached_by_leaving`, from `Departure.frame` and `frame_taken_for` | `GameEvent::frame_of` ← `record_frame`; the log | as shape 1 | an end whose departure is another record of the same event | a flag per end, that it left in this event; its frame is that end's own body, read from the store once it has left; `frame_taken_for` goes |
+| **3. A source gone before the event** (CR 608.2h) | `DamageDealt.source_lki` (from `DealDamage.source_lki`), `AbilityActivated.source_lki`, `ManaAdded.source_lki` (from `ProduceMana.source_lki`); `PaidCosts.source_lki` | the resolution's `source_lki` ← `lki_kept_by_resolving`; `pay_costs`' own `lki_now`, through `source_lki_if_it_moved` | `GameEvent::source_lki` ← `record_frame`, `damage_objects`, `single_object`; `damage_source_characteristics` (lifelink, deathtouch, a prevention's source, CR 609.7); `draft_history_rows` | the damage's batch; the dispatch; resolution | the source's, ended by an earlier event: a sacrifice, a cost | a handle from the store; `PaidCosts`' capture goes |
+| **4. A keeper's frame of an object that left after it was made** (CR 113.7a, 608.2h) | `kept_lki` on `PendingTrigger`, `StackEntry` and `ResolvingObject`; `DelayedTrigger.source_lki`; `MatchedTrigger.source_lki`, a frame candidate's seed | `hand_over_lki` through `lki_keepers` and `kept_lki_slot`; seeded as a trigger is queued and as a delayed trigger is made; moved by placement and resolution | `carried_lki` ← `lki_of` ← `lki_kept_by_resolving` ← `triggering_object`, `condition_objects`, the resolution's `source_lki`, `register_delayed_trigger`, `owner_of_source`; `lki_kept_for` ← the log's names; `referred_damage_sources`; placement's "same source" | resolution, mostly; placement; legality's read of chosen sources; the log | the keeper's source, or an object of its triggering event, after it left | nothing: the keeper holds the existence and asks `last_known`. The lists, the seeds, the hand-over, `KeeperLocation` and `KeptLkiSlot` go |
+| **5. A batch's captures** | `GameState.lki_captures` | `capture_lki` ← `capture_frame` | `take_captured_lki`, `take_named_lki`, `capture_of`, `frame_taken_for` ← `depart`, the same-zone move, the unattach | between deciding and performing | each mover's, about to end | stays, as staging: `depart` moves a mover's capture into the store, and the rest drop as the batch ends, since a creature a replacement kept where it was never ended |
+| **6. A history row's object as it was then** | `HistoryRow.frame` and `last_known`, and `RowDraft`'s two, which must agree | `draft_history_rows`, from the record | `frame_matches` (`HeldFrame`), `added_to_count`, `died` and the log's other scans | any later turn | the row's; `last_known` only on a row whose existence had ended by the event | one field: the frame as the event left the object, or the handle of the ended existence's body, which holds both |
+| **7. Not last known information**: a survivor's frame from just before an event (CR 603.10a, 603.10d, 614.6) | `ControlChanged.lki`, `SameZoneMove.lki`, `LookBackSnapshot`'s `ObjectSnapshot`s, the dispatch audit's snapshots, `PermanentState.frame_before_control_change`, `ControlSweep.frames_before` | the control sweep; `capture_lki`'s same-zone branch; `look_back_frames` | `read_at_trigger`; a candidate's `Before` list; `answered_arms` | the window's dispatch | one that has not ended | stays out. The store holds ended existences only, and one of these in it would answer "last known" for an object still where it was. `frame_before_control_change` is this shape: CR 603.10d's frame of a permanent that keeps its existence through the change |
+
+The views borrow and never hold: `HeldFrame::LastKnown`,
+`CurrentOrLastKnown.lki`, `TriggerCandidateFrame::LastKnown`,
+`SubjectRead`'s two departed arms, `ConditionReferents.source_lki`,
+`TriggerSource.lki`, `ManaProducer.lki`, and the filter's and the keyword
+readers' `&Lki` parameters. Under the store they borrow from it or from a
+record; decision 4 is whether the four types fold.
+
+**The design: one body per existence, made once, kept in one place.**
+- **The LKI store**, `GameState.last_known`: each ended existence's `Lki`,
+  keyed by its `ObjectRef` (CR 400.7). Not "the store", which is the object
+  store.
+- **One writer.** `depart`, the before-move half of both performers that
+  take an object out of a zone, moves its batch's capture of the mover into
+  the LKI store and returns the handle. Nothing else makes an `Lki` of an
+  ended existence.
+- **One reader.** `GameState::last_known(existence)`: `None` while the
+  existence has not ended, and where nothing framed it, as for CR 601.2a's
+  silent move.
+- **Who holds a handle.** A record, for the existence its event ended or the
+  source gone before it (shapes 1 and 3), and a history row (shape 6): a
+  record is copied whole into a binding and read as a value, and a row is
+  read on every count. Each holds the LKI store's body, never a capture of
+  its own. Everything else holds the existence and asks. Rejected: records
+  holding only the existence, which grows `ZoneChange` past `GameEvent`'s 72
+  bytes, since an epoch comes from one game-wide counter and the one before a
+  move cannot be derived from the one after.
+- **`carried_lki`'s order stays**, as `triggering_object`'s above: the
+  record's frame when the arm looks back, which is the arm's projection (a
+  dies trigger's "it" is the creature as it died, though its binding follows
+  the card into the graveyard, CR 603.6c); the live object while it is that
+  existence; and `last_known` after that.
+- **Determinism.** Keyed by existence; the store offers an append and a
+  lookup, and nothing a game reads iterates it. A held-memory reading sums
+  it, which no order changes.
+
+**What #284's review comments become.** `Departure`'s frame half: the handle
+`depart` returns. `PaidCosts`' frame, a second capture of one frame: gone,
+since the activation the cost pays for is a reader under decision 1.
+`lki_kept_for` and `frame_taken_for`: `last_known`. The unattach's
+`attachment_lki` and `former_host_lki`: a flag per end. A history row's
+`frame` beside `last_known`: one field. The keepers' lists and their
+hand-over: gone, and the keeper asks.
+
+The probe that measured the decisions below (a counting copy of the crate
+at `0e599b93`: `fuzz_games`' 200 games a pool at each seat count, seed
+12345, the boards the A/B plays; and `clone_bound_test` and
+`history_held_test` on their Commander games) also ran
+the store beside today's lookups: **every reader answers as today but
+one**, `lki_kept_for` for the log's names of a departed source
+(`names_as_announced`). Its 118 cases in the 800 games are each an
+`AbilityActivated` of a mana ability whose own cost moved its source, with
+no keeper holding it, since a mana ability has no stack entry. Each record frames that source
+itself, and its line reads the record's frame first (`named_in`), so the
+names ask the store only for a source the record does not frame, and keep
+every record as it is. No reader got an answer today that the store would
+not give, and placement's "same source" never differed.
+
+##### Decision 1 — which moves write the store
+
+The store takes what the batch captured, so this is which movers
+`capture_lki` frames. Today: a move in CR 603.10a's three classes, and any
+other mover some keeper reads, found by walking every keeper
+(`objects_lki_is_kept_for`) once per batch that moves anything outside those
+classes. Two more captures sit outside it, a countered spell's (CR 603.10e)
+and a cost-moved source's. The moves out of a hand or a library are about
+three in four of every move a batch decides, and a keeper can read one: CR
+113.7a's source in a hand (cycling, channel), and a draw trigger's card,
+which today's capture frames. CR
+608.2h's rule is written for an object expected in a public zone, but 113.7a's
+is not, so "public zones only" does not drop the walk. Per game, by pool and
+seat count:
+
+| | performance, 2 | performance, 4 | stress, 2 | stress, 4 |
+|---|---:|---:|---:|---:|
+| moves decided | 84 | 162 | 84 | 171 |
+| framed today, CR 603.10a's classes | 8.4 | 48.3 | 7.0 | 47.0 |
+| framed today, a keeper reads it (off the stack, or leaving with a player) | 0.2 | 0.4 | 0.4 | 0.9 |
+| keeper walks to decide that | 83 | 160 | 82 | 166 |
+| keepers each walk visits | 0.3 | 0.3 | 0.4 | 0.4 |
+| hand-over walks, one per framed departure | 8.6 | 48.8 | 7.3 | 47.9 |
+| `pay_costs`' own captures (no use of them was the only capture) | 0.4 | 0.6 | 0.9 | 1.6 |
+| more frames, every move out of a public zone | 21 | 40 | 20 | 38 |
+| more frames, every move | 82 | 157 | 81 | 165 |
+
+| | The rule | Code shape | Performance | Upkeep | Clone and held memory |
+|---|---|---|---|---|---|
+| **A. Who reads it** (recommended) | the record looks back (CR 603.10a's classes, 603.10e's countering), or something reads the mover later: a keeper's source or triggering-event object, found by the walk, or the source of the activation the move pays for, which the batch's cause names | `capture_lki` keeps its walk and gains the two record and payment legs; the hand-over and `PaidCosts`' capture go | the same frames as today; the hand-over walks go, 7–49 a game; Memo hits fall by `pay_costs`' captures, 0.4–1.6 a game, and nothing else moves | a new kind of reader is a leg on `lki_keepers`, today's one place | the store holds 7–9 entries a game at two seats and 48–49 at four; held, +131 B a turn at four seats (decision 3) |
+| B. Every move out of a public zone | a move from the battlefield, a graveyard, the stack, exile or the command zone, and a hidden-zone mover something reads | the walk stays for the hidden zones, about three in four of its calls by the moves' split | +21 frames a game at two seats and +40 at four, nearly all spells leaving the stack as they finish resolving, which nothing reads; Memo hits +0.02–0.04%; layer walks the same | a public mover needs no thought; a hidden one is still the walk | held, +535 B a turn at four seats: about 4.6 KB of TR-5h's 5 |
+| C. Every move | every move from every zone | no walk and no legs | +82 frames a game at two seats and +157 at four; Memo hits +0.09–0.15%; layer walks the same | nothing to add for a new reader | held, +1,719 B a turn: about 5.9 KB, past the 5 KB gate |
+
+**Recommended: A.** The walk B and C remove costs little (most walks visit
+no keeper), and its cost is not why item 318 was filed; B keeps about three
+in four of its calls anyway, and C holds frames nothing reads past the
+held-memory gate. A writes what the CR reads.
+
+##### Decision 2 — the store's shape against the clone floors
+
+Floors 2 and 3 cap one clone at 64 allocations and 128 KB, at every
+decision (`clone_bound_test`). The worst decision today reads **39
+allocations, and 6.4 KB at most, at four seats** (the tree's test, 10,509
+decisions) and **28 allocations and 3.2 KB at most at two** (the same test on
+two seats of 60 cards at 20 life, 3,291 decisions). Under decision 1's A the
+store holds at most 140 entries in a game (four seats, `stress`), 7–49 on
+average, and is read mostly for an object that has just left.
+
+| | Code shape | Performance | Upkeep | Clone, four seats · two |
+|---|---|---|---|---|
+| **A. Chunks in time order, like the history log** (recommended) | chunks of 16 behind `Arc`s, newest first; a lookup scans newest first by `ObjectRef` | a lookup scans at most 140 entries, the newest first; a write appends | the history log's chain, about 60 lines; nothing in play iterates it | **0 allocations**, +16 B · the same; a fork's first write copies the open chunk: 1 allocation, under 0.4 KB |
+| B. CL-1's id table, `ObjectTable` | a slot per object id holding its ended existences, behind its own `Arc` | a lookup is arithmetic and a short scan | the table exists; it needs a slot type for several existences of one id | **+1 allocation**, the outer vector: 8 B per 32 ids up to the highest stored, which was 409 in the 800 games, so about 0.1 KB · +1, under 0.1 KB; a fork's first write, 2 allocations |
+| C. A persistent map | `imbl`, or a trie written here | a lookup in a few steps; a fork's first write copies a path, 3–4 allocations (`clone-architecture.md` §2.8) | nine crates and about 11,500 lines, or about 400 lines owned; `clone-architecture.md` decision 1 rejected it for the board | 0 allocations, +8 B · the same |
+
+Each form also takes from a clone what the lists cost it: `ResolvingObject`'s
+list is the one a clone copies inline (1 allocation while it holds any), and
+a fork's write to a waiting trigger or a stack entry no longer copies its
+list. **Recommended: A.** The floors bind on allocations, and A adds none;
+its lookups are few and short.
+
+##### Decision 3 — how long an entry lives
+
+TR-2b rejected a map keyed by `ObjectRef` because "every exit from the stack
+would have to prune it and a missed prune is the leak the bounded-state PR
+removed" (#188, items 42 and 179). At TR-5h the owner restated item 179's
+bound: a clone copies a bounded thing, and what a game holds grows with its
+events, read at each close-out by `history_held_test`, at most 5 KB a turn.
+It reads **4,043 B a turn** today. The history log's departure rows already
+hold these bodies for the game.
+
+| | Lifetime | Code shape | Performance | Upkeep | Held, four seats |
+|---|---|---|---|---|---|
+| **A. The game** (recommended) | never pruned | none | none | nothing to keep in step, so nothing to miss | +131 B a turn: the bodies and frames no row holds (a card leaving a graveyard for the battlefield, a keeper's object off the stack, a countered spell), plus about 20 B of the store's own: about 4.2 KB of 5 |
+| B. While something can read it | an entry goes when nothing names its existence: no keeper, row, record in the window, snapshot, delayed trigger or prevention row (CR 609.7a) | a liveness rule asked of every holder of an existence, or a count on each | a sweep per prune | every new holder of an existence joins the rule, and a miss is a missed capture or a leak | at most the 131 B, since rows hold three in four of the bodies for the game anyway |
+
+**Recommended: A.** It answers TR-2b's objection rather than overriding it:
+there is no prune to miss, and the store grows with the departures its rule
+frames, as the log does, under the gate that reads the log.
+
+##### Decision 4 — the four view types
+
+`HeldFrame` is a filter's input: characteristics, or an `Lki`.
+`CurrentOrLastKnown` is an object live or as it last was. `TriggerCandidateFrame`
+is which ability list a trigger candidate reads under CR 603.10: now, as it
+last was, or a survivor's from before. `SubjectRead` is whether a trigger's
+subject was a permanent at the event, for its Aura's host. Each borrows an
+`Lki` and none holds one, and two carry shape 7's frames, which are not last
+known information.
+
+| | Code shape | Upkeep |
+|---|---|---|
+| **A. Leave them to `concept-census-and-register`** (recommended) | this PR changes only where their `&Lki` comes from | the census names the CR concept each holds and slots a fold where two hold one; shape 7's use of the `Lki` type is the same question |
+| B. Fold them here | one enum of an object as read: live, last known, a survivor's from before, characteristics alone | the candidate's list from before and the subject's permanence still need arms of their own; a type change across the dispatch, the filter and the oracle, beside the store's |
+
+**Recommended: A.** Folding them is a question about concepts, which the
+census asks of every type; the store is a question about storage.
+
+**Predictions for the close-out**, with decisions 1 to 3 as recommended:
+- **Both pools, two seats and four: every game identical**, and the
+  engine-work rows identical but Memo hits, lower by `pay_costs`' captures:
+  0.4 a game (`performance`, two seats), 0.6 (four), 0.9 (`stress`, two),
+  1.6 (four).
+- **The callgrind budget**: within ±0.3%, since no counter moves but those;
+  the hand-over walks and the captures go, and an append and a short scan
+  come.
+- **The clone floors**: 39 allocations at the worst decision, or 38 where a
+  resolving object held a list; bytes within 0.1 KB.
+- **Held memory**: 4,043 B a turn to about 4,200.
+
+**Sized:** about 900–1,200 lines changed, code and tests, more deleted than
+added, before §4's 1.5–2× on code: the hand-over and the lists, the seeds,
+`PaidCosts`' capture, the counter's, and the lookups go (about 350 lines);
+the store and its tests, the two legs, the records' and rows' handles and
+the unattach's flags come (about 400); the tests that pin the legs no pooled
+card reaches, a mana ability whose cost moves its source from a hand, and a
+spell countered while a keeper reads it (about 200).
 
 ### 3.12 The stream's records — items 10 to 18, decided
 
@@ -2354,31 +2554,36 @@ source stolen since, or in its owner's graveyard, still reads its
 controller's facts. A static ability passes `None`, and its "you" is its
 source's current controller.
 
-**The kept LKI (CR 113.7a, 608.2h; built in TR-2b).** A binding copies
-its records at dispatch, so a departure after the dispatch is in no record the
-entry holds. An `Lki` (§3.11) sits in a `kept_lki` list on
-`PendingTrigger`, `StackEntry` and `ResolvingObject`. Placement moves the list
-onto the stack entry, resolution moves it onto `resolving`, and an effect that
-moves its own source adds one there.
-- **One capture.** Before a batch performs, `capture_lki` frames
-  every permanent its decided members take off the battlefield (item 174). It
-  also frames every other mover that a pending, stacked or resolving entry
-  names, from any zone: the entry's source, or an object its binding names. On a
-  player's leaving it frames the named objects that player owns. The names are
-  gathered only for a batch that moves something other than a permanent, and
-  on the common board they are empty or short.
+**The last known information of what has left (CR 113.7a, 608.2h).** A
+binding copies its records at dispatch, so a departure after the dispatch is
+in no record the entry holds. TR-2b kept an `Lki` (§3.11) in a `kept_lki`
+list on `PendingTrigger`, `StackEntry` and `ResolvingObject`, handed to each
+entry naming the mover as it left. Item 318's design (§3.11) replaces the
+lists with the LKI store: a keeper holds the existence it reads, and asks.
+- **One capture.** Before a batch performs, `capture_lki` frames each mover
+  something reads later (§3.11, decision 1): every permanent its decided
+  members take off the battlefield (item 174) and every other move in CR
+  603.10a's classes; a spell countered (CR 603.10e); the source of the
+  activation a cost's move pays for, which the batch's cause names; and any
+  other mover a pending, stacked, resolving or delayed keeper names, from any
+  zone: its source, or an object its binding names, which `lki_keepers`
+  walks. On a player's leaving it frames the named objects that player owns.
+  The walk runs only for a batch that moves something outside those
+  classes, and visits fewer than one keeper a walk on the pooled boards.
 - **One writer.** The two performers that move an object out of a zone,
-  `perform_zone_change` and `owned_objects_leave`, call `hand_over_lki`
-  before the move. It gives each entry naming the mover the frame its batch
-  took, which for a permanent is the record's own `Arc`.
+  `perform_zone_change` and `owned_objects_leave`, call `depart` before the
+  move. It moves the batch's capture of the mover into the LKI store and
+  returns the handle its record carries.
 - **The reader.** `bound_characteristics` reads the record's frame when the
-  event was the departure, the live object while its epoch holds, and the
-  resolving entry's `kept_lki` after that. A miss there is a missed
+  event was the departure and the arm looks back, the live object while its
+  epoch holds, and `last_known` after that. A miss there is a missed
   capture, and the refusal says so.
-- **Rejected:** a `GameState` map keyed by `ObjectRef`, since every exit from
-  the stack would have to prune it and a missed prune is the leak the
-  bounded-state PR removed. Also rejected: writing at the window's close,
-  since only a battlefield departure's record carries a frame.
+- **TR-2b rejected** a `GameState` map keyed by `ObjectRef`, since every exit
+  from the stack would have to prune it and a missed prune is the leak the
+  bounded-state PR removed. The LKI store is that map with no prune: it lives
+  for the game, as the history log's departure rows do, under the gate that
+  reads them (§3.11, decision 3). Still rejected: framing at the window's
+  close, when each mover is already a new object (CR 400.7).
 
 **The frame's readers (built in TR-4a).** A condition is answered off the
 board, but a triggered ability's "if" is often asked after "this" or "it" has
@@ -2407,10 +2612,9 @@ delayed trigger alike): two attackers declared together are two triggers,
 and a "one or more" arm's one occurrence has no "it", as its binding has
 none. The CR 603.4 recheck and a resolving effect's own "if" take the
 resolving entry's (`condition_objects`).
-A delayed trigger takes its own `source_lki`, at the trigger and, through the
-entry it queues, at resolution. A frame candidate's entry keeps its source's
-`Lki` from the start (item 168), since the existence that triggered has
-already gone and no hand-over reaches it. `HostMatches` reads a gone
+A delayed trigger's source, and a frame candidate's (item 168), whose
+existence that triggered had already gone, are read through `last_known`, at
+the trigger and at resolution. `HostMatches` reads a gone
 source's host where it is, or as it left when it is the triggering object,
 and a host that left otherwise has no answer, which reads as no; its filter's
 "its owner" is the gone source's, off its `Lki` (CR 108.3).

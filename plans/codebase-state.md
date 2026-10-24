@@ -9982,8 +9982,9 @@ row 57 is item 297.
      homes; the owner decided at #284's review to give it one.
      **Reachability (2026-10-24):** reachable — not wrong: a maintainer's
      cost. No game answers differently, and every reader agrees today.
-     **Sized:** several hundred lines changed, more deleted than added; its
-     design note sizes it. It settles the review's LKI comments: `Departure`'s
+     **Sized:** about 900–1,200 lines changed, code and tests, more deleted
+     than added (`triggers-architecture.md` §3.11's design, 2026-10-24, from
+     a probe of the tree's own counters). It settles the review's LKI comments: `Departure`'s
      frame half, `PaidCosts`' frame, `lki_kept_for`, `frame_taken_for`, an
      unattach's two frames, a history row's `frame` beside `last_known`, and
      the keepers' lists with their hand-over. Three decisions first: which
