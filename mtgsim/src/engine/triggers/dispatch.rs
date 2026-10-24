@@ -21,7 +21,7 @@
 use std::sync::Arc;
 
 use crate::engine::mana::ManaProducer;
-use crate::oracle::characteristics::CurrentOrLastKnown;
+use crate::oracle::characteristics::ObjectInformation;
 use crate::types::effects::Antecedent;
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::engine::layers::compute::compute_characteristics;
@@ -30,7 +30,6 @@ use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::mana::triggered_mana_recipient;
 use crate::engine::object_filter::{player_ref_names, EarlierTargets, FilterReferents};
 use crate::engine::resolve::ResolutionContext;
-use crate::engine::targeting::HeldFrame;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
@@ -262,7 +261,7 @@ impl FilterReferents for TriggerReferents<'_> {
     /// The candidate, now: an arm's own words have no triggering event yet.
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
-            Antecedent::ThisObject => CurrentOrLastKnown { id: self.this.id(), lki: None }.defending_player(game, &|_| {}),
+            Antecedent::ThisObject => ObjectInformation::Current(self.this.id()).defending_player(game, &|_| {}),
             Antecedent::Triggering(_) => None,
         }
     }
@@ -324,14 +323,14 @@ impl TriggerCandidateFrame<'_> {
         }
     }
 
-    /// How a filter reads the candidate's object through this frame: off its
-    /// last known information for an object that left, which says who
-    /// controlled it then, and off these characteristics otherwise.
-    fn held(&self) -> HeldFrame<'_> {
+    /// Object `id` as a filter reads it through this frame: by its last known
+    /// information for an object that left, which says who controlled it
+    /// then, and by these characteristics otherwise.
+    fn information(&self, id: ObjectId) -> ObjectInformation<'_> {
         match self {
-            TriggerCandidateFrame::LastKnown { lki, .. } => HeldFrame::LastKnown(lki),
+            TriggerCandidateFrame::LastKnown { lki, .. } => ObjectInformation::LastKnown(lki),
             TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::Before { .. } => {
-                HeldFrame::Characteristics(self.chars())
+                ObjectInformation::Characteristics(id, self.chars())
             }
         }
     }
@@ -427,43 +426,13 @@ impl AnsweredArms {
     }
 }
 
-/// How an arm reads its subject off a record: where the subject was at the
-/// moment the trigger asks about.
-///
-/// The last two both read the subject's last known information, and read its
-/// characteristics alike, including what an Aura or Equipment gave it
-/// (Loxodon Warhammer's lifelink on a Dragonhawk that has died). What sets
-/// them apart is whether the subject was a permanent at the moment the
-/// trigger asks about, which decides one question: whether the trigger's own
-/// Aura or Equipment was attached to it (`TriggerSubject::Host`). Only a
-/// permanent has anything attached to it (CR 301.5, 303.4).
-#[derive(Clone, Copy)]
-enum SubjectRead<'a> {
-    /// Where it is now.
-    Now,
-    /// This event is the subject leaving where it was, and the trigger looks
-    /// back to just before it (CR 603.10): a permanent leaving the
-    /// battlefield, as its record framed it, which "when enchanted creature
-    /// dies" matches the Aura that was on; or a spell countered on the stack.
-    LeftInThisEvent(&'a Lki),
-    /// It had left the battlefield at some earlier event, and deals damage
-    /// now as it last existed, through an ability that resolved after it had
-    /// gone (CR 608.2h): Dragonhawk's end-step damage. It is no permanent at
-    /// this event, so no Aura or Equipment is on it, and "whenever enchanted
-    /// creature deals damage" never matches it, even an Aura on a new object
-    /// that shares its id after a flicker (CR 400.7).
-    GoneBeforeThisEvent(&'a Lki),
-}
-
-impl<'a> SubjectRead<'a> {
-    /// A departure's subject: as its record framed it for an arm that looks
-    /// back, and now for any other, "from anywhere" among them (CR 603.6c,
-    /// 603.10).
-    fn of_departure(arm: &TriggerEvent, lki: &'a Option<Lki>) -> SubjectRead<'a> {
-        match lki {
-            Some(lki) if arm.looks_back() => SubjectRead::LeftInThisEvent(lki),
-            _ => SubjectRead::Now,
-        }
+/// A departure's subject `id` as an arm reads it: as its record framed it for
+/// an arm that looks back, and as it is now for any other, "from anywhere"
+/// among them (CR 603.6c, 603.10).
+fn departure_read<'a>(arm: &TriggerEvent, id: ObjectId, lki: &'a Option<Lki>) -> ObjectInformation<'a> {
+    match lki {
+        Some(lki) if arm.looks_back() => ObjectInformation::LastKnown(lki),
+        _ => ObjectInformation::Current(id),
     }
 }
 
@@ -1536,7 +1505,7 @@ impl GameState {
             if condition.is_some_and(|condition| !settled_holds(condition, self, multiplier.object.id, Some(multiplier.controller), as_long_as)) {
                 continue;
             }
-            if !self.object_matches_filter(source.object.id, &def.abilities_of, &mut { referents }, Some(source.frame.held())) {
+            if !self.object_matches_filter(source.frame.information(source.object.id), &def.abilities_of, &mut { referents }) {
                 continue;
             }
             let caused = matched.triggering_events.iter().any(|event| {
@@ -1840,7 +1809,7 @@ impl GameState {
                         earlier.seq < record.seq
                             && earlier.player == Some(*caster)
                             && matches!(earlier.fact, RowFact::Cast { .. })
-                            && earlier.frame_matches(|id, held| self.object_matches_filter(id, filter, &mut { *referents }, Some(held)))
+                            && earlier.frame_matches(|object| self.object_matches_filter(object, filter, &mut { *referents }))
                     })
                 }
                 _ => record.place_in_turn() == Some(1),
@@ -1884,7 +1853,7 @@ impl GameState {
                     // replacement redirected it (`replacement-architecture.md` §2b.4).
                     && by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::of_departure(arm, lki)),
+                    && self.subject_matches(subject, departure_read(arm, *object_id, lki), referents, seq),
             ),
             // CR 603.6c names this event for a leaves-the-battlefield ability,
             // and for nothing else: a card leaving the game from a graveyard
@@ -1903,24 +1872,24 @@ impl GameState {
                     && change.act.is_none()
                     && by.is_none()
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::of_departure(arm, lki)),
+                    && self.subject_matches(subject, departure_read(arm, *object_id, lki), referents, seq),
             ),
             // The act a replacement kept in its zone (CR 614.6), read only by an
             // arm that names an act: a mill, not "leaves your library". The
             // object is asked as it was, which is how it still is.
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
-                GameEvent::SameZoneMove { object_id, owner: moved_owner, zone, act, lki, applied: _ },
+                GameEvent::SameZoneMove { object_id: _, owner: moved_owner, zone, act, lki, applied: _ },
             ) => triggering_event_if(
                 change.act.is_some()
                     && change.matches(Some(*zone), *zone, Some(*act))
                     && by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
+                    && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
             ),
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
-                triggering_event_if(self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::Now))
+                triggering_event_if(self.subject_matches(subject, ObjectInformation::Current(*object_id), referents, seq))
             }
             (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, .. }) => triggering_event_if(
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents))
@@ -1946,12 +1915,12 @@ impl GameState {
             ) => {
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
-                let source_read = record.event.source_lki().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+                let source_read = ObjectInformation::of(*source_id, record.event.source_lki());
                 triggering_event_if(
                     self.damage_recipient_matches(recipient, *target, referents, seq)
                         && combat.is_none_or(|c| c == *is_combat)
                         && (!*excess || *dealt_excess > 0)
-                        && self.subject_matches(source, Some(*source_id), referents, seq, source_read),
+                        && self.subject_matches(source, source_read, referents, seq),
                 )
             }
             // Announced as the batch decided, and read at its close, so the
@@ -1981,22 +1950,21 @@ impl GameState {
                     None => true,
                     Some(filter) => self.subject_matches(
                         &TriggerSubject::Filter(filter.clone()),
-                        Some(*spell_id),
+                        ObjectInformation::Current(*spell_id),
                         referents,
                         seq,
-                        SubjectRead::Now,
                     ),
                 };
                 triggering_event_if(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, referents)))
             }
             // CR 603.10e: the spell as it was on the stack, and whoever cast it.
-            (TriggerEvent::IsCountered { spell, caster }, GameEvent::SpellCountered { spell_id, lki, .. }) => {
+            (TriggerEvent::IsCountered { spell, caster }, GameEvent::SpellCountered { lki, .. }) => {
                 let cast_by = lki.entry().and_then(StackEntry::caster);
                 triggering_event_if(
                     caster.as_ref().is_none_or(|p| cast_by.is_some_and(|who| self.player_ref_is(p, who, referents)))
                         && spell.as_ref().is_none_or(|filter| {
                             let filter = TriggerSubject::Filter(filter.clone());
-                            self.subject_matches(&filter, Some(*spell_id), referents, seq, SubjectRead::LeftInThisEvent(lki))
+                            self.subject_matches(&filter, ObjectInformation::LastKnown(lki), referents, seq)
                         }),
                 )
             }
@@ -2018,7 +1986,7 @@ impl GameState {
                     from_ok
                         && cast_ok
                         && controller.as_ref().is_none_or(|p| self.player_ref_is(p, *rc, referents))
-                        && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::Now),
+                        && self.subject_matches(subject, ObjectInformation::Current(*object_id), referents, seq),
                 )
             }
             // The declaration's attackers that match, each with what it
@@ -2035,7 +2003,7 @@ impl GameState {
                 let attacks = attackers
                     .iter()
                     .filter(|&&(id, target)| {
-                        self.subject_matches(attacker, Some(id), referents, seq, SubjectRead::Now)
+                        self.subject_matches(attacker, ObjectInformation::Current(id), referents, seq)
                             && defender.as_ref().is_none_or(|asked| self.defender_matches(asked, target, referents, seq))
                     })
                     .filter_map(|&(id, target)| Some((self.subject_after(event, id)?, self.attacked(target)?)));
@@ -2067,11 +2035,11 @@ impl GameState {
                 TriggerEvent::ActivatesAbility { player, source, mana_ability },
                 GameEvent::AbilityActivated { identity, controller, mana_ability: was_mana, from, .. },
             ) => {
-                let read = record.event.source_lki().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+                let read = ObjectInformation::of(identity.source.id, record.event.source_lki());
                 let matched = *from == Zone::Battlefield
                     && mana_ability.is_none_or(|asked| asked == *was_mana)
                     && player.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents))
-                    && self.subject_matches(source, Some(identity.source.id), referents, seq, read);
+                    && self.subject_matches(source, read, referents, seq);
                 if matched { vec![TriggeringEventObjects::Object(identity.source)] } else { Vec::new() }
             }
             // Read after the event: the target as it is now, and the spell or
@@ -2082,7 +2050,7 @@ impl GameState {
             ) => {
                 let target_ok = match (watched, target) {
                     (TargetSubject::Object(subject), TargetRef::Object(object)) => {
-                        self.subject_matches(subject, Some(object.id), referents, seq, SubjectRead::Now)
+                        self.subject_matches(subject, ObjectInformation::Current(object.id), referents, seq)
                     }
                     (TargetSubject::Player(who), TargetRef::Player(player)) => {
                         who.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents))
@@ -2092,7 +2060,7 @@ impl GameState {
                 let kind_ok = kind.admits(ability_source.is_none())
                     && match kind {
                         TargetedBy::Spell(Some(filter)) => {
-                            self.subject_matches(&TriggerSubject::Filter(filter.clone()), Some(*by), referents, seq, SubjectRead::Now)
+                            self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(*by), referents, seq)
                         }
                         TargetedBy::Spell(None) | TargetedBy::SpellOrAbility | TargetedBy::Ability => true,
                     };
@@ -2111,10 +2079,9 @@ impl GameState {
                     None => true,
                     Some(filter) => self.subject_matches(
                         &TriggerSubject::Filter(filter.clone()),
-                        Some(origin.source()),
+                        ObjectInformation::Current(origin.source()),
                         referents,
                         seq,
-                        SubjectRead::Now,
                     ),
                 };
                 let cause_ok = match caused_by {
@@ -2136,8 +2103,8 @@ impl GameState {
                 TriggerEvent::BecomesAttached { attachment: watched, host: on },
                 GameEvent::Attached { attachment, host, .. },
             ) => triggering_event_if(
-                self.subject_matches(watched, Some(*attachment), referents, seq, SubjectRead::Now)
-                    && self.subject_matches(on, Some(*host), referents, seq, SubjectRead::Now),
+                self.subject_matches(watched, ObjectInformation::Current(*attachment), referents, seq)
+                    && self.subject_matches(on, ObjectInformation::Current(*host), referents, seq),
             ),
             // CR 603.10c: each end as it was just before, which for one that
             // left in this event is its departure's frame.
@@ -2146,18 +2113,18 @@ impl GameState {
                 GameEvent::Unattached { attachment, former_host, .. },
             ) => triggering_event_if(
                 self.subject_matches(
-                    watched, Some(attachment.id), referents, seq, self.subject_read_looking_back(*attachment),
+                    watched, self.subject_read_looking_back(*attachment), referents, seq,
                 ) && self.subject_matches(
-                    from, Some(former_host.id), referents, seq, self.subject_read_looking_back(*former_host),
+                    from, self.subject_read_looking_back(*former_host), referents, seq,
                 ),
             ),
             // CR 603.10d: the subject as it was before the change, "you" its
             // controller then (the candidate's, off its frame from before).
-            (TriggerEvent::ControlChanges { subject, from, to }, GameEvent::ControlChanged { object_id, from: lost, to: gained, lki }) => {
+            (TriggerEvent::ControlChanges { subject, from, to }, GameEvent::ControlChanged { from: lost, to: gained, lki, .. }) => {
                 triggering_event_if(
                     from.as_ref().is_none_or(|p| self.player_ref_is(p, *lost, referents))
                         && to.as_ref().is_none_or(|p| self.player_ref_is(p, *gained, referents))
-                        && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
+                        && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
                 )
             }
             // Leaving the battlefield is losing control of it (Khârn the
@@ -2165,11 +2132,11 @@ impl GameState {
             // one gaining it, and its controller as it left.
             (
                 TriggerEvent::ControlChanges { subject, from, to: None },
-                GameEvent::ZoneChange { object_id, from: Zone::Battlefield, lki: Some(lki), .. }
-                | GameEvent::LeftTheGame { object_id, from: Zone::Battlefield, lki: Some(lki), .. },
+                GameEvent::ZoneChange { from: Zone::Battlefield, lki: Some(lki), .. }
+                | GameEvent::LeftTheGame { from: Zone::Battlefield, lki: Some(lki), .. },
             ) => triggering_event_if(
                 from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.chars().controller, referents))
-                    && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
+                    && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
             ),
             // A record matches when it passes the arm's three questions, each
             // of which the arm's `None` leaves unasked: the counter's kind
@@ -2267,7 +2234,7 @@ impl GameState {
             GameEvent::BecameBlocked { attacker: blocked },
         ) = (arm, &record.event)
         {
-            let watched = self.subject_matches(attacker, Some(*blocked), referents, record.seq, SubjectRead::Now);
+            let watched = self.subject_matches(attacker, ObjectInformation::Current(*blocked), referents, record.seq);
             let attacker = self.subject_after(&record.event, *blocked).filter(|_| watched);
             return attacker.map(|attacker| TriggeringEventObjects::BlockedBy { attacker, blockers: Vec::new() }).into_iter().collect();
         }
@@ -2295,7 +2262,7 @@ impl GameState {
         if *alone && each_on(blocker_of).len() != 1 {
             return Vec::new();
         }
-        let is = |subject: &TriggerSubject, id: ObjectId| self.subject_matches(subject, Some(id), referents, seq, SubjectRead::Now);
+        let is = |subject: &TriggerSubject, id: ObjectId| self.subject_matches(subject, ObjectInformation::Current(id), referents, seq);
         let now = |id: ObjectId| self.subject_after(event, id);
         let enough = |n: usize| count.unwrap_or(CountIs::AtLeast(1)).satisfied_by(n as u64);
         match *occurrence {
@@ -2359,7 +2326,7 @@ impl GameState {
     fn counters_on_matches(&self, watched: &CountersOn, on: CounterSubject, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
         match (watched, on) {
             (CountersOn::Object(which), CounterSubject::Object(id)) => {
-                self.subject_matches(which, Some(id), referents, seq, SubjectRead::Now)
+                self.subject_matches(which, ObjectInformation::Current(id), referents, seq)
             }
             (CountersOn::Player(who), CounterSubject::Player(player)) => {
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, player, referents))
@@ -2383,10 +2350,10 @@ impl GameState {
     ) -> bool {
         let TriggerEvent::ManaAdded { source, tapped_for_mana, mana } = arm else { return false };
         // A producer its own cost moved is read as it last existed (CR 608.2h).
-        let read = producer.lki.map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+        let read = ObjectInformation::of(producer.id, producer.lki);
         tapped_for_mana.is_none_or(|t| t == producer.tapped_for_mana)
             && mana.is_none_or(added)
-            && self.subject_matches(source, Some(producer.id), referents, seq, read)
+            && self.subject_matches(source, read, referents, seq)
     }
 
     /// [`Self::mana_added_arm_matches`], asked before the mana is made.
@@ -2439,7 +2406,7 @@ impl GameState {
             (DamageRecipient::Object(filter), DamageTarget::Object(id)) => match filter {
                 None => true,
                 Some(filter) => {
-                    self.subject_matches(&TriggerSubject::Filter(filter.clone()), Some(id), referents, seq, SubjectRead::Now)
+                    self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(id), referents, seq)
                 }
             },
             (DamageRecipient::Player(_), DamageTarget::Object(_)) | (DamageRecipient::Object(_), DamageTarget::Player(_)) => false,
@@ -2449,38 +2416,33 @@ impl GameState {
     /// "Which object" (§3.3): `This` is the source itself, `Host` what it is
     /// attached to, a filter is read against the subject — as `read` says.
     /// `seq` is the record's, which a remembered source's own departure is.
-    fn subject_matches(
-        &self,
-        subject: &TriggerSubject,
-        id: Option<ObjectId>,
-        referents: &TriggerReferents<'_>,
-        seq: EventId,
-        read: SubjectRead<'_>,
-    ) -> bool {
-        match (subject, id) {
-            (TriggerSubject::Any, _) => true,
-            (TriggerSubject::ThisObject, Some(id)) => referents.this.is(self, id, seq),
-            // Only a permanent has anything attached to it. One that left in
-            // this event is asked as its departure framed it (CR 603.10a), since
-            // the Aura or Equipment that stays has been unattached since.
-            (TriggerSubject::Host, Some(id)) => match read {
-                SubjectRead::LeftInThisEvent(lki) => lki.had_attached(referents.this.id()),
-                SubjectRead::Now => referents.host == Some(id),
-                SubjectRead::GoneBeforeThisEvent(_) => false,
+    fn subject_matches(&self, subject: &TriggerSubject, object: ObjectInformation<'_>, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
+        let id = object.id();
+        match subject {
+            TriggerSubject::Any => true,
+            TriggerSubject::ThisObject => referents.this.is(self, id, seq),
+            // Only a permanent has anything attached to it (CR 301.5, 303.4).
+            // One read as it was just before this event is asked as that frame
+            // has it (CR 603.10a), since the Aura or Equipment that stays has
+            // been unattached since. A source gone before the event was no
+            // permanent at it, and "whenever enchanted creature deals damage"
+            // never matches it, even an Aura on a new object that shares its id
+            // after a flicker (CR 400.7).
+            TriggerSubject::Host => match object {
+                ObjectInformation::Current(id) => referents.host == Some(id),
+                ObjectInformation::LastKnown(lki) => !self.gone_before(seq, lki) && lki.had_attached(referents.this.id()),
+                ObjectInformation::Characteristics(..) => false,
             },
-            (TriggerSubject::Referred, Some(id)) => referents.referred.iter().any(|r| r.is(self, id, seq)),
-            (TriggerSubject::Filter(filter), Some(id)) => {
-                let lki = match read {
-                    SubjectRead::LeftInThisEvent(lki) | SubjectRead::GoneBeforeThisEvent(lki) => Some(lki),
-                    SubjectRead::Now => None,
-                };
-                self.object_matches_filter(id, filter, &mut { *referents }, lki.map(HeldFrame::LastKnown))
-            }
-            (
-                TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_) | TriggerSubject::Referred,
-                None,
-            ) => false,
+            TriggerSubject::Referred => referents.referred.iter().any(|r| r.is(self, id, seq)),
+            TriggerSubject::Filter(filter) => self.object_matches_filter(object, filter, &mut { *referents }),
         }
+    }
+
+    /// Whether record `seq` reads `lki` as its source's from before the event:
+    /// a source that left before dealing damage, activating or making mana
+    /// (CR 608.2h, `GameEvent::source_lki`).
+    fn gone_before(&self, seq: EventId, lki: &Lki) -> bool {
+        self.events.record(seq).and_then(|record| record.event.source_lki()).is_some_and(|source| source.object() == lki.object())
     }
 
     /// "Whose" — a `PlayerRef` against a record's player, read for the
@@ -2493,7 +2455,7 @@ impl GameState {
     /// `asked` names (CR 508.3a, 508.3b, 508.3e).
     fn defender_matches(&self, asked: &DefenderFilter, target: AttackTarget, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
         asked.admits(target, &|who, player| self.player_ref_is(who, player, referents), &|filter, id| {
-            self.subject_matches(&TriggerSubject::Filter(filter.clone()), Some(id), referents, seq, SubjectRead::Now)
+            self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(id), referents, seq)
         })
     }
 
@@ -2510,15 +2472,15 @@ impl GameState {
     /// is now while it is still that existence on the battlefield, and else
     /// as its departure in this window framed it — the join `entry_origin`
     /// makes for an entry's `from`.
-    fn subject_read_looking_back(&self, object: ObjectRef) -> SubjectRead<'_> {
+    fn subject_read_looking_back(&self, object: ObjectRef) -> ObjectInformation<'_> {
         if self.find(object).is_some() && self.battlefield.contains_key(&object.id) {
-            return SubjectRead::Now;
+            return ObjectInformation::Current(object.id);
         }
         self.events
             .held()
             .iter()
             .find_map(|record| record.event.lki().map(|(lki, ..)| lki).filter(|lki| lki.object() == object))
-            .map_or(SubjectRead::Now, SubjectRead::LeftInThisEvent)
+            .map_or(ObjectInformation::Current(object.id), ObjectInformation::LastKnown)
     }
 
     /// The zone the permanent at `id` entered from, off its own zone change

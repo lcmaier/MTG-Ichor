@@ -25,14 +25,13 @@ use crate::engine::layers::board::{Board, FrameRef};
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
 use crate::engine::object_filter;
-use crate::engine::targeting::HeldFrame;
 use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
 use crate::state::player::PlayerState;
 use crate::types::costs::AdditionalCost;
 use crate::types::effects::{Antecedent, Condition, ObjectFilter, PlayerFact, PlayerSet};
 use crate::types::history::{CountIs, HistoryCount, HistorySpan};
-use crate::oracle::characteristics::CurrentOrLastKnown;
+use crate::oracle::characteristics::ObjectInformation;
 use crate::engine::triggers::binding::TriggeringEventView;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::Lki;
@@ -73,12 +72,12 @@ impl<'a> ConditionReferents<'a> {
     /// Finds the object a text's word for one means. `ThisObject` is
     /// `source`, the object whose ability it is; `Triggering(role)` is
     /// the object that played that part in the triggering event. Either comes
-    /// back as `CurrentOrLastKnown`: the object as it is now, or as it last
+    /// back as `ObjectInformation`: the object as it is now, or as it last
     /// existed once it has left (CR 608.2h). `None` when the triggering event
     /// has no such object.
-    pub fn object_for(&self, word: Antecedent, source: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
+    pub fn object_for(&self, word: Antecedent, source: ObjectId) -> Option<ObjectInformation<'a>> {
         match word {
-            Antecedent::ThisObject => Some(CurrentOrLastKnown { id: source, lki: self.source_lki }),
+            Antecedent::ThisObject => Some(ObjectInformation::of(source, self.source_lki)),
             Antecedent::Triggering(role) => self.triggering_event.object(role),
         }
     }
@@ -173,9 +172,9 @@ pub(super) fn holds(
         // creature, which died), and off the entity otherwise.
         Condition::CounterCount { object, kind, count } => {
             let Some(asked) = referents.object_for(*object, source) else { return false };
-            let n = match asked.lki {
+            let n = match asked.lki() {
                 Some(lki) => lki.counters_of(*kind),
-                None => match board.entity(game, asked.id) {
+                None => match board.entity(game, asked.id()) {
                     Some(entity) => entity.counters_of(*kind),
                     None => return false,
                 },
@@ -198,7 +197,7 @@ pub(super) fn holds(
                 return false;
             };
             let chars = match referents.triggering_event.object_with_id(host) {
-                Some(CurrentOrLastKnown { lki: Some(lki), .. }) => Some(FrameRef::Shared(std::sync::Arc::clone(lki.frame()))),
+                Some(ObjectInformation::LastKnown(lki)) => Some(FrameRef::Shared(std::sync::Arc::clone(lki.frame()))),
                 _ if referents.source_lki.is_some() && !game.battlefield.contains_key(&host) => None,
                 _ => board.frame_of(game, host, layer_index),
             };
@@ -212,16 +211,16 @@ pub(super) fn holds(
         // A history count, for "you" as every leaf here reads it: the
         // source's controller. The rows are off `GameState`.
         Condition::ThisTurn(history, count) => {
-            history_holds(history, *count, HistorySpan::ThisTurn, game, board, &mut history_players())
+            history_holds(history, *count, HistorySpan::ThisTurn, game, board, layer_index, &mut history_players())
         }
         Condition::LastTurn(history, count) => {
-            history_holds(history, *count, HistorySpan::LastTurn, game, board, &mut history_players())
+            history_holds(history, *count, HistorySpan::LastTurn, game, board, layer_index, &mut history_players())
         }
         Condition::SinceYourLastTurn(history, count) => {
-            history_holds(history, *count, HistorySpan::SinceYourLastTurn, game, board, &mut history_players())
+            history_holds(history, *count, HistorySpan::SinceYourLastTurn, game, board, layer_index, &mut history_players())
         }
         Condition::ThisGame(history, count) => {
-            history_holds(history, *count, HistorySpan::ThisGame, game, board, &mut history_players())
+            history_holds(history, *count, HistorySpan::ThisGame, game, board, layer_index, &mut history_players())
         }
         // CR 122.7, 714.2b: some record of the trigger's left the count at
         // least `n` from below it. Off the records, never the board, so it
@@ -319,9 +318,10 @@ fn history_holds(
     span: HistorySpan,
     game: &GameState,
     board: &Board<'_>,
+    layer_index: usize,
     players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
-    players.has_you() && count.satisfied_by(history_total(history, span, game, board, players))
+    players.has_you() && count.satisfied_by(history_total(history, span, game, board, layer_index, players))
 }
 
 /// `history` totalled over `span`: the rows of the players it names, read
@@ -332,12 +332,20 @@ pub(super) fn history_total(
     span: HistorySpan,
     game: &GameState,
     board: &Board<'_>,
+    layer_index: usize,
     players: &mut FilterPlayers<'_, '_>,
 ) -> u64 {
     let you = players.you();
-    let mut filter_matches = |filter: &ObjectFilter, id, held: HeldFrame<'_>| match held {
-        HeldFrame::Characteristics(frame) => object_matches_filter(filter, id, frame, players),
-        HeldFrame::LastKnown(lki) => object_filter::evaluate(game, filter, id, &|| Some(lki.chars()), Some(lki), players),
+    // A row read live is read off the board at the walk's own ceiling, never
+    // through the top-level entry (`Board::frame_of`).
+    let mut filter_matches = |filter: &ObjectFilter, object: ObjectInformation<'_>| match object {
+        ObjectInformation::Characteristics(id, frame) => object_matches_filter(filter, id, frame, players),
+        ObjectInformation::LastKnown(lki) => {
+            object_filter::evaluate(game, filter, lki.object().id, &|| Some(lki.chars()), Some(lki), players)
+        }
+        ObjectInformation::Current(id) => {
+            board.frame_of(game, id, layer_index).is_some_and(|frame| object_matches_filter(filter, id, &frame, players))
+        }
     };
     let note = |input| board.note_gated_read(input);
     game.history.total(history, span, you, game.turn_number, &mut filter_matches, &note)

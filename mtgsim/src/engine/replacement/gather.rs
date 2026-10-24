@@ -37,7 +37,7 @@ use crate::engine::zone_function::functions_as_static;
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
 use crate::objects::card_data::AbilityDef;
-use crate::oracle::characteristics::{controller_or_owner, CurrentOrLastKnown};
+use crate::oracle::characteristics::{controller_or_owner, ObjectInformation};
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
@@ -53,7 +53,6 @@ use crate::types::zones::{Zone, ZoneChangePattern};
 
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::engine::object_filter::TextReferents;
-use crate::engine::targeting::HeldFrame;
 use crate::types::restriction::ReplacementKindFilter;
 
 use super::{EntryFrame, ReplacementInstance, ReplacementInstanceId};
@@ -804,7 +803,12 @@ pub(crate) fn set_affects(
             if !in_zone {
                 return false;
             }
-            game.object_matches_filter_of_source(id, filter, controller, source, frame.and_then(|f| f.frame_of(id)).map(HeldFrame::Characteristics))
+            game.object_matches_filter_of_source(
+                frame.and_then(|f| f.frame_of(id)).map_or(ObjectInformation::Current(id), |chars| ObjectInformation::Characteristics(id, chars)),
+                filter,
+                controller,
+                source,
+            )
         }
     }
 }
@@ -841,7 +845,7 @@ pub(crate) fn pattern_watches(
             EventPattern::DealDamage { source: damage_source, combat },
             GameAction::DealDamage { source: dealt_by, source_lki, is_combat, .. },
         ) => {
-            let dealing = CurrentOrLastKnown { id: *dealt_by, lki: source_lki.as_ref() };
+            let dealing = ObjectInformation::of(*dealt_by, source_lki.as_ref());
             combat.map(|c| c == *is_combat).unwrap_or(true)
                 && damage_source
                     .as_ref()
@@ -857,7 +861,7 @@ pub(crate) fn pattern_watches(
             GameAction::ZoneChange { object: moving, from, to, act },
         ) => {
             change.matches(Some(*from), *to, Some(*act))
-                && object.as_ref().map(|f| game.object_matches_filter_of_source(*moving, f, you, source, None)).unwrap_or(true)
+                && object.as_ref().map(|f| game.object_matches_filter_of_source(ObjectInformation::Current(*moving), f, you, source)).unwrap_or(true)
         }
 
         // Entering is the zone change onto the battlefield (CR 614.1c), so a
@@ -870,7 +874,7 @@ pub(crate) fn pattern_watches(
             GameAction::EnterBattlefield { object: moving, from, act, .. },
         ) => {
             change.matches(*from, Zone::Battlefield, *act)
-                && object.as_ref().map(|f| game.object_matches_filter_of_source(*moving, f, you, source, None)).unwrap_or(true)
+                && object.as_ref().map(|f| game.object_matches_filter_of_source(ObjectInformation::Current(*moving), f, you, source)).unwrap_or(true)
         }
 
         (EventPattern::Untap, GameAction::Untap { .. }) => true,
@@ -979,9 +983,9 @@ pub(crate) fn pattern_watches(
             EventPattern::ProduceMana { tapped_for_mana, source: filter },
             GameAction::ProduceMana { tapped_for_mana: actual, source: producer, source_lki, .. },
         ) => {
-            let held = source_lki.as_ref().map(HeldFrame::LastKnown);
+            let producing = ObjectInformation::of(*producer, source_lki.as_ref());
             tapped_for_mana.map(|t| t == *actual).unwrap_or(true)
-                && filter.as_ref().map(|f| game.object_matches_filter_of_source(*producer, f, you, source, held)).unwrap_or(true)
+                && filter.as_ref().map(|f| game.object_matches_filter_of_source(producing, f, you, source)).unwrap_or(true)
         }
 
         _ => false,

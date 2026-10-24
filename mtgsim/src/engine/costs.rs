@@ -22,6 +22,7 @@ use crate::types::costs::Cost;
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
 use crate::types::effects::ObjectFilter;
+use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSpent, ManaType};
 use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
@@ -280,7 +281,7 @@ impl GameState {
         crate::oracle::board::permanents_controlled_by(self, player_id)
             .into_iter()
             .filter(|&id| match source {
-                Some(source) => self.object_matches_filter_of_source(id, filter, player_id, source, None),
+                Some(source) => self.object_matches_filter_of_source(ObjectInformation::Current(id), filter, player_id, source),
                 None => self.object_matches_filter_for_instance(id, filter, player_id, crate::engine::targeting::FilterIdentity::NONE),
             })
             .collect()

@@ -7,8 +7,8 @@ use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
+use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::triggers::Lki;
 
 /// One instance of the word "target" (CR 115.3) — the clause it was chosen
 /// against, and what was chosen for it.
@@ -193,20 +193,6 @@ impl<I: IntoIterator<Item = ResolvedTarget>> FromIterator<I> for ChosenTargets {
         }
         out
     }
-}
-
-/// A frame a filter's asker holds for the object, where the store's would not
-/// answer for it.
-#[derive(Clone, Copy)]
-pub(crate) enum HeldFrame<'a> {
-    /// CR 614.12's look-ahead for an entering permanent
-    /// (`engine::replacement::EntryFrame`), where the finished board would
-    /// answer for the card and not the permanent it is about to become, or a
-    /// spell's frame its asker already walked.
-    Characteristics(&'a EffectiveCharacteristics),
-    /// Its last known information (CR 608.2h), which also says who owned it
-    /// once the store has lost it (CR 704.5d, 800.4a).
-    LastKnown(&'a Lki),
 }
 
 /// Check that the number of targets is within the bounds `count` announced.
@@ -657,31 +643,31 @@ impl GameState {
         Ok(())
     }
 
-    /// `filter` asked of `id` where the text's words mean `referents` — the
-    /// one table every asker reaches (`engine::object_filter`).
+    /// `filter` asked of `object` where the text's words mean `referents` —
+    /// the one table every asker reaches (`engine::object_filter`).
     ///
-    /// `held` is the frame when the caller holds one ([`HeldFrame`]).
-    /// Otherwise the object must exist, and its frame is walked once, only if
+    /// Read by its last known information or the characteristics its caller
+    /// holds where `object` carries them ([`ObjectInformation`]). Read
+    /// current, the object must exist, and its frame is walked once, only if
     /// a leaf reads a characteristic: `All`, `Token` and `ByOwner` never do,
     /// so Rest in Peace's "cards" stays free on every graveyard-bound zone
     /// change. A gone object matches nothing its last known information does
     /// not answer for.
     pub(crate) fn object_matches_filter(
         &self,
-        id: ObjectId,
+        object: ObjectInformation<'_>,
         filter: &ObjectFilter,
         referents: &mut impl FilterReferents,
-        held: Option<HeldFrame<'_>>,
     ) -> bool {
-        match held {
-            Some(HeldFrame::Characteristics(chars)) => {
+        let id = match object {
+            ObjectInformation::Characteristics(id, chars) => {
                 return object_filter::evaluate(self, filter, id, &|| Some(chars), None, referents);
             }
-            Some(HeldFrame::LastKnown(lki)) => {
-                return object_filter::evaluate(self, filter, id, &|| Some(lki.chars()), Some(lki), referents);
+            ObjectInformation::LastKnown(lki) => {
+                return object_filter::evaluate(self, filter, lki.object().id, &|| Some(lki.chars()), Some(lki), referents);
             }
-            None => {}
-        }
+            ObjectInformation::Current(id) => id,
+        };
         if !self.objects.contains_key(&id) {
             return false;
         }
@@ -711,7 +697,7 @@ impl GameState {
         you: PlayerId,
         identity: FilterIdentity<'_>,
     ) -> bool {
-        self.object_matches_filter(id, filter, &mut TextReferents { game: self, you, identity }, None)
+        self.object_matches_filter(ObjectInformation::Current(id), filter, &mut TextReferents { game: self, you, identity })
     }
 
     /// [`Self::object_matches_filter`] asked for the text of `source` (CR
@@ -723,17 +709,16 @@ impl GameState {
     /// creature:" prints on 162 cards (Scryfall, 2026-10-10). Palisade Giant's
     /// "other permanents you control" is the printed customer for an effect.
     ///
-    /// `held` is the frame when the caller holds one, as
+    /// `object` is read as the caller holds it, as
     /// [`Self::object_matches_filter`] takes it.
     pub(crate) fn object_matches_filter_of_source(
         &self,
-        id: ObjectId,
+        object: ObjectInformation<'_>,
         filter: &ObjectFilter,
         you: PlayerId,
         source: ObjectId,
-        held: Option<HeldFrame<'_>>,
     ) -> bool {
-        self.object_matches_filter(id, filter, &mut TextReferents::for_effect(self, you, source), held)
+        self.object_matches_filter(object, filter, &mut TextReferents::for_effect(self, you, source))
     }
 
     /// CR 608.2b, asked of every instance at once as the spell or ability

@@ -14,7 +14,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use crate::oracle::characteristics::CurrentOrLastKnown;
+use crate::oracle::characteristics::ObjectInformation;
 use crate::types::effects::Antecedent;
 use crate::engine::layers::board::{
     compute_board, compute_board_to, is_dynamic, pass_membership, record_intrinsic, Board, PassMembership, RowNote,
@@ -715,7 +715,7 @@ impl FilterReferents for FilterPlayers<'_, '_> {
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
             Antecedent::ThisObject => {
-                CurrentOrLastKnown { id: self.source, lki: None }.defending_player(game, &|input| self.board.note_gated_read(input))
+                ObjectInformation::Current(self.source).defending_player(game, &|input| self.board.note_gated_read(input))
             }
             Antecedent::Triggering(_) => None,
         }
@@ -795,7 +795,7 @@ fn resolve_set_controller(
         // triggering event, and "defending player" with no creature names no
         // one player.
         PlayerRef::DefendingPlayer(Antecedent::ThisObject) => {
-            CurrentOrLastKnown { id: effect.source, lki: None }
+            ObjectInformation::Current(effect.source)
                 .defending_player(game, &|input| board.note_gated_read(input))
                 .filter(|&p| still_playing(p))
         }
@@ -908,7 +908,7 @@ pub(super) fn evaluate_amount(
         // `CountOf` reads it.
         AmountExpr::History(span, history) => {
             let mut players = amount_players(origin, object_id, chars, game, board, layer_index);
-            let total = super::condition::history_total(history, *span, game, board, &mut players);
+            let total = super::condition::history_total(history, *span, game, board, layer_index, &mut players);
             Some(i32::try_from(total).unwrap_or(i32::MAX))
         }
 

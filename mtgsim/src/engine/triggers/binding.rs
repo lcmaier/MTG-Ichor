@@ -12,7 +12,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::events::event::{EventRecord, GameEvent};
-use crate::oracle::characteristics::CurrentOrLastKnown;
+use crate::oracle::characteristics::ObjectInformation;
 use crate::state::game_state::GameState;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
@@ -35,12 +35,12 @@ pub(crate) fn record_frame<'r>(game: &'r GameState, arm: &TriggerEvent, record: 
 /// or a move a replacement kept in its zone, which the arm matched it by;
 /// and on the board otherwise. Neither object left, so as the ability
 /// resolves it is read as it is then (CR 608.2h).
-pub(crate) fn read_at_trigger<'r>(game: &'r GameState, arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> CurrentOrLastKnown<'r> {
+pub(crate) fn read_at_trigger<'r>(game: &'r GameState, arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> ObjectInformation<'r> {
     let stayed = match &record.event {
         GameEvent::ControlChanged { lki, .. } | GameEvent::SameZoneMove { lki, .. } => Some(lki).filter(|lki| lki.object().id == id),
         _ => None,
     };
-    CurrentOrLastKnown { id, lki: record_frame(game, arm, record, id).or(stayed) }
+    ObjectInformation::of(id, record_frame(game, arm, record, id).or(stayed))
 }
 
 /// Each object of the binding's one triggering event that its record carries
@@ -78,7 +78,7 @@ impl<'a> TriggeringEventView<'a> {
     }
 
     /// The object that played `role`, as it is read here.
-    pub fn object(self, role: EventRole) -> Option<CurrentOrLastKnown<'a>> {
+    pub fn object(self, role: EventRole) -> Option<ObjectInformation<'a>> {
         match self {
             TriggeringEventView::None => None,
             TriggeringEventView::AtTrigger { game, arm, record, objects } => {
@@ -99,8 +99,8 @@ impl<'a> TriggeringEventView<'a> {
     }
 
     /// The one of its objects that is `id`, as `object` reads it.
-    pub fn object_with_id(self, id: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
-        EventRole::ALL.into_iter().filter_map(|role| self.object(role)).find(|object| object.id == id)
+    pub fn object_with_id(self, id: ObjectId) -> Option<ObjectInformation<'a>> {
+        EventRole::ALL.into_iter().filter_map(|role| self.object(role)).find(|object| object.id() == id)
     }
 }
 
@@ -170,14 +170,14 @@ impl GameState {
         &'a self,
         binding: &'a TriggerBinding,
         role: EventRole,
-    ) -> Option<CurrentOrLastKnown<'a>> {
+    ) -> Option<ObjectInformation<'a>> {
         let object = binding.triggering_object(role)?;
         let lki = match record_frame(self, binding.event()?, &binding.triggering_event()?.record, object.id) {
             Some(lki) => Some(lki),
             None if self.find(object).is_some() => None,
             None => Some(self.last_known_as_resolving_reads(object)?),
         };
-        Some(CurrentOrLastKnown { id: object.id, lki })
+        Some(ObjectInformation::of(object.id, lki))
     }
 
     /// How `object` last existed, as a spell or ability whose trigger is

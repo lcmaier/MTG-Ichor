@@ -12,13 +12,13 @@
 
 use std::ops::RangeInclusive;
 
-use crate::engine::targeting::HeldFrame;
+use crate::oracle::characteristics::ObjectInformation;
 use crate::state::game_state::AbilityIdentity;
 use crate::state::history_log::{HistoryLog, HistoryRow, added_to_count};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
 use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
-use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectRef, PlayerId};
 
 /// One player's history beside the log.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -190,13 +190,13 @@ impl GameHistory {
         span: HistorySpan,
         you: PlayerId,
         now: u32,
-        filter_matches: &mut dyn FnMut(&ObjectFilter, ObjectId, HeldFrame<'_>) -> bool,
+        filter_matches: &mut dyn FnMut(&ObjectFilter, ObjectInformation<'_>) -> bool,
         note: &dyn Fn(GatedWalkInput),
     ) -> u64 {
         let counts_for = |player: PlayerId| history.players.contains(you, player);
         let mut of = |row: &HistoryRow| match &history.of {
             None => true,
-            Some(filter) => row.frame_matches(|id, held| filter_matches(filter, id, held)),
+            Some(filter) => row.frame_matches(|object| filter_matches(filter, object)),
         };
         self.log.count(history.fact, self.turns_of(span, you, now), &counts_for, &mut of, note)
     }

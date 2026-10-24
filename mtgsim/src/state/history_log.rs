@@ -12,7 +12,8 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::targeting::{HeldFrame, TargetRef};
+use crate::engine::targeting::TargetRef;
+use crate::oracle::characteristics::ObjectInformation;
 use crate::events::event::EventId;
 use crate::state::battlefield::AttackTarget;
 use crate::state::layer_memo::GatedWalkInput;
@@ -165,11 +166,11 @@ impl HistoryRow {
     /// `ObjectId::UNASSIGNED`. A row with no frame answers no, and a
     /// scenario's unnamed count is loud in a debug build: a card that narrows
     /// it asks what the file did not say (`setup-architecture.md` §5.1).
-    pub(crate) fn frame_matches(&self, matches: impl FnOnce(ObjectId, HeldFrame<'_>) -> bool) -> bool {
+    pub(crate) fn frame_matches(&self, matches: impl FnOnce(ObjectInformation<'_>) -> bool) -> bool {
         let id = self.object.map_or(ObjectId::UNASSIGNED, |object| object.id);
         match &self.frame {
-            RowFrame::LastKnown(lki) => matches(id, HeldFrame::LastKnown(lki)),
-            RowFrame::AsTheEventLeftIt(frame) => matches(id, HeldFrame::Characteristics(frame)),
+            RowFrame::LastKnown(lki) => matches(ObjectInformation::LastKnown(lki)),
+            RowFrame::AsTheEventLeftIt(frame) => matches(ObjectInformation::Characteristics(id, frame)),
             RowFrame::Unframed => {
                 debug_assert!(
                     !matches!(self.fact, RowFact::Stated { .. }),

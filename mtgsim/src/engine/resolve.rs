@@ -8,7 +8,8 @@ use crate::engine::layers::types::{
 };
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, EventId, GameEvent, ResolutionStamp};
-use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, HeldFrame, TargetInstance};
+use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
+use crate::oracle::characteristics::ObjectInformation;
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::battlefield::AttackTarget;
@@ -2339,7 +2340,7 @@ impl GameState {
     fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
         let named = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
         let identity = FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None).naming(named);
-        self.object_matches_filter(id, filter, &mut TextReferents { game: self, you: ctx.controller, identity }, None)
+        self.object_matches_filter(ObjectInformation::Current(id), filter, &mut TextReferents { game: self, you: ctx.controller, identity })
     }
 
     /// CR 701.6a — a spell countered goes to its owner's graveyard, through
@@ -2525,9 +2526,8 @@ impl GameState {
             // permanent whose ability it is (CR 113.7a), not the ability.
             AmountExpr::History(span, history) => {
                 let (you, source) = (_ctx.controller, _ctx.effect_source());
-                let mut filter_matches = |filter: &ObjectFilter, id, held: HeldFrame<'_>| {
-                    self.object_matches_filter_of_source(id, filter, you, source, Some(held))
-                };
+                let mut filter_matches =
+                    |filter: &ObjectFilter, object: ObjectInformation<'_>| self.object_matches_filter_of_source(object, filter, you, source);
                 Ok(self.history.total(history, *span, you, self.turn_number, &mut filter_matches, &|_| {}))
             }
             AmountExpr::TargetPower => {
@@ -2791,7 +2791,7 @@ impl GameState {
                 Some(named) => {
                     let names_player = |who: &PlayerRef, player: PlayerId| self.resolve_player_ref(who, &[], ctx).ok() == Some(player);
                     let matches_permanent = |filter: &ObjectFilter, id: ObjectId| {
-                        self.object_matches_filter_of_source(id, filter, ctx.controller, ctx.effect_source(), None)
+                        self.object_matches_filter_of_source(ObjectInformation::Current(id), filter, ctx.controller, ctx.effect_source())
                     };
                     self.what_can_be_attacked()
                         .into_iter()
