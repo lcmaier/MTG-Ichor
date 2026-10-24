@@ -65,7 +65,7 @@ fn commander_game(registry: &CardRegistry, game_seed: u64) -> (Game, ManaWindowS
 fn held_bytes(log: &HistoryLog) -> (u64, usize) {
     let mut seen: HashSet<*const EffectiveCharacteristics> = HashSet::new();
     let mut frames = 0u64;
-    for frame in log.rows_newest_first().filter_map(|row| row.frame.as_ref()) {
+    for frame in log.rows_newest_first().filter_map(|row| row.frame.frame()) {
         if seen.insert(Arc::as_ptr(frame)) {
             let (_, heap) = clone_cost(&**frame);
             frames += (std::mem::size_of::<EffectiveCharacteristics>() + 2 * std::mem::size_of::<usize>()) as u64 + heap;

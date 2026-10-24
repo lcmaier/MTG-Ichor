@@ -235,7 +235,7 @@ impl GameHistory {
 mod tests {
     use super::*;
     use crate::events::event::EventId;
-    use crate::state::history_log::RowFact;
+    use crate::state::history_log::{RowFact, RowFrame};
 
     const DRAWN: TurnFact = TurnFact::CardsDrawn;
 
@@ -243,7 +243,7 @@ mod tests {
     fn drew(history: &mut GameHistory, player: PlayerId, turn: u32, count: u64) {
         let fact = RowFact::Stated { fact: DRAWN, count };
         let seq = EventId(history.log.len());
-        history.push_row(HistoryRow { seq, turn, combat: 0, player: Some(player), object: None, frame: None, last_known: None, fact });
+        history.push_row(HistoryRow { seq, turn, combat: 0, player: Some(player), object: None, frame: RowFrame::Unframed, fact });
     }
 
     /// A turn's count is its rows, whoever's turn it was; a turn with none
@@ -271,7 +271,7 @@ mod tests {
         for gained in [3, 1] {
             let seq = EventId(history.log.len());
             let fact = RowFact::GainedLife(gained);
-            history.push_row(HistoryRow { seq, turn: 3, combat: 0, player: Some(1), object: None, frame: None, last_known: None, fact });
+            history.push_row(HistoryRow { seq, turn: 3, combat: 0, player: Some(1), object: None, frame: RowFrame::Unframed, fact });
         }
         for (player, fact) in [(0, DRAWN), (1, DRAWN), (0, TurnFact::LifeGainEvents), (1, TurnFact::LifeGainEvents)] {
             assert_eq!(history.count_in_turn(player, fact, 3), history.count(player, fact, 3..=3), "{fact:?} for player {player}");

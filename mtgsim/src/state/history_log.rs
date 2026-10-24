@@ -54,15 +54,41 @@ pub struct HistoryRow {
     pub player: Option<PlayerId>,
     /// The object it was about, as the existence it was (CR 400.7).
     pub object: Option<ObjectRef>,
-    /// That object as it was then (CR 608.2h): its record's frame where the
-    /// record carries one, else its frame as the event left it.
-    pub frame: Option<Arc<EffectiveCharacteristics>>,
-    /// Its record's last known information, on a row whose object had left
-    /// by the event (a departure, damage from a source gone before it): what
-    /// the store no longer answers for it, whether it was a token, its
-    /// counters, its owner (CR 113.7a). Its frame is `frame`.
-    pub last_known: Option<Lki>,
+    /// That object as it was then (CR 608.2h).
+    pub frame: RowFrame,
     pub fact: RowFact,
+}
+
+/// What a row keeps of its object as it was then (CR 608.2h): one of the
+/// two, so a row's frame and its facts cannot disagree.
+#[derive(Debug, Clone)]
+pub enum RowFrame {
+    /// Nothing: a row about no object, or a count a scenario states.
+    Unframed,
+    /// The object's characteristics as the event left it.
+    AsTheEventLeftIt(Arc<EffectiveCharacteristics>),
+    /// An object that had left by the event, a departure or damage from a
+    /// source gone before it: the LKI store's last known information of it,
+    /// its frame with what the object store no longer answers, whether it was
+    /// a token, its counters, its owner (CR 113.7a).
+    LastKnown(Lki),
+}
+
+impl RowFrame {
+    /// The characteristics it keeps, either way.
+    pub fn chars(&self) -> Option<&EffectiveCharacteristics> {
+        self.frame().map(|frame| &**frame)
+    }
+
+    /// The same, shared, for a held-memory reading that counts each frame
+    /// once.
+    pub fn frame(&self) -> Option<&Arc<EffectiveCharacteristics>> {
+        match self {
+            RowFrame::Unframed => None,
+            RowFrame::AsTheEventLeftIt(frame) => Some(frame),
+            RowFrame::LastKnown(lki) => Some(lki.frame()),
+        }
+    }
 }
 
 /// What happened. A fact a later card asks is a variant here and an arm in
@@ -141,10 +167,10 @@ impl HistoryRow {
     /// it asks what the file did not say (`setup-architecture.md` §5.1).
     pub(crate) fn frame_matches(&self, matches: impl FnOnce(ObjectId, HeldFrame<'_>) -> bool) -> bool {
         let id = self.object.map_or(ObjectId::UNASSIGNED, |object| object.id);
-        match (&self.last_known, &self.frame) {
-            (Some(lki), _) => matches(id, HeldFrame::LastKnown(lki)),
-            (None, Some(frame)) => matches(id, HeldFrame::Characteristics(frame)),
-            (None, None) => {
+        match &self.frame {
+            RowFrame::LastKnown(lki) => matches(id, HeldFrame::LastKnown(lki)),
+            RowFrame::AsTheEventLeftIt(frame) => matches(id, HeldFrame::Characteristics(frame)),
+            RowFrame::Unframed => {
                 debug_assert!(
                     !matches!(self.fact, RowFact::Stated { .. }),
                     "a card narrows a count a scenario stated without naming its objects: {:?}",
@@ -182,7 +208,7 @@ counted_enum! {
 /// Whose count a row adds to is the fact's to say: a damage row adds to the
 /// player dealt the damage, where the row's player is the source's controller.
 pub fn added_to_count(fact: TurnFact, row: &HistoryRow, counts_for: &dyn Fn(PlayerId) -> bool) -> u64 {
-    let has_type = |card_type: CardType| row.frame.as_ref().is_some_and(|chars| chars.types.contains(&card_type));
+    let has_type = |card_type: CardType| row.frame.chars().is_some_and(|chars| chars.types.contains(&card_type));
     let Some(player) = row.player else { return 0 };
     let (whose, amount) = match (fact, row.fact) {
         (TurnFact::SpellsCast, RowFact::Cast { .. }) | (TurnFact::CardsDrawn, RowFact::Drew) => (player, 1),
@@ -295,7 +321,7 @@ impl HistoryLog {
 
     /// Give the newest `frames.len()` rows these frames, oldest first: the
     /// window that wrote them took its objects again once its rows were in.
-    pub(crate) fn reframe_newest(&mut self, frames: Vec<Option<Arc<EffectiveCharacteristics>>>) {
+    pub(crate) fn reframe_newest(&mut self, frames: Vec<RowFrame>) {
         let mut frames = frames.into_iter().rev();
         let mut chunk = self.newest.as_mut();
         while let Some(open) = chunk {
@@ -395,7 +421,7 @@ impl HistoryLog {
     pub(crate) fn died(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
         self.rows_during(turn, span, RowKind::LeftZone, note).any(|row| {
             matches!(row.fact, RowFact::LeftZone { from: Zone::Battlefield, to: Zone::Graveyard, became, .. } if became == object)
-                && row.frame.as_ref().is_some_and(|frame| frame.types.contains(&CardType::Creature))
+                && row.frame.chars().is_some_and(|frame| frame.types.contains(&CardType::Creature))
         })
     }
 
@@ -526,7 +552,13 @@ impl HistoryLog {
     /// held-memory reading adds the distinct frames to.
     pub fn row_bytes_held(&self) -> usize {
         let per_chunk = std::mem::size_of::<Chunk>() + 2 * std::mem::size_of::<usize>();
-        let last_known: usize = self.rows_newest_first().filter_map(|row| row.last_known.as_ref()).map(Lki::bytes_beside_its_frame).sum();
+        let last_known: usize = self
+            .rows_newest_first()
+            .filter_map(|row| match &row.frame {
+                RowFrame::LastKnown(lki) => Some(lki.bytes_beside_its_frame()),
+                RowFrame::Unframed | RowFrame::AsTheEventLeftIt(_) => None,
+            })
+            .sum();
         let rows: usize = std::iter::successors(self.newest.as_deref(), |chunk| chunk.older.as_deref())
             .map(|chunk| per_chunk + chunk.rows.capacity() * std::mem::size_of::<HistoryRow>())
             .sum();
@@ -539,7 +571,7 @@ mod tests {
     use super::*;
 
     fn drew(seq: usize, turn: u32) -> HistoryRow {
-        HistoryRow { seq: EventId(seq), turn, combat: 0, player: Some(0), object: None, frame: None, last_known: None, fact: RowFact::Drew }
+        HistoryRow { seq: EventId(seq), turn, combat: 0, player: Some(0), object: None, frame: RowFrame::Unframed, fact: RowFact::Drew }
     }
 
     fn seqs(log: &HistoryLog) -> Vec<usize> {
@@ -590,10 +622,11 @@ mod tests {
             log.push(drew(seq, 1));
         }
         let fork = log.clone();
-        log.reframe_newest(vec![frame.clone(), frame.clone(), frame.clone(), None]);
-        let framed: Vec<bool> = log.rows_newest_first().take(5).map(|row| row.frame.is_some()).collect();
+        let framed = || frame.clone().map_or(RowFrame::Unframed, RowFrame::AsTheEventLeftIt);
+        log.reframe_newest(vec![framed(), framed(), framed(), RowFrame::Unframed]);
+        let framed: Vec<bool> = log.rows_newest_first().take(5).map(|row| row.frame.chars().is_some()).collect();
         assert_eq!(framed, [false, true, true, true, false], "oldest first: the newest row took the last frame");
-        assert!(fork.rows_newest_first().all(|row| row.frame.is_none()), "the fork's chunks were copied, not written");
+        assert!(fork.rows_newest_first().all(|row| row.frame.chars().is_none()), "the fork's chunks were copied, not written");
     }
 
     #[test]
@@ -612,7 +645,7 @@ mod tests {
     fn row(log: &mut HistoryLog, object: ObjectRef, turn: u32, fact: RowFact) {
         let seq = EventId(log.len());
         let combat = log.combats_this_turn();
-        log.push(HistoryRow { seq, turn, combat, player: Some(0), object: Some(object), frame: None, last_known: None, fact });
+        log.push(HistoryRow { seq, turn, combat, player: Some(0), object: Some(object), frame: RowFrame::Unframed, fact });
     }
 
     const UNNOTED: &dyn Fn(GatedWalkInput) = &|_| {};

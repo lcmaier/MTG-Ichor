@@ -133,7 +133,7 @@ fn a_rows_frame_sees_the_rows_of_its_own_window() {
     game.execute_action(damage, &test_ctx()).unwrap();
     assert_eq!(get_effective_power(&game, linker), Some(3), "the gain turned the banner on");
     let row = game.history.log.rows_newest_first().find(|row| matches!(row.fact, RowFact::DealtDamage { .. }));
-    let power = row.and_then(|row| row.frame.as_ref()).and_then(|chars| chars.power);
+    let power = row.and_then(|row| row.frame.chars()).and_then(|chars| chars.power);
     assert_eq!(power, Some(3), "the lifelinker as the event left it");
 }
 
