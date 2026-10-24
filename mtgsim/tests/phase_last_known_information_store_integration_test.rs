@@ -61,7 +61,7 @@ fn a_countered_spell_is_in_the_store_as_it_left_the_stack() {
 
     counter(&mut game, bears, 1);
 
-    let stored = game.last_known(spell).expect("framed as it left the stack");
+    let stored = game.lki(spell).expect("framed as it left the stack");
     assert!(stored.entry().is_some(), "the stack object it was");
     let countered = game
         .recorded_events()
@@ -88,7 +88,7 @@ fn a_cost_that_moves_its_own_source_frames_it_from_any_zone() {
 
     game.execute_action(discard, &ActionContext::paying_cost(&test_dp(), 0, card)).expect("discarded");
 
-    assert_eq!(game.last_known(in_hand).map(|lki| lki.object()), Some(in_hand));
+    assert_eq!(game.lki(in_hand).map(|lki| lki.object()), Some(in_hand));
 }
 
 /// One object's existences stay apart: a creature that dies, and whose card
@@ -104,8 +104,8 @@ fn each_ended_existence_of_one_object_is_read_by_its_own_epoch() {
     let card = game.object_ref(id).expect("in the graveyard");
     game.change_zone(id, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("exiled");
 
-    let as_creature = game.last_known(creature).expect("the creature's");
-    let as_card = game.last_known(card).expect("the graveyard card's");
+    let as_creature = game.lki(creature).expect("the creature's");
+    let as_card = game.lki(card).expect("the graveyard card's");
     assert_eq!((as_creature.object(), as_card.object()), (creature, card));
     assert!(as_creature.was_tapped().is_some(), "a permanent's facts");
     assert!(as_card.was_tapped().is_none(), "a card's, which has none");
@@ -178,7 +178,7 @@ fn rows_about(game: &GameState, id: ObjectId) -> usize {
 
 /// `id`'s move, already performed, framed and with a row of its own.
 fn assert_framed_with_a_row(game: &GameState, existence: ObjectRef, rows_before: usize, what: &str) {
-    assert!(game.last_known(existence).is_some(), "{what} was not framed");
+    assert!(game.lki(existence).is_some(), "{what} was not framed");
     assert!(rows_about(game, existence.id) > rows_before, "{what} wrote no row for it");
 }
 
@@ -258,6 +258,6 @@ fn a_player_leaving_writes_a_row_for_each_object_it_takes() {
         assert_eq!(rows_from(&game, zone), owned, "a row for each object leaving from the {zone:?}");
     }
     for existence in leaving {
-        assert!(game.last_known(existence).is_some(), "{existence:?} was framed");
+        assert!(game.lki(existence).is_some(), "{existence:?} was framed");
     }
 }

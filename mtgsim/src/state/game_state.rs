@@ -213,7 +213,7 @@ pub struct ResolvingObject {
     /// Its trigger's binding, for a triggered ability: the objects of its
     /// triggering event are, with `identity`'s source, what it names, and the
     /// frames their record carries answer before the LKI store does
-    /// (`last_known_as_read_by`). `None` for a spell or an activated ability.
+    /// (`lki_as_read_by`). `None` for a spell or an activated ability.
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
     /// Where this resolution starts in the event window: the number its first
     /// record would take, whatever that record is. A later instruction reads
@@ -775,7 +775,7 @@ pub struct GameState {
     /// The LKI store: how each existence that has ended last existed, written
     /// by the move that ends it and kept for the game (CR 113.7a, 608.2h;
     /// `engine::last_known`).
-    pub last_known: crate::engine::last_known::LkiStore,
+    pub lki_store: crate::engine::last_known::LkiStore,
     /// The dispatch audit's snapshots and counts, in a game that turned the
     /// audit on (`enable_audit`), which is also what turns on every other
     /// shortcut's audit (`engine::audit`); `None` otherwise, which is all a
@@ -1075,7 +1075,7 @@ impl GameState {
             control_effects_at_last_sweep: false,
             settled_layer_epoch: u64::MAX,
             lki_captures: Vec::new(),
-            last_known: crate::engine::last_known::LkiStore::default(),
+            lki_store: crate::engine::last_known::LkiStore::default(),
             dispatch_audit: None,
             events: EventWindow::new(),
             trace: None,

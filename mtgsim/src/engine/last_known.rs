@@ -8,7 +8,7 @@
 //! store. The write is this module's alone, so every entry is a departure, and
 //! a departure's records write a history row for its object: the store never
 //! holds more entries than the history log has rows
-//! (`tests/last_known_store_test.rs`).
+//! (`tests/phase_last_known_information_store_integration_test.rs`).
 
 use crate::events::cause::EventCause;
 use crate::events::event::UnattachRoute;
@@ -94,8 +94,8 @@ impl GameState {
     /// How `existence` last existed, once it has ended (CR 113.7a, 608.2h):
     /// `None` while it has not, and where nothing framed its move, as for CR
     /// 601.2a's silent move to the stack.
-    pub fn last_known(&self, existence: ObjectRef) -> Option<&Lki> {
-        self.last_known.of(existence)
+    pub fn lki(&self, existence: ObjectRef) -> Option<&Lki> {
+        self.lki_store.of(existence)
     }
 
     /// What `id` leaving `from` for `to` (`None`: the game) takes with it,
@@ -110,7 +110,7 @@ impl GameState {
         let looks_back = self.zone_change_looks_back_at(id, from, to);
         let captured = if looks_back { self.take_captured_lki(id, from) } else { self.take_named_lki(id) };
         if let Some(lki) = &captured {
-            self.last_known.write(lki.clone());
+            self.lki_store.write(lki.clone());
         }
         self.note_delayed_source_moving(id);
         Departure { frame: captured.filter(|_| looks_back), unattached: self.unattached_by_leaving(id) }

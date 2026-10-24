@@ -1080,14 +1080,14 @@ impl GameState {
     /// How `object` last existed, as a keeper that reads it does (CR 113.7a):
     /// asked of the resolving object first, then of every keeper in turn, each
     /// through its own trigger's records before the LKI store
-    /// (`last_known_as_read_by`). `None` while `object` is still there, or once
+    /// (`lki_as_read_by`). `None` while `object` is still there, or once
     /// nothing reads it.
-    pub(crate) fn last_known_as_a_keeper_reads(&self, object: ObjectRef) -> Option<&Lki> {
+    pub(crate) fn lki_as_a_keeper_reads(&self, object: ObjectRef) -> Option<&Lki> {
         self.resolving_keeper()
             .into_iter()
             .chain(self.lki_keepers())
             .filter(|keeper| keeper.objects().any(|read| read == object))
-            .find_map(|keeper| self.last_known_as_read_by(keeper.trigger, object))
+            .find_map(|keeper| self.lki_as_read_by(keeper.trigger, object))
     }
 
     /// A mover's frame, taken before its batch performs (CR 603.10a for a

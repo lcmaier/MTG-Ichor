@@ -873,7 +873,7 @@ fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) ->
 /// keeps a frame of it (`GameEvent::frame_of`, CR 113.7a), and under the name
 /// the record kept for it otherwise.
 fn named_in(game: &GameState, event: &GameEvent, id: ObjectId, announced: &NamesAsAnnounced) -> String {
-    match event.frame_of(id, &game.last_known) {
+    match event.frame_of(id, &game.lki_store) {
         Some(lki) => object_label(game, id, &lki.chars().name),
         None => name_with_id(game, id, announced),
     }
@@ -1820,7 +1820,7 @@ mod tests {
             let names: NamesAsAnnounced = Some(Arc::new(named.iter().map(|&id| (id, sentinel(id))).collect()));
             let line = format_event(&game, event, &names, &EventCause::Harness);
             for &id in &named {
-                let expected = match event.frame_of(id, &game.last_known) {
+                let expected = match event.frame_of(id, &game.lki_store) {
                     Some(lki) => lki.chars().name.clone(),
                     None => sentinel(id),
                 };

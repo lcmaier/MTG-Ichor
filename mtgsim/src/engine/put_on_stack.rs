@@ -567,7 +567,7 @@ impl GameState {
         let activating = EventCause::Activating(player_id);
         self.announce_targeted_records(ability_obj_id, activating, decisions)?;
         // Where its cost moved it, as it left (CR 608.2h).
-        let source_lki = self.last_known(identity.source).cloned();
+        let source_lki = self.lki(identity.source).cloned();
         self.announce_activation(identity, player_id, false, from, source_lki, decisions)?;
 
         Ok(())

@@ -148,7 +148,7 @@ impl GameState {
         // as the LKI store keeps it, the one for that existence (CR 113.7a).
         let source = a.origin.source_ref();
         let same_source = source == b.origin.source_ref()
-            && self.last_known_as_read_by(Some(x), source) == self.last_known_as_read_by(Some(y), source);
+            && self.lki_as_read_by(Some(x), source) == self.lki_as_read_by(Some(y), source);
         (unread(TriggerBindingReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))
             && (unread(TriggerBindingReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
             && (unread(TriggerBindingReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))

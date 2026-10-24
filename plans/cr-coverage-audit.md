@@ -627,7 +627,7 @@ is derivable; where each name was read is not, and the gate needs the names.
     `last_sba_check_epoch` stays, in a debug build only, as the window the
     old walk's assertion reads.
 - **Added by `last-known-information-store` (2026-10-24)**:
-  - `last_known`: CR 113.7a's last known information, one entry per
+  - `lki_store`: CR 113.7a's last known information, one entry per
     existence that has ended with its move framed (CR 400.7), kept for the
     game and keyed by object (`triggers-architecture.md` §3.11). It holds
     what each `Lki` holds, so what the CR can require that it cannot is the

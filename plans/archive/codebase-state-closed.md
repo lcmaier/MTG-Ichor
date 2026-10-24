@@ -8147,7 +8147,7 @@ The reading: the printed cards count the kind they name over the whole turn (Kal
 
 ### Item 318 — closed 2026-10-24 by PR #285 (`last-known-information-store`)
 
-One LKI store keyed by existence, written once by `depart` and read by `last_known`, with records and history rows sharing its `Lki`; the keepers' lists, the hand-over and `PaidCosts`' and `counter_spell`'s own captures gone; `HeldFrame`, `CurrentOrLastKnown`, `SubjectRead` and the trigger candidate's view folded into `ObjectInformation`. Design and decisions: `triggers-architecture.md` §3.11.
+One LKI store keyed by existence, written once by `depart` and read by `lki`, with records and history rows sharing its `Lki`; the keepers' lists, the hand-over and `PaidCosts`' and `counter_spell`'s own captures gone; `HeldFrame`, `CurrentOrLastKnown`, `SubjectRead` and the trigger candidate's view folded into `ObjectInformation`. Design and decisions: `triggers-architecture.md` §3.11.
 
 *Original entry:*
 

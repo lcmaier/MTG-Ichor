@@ -465,10 +465,10 @@ at most once per pipeline iteration. → `engine/layers/board.rs`,
 
 **LKI** — an object's last known information (CR 113.7a, 608.2h): the
 existence that left its zone (CR 400.7) together with its **frame** as it last
-existed there, the type `Lki`. The **LKI store** (`GameState.last_known`)
+existed there, the type `Lki`. The **LKI store** (`GameState.lki_store`)
 holds one per existence that ended with its move framed, for the game; a
 departure record carries the same one, and so does damage a source deals
-after it left (`source_lki`). `last_known` reads the store.
+after it left (`source_lki`). `lki` reads the store.
 A frame alone has no identity, so it is not an LKI; and an LKI is never
 "departed", which is a player. → `types/triggers.rs`;
 `triggers-architecture.md` §6.1, and §3.11 for what TR-4a adds.

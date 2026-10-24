@@ -354,9 +354,9 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
     }
     // An object it reads that has left since: the one whose last known
     // information the LKI store holds (CR 113.7a).
-    let left = |object: &ObjectRef| game.last_known(*object).is_some();
+    let left = |object: &ObjectRef| game.lki(*object).is_some();
     for entry in game.stack.iter().filter_map(|id| game.stack_entries.get(id)) {
-        let as_it_left = |object: ObjectRef| game.last_known_as_read_by(entry.trigger.as_ref(), object).map_or(object, |lki| lki.object());
+        let as_it_left = |object: ObjectRef| game.lki_as_read_by(entry.trigger.as_ref(), object).map_or(object, |lki| lki.object());
         let binding = entry.trigger.as_ref();
         referred.extend(entry.ability_identity.map(|identity| as_it_left(identity.source)));
         let objects = binding.into_iter().flat_map(|b| b.triggering_events.iter()).flat_map(|e| e.objects.objects());
@@ -370,7 +370,7 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
         referred.extend(entry.ability_identity.map(|identity| identity.source).into_iter().chain(named(entry.trigger.as_ref())).filter(left));
     }
     if let Some(resolving) = &game.resolving {
-        let as_it_left = |object: ObjectRef| game.last_known_as_read_by(resolving.trigger.as_ref(), object).map_or(object, |lki| lki.object());
+        let as_it_left = |object: ObjectRef| game.lki_as_read_by(resolving.trigger.as_ref(), object).map_or(object, |lki| lki.object());
         referred.extend(resolving.identity.map(|identity| as_it_left(identity.source)));
         let objects = resolving.trigger.iter().flat_map(|b| b.triggering_events.iter()).flat_map(|e| e.objects.objects());
         referred.extend(objects.map(|(_, object)| as_it_left(object)));

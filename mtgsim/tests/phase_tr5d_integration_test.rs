@@ -935,7 +935,7 @@ fn an_unattach_whose_host_left_carries_the_hosts_frame() {
         .events()
         .skip(before)
         .filter_map(|e| match e {
-            GameEvent::Unattached { attachment_left: false, former_host, .. } => Some(e.frame_of(former_host.id, &game.last_known).map(|lki| lki.object())),
+            GameEvent::Unattached { attachment_left: false, former_host, .. } => Some(e.frame_of(former_host.id, &game.lki_store).map(|lki| lki.object())),
             _ => None,
         })
         .collect();

@@ -9966,8 +9966,8 @@ row 57 is item 297.
 318. **~~Last known information is one CR thing kept in many places, with a
      lookup for each.~~ — ✅ CLOSED 2026-10-24 (PR #285,
      `last-known-information-store`).** — archived. One store keyed by
-     existence, `GameState.last_known`, written once by `depart` and read by
-     `last_known`; records and history rows share its `Lki`; the keepers'
+     existence, `GameState.lki_store`, written once by `depart` and read by
+     `lki`; records and history rows share its `Lki`; the keepers'
      lists, the hand-over and the two second captures gone; the four view
      types folded into `ObjectInformation` (`triggers-architecture.md` §3.11).
      **Reachability (2026-10-24):** closed — PR #285.

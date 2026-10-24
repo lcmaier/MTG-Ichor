@@ -64,7 +64,7 @@ impl GameState {
         // (605.3b).
         let identity = crate::state::game_state::AbilityIdentity { source, ability: ability_id };
         // Where its cost moved it, as it left (CR 608.2h).
-        let moved = self.last_known(source).cloned();
+        let moved = self.lki(source).cloned();
         self.announce_activation(identity, player_id, true, from, moved.clone(), dp)?;
 
         // CR 106.12: "to 'tap [a permanent] for mana' is to activate a mana

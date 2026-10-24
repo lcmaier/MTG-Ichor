@@ -386,7 +386,7 @@ fn blood_artists_own_death_triggers_as_the_creature_that_left_not_the_card_it_be
     assert_ne!(game.object_ref(artist), Some(before), "the card in the graveyard is a new object");
     let pending = game.pending_triggers.iter().find(|p| p.origin.source() == artist).expect("it triggered");
     assert_eq!(pending.origin.source_ref(), before, "the existence that left, not the card it became");
-    let last_known = game.last_known(pending.origin.source_ref()).map(|lki| lki.object());
+    let last_known = game.lki(pending.origin.source_ref()).map(|lki| lki.object());
     assert_eq!(last_known, Some(before), "its last known information, as it queued");
 }
 

@@ -136,7 +136,7 @@ impl<'g> Writer<'g> {
             control_effects_at_last_sweep: _, // the control sweep's, settled at load
             settled_layer_epoch: _,           // the settlement's gate
             lki_captures: _,
-            last_known: _,          // what left before the board was written, which a scenario states none of, as its rows keep no frames
+            lki_store: _,           // what left before the board was written, which a scenario states none of, as its rows keep no frames
             dispatch_audit: _,
             events: _,
             trace: _,

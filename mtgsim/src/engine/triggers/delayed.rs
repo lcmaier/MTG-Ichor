@@ -154,7 +154,7 @@ impl GameState {
             return None;
         }
         if let Some(condition) = &reflexive.def.intervening_if {
-            let objects = ConditionReferents { source_lki: self.last_known(reflexive.source), triggering_event: TriggeringEventView::None };
+            let objects = ConditionReferents { source_lki: self.lki(reflexive.source), triggering_event: TriggeringEventView::None };
             if !settled_holds(condition, self, reflexive.source.id, Some(reflexive.controller), objects) {
                 return None;
             }
@@ -184,7 +184,7 @@ impl GameState {
         if let Some(object) = self.objects.get(&source.id) {
             return Ok(object.owner);
         }
-        self.last_known_as_resolving_reads(source).map(Lki::owner).ok_or_else(|| {
+        self.lki_as_resolving_reads(source).map(Lki::owner).ok_or_else(|| {
             format!("{} is gone, and the resolution kept no last known information to say who owned it", source.id)
         })
     }
@@ -398,7 +398,7 @@ impl GameState {
         }
         // CR 603.4 at the trigger, "you" its controller (CR 109.5), and its
         // source as it last existed once it has left (CR 113.7a, 400.7).
-        let source = TriggerSource { object: delayed.source.id, controller: delayed.controller, lki: self.last_known(delayed.source) };
+        let source = TriggerSource { object: delayed.source.id, controller: delayed.controller, lki: self.lki(delayed.source) };
         let triggering_events = self.triggers_whose_intervening_if_holds(&delayed.def, arm, record, triggering_events, source)?;
         Ok((event, triggering_events))
     }

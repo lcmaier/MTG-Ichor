@@ -641,7 +641,7 @@ departures from the sketch, each forced by a board:
   TR-4a: CR 113.7a's last known information, the frame the source left with.
   Since #285 the entry holds no frame: `objects_lki_is_kept_for` names the
   registry's sources, so a spell is framed as it leaves the stack, and the
-  trigger reads its source through the LKI store (`last_known`, §3.11). Its
+  trigger reads its source through the LKI store (`lki`, §3.11). Its
   first reader is item 223's attribution (Dragonhawk's damage, lifelink read
   off the frame).
 - **`created_at` and `created_in` replace `created`**: CR 603.7a is the
@@ -960,9 +960,9 @@ is not one, and the views below borrow one.
 | **1. A departure's own frame** (CR 603.10a, 603.10e) | `ZoneChange.lki`, `LeftTheGame.lki`, `SpellCountered.lki`; `Departure.frame` carries it from `depart` to the record | `capture_lki` before the batch performs, `take_captured_lki` in `depart`; `counter_spell`'s own `lki_now` | `GameEvent::lki` and `frame_of` ← `record_frame` ← `read_at_trigger`, `record_frames`, `triggering_object`; `departure_candidate`, `subject_read_looking_back`, `draft_history_rows`, the log's `named_in`, `fuzz_games`' death count | the window's dispatch; resolution, off the binding's copy; the log, to the game's end | the one the event ended | the record shares the store's `Lki`, which `depart` returns; the counter's capture goes |
 | **2. An unattach's ends that the same event takes** (CR 603.10c) | `Unattached.attachment_lki`, `former_host_lki` | `announce_unattached_by_leaving`, from `Departure.frame` and `frame_taken_for` | `GameEvent::frame_of` ← `record_frame`; the log | as shape 1 | an end whose departure is another record of the same event | a flag per end, that it left in this event; its frame is that end's own body, read from the store once it has left; `frame_taken_for` goes |
 | **3. A source gone before the event** (CR 608.2h) | `DamageDealt.source_lki` (from `DealDamage.source_lki`), `AbilityActivated.source_lki`, `ManaAdded.source_lki` (from `ProduceMana.source_lki`); `PaidCosts.source_lki` | the resolution's `source_lki` ← `lki_kept_by_resolving`; `pay_costs`' own `lki_now`, through `source_lki_if_it_moved` | `GameEvent::source_lki` ← `record_frame`, `damage_objects`, `single_object`; `damage_source_characteristics` (lifelink, deathtouch, a prevention's source, CR 609.7); `draft_history_rows` | the damage's batch; the dispatch; resolution | the source's, ended by an earlier event: a sacrifice, a cost | the record shares the store's `Lki`; `PaidCosts`' capture goes |
-| **4. A keeper's frame of an object that left after it was made** (CR 113.7a, 608.2h) | `kept_lki` on `PendingTrigger`, `StackEntry` and `ResolvingObject`; `DelayedTrigger.source_lki`; `MatchedTrigger.source_lki`, a frame candidate's seed | `hand_over_lki` through `lki_keepers` and `kept_lki_slot`; seeded as a trigger is queued and as a delayed trigger is made; moved by placement and resolution | `carried_lki` ← `lki_of` ← `lki_kept_by_resolving` ← `triggering_object`, `condition_objects`, the resolution's `source_lki`, `register_delayed_trigger`, `owner_of_source`; `lki_kept_for` ← the log's names; `referred_damage_sources`; placement's "same source" | resolution, mostly; placement; legality's read of chosen sources; the log | the keeper's source, or an object of its triggering event, after it left | nothing: the keeper holds the existence and asks `last_known`. The lists, the seeds, the hand-over, `KeeperLocation` and `KeptLkiSlot` go |
+| **4. A keeper's frame of an object that left after it was made** (CR 113.7a, 608.2h) | `kept_lki` on `PendingTrigger`, `StackEntry` and `ResolvingObject`; `DelayedTrigger.source_lki`; `MatchedTrigger.source_lki`, a frame candidate's seed | `hand_over_lki` through `lki_keepers` and `kept_lki_slot`; seeded as a trigger is queued and as a delayed trigger is made; moved by placement and resolution | `carried_lki` ← `lki_of` ← `lki_kept_by_resolving` ← `triggering_object`, `condition_objects`, the resolution's `source_lki`, `register_delayed_trigger`, `owner_of_source`; `lki_kept_for` ← the log's names; `referred_damage_sources`; placement's "same source" | resolution, mostly; placement; legality's read of chosen sources; the log | the keeper's source, or an object of its triggering event, after it left | nothing: the keeper holds the existence and asks `lki`. The lists, the seeds, the hand-over, `KeeperLocation` and `KeptLkiSlot` go |
 | **5. A batch's captures** | `GameState.lki_captures` | `capture_lki` ← `capture_frame` | `take_captured_lki`, `take_named_lki`, `capture_of`, `frame_taken_for` ← `depart`, the same-zone move, the unattach | between deciding and performing | each mover's, about to end | stays, as staging: `depart` moves a mover's capture into the store, and the rest drop as the batch ends, since a creature a replacement kept where it was never ended |
-| **6. A history row's object as it was then** | `HistoryRow.frame` and `last_known`, and `RowDraft`'s two, which must agree | `draft_history_rows`, from the record | `frame_matches` (`HeldFrame`), `added_to_count`, `died` and the log's other scans | any later turn | the row's; `last_known` only on a row whose existence had ended by the event | one field: the frame as the event left the object, or the store's `Lki` of the ended existence, which holds both |
+| **6. A history row's object as it was then** | `HistoryRow.frame` and `last_known`, and `RowDraft`'s two, which must agree | `draft_history_rows`, from the record | `frame_matches` (`HeldFrame`), `added_to_count`, `died` and the log's other scans | any later turn | the row's; `lki` only on a row whose existence had ended by the event | one field: the frame as the event left the object, or the store's `Lki` of the ended existence, which holds both |
 | **7. Not last known information**: a survivor's frame from just before an event (CR 603.10a, 603.10d, 614.6) | `ControlChanged.lki`, `SameZoneMove.lki`, `LookBackSnapshot`'s `ObjectSnapshot`s, the dispatch audit's snapshots, `PermanentState.frame_before_control_change`, `ControlSweep.frames_before` | the control sweep; `capture_lki`'s same-zone branch; `look_back_frames` | `read_at_trigger`; a candidate's `Before` list; `answered_arms` | the window's dispatch | one that has not ended | stays out. The store holds ended existences only, and one of these in it would answer "last known" for an object still where it was. `frame_before_control_change` is this shape: CR 603.10d's frame of a permanent that keeps its existence through the change |
 
 The views borrow and never hold: `HeldFrame::LastKnown`,
@@ -976,14 +976,14 @@ record; decision 4 is whether the four types fold.
 `Lki` is one pointer to its body (`Lki(Arc<LkiBody>)`), so a clone of one is
 the same fact, never a second copy; below, a holder that keeps such a clone
 **shares the store's `Lki`**.
-- **The LKI store**, `GameState.last_known`: each ended existence's `Lki`,
+- **The LKI store**, `GameState.lki_store`: each ended existence's `Lki`,
   keyed by its `ObjectRef` (CR 400.7). Not "the store", which is the object
   store.
 - **One writer.** `depart`, the before-move half of both performers that
   take an object out of a zone, moves its batch's capture of the mover into
   the LKI store and returns its `Lki`. Nothing else makes an `Lki` of an
   ended existence.
-- **One reader.** `GameState::last_known(existence)`: `None` while the
+- **One reader.** `GameState::lki(existence)`: `None` while the
   existence has not ended, and where nothing framed it, as for CR 601.2a's
   silent move.
 - **Who shares the store's `Lki`.** A record, for the existence its event
@@ -996,11 +996,11 @@ the same fact, never a second copy; below, a holder that keeps such a clone
   cannot be derived from the one after.
 - **The order a resolving trigger reads "it" in stays**: `triggering_object`'s,
   above, which `carried_lki` served before the build (what a stack object
-  carried, off its records or its list) and `last_known_as_read_by` serves
+  carried, off its records or its list) and `lki_as_read_by` serves
   now. The record's frame when the arm looks back,
   which is the arm's projection (a dies trigger's "it" is the creature as it
   died, though its binding follows the card into the graveyard, CR 603.6c);
-  the live object while it is that existence; and `last_known` after that.
+  the live object while it is that existence; and `lki` after that.
 - **Determinism.** Keyed by existence; the store offers a write and a
   lookup, and nothing a game reads iterates it. A held-memory reading sums
   it, which no order changes.
@@ -1008,7 +1008,7 @@ the same fact, never a second copy; below, a holder that keeps such a clone
 **What #284's review comments become.** `Departure`'s frame half: the `Lki`
 `depart` returns. `PaidCosts`' frame, a second capture of one frame: gone,
 since the activation the cost pays for is a reader under decision 1.
-`lki_kept_for` and `frame_taken_for`: `last_known`. The unattach's
+`lki_kept_for` and `frame_taken_for`: `lki`. The unattach's
 `attachment_lki` and `former_host_lki`: a flag per end. A history row's
 `frame` beside `last_known`: one field. The keepers' lists and their
 hand-over: gone, and the keeper asks.
@@ -1111,7 +1111,7 @@ a fork's write to a waiting trigger or a stack entry no longer copies its
 list.
 
 **How B works.**
-- **The layout.** `GameState.last_known: ObjectTable<EndedExistences>`.
+- **The layout.** `GameState.lki_store: ObjectTable<EndedExistences>`.
   Object ids come from one counter per game, so id *n* sits in chunk *n*/32
   at slot *n* mod 32, and the table is a vector of pointers to chunks of 32
   slots: a lookup is arithmetic, with no hashing.
@@ -2741,7 +2741,7 @@ lists with the LKI store: a keeper holds the existence it reads, and asks.
   returns its `Lki`, which the record shares.
 - **The reader.** `bound_characteristics` reads the record's frame when the
   event was the departure and the arm looks back, the live object while its
-  epoch holds, and `last_known` after that. A miss there is a missed
+  epoch holds, and `lki` after that. A miss there is a missed
   capture, and the refusal says so.
 - **TR-2b rejected** a `GameState` map keyed by `ObjectRef`, since every exit
   from the stack would have to prune it and a missed prune is the leak the
@@ -2778,7 +2778,7 @@ and a "one or more" arm's one occurrence has no "it", as its binding has
 none. The CR 603.4 recheck and a resolving effect's own "if" take the
 resolving entry's (`condition_objects`).
 A delayed trigger's source, and a frame candidate's (item 168), whose
-existence that triggered had already gone, are read through `last_known`, at
+existence that triggered had already gone, are read through `lki`, at
 the trigger and at resolution. `HostMatches` reads a gone
 source's host where it is, or as it left when it is the triggering object,
 and a host that left otherwise has no answer, which reads as no; its filter's
@@ -2934,7 +2934,7 @@ field with one writer:
 | its cost decisions — kicked, bargained, evoked (707.10; main item 30) | `PermanentState.cost_choices: CostChoices { additional, alternative }`, kept by a copy of the spell and the token it becomes, and by its `Lki` once it leaves (§3.11) | the entry performer, off `ResolvingObject.cost_choices` | `Condition::SpellWasKicked`, "if it was kicked", "if its evoke cost was paid" |
 | the objects and players a delayed trigger refers to (603.7c) | `DelayedTrigger.referred: Referred { objects: Vec<RememberedObject>, players }`, each object an `ObjectRef` with the record of the move that ended it | `Effect::Remember`, from what its creator's instruction acted on (§3.9) | the delayed check, the resolution |
 | the answer to a cost paid at resolution (118.12: does, doesn't, can't) | `ResolutionWalk.last_cost_answer`, beside the target cursor (§6.2) | the atom that takes the action (`Does`), a declined "may" (`Doesnt`), a sacrifice that could not start (`Cant`) | `Condition::CostAnswer` in the clause after it, and CR 603.2h's gate (§6.2, §6.4) |
-| an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `GameState.last_known`, the LKI store, by existence (§3.11) | `depart`, with the frame `capture_lki` took | `bound_characteristics`, for §6.3's readers, through `last_known_as_read_by`; the recheck's bound-fact form is TR-4's (§6.1) |
+| an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `GameState.lki_store`, the LKI store, by existence (§3.11) | `depart`, with the frame `capture_lki` took | `bound_characteristics`, for §6.3's readers, through `lki_as_read_by`; the recheck's bound-fact form is TR-4's (§6.1) |
 | when a delayed trigger was created (603.7a, 513.2) | `DelayedTrigger.created_at` (the first record after it) and `created_in` (the batch it was created during) | the producer | the reflexive window; nothing else needs it (§4.6) |
 | which extra turn "that turn" is | `ExtraTurnId` on `turn_queue` entries and `GameState.current_turn_origin` | `Primitive::ExtraTurn`, `begin_turn` | `StepBegins { whose: Turn(id) }` |
 | the trigger's events, their objects, amount, frame | `TriggerBinding` (each triggering event: its record, copied whole, and the objects it is about, by role, as `ObjectRef`s taken at dispatch; the matched event) | the dispatcher | the resolution, through the arm's projections |

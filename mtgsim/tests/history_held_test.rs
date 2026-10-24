@@ -88,8 +88,8 @@ fn held_bytes(state: &GameState) -> (u64, usize) {
             on_rows.insert(lki.object());
         }
     }
-    let mut store = state.last_known.bytes_held() as u64;
-    for lki in state.last_known.entries().filter(|lki| !on_rows.contains(&lki.object())) {
+    let mut store = state.lki_store.bytes_held() as u64;
+    for lki in state.lki_store.entries().filter(|lki| !on_rows.contains(&lki.object())) {
         store += lki.bytes_beside_its_frame() as u64;
         frame_bytes(lki.frame());
     }

@@ -2357,7 +2357,7 @@ impl GameState {
         let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id) else { return Ok(()) };
         let spell = self.object_ref(id).ok_or_else(|| format!("countering {id}, which is in no zone"))?;
         self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, actx)?;
-        let lki = self.last_known(spell).cloned().ok_or_else(|| format!("countering {id}, which left the stack unframed"))?;
+        let lki = self.lki(spell).cloned().ok_or_else(|| format!("countering {id}, which left the stack unframed"))?;
         let countered = crate::events::event::GameEvent::SpellCountered { spell_id: id, controller, countered_by: ctx.source, lki };
         self.emit_event(countered, actx.cause)
     }
@@ -2862,12 +2862,12 @@ impl GameState {
 
     /// CR 113.7a, 608.2h — the ability's source's last known information,
     /// once it has left the zone it was in, as the resolving object reads it
-    /// (`last_known_as_resolving_reads`): the creature that died for a trigger
+    /// (`lki_as_resolving_reads`): the creature that died for a trigger
     /// on its own death. `None` while the source is there, and for a spell,
     /// which resolves where it was cast. A source nothing framed reads where
     /// it is now.
     fn source_lki(&self, ctx: &ResolutionContext) -> Option<Lki> {
-        self.last_known_as_resolving_reads(ctx.ability_source?).cloned()
+        self.lki_as_resolving_reads(ctx.ability_source?).cloned()
     }
 
     /// What `Effect::Remember`'s instruction acted on, as it left them (CR
