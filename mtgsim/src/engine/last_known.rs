@@ -86,7 +86,11 @@ impl LkiStore {
 /// member of the same batch may have ended one already (a host destroyed
 /// beside its Aura), and the frame would still show it.
 pub(crate) struct Departure {
+    /// The frame the move's record carries, which only a move CR 603.10a
+    /// looks back on has. The store keeps its own copy whenever one was
+    /// captured, record or not.
     pub(crate) frame: Option<Lki>,
+    /// Empty, and unallocated, when the move ends no attachment.
     unattached: Vec<(ObjectRef, ObjectRef, UnattachRoute)>,
 }
 
