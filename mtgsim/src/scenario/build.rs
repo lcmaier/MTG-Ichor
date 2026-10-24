@@ -760,20 +760,22 @@ fn attacked_player(state: &GameState, target: &AttackTarget) -> Option<PlayerId>
 /// Why a word about last turn is refused on turn 1.
 const NO_LAST_TURN: &str = "turn 1 has no last turn: the game began with it";
 
-/// The turn the rows of a count a scenario states over `span` land on, the
-/// scenario being on turn `turn` (`setup-architecture.md` §5.1). A file
-/// states counts, not events, and the log keeps rows by turn, so each span
-/// has one turn to hold its rows: this turn's on T, last turn's on T-1, and
-/// this game's *remainder* (the game's count less this turn's and last
-/// turn's) on T-2 as one lump, since no reader asks which earlier turn it
-/// was. `None` where that turn would come before the first, and for "since
-/// your last turn", which the loader derives from the three.
+/// The turn number the rows of a count a scenario states over `span` are
+/// written on, the scenario being on turn `turn` (`setup-architecture.md`
+/// §5.1). A file states counts, not events, and the log keeps rows by turn,
+/// so each span's count is written as rows on one turn. On turn 7, "cast 1
+/// this turn, 2 last turn, 5 this game" writes 1 cast on turn 7, 2 on turn
+/// 6, and the other 2 of the game's 5 on turn 5, as one lump, since no
+/// reader asks which earlier turn they were. `None` where that turn would
+/// come before the first, and for "since your last turn", which the loader
+/// derives from the three.
 fn turn_a_stated_count_lands_on(turn: u32, span: HistorySpan) -> Option<u32> {
-    let back = match span {
+    let turns_before_this_one = match span {
         HistorySpan::ThisTurn => 0,
         HistorySpan::LastTurn => 1,
+        // The game's count less this turn's and last turn's.
         HistorySpan::ThisGame => 2,
         HistorySpan::SinceYourLastTurn => return None,
     };
-    turn.checked_sub(back).filter(|&on_turn| on_turn >= FIRST_TURN)
+    turn.checked_sub(turns_before_this_one).filter(|&on_turn| on_turn >= FIRST_TURN)
 }
