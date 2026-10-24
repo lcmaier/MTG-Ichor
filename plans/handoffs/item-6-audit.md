@@ -1000,6 +1000,18 @@ item 124's precedent that a sweep does not ride inside a rules change.
      are read first, then the 30 in `engine/replacement/`.
    - Item 284: the check that a card-homed item is met when its card is
      registered. It is Python and a CI step, outside the band.
+   - Four rules of `engineering-practices.md` a script could check, slotted
+     here at #286's review, each to `check_practices_page.py` or a check
+     beside it:
+     - `#comments`: a source comment cites the CR rule, never a plans item
+       number, a doc's private label or a phase code, once the old lines in
+       `src/` are swept;
+     - `#names`: no bare pronoun, `Other` or `EMPTY` as a variant name, read
+       off the enums;
+     - `#trace-pages`: a page's `<head>` names its commit and CR version, and
+       an architecture doc and `codebase-state.md` each link it;
+     - `#the-spine-phase-audit`: every `ci.yml` step carries a comment giving
+       its reason.
 
 **Placed elsewhere, each with its reason.**
 - Items 138, 142 and 143: readiness, pass 4.
