@@ -138,13 +138,18 @@ pass re-reads what it touches: a number here is a starting point.
   2026-10-24): `last-known-information-store`, item 318, the PR after it.
   It ran as #285 on `audit/last-known-information-store`: the design note
   first, its four decisions taken at its review (`triggers-architecture.md`
-  §3.11), then the build on the same branch. Item 318 closed. The next PR is
-  `practices-rules-page` (1c), which rewrites the whole of
-  `engineering-practices.md` as a short page of rules, the per-keeper
-  example of its rule on one record, which this PR retired, among them. It runs as #286 on
-  `audit/practices-rules-page`: the design note first
-  (`plans/handoffs/practices-rules-page.md`), its four decisions taken at
-  its review, then the build on the same branch.
+  §3.11), then the build on the same branch. Item 318 closed. The next PR,
+  `practices-rules-page` (1c), ran as #286 on `audit/practices-rules-page`:
+  the design note first, its four decisions taken at its review, then the
+  build on the same branch. Done: `engineering-practices.md` is a page of
+  rules, each a sentence or two and a pointer, cited by heading anchor and
+  never by number; the doc as it stood is
+  `plans/archive/engineering-practices-records.md`, under a table mapping
+  each old number to its anchor; the trace-page format, the spine audit's
+  passes and the egui checklist have docs of their own; the floor readings
+  are `fuzz-record.md`'s; every citation was rewritten, and
+  `check_practices_page.py` fails a number or an anchor that names no
+  heading. The next PR is `concept-census-and-register` (1d).
 
 ## 1. Why this audit is bigger than the last
 
@@ -799,7 +804,11 @@ item 124's precedent that a sweep does not ride inside a rules change.
    pointer as `CLAUDE.md`'s are; the records and measurements move to the
    archive and to the subsystem docs they belong to, as the fuzz tables did
    to `fuzz-record.md`; a rule a script can check is listed as a gate to
-   build. After the store, so §2c is rewritten once.
+   build. After the store, so the rule on one record is rewritten once.
+   - Taken at #286's review (the owner, 2026-10-24): the short page at the
+     same path; citations by heading anchor, not stable numbers, since a
+     number says nothing about where it leads; the trace-page doc named
+     `trace-pages.md` for what it holds; and the gate.
    - Asked at #285's review (the owner, 2026-10-24): whether the rules
      belong in `CLAUDE.md` instead. `CLAUDE.md` is at its 200-line limit,
      so the page is linked from it, unless the owner chooses otherwise at
