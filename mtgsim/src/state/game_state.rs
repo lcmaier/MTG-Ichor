@@ -779,6 +779,10 @@ pub struct GameState {
     /// member's frame sees an earlier member leave (item 174). A move takes its own;
     /// each batch drops the rest once it has performed.
     pub(crate) lki_captures: Vec<crate::engine::triggers::LkiCapture>,
+    /// The LKI store: how each existence that has ended last existed, written
+    /// by the move that ends it and kept for the game (CR 113.7a, 608.2h;
+    /// `engine::last_known`).
+    pub(crate) last_known: crate::engine::last_known::LkiStore,
     /// The dispatch audit's snapshots and counts, in a game that turned the
     /// audit on (`enable_audit`), which is also what turns on every other
     /// shortcut's audit (`engine::audit`); `None` otherwise, which is all a
@@ -1078,6 +1082,7 @@ impl GameState {
             control_effects_at_last_sweep: false,
             settled_layer_epoch: u64::MAX,
             lki_captures: Vec::new(),
+            last_known: crate::engine::last_known::LkiStore::default(),
             dispatch_audit: None,
             events: EventWindow::new(),
             trace: None,

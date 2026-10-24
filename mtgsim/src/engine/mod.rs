@@ -3,6 +3,7 @@ pub mod audit;
 pub mod turns;
 pub mod zones;
 pub mod leaving;
+pub mod last_known;
 pub mod costs;
 pub mod mana;
 pub mod sba;

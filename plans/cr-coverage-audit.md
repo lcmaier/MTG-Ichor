@@ -626,6 +626,14 @@ is derivable; where each name was read is not, and the gate needs the names.
     a new filter at the doors (`clone-architecture.md` decision 5).
     `last_sba_check_epoch` stays, in a debug build only, as the window the
     old walk's assertion reads.
+- **Added by `last-known-information-store` (2026-10-24)**:
+  - `last_known`: CR 113.7a's last known information, one entry per
+    existence that has ended with its move framed (CR 400.7), kept for the
+    game and keyed by object (`triggers-architecture.md` §3.11). It holds
+    what each `Lki` holds, so what the CR can require that it cannot is the
+    body's gap, not the store's: CR 400.7d's facts about how a spell was
+    cast, which §3.11 leaves out until a leaf reads mana spent. A move
+    nothing reads is not framed, which no rule asks about later.
 
 ---
 

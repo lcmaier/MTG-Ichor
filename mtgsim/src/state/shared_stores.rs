@@ -146,6 +146,12 @@ impl ForkCopy for crate::types::triggers::PendingTrigger {
     type Held = CopiedAlone<Self>;
 }
 
+/// One object's ended existences: 24 bytes and a list on the heap, written
+/// once per framed departure of that object.
+impl ForkCopy for crate::engine::last_known::EndedExistences {
+    type Held = CopiedAlone<Self>;
+}
+
 /// One table chunk: the items of 32 consecutive ids, and which are there.
 #[derive(Clone)]
 struct TableChunk<E> {
