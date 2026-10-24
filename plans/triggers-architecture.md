@@ -1089,8 +1089,7 @@ history log writes a row for, by the row writer's arms: a move off the
 battlefield, out of a graveyard, into a hand or library from a public zone,
 a countering, an entry. So the store never holds more entries than the log
 has rows, in any game, and an entry whose row shares its `Lki` costs one
-pointer. The build checks the first half in debug builds, every entry beside
-a row of its own event.
+pointer. The build checks this statically (decision 3).
 
 Floors 2 and 3 cap one clone at 64 allocations and 128 KB, at every
 decision (`clone_bound_test`). **CL-1** is the clone track's build phase
@@ -1128,6 +1127,13 @@ list.
   slot for writing, which copies its chunk if a fork shares it, then the slot
   if a fork shares that, then push the `Lki`. At most 2 allocations, on a
   fork's first write to that object; none otherwise but the slot's growth.
+  A fork is a copy of the game that an AI search plays forward to try an
+  answer, and the rollout performs real moves on the copy: a creature dies, a
+  spell resolves, a card is exiled. Each framed departure in it writes the
+  copy's store, and copying on that first write is what keeps the original's
+  untouched. Either side pays it, the copy or the original, whichever writes
+  a shared chunk first; `fork_copies_test` reads what forks copy between two
+  decisions.
 - **The read**, `last_known(existence)`: the chunk, the slot, and the one
   `Lki` among that object's few whose existence it is (CR 400.7's epoch).
   `None` when there is no slot or no such existence.
@@ -1186,14 +1192,27 @@ leaving a graveyard for the battlefield, whose row is the entry's; a spell
 leaving the stack) costs its body, about 230 B beside the frame, and its
 frame, about 330, beside a row of 120 B and that row's own frame. Across a
 game the log is far the larger, since most of its rows have no entry: 131 B a
-turn against 4,043 on today's pools, which bound nothing. So the guarantee
-is the gate's, not a ratio's: **`history_held_test` reads the log and the
-store together**, under the same 5 KB a turn, and a board where the store
-grew past the log would fail it.
+turn against 4,043 on today's pools, which bound nothing.
+
+**What each check can catch.**
+- **The count, statically, in any game.** The store's write is private to
+  `depart`, so nothing else can add an entry. A table test then runs every
+  move `depart` performs, each zone it leaves, each it goes to and each act,
+  on a fixture board, and asserts that the move's records write a row for the
+  object. A move onto the battlefield is the case to pin: its own record
+  writes no row, and the entry's record does. Together they make "fewer
+  entries than rows" true by construction, and a new kind of move that wrote
+  no row fails the test.
+- **The bytes, only by sampling.** An `Lki`'s counters and attachments, and a
+  frame's abilities, have no fixed size, so no static test bounds an entry's
+  bytes, any more than one bounds a history row's. `history_held_test` reads
+  the log and the store together over its 23 Commander games, under the same
+  5 KB a turn: a regression shows only on boards those games reach, as it
+  does for the log today.
 
 **Recommended: A.** It answers TR-2b's objection rather than overriding it:
 there is no prune to miss, the store holds fewer entries than the log has
-rows, and the gate that reads the log reads it too.
+rows by construction, and its bytes are sampled where the log's are.
 
 ##### Decision 4 — the four view types
 
