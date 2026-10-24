@@ -39,6 +39,32 @@ Where the bulk is, by section with its subsections:
 
 ## 1. Decisions
 
+**Taken at #286's review (the owner, 2026-10-24):**
+
+1. **(b), a short page at the same path.**
+2. **Neither as written: citations name their section.** The owner: a
+   "§3.1"-style label is opaque, "might as well be blank as far as tracking
+   down the original text from a reference". So the numbers go, and every
+   citation is rewritten to a heading's anchor, `engineering-practices.md#the-close-out`:
+   GitHub's anchor for the heading (lowercase, punctuation dropped, spaces
+   as hyphens), so it says what it points at, a grep finds it, and on
+   GitHub it is a link. The page is then free to read in its natural order.
+   The 15 pinned trace pages and `plans/archive/` keep their numbers, which
+   resolve in the old doc, archived whole as
+   `plans/archive/engineering-practices-records.md`, with a table at its
+   head mapping each old number to its new anchor.
+3. **Taken, with the trace-page doc named for what it holds**:
+   `plans/trace-pages.md`, not `plans/traces/README.md`. A measurement
+   still read goes to `fuzz-record.md` (the floor readings, their history,
+   how to read the cost rows). A dated measurement that is the evidence of
+   a decision stays beside its paragraph in the archived record, as
+   `fuzz-record.md`'s own move kept each run with the entry that owns it.
+4. **Taken.** `check_practices_page.py` also fails a citation of the page by
+   section number, so the opaque form cannot come back, and it resolves
+   every `<doc>.md#anchor` citation of a plans doc, not this page's alone.
+
+The options as first written follow.
+
 ### Decision 1 — where the rules live
 
 **The shared problem.** A rule helps only if it is read when a design is
