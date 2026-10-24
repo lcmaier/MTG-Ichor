@@ -1093,7 +1093,12 @@ pointer. The build checks the first half in debug builds, every entry beside
 a row of its own event.
 
 Floors 2 and 3 cap one clone at 64 allocations and 128 KB, at every
-decision (`clone_bound_test`). The worst decision today reads **39
+decision (`clone_bound_test`). **CL-1** is the clone track's build phase
+(`clone-architecture.md`, landed 2026-10-21 in #267): it moved the
+per-object stores, the objects, the battlefield, the stack's entries, the
+waiting triggers and the layer memo, into `state::shared_stores`' chunked
+containers, so a clone copies chunk pointers and not entries. `ObjectTable`
+is its id-indexed one. The worst decision today reads **39
 allocations, and 6.4 KB at most, at four seats** (the tree's test, 10,509
 decisions) and **28 allocations and 3.2 KB at most at two** (the same test on
 two seats of 60 cards at 20 life, 3,291 decisions).
@@ -1107,7 +1112,36 @@ two seats of 60 cards at 20 life, 3,291 decisions).
 Each form also takes from a clone what the lists cost it: `ResolvingObject`'s
 list is the one a clone copies inline (1 allocation while it holds any), and
 a fork's write to a waiting trigger or a stack entry no longer copies its
-list. **Recommended: B** (changed at #285's review, which asked why A). A
+list.
+
+**How B works.**
+- **The layout.** `GameState.last_known: ObjectTable<EndedExistences>`.
+  Object ids come from one counter per game, so id *n* sits in chunk *n*/32
+  at slot *n* mod 32, and the table is a vector of pointers to chunks of 32
+  slots: a lookup is arithmetic, with no hashing.
+- **A slot** holds one object's ended existences that the rule framed, each
+  its `Lki`, in the order they ended: none for most objects, one for most
+  that left, more for a commander or a card a loop keeps returning. The slot
+  sits behind its own `Arc` (`CopiedAlone`, as a permanent and a stack entry
+  do), so copying a chunk copies 32 pointers.
+- **The write**, in `depart`, once per framed departure: take the mover's
+  slot for writing, which copies its chunk if a fork shares it, then the slot
+  if a fork shares that, then push the `Lki`. At most 2 allocations, on a
+  fork's first write to that object; none otherwise but the slot's growth.
+- **The read**, `last_known(existence)`: the chunk, the slot, and the one
+  `Lki` among that object's few whose existence it is (CR 400.7's epoch).
+  `None` when there is no slot or no such existence.
+- **A clone** copies the vector of chunk pointers: 1 allocation, 8 B per 32
+  ids up to the highest stored. Chunks and slots are shared until written.
+- **A token** keeps its slot after CR 704.5d removes it from the object
+  store, and an object whose owner left keeps its own after CR 800.4a: the
+  cases last known information is for.
+- **Nothing in play iterates it**; a held-memory reading would read it in id
+  order.
+- **What is new**: the slot type and its `ForkCopy` line, the write and the
+  read, about 80 lines with their tests; `ObjectTable` is used as it is.
+
+**Recommended: B** (changed at #285's review, which asked why A). A
 was recommended on the pooled games' entry counts, which bound nothing. A
 lookup in A costs as much as the game is long; in B, as much as one object's
 own history, whatever the game; and the floor pays one allocation for it.
@@ -1143,9 +1177,23 @@ and a later ability that names the card in the graveyard. And an object's
 current frame, kept up to date as it changes so that its departure finds it
 there, already has a home: the layer memo, which the capture reads.
 
+**Is the history log strictly larger?** In entries, always: every entry
+is a departure the log writes a row for (decision 2), and the log also
+writes rows no departure does, a draw, a cast, life gained and lost, damage,
+an attack, a block, a target. In bytes, not entry by entry. An entry whose
+row shares its `Lki` costs one pointer, but one whose row does not (a card
+leaving a graveyard for the battlefield, whose row is the entry's; a spell
+leaving the stack) costs its body, about 230 B beside the frame, and its
+frame, about 330, beside a row of 120 B and that row's own frame. Across a
+game the log is far the larger, since most of its rows have no entry: 131 B a
+turn against 4,043 on today's pools, which bound nothing. So the guarantee
+is the gate's, not a ratio's: **`history_held_test` reads the log and the
+store together**, under the same 5 KB a turn, and a board where the store
+grew past the log would fail it.
+
 **Recommended: A.** It answers TR-2b's objection rather than overriding it:
-there is no prune to miss, and the store grows with the departures its rule
-frames, never past the history log, under the gate that reads the log.
+there is no prune to miss, the store holds fewer entries than the log has
+rows, and the gate that reads the log reads it too.
 
 ##### Decision 4 — the four view types
 
@@ -1156,6 +1204,12 @@ last was, or a survivor's from before. `SubjectRead` is whether a trigger's
 subject was a permanent at the event, for its Aura's host. Each borrows an
 `Lki` and none holds one, and two carry shape 7's frames, which are not last
 known information.
+
+**This PR is the store's build either way**: the three keepers' lists, the
+hand-over, the second captures, the unattach's frames and the row's two
+fields go, and the store, its two legs and its tests come, about 900–1,200
+lines. The draft holds only this note until the decisions are taken.
+Decision 4 is whether the four view types fold into one in it too.
 
 Where a fold would land under A: `concept-census-and-register`, cleanup PR
 1d (`plans/handoffs/item-6-audit.md`, pass 3), is a docs census and a
@@ -1168,13 +1222,43 @@ page (1c), the census (1d), `resolution-context-rider` (2) and
 
 | | Code shape | Upkeep |
 |---|---|---|
-| **A. The census names it, `one-fact-one-type` builds it** (recommended) | this PR changes only where their `&Lki` comes from | the census may find more members first (`EntryFrame`'s look-ahead, shape 7's frames under the `Lki` type), so the fold is designed once over all of them |
-| B. Fold them here | one enum of an object as read: live, last known, a survivor's from before, characteristics alone; about 120 references across the dispatch, the filter and the oracle | the fold is designed before the census, and refolded if the census finds a fifth member; this PR's size moves toward the band's top |
+| A. The census names it, `one-fact-one-type` builds it | this PR changes only where their `&Lki` comes from | the census settles shape 7 first, whose frames ride the `Lki` type today, so the fold is designed once |
+| **B. Fold them here** (recommended, #285's second round) | one type, `ObjectAsRead`, below; about 120 references in 21 files, about 300–500 lines | this PR already rewrites where each view's `&Lki` comes from, so their sites are touched once; shape 7's naming stays the census's, and a split of it adds one arm |
 
-**Recommended: A.** One unified type is the goal either way; A designs it
-once, after the census has counted what it must hold.
+**B's type.**
 
-**Predictions for the close-out**, with decision 1 as taken and 2 and 3 as
+```rust
+/// An object as a reader takes it (CR 608.2h, 113.7a, 603.10).
+pub enum ObjectAsRead<'a> {
+    /// Still the existence the reader expects: read live, through the layers.
+    Now(ObjectId),
+    /// As it last existed: an ended existence's `Lki`, from the store or a
+    /// record. Shape 7's frames from just before an event ride it, as they
+    /// ride the `Lki` type today.
+    LastKnown(&'a Lki),
+    /// Characteristics with no facts beside them: CR 614.12's look-ahead for
+    /// an entering permanent, or a frame its asker already walked.
+    Characteristics(&'a EffectiveCharacteristics),
+}
+```
+- `HeldFrame` and `CurrentOrLastKnown` become it, and their readers
+  (`existence`, `characteristics`, `attacking`, `controller`,
+  `defending_player`, a filter's reads) move onto it.
+- `TriggerCandidateFrame` keeps what is its own, which snapshot answers
+  which arms (CR 603.10), around one `ObjectAsRead`.
+- `SubjectRead`'s two departed arms become `LastKnown`. Whether the subject
+  was a permanent at the event, which set them apart, is read off the record:
+  whether the event is that existence's own departure.
+
+**The split, set here rather than in the moment** (`engineering-practices.md`
+§4): the fold is this PR's last commits, and if the store's commits carry
+past 2,000 lines, the fold goes to a PR of its own straight after this one,
+its design kept here.
+
+**Recommended: B.** The owner wants one type, and this PR touches the views'
+sites already.
+
+**Predictions for the close-out**, with decision 1 as taken and 2 to 4 as
 recommended:
 - **Both pools, two seats and four: every game identical**, and the
   engine-work rows identical but Memo hits, lower by `pay_costs`' captures:
@@ -1187,12 +1271,12 @@ recommended:
   or 39 where a resolving object held a list; bytes within 0.1 KB.
 - **Held memory**: 4,043 B a turn to about 4,200.
 
-**Sized:** about 900–1,200 lines changed, code and tests, more deleted than
-added, before §4's 1.5–2× on code: the hand-over and the lists, the seeds,
+**Sized:** about 1,200–1,700 lines changed with decision 4's fold, 900–1,200
+without, code and tests, more deleted than added, before §4's 1.5–2× on code: the hand-over and the lists, the seeds,
 `PaidCosts`' capture, the counter's, and the lookups go (about 350 lines);
 the store and its tests, the two legs, the records and rows sharing the
 store's `Lki`, the unattach's flags and `LkiBody.token`'s rename to
-`is_token` come (about 400); the tests that pin the legs no pooled
+`is_token` come (about 400); and decision 4's fold, about 300–500 more; the tests that pin the legs no pooled
 card reaches, a mana ability whose cost moves its source from a hand, and a
 spell countered while a keeper reads it (about 200).
 
