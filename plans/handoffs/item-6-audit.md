@@ -836,7 +836,20 @@ item 124's precedent that a sweep does not ride inside a rules change.
        spell being cast, CR 601.2f; a permanent about to enter, CR 614.12;
        a survivor's list from just before a batch, CR 603.10; a history
        row's object as the event left it; a live list already walked). The
-       census decides whether it stays one arm, honestly named, or splits.
+       census decides whether it stays one arm, honestly named, or splits
+       (moved here at #285's merge, the owner, 2026-10-24):
+       - first, whether any filter on those paths reads a fact beyond the
+         characteristics (tapped, attacking), which the arm reads live:
+         now, where the characteristics are from another moment (a
+         survivor's tapped state after the batch, an entering permanent's
+         in its old zone);
+       - then the shape. One arm leaves a reader that cares one answer for
+         all five: `TriggerSubject::Host` answers "not attached", right for
+         an entering permanent and wrong for a walked live list, which no
+         caller sends there today and nothing stops. One arm per moment
+         makes every reader decide. The recommendation at #285's review
+         was a moment tag on the one arm, which readers that do not care
+         ignore and readers that do must match.
 2. `resolution-context-rider`. Item 137: every resolution that is not a CR
    615.5 rider writes two `None`s about riders. It becomes one optional
    value, at 99 literals (48 when the item was filed).
