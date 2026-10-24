@@ -255,6 +255,7 @@ discipline. → `engineering-practices.md` §5.
 is an open plate.
 
 - `plans/handoffs/item-6-audit.md`
+- `plans/handoffs/practices-rules-page.md`
 
 ## What this file deliberately does not know
 
