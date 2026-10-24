@@ -2415,12 +2415,13 @@ impl GameState {
 
     /// "Which object" (§3.3): `This` is the source itself, `Host` what it is
     /// attached to, a filter is read against the subject — as `read` says.
-    /// `seq` is the record's, which a remembered source's own departure is.
-    fn subject_matches(&self, subject: &TriggerSubject, object: ObjectInformation<'_>, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
+    /// `event_id` names the matched record, which a remembered source's own
+    /// departure can be.
+    fn subject_matches(&self, subject: &TriggerSubject, object: ObjectInformation<'_>, referents: &TriggerReferents<'_>, event_id: EventId) -> bool {
         let id = object.id();
         match subject {
             TriggerSubject::Any => true,
-            TriggerSubject::ThisObject => referents.this.is(self, id, seq),
+            TriggerSubject::ThisObject => referents.this.is(self, id, event_id),
             // Only a permanent has anything attached to it (CR 301.5, 303.4).
             // One read as it was just before this event is asked as that frame
             // has it (CR 603.10a), since the Aura or Equipment that stays has
@@ -2430,19 +2431,19 @@ impl GameState {
             // after a flicker (CR 400.7).
             TriggerSubject::Host => match object {
                 ObjectInformation::Current(id) => referents.host == Some(id),
-                ObjectInformation::LastKnown(lki) => !self.gone_before(seq, lki) && lki.had_attached(referents.this.id()),
+                ObjectInformation::LastKnown(lki) => !self.gone_before(event_id, lki) && lki.had_attached(referents.this.id()),
                 ObjectInformation::Characteristics(..) => false,
             },
-            TriggerSubject::Referred => referents.referred.iter().any(|r| r.is(self, id, seq)),
+            TriggerSubject::Referred => referents.referred.iter().any(|r| r.is(self, id, event_id)),
             TriggerSubject::Filter(filter) => self.object_matches_filter(object, filter, &mut { *referents }),
         }
     }
 
-    /// Whether record `seq` reads `lki` as its source's from before the event:
-    /// a source that left before dealing damage, activating or making mana
-    /// (CR 608.2h, `GameEvent::source_lki`).
-    fn gone_before(&self, seq: EventId, lki: &Lki) -> bool {
-        self.events.record(seq).and_then(|record| record.event.source_lki()).is_some_and(|source| source.object() == lki.object())
+    /// Whether record `event_id` reads `lki` as its source's from before the
+    /// event: a source that left before dealing damage, activating or making
+    /// mana (CR 608.2h, `GameEvent::source_lki`).
+    fn gone_before(&self, event_id: EventId, lki: &Lki) -> bool {
+        self.events.record(event_id).and_then(|record| record.event.source_lki()).is_some_and(|source| source.object() == lki.object())
     }
 
     /// "Whose" — a `PlayerRef` against a record's player, read for the
