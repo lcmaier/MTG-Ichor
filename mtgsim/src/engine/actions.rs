@@ -1178,7 +1178,7 @@ impl GameState {
         // The departing members' own frames, for the same reason: taken as each
         // moved, a later one would see an earlier one gone (item 174).
         let frames_from = self.lki_captures.len();
-        self.capture_lki(decided.iter().filter_map(|m| Some((m.event.as_ref()?, m.applied.len() > 0))));
+        self.capture_lki(decided.iter().filter_map(|m| Some((m.event.as_ref()?, m.applied.len() > 0, m.cause))));
         // The dispatch audit's snapshot of every object that could carry a
         // triggered ability, when it is on (§4.10).
         let audit_frames = self.audit_frames();

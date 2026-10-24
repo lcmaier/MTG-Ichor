@@ -23,7 +23,7 @@ use std::sync::Arc;
 use crate::engine::mana::ManaProducer;
 use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::types::effects::Antecedent;
-use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
@@ -987,18 +987,22 @@ impl GameState {
     /// everything it may exile. A permanent's frame is a memo hit, since
     /// nothing has changed since the batch began deciding.
     ///
-    /// **And every other mover a keeper reads, from whatever zone** (CR
-    /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
-    /// triggering event is about, a card a draw trigger named, a card put
-    /// onto the battlefield from exile. The move files the frame in the LKI
-    /// store (`depart`), where the keeper reads it.
+    /// **And every other mover something reads later, from whatever zone**
+    /// (CR 113.7a, 608.2h; `triggers-architecture.md` §3.11, decision 1): a
+    /// spell countered, whose record looks back at it (CR 603.10e); the source
+    /// an activation's own cost moves, which the activation's records name as
+    /// it was; and any mover a keeper reads, a spell a trigger's triggering
+    /// event is about, a card a draw trigger named, a card put onto the
+    /// battlefield from exile. The move files the frame in the LKI store
+    /// (`depart`), where its readers find it.
     ///
     /// Each decided action comes with whether a replacement applied to it,
     /// since a move one kept in its zone is announced with a frame and an
-    /// untouched one performs nothing.
-    pub(crate) fn capture_lki<'a>(&mut self, decided: impl Iterator<Item = (&'a GameAction, bool)>) {
+    /// untouched one performs nothing, and with its cause, which names the
+    /// object a cost is paid for.
+    pub(crate) fn capture_lki<'a>(&mut self, decided: impl Iterator<Item = (&'a GameAction, bool, EventCause)>) {
         let mut kept_for: Option<Vec<ObjectRef>> = None;
-        for (action, replaced) in decided {
+        for (action, replaced, cause) in decided {
             let (object, from, to) = match action {
                 GameAction::Destroy { object, .. } => {
                     if self.battlefield.contains_key(object) {
@@ -1032,7 +1036,9 @@ impl GameState {
                 }
                 _ => continue,
             };
-            if self.zone_change_looks_back_at(object, from, Some(to)) {
+            let countered = matches!(action, GameAction::ZoneChange { act: ZoneChangeAct::Countered, .. });
+            let paid_for = matches!(cause, EventCause::Cost { paying_for, .. } if paying_for == object);
+            if self.zone_change_looks_back_at(object, from, Some(to)) || countered || paid_for {
                 self.capture_frame(object);
                 continue;
             }

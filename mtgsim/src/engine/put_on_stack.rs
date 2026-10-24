@@ -556,20 +556,18 @@ impl GameState {
                 return Err(e);
             }
         };
-        let paid = match self.pay_costs(&plan, player_id, source_id, &actx) {
-            Ok(paid) => paid,
-            Err(e) => {
-                self.rollback_ability_activation(ability_obj_id);
-                return Err(e);
-            }
-        };
+        if let Err(e) = self.pay_costs(&plan, player_id, source_id, &actx) {
+            self.rollback_ability_activation(ability_obj_id);
+            return Err(e);
+        }
 
         // CR 602.2b runs 601.2i: the ability becomes activated once its costs
         // are paid, its targets first as a spell's are. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
         self.announce_targeted_records(ability_obj_id, activating, decisions)?;
-        let source_lki = paid.source_lki_if_it_moved(self, identity.source);
+        // Where its cost moved it, as it left (CR 608.2h).
+        let source_lki = self.last_known(identity.source).cloned();
         self.announce_activation(identity, player_id, false, from, source_lki, decisions)?;
 
         Ok(())

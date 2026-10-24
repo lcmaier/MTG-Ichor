@@ -2347,16 +2347,16 @@ impl GameState {
     /// goes with it. An object that is no spell on the stack is not one to
     /// counter this way.
     fn counter_spell(&mut self, id: ObjectId, ctx: &ResolutionContext, actx: &ActionContext) -> Result<(), String> {
-        // Its controller and its frame read while it is a spell, as the record
-        // keeps them (CR 108.4a: a card in a graveyard has none; CR 603.10e
-        // looks back at the spell).
+        // Its controller read while it is a spell (CR 108.4a: a card in a
+        // graveyard has none), and its frame as the move took it, for CR
+        // 603.10e's look-back at the spell.
         if !self.stack.contains(&id) || !self.is_spell_on_stack(id) {
             return Ok(());
         }
         let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id) else { return Ok(()) };
-        let lki =
-            self.lki_now(id).ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
+        let spell = self.object_ref(id).ok_or_else(|| format!("countering {id}, which is in no zone"))?;
         self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, actx)?;
+        let lki = self.last_known(spell).cloned().ok_or_else(|| format!("countering {id}, which left the stack unframed"))?;
         let countered = crate::events::event::GameEvent::SpellCountered { spell_id: id, controller, countered_by: ctx.source, lki };
         self.emit_event(countered, actx.cause)
     }
