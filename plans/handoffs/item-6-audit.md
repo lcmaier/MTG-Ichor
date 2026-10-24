@@ -238,7 +238,7 @@ sessions are ordinary ones, one PR at a time in the main folder:
 | 5. The docs audit's fixes | plain, a session per PR | 5 | 4 (pass 5, re-cut at #274's merge) |
 | 5b. The card-homed triage | plain; a single verifier at most | the triage (§4) | 1, docs |
 | 5c. Names for the phases ahead | plain; the design reviewed first | pass 5c | 1 |
-| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 8, by the plan in pass 3 (2026-10-23), or 9 if item 317 stays its own |
+| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 8, by the plan in pass 3 (2026-10-23), and three more at #284's review: the store of last known information, the rules page and the concept census |
 | 7. Readiness | plain; measurement | 4 | 2 |
 | 8. Scheduling | plain | 6 | 1 |
 
@@ -719,6 +719,8 @@ about.
 |---|---|---|---|---|---:|---:|---|---|
 | 1 | `history-and-frame-records` | Every record written, each keeping the object as it was, three of the six record checks, and the fixture pool | 278, 279, 286, 297, 303, 305, 306, 310, 311, 312, 313, 314, "Before Triggered abilities" 6; `--pool fixtures` | 28, 29, 31, 32, 35, 36, 42, 45, 48, 49, 61, 62 | ~1,370 | ~1,700–2,000 | identical: no registered card reads a new row, frame or fact, and the fixtures pool apart | a row per zone change, last known information on a departure row, a `GameEvent` field; and a held-memory reading |
 | 1b | `last-known-information-store` | Last known information in one store, keyed by existence (added at #284's review) | 318 | — | its design note's | — | its decisions' | a frame per move, and the clone floors |
+| 1c | `practices-rules-page` | `engineering-practices.md` as a short page of rules, each three lines and a pointer, its records and measurements moved to the archive and the subsystem docs (added at #284's review) | — | — | docs | — | identical | none |
+| 1d | `concept-census-and-register` | Each CR concept that names a thing, every type and field that holds it and its one owner; a gate that fails a new field holding an owned concept without a register line (added at #284's review) | — | — | its census's | — | identical | none |
 | 2 | `resolution-context-rider` | `ResolutionContext`'s two rider numbers as one optional value | 137 | — | ~130 | ~130–160 | identical | none |
 | 3 | `trigger-matcher-merges` | The trigger matcher's facts, each written once | 247, 301, 302, 304, 309, 315, and 317 (decision 2) | 2, 3, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 30, 53, 54, 55, 59, 67, 68; and 5 | ~910 | ~1,250–1,600; ~1,350–1,800 with 317 | identical for the merges; with 317 both pools differ, since Blood Artist's order prompts go: a three-arm A/B | the dispatch, and §3.1's audited smoke |
 | 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296 | 46 | ~1,550–1,800 | ~1,700–2,100 | identical | the replacement gather's membership test |
@@ -781,6 +783,26 @@ item 124's precedent that a sweep does not ride inside a rules change.
    becomes one store keyed by existence. Its design note comes first, with
    three decisions: which moves write it, its shape against the clone
    floors, and its lifetime.
+1c. `practices-rules-page`, added at #284's review (the owner,
+   2026-10-24). `engineering-practices.md` is 175 KB, and its records and
+   measurements bury its rules: §2c's last-known-information example
+   blessed the split item 318 undoes, and nothing asked the global
+   question. The rules become a short page, each three lines and a
+   pointer as `CLAUDE.md`'s are; the records and measurements move to the
+   archive and to the subsystem docs they belong to, as the fuzz tables did
+   to `fuzz-record.md`; a rule a script can check is listed as a gate to
+   build. After the store, so §2c is rewritten once.
+1d. `concept-census-and-register`, added at #284's review (the owner,
+   2026-10-24). The model pass asked whether a fact is computed twice, a
+   question about functions; nobody asked whether a CR concept is held in
+   several places, which is how last known information came to twenty
+   fields. The census extends `cr-coverage-audit.md`'s type-surface method
+   from `GameState`'s fields to every type that holds a CR concept that
+   names a thing, each with its one owner; a concept with two is a finding,
+   slotted to the PR whose types it touches. The register is a gate in the
+   `check_*.py` family: a new field holding an owned concept fails without
+   its line. Before `one-fact-one-type`, whose scope its findings set, and
+   `trigger-matcher-merges`.
 2. `resolution-context-rider`. Item 137: every resolution that is not a CR
    615.5 rider writes two `None`s about riders. It becomes one optional
    value, at 99 literals (48 when the item was filed).
@@ -927,7 +949,9 @@ item 124's precedent that a sweep does not ride inside a rules change.
   first readers.
 
 The store of last known information follows it (#284's review), before
-anything else reads or writes the fact again. Item 137 comes next: it is
+anything else reads or writes the fact again; then the rules page, so
+§2c is rewritten after the store, and the concept census, before the
+reshapes whose scope it may change. Item 137 comes next: it is
 small, and every build after it writes one
 `None` instead of two. Then the reshapes come before the builds, so the
 builds read and write what stays:
