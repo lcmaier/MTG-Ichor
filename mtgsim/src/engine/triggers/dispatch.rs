@@ -42,6 +42,7 @@ use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
+use crate::state::history_log::RowFact;
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::engine::targeting::TargetRef;
 use crate::types::history::CountIs;
@@ -1021,37 +1022,36 @@ impl GameState {
     ///
     /// **And every other mover a keeper reads, from whatever zone** (CR
     /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
-    /// triggering event is about, a card a draw trigger named. The move hands
-    /// the frame to each keeper that reads the mover (`hand_over_lki`).
-    pub(crate) fn capture_lki<'a>(&mut self, decided: impl Iterator<Item = &'a GameAction>) {
+    /// triggering event is about, a card a draw trigger named, a card put
+    /// onto the battlefield from exile. The move hands the frame to each
+    /// keeper that reads the mover (`hand_over_lki`).
+    ///
+    /// Each decided action comes with whether a replacement applied to it,
+    /// since a move one kept in its zone is announced with a frame and an
+    /// untouched one performs nothing.
+    pub(crate) fn capture_lki<'a>(&mut self, decided: impl Iterator<Item = (&'a GameAction, bool)>) {
         let mut kept_for: Option<Vec<ObjectRef>> = None;
-        for action in decided {
-            match action {
-                GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
-                | GameAction::Destroy { object, .. } => {
+        for (action, replaced) in decided {
+            let (object, from, to) = match action {
+                GameAction::Destroy { object, .. } => {
                     if self.battlefield.contains_key(object) {
                         self.capture_frame(*object);
                     }
+                    continue;
                 }
                 // A replacement keeping the object where it was (CR 614.6): the
                 // record of the act it replaced carries the object as it was.
-                GameAction::ZoneChange { object, from, to, .. } if zone_change_looks_back(*from, Some(*to)) || from == to => {
-                    self.capture_frame(*object);
-                }
-                GameAction::EnterBattlefield { object, from: Some(from), .. }
-                    if zone_change_looks_back(*from, Some(Zone::Battlefield)) =>
-                {
-                    self.capture_frame(*object);
-                }
-                GameAction::ZoneChange { object, .. } => {
-                    let kept_for = kept_for.get_or_insert_with(|| self.objects_lki_is_kept_for());
-                    if self.object_ref(*object).is_some_and(|r| kept_for.contains(&r)) {
+                GameAction::ZoneChange { object, from, to, .. } if from == to => {
+                    if replaced {
                         self.capture_frame(*object);
                     }
+                    continue;
                 }
+                GameAction::ZoneChange { object, from, to, .. } => (*object, *from, *to),
+                GameAction::EnterBattlefield { object, from: Some(from), .. } => (*object, *from, Zone::Battlefield),
                 GameAction::PlayerLoses { player } => {
                     for id in self.battlefield_ids_ordered() {
-                        if self.departs_with(id, *player) {
+                        if self.departs_with(id, *player) && self.zone_change_looks_back_at(id, Zone::Battlefield, None) {
                             self.capture_frame(id);
                         }
                     }
@@ -1061,10 +1061,31 @@ impl GameState {
                             self.capture_frame(object.id);
                         }
                     }
+                    continue;
                 }
-                _ => {}
+                _ => continue,
+            };
+            if self.zone_change_looks_back_at(object, from, Some(to)) {
+                self.capture_frame(object);
+                continue;
+            }
+            let kept_for = kept_for.get_or_insert_with(|| self.objects_lki_is_kept_for());
+            if self.object_ref(object).is_some_and(|r| kept_for.contains(&r)) {
+                self.capture_frame(object);
             }
         }
+    }
+
+    /// Whether the move of `id` out of `from` for `to` (`None`: the game)
+    /// looks back, so its record carries the frame its batch took: CR
+    /// 603.10a's classes for the zones (`zone_change_looks_back`), asked of an
+    /// object that was there to leave. A token whose entry is still being decided has no entry to look
+    /// back at (`create_tokens`), and a phased-out permanent is treated as
+    /// though it does not exist (CR 702.26b), so it leaves the game with its
+    /// owner unframed and triggers nothing (CR 603.6c's "phased-in").
+    pub(crate) fn zone_change_looks_back_at(&self, id: ObjectId, from: Zone, to: Option<Zone>) -> bool {
+        zone_change_looks_back(from, to)
+            && (from != Zone::Battlefield || self.battlefield.get(&id).is_some_and(|entry| !entry.phased_out))
     }
 
     /// The objects some keeper keeps last known information for
@@ -1163,13 +1184,20 @@ impl GameState {
         let object = self.objects.get(&id)?;
         let cost_choices = self.cost_choices_of(id).unwrap_or(CostChoices::NONE);
         let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
-        Some(Lki::new(existence, frame, object.owner, cost_choices, self.battlefield.get(&id), self.stack_entries.get(&id)))
+        let (permanent, entry) = (self.battlefield.get(&id), self.stack_entries.get(&id));
+        Some(Lki::new(existence, frame, object.owner, object.is_token, cost_choices, permanent, entry))
     }
 
     /// `id`'s last known information with its frame off the layer memo, for
     /// every reader but a performing batch's fallback.
     pub(crate) fn lki_now(&self, id: ObjectId) -> Option<Lki> {
         self.last_known_information(id, compute_characteristics(self, id)?)
+    }
+
+    /// The frame a batch in progress took of `object` and has not handed
+    /// over yet: `object` is about to leave in the event being performed.
+    pub(crate) fn frame_taken_for(&self, object: ObjectRef) -> Option<&Lki> {
+        self.lki_captures.iter().find(|capture| capture.object == object)?.lki.as_ref()
     }
 
     /// The capture its batch took of `object`, if one did.
@@ -1184,8 +1212,7 @@ impl GameState {
     /// classes; a token whose entry is still being decided has no entity and
     /// nothing to look back at (`create_tokens`).
     pub(crate) fn hand_over_before_leaving(&mut self, id: ObjectId, from: Zone, to: Option<Zone>) -> Option<Lki> {
-        let entering_token = from == Zone::Battlefield && !self.battlefield.contains_key(&id);
-        let lki = if zone_change_looks_back(from, to) && !entering_token { self.take_captured_lki(id, from) } else { None };
+        let lki = if self.zone_change_looks_back_at(id, from, to) { self.take_captured_lki(id, from) } else { None };
         self.hand_over_lki(id, lki.as_ref());
         self.note_delayed_source_moving(id);
         lki
@@ -1887,6 +1914,18 @@ impl GameState {
                             && whose.as_ref().is_none_or(|p| self.player_ref_is(p, earlier.controller, referents))
                     })
                 }
+                // "Your first creature spell each turn": the first of the
+                // caster's spells this turn the arm admits, whatever came
+                // before it (Kalamax's and Plan for All Outcomes' rulings),
+                // read off the turn's cast rows, each the spell as it was cast.
+                (TriggerEvent::CastsSpell { spell: Some(filter), .. }, GameEvent::SpellCast { caster, .. }) => {
+                    !self.history.log.rows_of_turn(self.turn_number).any(|earlier| {
+                        earlier.seq < record.seq
+                            && earlier.player == Some(*caster)
+                            && matches!(earlier.fact, RowFact::Cast { .. })
+                            && earlier.frame_matches(|id, held| self.object_matches_filter(id, filter, &mut { *referents }, Some(held)))
+                    })
+                }
                 _ => record.place_in_turn() == Some(1),
             },
         }
@@ -1933,12 +1972,15 @@ impl GameState {
             // CR 603.6c names this event for a leaves-the-battlefield ability,
             // and for nothing else: a card leaving the game from a graveyard
             // leaves no graveyard (Erebos's Titan's third ruling). Nothing
-            // narrower either — no `to`, no act, no cause.
+            // narrower either — no `to`, no act, no cause. Only a phased-in
+            // permanent's, which is one its departure framed
+            // (`zone_change_looks_back_at`).
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
                 GameEvent::LeftTheGame { object_id, owner: moved_owner, from, lki },
             ) => triggering_event_if(
                 *from == Zone::Battlefield
+                    && lki.is_some()
                     && change.from == Some(Zone::Battlefield)
                     && change.to.is_none()
                     && change.act.is_none()
@@ -2099,7 +2141,9 @@ impl GameState {
                     }
                 }
             }
-            (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. }) => self.block_events(arm, record, referents),
+            (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. } | GameEvent::BecameBlocked { .. }) => {
+                self.block_events(arm, record, referents)
+            }
             // The source as it was activated, on the battlefield: off its frame
             // when a cost moved it (Harsh Mentor's second ruling).
             (
@@ -2298,6 +2342,18 @@ impl GameState {
     /// creatures that match are the ones it counts, and the occurrence needs
     /// one of them, or `count`'s many (CR 509.3e).
     fn block_events(&self, arm: &TriggerEvent, record: &EventRecord, referents: &TriggerReferents<'_>) -> Vec<TriggeringEventObjects> {
+        // CR 509.3c: an effect's block is a "becomes blocked" with no creature
+        // blocking, so no arm that names a blocker, counts them or asks for
+        // the only one reads it (509.3d, 509.3e, 506.5).
+        if let (
+            TriggerEvent::Blocks { blocker: TriggerSubject::Any, attacker, occurrence: BlockOccurrence::Blocked, count: None, alone: false, .. },
+            GameEvent::BecameBlocked { attacker: blocked },
+        ) = (arm, &record.event)
+        {
+            let watched = self.subject_matches(attacker, Some(*blocked), referents, record.seq, SubjectRead::Now);
+            let attacker = self.subject_after(&record.event, *blocked).filter(|_| watched);
+            return attacker.map(|attacker| TriggeringEventObjects::BlockedBy { attacker, blockers: Vec::new() }).into_iter().collect();
+        }
         let (
             TriggerEvent::Blocks { blocker, attacker, occurrence, count, alone, .. },
             GameEvent::BlockersDeclared { blocks, unblocked },
@@ -2623,6 +2679,9 @@ impl GameState {
     /// token created, the mana's source, the card drawn, or the spell.
     fn single_object(&self, event: &GameEvent) -> TriggeringEventObjects {
         let id = match event {
+            // The existence that left the game, which the store no longer
+            // holds by the time the record is read (CR 800.4a).
+            GameEvent::LeftTheGame { lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
             GameEvent::ZoneChange { object_id, .. }
             | GameEvent::LeftTheGame { object_id, .. }
             | GameEvent::SameZoneMove { object_id, .. }

@@ -109,12 +109,10 @@ impl GameState {
             // CR 603.6c wants the frame: a leaves-the-battlefield ability
             // triggers "when a phased-in permanent leaves the game because its
             // owner leaves the game".
-            let lki = self.hand_over_before_leaving(id, from, None);
-            let unattached = self.unattached_by_leaving(id);
+            let departure = self.depart(id, from, None);
             self.remove_from_game(id)?;
-            let leaving_frame = lki.clone();
-            self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki }, cause)?;
-            self.announce_unattached_by_leaving(unattached, leaving_frame, cause)?;
+            self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki: departure.frame.clone() }, cause)?;
+            self.announce_unattached_by_leaving(departure, cause)?;
         }
         Ok(())
     }

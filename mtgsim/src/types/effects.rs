@@ -2073,6 +2073,11 @@ pub enum Primitive {
     /// no `GameAction` and writes `PermanentState` directly, the way the
     /// cleanup step's damage wipe does.
     RemoveFromCombat,
+    /// CR 509.1h's "an effect says that it becomes blocked": an unblocked
+    /// attacking creature becomes a blocked creature that no creature blocks
+    /// ("target unblocked attacking creature becomes blocked"). One already
+    /// blocked stays as it is, and is announced as nothing (CR 603.2e).
+    BecomeBlocked,
 
     /// Remove all damage marked on a permanent (CR 120.3, the CR 514.2 wipe's
     /// on-demand form).
@@ -2235,6 +2240,7 @@ impl Primitive {
             | Primitive::CreateReplacement(..)
             | Primitive::Restrict(..)
             | Primitive::RemoveFromCombat
+            | Primitive::BecomeBlocked
             | Primitive::RemoveAllDamage
             | Primitive::Attach
             | Primitive::Fight

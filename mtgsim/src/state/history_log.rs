@@ -12,7 +12,7 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::targeting::TargetRef;
+use crate::engine::targeting::{HeldFrame, TargetRef};
 use crate::events::event::EventId;
 use crate::state::battlefield::AttackTarget;
 use crate::state::layer_memo::GatedWalkInput;
@@ -20,8 +20,13 @@ use crate::types::card_types::CardType;
 use crate::types::counted_enum;
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::ObjectOrPlayer;
+use crate::types::triggers::{Lki, ObjectOrPlayer};
 use crate::types::zones::{Zone, ZoneChangeAct};
+
+/// The game's first turn. Turn 0 is the game before it, when the opening
+/// hands are drawn (CR 103), and nothing then counts toward a turn: no count
+/// reads it, and no record has a place in it.
+pub const FIRST_TURN: u32 = 1;
 
 /// How many rows a chunk holds. The log is a chain of chunks, each a block of
 /// rows behind an `Arc`, and every copy of the game shares every chunk, so a
@@ -52,6 +57,11 @@ pub struct HistoryRow {
     /// That object as it was then (CR 608.2h): its record's frame where the
     /// record carries one, else its frame as the event left it.
     pub frame: Option<Arc<EffectiveCharacteristics>>,
+    /// Its record's last known information, on a row whose object had left
+    /// by the event (a departure, damage from a source gone before it): what
+    /// the store no longer answers for it, whether it was a token, its
+    /// counters, its owner (CR 113.7a). Its frame is `frame`.
+    pub last_known: Option<Lki>,
     pub fact: RowFact,
 }
 
@@ -67,7 +77,9 @@ pub enum RowFact {
     GainedLife(u64),
     LostLife(u64),
     /// CR 603.6a: entered the battlefield, from the zone it came from; a token
-    /// comes from none. Any other move is a `LeftZone`.
+    /// comes from none. Any other move is a `LeftZone`. The event, for a count
+    /// of the turn's entries; whether an object entered this turn is its own
+    /// fact (`ObjectFact::Entered`).
     EnteredBattlefield { from: Option<Zone> },
     /// A move that is no draw, cast or entering the battlefield: died, discarded, milled,
     /// sacrificed, exiled, returned to a hand. `became` is the object the move
@@ -85,6 +97,9 @@ pub enum RowFact {
     /// CR 509.1: declared as a blocker of this attacking creature, a row for
     /// each creature it blocks.
     Blocked(ObjectRef),
+    /// CR 509.1h: the row's attacking creature became blocked by an effect,
+    /// which no creature blocks. A row of the combat's blocks.
+    BecameBlocked,
     /// CR 506.4, 511.3: what it was attacking as it left combat.
     RemovedFromCombat { attacking: Option<AttackTarget> },
     /// CR 115.1: by a spell rather than an ability, controlled by `controller`.
@@ -109,7 +124,7 @@ impl RowFact {
             RowFact::LeftTheGame { .. } => RowKind::LeftTheGame,
             RowFact::DealtDamage { .. } => RowKind::DealtDamage,
             RowFact::Attacked(_) => RowKind::Attacked,
-            RowFact::Blocked(_) => RowKind::Blocked,
+            RowFact::Blocked(_) | RowFact::BecameBlocked => RowKind::Blocked,
             RowFact::RemovedFromCombat { .. } => RowKind::RemovedFromCombat,
             RowFact::BecameTarget { .. } => RowKind::BecameTarget,
             RowFact::Stated { fact, .. } => kind_counted(fact),
@@ -118,16 +133,18 @@ impl RowFact {
 }
 
 impl HistoryRow {
-    /// Whether the row's object, as its frame keeps it, satisfies `matches`,
-    /// asked with its id and that frame; a card a scenario named is in no
-    /// store, and is `ObjectId::UNASSIGNED`. A row with no frame answers no,
-    /// and a scenario's unnamed count is loud in a debug build: a card that
-    /// narrows it asks what the file did not say (`setup-architecture.md`
-    /// §5.1).
-    pub(crate) fn frame_matches(&self, matches: impl FnOnce(ObjectId, &EffectiveCharacteristics) -> bool) -> bool {
-        match &self.frame {
-            Some(frame) => matches(self.object.map_or(ObjectId::UNASSIGNED, |object| object.id), frame),
-            None => {
+    /// Whether the row's object, as the row keeps it, satisfies `matches`,
+    /// asked with its id and that frame, or its last known information where
+    /// the row keeps one; a card a scenario named is in no store, and is
+    /// `ObjectId::UNASSIGNED`. A row with no frame answers no, and a
+    /// scenario's unnamed count is loud in a debug build: a card that narrows
+    /// it asks what the file did not say (`setup-architecture.md` §5.1).
+    pub(crate) fn frame_matches(&self, matches: impl FnOnce(ObjectId, HeldFrame<'_>) -> bool) -> bool {
+        let id = self.object.map_or(ObjectId::UNASSIGNED, |object| object.id);
+        match (&self.last_known, &self.frame) {
+            (Some(lki), _) => matches(id, HeldFrame::LastKnown(lki)),
+            (None, Some(frame)) => matches(id, HeldFrame::Characteristics(frame)),
+            (None, None) => {
                 debug_assert!(
                     !matches!(self.fact, RowFact::Stated { .. }),
                     "a card narrows a count a scenario stated without naming its objects: {:?}",
@@ -182,6 +199,9 @@ pub fn added_to_count(fact: TurnFact, row: &HistoryRow, counts_for: &dyn Fn(Play
         (asked, RowFact::Stated { fact, count }) if asked == fact => (player, count),
         _ => return 0,
     };
+    // A count notes the one kind of row it scans (`kind_counted`), so a fact
+    // counted off a second kind would leave a walk standing through its write.
+    debug_assert_eq!(row.fact.kind(), kind_counted(fact), "{fact:?} counted off a {:?} row", row.fact);
     if counts_for(whose) { amount } else { 0 }
 }
 
@@ -311,7 +331,14 @@ impl HistoryLog {
 
     /// Turn `turn`'s rows, newest first.
     pub fn rows_of_turn(&self, turn: u32) -> impl Iterator<Item = &HistoryRow> {
-        self.rows_newest_first().skip_while(move |row| row.turn > turn).take_while(move |row| row.turn == turn)
+        self.rows_of_turns(turn..=turn)
+    }
+
+    /// The rows of `turns`, newest first: rows are written in turn order, so
+    /// the walk stops at the first one before them.
+    pub fn rows_of_turns(&self, turns: RangeInclusive<u32>) -> impl Iterator<Item = &HistoryRow> {
+        let (first, last) = (*turns.start(), *turns.end());
+        self.rows_newest_first().skip_while(move |row| row.turn > last).take_while(move |row| row.turn >= first)
     }
 
     /// The rows of `kind` a question about turn `turn`, the turn in
@@ -348,13 +375,47 @@ impl HistoryLog {
     /// Was `object` declared as a blocker in `span` of turn `turn` (CR
     /// 509.1)? One put onto the battlefield blocking never was (CR 509.4).
     pub(crate) fn blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
-        self.rows_during(turn, span, RowKind::Blocked, note).any(|row| row.object == Some(object))
+        self.rows_during(turn, span, RowKind::Blocked, note).any(|row| row.object == Some(object) && matches!(row.fact, RowFact::Blocked(_)))
     }
 
-    /// Did `object` become a blocked creature as blockers were declared in
-    /// `span` of turn `turn` (CR 509.1h)? The blockers' rows name it.
+    /// Did `object` become a blocked creature in `span` of turn `turn` (CR
+    /// 509.1h)? The rows of the creatures declared blocking it name it, and
+    /// an effect's block is its own row.
     pub(crate) fn was_blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
-        self.rows_during(turn, span, RowKind::Blocked, note).any(|row| row.fact == RowFact::Blocked(object))
+        self.rows_during(turn, span, RowKind::Blocked, note).any(|row| match row.fact {
+            RowFact::Blocked(attacker) => attacker == object,
+            RowFact::BecameBlocked => row.object == Some(object),
+            _ => false,
+        })
+    }
+
+    /// Did the card `object` get where it is by dying in `span` of turn
+    /// `turn` (CR 700.4)? The row of its move names it as the object the move
+    /// made, and keeps the creature it was as it left.
+    pub(crate) fn died(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
+        self.rows_during(turn, span, RowKind::LeftZone, note).any(|row| {
+            matches!(row.fact, RowFact::LeftZone { from: Zone::Battlefield, to: Zone::Graveyard, became, .. } if became == object)
+                && row.frame.as_ref().is_some_and(|frame| frame.types.contains(&CardType::Creature))
+        })
+    }
+
+    /// Was `object` put where it is from `from` by `act` in `span` of turn
+    /// `turn`? `None` asks neither.
+    pub(crate) fn put_there(
+        &self,
+        object: ObjectRef,
+        from: Option<Zone>,
+        act: Option<ZoneChangeAct>,
+        turn: u32,
+        span: CombatSpan,
+        note: &dyn Fn(GatedWalkInput),
+    ) -> bool {
+        self.rows_during(turn, span, RowKind::LeftZone, note).any(|row| match row.fact {
+            RowFact::LeftZone { from: moved_from, act: moved_by, became, .. } => {
+                became == object && from.is_none_or(|from| from == moved_from) && act.is_none_or(|act| act == moved_by)
+            }
+            _ => false,
+        })
     }
 
     /// Was `object` dealt damage in `span` of turn `turn` (CR 120.3)?
@@ -443,9 +504,8 @@ impl HistoryLog {
     ) -> u64 {
         note(GatedWalkInput::TurnNumber);
         note(GatedWalkInput::Rows(kind_counted(fact)));
-        let (first, last) = ((*turns.start()).max(1), *turns.end());
         let mut total: u64 = 0;
-        for row in self.rows_newest_first().skip_while(|row| row.turn > last).take_while(|row| row.turn >= first) {
+        for row in self.rows_of_turns((*turns.start()).max(FIRST_TURN)..=*turns.end()) {
             let added = added_to_count(fact, row, counts_for);
             if added > 0 && of(row) {
                 total = total.saturating_add(added);
@@ -466,9 +526,11 @@ impl HistoryLog {
     /// held-memory reading adds the distinct frames to.
     pub fn row_bytes_held(&self) -> usize {
         let per_chunk = std::mem::size_of::<Chunk>() + 2 * std::mem::size_of::<usize>();
-        std::iter::successors(self.newest.as_deref(), |chunk| chunk.older.as_deref())
+        let last_known: usize = self.rows_newest_first().filter_map(|row| row.last_known.as_ref()).map(Lki::bytes_beside_its_frame).sum();
+        let rows: usize = std::iter::successors(self.newest.as_deref(), |chunk| chunk.older.as_deref())
             .map(|chunk| per_chunk + chunk.rows.capacity() * std::mem::size_of::<HistoryRow>())
-            .sum()
+            .sum();
+        rows + last_known
     }
 }
 
@@ -477,7 +539,7 @@ mod tests {
     use super::*;
 
     fn drew(seq: usize, turn: u32) -> HistoryRow {
-        HistoryRow { seq: EventId(seq), turn, combat: 0, player: Some(0), object: None, frame: None, fact: RowFact::Drew }
+        HistoryRow { seq: EventId(seq), turn, combat: 0, player: Some(0), object: None, frame: None, last_known: None, fact: RowFact::Drew }
     }
 
     fn seqs(log: &HistoryLog) -> Vec<usize> {
@@ -550,7 +612,7 @@ mod tests {
     fn row(log: &mut HistoryLog, object: ObjectRef, turn: u32, fact: RowFact) {
         let seq = EventId(log.len());
         let combat = log.combats_this_turn();
-        log.push(HistoryRow { seq, turn, combat, player: Some(0), object: Some(object), frame: None, fact });
+        log.push(HistoryRow { seq, turn, combat, player: Some(0), object: Some(object), frame: None, last_known: None, fact });
     }
 
     const UNNOTED: &dyn Fn(GatedWalkInput) = &|_| {};

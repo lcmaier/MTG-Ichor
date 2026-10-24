@@ -124,8 +124,19 @@ pass re-reads what it touches: a number here is a starting point.
 - A6e's cleanup, session 6, opened on `audit/item-6-cleanup-plan` off
   #282's merge. Its plan is pass 3's "The cleanup's plan": 60 items and 40
   merge rows in eight themed PRs, each item's **Slotted:** line naming its
-  PR. The first PR, `history-and-frame-records`, is built on the same
-  branch once the plan is reviewed.
+  PR; it merged as #283, with the four decisions as recommended. The first
+  PR, `history-and-frame-records`, ran as #284 on
+  `audit/history-and-frame-records` off #283's merge (§9). Done: items 286,
+  297, 303, 305, 306, 310, 311, 312, 313 and 314 and "Before Triggered
+  abilities" 6 closed, items 278 and 279 built and narrowed, the 12 merge
+  rows, item 247's T17 log half, and `--pool fixtures` in the checked
+  sitting. Items 313 and 314's readings were not judgment calls: the CR's
+  cost order and the printed cards' rulings decide them. Left to another
+  PR: CR 509.4's blocking entry, item 278's remainder, which needs the block
+  arm to say which side it watches, re-slotted to
+  `layers-combat-and-counters`. Added at its review (the owner,
+  2026-10-24): `last-known-information-store`, item 318, the PR after it.
+  The next PR is that one, its design note first.
 
 ## 1. Why this audit is bigger than the last
 
@@ -227,7 +238,7 @@ sessions are ordinary ones, one PR at a time in the main folder:
 | 5. The docs audit's fixes | plain, a session per PR | 5 | 4 (pass 5, re-cut at #274's merge) |
 | 5b. The card-homed triage | plain; a single verifier at most | the triage (§4) | 1, docs |
 | 5c. Names for the phases ahead | plain; the design reviewed first | pass 5c | 1 |
-| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 8, by the plan in pass 3 (2026-10-23), or 9 if item 317 stays its own |
+| 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 8, by the plan in pass 3 (2026-10-23), and three more at #284's review: the store of last known information, the rules page and the concept census |
 | 7. Readiness | plain; measurement | 4 | 2 |
 | 8. Scheduling | plain | 6 | 1 |
 
@@ -707,6 +718,9 @@ about.
 | # | PR | What it delivers | Items | Merge rows | Sized | Carried | Pools | Hot path |
 |---|---|---|---|---|---:|---:|---|---|
 | 1 | `history-and-frame-records` | Every record written, each keeping the object as it was, three of the six record checks, and the fixture pool | 278, 279, 286, 297, 303, 305, 306, 310, 311, 312, 313, 314, "Before Triggered abilities" 6; `--pool fixtures` | 28, 29, 31, 32, 35, 36, 42, 45, 48, 49, 61, 62 | ~1,370 | ~1,700–2,000 | identical: no registered card reads a new row, frame or fact, and the fixtures pool apart | a row per zone change, last known information on a departure row, a `GameEvent` field; and a held-memory reading |
+| 1b | `last-known-information-store` | Last known information in one store, keyed by existence (added at #284's review) | 318 | — | its design note's | — | its decisions' | a frame per move, and the clone floors |
+| 1c | `practices-rules-page` | `engineering-practices.md` as a short page of rules, each three lines and a pointer, its records and measurements moved to the archive and the subsystem docs (added at #284's review) | — | — | docs | — | identical | none |
+| 1d | `concept-census-and-register` | Each CR concept that names a thing, every type and field that holds it and its one owner; a gate that fails a new field holding an owned concept without a register line (added at #284's review) | — | — | its census's | — | identical | none |
 | 2 | `resolution-context-rider` | `ResolutionContext`'s two rider numbers as one optional value | 137 | — | ~130 | ~130–160 | identical | none |
 | 3 | `trigger-matcher-merges` | The trigger matcher's facts, each written once | 247, 301, 302, 304, 309, 315, and 317 (decision 2) | 2, 3, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 30, 53, 54, 55, 59, 67, 68; and 5 | ~910 | ~1,250–1,600; ~1,350–1,800 with 317 | identical for the merges; with 317 both pools differ, since Blood Artist's order prompts go: a three-arm A/B | the dispatch, and §3.1's audited smoke |
 | 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296 | 46 | ~1,550–1,800 | ~1,700–2,100 | identical | the replacement gather's membership test |
@@ -762,6 +776,33 @@ item 124's precedent that a sweep does not ride inside a rules change.
        frame;
      - 45, 48 and 49: the log's words for a replacement, a name and a
        delayed trigger.
+1b. `last-known-information-store`, added at #284's review (the owner,
+   2026-10-24). Item 318: CR 113.7a's last known information, kept today on
+   records, proposals, captures, each keeper's list, history rows and two
+   payment and departure structs, read through about fifteen functions,
+   becomes one store keyed by existence. Its design note comes first, with
+   three decisions: which moves write it, its shape against the clone
+   floors, and its lifetime.
+1c. `practices-rules-page`, added at #284's review (the owner,
+   2026-10-24). `engineering-practices.md` is 175 KB, and its records and
+   measurements bury its rules: §2c's last-known-information example
+   blessed the split item 318 undoes, and nothing asked the global
+   question. The rules become a short page, each three lines and a
+   pointer as `CLAUDE.md`'s are; the records and measurements move to the
+   archive and to the subsystem docs they belong to, as the fuzz tables did
+   to `fuzz-record.md`; a rule a script can check is listed as a gate to
+   build. After the store, so §2c is rewritten once.
+1d. `concept-census-and-register`, added at #284's review (the owner,
+   2026-10-24). The model pass asked whether a fact is computed twice, a
+   question about functions; nobody asked whether a CR concept is held in
+   several places, which is how last known information came to twenty
+   fields. The census extends `cr-coverage-audit.md`'s type-surface method
+   from `GameState`'s fields to every type that holds a CR concept that
+   names a thing, each with its one owner; a concept with two is a finding,
+   slotted to the PR whose types it touches. The register is a gate in the
+   `check_*.py` family: a new field holding an owned concept fails without
+   its line. Before `one-fact-one-type`, whose scope its findings set, and
+   `trigger-matcher-merges`.
 2. `resolution-context-rider`. Item 137: every resolution that is not a CR
    615.5 rider writes two `None`s about riders. It becomes one optional
    value, at 99 literals (48 when the item was filed).
@@ -907,7 +948,11 @@ item 124's precedent that a sweep does not ride inside a rules change.
 - item 306 decides the "entered this turn" store before item 279 adds its
   first readers.
 
-Item 137 comes next: it is small, and every build after it writes one
+The store of last known information follows it (#284's review), before
+anything else reads or writes the fact again; then the rules page, so
+§2c is rewritten after the store, and the concept census, before the
+reshapes whose scope it may change. Item 137 comes next: it is
+small, and every build after it writes one
 `None` instead of two. Then the reshapes come before the builds, so the
 builds read and write what stays:
 - the matcher merges, which 17's control leg, 268 and 272 read;
@@ -1046,7 +1091,7 @@ included, and tests pin the difference. Row 18's merge keeps those lifts in
 | 57 | Which frame names an object in the log | `ui/display.rs:874` (`:957`, `:1030`, `:1142`), `:1016`, `:970`, `:983`, `:1101`, `:1137`, `:905`; `events/event.rs:545`, `:558`; `triggers/binding.rs:26` | A departed copy is named by its card where the line above names it as it left | **reachable — wrong today**, both refuters agreeing: `fuzz_games --pool stress --require "Clone,Rancor,Holy Strength,Bonesplitter,Angelic Destiny" --copies 3 --games 100 --seed 57 --dump-events`, game 14: "621 ZoneChange: Blood Artist (Clone, #61) … Destroyed", then "622 Unattached: Angelic Destiny (#30) from Clone (#61)". Also `AbilityActivated` and `AbilityResolved` for Clone as Samite Censer-Bearer (seed 5700, games 10 and 38), and `ManaAdded` for Clone as Krark-Clan Ironworks under March of the Machines (seed 5757, game 199). The dev GUI shows these lines | **File a `codebase-state.md` item, reachable — wrong today**, slotted so the board's wrong-today row stays scheduled: A6e's cleanup, or a small fix sooner. The fix is one `GameEvent::frame_of(id)` that `record_frame` and `as_it_left` both read; log fixtures move (`event_log_test`, the trace pages) | ~25 + fixtures |
 | 58 | Which existence a move that makes no new object names (`LeftTheGame`, `SameZoneMove`) | `dispatch.rs:2622`; `triggers/history.rs:269`, `:273`; `triggers/binding.rs:45` | A `LeftTheGame` binding carries no object, since the store entry is gone before the emit | reachable — not wrong: Banishing Light's "until" and Ray of Command's delayed arm match it in four-seat play, but neither reads the object (`--players 4 --require "Banishing Light" --seed 58`, game 16) | **File an item**, failing first on a four-seat fixture | ~8 + a ~60-line test |
 | 60 | Which movers a keeper reads that the batch frames | `dispatch.rs:1045`, `:1199`, `:1071`; `actions.rs:2052` | A card in exile from a hidden zone, returned to the battlefield, gets no frame; the same card into the graveyard does | unreachable: Flickerwisp and Banishing Light return what they exiled from the battlefield, which no keeper reads | **File an item** with the fixture; fold the predicate into A6e | ~5 + a ~40-line test; ~25 |
-| 61 | Which moves carry a frame the batch took | `dispatch.rs:1037`, `:1187`; `actions.rs:2046`; `leaving.rs:112` | One direction only: an unreplaced move within one zone is framed, never read, then truncated | unreachable | Merge `move_carries_frame`; the reach check found the over-capture covers every such move, not only Exile→Exile | ~12 |
+| 61 | Which moves carry a frame the batch took | `dispatch.rs:1037`, `:1187`; `actions.rs:2046`; `leaving.rs:112` | One direction only: an unreplaced move within one zone is framed, never read, then truncated | unreachable | Merge `zone_change_looks_back_at`; the reach check found the over-capture covers every such move, not only Exile→Exile | ~12 |
 | 63 | An activated ability's source's LKI once a cost moved it | `put_on_stack.rs:444` (`:463`; `mana.rs:67`); `dispatch.rs:1025`, `:1199` | `{T}`, sacrifice: `AbilityActivated` records the source untapped, the departure frame tapped | reachable — not wrong: Mind Stone and Dark Sphere produce it (`--require "Mind Stone,Dark Sphere" --seed 63`); nothing a registered card has reads `was_tapped` off the record | **File an item**: a CR read of 602.2b and 605.3a against 113.7a | ~30 + a ~40-line test |
 | 65 | "The first time each turn", answered two ways | `dispatch.rs:1880` (`:1881-1889`), `:2130`; `triggers/history.rs:57`, `:180`; `binding_reads.rs:209`; `types/zones.rs:304` | A filtered `CastsSpell` arm, an instant then a creature: the ordinal refuses the creature | unreachable: Vengeful Warchief's arm is unfiltered | **File an item**: a rules-reading question against §3.5's "first of its kind" | ~40–80 + fixtures |
 | 66 | "The event that caused this trigger was arm X" | `dispatch.rs:2158`, `:1613` | The `AbilityTriggers` arm checks the record's kind, a multiplier the full predicates | unreachable: nothing builds `AbilityTriggers` with `caused_by: Some` | **File an item**: route through `triggering_events_in`, or drop the field | ~5–10 + a fixture |
@@ -1096,7 +1141,7 @@ the fact; each row cites the place.
 | 55 | CR 603.10's look-back list, hard-coded again for four arms | `types/triggers.rs:976`; `dispatch.rs:488`, `:2033`, `:2183`, `:2194`, `:446`; `binding.rs:26` | new | Merge: a `SubjectRead` constructor keyed on `looks_back`, or keep (CR 603.10c–e fix the three) | ~15 |
 | 56 | Which objects a record names, for the names it keeps | `events/event.rs:572`; `ui/display.rs:924`; `state/trace.rs:895` | new (this pass's reader 2) | **File an item**: a per-variant sentinel-name test pinning the two lists; no merge, since `format_event` needs roles | ~50 test |
 | 59 | An unattach names each end as the record holds it; `subject_after`'s `Unattached` branch is dead | `dispatch.rs:2700`, `:2681` | new | Merge, or delete the dead branch | ~5 |
-| 62 | A departure of an object with no battlefield entry yet looks back at nothing | `dispatch.rs:1031`, `:1186` | new | Merge into row 61's `move_carries_frame` | ~6 |
+| 62 | A departure of an object with no battlefield entry yet looks back at nothing | `dispatch.rs:1031`, `:1186` | new | Merge into row 61's `zone_change_looks_back_at` | ~6 |
 | 64 | An "object or player" slot matched by four hand-written matchers | `dispatch.rs:2385`, `:2121`, `:2453`; `types/triggers.rs:277`, `:186`, `:224` | known (item 291) | Item 291's work: merge `CountersOn` and `TargetSubject`; `DefenderFilter` keeps its own | ~25 (+40) |
 | 67 | The zone-change arm's shared questions, once per record kind | `dispatch.rs:1921`, `:1936`, `:1951`; `types/triggers.rs:1046`; `dispatch.rs:2205` | new | Merge one owner test; rides row 53's gate | ~15 |
 | 68 | The two counter arms' shared questions | `dispatch.rs:2219`, `:2231` | new | Merge: `counter_record_matches` | ~12 |
@@ -1930,7 +1975,7 @@ changed.
 | Discovery (session 1: Workflows A, B and C, pass 2's script) | #271 | the work-lists under passes 1, 2, 3 and 5 |
 | 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
 | 2. Eviction (1) | #273 | one PR: the whole sections and §4.9's `loop-detection` input moved, the 22 amendments collapsed into the text they overruled (−239 lines), 8 outside citations re-pointed; `triggers-architecture.md` 4,736 → 3,853, the archive 5,618 → 7,067 |
-| 3. Hygiene and CI (1–2), then A6e's cleanup (8) | #274, #283 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup, #283 (draft): the plan, 60 items and 40 merge rows in eight themed PRs, each item's **Slotted:** line naming its PR; `history-and-frame-records` is built on the same branch once the plan is reviewed |
+| 3. Hygiene and CI (1–2), then A6e's cleanup (8) | #274, #283, #284 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup, #283: the plan, 60 items and 40 merge rows in eight themed PRs, each item's **Slotted:** line naming its PR. Its first PR, `history-and-frame-records`, #284: 11 items closed, 278 and 279 built and narrowed (278's CR 509.4 entry to `layers-combat-and-counters`), the 12 merge rows, `--pool fixtures` |
 | The card-homed triage (1, then its builds in the cleanup) | #280 | one PR: the 51 items dispositioned in their `**Slotted:**` lines with verdicts re-dated, 31 builds for A6e's cleanup with their fixtures and six consistency checks, 14 to rows (`route-review`, `ironworks-loop`, `mana-ability-costs`, `chosen-color-plus-could-produce` and `any-color-plus-painlands-plus-signets`, `permission-design`, `remaining-costs`), 5 kept with their cards, item 109 closed, item 273 to `ironworks-loop`; the fixture pool priced for the owner |
 | 4. Readiness (2) | | |
 | 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to `route-review`. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md` §7. Done |

@@ -4,8 +4,7 @@ use crate::engine::actions::{
     ActionContext, GameAction, ZoneChangeAct,
 };
 use crate::engine::layers::types::{
-    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, EffectiveCharacteristics, Layer, PtValue,
-    Timestamp,
+    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, PtValue, Timestamp,
 };
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, EventId, GameEvent, ResolutionStamp};
@@ -1508,7 +1507,7 @@ impl GameState {
 
             // === Combat and damage housekeeping ===
 
-            Primitive::Tap => {
+            Primitive::Tap | Primitive::BecomeBlocked => {
                 // One batch: CR 608.2f processes a spell's actions over several
                 // objects simultaneously.
                 let batch = self.events_for(primitive, targets, ctx)?;
@@ -2269,6 +2268,7 @@ impl GameState {
                 self.objects.get(&object).map(|obj| GameAction::ZoneChange { object, from: obj.zone, to, act: ZoneChangeAct::Put })
             }
             Primitive::Tap => is_permanent.then_some(GameAction::Tap { object }),
+            Primitive::BecomeBlocked => is_permanent.then_some(GameAction::BecomeBlocked { attacker: object }),
             Primitive::Untap => is_permanent.then_some(GameAction::Untap { object }),
             Primitive::AddCounters { counter, amount, by } => match is_permanent {
                 false => None,
@@ -2525,8 +2525,8 @@ impl GameState {
             // permanent whose ability it is (CR 113.7a), not the ability.
             AmountExpr::History(span, history) => {
                 let (you, source) = (_ctx.controller, _ctx.effect_source());
-                let mut filter_matches = |filter: &ObjectFilter, id, frame: &EffectiveCharacteristics| {
-                    self.object_matches_filter_of_source(id, filter, you, source, Some(HeldFrame::Characteristics(frame)))
+                let mut filter_matches = |filter: &ObjectFilter, id, held: HeldFrame<'_>| {
+                    self.object_matches_filter_of_source(id, filter, you, source, Some(held))
                 };
                 Ok(self.history.total(history, *span, you, self.turn_number, &mut filter_matches, &|_| {}))
             }

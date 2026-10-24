@@ -615,6 +615,8 @@ pub use crate::engine::layers::intrinsic::intrinsic_entry_mods;
 /// [`intrinsic_entry_mods`], so CR 306.5b's counters and static-effect
 /// registration both fire. Sets `entered_battlefield_turn = 0` so the permanent
 /// is not summoning-sick — it mimics "has been here since before this turn".
+/// Its entry's row stays in the history log, the event it was, which only a
+/// count of entries reads (`ObjectFact::Entered` reads the permanent).
 ///
 /// **Not the production path.** A permanent really entering goes through
 /// `GameState::propose_entry`, so a CR 614.1c replacement can modify how — this

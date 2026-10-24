@@ -179,6 +179,11 @@ pub enum GameEvent {
     /// for the step, written when nobody blocks too, since CR 509.3g's
     /// "attacks and isn't blocked" reads the declaration whole.
     BlockersDeclared { blocks: Vec<(ObjectId, ObjectId)>, unblocked: Vec<ObjectId> },
+    /// CR 509.1h: an unblocked attacking creature became blocked by an
+    /// effect, no creature blocking it. "Whenever this becomes blocked"
+    /// reads it (CR 509.3c); "becomes blocked by a creature" never does
+    /// (509.3d).
+    BecameBlocked { attacker: ObjectId },
     /// CR 506.4, 511.3: permanents removed from combat at once, each with
     /// what it was attacking or blocking as it was removed, which CR 508.5
     /// reads once its creature has left combat. No replaceable event
@@ -417,10 +422,18 @@ pub enum GameEvent {
     /// "that permanent" is read (Grafted Wargear's first ruling). What caused
     /// it is the stamp's, not the route's.
     ///
-    /// `lki` is the end that left the battlefield in this event, as it left,
-    /// for the two leaving routes (CR 603.10c): the attachment's or the former
-    /// host's frame, the one its own departure's record carries.
-    Unattached { attachment: ObjectRef, former_host: ObjectRef, route: UnattachRoute, lki: Option<Lki> },
+    /// Each end that left the battlefield in this event, as it left (CR
+    /// 603.10c): for the two leaving routes the end whose departure
+    /// unattached them, the frame its own record carries, and the other end
+    /// too when the same event takes it, such as an Aura and its host leaving
+    /// with their owner (CR 800.4a).
+    Unattached {
+        attachment: ObjectRef,
+        former_host: ObjectRef,
+        route: UnattachRoute,
+        attachment_lki: Option<Lki>,
+        former_host_lki: Option<Lki>,
+    },
 
     /// A permanent's controller became `to` from `from` (CR 613.1b): a
     /// control-changing effect started or ended. No performer does this, so
@@ -551,6 +564,34 @@ impl GameEvent {
         }
     }
 
+    /// The last known information this record carries for `id`, its object
+    /// as it last existed before the event (CR 113.7a): a source gone before
+    /// it (`source_lki`), or the object the event itself moved or unattached
+    /// as it left (`lki`, an unattach's end that left). `None` for an object
+    /// the record keeps no frame of.
+    pub fn frame_of(&self, id: ObjectId) -> Option<&Lki> {
+        let named = |lki: &&Lki| lki.object().id == id;
+        match self {
+            GameEvent::Unattached { attachment_lki, former_host_lki, .. } => {
+                attachment_lki.iter().chain(former_host_lki).find(named)
+            }
+            _ => self.source_lki().or_else(|| self.lki().map(|(lki, ..)| lki)).filter(named),
+        }
+    }
+
+    /// The source of the ability this record is about, as the existence that
+    /// activated or triggered it.
+    pub fn ability_source(&self) -> Option<ObjectRef> {
+        match self {
+            GameEvent::AbilityTriggered { origin, .. } => Some(origin.source_ref()),
+            GameEvent::AbilityActivated { identity, .. }
+            | GameEvent::AbilityResolved { identity, .. }
+            | GameEvent::AbilityCountered { identity, .. }
+            | GameEvent::AbilityFizzled { identity, .. } => Some(identity.source),
+            _ => None,
+        }
+    }
+
     /// The last known information this record carries (CR 603.10), with the
     /// zone its object left and its owner: a zone change's or a leaving's
     /// (603.10a), a countered spell's (603.10e), and `None` for every other
@@ -586,7 +627,8 @@ impl GameEvent {
             | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
             | DamagePrevented { target: DamageTarget::Object(id), .. }
             | SpellCast { spell_id: id, .. }
-            | SpellFizzled { spell_id: id, .. } => each(*id),
+            | SpellFizzled { spell_id: id, .. }
+            | BecameBlocked { attacker: id } => each(*id),
             AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
                 each(identity.source.id)
             }

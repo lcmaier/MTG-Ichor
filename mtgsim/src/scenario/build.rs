@@ -10,7 +10,7 @@ use super::error::{ScenarioError, ScenarioErrorKind};
 use super::setup::{ResolvedSetupAction, SetupActions};
 use super::text::{draw_step_skipped, in_combat_from, position_word};
 use crate::engine::layers::compute::seed_frame;
-use crate::state::history_log::{HistoryRow, RowFact};
+use crate::state::history_log::{HistoryRow, RowFact, FIRST_TURN};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::cards::registry::CardRegistry;
 use crate::engine::resolve::ResolvedTarget;
@@ -455,7 +455,7 @@ impl<'s> Loader<'s> {
                 if on_turn == t && count > 0 {
                     let seq = self.state.events.next_seq();
                     let fact = RowFact::Stated { fact, count };
-                    let row = HistoryRow { seq, turn: t, combat: 0, player: Some(player), object: None, frame: None, fact };
+                    let row = HistoryRow { seq, turn: t, combat: 0, player: Some(player), object: None, frame: None, last_known: None, fact };
                     self.state.history.push_row(row);
                     self.state.bump_layer_epoch_if_read(GatedWalkInput::Rows(fact.kind()));
                 }
@@ -466,7 +466,7 @@ impl<'s> Loader<'s> {
                 let frame = Some(Arc::new(seed_frame(&cast.card, cast.player, t)));
                 let seq = self.state.events.next_seq();
                 let fact = RowFact::Cast { from: Zone::Hand };
-                self.state.history.push_row(HistoryRow { seq, turn: t, combat: 0, player: Some(cast.player), object: None, frame, fact });
+                self.state.history.push_row(HistoryRow { seq, turn: t, combat: 0, player: Some(cast.player), object: None, frame, last_known: None, fact });
                 self.state.bump_layer_epoch_if_read(GatedWalkInput::Rows(fact.kind()));
             }
         }
@@ -541,9 +541,9 @@ impl<'s> Loader<'s> {
             };
             match span {
                 HistorySpan::ThisTurn => totals[index].2[0] = totals[index].2[0].saturating_add(count),
-                HistorySpan::LastTurn if turn > 1 => totals[index].2[1] = totals[index].2[1].saturating_add(count),
                 HistorySpan::LastTurn => {
-                    return Err(ScenarioError::at(ScenarioErrorKind::Unreachable, located.line, "turn 1 has no last turn: the game began with it"));
+                    turn_a_stated_count_lands_on(turn, span).ok_or_else(|| ScenarioError::at(ScenarioErrorKind::Unreachable, located.line, NO_LAST_TURN))?;
+                    totals[index].2[1] = totals[index].2[1].saturating_add(count);
                 }
                 HistorySpan::ThisGame => totals[index].3 = Some((located.line, count)),
                 HistorySpan::SinceYourLastTurn => {
@@ -560,10 +560,15 @@ impl<'s> Loader<'s> {
             let earlier = game.checked_sub(this.saturating_add(last)).ok_or_else(|| {
                 ScenarioError::at(ScenarioErrorKind::Unreachable, line, "this game counts fewer than this turn and last turn together")
             })?;
-            if earlier > 0 && turn < 3 {
-                return Err(ScenarioError::at(ScenarioErrorKind::Unreachable, line, format!("turn {turn} has no turn before last to count the rest on")));
-            }
-            rows.push((player, turn.saturating_sub(2), fact, earlier));
+            // A remainder of none needs no turn to land on.
+            let on_turn = match turn_a_stated_count_lands_on(turn, HistorySpan::ThisGame) {
+                Some(on_turn) => on_turn,
+                None if earlier == 0 => continue,
+                None => {
+                    return Err(ScenarioError::at(ScenarioErrorKind::Unreachable, line, format!("turn {turn} has no turn before last to count the rest on")));
+                }
+            };
+            rows.push((player, on_turn, fact, earlier));
         }
         Ok(rows)
     }
@@ -577,15 +582,11 @@ impl<'s> Loader<'s> {
         for located in &self.scenario.player_words {
             let PlayerWord::Cast { player, span, card } = &located.value else { continue };
             let refused = |message: String| ScenarioError::at(ScenarioErrorKind::Unreachable, located.line, message);
-            let on_turn = match span {
-                HistorySpan::ThisTurn => turn,
-                HistorySpan::LastTurn if turn > 1 => turn - 1,
-                HistorySpan::ThisGame if turn > 2 => turn - 2,
-                HistorySpan::LastTurn => return Err(refused("turn 1 has no last turn: the game began with it".to_string())),
-                HistorySpan::ThisGame => return Err(refused(format!("turn {turn} has no turn before last to cast it on"))),
-                HistorySpan::SinceYourLastTurn => {
-                    return Err(refused("a cast is named on this turn, last turn or this game".to_string()));
-                }
+            let on_turn = match (span, turn_a_stated_count_lands_on(turn, *span)) {
+                (HistorySpan::SinceYourLastTurn, _) => return Err(refused("a cast is named on this turn, last turn or this game".to_string())),
+                (_, Some(on_turn)) => on_turn,
+                (HistorySpan::ThisGame, None) => return Err(refused(format!("turn {turn} has no turn before last to cast it on"))),
+                (_, None) => return Err(refused(NO_LAST_TURN.to_string())),
             };
             casts.push(NamedCast { player: *player, turn: on_turn, card: registered_card(registry, card, located.line)? });
         }
@@ -754,4 +755,27 @@ fn attacked_player(state: &GameState, target: &AttackTarget) -> Option<PlayerId>
         AttackTarget::Player(player) => Some(*player),
         AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => get_effective_controller(state, *id),
     }
+}
+
+/// Why a word about last turn is refused on turn 1.
+const NO_LAST_TURN: &str = "turn 1 has no last turn: the game began with it";
+
+/// The turn number the rows of a count a scenario states over `span` are
+/// written on, the scenario being on turn `turn` (`setup-architecture.md`
+/// §5.1). A file states counts, not events, and the log keeps rows by turn,
+/// so each span's count is written as rows on one turn. On turn 7, "cast 1
+/// this turn, 2 last turn, 5 this game" writes 1 cast on turn 7, 2 on turn
+/// 6, and the other 2 of the game's 5 on turn 5, as one lump, since no
+/// reader asks which earlier turn they were. `None` where that turn would
+/// come before the first, and for "since your last turn", which the loader
+/// derives from the three.
+fn turn_a_stated_count_lands_on(turn: u32, span: HistorySpan) -> Option<u32> {
+    let turns_before_this_one = match span {
+        HistorySpan::ThisTurn => 0,
+        HistorySpan::LastTurn => 1,
+        // The game's count less this turn's and last turn's.
+        HistorySpan::ThisGame => 2,
+        HistorySpan::SinceYourLastTurn => return None,
+    };
+    turn.checked_sub(turns_before_this_one).filter(|&on_turn| on_turn >= FIRST_TURN)
 }

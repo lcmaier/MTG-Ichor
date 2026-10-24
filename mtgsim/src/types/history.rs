@@ -6,6 +6,7 @@
 //! vocabulary a `Condition` leaf, an amount and a filter use to ask it.
 
 use crate::types::effects::{ObjectFilter, PlayerRef, PlayerSet};
+use crate::types::zones::{Zone, ZoneChangeAct};
 
 /// Which turns a count spans. A `Condition` leaf and an amount read any of
 /// the four; a scenario states the first three, and derives "since your last
@@ -18,41 +19,38 @@ pub enum HistorySpan {
     ThisGame,
 }
 
-/// One quantity of one player's turn. Each is counted on exactly one row, and
-/// the name says whose: the caster's, the drawer's, the player whose life
-/// total moved, the player dealt the damage, the player who controlled the
-/// creature as it died, the player who declared the attackers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TurnFact {
-    /// Spells this player cast (CR 601.2i). A copy is not cast (CR 707.10).
-    /// [`HistoryCount::of`] narrows them by what they were as they were cast.
-    SpellsCast,
-    /// Cards this player drew (CR 121.1). A card put into a hand without the
-    /// word "draw" is not drawn (CR 121.5).
-    CardsDrawn,
-    /// Life this player gained, in total.
-    LifeGained,
-    /// Life-gain events: CR 119.9 makes each source's gain its own.
-    LifeGainEvents,
-    /// Life this player lost, in total: to damage, to a payment, to an effect.
-    LifeLost,
-    /// Life-loss events, one per record.
-    LifeLossEvents,
-    /// Damage dealt to this player (CR 120.3a), in total. Damage dealt to a
-    /// permanent they control is not dealt to them.
-    DamageTaken,
-    /// Creatures this player controlled that died (CR 700.4), counted off
-    /// each creature's last known information. Morbid's "a creature died
-    /// this turn" sums every player's row.
-    ControlledCreaturesDied,
-    /// Creatures this player declared as attackers (CR 508.1a). Raid's "if
-    /// you attacked this turn" is at least one.
-    AttackersDeclared,
-}
-
-impl TurnFact {
-    /// How many facts there are.
-    pub const COUNT: usize = 9;
+counted_enum! {
+    /// One quantity of one player's turn. Each is counted on exactly one row, and
+    /// the name says whose: the caster's, the drawer's, the player whose life
+    /// total moved, the player dealt the damage, the player who controlled the
+    /// creature as it died, the player who declared the attackers.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum TurnFact {
+        /// Spells this player cast (CR 601.2i). A copy is not cast (CR 707.10).
+        /// [`HistoryCount::of`] narrows them by what they were as they were cast.
+        SpellsCast,
+        /// Cards this player drew (CR 121.1). A card put into a hand without the
+        /// word "draw" is not drawn (CR 121.5).
+        CardsDrawn,
+        /// Life this player gained, in total.
+        LifeGained,
+        /// Life-gain events: CR 119.9 makes each source's gain its own.
+        LifeGainEvents,
+        /// Life this player lost, in total: to damage, to a payment, to an effect.
+        LifeLost,
+        /// Life-loss events, one per record.
+        LifeLossEvents,
+        /// Damage dealt to this player (CR 120.3a), in total. Damage dealt to a
+        /// permanent they control is not dealt to them.
+        DamageTaken,
+        /// Creatures this player controlled that died (CR 700.4), counted off
+        /// each creature's last known information. Morbid's "a creature died
+        /// this turn" sums every player's row.
+        ControlledCreaturesDied,
+        /// Creatures this player declared as attackers (CR 508.1a). Raid's "if
+        /// you attacked this turn" is at least one.
+        AttackersDeclared,
+    }
 }
 
 /// What an object did, which `ObjectFilter::ThisTurn` and `ThisCombat` ask:
@@ -71,7 +69,12 @@ pub enum ObjectFact {
     Blocked,
     /// Became a blocked creature as blockers were declared (CR 509.1h).
     WasBlocked,
-    /// Entered the battlefield. A turn's, never a combat's.
+    /// Entered the battlefield. A turn's, never a combat's. The permanent's
+    /// own fact (`PermanentState::entered_battlefield_turn`, which its last
+    /// known information keeps), never the log's entry rows: CR 614.12's
+    /// look-ahead asks it of a permanent not yet on the battlefield, and the
+    /// batch it enters in may ask it before the window that writes its row
+    /// closes.
     Entered,
     /// Was dealt damage (CR 120.3).
     WasDealtDamage,
@@ -81,6 +84,21 @@ pub enum ObjectFact {
     /// Dealt damage to a player (CR 120.1), only combat damage when `combat`
     /// (CR 510.2). `None` is any player, `Some(You)` the asker's "you".
     DealtDamageTo { player: Option<PlayerRef>, combat: bool },
+    /// Died (CR 700.4): put into a graveyard from the battlefield as a
+    /// creature, as it left. Asked of the card the move made (CR 400.7), "a
+    /// creature card in your graveyard that died this turn".
+    Died,
+    /// Put into the zone it is in from `from` by `act`, asked of the object
+    /// the move made (CR 400.7): "a card in a graveyard that was milled this
+    /// turn" (`act: Milled`), "discarded", "put there from anywhere".
+    PutHere { from: Option<Zone>, act: Option<ZoneChangeAct> },
+    /// Cast (CR 601.2i): a permanent that was a spell cast this turn, by
+    /// the facts it keeps of the spell (CR 400.7d). A turn's.
+    WasCast,
+    /// Came under its controller's control this turn, entering or by a
+    /// change of control: its control's start, which Layer 2 keeps (CR
+    /// 613.1b). A turn's.
+    CameUnderControl,
 }
 
 /// How a count must compare.

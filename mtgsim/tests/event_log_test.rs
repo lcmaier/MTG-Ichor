@@ -9,7 +9,11 @@
 use std::sync::Arc;
 
 use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_rd_cards::{mending_hands, pinpoint_avalanche, pyroclasm, safe_passage};
+use mtgsim::cards::phase_cv_cards::clone;
+use mtgsim::cards::phase_lh_cards::holy_strength;
+use mtgsim::cards::phase_tr2a_cards::paladin_of_atonement;
+use mtgsim::engine::actions::{ActionContext, GameAction};
+use mtgsim::cards::phase_rd_cards::{gisela_blade_of_goldnight, mending_hands, pinpoint_avalanche, pyroclasm, safe_passage};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
 use mtgsim::cards::phase_cv_cards::cryptoplasm;
@@ -24,7 +28,8 @@ use mtgsim::scenario::Scenario;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
-    fill_library, lightning_bolt, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp,
+    fill_library, lightning_bolt, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp,
+    RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -584,4 +589,67 @@ fn unpreventable_damage_announces_no_prevention() {
 /// Lightning Bolt cast by player 0 at `player`.
 fn bolt_at_player(game: &mut GameState, player: PlayerId) -> ObjectId {
     cast_at(game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[ChoiceOption::Player(player)])
+}
+
+// ---------------------------------------------------------------------------
+// A copy, named as the event found it
+// ---------------------------------------------------------------------------
+
+/// Clone put onto the battlefield from `player`'s graveyard, entering as a
+/// copy of the one creature on the battlefield.
+fn clone_of_the_creature(game: &mut GameState, player: PlayerId) -> ObjectId {
+    let clone = put_in_graveyard(game, clone(), player);
+    let dp = RecordingDecisionProvider::picking(0);
+    game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
+    clone
+}
+
+/// Clone as Paladin of Atonement, with Holy Strength on it, Bolted. Every
+/// line about the creature that died names it as it last existed (CR
+/// 113.7a), as its zone change does: the Aura falling off, its dies trigger,
+/// the life that trigger gains and its resolution. None names it as the
+/// Clone card in the graveyard.
+#[test]
+fn a_copy_that_died_is_named_as_it_left_on_every_line_about_it() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, paladin_of_atonement(), 1);
+    let clone = clone_of_the_creature(&mut game, 0);
+    let aura = put_on_battlefield(&mut game, holy_strength(), 0);
+    game.execute_action(GameAction::Attach { attachment: aura, host: clone }, &test_ctx()).unwrap();
+    bolt_at(&mut game, 1, clone);
+    resolve_top(&mut game);
+    resolve_top(&mut game);
+    assert_eq!(game.players[0].life_total, 23, "its toughness as it last existed, 1 and Holy Strength's 2");
+
+    let log = format_event_log(&game);
+    let paladin = format!("Paladin of Atonement (Clone, {clone})");
+    let died = log.iter().position(|l| l.starts_with(&format!("ZoneChange: {paladin}"))).unwrap_or_else(|| panic!("{log:#?}"));
+    let after: Vec<&String> = log[died..].iter().filter(|l| l.contains(&format!("{clone})"))).collect();
+    for line in [
+        format!("Unattached: Holy Strength ({aura}) from {paladin} (HostLeft)"),
+        format!("LifeChanged: P0 20 -> 23 (source: {paladin})"),
+        format!("AbilityResolved: {paladin} [P0]"),
+    ] {
+        assert!(after.contains(&&line), "no {line:?} in {log:#?}");
+    }
+    assert!(after.iter().any(|l| l.starts_with(&format!("AbilityTriggered: {paladin} [P0]"))), "{log:#?}");
+    assert!(after.iter().all(|l| l.contains(&paladin)), "a line names it as the card: {after:#?}");
+}
+
+/// Clone as Gisela, Blade of Goldnight halves a Bolt at its controller's
+/// Bears, the Gisela it copied gone. The prevention names its source as it
+/// is, a Gisela, not as its card.
+#[test]
+fn a_prevention_by_a_copy_names_the_copy() {
+    let mut game = setup_two_player_game();
+    let gisela = put_on_battlefield(&mut game, gisela_blade_of_goldnight(), 1);
+    let clone = clone_of_the_creature(&mut game, 0);
+    game.change_zone(gisela, Zone::Graveyard, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    bolt_at(&mut game, 1, bears);
+    resolve_top(&mut game);
+
+    let log = format_event_log(&game);
+    let line = format!("DamagePrevented: 2 to Grizzly Bears ({bears}) by StaticAbility of Gisela, Blade of Goldnight (Clone, {clone}) [P0]");
+    assert!(log.contains(&line), "no {line:?} in {log:#?}");
 }
