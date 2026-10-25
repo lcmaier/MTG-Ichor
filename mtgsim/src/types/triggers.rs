@@ -1310,9 +1310,51 @@ impl TriggerEvent {
     }
 
     /// Whether the arm watches an object a delayed trigger refers to (CR
-    /// 603.7c): "when that token dies".
+    /// 603.7c): "when that token dies". The creating resolution remembers
+    /// the objects for this field alone.
     pub fn watches_referred(&self) -> bool {
         self.subject() == Some(&TriggerSubject::Referred)
+    }
+
+    /// Whether any field of the arm, its subject or another, names an
+    /// object a delayed trigger refers to; a `caused_by` arm's too.
+    pub fn names_referred(&self) -> bool {
+        let fields: [Option<&TriggerSubject>; 2] = match self {
+            TriggerEvent::ZoneChange { subject, .. }
+            | TriggerEvent::BecomesTapped { subject }
+            | TriggerEvent::BecomesUntapped { subject }
+            | TriggerEvent::ManaAdded { source: subject, .. }
+            | TriggerEvent::DamageDealt { source: subject, .. }
+            | TriggerEvent::EntersBattlefield { subject, .. }
+            | TriggerEvent::Attacks { attacker: subject, .. }
+            | TriggerEvent::BecomesTarget { target: TargetSubject::Object(subject), .. }
+            | TriggerEvent::ActivatesAbility { source: subject, .. }
+            | TriggerEvent::ControlChanges { subject, .. }
+            | TriggerEvent::CountersPutOn { subject: CountersOn::Object(subject), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(subject), .. } => [Some(subject), None],
+            TriggerEvent::Blocks { blocker: one, attacker: other, .. }
+            | TriggerEvent::BecomesAttached { attachment: one, host: other }
+            | TriggerEvent::BecomesUnattached { attachment: one, former_host: other } => [Some(one), Some(other)],
+            TriggerEvent::AbilityTriggers { caused_by, .. } => return caused_by.as_deref().is_some_and(TriggerEvent::names_referred),
+            TriggerEvent::BecomesTarget { target: TargetSubject::Player(_), .. }
+            | TriggerEvent::CountersPutOn { subject: CountersOn::Player(_), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Player(_), .. }
+            | TriggerEvent::DrawsCard { .. }
+            | TriggerEvent::DamageIsPrevented { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::GainsLife { .. }
+            | TriggerEvent::LosesLife { .. }
+            | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::CreatesToken { .. }
+            | TriggerEvent::Scries { .. } => [None, None],
+        };
+        fields.into_iter().flatten().any(|subject| *subject == TriggerSubject::Referred)
     }
 
     /// How the arm counts its occurrences (CR 603.2c): its multiplicity

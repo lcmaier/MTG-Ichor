@@ -133,7 +133,8 @@ impl TriggerDef {
     }
 
     /// The readings of its event the def asks of an arm that cannot give
-    /// them: once per subject on an arm that cannot be read that way; CR
+    /// them: once per subject on an arm that cannot be read that way; a
+    /// referred object (CR 603.7c) in a field its arm remembers none for; CR
     /// 122.7's threshold on a trigger that is not a counter put read once per
     /// subject, whose records alone keep the counts it compares; a block arm
     /// whose fields no CR 509.3 reading combines; and a side of a block named
@@ -146,6 +147,12 @@ impl TriggerDef {
         let mut wrong = Vec::new();
         if arms.iter().any(|arm| arm.multiplicity() == Multiplicity::OncePerSubject && !arm.supports_once_per_subject()) {
             wrong.push("once per subject, on an arm that cannot be read that way");
+        }
+        // The creating resolution remembers what an arm's subject refers to
+        // (CR 603.7c) and nothing else; named anywhere else, the referred
+        // set is empty and the trigger never triggers.
+        if arms.iter().any(|arm| arm.names_referred() && !arm.watches_referred()) {
+            wrong.push("a referred object, named where its arm remembers none (CR 603.7c)");
         }
         // CR 120.10's excess is the event's, which a permanent's records sum
         // to, and a player is dealt none.
@@ -503,6 +510,22 @@ mod tests {
                 EffectRecipient::Triggering(EventRole::Object),
             ),
         )
+    }
+
+    /// CR 603.7c: the resolution creating a delayed trigger remembers the
+    /// objects an arm's subject names as referred, and no other field's. An
+    /// arm that names one elsewhere, "when that Aura becomes attached to a
+    /// creature" written on the Aura's side, would match an empty set and
+    /// never trigger, so its template is refused as it is authored.
+    #[test]
+    fn a_referred_object_named_where_its_arm_remembers_none_is_refused() {
+        use crate::types::triggers::TriggerEvent;
+        let attaches = TriggerEvent::BecomesAttached { attachment: TriggerSubject::Referred, host: TriggerSubject::Any };
+        let def = whenever(attaches, Effect::Sequence(Vec::new()));
+        assert_eq!(def.readings_its_arms_cannot_give(), vec!["a referred object, named where its arm remembers none (CR 603.7c)"]);
+
+        let on_the_host = TriggerEvent::BecomesAttached { attachment: TriggerSubject::Any, host: TriggerSubject::Referred };
+        assert!(whenever(on_the_host, Effect::Sequence(Vec::new())).readings_its_arms_cannot_give().is_empty(), "the subject is remembered");
     }
 
     /// "Each of up to X target creatures, where X is the number of cards
