@@ -234,9 +234,7 @@ impl GameState {
             referred: &until.referred,
         };
         window.iter().filter_map(|seq| self.events.record(*seq)).any(|record| {
-            until.created.is_before(record)
-                && until.until.reads(&record.event)
-                && !self.triggering_events_in(&until.until, &referents, record).is_empty()
+            until.created.is_before(record) && !self.triggering_events_in(&until.until, &referents, record).is_empty()
         })
     }
 

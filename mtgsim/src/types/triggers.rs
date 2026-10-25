@@ -182,6 +182,78 @@ pub enum Multiplicity {
     OncePerSubject,
 }
 
+impl Multiplicity {
+    /// Whether a trigger read this way has one triggering event for "it":
+    /// one per occurrence, or a subject's events, which are all about it. A
+    /// "one or more" trigger has several and no single one.
+    pub fn has_one_triggering_event(self) -> bool {
+        match self {
+            Multiplicity::PerOccurrence | Multiplicity::OncePerSubject => true,
+            Multiplicity::OncePerEvent => false,
+        }
+    }
+
+    /// What a counter record of `n` counters is to an arm read this way: how
+    /// many events it holds, and how many counters each is. A counter is an
+    /// occurrence of a per-counter arm (Protean Hydra's fourth ruling), so
+    /// the record is `n` events of one; the other readings take it as one
+    /// event of `n`.
+    pub fn counter_occurrences(self, n: u32) -> (usize, u64) {
+        match self {
+            Multiplicity::PerOccurrence => (n as usize, 1),
+            Multiplicity::OncePerEvent | Multiplicity::OncePerSubject => (1, u64::from(n)),
+        }
+    }
+}
+
+/// What a once-per-subject reading groups an arm's records by (CR 603.2c,
+/// §4.4): the object or player the counters are on, or the damage's
+/// recipient.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OccurrenceSubject {
+    CountersOn,
+    DamageRecipient,
+}
+
+/// The arms that carry CR 603.2c's multiplicity, and its field: the one
+/// list, for the reading and for the authoring setter.
+macro_rules! multiplicity_field {
+    ($arm:expr) => {
+        match $arm {
+            TriggerEvent::ZoneChange { multiplicity, .. }
+            | TriggerEvent::DrawsCard { multiplicity, .. }
+            | TriggerEvent::DamageDealt { multiplicity, .. }
+            | TriggerEvent::DamageIsPrevented { multiplicity, .. }
+            | TriggerEvent::GainsLife { multiplicity, .. }
+            | TriggerEvent::LosesLife { multiplicity, .. }
+            | TriggerEvent::EntersBattlefield { multiplicity, .. }
+            | TriggerEvent::Attacks { multiplicity, .. }
+            | TriggerEvent::Blocks { multiplicity, .. }
+            | TriggerEvent::BecomesTarget { multiplicity, .. }
+            | TriggerEvent::CountersPutOn { multiplicity, .. }
+            | TriggerEvent::CountersRemovedFrom { multiplicity, .. }
+            | TriggerEvent::CreatesToken { multiplicity, .. } => Some(multiplicity),
+            TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::BecomesAttached { .. }
+            | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::ActivatesAbility { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::Scries { .. } => None,
+        }
+    };
+}
+
 /// What a counter arm's counters are on (CR 122.1): an object, or a player.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CountersOn {
@@ -976,8 +1048,17 @@ impl TriggerEvent {
     /// unattached (603.10c); a change of control (603.10d); a spell being
     /// countered (603.10e); and a player losing the game (603.10f). Phasing
     /// out (603.10b) arrives with phasing.
+    ///
+    /// An arm that names both zones is the one move, and asks
+    /// `zone_change_looks_back` of it. One that leaves a zone unnamed is
+    /// lifted on purpose: "into a hand" from anywhere looks back at a move
+    /// from a zone all players could see, and "from anywhere" is no
+    /// leaves-the-battlefield ability (CR 603.6c).
     pub fn looks_back(&self) -> bool {
         match self {
+            TriggerEvent::ZoneChange { change: ZoneChangePattern { from: Some(from), to: Some(to), .. }, .. } => {
+                zone_change_looks_back(*from, Some(*to))
+            }
             TriggerEvent::ZoneChange { change, .. } => {
                 matches!(change.from, Some(Zone::Battlefield | Zone::Graveyard))
                     || (matches!(change.to, Some(Zone::Hand | Zone::Library)) && change.from.is_none_or(|from| from.is_public()))
@@ -1193,10 +1274,14 @@ impl TriggerEvent {
     /// will too, `triggers-architecture.md` §4.4). A death is one record per
     /// object, so per subject would be per record.
     pub fn supports_once_per_subject(&self) -> bool {
+        self.occurrence_subject_part().is_some()
+    }
+
+    /// The part of this arm's records a once-per-subject reading groups by.
+    fn occurrence_subject_part(&self) -> Option<OccurrenceSubject> {
         match self {
-            TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } | TriggerEvent::DamageDealt { .. } => {
-                true
-            }
+            TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } => Some(OccurrenceSubject::CountersOn),
+            TriggerEvent::DamageDealt { .. } => Some(OccurrenceSubject::DamageRecipient),
             TriggerEvent::ZoneChange { .. }
             | TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
@@ -1223,22 +1308,22 @@ impl TriggerEvent {
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. }
             | TriggerEvent::CreatesToken { .. }
-            | TriggerEvent::Scries { .. } => false,
+            | TriggerEvent::Scries { .. } => None,
         }
     }
 
     /// The object or player `record` is about, for an arm that may be read
     /// once per subject (`supports_once_per_subject`): what a once-per-subject
     /// trigger is one of, the counters' object or player, or the damage's
-    /// recipient. `None` for every other arm and record.
+    /// recipient. `None` for every other arm, and for a record it does not
+    /// read.
     pub(crate) fn occurrence_subject(&self, record: &GameEvent) -> Option<EventSubject> {
-        match (self, record) {
-            (TriggerEvent::CountersPutOn { .. }, GameEvent::CountersPutOn { subject, .. })
-            | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { subject, .. }) => {
+        match (self.occurrence_subject_part()?, record) {
+            (OccurrenceSubject::CountersOn, GameEvent::CountersPutOn { subject, .. } | GameEvent::CountersRemovedFrom { subject, .. }) => {
                 Some(EventSubject::from(*subject))
             }
-            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. }) => Some(EventSubject::from(*target)),
-            _ => None,
+            (OccurrenceSubject::DamageRecipient, GameEvent::DamageDealt { target, .. }) => Some(EventSubject::from(*target)),
+            (OccurrenceSubject::CountersOn | OccurrenceSubject::DamageRecipient, _) => None,
         }
     }
 
@@ -1248,40 +1333,15 @@ impl TriggerEvent {
         self.subject() == Some(&TriggerSubject::Referred)
     }
 
-    /// The arm's multiplicity field, for the arms that carry one.
+    /// How the arm counts its occurrences (CR 603.2c): its multiplicity
+    /// field, and per occurrence for an arm that has none.
     pub fn multiplicity(&self) -> Multiplicity {
-        match self {
-            TriggerEvent::ZoneChange { multiplicity, .. }
-            | TriggerEvent::DrawsCard { multiplicity, .. }
-            | TriggerEvent::DamageDealt { multiplicity, .. }
-            | TriggerEvent::DamageIsPrevented { multiplicity, .. }
-            | TriggerEvent::GainsLife { multiplicity, .. }
-            | TriggerEvent::LosesLife { multiplicity, .. }
-            | TriggerEvent::EntersBattlefield { multiplicity, .. }
-            | TriggerEvent::Attacks { multiplicity, .. }
-            | TriggerEvent::Blocks { multiplicity, .. }
-            | TriggerEvent::BecomesTarget { multiplicity, .. }
-            | TriggerEvent::CountersPutOn { multiplicity, .. }
-            | TriggerEvent::CountersRemovedFrom { multiplicity, .. }
-            | TriggerEvent::CreatesToken { multiplicity, .. } => *multiplicity,
-            TriggerEvent::BecomesTapped { .. }
-            | TriggerEvent::BecomesUntapped { .. }
-            | TriggerEvent::ManaAdded { .. }
-            | TriggerEvent::PhaseBegins { .. }
-            | TriggerEvent::StepBegins { .. }
-            | TriggerEvent::TurnBegins { .. }
-            | TriggerEvent::CastsSpell { .. }
-            | TriggerEvent::IsCountered { .. }
-            | TriggerEvent::PlayerLoses { .. }
-            | TriggerEvent::ShufflesLibrary { .. }
-            | TriggerEvent::BecomesAttached { .. }
-            | TriggerEvent::BecomesUnattached { .. }
-            | TriggerEvent::ControlChanges { .. }
-            | TriggerEvent::ActivatesAbility { .. }
-            | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. }
-            | TriggerEvent::Scries { .. } => Multiplicity::PerOccurrence,
-        }
+        multiplicity_field!(self).copied().unwrap_or(Multiplicity::PerOccurrence)
+    }
+
+    /// The arm's multiplicity field, to set; `None` for an arm that has none.
+    pub fn multiplicity_mut(&mut self) -> Option<&mut Multiplicity> {
+        multiplicity_field!(self)
     }
 
     /// Whether one triggering event of this arm may have several objects in
@@ -1476,10 +1536,7 @@ impl TriggerEvent {
             // of it is one; the other readings sum the record's counters.
             (TriggerEvent::CountersPutOn { multiplicity, .. }, GameEvent::CountersPutOn { n, .. })
             | (TriggerEvent::CountersRemovedFrom { multiplicity, .. }, GameEvent::CountersRemovedFrom { n, .. }) => {
-                Some(match multiplicity {
-                    Multiplicity::PerOccurrence => 1,
-                    Multiplicity::OncePerEvent | Multiplicity::OncePerSubject => u64::from(*n),
-                })
+                Some(multiplicity.counter_occurrences(*n).1)
             }
             (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { old, new, .. }) => {
                 Some((old - new).max(0) as u64)
@@ -1621,10 +1678,8 @@ impl TriggerBinding {
     /// a once-per-subject trigger's, whose events are all about its one
     /// subject. `None` for a "one or more" trigger, which has several.
     pub fn triggering_event(&self) -> Option<&TriggeringEvent> {
-        match self.event()?.multiplicity() {
-            Multiplicity::PerOccurrence | Multiplicity::OncePerSubject => self.triggering_events.first(),
-            Multiplicity::OncePerEvent => None,
-        }
+        let one = self.event()?.multiplicity().has_one_triggering_event();
+        self.triggering_events.first().filter(|_| one)
     }
 
     /// "Its power", "if it had": the object that played `role` in the
@@ -2106,16 +2161,27 @@ impl PendingTrigger {
     }
 }
 
+/// One arm of every kind and one record of every kind, for the tests that
+/// pair them: which records an arm reads (`record_kinds`), and that the
+/// matcher has a case for each pair it admits (`triggering_events_in`).
 #[cfg(test)]
-mod tests {
+pub(crate) mod samples {
     use super::*;
-    use crate::events::event::EventId;
     use crate::state::game_state::AbilityIdentity;
     use crate::types::ids::{AbilityId, ObjectRef};
 
+    /// A frame for the records that carry one: a 2/2 as it was on the
+    /// battlefield.
+    pub(crate) fn lki() -> Lki {
+        let mut game = crate::test_support::setup_two_player_game();
+        let bear = crate::test_support::put_on_battlefield(&mut game, crate::test_support::vanilla_creature(2, 2, &[]), 0);
+        game.lki_now(bear).unwrap_or_else(|| panic!("{bear} is on the battlefield"))
+    }
+
     /// One record of every kind a trigger arm can read, named, plus one
-    /// (`TokenCeasedToExist`) that no arm reads.
-    fn sample_records() -> Vec<(&'static str, GameEvent)> {
+    /// (`TokenCeasedToExist`) that no arm reads. `lki` is the frame of the
+    /// records that carry one.
+    pub(crate) fn records(lki: Lki) -> Vec<(&'static str, GameEvent)> {
         let id = ObjectId::UNASSIGNED;
         let identity = AbilityIdentity {
             source: ObjectRef { id, zone_change_epoch: 0 },
@@ -2182,25 +2248,57 @@ mod tests {
                 zone: Zone::Battlefield,
                 definition: Arc::new(crate::cards::phase_re_cards::goblin_token()),
             }),
+            ("Targeted", GameEvent::Targeted {
+                target: crate::engine::targeting::TargetRef::Object(identity.source),
+                by: id,
+                ability_source: None,
+                controller: 0,
+                instances: 1,
+            }),
+            ("AbilityActivated", GameEvent::AbilityActivated { identity, controller: 0, mana_ability: false, from: Zone::Battlefield, source_lki: None }),
+            ("SpellCountered", GameEvent::SpellCountered { spell_id: id, controller: 0, countered_by: id, lki: lki.clone() }),
+            ("PlayerLost", GameEvent::PlayerLost { player_id: 0 }),
+            ("SameZoneMove", GameEvent::SameZoneMove { object_id: id, owner: 0, zone: Zone::Library, act: ZoneChangeAct::Milled, applied: None, lki: lki.clone() }),
+            ("ControlChanged", GameEvent::ControlChanged { object_id: id, from: 0, to: 1, lki }),
+            ("CountersPutOn", GameEvent::CountersPutOn {
+                subject: CounterSubject::Object(id),
+                counter_type: CounterType::PlusOnePlusOne,
+                n: 1,
+                by: 0,
+                now: 1,
+            }),
+            ("CountersRemovedFrom", GameEvent::CountersRemovedFrom {
+                subject: CounterSubject::Object(id),
+                counter_type: CounterType::PlusOnePlusOne,
+                n: 1,
+                by: Some(0),
+                now: 0,
+            }),
             ("TokenCeasedToExist", GameEvent::TokenCeasedToExist { object_id: id }),
         ]
     }
 
-    /// Which records each arm reads, written out by hand, one line per arm.
-    ///
-    /// `reads` is not a table of its own: it asks the arm's `record_kinds`
-    /// and the record's `EventKind::from_record`, the two halves the
-    /// dispatcher's source mask is built from. This pins what those halves
-    /// answer together, so a wrong entry in either fails here. The list is
-    /// the one `reads` held as a 13-pair `matches!` before the mask.
-    #[test]
-    fn each_arm_reads_exactly_the_records_it_names() {
+    /// One arm of each kind, and two more where a field changes which kinds
+    /// it reads (an act, and losing control to nobody), each with the records
+    /// it reads, written out by hand.
+    pub(crate) fn arms() -> Vec<(TriggerEvent, &'static [&'static str])> {
         let this = TriggerSubject::ThisObject;
         let each = Multiplicity::PerOccurrence;
-        let expected: Vec<(TriggerEvent, &[&str])> = vec![
+        let anywhere = ZoneChangePattern { from: None, to: None, act: None };
+        vec![
             (
-                TriggerEvent::ZoneChange { subject: this.clone(), change: ZoneChangePattern { from: None, to: None, act: None }, by: None, owner: None, multiplicity: each },
+                TriggerEvent::ZoneChange { subject: this.clone(), change: anywhere, by: None, owner: None, multiplicity: each },
                 &["ZoneChange", "LeftTheGame"],
+            ),
+            (
+                TriggerEvent::ZoneChange {
+                    subject: this.clone(),
+                    change: ZoneChangePattern { act: Some(ZoneChangeAct::Milled), ..anywhere },
+                    by: None,
+                    owner: None,
+                    multiplicity: each,
+                },
+                &["ZoneChange", "LeftTheGame", "SameZoneMove"],
             ),
             (TriggerEvent::BecomesTapped { subject: this.clone() }, &["Tapped"]),
             (TriggerEvent::BecomesUntapped { subject: this.clone() }, &["Untapped"]),
@@ -2221,13 +2319,13 @@ mod tests {
                 &["PermanentEnteredBattlefield"],
             ),
             (
-                TriggerEvent::Attacks { attacker: this, defender: None, occurrence: AttackOccurrence::Attacker, alone: false, multiplicity: each },
+                TriggerEvent::Attacks { attacker: this.clone(), defender: None, occurrence: AttackOccurrence::Attacker, alone: false, multiplicity: each },
                 &["AttackersDeclared"],
             ),
             (
                 TriggerEvent::Blocks {
                     blocker: TriggerSubject::Any,
-                    attacker: TriggerSubject::ThisObject,
+                    attacker: this.clone(),
                     occurrence: BlockOccurrence::Blocked,
                     count: None,
                     alone: false,
@@ -2235,22 +2333,80 @@ mod tests {
                 },
                 &["BlockersDeclared", "BecameBlocked"],
             ),
+            (
+                TriggerEvent::BecomesTarget {
+                    target: TargetSubject::Object(this.clone()),
+                    by: TargetedBy::SpellOrAbility,
+                    controller: None,
+                    multiplicity: each,
+                },
+                &["Targeted"],
+            ),
+            (TriggerEvent::ActivatesAbility { player: None, source: this.clone(), mana_ability: None }, &["AbilityActivated"]),
             (TriggerEvent::CastsSpell { caster: None, spell: None }, &["SpellCast"]),
+            (TriggerEvent::IsCountered { spell: None, caster: None }, &["SpellCountered"]),
+            (TriggerEvent::PlayerLoses { player: None }, &["PlayerLost"]),
             (TriggerEvent::ShufflesLibrary { player: None }, &["LibraryShuffled"]),
-            (TriggerEvent::AbilityTriggers { caused_by: None, source: None }, &["AbilityTriggered"]),
-            (TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility }, &["AbilityResolved"]),
+            (
+                TriggerEvent::CountersPutOn { subject: CountersOn::Object(this.clone()), counter_type: None, by: None, multiplicity: each },
+                &["CountersPutOn"],
+            ),
+            (
+                TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(this.clone()), counter_type: None, by: None, multiplicity: each },
+                &["CountersRemovedFrom"],
+            ),
             (TriggerEvent::BecomesAttached { attachment: TriggerSubject::Any, host: TriggerSubject::Any }, &["Attached"]),
             (
                 TriggerEvent::BecomesUnattached { attachment: TriggerSubject::Any, former_host: TriggerSubject::Any },
                 &["Unattached"],
             ),
+            (TriggerEvent::ControlChanges { subject: this.clone(), from: None, to: None }, &["ControlChanged", "ZoneChange", "LeftTheGame"]),
+            (TriggerEvent::ControlChanges { subject: this, from: None, to: Some(PlayerRef::You) }, &["ControlChanged"]),
+            (TriggerEvent::AbilityTriggers { caused_by: None, source: None }, &["AbilityTriggered"]),
+            (TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility }, &["AbilityResolved"]),
             (TriggerEvent::CreatesToken { owner: None, definition: None, multiplicity: each }, &["TokenCreated"]),
             (TriggerEvent::Scries { player: None }, &["Scried"]),
-        ];
-        let records = sample_records();
+        ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Which records each arm reads, written out by hand, one line per arm.
+    ///
+    /// `reads` is not a table of its own: it asks the arm's `record_kinds`
+    /// and the record's `EventKind::from_record`, the two halves the
+    /// dispatcher's source mask is built from. This pins what those halves
+    /// answer together, so a wrong entry in either fails here. Every arm is
+    /// in the list (`samples::arms`).
+    #[test]
+    fn each_arm_reads_exactly_the_records_it_names() {
+        let records = samples::records(samples::lki());
+        let expected = samples::arms();
         for (arm, reads) in &expected {
             for (name, record) in &records {
                 assert_eq!(arm.reads(record), reads.contains(name), "{arm:?} reading a {name} record");
+            }
+        }
+    }
+
+    /// CR 603.10a's classes, asked of an arm that names both zones, are the
+    /// move's own: the arm looks back exactly when its move carries a frame.
+    #[test]
+    fn an_arm_naming_both_zones_looks_back_as_its_move_does() {
+        let zones = [Zone::Library, Zone::Hand, Zone::Battlefield, Zone::Graveyard, Zone::Stack, Zone::Exile, Zone::Command];
+        for from in zones {
+            for to in zones {
+                let arm = TriggerEvent::ZoneChange {
+                    subject: TriggerSubject::Any,
+                    change: ZoneChangePattern { from: Some(from), to: Some(to), act: None },
+                    by: None,
+                    owner: None,
+                    multiplicity: Multiplicity::PerOccurrence,
+                };
+                assert_eq!(arm.looks_back(), zone_change_looks_back(from, Some(to)), "{from:?} to {to:?}");
             }
         }
     }
@@ -2261,7 +2417,7 @@ mod tests {
     fn the_mask_holds_every_kind_in_one_word() {
         assert_eq!(EventKind::WORDS, 1);
         let mut all = EventKindMask::EMPTY;
-        for (_, record) in sample_records() {
+        for (_, record) in samples::records(samples::lki()) {
             if let Some(kind) = EventKind::from_record(&record) {
                 assert!(!EventKindMask::EMPTY.contains(kind));
                 all |= EventKindMask::of(kind);

@@ -1774,11 +1774,9 @@ impl GameState {
         let holding: Vec<TriggeringEventObjects> = triggering_events
             .into_iter()
             .filter(|objects| {
-                let triggering_event = match arm.multiplicity() {
-                    Multiplicity::PerOccurrence | Multiplicity::OncePerSubject => {
-                        TriggeringEventView::AtTrigger { game: self, arm, record, objects }
-                    }
-                    Multiplicity::OncePerEvent => TriggeringEventView::None,
+                let triggering_event = match arm.multiplicity().has_one_triggering_event() {
+                    true => TriggeringEventView::AtTrigger { game: self, arm, record, objects },
+                    false => TriggeringEventView::None,
                 };
                 self.intervening_if_holds(condition, source, triggering_event)
             })
@@ -1846,10 +1844,11 @@ impl GameState {
     /// does not match the arm.
     ///
     /// One arm against one record, and every case has the same shape: the
-    /// `match` pairs the arm with the record kind it reads, and the arm's own
-    /// fields are the predicates over that record. **A field left `None` is
-    /// not asked** — every one of them is an `is_none_or` — which is how "any"
-    /// is spelled at the type, the convention the replacement patterns share.
+    /// arm's record kinds (`TriggerEvent::reads`) are the gate, the `match`
+    /// pairs the arm with each kind it reads, and the arm's own fields are
+    /// the predicates over that record. **A field left `None` is not asked**
+    /// — every one of them is an `is_none_or` — which is how "any" is spelled
+    /// at the type, the convention the replacement patterns share.
     /// `triggering_event_if` wraps a boolean as an event: true is the one
     /// event `triggering_event_objects` reads off the record, false is none.
     /// The only arm that does not go through it is `Attacks`, where CR 508.3a
@@ -1861,54 +1860,51 @@ impl GameState {
         record: &EventRecord,
     ) -> Vec<TriggeringEventObjects> {
         let (seq, event) = (record.seq, &record.event);
+        if !arm.reads(event) {
+            return Vec::new();
+        }
         let triggering_event_if = |ok: bool| if ok { vec![self.triggering_event_objects(arm, record)] } else { Vec::new() };
         match (arm, event) {
-            // The subject is read as the record framed it only for an arm that
-            // looks back (CR 603.10a); "from anywhere" reads the object after
-            // the move (CR 603.6c's last sentence, 603.10).
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
-                GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki, applied: _, new_epoch: _ },
-            ) => triggering_event_if(
-                change.matches(Some(*from), *to, Some(*act))
-                    // The resolving spell or ability caused the move, also where a
-                    // replacement redirected it (`replacement-architecture.md` §2b.4).
-                    && by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }))
-                    && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, departure_read(arm, *object_id, lki), referents, seq),
-            ),
-            // CR 603.6c names this event for a leaves-the-battlefield ability,
-            // and for nothing else: a card leaving the game from a graveyard
-            // leaves no graveyard (Erebos's Titan's third ruling). Nothing
-            // narrower either — no `to`, no act, no cause. Only a phased-in
-            // permanent's, which is one its departure framed
-            // (`zone_change_looks_back_at`).
-            (
-                TriggerEvent::ZoneChange { subject, change, by, owner, .. },
-                GameEvent::LeftTheGame { object_id, owner: moved_owner, from, lki },
-            ) => triggering_event_if(
-                *from == Zone::Battlefield
-                    && lki.is_some()
-                    && change.from == Some(Zone::Battlefield)
-                    && change.to.is_none()
-                    && change.act.is_none()
-                    && by.is_none()
-                    && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, departure_read(arm, *object_id, lki), referents, seq),
-            ),
-            // The act a replacement kept in its zone (CR 614.6), read only by an
-            // arm that names an act: a mill, not "leaves your library". The
-            // object is asked as it was, which is how it still is.
-            (
-                TriggerEvent::ZoneChange { subject, change, by, owner, .. },
-                GameEvent::SameZoneMove { object_id: _, owner: moved_owner, zone, act, lki, applied: _ },
-            ) => triggering_event_if(
-                change.act.is_some()
-                    && change.matches(Some(*zone), *zone, Some(*act))
-                    && by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }))
-                    && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
-            ),
+                GameEvent::ZoneChange { .. } | GameEvent::LeftTheGame { .. } | GameEvent::SameZoneMove { .. },
+            ) => {
+                // The resolving spell or ability caused the move, also where a
+                // replacement redirected it (`replacement-architecture.md` §2b.4).
+                let caused = || by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }));
+                let (moved, moved_owner, moved_as_named) = match event {
+                    // The subject is read as the record framed it only for an
+                    // arm that looks back (CR 603.10a); "from anywhere" reads the
+                    // object after the move (CR 603.6c's last sentence, 603.10).
+                    GameEvent::ZoneChange { object_id, owner, from, to, act, lki, .. } => {
+                        (departure_read(arm, *object_id, lki), *owner, change.matches(Some(*from), *to, Some(*act)) && caused())
+                    }
+                    // CR 603.6c names this event for a leaves-the-battlefield
+                    // ability, and for nothing else: a card leaving the game
+                    // from a graveyard leaves no graveyard (Erebos's Titan's
+                    // third ruling). Nothing narrower either — no `to`, no act,
+                    // no cause. Only a phased-in permanent's, which is one its
+                    // departure framed (`zone_change_looks_back_at`).
+                    GameEvent::LeftTheGame { object_id, owner, from, lki } => {
+                        let leaves_the_battlefield =
+                            change.from == Some(Zone::Battlefield) && change.to.is_none() && change.act.is_none() && by.is_none();
+                        (departure_read(arm, *object_id, lki), *owner, *from == Zone::Battlefield && lki.is_some() && leaves_the_battlefield)
+                    }
+                    // The act a replacement kept in its zone (CR 614.6), which
+                    // only an arm that names an act reads: a mill, not "leaves
+                    // your library". The object is asked as it was, which is
+                    // how it still is.
+                    GameEvent::SameZoneMove { owner, zone, act, lki, .. } => {
+                        (ObjectInformation::LastKnown(lki), *owner, change.matches(Some(*zone), *zone, Some(*act)) && caused())
+                    }
+                    _ => return Vec::new(),
+                };
+                triggering_event_if(
+                    moved_as_named
+                        && owner.as_ref().is_none_or(|p| self.player_ref_is(p, moved_owner, referents))
+                        && self.subject_matches(subject, moved, referents, seq),
+                )
+            }
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
                 triggering_event_if(self.subject_matches(subject, ObjectInformation::Current(*object_id), referents, seq))
@@ -2154,43 +2150,17 @@ impl GameState {
             // one gaining it, and its controller as it left.
             (
                 TriggerEvent::ControlChanges { subject, from, to: None },
-                GameEvent::ZoneChange { from: Zone::Battlefield, lki: Some(lki), .. }
-                | GameEvent::LeftTheGame { from: Zone::Battlefield, lki: Some(lki), .. },
-            ) => triggering_event_if(
-                from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.characteristics().controller, referents))
-                    && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
-            ),
-            // A record matches when it passes the arm's three questions, each
-            // of which the arm's `None` leaves unasked: the counter's kind
-            // ("a +1/+1 counter"), the player who put or removed them ("you
-            // put"), and what they are on. A removal by a rule names no player
-            // (CR 704.5q, 120.3c), so no `by` matches it. A counter is an
-            // occurrence of a per-counter arm, so a record of three holds three
-            // events (Protean Hydra's fourth ruling).
-            (
-                TriggerEvent::CountersPutOn { subject: watched, counter_type, by, multiplicity },
-                GameEvent::CountersPutOn { subject: on, counter_type: kind, n, by: putter, .. },
-            ) => {
-                let kind_matches = counter_type.is_none_or(|k| k == *kind);
-                let putter_matches = by.as_ref().is_none_or(|p| self.player_ref_is(p, *putter, referents));
-                if kind_matches && putter_matches && self.counters_on_matches(watched, *on, referents, seq) {
-                    self.counter_events(arm, record, *multiplicity, *n)
-                } else {
-                    Vec::new()
-                }
-            }
-            (
-                TriggerEvent::CountersRemovedFrom { subject: watched, counter_type, by, multiplicity },
-                GameEvent::CountersRemovedFrom { subject: on, counter_type: kind, n, by: remover, .. },
-            ) => {
-                let kind_matches = counter_type.is_none_or(|k| k == *kind);
-                let remover_matches =
-                    by.as_ref().is_none_or(|p| remover.is_some_and(|r| self.player_ref_is(p, r, referents)));
-                if kind_matches && remover_matches && self.counters_on_matches(watched, *on, referents, seq) {
-                    self.counter_events(arm, record, *multiplicity, *n)
-                } else {
-                    Vec::new()
-                }
+                GameEvent::ZoneChange { from: left, lki, .. } | GameEvent::LeftTheGame { from: left, lki, .. },
+            ) => match lki {
+                Some(lki) if *left == Zone::Battlefield => triggering_event_if(
+                    from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.characteristics().controller, referents))
+                        && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
+                ),
+                _ => Vec::new(),
+            },
+            (TriggerEvent::CountersPutOn { .. }, GameEvent::CountersPutOn { .. })
+            | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { .. }) => {
+                self.counter_events(arm, record, referents)
             }
             // The definition the creation made the token from, after any
             // replacement (Ajani, Nacatl Avenger's eighth ruling).
@@ -2205,7 +2175,8 @@ impl GameState {
                 triggering_event_if(player.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             // Every arm, by name, so a new arm does not compile until it is matched
-            // here; a record of another kind holds no event of it.
+            // here. The gate admits only the kinds an arm reads, and each such
+            // pair has its case above (`each_admitted_pair_has_its_case`).
             (
                 TriggerEvent::ZoneChange { .. }
                 | TriggerEvent::BecomesTapped { .. }
@@ -2238,7 +2209,10 @@ impl GameState {
                 | TriggerEvent::CreatesToken { .. }
                 | TriggerEvent::Scries { .. },
                 _,
-            ) => Vec::new(),
+            ) => {
+                debug_assert!(false, "{arm:?} reads {event:?}, and the matcher has no case for the pair");
+                Vec::new()
+            }
         }
     }
 
@@ -2321,21 +2295,32 @@ impl GameState {
         }
     }
 
-    /// A counter record's events for `arm`, or none when `matched` is false:
-    /// one per counter for a per-counter arm, and one for the record
-    /// otherwise, which the "one or more" readings fold.
-    fn counter_events(
-        &self,
-        arm: &TriggerEvent,
-        record: &EventRecord,
-        multiplicity: Multiplicity,
-        n: u32,
-    ) -> Vec<TriggeringEventObjects> {
-        let objects = self.triggering_event_objects(arm, record);
-        match multiplicity {
-            Multiplicity::PerOccurrence => vec![objects; n as usize],
-            Multiplicity::OncePerEvent | Multiplicity::OncePerSubject => vec![objects],
+    /// A counter record's events for a counter arm that reads it. It matches
+    /// when it passes the arm's three questions, each of which the arm's
+    /// `None` leaves unasked: the counter's kind ("a +1/+1 counter"), the
+    /// player who put or removed them ("you put"), and what they are on. A
+    /// removal by a rule names no player (CR 704.5q, 120.3c), so no `by`
+    /// matches it. Then a counter is an occurrence of a per-counter arm, so a
+    /// record of three holds three events (Protean Hydra's fourth ruling),
+    /// and one event otherwise, which the "one or more" readings fold.
+    fn counter_events(&self, arm: &TriggerEvent, record: &EventRecord, referents: &TriggerReferents<'_>) -> Vec<TriggeringEventObjects> {
+        let (TriggerEvent::CountersPutOn { subject: watched, counter_type, by, multiplicity }
+        | TriggerEvent::CountersRemovedFrom { subject: watched, counter_type, by, multiplicity }) = arm
+        else {
+            return Vec::new();
+        };
+        let (on, kind, n, who) = match record.event {
+            GameEvent::CountersPutOn { subject, counter_type, n, by, .. } => (subject, counter_type, n, Some(by)),
+            GameEvent::CountersRemovedFrom { subject, counter_type, n, by, .. } => (subject, counter_type, n, by),
+            _ => return Vec::new(),
+        };
+        let matched = counter_type.is_none_or(|k| k == kind)
+            && by.as_ref().is_none_or(|p| who.is_some_and(|who| self.player_ref_is(p, who, referents)))
+            && self.counters_on_matches(watched, on, referents, record.seq);
+        if !matched {
+            return Vec::new();
         }
+        vec![self.triggering_event_objects(arm, record); multiplicity.counter_occurrences(n).0]
     }
 
     /// Whether the counters a record put or removed are where the arm watches.
@@ -2777,6 +2762,35 @@ fn is_triggered(def: &AbilityDef) -> bool {
 
 fn carries_a_trigger_multiplier(chars: &EffectiveCharacteristics) -> bool {
     chars.abilities.iter().any(|ability| ability.effect.as_trigger_multiplier().is_some())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::event::{EventStamp, RecordPlaces};
+    use crate::types::triggers::samples;
+
+    /// Every pair of arm and record kind the gate admits reaches its own case
+    /// of `triggering_events_in`, whose catch-all is a debug check: one arm
+    /// of each kind against one record of each.
+    #[test]
+    fn each_admitted_pair_has_its_case() {
+        let game = crate::test_support::setup_two_player_game();
+        let referents = TriggerReferents::of_object(ObjectId::UNASSIGNED, 0, 0, None, None);
+        let mut admitted = 0;
+        for (arm, _) in samples::arms() {
+            for (_, event) in samples::records(samples::lki()) {
+                if !arm.reads(&event) {
+                    continue;
+                }
+                let stamp = EventStamp { batch: None, cause: EventCause::Harness };
+                let record = EventRecord { seq: EventId(0), event, stamp, names: None, places: RecordPlaces::NOT_COUNTED };
+                game.triggering_events_in(&arm, &referents, &record);
+                admitted += 1;
+            }
+        }
+        assert_eq!(admitted, 38);
+    }
 }
 
 /// A card for a frame whose object has left the game (CR 800.4a): the name
