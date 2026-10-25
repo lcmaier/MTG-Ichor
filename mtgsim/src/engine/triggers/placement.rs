@@ -62,7 +62,7 @@ impl GameState {
         for tier in [TriggerTier::First, TriggerTier::Second] {
             for &player in &seats {
                 let entries: Vec<&PendingTrigger> =
-                    self.pending_triggers.iter().filter(|t| t.tier() == tier && t.controller == player).collect();
+                    self.pending_triggers.iter().filter(|t| t.is_placed_with(tier, player)).collect();
                 if entries.is_empty() {
                     continue;
                 }
@@ -102,7 +102,7 @@ impl GameState {
     /// prompt, which has been asked.
     fn queue_last_placed_first(&mut self, tier: TriggerTier, player: PlayerId, order: &[usize]) {
         let (block, rest): (Vec<PendingTrigger>, Vec<PendingTrigger>) =
-            std::mem::take(&mut self.pending_triggers).into_iter().partition(|t| t.tier() == tier && t.controller == player);
+            std::mem::take(&mut self.pending_triggers).into_iter().partition(|t| t.is_placed_with(tier, player));
         self.pending_triggers = rest.into_iter().collect();
         let mut slots: Vec<Option<PendingTrigger>> = block.into_iter().map(Some).collect();
         let last_placed_first: Vec<PendingTrigger> = order.iter().rev().filter_map(|&i| slots.get_mut(i)?.take()).collect();

@@ -949,15 +949,8 @@ impl GameState {
     /// which the `OrderTriggers` prompt offers — is the whole-battlefield
     /// walk's.
     pub(super) fn battlefield_readers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
-        // ORDER-FREE: sorted by timestamp next.
-        let mut readers: Vec<(Timestamp, ObjectId)> = self
-            .trigger_sources
-            .iter()
-            .filter(|(_, kinds)| kinds.intersects(window_kinds))
-            .filter_map(|(&id, _)| self.battlefield.get(&id).map(|entry| (entry.timestamp, id)))
-            .collect();
-        readers.sort_unstable_by_key(|&(timestamp, _)| timestamp);
-        readers.into_iter().map(|(_, id)| id).collect()
+        // ORDER-FREE: put in timestamp order.
+        self.in_battlefield_order(self.trigger_sources.iter().filter(|(_, kinds)| kinds.intersects(window_kinds)).map(|(&id, _)| id))
     }
 
     /// The objects that have a triggered ability only because a continuous
@@ -1305,14 +1298,9 @@ impl GameState {
         } else if named.is_empty() {
             readers
         } else {
-            let mut on_battlefield: Vec<(Timestamp, ObjectId)> = readers
-                .iter()
-                .chain(&named)
-                .filter_map(|&id| self.battlefield.get(&id).map(|entry| (entry.timestamp, id)))
-                .collect();
-            on_battlefield.sort_unstable_by_key(|&(timestamp, _)| timestamp);
-            on_battlefield.dedup_by_key(|&mut (_, id)| id);
-            on_battlefield.into_iter().map(|(_, id)| id).collect()
+            // A permanent both printed and named is one candidate.
+            let mut once: IdSet<ObjectId> = IdSet::default();
+            self.in_battlefield_order(readers.iter().chain(&named).copied().filter(|&id| once.insert(id)))
         };
         let mut elsewhere: Vec<(Timestamp, ObjectId)> = zone_sources.map(|id| (self.object_timestamp(id), id)).collect();
         let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
@@ -1475,14 +1463,8 @@ impl GameState {
         if summary.any_granted_trigger_multiplier || summary.any_copied_trigger_multiplier {
             return self.battlefield_ids_ordered();
         }
-        // ORDER-FREE: sorted by timestamp next.
-        let mut sources: Vec<(Timestamp, ObjectId)> = self
-            .trigger_multiplier_sources
-            .iter()
-            .filter_map(|&id| self.battlefield.get(&id).map(|entry| (entry.timestamp, id)))
-            .collect();
-        sources.sort_unstable_by_key(|&(timestamp, _)| timestamp);
-        sources.into_iter().map(|(_, id)| id).collect()
+        // ORDER-FREE: put in timestamp order.
+        self.in_battlefield_order(self.trigger_multiplier_sources.iter().copied())
     }
 
     /// CR 603.2d: how many more times each match triggers, every multiplier
@@ -2024,6 +2006,10 @@ impl GameState {
                     AttackOccurrence::Attacker => {
                         attacks.map(|(attacker, defender)| TriggeringEventObjects::Attack { attacker, defender }).collect()
                     }
+                    // Each player, planeswalker or battle once, in the order its
+                    // first matching attacker was declared. The CR fixes no
+                    // order among one event's occurrences; a block reads each
+                    // side the same way (`block_events`).
                     AttackOccurrence::Defender => {
                         let mut defenses: Vec<(ObjectOrPlayer, Vec<ObjectRef>)> = Vec::new();
                         for (attacker, defender) in attacks {
@@ -2235,7 +2221,9 @@ impl GameState {
             return Vec::new();
         };
         let (event, seq) = (&record.event, record.seq);
-        // Each creature on one side of the declaration once, in its order.
+        // Each creature on one side of the declaration once, in the order it
+        // first appears there. The CR fixes no order among one event's
+        // occurrences; an attack's defenders are read the same way.
         let each_on = |side: fn(&(ObjectId, ObjectId)) -> ObjectId| {
             let mut each: Vec<ObjectId> = Vec::new();
             for pair in blocks {

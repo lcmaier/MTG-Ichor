@@ -2138,6 +2138,12 @@ impl PendingTrigger {
     pub fn tier(&self) -> TriggerTier {
         self.binding.def.condition.tier()
     }
+
+    /// Whether it is among `player`'s triggers of `tier`, the ones CR 603.3b
+    /// has that player put on the stack together.
+    pub fn is_placed_with(&self, tier: TriggerTier, player: PlayerId) -> bool {
+        self.tier() == tier && self.controller == player
+    }
 }
 
 /// One arm of every kind and one record of every kind, for the tests that

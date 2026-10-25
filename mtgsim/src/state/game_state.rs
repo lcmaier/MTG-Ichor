@@ -235,6 +235,17 @@ pub struct ExtraTurn {
     pub player: PlayerId,
 }
 
+/// Permanents in CR 613.7 order, each with its timestamp. Sorted on the pair
+/// and not keyed on a map lookup, which `sort` calls O(n log n) times and once
+/// paid ~20× (measured 2026-08-25). The timestamp alone is the key: one counter
+/// mints them, so no two tie, and an `ObjectId` is not an order
+/// (`CLAUDE.md`'s determinism rule).
+pub(crate) fn in_timestamp_order(mut pairs: Vec<(Timestamp, ObjectId)>) -> Vec<ObjectId> {
+    pairs.sort_unstable_by_key(|&(timestamp, _)| timestamp);
+    debug_assert!(pairs.windows(2).all(|pair| pair[0].0 < pair[1].0), "two permanents share a CR 613.7 timestamp");
+    pairs.into_iter().map(|(_, id)| id).collect()
+}
+
 /// Which ability of which object — the durable identity of an activated ability,
 /// as opposed to the ephemeral stack object representing one activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1397,18 +1408,13 @@ impl GameState {
     /// The battlefield's object ids, oldest permanent first.
     /// See [`GameState::battlefield_ordered`] for why this exists.
     pub fn battlefield_ids_ordered(&self) -> Vec<ObjectId> {
-        // Collect (timestamp, id) and sort *that*: `sort_by_key` calls its closure
-        // O(n log n) times, so keying on a HashMap lookup paid ~20× (measured
-        // 2026-08-25), and this runs eight times per SBA sweep. Keyed on the
-        // timestamp alone, which one counter mints, so no two tie: an `ObjectId`
-        // is not an order (`CLAUDE.md`'s determinism rule) and has no `Ord`.
         // ORDER-FREE: sorted by timestamp next.
-        let mut pairs: Vec<(Timestamp, ObjectId)> = self.battlefield
-            .iter()
-            .map(|(id, e)| (e.timestamp, id))
-            .collect();
-        pairs.sort_by_key(|&(ts, _)| ts);
-        pairs.into_iter().map(|(_, id)| id).collect()
+        in_timestamp_order(self.battlefield.iter().map(|(id, e)| (e.timestamp, id)).collect())
+    }
+
+    /// The permanents among `ids`, oldest first (CR 613.7).
+    pub fn in_battlefield_order(&self, ids: impl IntoIterator<Item = ObjectId>) -> Vec<ObjectId> {
+        in_timestamp_order(ids.into_iter().filter_map(|id| self.battlefield.get(&id).map(|entry| (entry.timestamp, id))).collect())
     }
 
     /// Every object in `zone`, in that zone's own order — seat order first,
