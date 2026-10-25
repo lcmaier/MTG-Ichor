@@ -27,8 +27,8 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter,
-    Selector, TargetCount,
+    ObjectSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter,
+    TargetCount,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, HistorySpan, ObjectFact, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -335,7 +335,7 @@ fn anthem_of(amount: AmountExpr) -> Arc<CardData> {
 fn a_static_amounts_you_follows_its_source_to_a_new_controller() {
     let quick = || free_spell("Quick Ritual", CardType::Instant, Effect::Sequence(Vec::new()));
     let spells = AmountExpr::History(HistorySpan::ThisTurn, Box::new(spells_you_cast(None)));
-    let hand = AmountExpr::CountOf(Selector::CardsInHand(PlayerRef::You));
+    let hand = AmountExpr::CountOf(ObjectSet::hand(PlayerRef::You));
     for (amount, what) in [(spells, "spells cast"), (hand, "cards in hand")] {
         let mut game = setup_two_player_game();
         let totem = put_on_battlefield(&mut game, anthem_of(amount), 0);

@@ -16,12 +16,12 @@ pub enum AmountExpr {
     Fixed(u64),
     /// X, chosen when the spell/ability is cast/activated (rule 107.3)
     X,
-    /// "equal to the number of [things matching selector]"
-    CountOf(Selector),
-    /// "equal to the number of card **types** among [things matching selector]"
+    /// "equal to the number of [objects in the set]"
+    CountOf(ObjectSet),
+    /// "equal to the number of card **types** among [objects in the set]"
     /// — the Lhurgoyf family. Distinct from `CountOf`, which counts objects:
     /// ten artifact creatures in a graveyard are ten cards but two card types.
-    CardTypesAmong(Selector),
+    CardTypesAmong(ObjectSet),
     /// "equal to that number plus N" — Tarmogoyf's toughness.
     Plus(Box<AmountExpr>, u64),
     /// "Equal to the amount of life you gained this turn" (Betor, Ancestor's
@@ -147,24 +147,6 @@ pub enum AmountExpr {
     /// `Fixed(20)` because v1 is Commander, where it is 40, and the number is
     /// the game's (`GameState::starting_life`) and not the card's.
     StartingLifeTotal,
-}
-
-/// Which objects an effect queries or iterates over
-#[derive(Debug, Clone, PartialEq)]
-pub enum Selector {
-    ControlledCreatures,
-    CreaturesInGraveyard(PlayerRef),
-    PermanentsMatching(ObjectFilter),
-    CardsInHand(PlayerRef),
-    /// Cards in graveyards. `None` means **all** graveyards — Tarmogoyf's "cards
-    /// in all graveyards", which includes a Tarmogoyf sitting in one of them.
-    ///
-    /// One variant rather than a separate `CardsInAllGraveyards`: "whose
-    /// graveyard" is a parameter of the same concept, and a second variant made
-    /// the two look like different questions. Only `None` has an evaluator today
-    /// — every `Some` form is unused by any card, and `compute::evaluate_amount`
-    /// asserts rather than guessing at `PlayerRef` resolution nothing needs yet.
-    CardsInGraveyard(Option<PlayerRef>),
 }
 
 /// Reference to a player in an effect context
@@ -413,6 +395,20 @@ impl ObjectSet {
     /// [`ZoneSet`].
     pub fn filter_in(filter: ObjectFilter, zones: ZoneSet) -> ObjectSet {
         ObjectSet::Filter { filter, zones }
+    }
+
+    /// The cards in `whose` hand, every one its owner's (CR 400.3).
+    pub fn hand(whose: PlayerRef) -> ObjectSet {
+        ObjectSet::Filter { filter: ObjectFilter::ByOwner(whose), zones: ZoneSet::HAND }
+    }
+
+    /// Whose whole hand this is, when it is [`Self::hand`]'s set: a hand any
+    /// player may count, by its size and reading no card (CR 402.3).
+    pub fn whose_hand(&self) -> Option<&PlayerRef> {
+        match self {
+            ObjectSet::Filter { filter: ObjectFilter::ByOwner(whose), zones } if *zones == ZoneSet::HAND => Some(whose),
+            ObjectSet::Filter { .. } | ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => None,
+        }
     }
 
     /// Which zones this set can name an object in — the union `Board::seed`
@@ -2382,7 +2378,7 @@ pub enum Effect {
     },
 
     /// "For each [thing], [effect]"
-    ForEach(Selector, Box<Effect>),
+    ForEach(ObjectSet, Box<Effect>),
 
     /// "Do this N times"
     Repeat(AmountExpr, Box<Effect>),

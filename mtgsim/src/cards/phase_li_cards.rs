@@ -23,8 +23,8 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef,
-    PlayerSet, Primitive, SelectionFilter, Selector, TypeChange,
+    ObjectSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef,
+    PlayerSet, Primitive, SelectionFilter, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::ids::AbilityId;
@@ -195,7 +195,7 @@ pub fn opalescence() -> Arc<CardData> {
 /// In `stress` only: the shape is Urborg's, measured there, and five mana
 /// is a rare cast in a random game.
 pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
-    let lands_you_control = AmountExpr::CountOf(Selector::PermanentsMatching(ObjectFilter::And(
+    let lands_you_control = AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Land)),
         Box::new(ObjectFilter::ByController(PlayerRef::You)),
     )));

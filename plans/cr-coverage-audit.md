@@ -661,7 +661,7 @@ value held elsewhere:
 `AmountExpr`, `TriggerEvent`, `TriggerSubject`, `EffectRecipient`,
 `Primitive`, `EventPattern`, `Rewrite`, `ObjectSet`, `PlayerSet`, `PlayerRef`,
 `GameActionTemplate`, `EnterModsTemplate`, `EntryCopyTemplate`,
-`EntryCountersTemplate`, `TemplateAmount`, `SelectionFilter`, `Selector`,
+`EntryCountersTemplate`, `TemplateAmount`, `SelectionFilter`,
 `SourcePattern`, `ZoneChangePattern`, `HistoryCount`, `TriggerCondition`,
 `CostSubject`, `ManaCost`; and at an observer's handle, which nothing in a
 game branches on: `TraceHandle`, `RecorderHandle`, `DecisionLogHandle`,

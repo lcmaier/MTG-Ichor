@@ -59,9 +59,8 @@ use crate::state::battlefield::{EnteredAs, PermanentState};
 use crate::state::game_state::GameState;
 use crate::types::card_types::Subtype;
 use crate::types::effects::{
-    AmountExpr, CharacteristicEdit, Condition, CounterType, ObjectFilter, PlayerFact, PlayerRef,
-    Selector,
-};
+    ObjectSet, AmountExpr, CharacteristicEdit, Condition, CounterType, ObjectFilter, PlayerFact, PlayerRef,
+    };
 use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::zones::{Zone, ZoneSet};
@@ -797,13 +796,17 @@ pub(crate) fn filter_reads_mana_value(filter: &ObjectFilter) -> bool {
 /// exact rather than clever); mana value is the affected object's own.
 fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
     match expr {
-        AmountExpr::CountOf(Selector::PermanentsMatching(filter)) => filter_reads(filter, out, you_channel),
-        AmountExpr::CountOf(Selector::ControlledCreatures) => {
-            out.members |= Channels::TYPES | Channels::CONTROLLER;
-            out.source |= you_channel;
+        // A hand's size is off `GameState`; whose hand is "you". Any set but
+        // a hand and a battlefield filter is one `evaluate_amount` refuses.
+        AmountExpr::CountOf(set) => {
+            if set.whose_hand().is_some() {
+                out.source |= you_channel;
+            } else if let ObjectSet::Filter { filter, zones } = set
+                && *zones == ZoneSet::BATTLEFIELD
+            {
+                filter_reads(filter, out, you_channel);
+            }
         }
-        // A hand's size is off `GameState`; whose hand is "you".
-        AmountExpr::CountOf(Selector::CardsInHand(_)) => out.source |= you_channel,
         AmountExpr::CardTypesAmong(_) => out.members |= Channels::TYPES,
         AmountExpr::AffectedManaValue => out.members |= Channels::MANA_COST,
         AmountExpr::Plus(inner, _) => amount_reads(inner, out, you_channel),
@@ -813,7 +816,6 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
         // each is listed so a new leaf is a compile error here, as a new
         // `Condition` is in `condition_reads`.
         AmountExpr::Fixed(_)
-        | AmountExpr::CountOf(Selector::CreaturesInGraveyard(_) | Selector::CardsInGraveyard(_))
         | AmountExpr::X
         | AmountExpr::SourcePower
         | AmountExpr::SourceCounters(_)

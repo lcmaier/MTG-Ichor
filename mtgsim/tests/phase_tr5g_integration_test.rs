@@ -37,7 +37,7 @@ use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive,
-    SelectionFilter, Selector, TargetCount, TokenDef,
+    SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::history::CountIs;
 use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -534,7 +534,7 @@ fn cat_warrior() -> TokenDef {
 /// equal to the number of creatures you control to any target."
 fn ajanis_zero() -> Effect {
     let damage = Effect::Atom(
-        Primitive::DealDamage { amount: AmountExpr::CountOf(Selector::ControlledCreatures), unpreventable: false },
+        Primitive::DealDamage { amount: AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You))))), unpreventable: false },
         EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
     );
     let mut when_you_do = when_you_do(creates_a_token(Whose::Yours, Some(cat_warrior())), damage, "");
@@ -826,7 +826,7 @@ fn two_of_elronds_creatures_targeted_by_one_ability_trigger_it_twice() {
 #[test]
 fn a_count_of_other_creatures_leaves_out_the_abilitys_own_permanent() {
     let mut game = audited_game();
-    let others = AmountExpr::CountOf(Selector::PermanentsMatching(another(ObjectFilter::And(
+    let others = AmountExpr::CountOf(ObjectSet::battlefield_filter(another(ObjectFilter::And(
         Box::new(a_creature()),
         Box::new(ObjectFilter::ByController(PlayerRef::You)),
     ))));

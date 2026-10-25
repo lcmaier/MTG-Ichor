@@ -11,13 +11,13 @@ use crate::events::event::{EventId, GameEvent, ResolutionStamp};
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::objects::card_data::AbilityDef;
-use crate::types::zones::Zone;
+use crate::types::zones::{ZoneSet, Zone};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Antecedent, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
-    SelectionFilter, Selector, TargetCount,
+    SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -2492,23 +2492,19 @@ impl GameState {
             // number of creatures you control".
             // A hand's size, which any player may count (CR 402.3): "discard
             // your hand" is a discard of this many.
-            AmountExpr::CountOf(Selector::CardsInHand(whose)) => {
-                let player = self.resolve_player_ref(whose, _ctx.targets.all(), _ctx)?;
-                Ok(self.get_player(player)?.hand.len() as u64)
-            }
-            AmountExpr::CountOf(selector) => {
-                let filter = match selector {
-                    Selector::PermanentsMatching(filter) => std::borrow::Cow::Borrowed(filter),
-                    Selector::ControlledCreatures => std::borrow::Cow::Owned(ObjectFilter::And(
-                        Box::new(ObjectFilter::ByType(crate::types::card_types::CardType::Creature)),
-                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                    )),
+            AmountExpr::CountOf(set) => {
+                if let Some(whose) = set.whose_hand() {
+                    let player = self.resolve_player_ref(whose, _ctx.targets.all(), _ctx)?;
+                    return Ok(self.get_player(player)?.hand.len() as u64);
+                }
+                let filter = match set {
+                    ObjectSet::Filter { filter, zones } if *zones == ZoneSet::BATTLEFIELD => filter,
                     other => return Err(format!("CountOf({other:?}) resolution not yet implemented")),
                 };
-                let counted = self.battlefield_ids_ordered().into_iter().filter(|&id| self.matches_for_effect(id, &filter, _ctx));
+                let counted = self.battlefield_ids_ordered().into_iter().filter(|&id| self.matches_for_effect(id, filter, _ctx));
                 Ok(counted.count() as u64)
             }
-            AmountExpr::CardTypesAmong(_selector) => {
+            AmountExpr::CardTypesAmong(_set) => {
                 Err("CardTypesAmong amount resolution not yet implemented".to_string())
             }
             AmountExpr::Plus(inner, n) => Ok(self.evaluate_amount(inner, _ctx, announced_x)? + n),

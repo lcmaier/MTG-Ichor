@@ -68,7 +68,7 @@ use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Duration, Effect, EffectRecipient,
-    ObjectFilter, PlayerRef, Primitive, SelectionFilter, Selector, TargetCount, TypeChange,
+    ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -548,7 +548,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
     // its two amounts by value, and this runs at registry construction, not
     // in a game.
     let non_wall_creatures_you_control =
-        AmountExpr::CountOf(Selector::PermanentsMatching(ObjectFilter::And(
+        AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(
             Box::new(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerRef::You)),
