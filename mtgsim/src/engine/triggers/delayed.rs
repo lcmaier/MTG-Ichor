@@ -24,10 +24,9 @@
 
 use std::sync::Arc;
 
-use super::dispatch::{TriggerReferents, TriggerSource, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
+use super::dispatch::{fold_occurrences, TriggerReferents, TriggerSource, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
 use crate::types::triggers::{CreatingResolution, ReflexiveForm};
 use crate::engine::actions::ActionContext;
-use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use super::binding::TriggeringEventView;
 use crate::engine::trace_records;
 use crate::events::event::{EventRecord, EventId, GameEvent};
@@ -36,7 +35,7 @@ use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, EventIndex, EventKindMask, Lki,
-    Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerOrigin, TriggerSeq,
+    PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerOrigin, TriggerSeq,
     TriggeringEvent, TriggeringEventObjects,
     TriggerTurn,
 };
@@ -146,25 +145,11 @@ impl GameState {
         if !not_done {
             return None;
         }
-        if let Some(condition) = &reflexive.def.intervening_if {
-            let objects = ConditionReferents { source_lki: self.lki(reflexive.source), triggering_event: TriggeringEventView::None };
-            if !settled_holds(condition, self, reflexive.source.id, Some(reflexive.controller), objects) {
-                return None;
-            }
+        let source = TriggerSource { object: reflexive.source.id, controller: reflexive.controller, lki: self.lki(reflexive.source) };
+        if reflexive.def.intervening_if.as_ref().is_some_and(|condition| !self.intervening_if_holds(condition, source, TriggeringEventView::None)) {
+            return None;
         }
-        let unbound = MatchedTrigger {
-            identity: reflexive.identity(),
-            controller: reflexive.controller,
-            def: Arc::clone(&reflexive.def),
-            source_card: Arc::clone(&reflexive.source_card),
-            instances: reflexive.instances.clone(),
-            event: EventIndex(0),
-            triggering_events: Vec::new(),
-            mana: false,
-            // CR 603.2d's last sentence: a reflexive trigger is never counted.
-            additional: 0,
-        };
-        Some(pending_of(unbound, reflexive))
+        Some(pending_of(matched_of(reflexive, EventIndex(0), Vec::new()), reflexive))
     }
 
     /// The source's owner as an entry naming it is made (CR 108.3), read now
@@ -322,8 +307,8 @@ impl GameState {
     /// Every occurrence that triggers an entry among the records of `window`
     /// it `reads`, in window order. A record counts if one of the entry's
     /// arms reads its kind; it is matched the way an object's ability is
-    /// (`match_delayed`), the verdict is traced, and a match adds its
-    /// occurrences (`add_occurrences`).
+    /// (`match_delayed`), the verdict is traced, and a match is folded as an
+    /// object's is (CR 603.2c).
     fn occurrences_among(
         &self,
         delayed: &DelayedTrigger,
@@ -341,7 +326,10 @@ impl GameState {
             let verdict = self.match_delayed(delayed, &referents, record);
             self.trace_delayed_verdict(delayed, record.seq, verdict.as_ref().err().copied());
             if let Ok((event, triggering_events)) = verdict {
-                self.add_occurrences(&mut matches, delayed, record, event, triggering_events);
+                let arm = &arms[event.0];
+                fold_occurrences(&mut matches, delayed.identity(), arm, event, record, triggering_events, |triggering_events| {
+                    matched_of(delayed, event, triggering_events)
+                });
             }
         }
         matches
@@ -363,37 +351,17 @@ impl GameState {
     }
 
     /// The entry against one record, as `match_def` is for an object's
-    /// ability: the first arm that matches and its triggering events' objects,
-    /// then the def's once-per-turn limit and its intervening "if". `Err`
-    /// names the predicate that refused.
+    /// ability, every arm asked. The intervening "if"'s "you" is its
+    /// controller (CR 109.5), and its source is read as it last existed once
+    /// it has left (CR 113.7a, 400.7).
     fn match_delayed(
         &self,
         delayed: &DelayedTrigger,
         referents: &TriggerReferents<'_>,
         record: &EventRecord,
     ) -> Result<(EventIndex, Vec<TriggeringEventObjects>), Refusal> {
-        let matched = delayed
-            .def
-            .condition
-            .events()
-            .iter()
-            .enumerate()
-            .filter(|(_, arm)| arm.reads(&record.event))
-            .find_map(|(index, arm)| {
-                let triggering_events = self.triggering_events_in(arm, referents, record);
-                (!triggering_events.is_empty()).then_some((EventIndex(index), triggering_events))
-            })
-            .ok_or(Refusal::TriggerCondition)?;
-        let (event, triggering_events) = matched;
-        let arm = &delayed.def.condition.events()[event.0];
-        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, arm, record, referents) {
-            return Err(Refusal::Limit);
-        }
-        // CR 603.4 at the trigger, "you" its controller (CR 109.5), and its
-        // source as it last existed once it has left (CR 113.7a, 400.7).
         let source = TriggerSource { object: delayed.source.id, controller: delayed.controller, lki: self.lki(delayed.source) };
-        let triggering_events = self.triggers_whose_intervening_if_holds(&delayed.def, arm, record, triggering_events, source)?;
-        Ok((event, triggering_events))
+        self.first_arm_that_triggers(&delayed.def, delayed.identity(), referents, record, source, |_| true)
     }
 
     /// The trace's `trigger` record of an entry's verdict on record `seq`,
@@ -405,50 +373,6 @@ impl GameState {
         });
     }
 
-    /// A record's match on arm `event`, added to the entry's matches: one per
-    /// triggering event, or, for a "one or more" arm (CR 603.2c), the record's
-    /// events join that arm's single match across the window. An arm is
-    /// one kind or the other, so a match of a "one or more" arm is its fold.
-    fn add_occurrences(
-        &self,
-        matches: &mut Vec<MatchedTrigger>,
-        delayed: &DelayedTrigger,
-        record: &EventRecord,
-        event: EventIndex,
-        triggering_events: Vec<TriggeringEventObjects>,
-    ) {
-        let matched = |triggering_events: Vec<TriggeringEvent>| MatchedTrigger {
-            identity: delayed.identity(),
-            controller: delayed.controller,
-            def: Arc::clone(&delayed.def),
-            source_card: Arc::clone(&delayed.source_card),
-            instances: delayed.instances.clone(),
-            event,
-            triggering_events,
-            mana: false,
-            // CR 603.2d's last sentence: nor a delayed one.
-            additional: 0,
-        };
-        let these = triggering_events.into_iter().map(|objects| TriggeringEvent { record: record.clone(), objects });
-        let arm = &delayed.def.condition.events()[event.0];
-        match arm.multiplicity() {
-            Multiplicity::PerOccurrence => matches.extend(these.map(|event| matched(vec![event]))),
-            Multiplicity::OncePerEvent => match matches.iter_mut().find(|m| m.event == event) {
-                Some(folded) => folded.triggering_events.extend(these),
-                None => matches.push(matched(these.collect())),
-            },
-            Multiplicity::OncePerSubject => {
-                let subject = arm.occurrence_subject(&record.event);
-                let same = |m: &MatchedTrigger| {
-                    m.event == event && m.triggering_events.first().and_then(|e| arm.occurrence_subject(&e.record.event)) == subject
-                };
-                match matches.iter_mut().find(|m| same(m)) {
-                    Some(folded) => folded.triggering_events.extend(these),
-                    None => matches.push(matched(these.collect())),
-                }
-            }
-        }
-    }
 
     /// Queue the registry's matches, after the objects' (§4.6). A `ThisTurn`
     /// entry triggers on every occurrence and stays. A `Once` entry triggers
@@ -551,6 +475,22 @@ impl GameState {
 /// batch performs on both sides of the rider.
 fn existed_before(delayed: &DelayedTrigger, record: &EventRecord) -> bool {
     record.seq >= delayed.created_at && !delayed.created_in.is_some_and(|batch| record.stamp.batch == Some(batch))
+}
+
+/// A delayed trigger's match on its arm `event`: never a mana ability, and
+/// never counted again (CR 603.2d's last sentence).
+fn matched_of(delayed: &DelayedTrigger, event: EventIndex, triggering_events: Vec<TriggeringEvent>) -> MatchedTrigger {
+    MatchedTrigger {
+        identity: delayed.identity(),
+        controller: delayed.controller,
+        def: Arc::clone(&delayed.def),
+        source_card: Arc::clone(&delayed.source_card),
+        instances: delayed.instances.clone(),
+        event,
+        triggering_events,
+        mana: false,
+        additional: 0,
+    }
 }
 
 /// A delayed trigger's match as the queue's entry, its sequence number still

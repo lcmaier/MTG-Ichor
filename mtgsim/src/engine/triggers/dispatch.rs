@@ -34,7 +34,6 @@ use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::ui::decision::AsksNobody;
-use crate::engine::replacement::EventSubject;
 use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
@@ -42,7 +41,7 @@ use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::state::history_log::RowFact;
-use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
+use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::engine::targeting::TargetRef;
 use crate::types::history::CountIs;
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
@@ -235,6 +234,14 @@ pub(super) struct TriggerCandidate<'a> {
     pub(super) card: Arc<CardData>,
 }
 
+impl TriggerCandidate<'_> {
+    /// What the candidate's ability means by its words for itself (§3.3),
+    /// "this ability" being `this_ability` (CR 603.7h).
+    fn referents(&self, this_ability: Option<AbilityIdentity>) -> TriggerReferents<'static> {
+        TriggerReferents::of_object(self.object.id, self.controller, self.owner, self.host, this_ability)
+    }
+}
+
 /// What a triggered ability's text means by its words for itself, which its
 /// trigger event is read against (§3.3): "this object", "you", "its owner",
 /// "enchanted" or "equipped", and "this ability". An object's own ability
@@ -256,6 +263,21 @@ pub(super) struct TriggerReferents<'a> {
     /// CR 603.7c's "that token": the objects a delayed trigger refers to;
     /// none for an object's own ability.
     pub(super) referred: &'a [RememberedObject],
+}
+
+impl TriggerReferents<'static> {
+    /// An object's own ability's: "this object" is the object, and it refers
+    /// to nothing, since what is referred to is a delayed trigger's (CR
+    /// 603.7c).
+    pub(super) fn of_object(
+        this: ObjectId,
+        controller: PlayerId,
+        owner: PlayerId,
+        host: Option<ObjectId>,
+        this_ability: Option<AbilityIdentity>,
+    ) -> Self {
+        TriggerReferents { this: ThisObject::Candidate(this), controller, owner, host, this_ability, referred: &[] }
+    }
 }
 
 /// A trigger's text names no instance of "target" for "another target" to
@@ -405,6 +427,7 @@ struct ArmMatch<'r, 'a> {
     /// Which of the condition's events matched.
     arm: EventIndex,
     triggering_events: Vec<TriggeringEventObjects>,
+    mana: bool,
 }
 
 /// One triggered ability of one candidate, with the facts that do not depend
@@ -1518,14 +1541,7 @@ impl GameState {
         }
         let arm = matched.arm();
         let chars = multiplier.frame.characteristics();
-        let referents = TriggerReferents {
-            this: ThisObject::Candidate(multiplier.object.id),
-            controller: multiplier.controller,
-            owner: multiplier.owner,
-            host: multiplier.host,
-            this_ability: None,
-            referred: &[],
-        };
+        let referents = multiplier.referents(None);
         let mut additional = 0;
         for ability in chars.abilities.iter() {
             let Some((condition, def)) = ability.effect.as_trigger_multiplier() else { continue };
@@ -1577,9 +1593,6 @@ impl GameState {
     ) -> (Vec<MatchedTrigger>, Vec<usize>) {
         let mut matches: Vec<MatchedTrigger> = Vec::new();
         let mut matched_candidates: Vec<usize> = Vec::new();
-        // "One or more" accumulates across the window: (identity, event, and
-        // for a once-per-subject arm the subject) -> index into `matches`.
-        let mut once: Vec<((AbilityIdentity, EventIndex, Option<EventSubject>), usize)> = Vec::new();
 
         let newcomers = self.window_newcomers(records);
         let is_newcomer: Vec<bool> = candidates.iter().map(|candidate| newcomers.contains(&candidate.object)).collect();
@@ -1634,68 +1647,33 @@ impl GameState {
                     )
                 });
                 let Some(arm) = matched else { continue };
-                let this = ArmMatch { row, arm, triggering_events };
+                let this = ArmMatch { row, arm, triggering_events, mana };
                 match hits.iter_mut().find(|hit| hit.row.identity == identity) {
                     Some(earlier) if this.arm < earlier.arm => *earlier = this,
                     Some(_) => {}
                     None => hits.push(this),
                 }
             }
-            for ArmMatch { row, arm: matched, triggering_events } in hits {
+            for ArmMatch { row, arm: matched, triggering_events, mana } in hits {
                 let candidate = &candidates[row.candidate];
-                let (identity, def) = (row.identity, row.def);
-                let mana = is_mana_ability(def, &record.event);
-                let arm = &def.condition.events()[matched.0];
+                let arm = &row.def.condition.events()[matched.0];
                 // The ability's own def, shared: nothing writes it once the card
                 // is built, so a Humility landing before placement still cannot
                 // un-trigger it (CR 113.7a).
-                let def_arc: Arc<TriggerDef> = Arc::clone(def);
-                match arm.multiplicity() {
-                    Multiplicity::PerOccurrence => {
-                        for objects in triggering_events {
-                            matched_candidates.push(row.candidate);
-                            matches.push(MatchedTrigger {
-                                identity,
-                                controller: candidate.controller,
-                                def: Arc::clone(&def_arc),
-                                source_card: Arc::clone(&candidate.card),
-                                instances: row.instances.to_vec(),
-                                event: matched,
-                                triggering_events: vec![TriggeringEvent { record: (*record).clone(), objects }],
-                                mana,
-                                additional: 0,
-                            });
-                        }
+                let made = fold_occurrences(&mut matches, row.identity, arm, matched, record, triggering_events, |triggering_events| {
+                    MatchedTrigger {
+                        identity: row.identity,
+                        controller: candidate.controller,
+                        def: Arc::clone(row.def),
+                        source_card: Arc::clone(&candidate.card),
+                        instances: row.instances.to_vec(),
+                        event: matched,
+                        triggering_events,
+                        mana,
+                        additional: 0,
                     }
-                    // CR 603.2c's boundary is the window: one trigger, every
-                    // matching event in its binding, no one object; or one for
-                    // each subject the window's records are about (§4.4).
-                    how @ (Multiplicity::OncePerEvent | Multiplicity::OncePerSubject) => {
-                        let subject = match how {
-                            Multiplicity::OncePerSubject => arm.occurrence_subject(&record.event),
-                            Multiplicity::PerOccurrence | Multiplicity::OncePerEvent => None,
-                        };
-                        let these = triggering_events.into_iter().map(|objects| TriggeringEvent { record: (*record).clone(), objects });
-                        match once.iter().find(|((i, e, s), _)| *i == identity && *e == matched && *s == subject) {
-                            Some((_, at)) => matches[*at].triggering_events.extend(these),
-                            None => {
-                                once.push(((identity, matched, subject), matches.len()));
-                                matched_candidates.push(row.candidate);
-                                matches.push(MatchedTrigger {
-                                    identity,
-                                    controller: candidate.controller,
-                                    def: Arc::clone(&def_arc),
-                                    source_card: Arc::clone(&candidate.card),
-                                    instances: row.instances.to_vec(),
-                                    event: matched,
-                                    triggering_events: these.collect(),
-                                    mana,
-                                    additional: 0,
-                                });
-                            }
-                        }
-                    }
-                }
+                });
+                matched_candidates.extend(std::iter::repeat_n(row.candidate, made));
             }
         }
         (matches, matched_candidates)
@@ -1712,46 +1690,53 @@ impl GameState {
         record: &EventRecord,
         identity: AbilityIdentity,
     ) -> Result<(EventIndex, Vec<TriggeringEventObjects>), Refusal> {
-        let event = &record.event;
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::StateTrigger);
         }
         if !self.visible_as_read(candidate) {
             return Err(Refusal::Visibility);
         }
-        let referents = TriggerReferents {
-            this: ThisObject::Candidate(candidate.object.id),
-            controller: candidate.controller,
-            owner: candidate.owner,
-            host: candidate.host,
-            this_ability: Some(identity),
-            referred: &[],
-        };
-        let mut matched: Option<(EventIndex, Vec<TriggeringEventObjects>)> = None;
-        for (index, arm) in def.condition.events().iter().enumerate() {
-            if !answered.admits(arm) || !arm.reads(event) {
-                continue;
-            }
-            // CR 113.6k asks each trigger condition where it functions; the
-            // pre-pass asked the ability, which is their union.
-            if !condition_functions_in(def, arm, &candidate.frame.characteristics().types, candidate.zone) {
-                continue;
-            }
-            let triggering_events = self.triggering_events_in(arm, &referents, record);
-            if !triggering_events.is_empty() {
-                matched = Some((EventIndex(index), triggering_events));
-                break;
-            }
-        }
-        let (event_index, triggering_events) = matched.ok_or(Refusal::TriggerCondition)?;
-        let arm = &def.condition.events()[event_index.0];
-        if !self.within_once_per_turn_limit(def, identity, candidate.controller, arm, record, &referents) {
-            return Err(Refusal::Limit);
-        }
-        // CR 603.4 at the trigger. "You" is the candidate's controller (CR
+        let referents = candidate.referents(Some(identity));
+        // The intervening "if"'s "you" is the candidate's controller (CR
         // 109.5): the source's now, or its frame's for a look-back candidate,
         // and "this" is read as it left for one.
         let source = TriggerSource { object: candidate.object.id, controller: candidate.controller, lki: candidate.frame.lki() };
+        self.first_arm_that_triggers(def, identity, &referents, record, source, |arm| {
+            // CR 113.6k asks each trigger condition where it functions; the
+            // pre-pass asked the ability, which is their union.
+            answered.admits(arm) && condition_functions_in(def, arm, &candidate.frame.characteristics().types, candidate.zone)
+        })
+    }
+
+    /// The tail every triggered ability's match ends in, an object's
+    /// (`match_def`) and a registry entry's (`match_delayed`): the first of
+    /// `def`'s arms that `asks` admits and `record` triggers, then the
+    /// once-per-turn limits (§3.5), then CR 603.4's intervening "if" at the
+    /// trigger. `Err` names the predicate that refused.
+    pub(super) fn first_arm_that_triggers(
+        &self,
+        def: &TriggerDef,
+        identity: AbilityIdentity,
+        referents: &TriggerReferents<'_>,
+        record: &EventRecord,
+        source: TriggerSource<'_>,
+        asks: impl Fn(&TriggerEvent) -> bool,
+    ) -> Result<(EventIndex, Vec<TriggeringEventObjects>), Refusal> {
+        let (event_index, triggering_events) = def
+            .condition
+            .events()
+            .iter()
+            .enumerate()
+            .filter(|(_, arm)| arm.reads(&record.event) && asks(arm))
+            .find_map(|(index, arm)| {
+                let triggering_events = self.triggering_events_in(arm, referents, record);
+                (!triggering_events.is_empty()).then_some((EventIndex(index), triggering_events))
+            })
+            .ok_or(Refusal::TriggerCondition)?;
+        let arm = &def.condition.events()[event_index.0];
+        if !self.within_once_per_turn_limit(def, identity, source.controller, arm, record, referents) {
+            return Err(Refusal::Limit);
+        }
         let triggering_events = self.triggers_whose_intervening_if_holds(def, arm, record, triggering_events, source)?;
         Ok((event_index, triggering_events))
     }
@@ -1795,11 +1780,17 @@ impl GameState {
                     }
                     Multiplicity::OncePerEvent => TriggeringEventView::None,
                 };
-                let referents = ConditionReferents { source_lki: source.lki, triggering_event };
-                settled_holds(condition, self, source.object, Some(source.controller), referents)
+                self.intervening_if_holds(condition, source, triggering_event)
             })
             .collect();
         if holding.is_empty() { Err(Refusal::InterveningIf) } else { Ok(holding) }
+    }
+
+    /// CR 603.4's intervening "if" of `source`'s ability, read about
+    /// `triggering_event`: "you" is the source's controller (CR 109.5), and a
+    /// source that has left is read as it last existed.
+    pub(super) fn intervening_if_holds(&self, condition: &Condition, source: TriggerSource<'_>, triggering_event: TriggeringEventView<'_>) -> bool {
+        settled_holds(condition, self, source.object, Some(source.controller), ConditionReferents { source_lki: source.lki, triggering_event })
     }
 
     /// The once-per-turn limits (§3.5), each read at the trigger. CR
@@ -2408,14 +2399,7 @@ impl GameState {
         added: impl Fn(ManaType) -> bool,
     ) -> bool {
         let Some(object) = self.objects.get(&permanent) else { return false };
-        let referents = TriggerReferents {
-            this: ThisObject::Candidate(permanent),
-            controller,
-            owner: object.owner,
-            host: crate::oracle::board::host_of(self, permanent),
-            this_ability: None,
-            referred: &[],
-        };
+        let referents = TriggerReferents::of_object(permanent, controller, object.owner, crate::oracle::board::host_of(self, permanent), None);
         let producer = ManaProducer { id: producer, tapped_for_mana: tapped, lki: None };
         self.mana_added_arm_matches(arm, producer, added, &referents, self.events.next_seq())
     }
@@ -2741,6 +2725,48 @@ impl GameState {
                 Ok(())
             }
             other => Err(format!("unsupported effect in a triggered mana ability: {:?}", other)),
+        }
+    }
+}
+
+/// CR 603.2c's fold of one record's triggering events of `arm`, the ability
+/// `identity`'s arm `event`, into the window's triggers. An arm read per
+/// occurrence makes a trigger of each; a "one or more" arm's events join the
+/// window's one trigger of it, or for an arm read once per subject the one
+/// about the record's subject (§4.4). `trigger` makes a new trigger of its
+/// events. Returns how many it made.
+pub(super) fn fold_occurrences(
+    matches: &mut Vec<MatchedTrigger>,
+    identity: AbilityIdentity,
+    arm: &TriggerEvent,
+    event: EventIndex,
+    record: &EventRecord,
+    triggering_events: Vec<TriggeringEventObjects>,
+    trigger: impl Fn(Vec<TriggeringEvent>) -> MatchedTrigger,
+) -> usize {
+    let these = triggering_events.into_iter().map(|objects| TriggeringEvent { record: record.clone(), objects });
+    let subject = match arm.multiplicity() {
+        Multiplicity::PerOccurrence => {
+            let before = matches.len();
+            matches.extend(these.map(|triggering_event| trigger(vec![triggering_event])));
+            return matches.len() - before;
+        }
+        Multiplicity::OncePerEvent => None,
+        Multiplicity::OncePerSubject => Some(arm.occurrence_subject(&record.event)),
+    };
+    let joins = |m: &MatchedTrigger| {
+        m.identity == identity
+            && m.event == event
+            && subject.is_none_or(|subject| m.triggering_events.first().and_then(|e| arm.occurrence_subject(&e.record.event)) == subject)
+    };
+    match matches.iter_mut().find(|m| joins(m)) {
+        Some(folded) => {
+            folded.triggering_events.extend(these);
+            0
+        }
+        None => {
+            matches.push(trigger(these.collect()));
+            1
         }
     }
 }
