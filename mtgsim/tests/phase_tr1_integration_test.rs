@@ -318,9 +318,9 @@ fn blood_artist_dying_beside_two_creatures_triggers_three_times() {
     assert_eq!(pending(&game), 3, "its own death and the two others");
     assert!(game.pending_triggers.iter().all(|t| t.origin.source() == artist && t.controller == 0));
 
-    // Each is placed with its own target (CR 603.3d), then resolves.
+    // Each is placed with its own target (CR 603.3d), then resolves. One
+    // ability's three agreeing triggers are not ordered (CR 603.3b).
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1, 2]);
     for _ in 0..3 {
         expect_target_player(&dp, 1);
     }
@@ -585,10 +585,14 @@ fn two_identical_triggers_are_placed_without_an_ordering_prompt() {
     assert_eq!(game.stack.len(), 2);
 }
 
-/// The elision's expiry: a target reopens the prompt. Two Blood Artists on
-/// one death are asked their order and then each its target.
+/// A target does not reopen the prompt for one ability's agreeing
+/// triggers: each is targeted as it goes on the stack (CR 603.3d), and the
+/// entries are interchangeable, so any order with any sequence of targets
+/// builds the stack the first order builds with the same sequence (item
+/// 317). Two Blood Artists on one death are not ordered, and each is still
+/// asked its target.
 #[test]
-fn two_triggers_with_targets_are_asked_their_order() {
+fn one_abilitys_agreeing_triggers_are_not_ordered_and_each_is_still_targeted() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, blood_artist(), 0);
     put_on_battlefield(&mut game, blood_artist(), 0);
@@ -599,11 +603,16 @@ fn two_triggers_with_targets_are_asked_their_order() {
     assert_eq!(pending(&game), 2);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1]);
     expect_target_player(&dp, 1);
     expect_target_player(&dp, 1);
     place(&mut game, &dp);
     assert_eq!(game.stack.len(), 2);
+    let recorded = game.recorded_events();
+    let unasked = recorded.unasked();
+    assert!(
+        unasked.iter().any(|u| matches!(u.kind, ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First })),
+        "the order is recorded as unasked"
+    );
 }
 
 /// The elision's other expiry: one def whose entries differ in a fact it
@@ -1293,7 +1302,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
         .records_from(before)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::ZoneChange { object_id, .. } if *object_id == target => Some("destroyed"),
+            GameEvent::ZoneChange { departed, .. } if departed.object().id == target => Some("destroyed"),
             GameEvent::AbilityResolved { .. } => Some("resolved"),
             _ => None,
         })

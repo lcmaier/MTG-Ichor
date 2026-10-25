@@ -193,7 +193,8 @@ impl GameState {
                         .ok_or_else(|| format!("{}'s controller changed and it is not in the store", change.object))?
                 }
             };
-            records.push(GameEvent::ControlChanged { object_id: change.object, from: change.from, to: change.to, lki });
+            debug_assert_eq!(lki.characteristics().controller, change.from, "{}'s frame from before names another controller", change.object);
+            records.push(GameEvent::ControlChanged { to: change.to, lki });
         }
         let audit = self.audit_frames_before_control_change(&frames);
 

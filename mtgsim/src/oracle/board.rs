@@ -3,7 +3,7 @@
 use crate::objects::object::GameObject;
 use crate::oracle::characteristics::controls;
 use crate::state::game_state::GameState;
-use crate::types::ids::{ObjectId, PlayerId, Timestamp};
+use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 
 /// The permanents `player_id` controls, oldest first (CR 613.7's timestamps,
@@ -18,7 +18,7 @@ pub fn permanents_controlled_by(game: &GameState, player_id: PlayerId) -> Vec<Ob
         return game.battlefield_ids_ordered().into_iter().filter(|&id| controls(game, id, player_id)).collect();
     }
     // ORDER-FREE: sorted by timestamp next.
-    let mut mine: Vec<(Timestamp, ObjectId)> = game
+    let mine = game
         .battlefield
         .iter()
         .filter(|&(id, entry)| {
@@ -27,8 +27,7 @@ pub fn permanents_controlled_by(game: &GameState, player_id: PlayerId) -> Vec<Ob
         })
         .map(|(id, entry)| (entry.timestamp, id))
         .collect();
-    mine.sort_unstable_by_key(|&(timestamp, _)| timestamp);
-    mine.into_iter().map(|(_, id)| id).collect()
+    crate::state::game_state::in_timestamp_order(mine)
 }
 
 /// `card`, if it is in `player`'s hand. A hand holds only its owner's cards

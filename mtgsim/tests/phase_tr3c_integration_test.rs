@@ -1021,6 +1021,28 @@ fn when_you_dont_triggers_only_when_the_action_was_not_taken() {
     assert!(game.pending_triggers.is_empty(), "done: it does not");
 }
 
+/// "When you don't" is caused by no record, so its `AbilityTriggered` names
+/// none, as a state trigger's does (CR 603.8), and not the game's first.
+#[test]
+fn a_declined_when_you_dont_is_announced_as_caused_by_no_record() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let tithe = put_in_hand(&mut game, withheld_tithe(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 1);
+    game.cast_spell(0, tithe, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
+    resolve_may(&mut game, false, None);
+    let causes: Vec<_> = game
+        .recorded_events()
+        .records()
+        .iter()
+        .filter_map(|r| match r.event {
+            GameEvent::AbilityTriggered { caused_by, .. } => Some(caused_by),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(causes, vec![None]);
+}
+
 /// CR 603.12a: a reflexive trigger whose event occurred twice during the
 /// resolution triggers twice; one whose event is "one or more" triggers
 /// once for both.

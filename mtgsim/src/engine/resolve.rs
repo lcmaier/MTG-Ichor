@@ -919,9 +919,9 @@ impl GameState {
                 // CR 603.7c — its "that card" is what this resolution
                 // remembered; a template that names one with nothing
                 // remembered is a card missing its `Effect::Remember`.
-                let names_referred = template.def.trigger_binding_reads().contains(TriggerBindingReads::REFERRED)
+                let names_referred_object = template.def.trigger_binding_reads().contains(TriggerBindingReads::REFERRED)
                     || template.def.condition.events().iter().any(TriggerEvent::watches_referred);
-                if names_referred && walk.remembered.is_none() {
+                if names_referred_object && walk.remembered.is_none() {
                     return Err(format!(
                         "a delayed trigger on {} refers to an object its resolution never remembered (`Effect::Remember`)",
                         ctx.source
@@ -1625,9 +1625,7 @@ impl GameState {
             Primitive::ShuffleLibrary => {
                 let players: Vec<PlayerId> = match recipient {
                     EffectRecipient::Controller => vec![ctx.controller],
-                    EffectRecipient::ThisObject => {
-                        vec![self.get_object(ctx.effect_source())?.owner]
-                    }
+                    EffectRecipient::ThisObject => vec![self.source_owner_of(ctx)?],
                     EffectRecipient::Implicit => {
                         return Err(format!(
                             "a `Primitive::ShuffleLibrary` on {:?} names no library; use `Controller` or `ThisObject`",
@@ -2367,7 +2365,8 @@ impl GameState {
         let spell = self.object_ref(id).ok_or_else(|| format!("countering {id}, which is in no zone"))?;
         self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, actx)?;
         let lki = self.lki(spell).cloned().ok_or_else(|| format!("countering {id}, which left the stack unframed"))?;
-        let countered = crate::events::event::GameEvent::SpellCountered { spell_id: id, controller, countered_by: ctx.source, lki };
+        debug_assert_eq!(lki.characteristics().controller, controller, "{id}'s frame names another controller than the stack's");
+        let countered = crate::events::event::GameEvent::SpellCountered { countered_by: ctx.source, lki };
         self.emit_event(countered, actx.cause)
     }
 
@@ -2671,6 +2670,13 @@ impl GameState {
 
     // --- Helper: determine which player an effect applies to ---
 
+    /// "Its owner" of the resolving effect's source (CR 108.3), wherever the
+    /// source has gone (`owner_of`).
+    fn source_owner_of(&self, ctx: &ResolutionContext) -> Result<PlayerId, String> {
+        let source = ctx.effect_source();
+        self.owner_of(source).ok_or_else(|| format!("{source} is gone, and nothing kept its last known information to say who owned it"))
+    }
+
     /// The player a `PlayerRef` names at resolution: who puts the counters on
     /// for `Primitive::AddCounters` and `GetCounters` (CR 122.6a's shape on a
     /// proposal), and who chooses for `Effect::Optional`.
@@ -2690,7 +2696,7 @@ impl GameState {
         Ok(match by {
             PlayerRef::You => ctx.controller,
             PlayerRef::Player(pid) => *pid,
-            PlayerRef::Owner => self.get_object(ctx.effect_source())?.owner,
+            PlayerRef::Owner => self.source_owner_of(ctx)?,
             PlayerRef::Opponent => {
                 let targeted = targets.iter().find_map(|t| match t {
                     ResolvedTarget::Player(pid) if *pid != ctx.controller => Some(*pid),

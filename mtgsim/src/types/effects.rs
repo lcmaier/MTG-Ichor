@@ -376,6 +376,21 @@ impl ObjectSet {
     /// spelling of an existing value costs them nothing.
     pub const NO_OBJECTS: ObjectSet = ObjectSet::Fixed(Vec::new());
 
+    /// The objects a set that names them names, for `source`'s effect: the
+    /// source, the fixed list, or what the source is attached to now (CR
+    /// 303.4m), which an unattached source and anything not on the
+    /// battlefield has nothing as. `None` for a filter, which names zones
+    /// instead.
+    pub fn named_objects(&self, game: &crate::state::game_state::GameState, source: ObjectId) -> Option<impl Iterator<Item = ObjectId> + '_> {
+        let (one, fixed): (Option<ObjectId>, &[ObjectId]) = match self {
+            ObjectSet::SourceOnly => (Some(source), &[]),
+            ObjectSet::Fixed(ids) => (None, ids),
+            ObjectSet::Host => (crate::oracle::board::host_of(game, source), &[]),
+            ObjectSet::Filter { .. } => return None,
+        };
+        Some(one.into_iter().chain(fixed.iter().copied()))
+    }
+
     /// A filter over the battlefield — what "creatures you control" means, and
     /// what every row meant before the zone field existed.
     ///
@@ -2561,8 +2576,9 @@ impl Effect {
     }
 
     /// A static body and the CR 604.2 "as long as" clause around it, if
-    /// there is one: the one peel every `as_*` below reads through.
-    fn with_its_condition(&self) -> (Option<&Condition>, &Effect) {
+    /// there is one: the one peel every `as_*` below reads through, and every
+    /// reader of the clause.
+    pub(crate) fn with_its_condition(&self) -> (Option<&Condition>, &Effect) {
         match self {
             Effect::Conditional(condition, inner) => (Some(condition), inner),
             body => (None, body),
@@ -2612,6 +2628,16 @@ impl Effect {
     pub fn as_restriction(&self) -> Option<(Option<&Condition>, &crate::types::restriction::RestrictionDef)> {
         match self.with_its_condition() {
             (condition, Effect::Restriction(def)) => Some((condition, def)),
+            _ => None,
+        }
+    }
+
+    /// The triggered ability's def, for an ability that is one (CR 603). Its
+    /// tag says the same (`registry`'s test), and this is the one the
+    /// dispatcher, the state check and the gate's filing read.
+    pub fn as_trigger(&self) -> Option<&std::sync::Arc<crate::types::triggers::TriggerDef>> {
+        match self {
+            Effect::Triggered(def) => Some(def),
             _ => None,
         }
     }

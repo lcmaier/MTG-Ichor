@@ -19,7 +19,7 @@ use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
+use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerId, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
@@ -62,11 +62,11 @@ impl GameState {
         for tier in [TriggerTier::First, TriggerTier::Second] {
             for &player in &seats {
                 let entries: Vec<&PendingTrigger> =
-                    self.pending_triggers.iter().filter(|t| t.tier() == tier && t.controller == player).collect();
+                    self.pending_triggers.iter().filter(|t| t.is_placed_with(tier, player)).collect();
                 if entries.is_empty() {
                     continue;
                 }
-                let mine: Vec<TriggerSeq> = entries.iter().map(|t| t.seq).collect();
+                let mine: Vec<TriggerId> = entries.iter().map(|t| t.id).collect();
                 let order: Vec<usize> = if entries.len() < 2 {
                     (0..mine.len()).collect()
                 } else if self.trigger_order_cannot_change_outcome(&entries) {
@@ -81,8 +81,8 @@ impl GameState {
                 };
                 self.queue_last_placed_first(tier, player, &order);
                 for i in order {
-                    let seq = mine[i];
-                    let Some(from_end) = self.pending_triggers.iter().rev().position(|t| t.seq == seq) else { continue };
+                    let id = mine[i];
+                    let Some(from_end) = self.pending_triggers.iter().rev().position(|t| t.id == id) else { continue };
                     let Some(pending) = self.pending_triggers.remove(self.pending_triggers.len() - 1 - from_end) else { continue };
                     if self.place_one(pending, dp)? {
                         placed += 1;
@@ -102,7 +102,7 @@ impl GameState {
     /// prompt, which has been asked.
     fn queue_last_placed_first(&mut self, tier: TriggerTier, player: PlayerId, order: &[usize]) {
         let (block, rest): (Vec<PendingTrigger>, Vec<PendingTrigger>) =
-            std::mem::take(&mut self.pending_triggers).into_iter().partition(|t| t.tier() == tier && t.controller == player);
+            std::mem::take(&mut self.pending_triggers).into_iter().partition(|t| t.is_placed_with(tier, player));
         self.pending_triggers = rest.into_iter().collect();
         let mut slots: Vec<Option<PendingTrigger>> = block.into_iter().map(Some).collect();
         let last_placed_first: Vec<PendingTrigger> = order.iter().rev().filter_map(|&i| slots.get_mut(i)?.take()).collect();
@@ -114,15 +114,13 @@ impl GameState {
     /// they go on the stack, so the ordering prompt is not asked.
     /// `triggers-architecture.md` §5.2 gives the reason for each condition.
     /// Compared by def rather than by id, since two grants of one ability
-    /// carry two ids.
+    /// carry two ids. A target or a mode, chosen as each goes on the stack
+    /// (CR 603.3c, 603.3d), is no condition: the entries are interchangeable.
     fn trigger_order_cannot_change_outcome(&self, entries: &[&PendingTrigger]) -> bool {
         let Some(first) = entries.first() else { return true };
         let reads = first.binding.def.trigger_binding_reads();
         entries.iter().all(|t| {
-            t.tier() == TriggerTier::First
-                && t.instances.is_empty()
-                && t.binding.def == first.binding.def
-                && self.entries_agree_on(reads, first, t)
+            t.tier() == TriggerTier::First && t.binding.def == first.binding.def && self.entries_agree_on(reads, first, t)
         })
     }
 

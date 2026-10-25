@@ -133,7 +133,7 @@ fn outcome(game: &GameState, moved: ObjectId) -> Outcome {
         cause: records
             .iter()
             .rev()
-            .find(|r| matches!(r.event, GameEvent::ZoneChange { object_id, .. } if object_id == moved))
+            .find(|r| matches!(r.event, GameEvent::ZoneChange { ref departed, .. } if departed.object().id == moved))
             .map(|r| r.stamp.cause),
     }
 }
@@ -212,7 +212,7 @@ fn the_cleanup_discard(shape: Option<Shape>) -> Outcome {
         .records()
         .iter()
         .find_map(|r| match r.event {
-            GameEvent::ZoneChange { object_id, act: ZoneChangeAct::Discarded, .. } => Some(object_id),
+            GameEvent::ZoneChange { ref departed, act: ZoneChangeAct::Discarded, .. } => Some(departed.object().id),
             _ => None,
         })
         .expect("a card was discarded");

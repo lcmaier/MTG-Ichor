@@ -235,6 +235,17 @@ pub struct ExtraTurn {
     pub player: PlayerId,
 }
 
+/// Permanents in timestamp order (CR 613.7), each given with its timestamp. Sorted on the pair
+/// and not keyed on a map lookup, which `sort` calls O(n log n) times and once
+/// paid ~20× (measured 2026-08-25). The timestamp alone is the key: one counter
+/// mints them, so no two tie, and an `ObjectId` is not an order
+/// (`CLAUDE.md`'s determinism rule).
+pub(crate) fn in_timestamp_order(mut pairs: Vec<(Timestamp, ObjectId)>) -> Vec<ObjectId> {
+    pairs.sort_unstable_by_key(|&(timestamp, _)| timestamp);
+    debug_assert!(pairs.windows(2).all(|pair| pair[0].0 < pair[1].0), "two permanents share a CR 613.7 timestamp");
+    pairs.into_iter().map(|(_, id)| id).collect()
+}
+
 /// Which ability of which object — the durable identity of an activated ability,
 /// as opposed to the ephemeral stack object representing one activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -249,6 +260,17 @@ pub struct AbilityIdentity {
     /// identities, each as long-lived as its grant (§3.6). Stable across
     /// activations; see `oracle::characteristics::get_effective_abilities`.
     pub ability: AbilityId,
+}
+
+impl AbilityIdentity {
+    /// This identity with the ability's grant dropped: the same ability of the
+    /// same object, whichever instance of it. Two effects granting one ability
+    /// give the object two instances, each its own identity; CR 603.7h's "when
+    /// this ability has resolved for the third time this turn" (Ashling the
+    /// Pilgrim) counts resolutions of the ability, whichever instance resolved.
+    pub fn ignoring_ability_grant(self) -> AbilityIdentity {
+        AbilityIdentity { source: self.source, ability: self.ability.definition() }
+    }
 }
 
 /// How deep inside itself the engine is: three counters that answer one
@@ -703,7 +725,7 @@ pub struct GameState {
     /// places it, so a clone taken at the ordering prompt resumes by running
     /// the drain again.
     pub pending_triggers: SharedList<crate::types::triggers::PendingTrigger>,
-    pub(crate) next_trigger_seq: u64,
+    pub(crate) next_trigger_id: u64,
     /// CR 603.7's delayed triggered abilities waiting for their events, in
     /// the order they were created: the dispatcher asks every one at every
     /// window carrying a kind it reads (`triggers-architecture.md` §4.6).
@@ -1062,7 +1084,7 @@ impl GameState {
             #[cfg(debug_assertions)]
             last_sba_check_epoch: 1,
             pending_triggers: SharedList::default(),
-            next_trigger_seq: 0,
+            next_trigger_id: 0,
             delayed_triggers: Vec::new(),
             until_returns: Vec::new(),
             next_delayed_trigger_id: 1,
@@ -1389,18 +1411,13 @@ impl GameState {
     /// The battlefield's object ids, oldest permanent first.
     /// See [`GameState::battlefield_ordered`] for why this exists.
     pub fn battlefield_ids_ordered(&self) -> Vec<ObjectId> {
-        // Collect (timestamp, id) and sort *that*: `sort_by_key` calls its closure
-        // O(n log n) times, so keying on a HashMap lookup paid ~20× (measured
-        // 2026-08-25), and this runs eight times per SBA sweep. Keyed on the
-        // timestamp alone, which one counter mints, so no two tie: an `ObjectId`
-        // is not an order (`CLAUDE.md`'s determinism rule) and has no `Ord`.
         // ORDER-FREE: sorted by timestamp next.
-        let mut pairs: Vec<(Timestamp, ObjectId)> = self.battlefield
-            .iter()
-            .map(|(id, e)| (e.timestamp, id))
-            .collect();
-        pairs.sort_by_key(|&(ts, _)| ts);
-        pairs.into_iter().map(|(_, id)| id).collect()
+        in_timestamp_order(self.battlefield.iter().map(|(id, e)| (e.timestamp, id)).collect())
+    }
+
+    /// The permanents among `ids`, oldest first (CR 613.7).
+    pub fn in_battlefield_order(&self, ids: impl IntoIterator<Item = ObjectId>) -> Vec<ObjectId> {
+        in_timestamp_order(ids.into_iter().filter_map(|id| self.battlefield.get(&id).map(|entry| (entry.timestamp, id))).collect())
     }
 
     /// Every object in `zone`, in that zone's own order — seat order first,
@@ -2047,7 +2064,7 @@ impl GameState {
     ) {
         use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
         use crate::objects::card_data::AbilityType;
-        use crate::types::effects::{Duration, Effect};
+        use crate::types::effects::Duration;
 
         // PRE-LAYER ZONE: the abilities it arrived with, printed or a copy's. The
         // registry this builds is the layer walk's input, so the walk cannot answer.
@@ -2074,10 +2091,8 @@ impl GameState {
             // the battlefield set, or the zone map when CR 113.6k puts the
             // ability's function somewhere else. The same CR 113.6 gate as
             // the static path below, on the arrived-with types for the same reason.
-            if ability.ability_type == AbilityType::Triggered {
-                if let Effect::Triggered(def) = &ability.effect
-                    && crate::engine::zone_function::functions_in(ability, types, zone)
-                {
+            if let Some(def) = ability.effect.as_trigger() {
+                if crate::engine::zone_function::functions_in(ability, types, zone) {
                     if zone == Zone::Battlefield {
                         // Accumulated, not replaced: a permanent with two
                         // triggered abilities is one entry reading both

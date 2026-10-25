@@ -59,7 +59,7 @@ use crate::state::battlefield::{EnteredAs, PermanentState};
 use crate::state::game_state::GameState;
 use crate::types::card_types::Subtype;
 use crate::types::effects::{
-    AmountExpr, CharacteristicEdit, Condition, CounterType, Effect, ObjectFilter, PlayerFact, PlayerRef,
+    AmountExpr, CharacteristicEdit, Condition, CounterType, ObjectFilter, PlayerFact, PlayerRef,
     Selector,
 };
 use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
@@ -926,7 +926,7 @@ fn conditional_reads_of(
     let EffectOrigin::StaticAbility { ability: ability_id } = effect.origin else { return };
     let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return };
     let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return };
-    if let Effect::Conditional(cond, _) = &ability.effect {
+    if let (Some(cond), _) = ability.effect.with_its_condition() {
         condition_reads(cond, out, you_channel);
     }
 }
@@ -1202,12 +1202,8 @@ fn static_ability_still_exists(
     // Source is gone from the object store entirely.
     let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return false };
     let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return false };
-    match &ability.effect {
-        Effect::Conditional(cond, _) => {
-            condition::holds(cond, game, board, effect.source, layer_index, None, condition::ConditionReferents::NONE)
-        }
-        _ => true,
-    }
+    let (as_long_as, _) = ability.effect.with_its_condition();
+    as_long_as.is_none_or(|cond| condition::holds(cond, game, board, effect.source, layer_index, None, condition::ConditionReferents::NONE))
 }
 
 /// CR 604.2 for a CDA: still on the object, and still characteristic-defining
@@ -1229,18 +1225,9 @@ fn affected_members(
     layer_index: usize,
 ) -> Vec<ObjectId> {
     match &effect.affected_objects {
-        ObjectSet::SourceOnly => {
-            if board.has_frame(effect.source) { vec![effect.source] } else { Vec::new() }
+        named @ (ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host) => {
+            named.named_objects(game, effect.source).into_iter().flatten().filter(|id| board.has_frame(*id)).collect()
         }
-        ObjectSet::Fixed(ids) => ids.iter().copied().filter(|id| board.has_frame(*id)).collect(),
-        // CR 303.4m — whatever the source enchants *now*, read off the entity
-        // at every layer. `attached_to` only ever names a permanent
-        // (`cleanup_zone_state` clears it when the host leaves), so no zone
-        // gate is needed; an unattached source matches nothing.
-        ObjectSet::Host => crate::oracle::board::host_of(game, effect.source)
-            .filter(|host| board.has_frame(*host))
-            .into_iter()
-            .collect(),
         ObjectSet::Filter { filter, zones } => {
             // §5b's asymmetry (`replacement-architecture.md`): the entering
             // object's own row is in its frame and reaches no other member,
@@ -1487,9 +1474,9 @@ fn could_name(game: &GameState, board: &Board<'_>, app: &Application<'_>, id: Ob
                 return row.source == id;
             }
             match &row.affected_objects {
-                ObjectSet::SourceOnly => row.source == id,
-                ObjectSet::Fixed(ids) => ids.contains(&id),
-                ObjectSet::Host => crate::oracle::board::host_of(game, row.source) == Some(id),
+                named @ (ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host) => {
+                    named.named_objects(game, row.source).into_iter().flatten().any(|named| named == id)
+                }
                 ObjectSet::Filter { zones, .. } => board.in_zones_or_entering(game, id, *zones),
             }
         }

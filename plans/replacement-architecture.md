@@ -646,9 +646,10 @@ with `object_id` as an `ObjectRef`.
 - **`Effect::Remember` and §3.9's refs** take a moved object's identity from
   its record too.
 - **Only the new existence is added.** The existence that left is `lki.object`
-  wherever CR 603.10a frames the move (TR-4c widens that to its three classes),
-  and `RememberedObject.left_at` answers it for the rest. A second epoch on
-  every record would be a second copy of `lki.object`.
+  wherever CR 603.10a frames the move (TR-4c widens that to its three classes).
+  Since items 320 and 321 (#289) a departure holds it once either way, its
+  frame's or the unframed pair's (`DepartedObject`), and no keeper keeps the record
+  that ended it.
 - **Atoms.** ATOM-400.7e-001 is an Aura's own "put into a graveyard from the
   battlefield" ability, its Aura put there by CR 704.5m, returning itself.
   ATOM-400.7e-002 is a "from anywhere" trigger, which needs no 400.7e. Both are
@@ -771,7 +772,7 @@ already rewrites what the batch hands it, and L1–L6 in RH-3.
 |---|---|---|---|
 | L1 | the damage source as it deals damage: CR 608.2h's current information, else its last known information | five: `damage_source_existence` and `damage_source_characteristics` (`oracle/characteristics.rs`), `pattern_watches`' filter (`replacement/gather.rs`), `retarget_destination`'s `ToDamageSourceController` (`replacement/pipeline.rs`), and `as_it_left` with `format_event` (`ui/display.rs`) | one CR 608.2h reader: the object while it is where the effect expected it, else its `Lki`, with four projections (existence, characteristics, controller, a filter's answer). `bound_characteristics` (`triggers/binding.rs`) asks the same question of a bound object and reads it too |
 | L2 | this reference is still the object (CR 400.7) | eleven: four epoch comparisons and seven `object_ref(id) == Some(r)`, the seventh `ui/waiting.rs`'s `!=` (recounted at RH-3's start; the inventory listed ten) | one query on `GameState`, from an `ObjectRef` to the object while it is still that existence; the record's `new_object()` is that identity |
-| L3 | the CR 603.10a frame a record carries | `frame_of` and `find_matches`' second leg (`triggers/dispatch.rs`), `subject_lki` (`triggers/binding.rs`) | a method on `GameEvent` |
+| L3 | the CR 603.10a frame a record carries | `frame_of` and `find_trigger_matches`' second leg (`triggers/dispatch.rs`), `subject_lki` (`triggers/binding.rs`) | a method on `GameEvent` |
 | L4 | taking a mover's frame | `take_captured_lki` opens with `take_named_frame`'s body, and `capture_frame` repeats the lookup | one take; the battlefield caller asserts it found a frame |
 | L5 | the handoff before an object leaves | `perform_zone_change` and `owned_objects_leave` (`engine/leaving.rs`) each call `depart` (`engine/last_known.rs`), which files the batch's frame in the LKI store and notes a delayed trigger's source moving | one function both performers call |
 | L6 | what a resolution put into a zone since a mark | `exiled_since` (`engine/returns.rs`, CR 610.3) and `remembered_since` (`engine/resolve.rs`, CR 603.7c) | one query over the resolution's records, reading each record's new object. A created token counts for "that card" (CR 603.7c) and never for a return (CR 111.8), so that is a parameter |

@@ -149,7 +149,7 @@ fn sacrificed(game: &GameState) -> Vec<(ObjectId, Option<mtgsim::events::event::
         .records()
         .iter()
         .filter_map(|r| match r.event {
-            GameEvent::ZoneChange { object_id, act: ZoneChangeAct::Sacrificed, .. } => Some((object_id, r.stamp.batch)),
+            GameEvent::ZoneChange { ref departed, act: ZoneChangeAct::Sacrificed, .. } => Some((departed.object().id, r.stamp.batch)),
             _ => None,
         })
         .collect()

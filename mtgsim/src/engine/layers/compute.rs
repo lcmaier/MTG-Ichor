@@ -677,12 +677,7 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
         let effect = self
             .effect
             .expect("a FilterPlayers built without a row is built with both players resolved");
-        let owner = self
-            .game
-            .objects
-            .get(&effect.source)
-            .map(|obj| obj.owner)
-            .unwrap_or(effect.controller);
+        let owner = self.game.owner_of(effect.source).unwrap_or(effect.controller);
         self.owner = Some(owner);
         owner
     }
@@ -786,11 +781,7 @@ fn resolve_set_controller(
     match player_ref {
         PlayerRef::You => Some(players.you()).filter(|&p| still_playing(p)),
         PlayerRef::Player(pid) => Some(*pid).filter(|&p| still_playing(p)),
-        PlayerRef::Owner => game
-            .objects
-            .get(&object_id)
-            .map(|obj| obj.owner)
-            .filter(|&p| still_playing(p)),
+        PlayerRef::Owner => game.owner_of(object_id).filter(|&p| still_playing(p)),
         // CR 508.5: an attacking source's defending player. A static has no
         // triggering event, and "defending player" with no creature names no
         // one player.

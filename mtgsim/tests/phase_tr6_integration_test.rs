@@ -1,7 +1,8 @@
 //! TR-6 — state triggers (CR 603.8), the draw (CR 104.4) and the rule-owned
 //! arm (`triggers-architecture.md` §4.5, §4.8, §4.9 and §12).
 
-use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
+use mtgsim::cards::authoring::{dies, enters, triggered_ability, whenever};
+use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_re_cards::platinum_angel;
 use mtgsim::cards::phase_tr6_cards::{
@@ -20,11 +21,13 @@ use mtgsim::test_support::{
     setup_two_player_game, test_ctx, test_dp,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{
+    AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive, SelectionFilter, TargetCount,
+};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
-use mtgsim::types::triggers::{TriggerEvent, TriggerSubject, TriggerTier};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -113,6 +116,36 @@ fn a_trigger_chain_at_the_nesting_bound_is_a_draw_beside_platinum_angel() {
     assert!(game.pending_triggers.is_empty(), "a finished game keeps no waiting trigger (CR 104.1)");
 }
 
+/// CR 603.3b's second tier asked what caused a trigger: "the event that
+/// caused it was a creature dying" is the arm's full reading of the cause's
+/// record, so an artifact put into a graveyard, the same kind of record,
+/// is not one.
+#[test]
+fn a_tier_two_trigger_reads_its_cause_as_the_arm_it_names() {
+    let mut game = setup_two_player_game();
+    let to_a_graveyard = TriggerEvent::ZoneChange {
+        subject: TriggerSubject::Any,
+        change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
+        by: None,
+        owner: None,
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    let mut gains = triggered_ability("", whenever(to_a_graveyard, gain_one()));
+    gains.id = new_ability_id();
+    put_on_battlefield(&mut game, creature_with_ability("Fixture: a permanent to a graveyard", 1, 1, gains), 0);
+    let a_creature_dying = Box::new(dies(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))).into());
+    let mut watches = triggered_ability("", whenever(TriggerEvent::AbilityTriggers { caused_by: Some(a_creature_dying), source: None }, gain_one()));
+    watches.id = new_ability_id();
+    let watcher = put_on_battlefield(&mut game, creature_with_ability("Fixture: caused by a creature dying", 1, 1, watches), 0);
+    let trinket = put_on_battlefield(&mut game, CardDataBuilder::new("Fixture: trinket").card_type(CardType::Artifact).build(), 1);
+    let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
+
+    game.change_zone(trinket, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
+    assert_eq!(triggered(&game, watcher), 0, "an artifact put into a graveyard is no creature dying");
+    game.change_zone(bear, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
+    assert_eq!(triggered(&game, watcher), 1);
+}
+
 // ---------------------------------------------------------------------------
 // State triggers (CR 603.8)
 // ---------------------------------------------------------------------------
@@ -142,6 +175,31 @@ fn a_state_trigger_triggers_once_until_it_has_left_the_stack() {
     let card = game.players[0].hand[0];
     game.change_zone(card, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx()).unwrap();
     assert_eq!(triggered(&game, source), 2, "it left the stack, and the hand is empty again");
+}
+
+/// CR 603.8, 608.2n: a state trigger resolving has not left the stack, so a
+/// record its own resolution makes while its state still holds does not
+/// trigger it again. "Whenever you have no cards in hand, you gain 1 life"
+/// gains the life with the hand still empty.
+#[test]
+fn a_resolving_state_trigger_has_not_left_the_stack() {
+    let mut game = audited_game();
+    game.players[0].hand.clear();
+    let gains = TriggerDef {
+        condition: TriggerCondition::State(Condition::Player { players: PlayerSet::You, fact: PlayerFact::HandEmpty }),
+        intervening_if: None,
+        limit: None,
+        effect: gain_one(),
+    };
+    let mut ability = triggered_ability("Whenever you have no cards in hand, you gain 1 life.", gains);
+    ability.id = new_ability_id();
+    let source = put_on_battlefield(&mut game, creature_with_ability("Fixture: gains on an empty hand", 1, 1, ability), 0);
+
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(triggered(&game, source), 1);
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.players[0].life_total, 21);
+    assert_eq!(triggered(&game, source), 1, "its own gain came while it was resolving");
 }
 
 /// CR 603.8's second sentence of its example: "Discard your hand, then draw

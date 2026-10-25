@@ -84,7 +84,7 @@ fn moves_of(game: &GameState, id: ObjectId) -> Vec<(Zone, Zone, ZoneChangeAct)> 
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, act, .. } if *object_id == id => {
+            GameEvent::ZoneChange { departed, from, to, act, .. } if departed.object().id == id => {
                 Some((*from, *to, *act))
             }
             _ => None,

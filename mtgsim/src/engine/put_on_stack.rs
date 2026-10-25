@@ -288,11 +288,9 @@ impl GameState {
         // onto the stack, its targets, then cast. No LKI: nothing is cast from
         // the battlefield. The mana abilities activated at 601.2g are already
         // in the log, where CR 732.1 leaves them even when a cast rewinds.
-        if let Some(card) = card_before_cast {
-            self.note_delayed_source_left(card);
-        }
+        let card_before_cast = card_before_cast.ok_or_else(|| format!("{card_id} was cast from no zone"))?;
         let casting = EventCause::Casting(player_id);
-        self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, None, casting)?;
+        self.announce_zone_change(card_before_cast, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, None, casting)?;
         self.announce_targeted_records(card_id, casting, decisions)?;
         self.emit_event(GameEvent::SpellCast { spell_id: card_id, caster: player_id }, casting)?;
 
@@ -629,10 +627,7 @@ impl GameState {
         total_costs: &[Cost],
         decisions: &dyn DecisionProvider,
     ) {
-        let mana_cost_for_window = total_costs
-            .iter()
-            .find_map(|c| if let Cost::Mana(mc) = c { Some(mc.clone()) } else { None })
-            .unwrap_or_else(ManaCost::zero);
+        let mana_cost_for_window = Cost::mana_part(total_costs);
 
         // CR 601.2g opens the window only "if the total cost includes a mana
         // payment": no Ironworks sacrifices while casting Mox Opal (the judge's

@@ -124,7 +124,7 @@ reads a set, a count or an `any`, so none observes the map's order.
 5. **A board a test or a scenario builds, 4**: `update_permanent` and
    `test_support`'s three combat setters.
 
-**The stack side had shape 4 too.** `aura_put_into_graveyard_by_the_check`
+**The stack side had shape 4 too.** `aura_put_into_graveyard_by_sba`
 (`engine/triggers/dispatch.rs:852`) and `for_each_lki_keeper` (`:1040`) took
 `&mut` of every waiting trigger and every stack entry, whether or not they
 wrote one. The second ran whenever a batch moved an object whose last known

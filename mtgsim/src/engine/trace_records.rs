@@ -214,7 +214,7 @@ pub(crate) fn pending(
 ) -> Record {
     let identity = entry.origin.identity();
     let mut r = Record::new(RecordKind::Pending);
-    r.field_u64("seq", entry.seq.0);
+    r.field_u64("trigger", entry.id.0);
     r.field_u64("tier", match entry.tier() { TriggerTier::First => 1, TriggerTier::Second => 2 });
     r.field_u64("controller", entry.controller as u64);
     r.field_u64("source", identity.source.id.raw());

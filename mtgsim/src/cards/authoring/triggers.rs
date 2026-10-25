@@ -186,46 +186,10 @@ pub struct CountableEvent(TriggerEvent);
 impl CountableEvent {
     /// CR 603.2c's "one or more": the window is the event, so the ability
     /// triggers once however many records match it.
-    ///
-    /// The two groups below are [`TriggerEvent::multiplicity`]'s own, read
-    /// as a setter — a new arm has to join one of them here as well as
-    /// there.
     pub fn once_per_event(mut self) -> TriggerEvent {
-        match &mut self.0 {
-            TriggerEvent::ZoneChange { multiplicity, .. }
-            | TriggerEvent::DrawsCard { multiplicity, .. }
-            | TriggerEvent::DamageDealt { multiplicity, .. }
-            | TriggerEvent::DamageIsPrevented { multiplicity, .. }
-            | TriggerEvent::GainsLife { multiplicity, .. }
-            | TriggerEvent::LosesLife { multiplicity, .. }
-            | TriggerEvent::EntersBattlefield { multiplicity, .. }
-            | TriggerEvent::Attacks { multiplicity, .. }
-            | TriggerEvent::Blocks { multiplicity, .. }
-            | TriggerEvent::BecomesTarget { multiplicity, .. }
-            | TriggerEvent::CountersPutOn { multiplicity, .. }
-            | TriggerEvent::CountersRemovedFrom { multiplicity, .. }
-            | TriggerEvent::CreatesToken { multiplicity, .. } => {
-                *multiplicity = Multiplicity::OncePerEvent
-            }
-            TriggerEvent::BecomesTapped { .. }
-            | TriggerEvent::BecomesUntapped { .. }
-            | TriggerEvent::ManaAdded { .. }
-            | TriggerEvent::PhaseBegins { .. }
-            | TriggerEvent::StepBegins { .. }
-            | TriggerEvent::TurnBegins { .. }
-            | TriggerEvent::CastsSpell { .. }
-            | TriggerEvent::IsCountered { .. }
-            | TriggerEvent::PlayerLoses { .. }
-            | TriggerEvent::ShufflesLibrary { .. }
-            | TriggerEvent::BecomesAttached { .. }
-            | TriggerEvent::BecomesUnattached { .. }
-            | TriggerEvent::ControlChanges { .. }
-            | TriggerEvent::ActivatesAbility { .. }
-            | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. }
-            | TriggerEvent::Scries { .. } => {
-                unreachable!("only an arm with a multiplicity becomes a CountableEvent")
-            }
+        // Every arm a constructor below builds has the field.
+        if let Some(multiplicity) = self.0.multiplicity_mut() {
+            *multiplicity = Multiplicity::OncePerEvent;
         }
         self.0
     }
@@ -552,5 +516,44 @@ fn creature_controlled_by(whose: Whose) -> TriggerSubject {
             Box::new(ObjectFilter::ByType(CardType::Creature)),
             Box::new(ObjectFilter::ByController(player)),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// "One or more" sets the field the reading reads, on every arm a
+    /// constructor builds, and an arm left alone reads per occurrence.
+    #[test]
+    fn once_per_event_is_what_the_arm_reads() {
+        let this = || TriggerSubject::ThisObject;
+        let countable = || {
+            vec![
+                dies(this()),
+                leaves_the_battlefield(this()),
+                is_sacrificed(this()),
+                creates_a_token(Whose::Yours, None),
+                draws_a_card(Whose::Yours),
+                damage_to_is_prevented(DamageRecipient::Any),
+                enters(this()),
+                attacks(this()),
+                attacks_defender(this(), DefenderFilter::Player(None)),
+                blocks(this()),
+                blocks_a_creature(this(), TriggerSubject::Any),
+                becomes_blocked(this()),
+                becomes_blocked_by(this(), TriggerSubject::Any),
+                attacks_and_isnt_blocked(this()),
+                becomes_the_target_of(this(), TargetedBy::SpellOrAbility, None),
+                player_becomes_the_target_of(Whose::Yours, TargetedBy::SpellOrAbility, None),
+            ]
+        };
+        for event in countable() {
+            assert_eq!(TriggerEvent::from(event).multiplicity(), Multiplicity::PerOccurrence);
+        }
+        for event in countable() {
+            let arm = event.once_per_event();
+            assert_eq!(arm.multiplicity(), Multiplicity::OncePerEvent, "{arm:?}");
+        }
     }
 }

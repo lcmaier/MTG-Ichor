@@ -309,7 +309,7 @@ fn a_madness_discard_keeps_its_own_replacement_on_the_record() {
         .records()
         .iter()
         .rev()
-        .find(|r| matches!(r.event, GameEvent::ZoneChange { object_id, .. } if object_id == card))
+        .find(|r| matches!(r.event, GameEvent::ZoneChange { ref departed, .. } if departed.object().id == card))
         .expect("the discard's record")
         .clone();
     let GameEvent::ZoneChange { to, act, applied, .. } = &record.event else { unreachable!() };

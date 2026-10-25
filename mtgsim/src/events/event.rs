@@ -14,8 +14,69 @@ use crate::engine::targeting::TargetRef;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
-use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerSeq};
+use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerId};
 
+
+/// The object a move took out of a zone, as its record names it: which
+/// existence of it left (an object that moves is a new object, CR 400.7) and
+/// who owns it (CR 108.3).
+///
+/// Every object that leaves a zone has last known information, but a move's
+/// record carries it only where a trigger on that move looks back in time
+/// (CR 603.10a): a permanent leaving the battlefield, a card leaving a
+/// graveyard, an object all players can see put into a hand or library. A
+/// trigger on any other move (a card milled, a spell resolving into a
+/// graveyard, a card exiled from a hand) sees the object as it is after the
+/// move, so that record has no LKI, and `WithoutLki` holds the existence and
+/// the owner alone. Where the record has one, the LKI names both already, so
+/// `WithLki` is all it holds and neither fact is written twice. Something
+/// that reads a departed object later, such as a trigger waiting to go on
+/// the stack, finds its LKI in the store (`GameState::lki`), not here.
+///
+/// Not the mover's `Departure` (`engine::last_known`): the before-move half
+/// that hands this record its LKI and keeps what the move unattaches.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DepartedObject {
+    WithLki(Lki),
+    WithoutLki { object: ObjectRef, owner: PlayerId },
+}
+
+impl DepartedObject {
+    /// The existence that left.
+    pub fn object(&self) -> ObjectRef {
+        match self {
+            DepartedObject::WithLki(lki) => lki.object(),
+            DepartedObject::WithoutLki { object, .. } => *object,
+        }
+    }
+
+    pub fn owner(&self) -> PlayerId {
+        match self {
+            DepartedObject::WithLki(lki) => lki.owner(),
+            DepartedObject::WithoutLki { owner, .. } => *owner,
+        }
+    }
+
+    /// The frame the move carries, if it carries one.
+    pub fn lki(&self) -> Option<&Lki> {
+        match self {
+            DepartedObject::WithLki(lki) => Some(lki),
+            DepartedObject::WithoutLki { .. } => None,
+        }
+    }
+
+    /// The object `object`, owned by `owner`, which left with `frame` if the
+    /// move framed it.
+    pub fn new(object: ObjectRef, owner: PlayerId, frame: Option<Lki>) -> DepartedObject {
+        match frame {
+            Some(lki) => {
+                debug_assert!(lki.object() == object && lki.owner() == owner, "{} left with another object's frame", object.id);
+                DepartedObject::WithLki(lki)
+            }
+            None => DepartedObject::WithoutLki { object, owner },
+        }
+    }
+}
 
 /// Game events that can be observed by triggered abilities and logging systems.
 ///
@@ -27,21 +88,13 @@ use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerSeq};
 pub enum GameEvent {
     // --- Zone transitions ---
     ZoneChange {
-        object_id: ObjectId,
-        owner: PlayerId,
-        from: Zone,
-        to: Zone,
-        /// What was done (`replacement-architecture.md` §2b.2). A redirect
-        /// keeps it (CR 614.6).
-        ///
-        /// **Only the readers [`ZoneChangeAct`](crate::engine::actions::ZoneChangeAct)
-        /// names may branch on this.**
-        act: ZoneChangeAct,
-        /// CR 603.10a — the object's characteristics an instant *before* it
-        /// moved, for a move in one of the rule's three classes
-        /// (`zone_change_looks_back`): leaving the battlefield, a card leaving
-        /// a graveyard, an object all players could see put into a hand or
-        /// library. `None` for any other move, which no trigger looks back at.
+        /// The existence that moved and its owner, and its frame: CR
+        /// 603.10a's characteristics an instant *before* it moved, for a move
+        /// in one of the rule's three classes (`zone_change_looks_back`):
+        /// leaving the battlefield, a card leaving a graveyard, an object all
+        /// players could see put into a hand or library, and for any mover a
+        /// keeper reads. Unframed for any other move, which no trigger looks
+        /// back at.
         ///
         /// Leaves-the-battlefield abilities "look back in time": the game reads
         /// the object as it existed before the event, which is how a creature
@@ -52,18 +105,25 @@ pub enum GameEvent {
         /// abilities generated the instant it leaves, so the layer walk a
         /// moment later answers about a graveyard card.
         ///
-        /// Behind an `Arc`, and the layer memo's own: the widest type in the
-        /// engine is shared rather than copied, so a trigger binding that
-        /// copies this record copies a pointer (`triggers-architecture.md` §3.4).
-        /// It names the existence that left (CR 400.7), which `object_id`
-        /// cannot: what a dies trigger's "it deals damage" was (CR 608.2h).
-        lki: Option<Lki>,
+        /// The frame is behind an `Arc`, and the layer memo's own: the widest
+        /// type in the engine is shared rather than copied, so a trigger
+        /// binding that copies this record copies a pointer. It is what a dies
+        /// trigger's "it deals damage" was (CR 608.2h).
+        departed: DepartedObject,
+        from: Zone,
+        to: Zone,
+        /// What was done (`replacement-architecture.md` §2b.2). A redirect
+        /// keeps it (CR 614.6).
+        ///
+        /// **Only the readers [`ZoneChangeAct`](crate::engine::actions::ZoneChangeAct)
+        /// names may branch on this.**
+        act: ZoneChangeAct,
         /// The replacement effects that applied to this move, in the order
         /// they applied (CR 614.5), each as it applied. `None` for a move
         /// nothing replaced.
         applied: Option<Arc<[AppliedReplacement]>>,
         /// CR 400.7e's new object: the epoch the move stamped, which
-        /// [`GameEvent::new_object`] pairs with `object_id`. A later move
+        /// [`GameEvent::new_object`] pairs with the object's id. A later move
         /// makes another object, which "it" never finds (CR 603.6c).
         new_epoch: ZoneChangeEpoch,
     },
@@ -243,7 +303,7 @@ pub enum GameEvent {
     /// (the first of them, for a "one or more" trigger), and `None` for a
     /// state trigger, which no record caused (CR 603.8).
     AbilityTriggered {
-        seq: TriggerSeq,
+        trigger: TriggerId,
         origin: TriggerOrigin,
         controller: PlayerId,
         caused_by: Option<EventId>,
@@ -265,12 +325,12 @@ pub enum GameEvent {
     /// `source` is the exiling spell or ability's source, `returns` what it
     /// exiled.
     UntilReturnMade { id: UntilReturnId, source: ObjectId, controller: PlayerId, returns: Vec<ObjectId> },
-    /// A spell was countered (CR 701.6a). `controller` is its controller as
-    /// it left the stack: in its owner's graveyard it has none (CR 108.4a).
-    /// `lki` is the spell as it was on the stack, its entry included, which
-    /// "whenever a spell is countered" looks back at (CR 603.10e): who cast
-    /// it, and what it was before it became a card in a graveyard.
-    SpellCountered { spell_id: ObjectId, controller: PlayerId, countered_by: ObjectId, lki: Lki },
+    /// A spell was countered (CR 701.6a). `lki` is the spell as it was on the
+    /// stack, its entry included, which "whenever a spell is countered" looks
+    /// back at (CR 603.10e): the existence it was, who cast it, its
+    /// controller as it left the stack (in its owner's graveyard it has none,
+    /// CR 108.4a), and what it was before it became a card in a graveyard.
+    SpellCountered { countered_by: ObjectId, lki: Lki },
     /// An activated or triggered ability was countered (CR 701.6b), named by
     /// what it is: the stack object ceased to exist as it was countered.
     AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectId },
@@ -436,14 +496,15 @@ pub enum GameEvent {
         former_host_left: bool,
     },
 
-    /// A permanent's controller became `to` from `from` (CR 613.1b): a
-    /// control-changing effect started or ended. No performer does this, so
+    /// A permanent's controller became `to` (CR 613.1b): a control-changing
+    /// effect started or ended. No performer does this, so
     /// `announce_control_changes` finds it, comparing each permanent with the
     /// controller the stream last announced; one sweep's changes are one
     /// event. `lki` is the permanent as it was before, which "when you lose
     /// control of" and "an opponent gains control of" look back to (CR
-    /// 603.10d): it names `from` as its controller.
-    ControlChanged { object_id: ObjectId, from: PlayerId, to: PlayerId, lki: Lki },
+    /// 603.10d): the existence, and the controller it had, the one it went
+    /// from.
+    ControlChanged { to: PlayerId, lki: Lki },
 
     // --- Multiplayer (CR 800.4a) ---
     /// An object owned by a player who has just left the game left it too.
@@ -466,29 +527,27 @@ pub enum GameEvent {
     /// produced it, the same window `perform_zone_change` has. `None` for an
     /// object that was not a permanent, which is every other zone: a card
     /// leaving the game from a graveyard leaves no graveyard (Erebos's Titan's
-    /// third ruling).
+    /// third ruling). `departed` holds the frame where the move carries
+    /// one, and the existence and its owner where it does not.
     ///
     /// CR 603.6c's qualifier is the one part with no implementation: a *phased
     /// out* permanent does not trigger, and phasing (CR 702.26) is not built
     /// (`codebase-state.md`, "Phasing"). Every permanent is phased in today.
     LeftTheGame {
-        object_id: ObjectId,
-        owner: PlayerId,
+        departed: DepartedObject,
         from: Zone,
-        lki: Option<Lki>,
     },
 
     /// A move a replacement sent back into the zone it was leaving: Darksteel
     /// Colossus milled, and shuffled into its library instead. The act it
     /// replaced still happened (CR 614.6; the card "is still milled", Jess
     /// Dunks on Zellix, Sanity Flayer), so `act` and `applied` say what was
-    /// done and what replaced it, and `lki` is the card as it was. **Not a
-    /// zone change**: nothing left a zone and no new object was made (CR
-    /// 400.7), so it is no departure, and only an arm that names an act reads
-    /// it (`triggers-architecture.md` §3.12a decision 3).
+    /// done and what replaced it, and `lki` is the card as it was, the
+    /// existence and its owner. **Not a zone change**: nothing left a zone
+    /// and no new object was made (CR 400.7), so it is no departure, and only
+    /// an arm that names an act reads it (`triggers-architecture.md` §3.12a
+    /// decision 3).
     SameZoneMove {
-        object_id: ObjectId,
-        owner: PlayerId,
         zone: Zone,
         act: ZoneChangeAct,
         applied: Option<Arc<[AppliedReplacement]>>,
@@ -535,7 +594,26 @@ pub enum GameEvent {
     StateBasedActionPerformed,
 }
 
+/// A life total's change (CR 119.3), by its direction: what "gains life"
+/// and "loses life" each read (CR 119.9 makes each source's its own event).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LifeChange {
+    Gained(u64),
+    Lost(u64),
+}
+
 impl GameEvent {
+    /// The life change this record is; `None` for any other record. A 0
+    /// change is no event and never reaches the log (CR 119.10).
+    pub fn life_change(&self) -> Option<LifeChange> {
+        let GameEvent::LifeChanged { old, new, .. } = self else { return None };
+        match new.cmp(old) {
+            std::cmp::Ordering::Greater => Some(LifeChange::Gained(new.abs_diff(*old))),
+            std::cmp::Ordering::Less => Some(LifeChange::Lost(new.abs_diff(*old))),
+            std::cmp::Ordering::Equal => None,
+        }
+    }
+
     /// The card or permanent this zone change put into its destination, as an
     /// `ObjectRef`: its id with the epoch the move gave it. A moved object is a
     /// new object (CR 400.7), so this is how "return it" after a dies trigger
@@ -543,8 +621,8 @@ impl GameEvent {
     /// again (CR 603.6c). `None` for a record that is not a zone change.
     pub fn new_object(&self) -> Option<ObjectRef> {
         match self {
-            GameEvent::ZoneChange { object_id, new_epoch, .. } => {
-                Some(ObjectRef { id: *object_id, zone_change_epoch: *new_epoch })
+            GameEvent::ZoneChange { departed, new_epoch, .. } => {
+                Some(ObjectRef { id: departed.object().id, zone_change_epoch: *new_epoch })
             }
             _ => None,
         }
@@ -601,8 +679,8 @@ impl GameEvent {
     /// record and for a move no look-back reads.
     pub fn lki(&self) -> Option<(&Lki, Zone, PlayerId)> {
         match self {
-            GameEvent::ZoneChange { lki: Some(lki), from, owner, .. }
-            | GameEvent::LeftTheGame { lki: Some(lki), from, owner, .. } => Some((lki, *from, *owner)),
+            GameEvent::ZoneChange { departed: DepartedObject::WithLki(lki), from, .. }
+            | GameEvent::LeftTheGame { departed: DepartedObject::WithLki(lki), from } => Some((lki, *from, lki.owner())),
             GameEvent::SpellCountered { lki, .. } => Some((lki, Zone::Stack, lki.owner())),
             _ => None,
         }
@@ -622,8 +700,6 @@ impl GameEvent {
             | CountersPutOn { subject: CounterSubject::Object(id), .. }
             | CountersRemovedFrom { subject: CounterSubject::Object(id), .. }
             | TokenCreated { object_id: id, .. }
-            | SameZoneMove { object_id: id, .. }
-            | ControlChanged { object_id: id, .. }
             | TokenCeasedToExist { object_id: id }
             | CardDrawn { card_id: id, .. }
             | ManaAdded { source_id: id, .. }
@@ -658,11 +734,15 @@ impl GameEvent {
                     each(*source);
                 }
             }
-            DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
-            | SpellCountered { spell_id: a, countered_by: b, .. } => {
+            DamageDealt { source_id: a, target: DamageTarget::Object(b), .. } => {
                 each(*a);
                 each(*b);
             }
+            SpellCountered { countered_by, lki } => {
+                each(lki.object().id);
+                each(*countered_by);
+            }
+            SameZoneMove { lki, .. } | ControlChanged { lki, .. } => each(lki.object().id),
             Unattached { attachment, former_host, .. } => {
                 each(attachment.id);
                 each(former_host.id);
@@ -800,6 +880,34 @@ pub struct EventId(pub usize);
 /// The trigger matcher (critical path item 6) is the customer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BatchId(pub u64);
+
+/// When something waiting for an event was created, as a position in the
+/// event stream: a delayed trigger (CR 603.7a) or the return an "until" exile
+/// waits to make (CR 610.3). Not a CR 613.7 timestamp, which orders
+/// permanents and effects; this orders records. "Won't trigger until it has actually been created, even if
+/// its trigger event occurred just beforehand": a record before it is no
+/// event it waits for, and neither is one of the batch it was created
+/// during. A rider (CR 615.5) creates one inside its own batch, on both
+/// sides of its records, and that whole event happened just beforehand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreatedAt {
+    /// The first record performed after it was created.
+    pub first_record: EventId,
+    pub batch: Option<BatchId>,
+}
+
+impl CreatedAt {
+    /// The position something created now has: the next record's id, and
+    /// the batch open now, if one is.
+    pub fn now(window: &EventWindow) -> CreatedAt {
+        CreatedAt { first_record: window.next_seq(), batch: window.current_batch() }
+    }
+
+    /// Whether it was created before the event `record` is part of.
+    pub fn is_before(self, record: &EventRecord) -> bool {
+        record.seq >= self.first_record && !self.batch.is_some_and(|batch| record.stamp.batch == Some(batch))
+    }
+}
 
 /// Which resolution an event belongs to (CR 608.2).
 ///
@@ -1116,6 +1224,22 @@ mod tests {
         assert_eq!(window.held().len(), 2);
         assert_eq!(window.held()[1].seq, EventId(1));
         assert_eq!(window.next_seq(), EventId(2));
+    }
+
+    /// CR 603.7a: a record of the batch something was created in, on either
+    /// side of it, came before it; a record after that batch did not.
+    #[test]
+    fn what_is_created_in_a_batch_is_after_every_record_of_it() {
+        let mut window = EventWindow::new();
+        let outer = window.open_batch();
+        window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
+        let created_at = CreatedAt::now(&window);
+        window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
+        window.close_batch(outer);
+        window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
+
+        let after: Vec<bool> = window.held().iter().map(|record| created_at.is_before(record)).collect();
+        assert_eq!(after, vec![false, false, true]);
     }
 
     #[test]

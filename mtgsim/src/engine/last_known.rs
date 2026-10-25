@@ -14,7 +14,7 @@ use crate::events::cause::EventCause;
 use crate::events::event::UnattachRoute;
 use crate::state::game_state::GameState;
 use crate::state::shared_stores::ObjectTable;
-use crate::types::ids::{ObjectId, ObjectRef};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::zones::Zone;
 
@@ -43,6 +43,13 @@ impl LkiStore {
         let ended = &self.ended.get(&existence.id)?.0;
         let at = ended.binary_search_by_key(&existence.zone_change_epoch, |lki| lki.object().zone_change_epoch).ok()?;
         Some(&ended[at])
+    }
+
+    /// The last known information of `id`'s most recent ended existence, by
+    /// the object's id alone: what `owner_of` reads, since an owner is the same
+    /// in every existence. [`Self::of`] is the lookup by existence.
+    fn lki_of_last_existence(&self, id: ObjectId) -> Option<&Lki> {
+        self.ended.get(&id)?.0.last()
     }
 
     /// File the last known information of an existence ending now.
@@ -102,6 +109,15 @@ impl GameState {
         self.lki_store.of(existence)
     }
 
+    /// `id`'s owner (CR 108.3), the same in every existence: the object's
+    /// while the store holds it, and once the store has lost it (a token that
+    /// ceased to exist, CR 704.5d; an object whose owner left the game, CR
+    /// 800.4a), its last known information's. `None` for one that left with
+    /// no frame.
+    pub fn owner_of(&self, id: ObjectId) -> Option<PlayerId> {
+        self.objects.get(&id).map(|object| object.owner).or_else(|| self.lki_store.lki_of_last_existence(id).map(Lki::owner))
+    }
+
     /// What `id` leaving `from` for `to` (`None`: the game) takes with it,
     /// before it moves: the frame its batch took of it, filed in the LKI store
     /// (CR 113.7a), which its record carries too for a move in one of CR
@@ -116,7 +132,6 @@ impl GameState {
         if let Some(lki) = &captured {
             self.lki_store.write(lki.clone());
         }
-        self.note_delayed_source_moving(id);
         Departure { frame: captured.filter(|_| looks_back), unattached: self.unattached_by_leaving(id) }
     }
 

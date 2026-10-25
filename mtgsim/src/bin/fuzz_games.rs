@@ -543,7 +543,8 @@ fn extract_stats<'a>(
                     }
                 }
             }
-            GameEvent::ZoneChange { object_id, from, to, lki, .. } => {
+            GameEvent::ZoneChange { departed, from, to, .. } => {
+                let (object_id, lki) = (&departed.object().id, departed.lki());
                 use mtgsim::types::zones::Zone;
                 // CR 608 — a spell finishes resolving by leaving the stack: an instant or
                 // sorcery to the graveyard, a permanent spell to the battlefield.
@@ -636,14 +637,14 @@ fn uncast_resolutions<'a>(
             GameEvent::SpellCast { spell_id, .. } => {
                 *casts.entry(*spell_id).or_insert(0) += 1;
             }
-            GameEvent::ZoneChange { object_id, from: Zone::Stack, .. }
-                if resolved_off_the_stack(record, *object_id) =>
+            GameEvent::ZoneChange { departed, from: Zone::Stack, .. }
+                if resolved_off_the_stack(record, departed.object().id) =>
             {
-                let owed = casts.entry(*object_id).or_insert(0);
+                let owed = casts.entry(departed.object().id).or_insert(0);
                 if *owed == 0 {
                     let name = game
                         .objects
-                        .get(object_id)
+                        .get(&departed.object().id)
                         .map_or("<unknown>", |o| o.card_data.name.as_str());
                     violations.push(format!("{name} at event {index}"));
                 } else {
@@ -1509,7 +1510,7 @@ fn main() {
                 agg_stats.avg(agg_stats.total_turns_after_departure)
             );
             println!(
-                "  Departed-owned permanents:   {:>6.1}",
+                "  DepartedObject-owned permanents:   {:>6.1}",
                 agg_stats.avg(agg_stats.total_departed_owned_permanents)
             );
         }

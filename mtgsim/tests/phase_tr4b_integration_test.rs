@@ -185,7 +185,7 @@ fn an_equipment_leaving_becomes_unattached_after_its_move() {
         .recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, .. } if *object_id == sword => Some("move"),
+            GameEvent::ZoneChange { departed, .. } if departed.object().id == sword => Some("move"),
             GameEvent::Unattached { .. } => Some("unattached"),
             _ => None,
         })
@@ -394,7 +394,7 @@ fn records_of(game: &GameState, id: ObjectId) -> Vec<(&'static str, Option<mtgsi
         .iter()
         .filter_map(|r| {
             let kind = match &r.event {
-                GameEvent::ZoneChange { object_id, .. } if *object_id == id => "move",
+                GameEvent::ZoneChange { departed, .. } if departed.object().id == id => "move",
                 GameEvent::PermanentEnteredBattlefield { object_id, .. } if *object_id == id => "entered",
                 GameEvent::Attached { attachment, .. } if *attachment == id => "attached",
                 _ => return None,
@@ -802,7 +802,7 @@ fn grafted_wargear_moved_to_another_creature_sacrifices_the_first() {
 
     assert_eq!(host(&game, wargear), Some(second));
     assert!(game.recorded_events().events().any(|e| {
-        matches!(e, GameEvent::ZoneChange { object_id, act: ZoneChangeAct::Sacrificed, .. } if *object_id == first)
+        matches!(e, GameEvent::ZoneChange { departed, act: ZoneChangeAct::Sacrificed, .. } if departed.object().id == first)
     }));
 }
 

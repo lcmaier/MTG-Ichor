@@ -12,7 +12,8 @@ use crate::oracle::characteristics::{controls, get_effective_types, has_keyword,
 use crate::oracle::mana_helpers::{activatable_abilities_with, castable_spells_with};
 use crate::engine::combat::validation::CombatError;
 use crate::engine::put_on_stack::SorceryTiming;
-use crate::state::game_state::GameState;
+use crate::state::game_state::{AbilityIdentity, GameState};
+use crate::types::triggers::TriggerBinding;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::keywords::KeywordFlag;
@@ -325,6 +326,24 @@ pub fn damage_sources(game: &GameState, exclude_id: Option<ObjectId>) -> Vec<Obj
     sources
 }
 
+/// What a stack object or the resolving one names that a damage source can be
+/// chosen from: its source, then the objects its trigger's events are about.
+fn named_by(identity: Option<AbilityIdentity>, trigger: Option<&TriggerBinding>) -> impl Iterator<Item = ObjectRef> + '_ {
+    let source = identity.map(|identity| identity.source);
+    source.into_iter().chain(trigger.into_iter().flat_map(TriggerBinding::objects_of_triggering_events))
+}
+
+/// [`named_by`], each as the trigger reads it: the existence it left as,
+/// where its trigger's records or the LKI store keep one (CR 113.7a).
+fn read_as_they_left<'a>(game: &'a GameState, identity: Option<AbilityIdentity>, trigger: Option<&'a TriggerBinding>) -> impl Iterator<Item = ObjectRef> + 'a {
+    named_by(identity, trigger).map(move |object| game.lki_as_read_by(trigger, object).map_or(object, |lki| lki.object()))
+}
+
+/// [`named_by`]'s objects that have left since, which the LKI store holds.
+fn left_since_read<'a>(game: &'a GameState, identity: Option<AbilityIdentity>, trigger: Option<&'a TriggerBinding>) -> impl Iterator<Item = ObjectRef> + 'a {
+    named_by(identity, trigger).filter(move |object| game.lki(*object).is_some())
+}
+
 /// CR 609.7a's referred-to sources of damage: the objects a player choosing
 /// a source may choose because something waiting refers to them, each by
 /// the existence it was (CR 400.7), in this order: by each object on the stack, bottom first,
@@ -348,33 +367,19 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
             .collect()
     };
     let mut referred: Vec<ObjectRef> = Vec::new();
-    // What a trigger names, by the existences its binding took.
-    fn named(trigger: Option<&crate::types::triggers::TriggerBinding>) -> impl Iterator<Item = ObjectRef> + '_ {
-        trigger.into_iter().flat_map(|binding| binding.triggering_events.iter()).flat_map(|event| event.objects.objects()).map(|(_, object)| object)
-    }
-    // An object it reads that has left since: the one whose last known
-    // information the LKI store holds (CR 113.7a).
-    let left = |object: &ObjectRef| game.lki(*object).is_some();
     for entry in game.stack.iter().filter_map(|id| game.stack_entries.get(id)) {
-        let as_it_left = |object: ObjectRef| game.lki_as_read_by(entry.trigger.as_ref(), object).map_or(object, |lki| lki.object());
-        let binding = entry.trigger.as_ref();
-        referred.extend(entry.ability_identity.map(|identity| as_it_left(identity.source)));
-        let objects = binding.into_iter().flat_map(|b| b.triggering_events.iter()).flat_map(|e| e.objects.objects());
-        referred.extend(objects.map(|(_, object)| as_it_left(object)));
-        if let Some(binding) = binding {
+        referred.extend(read_as_they_left(game, entry.ability_identity, entry.trigger.as_ref()));
+        if let Some(binding) = &entry.trigger {
             referred.extend(binding.referred.objects.iter().map(|r| r.object));
         }
         for instance in &entry.chosen_targets {
             referred.extend(objects_of(&instance.chosen));
         }
-        referred.extend(entry.ability_identity.map(|identity| identity.source).into_iter().chain(named(entry.trigger.as_ref())).filter(left));
+        referred.extend(left_since_read(game, entry.ability_identity, entry.trigger.as_ref()));
     }
     if let Some(resolving) = &game.resolving {
-        let as_it_left = |object: ObjectRef| game.lki_as_read_by(resolving.trigger.as_ref(), object).map_or(object, |lki| lki.object());
-        referred.extend(resolving.identity.map(|identity| as_it_left(identity.source)));
-        let objects = resolving.trigger.iter().flat_map(|b| b.triggering_events.iter()).flat_map(|e| e.objects.objects());
-        referred.extend(objects.map(|(_, object)| as_it_left(object)));
-        referred.extend(resolving.identity.map(|identity| identity.source).into_iter().chain(named(resolving.trigger.as_ref())).filter(left));
+        referred.extend(read_as_they_left(game, resolving.identity, resolving.trigger.as_ref()));
+        referred.extend(left_since_read(game, resolving.identity, resolving.trigger.as_ref()));
     }
     for row in game.replacement_effects.iter() {
         referred.extend(row.def.pattern.chosen_damage_source());

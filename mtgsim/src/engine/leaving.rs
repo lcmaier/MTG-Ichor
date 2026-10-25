@@ -14,7 +14,7 @@
 
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::events::cause::{EventCause, GameRule};
-use crate::events::event::GameEvent;
+use crate::events::event::{DepartedObject, GameEvent};
 use crate::oracle::characteristics::get_effective_controller;
 use crate::state::game_state::GameState;
 use crate::types::effects::PlayerRef;
@@ -109,9 +109,11 @@ impl GameState {
             // CR 603.6c wants the frame: a leaves-the-battlefield ability
             // triggers "when a phased-in permanent leaves the game because its
             // owner leaves the game".
+            let left = self.object_ref(id).ok_or_else(|| format!("{id} left the game from no zone"))?;
             let departure = self.depart(id, from, None);
             self.remove_from_game(id)?;
-            self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki: departure.frame.clone() }, cause)?;
+            let departed = DepartedObject::new(left, player, departure.frame.clone());
+            self.emit_event(GameEvent::LeftTheGame { departed, from }, cause)?;
             self.announce_unattached_by_leaving(departure, cause)?;
         }
         Ok(())

@@ -199,8 +199,8 @@ fn panharmonicon_doubles_soul_warden_on_a_creature_entering() {
 
     reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
     assert_eq!(waiting_from(&game, warden), 2, "once, and once more");
-    let seqs: Vec<_> = game.pending_triggers.iter().map(|p| p.seq).collect();
-    assert_ne!(seqs[0], seqs[1], "each time is its own trigger");
+    let ids: Vec<_> = game.pending_triggers.iter().map(|p| p.id).collect();
+    assert_ne!(ids[0], ids[1], "each time is its own trigger");
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 0), before + 2);
 }
@@ -575,10 +575,8 @@ fn ajani_activates(game: &mut GameState, red_beside: bool) -> ObjectId {
 /// The waiting triggers on the stack, each aimed at player 1, in the order
 /// they triggered.
 fn place_each_at_the_opponent(game: &mut GameState, triggers: usize) {
+    // One ability's agreeing triggers are not ordered (CR 603.3b).
     let dp = ScriptedDecisionProvider::new();
-    if triggers > 1 {
-        dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, (0..triggers).collect());
-    }
     for _ in 0..triggers {
         dp.expect_choice(
             ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },

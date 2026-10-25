@@ -22,15 +22,11 @@
 //! game's counters and trace are an unaudited one's. The switch and the
 //! other shortcuts' audits are `engine::audit`'s.
 
-use std::sync::Arc;
-
 use super::dispatch::{LookBackSnapshot, MatchedTrigger, ObjectSnapshot, TriggerCandidate, TriggerCandidateFrame};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{BatchId, EventRecord, EventId};
-use crate::objects::card_data::CardDataBuilder;
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::GameState;
-use crate::types::effects::Effect;
 use crate::types::ids::{ObjectId, ObjectRef};
 
 /// The audit's state on a game that turned it on.
@@ -107,7 +103,7 @@ impl GameState {
     /// Every object in every zone that could carry a triggered ability
     /// (`GameState::objects_that_may_carry`).
     pub(super) fn objects_that_may_trigger(&self) -> Vec<ObjectId> {
-        self.objects_that_may_carry(|effect| matches!(effect, Effect::Triggered(_)))
+        self.objects_that_may_carry(|effect| effect.as_trigger().is_some())
     }
 
     /// The window's triggers over the candidate set with no shortcut in it.
@@ -127,47 +123,24 @@ impl GameState {
         for id in self.objects_that_may_trigger() {
             let Some(object) = self.objects.get(&id) else { continue };
             let Some(chars) = compute_characteristics(self, id) else { continue };
-            candidates.push(TriggerCandidate {
-                object: ObjectRef { id, zone_change_epoch: object.zone_change_epoch },
-                controller: controller_or_owner(self, id).unwrap_or(object.owner),
-                owner: object.owner,
-                zone: object.zone,
-                host: crate::oracle::board::host_of(self, id),
-                frame: TriggerCandidateFrame::Live { chars, snapshots: every_snapshot.clone() },
-                card: Arc::clone(&object.card_data),
-            });
+            let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
+            let controller = controller_or_owner(self, id).unwrap_or(object.owner);
+            let frame = TriggerCandidateFrame::Live { chars, snapshots: every_snapshot.clone() };
+            candidates.push(TriggerCandidate::live(object, existence, controller, crate::oracle::board::host_of(self, id), frame));
         }
         for (k, snapshot) in snapshots.iter().enumerate() {
             for frame in &snapshot.frames {
                 let lki = &frame.lki;
-                let id = lki.object().id;
                 let candidate = match self.find(lki.object()) {
-                    // Still here: its list as it was, under its controller then,
-                    // which a control change made someone else (CR 603.10).
-                    Some(object) => TriggerCandidate {
-                        object: lki.object(),
-                        controller: lki.characteristics().controller,
-                        owner: object.owner,
-                        zone: object.zone,
-                        host: crate::oracle::board::host_of(self, id),
-                        frame: TriggerCandidateFrame::Before { lki, snapshot: k },
-                        card: Arc::clone(&object.card_data),
-                    },
-                    // Moved or gone since the snapshot: as it was then, under
-                    // its controller then (CR 603.3a, 603.10a), the existence
-                    // that triggered.
-                    None => TriggerCandidate {
-                        object: lki.object(),
-                        controller: lki.characteristics().controller,
-                        owner: lki.owner(),
-                        zone: frame.zone,
-                        host: lki.host(),
-                        frame: TriggerCandidateFrame::LastKnown { lki, snapshot: Some(k) },
-                        card: match self.objects.get(&id) {
-                            Some(object) => Arc::clone(&object.card_data),
-                            None => CardDataBuilder::new(&lki.characteristics().name).build(),
-                        },
-                    },
+                    // Still here: its list as it was.
+                    Some(object) => {
+                        let host = crate::oracle::board::host_of(self, lki.object().id);
+                        let before = TriggerCandidateFrame::Before { lki, snapshot: k };
+                        TriggerCandidate::live(object, lki.object(), lki.characteristics().controller, host, before)
+                    }
+                    // Moved or gone since the snapshot: as it was then, the
+                    // existence that triggered.
+                    None => TriggerCandidate::from_lki(self, lki, frame.zone, Some(k)),
                 };
                 candidates.push(candidate);
             }

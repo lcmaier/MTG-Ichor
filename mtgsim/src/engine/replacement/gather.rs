@@ -389,11 +389,9 @@ fn gather_sweeping(
             let mut named: Vec<ObjectId> = Vec::new();
             if any_named_unattributed {
                 for row in game.continuous_effects.iter().filter(|r| puts_a_replacement_ability(r)) {
-                    match &row.affected_objects {
-                        ObjectSet::SourceOnly => named.push(row.source),
-                        ObjectSet::Fixed(ids) => named.extend(ids.iter().copied()),
-                        // A host is a permanent (CR 301.5, 303.4): the battlefield sweep's.
-                        ObjectSet::Host | ObjectSet::Filter { .. } => {}
+                    // A host is a permanent (CR 301.5, 303.4): the battlefield sweep's.
+                    if !matches!(row.affected_objects, ObjectSet::Host) {
+                        named.extend(row.affected_objects.named_objects(game, row.source).into_iter().flatten());
                     }
                 }
             }
@@ -634,12 +632,8 @@ pub(crate) fn replacement_exists(condition: Option<&Condition>, game: &GameState
 /// The replacement effect a static ability's body generates, and the "as
 /// long as" it exists under (CR 604.2): the one reading of that body.
 pub(crate) fn replacement_of(ability: &AbilityDef) -> Option<(&ReplacementDef, Option<&Condition>)> {
-    match &ability.effect {
-        Effect::Replacement(def) => Some((def, None)),
-        Effect::Conditional(condition, inner) => match &**inner {
-            Effect::Replacement(def) => Some((def, Some(condition))),
-            _ => None,
-        },
+    match ability.effect.with_its_condition() {
+        (condition, Effect::Replacement(def)) => Some((def, condition)),
         _ => None,
     }
 }
@@ -782,12 +776,10 @@ pub(crate) fn set_affects(
         EventSubject::Game => return false,
     };
     match affected {
-        ObjectSet::SourceOnly => source == id,
-        ObjectSet::Fixed(ids) => ids.contains(&id),
-        // CR 303.4m, by id like the two above: an entering permanent is
+        // CR 303.4m's host by id like the other two: an entering permanent is
         // attached to by nothing, so the frame has nothing to say.
-        ObjectSet::Host => {
-            crate::oracle::board::host_of(game, source) == Some(id)
+        named @ (ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host) => {
+            named.named_objects(game, source).into_iter().flatten().any(|named| named == id)
         }
         // On behalf of the effect, not a selection: `ObjectFilter::NotSource` is
         // "other than the effect's `source`", which a selection has no source for —

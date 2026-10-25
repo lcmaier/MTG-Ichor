@@ -961,10 +961,10 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         DamageTarget::Player(player) => player_in_log(player),
     };
     match event {
-        ZoneChange { object_id, owner, from, to, act, lki, applied, new_epoch: _ } => {
+        ZoneChange { departed, from, to, act, applied, new_epoch: _ } => {
             // The act says what was done and the CR 603.10a frame says every
             // type it had, which is what a Gideon or an artifact creature needs.
-            let was = lki.as_ref().map(|f| {
+            let was = departed.lki().map(|f| {
                 // Sorted: `types` is a `HashSet`, and an unsorted log line
                 // differs run to run.
                 let mut names: Vec<String> = f.characteristics().types.iter().map(|t| format!("{:?}", t)).collect();
@@ -972,23 +972,24 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 format!(" ({})", names.join(" "))
             }).unwrap_or_default();
             format!("ZoneChange: {}{} [{}] {:?} -> {:?} [{:?}] by {}{}",
-                    named(*object_id), was, player_in_log(*owner), from, to, act, cause_words(cause, named), replaced_by_words(applied.as_deref(), named))
+                    named(departed.object().id), was, player_in_log(departed.owner()), from, to, act, cause_words(cause, named), replaced_by_words(applied.as_deref(), named))
         }
-        ControlChanged { object_id, from, to, lki: _ } => {
-            format!("ControlChanged: {} [{} -> {}]", named(*object_id), player_in_log(*from), player_in_log(*to))
+        ControlChanged { to, lki } => {
+            let from = lki.characteristics().controller;
+            format!("ControlChanged: {} [{} -> {}]", named(lki.object().id), player_in_log(from), player_in_log(*to))
         }
-        SameZoneMove { object_id, owner, zone, act, lki: _, applied } => {
+        SameZoneMove { zone, act, lki, applied } => {
             format!("SameZoneMove: {} [{}] stays in {:?} [{:?}] by {}{}",
-                    named(*object_id), player_in_log(*owner), zone, act, cause_words(cause, named), replaced_by_words(applied.as_deref(), named))
+                    named(lki.object().id), player_in_log(lki.owner()), zone, act, cause_words(cause, named), replaced_by_words(applied.as_deref(), named))
         }
         AbilityActivated { identity, controller, .. } => format!(
             "AbilityActivated: {} [{}]", named(identity.source.id), player_in_log(*controller)),
-        AbilityTriggered { seq, origin, controller, .. } => {
+        AbilityTriggered { trigger, origin, controller, .. } => {
             let ability = triggered_ability_in_log(named(origin.source()), origin.identity());
             // An object's own trigger also by the number that orders it among
             // the waiting ones; a delayed trigger's name is its number.
-            let seq = if origin.identity().ability.delayed_trigger().is_some() { String::new() } else { format!(" #{}", seq.0) };
-            format!("AbilityTriggered: {ability} [{}]{seq}", player_in_log(*controller))
+            let number = if origin.identity().ability.delayed_trigger().is_some() { String::new() } else { format!(" #{}", trigger.0) };
+            format!("AbilityTriggered: {ability} [{}]{number}", player_in_log(*controller))
         }
         AbilityResolved { identity, controller } => format!(
             "AbilityResolved: {} [{}]", triggered_ability_in_log(named(identity.source.id), *identity), player_in_log(*controller)),
@@ -1113,8 +1114,12 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         SpellCast { spell_id, caster } => {
             format!("SpellCast: {} casts {}", player_in_log(*caster), named(*spell_id))
         }
-        SpellCountered { spell_id, controller, countered_by, .. } => format!(
-            "SpellCountered: {} [{}] countered by {}", named(*spell_id), player_in_log(*controller), named(*countered_by)),
+        SpellCountered { countered_by, lki } => format!(
+            "SpellCountered: {} [{}] countered by {}",
+            named(lki.object().id),
+            player_in_log(lki.characteristics().controller),
+            named(*countered_by)
+        ),
         AbilityCountered { identity, controller, countered_by } => format!(
             "AbilityCountered: {} [{}] countered by {}",
             ability_in_log(named(identity.source.id), *identity), player_in_log(*controller), named(*countered_by)),
@@ -1153,8 +1158,8 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             "Unattached: {} from {} ({:?})",
             named(attachment.id), named(former_host.id), route
         ),
-        LeftTheGame { object_id, owner, from, lki: _ } => {
-            format!("LeftTheGame: {} ({}, from {:?})", named(*object_id), player_in_log(*owner), from)
+        LeftTheGame { departed, from } => {
+            format!("LeftTheGame: {} ({}, from {:?})", named(departed.object().id), player_in_log(departed.owner()), from)
         }
         TokenCreated { object_id, owner, zone, .. } => {
             format!("TokenCreated: {} ({}, in {:?})", named(*object_id), player_in_log(*owner), zone)
@@ -1259,6 +1264,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+    use crate::events::event::DepartedObject;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
@@ -1666,7 +1672,7 @@ mod tests {
         use crate::state::game_state::{AbilityIdentity, StepType};
         use crate::types::effects::CounterType;
         use crate::types::ids::{AbilityId, UntilReturnId};
-        use crate::types::triggers::{DelayedDuration, TriggerOrigin, TriggerSeq};
+        use crate::types::triggers::{DelayedDuration, TriggerOrigin, TriggerId};
         use crate::types::zones::ZoneChangeAct;
 
         let mut object = || crate::test_support::put_on_battlefield(game, crate::test_support::vanilla_creature(1, 1, &[]), 0);
@@ -1682,12 +1688,10 @@ mod tests {
         let (attacker, walker, blocker, blocked, unblocked, exit, exit_blocked) = (id(), id(), id(), id(), id(), id(), id());
         vec![
             GameEvent::ZoneChange {
-                object_id: id(),
-                owner: 0,
+                departed: DepartedObject::WithoutLki { object: reference(game, id()), owner: 0 },
                 from: Zone::Battlefield,
                 to: Zone::Graveyard,
                 act: ZoneChangeAct::Destroyed,
-                lki: None,
                 applied: None,
                 new_epoch: 1,
             },
@@ -1712,7 +1716,7 @@ mod tests {
             GameEvent::AbilityResolved { identity: identity(game, id()), controller: 0 },
             GameEvent::AbilityActivated { identity: identity(game, id()), controller: 0, mana_ability: false, from: Zone::Battlefield, source_lki: None },
             GameEvent::Targeted { target: TargetRef::Object(reference(game, id())), by: id(), ability_source: Some(id()), controller: 0, instances: 1 },
-            GameEvent::AbilityTriggered { seq: TriggerSeq(0), origin: TriggerOrigin::Object(identity(game, id())), controller: 0, caused_by: Some(EventId(0)) },
+            GameEvent::AbilityTriggered { trigger: TriggerId(0), origin: TriggerOrigin::Object(identity(game, id())), controller: 0, caused_by: Some(EventId(0)) },
             GameEvent::DelayedTriggerCreated {
                 id: crate::types::ids::DelayedTriggerId(1),
                 source: id(),
@@ -1721,7 +1725,7 @@ mod tests {
                 duration: DelayedDuration::Once,
             },
             GameEvent::UntilReturnMade { id: UntilReturnId(1), source: id(), controller: 0, returns: vec![id()] },
-            GameEvent::SpellCountered { spell_id: counted, controller: 0, countered_by: id(), lki: lki(game, counted) },
+            GameEvent::SpellCountered { countered_by: id(), lki: lki(game, counted) },
             GameEvent::AbilityCountered { identity: identity(game, id()), controller: 0, countered_by: countered },
             GameEvent::SpellFizzled { spell_id: id(), controller: 0 },
             GameEvent::AbilityFizzled { identity: identity(game, id()), controller: 0 },
@@ -1740,9 +1744,9 @@ mod tests {
                 attachment_left: false,
                 former_host_left: false,
             },
-            GameEvent::ControlChanged { object_id: controlled, from: 0, to: 1, lki: lki(game, controlled) },
-            GameEvent::LeftTheGame { object_id: id(), owner: 1, from: Zone::Battlefield, lki: None },
-            GameEvent::SameZoneMove { object_id: kept, owner: 0, zone: Zone::Battlefield, act: ZoneChangeAct::Destroyed, applied: None, lki: lki(game, kept) },
+            GameEvent::ControlChanged { to: 1, lki: lki(game, controlled) },
+            GameEvent::LeftTheGame { departed: DepartedObject::WithoutLki { object: reference(game, id()), owner: 1 }, from: Zone::Battlefield },
+            GameEvent::SameZoneMove { zone: Zone::Battlefield, act: ZoneChangeAct::Destroyed, applied: None, lki: lki(game, kept) },
             GameEvent::TokenCreated { object_id: id(), owner: 0, zone: Zone::Battlefield, definition: Arc::new(crate::cards::phase_re_cards::goblin_token()) },
             GameEvent::TokenCeasedToExist { object_id: id() },
             GameEvent::StateBasedActionPerformed,
@@ -1827,7 +1831,7 @@ mod tests {
                 assert!(line.contains(&format!("{expected} (")), "{line:?} does not print {id} as {expected}");
             }
             let moved = match event {
-                GameEvent::ZoneChange { object_id, .. } | GameEvent::LeftTheGame { object_id, .. } => Some(*object_id),
+                GameEvent::ZoneChange { departed, .. } | GameEvent::LeftTheGame { departed, .. } => Some(departed.object().id),
                 _ => None,
             };
             // Every "#12)", the shape a line names an object in.
