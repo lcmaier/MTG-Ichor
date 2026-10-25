@@ -29,9 +29,9 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool
 /// An object as a reader takes it, named for CR 608.2h's "current
 /// information" and "last known information" (113.7a, 603.10): live, as it
 /// last existed once it has left the zone the reader expected it in, or as
-/// characteristics alone. A source dealing damage after it left is the
-/// customer (CR 609.7a, 702.15c, 702.2e): what it is, what it has, whose it
-/// is, and what a filter says of it.
+/// characteristics the reader already holds. A source dealing damage after
+/// it left is the customer (CR 609.7a, 702.15c, 702.2e): what it is, what it
+/// has, whose it is, and what a filter says of it.
 #[derive(Clone, Copy)]
 pub enum ObjectInformation<'a> {
     /// Still the existence the reader expects: read live, through the layers.
@@ -39,17 +39,29 @@ pub enum ObjectInformation<'a> {
     /// As it last existed: an ended existence's `Lki`, from the LKI store or a
     /// record. A survivor's frame from just before an event rides it, as it
     /// rides the `Lki` type: a control change's, a move a replacement kept in
-    /// its zone.
+    /// its zone, a survivor's list from before a batch (`LookBackSnapshot`).
     LastKnown(&'a Lki),
-    /// The catch-all: characteristics the asker already holds, for whatever
-    /// moment it asks about, and the asker owns which moment that is. Every
-    /// fact beyond the characteristics (tapped, attacking) is read live.
-    /// Today's five: a spell being cast (cost determination, CR 601.2f); a
-    /// permanent about to enter, plain or as a copy (CR 614.12); a
-    /// survivor's list from just before a batch (`LookBackSnapshot`, CR
-    /// 603.10); a history row's object as the event left it; and a live
+    /// Characteristics the asker already holds, from the moment it names,
+    /// which says where a reader finds what they do not carry.
+    Characteristics(ObjectId, &'a EffectiveCharacteristics, FrameMoment),
+}
+
+/// When characteristics an asker holds are from (`ObjectInformation::Characteristics`).
+/// A fact they do not carry (counters, combat, what the object did this
+/// turn) is read off the board only for a frame of now; a frame from any
+/// other moment answers only what it keeps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FrameMoment {
+    /// Now: a spell being cast (cost determination, CR 601.2f), or a live
     /// object whose list the asker already walked.
-    Characteristics(ObjectId, &'a EffectiveCharacteristics),
+    Now,
+    /// A permanent about to enter, plain or as a copy, as it would exist on
+    /// the battlefield (CR 614.12): a new object (CR 400.7) with no counters,
+    /// attachments, combat or turn behind it yet.
+    Entering,
+    /// A history row's object as the event left it, and the existence the
+    /// row names, which a scenario's stated row does not have.
+    AsTheEventLeftIt(Option<ObjectRef>),
 }
 
 impl<'a> ObjectInformation<'a> {
@@ -61,7 +73,7 @@ impl<'a> ObjectInformation<'a> {
     /// The object's id.
     pub fn id(&self) -> ObjectId {
         match self {
-            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _) => *id,
+            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, ..) => *id,
             ObjectInformation::LastKnown(lki) => lki.object().id,
         }
     }
@@ -75,14 +87,18 @@ impl<'a> ObjectInformation<'a> {
     }
 
     /// Which object it is, as an `ObjectRef`: for one that left, the object
-    /// that left, else the object now. A moved object is a new object (CR
+    /// that left; for a history row's, the one the row names; else the object
+    /// now. A moved object is a new object (CR
     /// 400.7), and a "choose a source" prevention (CR 609.7a) remembers its
     /// source this way, so it still matches damage from that source after the
     /// source has left the battlefield.
     pub fn existence(&self, game: &GameState) -> Option<ObjectRef> {
         match self {
             ObjectInformation::LastKnown(lki) => Some(lki.object()),
-            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _) => game.object_ref(*id),
+            ObjectInformation::Characteristics(_, _, FrameMoment::AsTheEventLeftIt(row_object)) => *row_object,
+            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameMoment::Now | FrameMoment::Entering) => {
+                game.object_ref(*id)
+            }
         }
     }
 
@@ -90,17 +106,23 @@ impl<'a> ObjectInformation<'a> {
         match self {
             ObjectInformation::LastKnown(lki) => Some(Arc::clone(lki.frame())),
             ObjectInformation::Current(id) => compute_characteristics(game, *id),
-            ObjectInformation::Characteristics(_, chars) => Some(Arc::new((*chars).clone())),
+            ObjectInformation::Characteristics(_, chars, _) => Some(Arc::new((*chars).clone())),
         }
     }
 
     /// What it is attacking (CR 506.3), as it is now, or as it left the
-    /// battlefield. `None` for a creature not attacking.
+    /// battlefield. `None` for a creature not attacking, and for a permanent
+    /// not yet on the battlefield (CR 614.12). A row's frame keeps no combat,
+    /// which a debug build says.
     pub fn attacking(&self, game: &GameState) -> Option<AttackTarget> {
         match self {
             ObjectInformation::LastKnown(lki) => lki.attacking(),
-            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _) => {
+            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameMoment::Now) => {
                 game.battlefield.get(id)?.attacking.as_ref().map(|attack| attack.target)
+            }
+            ObjectInformation::Characteristics(id, _, moment) => {
+                debug_assert!(*moment == FrameMoment::Entering, "what {id} attacked was asked of a history row's frame, which keeps no combat");
+                None
             }
         }
     }
@@ -126,7 +148,7 @@ impl<'a> ObjectInformation<'a> {
         match self {
             ObjectInformation::LastKnown(lki) => Some(lki.characteristics().controller),
             ObjectInformation::Current(id) => controller_or_owner(game, *id),
-            ObjectInformation::Characteristics(_, chars) => Some(chars.controller),
+            ObjectInformation::Characteristics(_, chars, _) => Some(chars.controller),
         }
     }
 

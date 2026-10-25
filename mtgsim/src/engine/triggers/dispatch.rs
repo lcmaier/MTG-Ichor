@@ -21,7 +21,7 @@
 use std::sync::Arc;
 
 use crate::engine::mana::ManaProducer;
-use crate::oracle::characteristics::ObjectInformation;
+use crate::oracle::characteristics::{FrameMoment, ObjectInformation};
 use crate::types::effects::Antecedent;
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::engine::layers::compute::compute_characteristics;
@@ -309,9 +309,10 @@ pub(super) enum TriggerCandidateFrame<'a> {
     /// window; `Some(k)` is the one snapshot `k` holds, which answers those
     /// of the records its batch performed (the audit's).
     LastKnown { lki: &'a Lki, snapshot: Option<usize> },
-    /// A surviving object's list from before a batch, off `LookBackSnapshot`
-    /// number `snapshot`.
-    Before { chars: &'a EffectiveCharacteristics, snapshot: usize },
+    /// A surviving object's list from before a batch: `LookBackSnapshot`
+    /// number `snapshot`'s frame of it, which keeps its counters, attachments
+    /// and combat as they were then too.
+    Before { lki: &'a Lki, snapshot: usize },
 }
 
 impl TriggerCandidateFrame<'_> {
@@ -319,19 +320,20 @@ impl TriggerCandidateFrame<'_> {
         match self {
             TriggerCandidateFrame::Live { chars, .. } => chars,
             TriggerCandidateFrame::LastKnown { lki, .. } => lki.characteristics(),
-            TriggerCandidateFrame::Before { chars, .. } => chars,
+            TriggerCandidateFrame::Before { lki, .. } => lki.characteristics(),
         }
     }
 
-    /// Object `id` as a filter reads it through this frame: by its last known
-    /// information for an object that left, which says who controlled it
-    /// then, and by these characteristics otherwise.
+    /// Object `id` as a filter reads it through this frame: by its frame from
+    /// before the event for an object that left or a survivor's list from
+    /// before a batch, which say who controlled it then and what was on it,
+    /// and by its list now otherwise.
     fn information(&self, id: ObjectId) -> ObjectInformation<'_> {
         match self {
-            TriggerCandidateFrame::LastKnown { lki, .. } => ObjectInformation::LastKnown(lki),
-            TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::Before { .. } => {
-                ObjectInformation::Characteristics(id, self.characteristics())
+            TriggerCandidateFrame::LastKnown { lki, .. } | TriggerCandidateFrame::Before { lki, .. } => {
+                ObjectInformation::LastKnown(lki)
             }
+            TriggerCandidateFrame::Live { chars, .. } => ObjectInformation::Characteristics(id, chars, FrameMoment::Now),
         }
     }
 
@@ -1310,13 +1312,13 @@ impl GameState {
 
     /// Each survivor's lists from before the window's snapshotting batches,
     /// by the snapshot that holds each.
-    fn lists_before<'a>(&self, snapshots: &'a [LookBackSnapshot]) -> IdMap<ObjectId, Vec<(usize, &'a EffectiveCharacteristics)>> {
-        let mut before: IdMap<ObjectId, Vec<(usize, &EffectiveCharacteristics)>> = IdMap::default();
+    fn lists_before<'a>(&self, snapshots: &'a [LookBackSnapshot]) -> IdMap<ObjectId, Vec<(usize, &'a Lki)>> {
+        let mut before: IdMap<ObjectId, Vec<(usize, &Lki)>> = IdMap::default();
         for (k, snapshot) in snapshots.iter().enumerate() {
             for frame in &snapshot.frames {
                 let object = frame.lki.object();
                 if self.find(object).is_some() {
-                    before.entry(object.id).or_default().push((k, frame.lki.characteristics()));
+                    before.entry(object.id).or_default().push((k, &frame.lki));
                 }
             }
         }
@@ -1328,7 +1330,7 @@ impl GameState {
     fn push_live_candidates<'a>(
         &'a self,
         ids: Vec<ObjectId>,
-        before: &mut IdMap<ObjectId, Vec<(usize, &'a EffectiveCharacteristics)>>,
+        before: &mut IdMap<ObjectId, Vec<(usize, &'a Lki)>>,
         candidates: &mut Vec<TriggerCandidate<'a>>,
     ) {
         for id in ids {
@@ -1343,13 +1345,13 @@ impl GameState {
             // object's triggers keep the order a single candidate gave them.
             let before_lists = earlier
                 .into_iter()
-                .map(|(snapshot, chars)| TriggerCandidateFrame::Before { chars, snapshot });
+                .map(|(snapshot, lki)| TriggerCandidateFrame::Before { lki, snapshot });
             let lists = std::iter::once(TriggerCandidateFrame::Live { chars, snapshots }).chain(before_lists);
             for frame in lists {
                 // A list from before the event is its controller's then (CR
                 // 603.10, 603.3a), which a control change made someone else.
                 let controller = match &frame {
-                    TriggerCandidateFrame::Before { chars, .. } => chars.controller,
+                    TriggerCandidateFrame::Before { lki, .. } => lki.characteristics().controller,
                     TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::LastKnown { .. } => controller,
                 };
                 candidates.push(TriggerCandidate {
@@ -2430,10 +2432,12 @@ impl GameState {
             // permanent at it, and "whenever enchanted creature deals damage"
             // never matches it, even an Aura on a new object that shares its id
             // after a flicker (CR 400.7).
+            // Nothing is attached to a permanent not yet on the battlefield,
+            // and a history row's frame keeps no attachments.
             TriggerSubject::Host => match object {
-                ObjectInformation::Current(id) => referents.host == Some(id),
+                ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameMoment::Now) => referents.host == Some(id),
                 ObjectInformation::LastKnown(lki) => !self.gone_before(event_id, lki) && lki.had_attached(referents.this.id()),
-                ObjectInformation::Characteristics(..) => false,
+                ObjectInformation::Characteristics(_, _, FrameMoment::Entering | FrameMoment::AsTheEventLeftIt(_)) => false,
             },
             TriggerSubject::Referred => referents.referred.iter().any(|r| r.is(self, id, event_id)),
             TriggerSubject::Filter(filter) => self.object_matches_filter(object, filter, &mut { *referents }),

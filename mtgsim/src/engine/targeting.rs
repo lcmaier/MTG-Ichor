@@ -660,11 +660,11 @@ impl GameState {
         referents: &mut impl FilterReferents,
     ) -> bool {
         let id = match object {
-            ObjectInformation::Characteristics(id, chars) => {
-                return object_filter::evaluate(self, filter, id, &|| Some(chars), None, referents);
+            ObjectInformation::Characteristics(_, chars, _) => {
+                return object_filter::evaluate(self, filter, object, &|| Some(chars), referents);
             }
             ObjectInformation::LastKnown(lki) => {
-                return object_filter::evaluate(self, filter, lki.object().id, &|| Some(lki.characteristics()), Some(lki), referents);
+                return object_filter::evaluate(self, filter, object, &|| Some(lki.characteristics()), referents);
             }
             ObjectInformation::Current(id) => id,
         };
@@ -674,7 +674,7 @@ impl GameState {
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
         let frame = || frame.get_or_init(|| compute_characteristics(self, id)).as_deref();
-        object_filter::evaluate(self, filter, id, &frame, None, referents)
+        object_filter::evaluate(self, filter, object, &frame, referents)
     }
 
     /// [`Self::object_matches_filter`] asked inside CR 601.2c's loop, where

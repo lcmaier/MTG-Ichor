@@ -150,7 +150,7 @@ impl GameState {
                         owner: object.owner,
                         zone: object.zone,
                         host: crate::oracle::board::host_of(self, id),
-                        frame: TriggerCandidateFrame::Before { chars: lki.characteristics(), snapshot: k },
+                        frame: TriggerCandidateFrame::Before { lki, snapshot: k },
                         card: Arc::clone(&object.card_data),
                     },
                     // Moved or gone since the snapshot: as it was then, under

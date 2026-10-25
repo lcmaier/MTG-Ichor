@@ -37,7 +37,7 @@ use crate::engine::zone_function::functions_as_static;
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
 use crate::objects::card_data::AbilityDef;
-use crate::oracle::characteristics::{controller_or_owner, ObjectInformation};
+use crate::oracle::characteristics::{controller_or_owner, FrameMoment, ObjectInformation};
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
@@ -804,7 +804,9 @@ pub(crate) fn set_affects(
                 return false;
             }
             game.object_matches_filter_of_source(
-                frame.and_then(|f| f.frame_of(id)).map_or(ObjectInformation::Current(id), |chars| ObjectInformation::Characteristics(id, chars)),
+                frame.and_then(|f| f.frame_of(id)).map_or(ObjectInformation::Current(id), |chars| {
+                    ObjectInformation::Characteristics(id, chars, FrameMoment::Entering)
+                }),
                 filter,
                 controller,
                 source,

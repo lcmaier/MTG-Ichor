@@ -303,7 +303,7 @@ impl GameState {
             }
             GameEvent::SameZoneMove { owner, zone, act, lki, .. } => {
                 let fact = RowFact::LeftZone { from: *zone, to: *zone, act: *act, became: lki.object() };
-                draft_history_row(Some(*owner), Some(lki.object()), RowFrame::AsTheEventLeftIt(Arc::clone(lki.frame())), fact);
+                draft_history_row(Some(*owner), Some(lki.object()), RowFrame::LastKnown(lki.clone()), fact);
             }
             GameEvent::LeftTheGame { owner, from, lki: Some(lki), .. } => {
                 let (object, frame) = departed(lki);

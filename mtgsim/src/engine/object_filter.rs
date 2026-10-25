@@ -21,7 +21,7 @@ use crate::state::history_log::CombatSpan;
 use crate::types::effects::{CounterType, ObjectFilter, PlayerRef};
 use crate::types::history::ObjectFact;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::triggers::Lki;
+use crate::oracle::characteristics::{FrameMoment, ObjectInformation};
 use crate::state::layer_memo::GatedWalkInput;
 
 /// What a filter's words for its own text mean where it is asked: CR 109.5's
@@ -167,6 +167,10 @@ enum FilterRefusal {
     InstanceNotAnnounced { object: ObjectId, instance: usize },
     /// `PowerLE` asked of an object with no power (CR 208.3).
     NoPower(ObjectId),
+    /// A fact the characteristics do not carry (counters, combat, what it did
+    /// this turn) asked of a frame from a moment that does not keep it, which
+    /// the board now cannot answer for (`FrameMoment`).
+    NotInTheFrame(ObjectId),
 }
 
 impl FilterRefusal {
@@ -178,7 +182,9 @@ impl FilterRefusal {
     fn is_malformed_question(self) -> bool {
         match self {
             FilterRefusal::ObjectGone(_) | FilterRefusal::NoPower(_) => false,
-            FilterRefusal::NoSource(_) | FilterRefusal::InstanceNotAnnounced { .. } => true,
+            FilterRefusal::NoSource(_) | FilterRefusal::InstanceNotAnnounced { .. } | FilterRefusal::NotInTheFrame(_) => {
+                true
+            }
         }
     }
 }
@@ -198,15 +204,21 @@ impl std::fmt::Display for FilterRefusal {
                  instances; a filter asked anywhere else cannot carry this leaf."
             ),
             FilterRefusal::NoPower(id) => write!(f, "Object {id} has no power"),
+            FilterRefusal::NotInTheFrame(id) => write!(
+                f,
+                "a filter asked {id}, read by a frame from another moment, for a fact the frame does not \
+                 keep and the board now does not answer: its counters, its combat, or what it did this turn"
+            ),
         }
     }
 }
 
-/// Does `id` match `filter`, over a frame `frame` supplies on demand (`None`
-/// for an object with none) and the words `referents` gives its text?
-/// `last_known` is the last known information the asker holds the frame
-/// with, which says who owned the object once the store has lost it (CR
-/// 108.3) and which counters it had (CR 122.1), neither a characteristic.
+/// Does `object` match `filter`, over a frame `frame` supplies on demand
+/// (`None` for an object with none) and the words `referents` gives its text?
+/// `object` says where a leaf finds what the frame does not carry: the board
+/// now, its last known information, which says who owned it once the store
+/// has lost it (CR 108.3) and which counters it had (CR 122.1), or nowhere,
+/// for a frame from a moment that keeps characteristics only.
 ///
 /// A refusal reads as no. A malformed question — a leaf the card wrote where
 /// the asker cannot answer it — is loud in a debug build and `cargo test`,
@@ -215,12 +227,11 @@ impl std::fmt::Display for FilterRefusal {
 pub(crate) fn evaluate<'f>(
     game: &GameState,
     filter: &ObjectFilter,
-    id: ObjectId,
+    object: ObjectInformation<'_>,
     frame: &impl Fn() -> Option<&'f EffectiveCharacteristics>,
-    last_known: Option<&Lki>,
     referents: &mut impl FilterReferents,
 ) -> bool {
-    match answer_or_refuse(game, filter, id, frame, last_known, referents) {
+    match answer_or_refuse(game, filter, object, frame, referents) {
         Ok(matches) => matches,
         Err(refusal) => {
             debug_assert!(!refusal.is_malformed_question(), "a filter was asked a malformed question: {refusal}");
@@ -236,18 +247,33 @@ pub(crate) fn evaluate<'f>(
 fn answer_or_refuse<'f>(
     game: &GameState,
     filter: &ObjectFilter,
-    id: ObjectId,
+    object: ObjectInformation<'_>,
     frame: &impl Fn() -> Option<&'f EffectiveCharacteristics>,
-    last_known: Option<&Lki>,
     referents: &mut impl FilterReferents,
 ) -> Result<bool, FilterRefusal> {
+    let id = object.id();
+    let last_known = object.lki();
     let chars = || frame().ok_or(FilterRefusal::ObjectGone(id));
     // Read only by the leaves no frame answers, and never of an object whose
     // last known information the asker holds: that object has left, and the
     // store answers for whatever it is now (CR 608.2h).
-    let object = || {
+    let in_store = || {
         debug_assert!(last_known.is_none(), "a filter leaf asked the store about {id}, which has left");
         game.objects.get(&id).ok_or(FilterRefusal::ObjectGone(id))
+    };
+    // Its battlefield entry, for a fact the frame does not carry: the board's
+    // now for a frame of now, and for a row's object only while the board
+    // still holds the existence the row names, since the turn a permanent
+    // entered and how it was cast never change for it (CR 400.7).
+    let entry = || match object {
+        ObjectInformation::Current(_) | ObjectInformation::Characteristics(_, _, FrameMoment::Now) => Ok(game.battlefield.get(&id)),
+        ObjectInformation::Characteristics(_, _, FrameMoment::AsTheEventLeftIt(row_object))
+            if row_object.is_some() && game.object_ref(id) == row_object =>
+        {
+            Ok(game.battlefield.get(&id))
+        }
+        ObjectInformation::Characteristics(..) => Err(FilterRefusal::NotInTheFrame(id)),
+        ObjectInformation::LastKnown(_) => Err(FilterRefusal::ObjectGone(id)),
     };
     match filter {
         ObjectFilter::All => Ok(true),
@@ -264,7 +290,7 @@ fn answer_or_refuse<'f>(
         // permanent a token.
         ObjectFilter::Token => match last_known {
             Some(lki) => Ok(lki.was_token()),
-            None => Ok(object()?.is_token),
+            None => Ok(in_store()?.is_token),
         },
         // The existence it is, or the one its frame kept (CR 400.7). An entry
         // is the permanent's own fact, and every other is the combat's.
@@ -275,9 +301,17 @@ fn answer_or_refuse<'f>(
             };
             let (log, turn) = (&game.history.log, game.turn_number);
             let note = |input| referents.note_gated_read(input);
-            let existence = || match last_known {
-                Some(lki) => Ok(lki.object()),
-                None => game.object_ref(id).ok_or(FilterRefusal::ObjectGone(id)),
+            // An entering permanent is a new object with no turn behind it
+            // yet, which the log cannot name.
+            let existence = || match object {
+                ObjectInformation::LastKnown(lki) => Ok(lki.object()),
+                ObjectInformation::Characteristics(_, _, FrameMoment::AsTheEventLeftIt(row_object)) => {
+                    row_object.ok_or(FilterRefusal::ObjectGone(id))
+                }
+                ObjectInformation::Characteristics(_, _, FrameMoment::Entering) => Err(FilterRefusal::NotInTheFrame(id)),
+                ObjectInformation::Current(_) | ObjectInformation::Characteristics(_, _, FrameMoment::Now) => {
+                    game.object_ref(id).ok_or(FilterRefusal::ObjectGone(id))
+                }
             };
             Ok(match fact {
                 ObjectFact::Attacked => log.attacked(existence()?, turn, span, &note),
@@ -287,7 +321,7 @@ fn answer_or_refuse<'f>(
                     note(GatedWalkInput::TurnNumber);
                     let entered = match last_known {
                         Some(lki) => lki.entered_turn(),
-                        None => game.battlefield.get(&id).map(|entry| entry.entered_battlefield_turn),
+                        None => entry()?.map(|entry| entry.entered_battlefield_turn),
                     };
                     span == CombatSpan::ThisTurn && entered == Some(turn)
                 }
@@ -297,7 +331,7 @@ fn answer_or_refuse<'f>(
                 ObjectFact::PutHere { from, act } => log.put_there(existence()?, *from, *act, turn, span, &note),
                 ObjectFact::WasCast => {
                     note(GatedWalkInput::TurnNumber);
-                    let entry = game.battlefield.get(&id).filter(|_| last_known.is_none()).ok_or(FilterRefusal::ObjectGone(id))?;
+                    let entry = entry()?.ok_or(FilterRefusal::ObjectGone(id))?;
                     span == CombatSpan::ThisTurn && entry.cast.is_some() && entry.entered_battlefield_turn == turn
                 }
                 ObjectFact::CameUnderControl => {
@@ -323,7 +357,7 @@ fn answer_or_refuse<'f>(
         ObjectFilter::ByOwner(who) => {
             let owner = match last_known {
                 Some(lki) => lki.owner(),
-                None => object()?.owner,
+                None => in_store()?.owner,
             };
             player_ref_names(game, who, owner, referents).ok_or(FilterRefusal::NoSource(id))
         }
@@ -331,9 +365,12 @@ fn answer_or_refuse<'f>(
             chars()?.power.map(|power| power <= *max_power).ok_or(FilterRefusal::NoPower(id))
         }
         ObjectFilter::WithCounters { kind, count } => {
-            let n = match last_known {
-                Some(lki) => lki.counters_of(*kind),
-                None => referents.counters_on(game, id, *kind),
+            let n = match object {
+                ObjectInformation::LastKnown(lki) => lki.counters_of(*kind),
+                ObjectInformation::Current(_) | ObjectInformation::Characteristics(_, _, FrameMoment::Now) => {
+                    referents.counters_on(game, id, *kind)
+                }
+                ObjectInformation::Characteristics(..) => return Err(FilterRefusal::NotInTheFrame(id)),
             };
             Ok(count.satisfied_by(u64::from(n)))
         }
@@ -349,22 +386,22 @@ fn answer_or_refuse<'f>(
             Ok(!earlier.instance_names(*ix, ResolvedTarget::Object(id)))
         }
         ObjectFilter::And(a, b) => {
-            let left = answer_or_refuse(game, a, id, frame, last_known, referents);
+            let left = answer_or_refuse(game, a, object, frame, referents);
             if left == Ok(false) {
                 return left;
             }
-            let right = answer_or_refuse(game, b, id, frame, last_known, referents);
+            let right = answer_or_refuse(game, b, object, frame, referents);
             if right == Ok(false) || left.is_ok() { right } else { left }
         }
         ObjectFilter::Or(a, b) => {
-            let left = answer_or_refuse(game, a, id, frame, last_known, referents);
+            let left = answer_or_refuse(game, a, object, frame, referents);
             if left == Ok(true) {
                 return left;
             }
-            let right = answer_or_refuse(game, b, id, frame, last_known, referents);
+            let right = answer_or_refuse(game, b, object, frame, referents);
             if right == Ok(true) || left.is_ok() { right } else { left }
         }
-        ObjectFilter::Not(inner) => answer_or_refuse(game, inner, id, frame, last_known, referents).map(|matches| !matches),
+        ObjectFilter::Not(inner) => answer_or_refuse(game, inner, object, frame, referents).map(|matches| !matches),
     }
 }
 
