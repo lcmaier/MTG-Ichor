@@ -137,7 +137,7 @@ pub struct EffectiveCharacteristics {
 
 **Amendment (2026-08-23, Layer 2 phase) — `control_since_turn`.** CR 302.6 asks whether a creature has been under its controller's control "continuously since their most recent turn began", so the answer to "who controls this" is only half of what summoning sickness needs. `PermanentState.controller_since_turn` cannot supply the other half once Layer 2 exists: control from a continuous effect is *derived*, so a `Duration::UntilEndOfTurn` steal reverts at cleanup with no mutation to hang a field update on and no event to hook. Computing it beside the controller it describes is what makes reversion need nothing at all — the value stops being computed when the row leaves the registry.
 
-The battlefield field survives as the seed, and still owns every control change that is not a Layer 2 effect (entering the battlefield, today the only one). The Layer 2 arm of `apply_modification` overwrites it **only when the controller actually changes**: CR 302.6 asks whether control was *continuous*, and gaining control of a permanent you already control is not a change.
+The battlefield field survives as the seed, and still owns every control change that is not a Layer 2 effect (entering the battlefield, today the only one). (Since #293 the seed is `entered_battlefield_turn` itself, the field it always equalled: item 325.) The Layer 2 arm of `apply_modification` overwrites it **only when the controller actually changes**: CR 302.6 asks whether control was *continuous*, and gaining control of a permanent you already control is not a change.
 
 ### 3.3 `ContinuousEffect`
 
