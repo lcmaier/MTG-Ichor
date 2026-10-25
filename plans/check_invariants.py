@@ -96,7 +96,9 @@ ITERATING_METHOD = r"(iter|iter_mut|keys|values|values_mut|into_iter|into_keys|i
 #: Another type's field that shares a name with a field read here, by the name
 #: that precedes it.
 NOT_GAME_STATE = {
-    "objects": ("referred",),  # `TriggerBinding.referred.objects`, a `Vec`
+    # `TriggerBinding.referred.objects`, a `Vec`; an effect's `Affected` half,
+    # an `ObjectSet`.
+    "objects": ("referred", "affected"),
     "tapped": ("reserved",),  # `mana_supply`'s reservation, not a permanent
 }
 

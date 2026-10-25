@@ -1444,7 +1444,8 @@ impl GameState {
                 let mut rows: Vec<RestrictionDef> = Vec::new();
                 let fill = |set: ObjectSet| {
                     let mut filled = def.clone();
-                    filled.what.affected_mut().objects = set;
+                    let affected = filled.what.affected_mut();
+                    affected.objects = set;
                     filled
                 };
                 if *def.what.affected() == Affected::NOTHING {
