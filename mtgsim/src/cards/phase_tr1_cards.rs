@@ -2,7 +2,7 @@
 //!
 //! Every oracle text below was verified on Scryfall on 2026-09-19 and is
 //! quoted verbatim; each card's rulings were read the same day and sit in
-//! its own doc comment (`engineering-practices.md` §3.4). One card per
+//! its own doc comment (`engineering-practices.md#rulings`). One card per
 //! engine path the phase opens, and the three that measure a path are in
 //! `PERFORMANCE_POOL`:
 //!

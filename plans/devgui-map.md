@@ -4,7 +4,7 @@
 build a board, play every seat of a game on it, and watch the engine answer.
 It names the parts, follows one question from the engine to the window and
 back, and says how each part is reviewed. The rules for GUI code are
-`engineering-practices.md` §10; the window's tools are `setup-architecture.md`
+`engineering-practices.md#the-dev-gui`; the window's tools are `setup-architecture.md`
 §7. Read at `7b7a8bc`, the dev GUI audit's last code commit, 2026-10-06.
 
 ## 1. What it is
@@ -34,7 +34,7 @@ mechanic.
 | The prompt | `prompt.rs` | the question as plain data: who is asked, what, and each option's label and the cards it names | closely |
 | The view model | `view_model.rs` | turns a snapshot and a prompt into what the window shows, and clicks into an answer | closely |
 | The board editor | `editor.rs`, `boards.rs`, `search.rs` | a board built by clicking and saved as a scenario, a folder per board (SU-3), or as a new board under a name typed (#231); behind its Advanced switch, a line of the file typed in and each player's rows as controls (§11) | closely |
-| The drawing | `app.rs` | lays out what the view model and the editor built, and reports clicks. It decides nothing | against §10.1's checklist, and by running |
+| The drawing | `app.rs` | lays out what the view model and the editor built, and reports clicks. It decides nothing | against [the egui checklist](#the-egui-checklist), and by running |
 
 The line between them is a gate: only `app.rs`, `main.rs` and
 `tests/screenshots.rs` may name egui, and none of those may name the engine
@@ -57,8 +57,8 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
    and the question (`Prompt`), sends both as `ToWindow::Prompt`, wakes the
    window, and waits. Nothing writes the game while its question is open, so
    the seat reads it with the layer memo's debug audit checking each frame
-   once (`GameState::audit_each_frame_once`, `engineering-practices.md`
-   §10.4), where a debug build would otherwise walk the board again at every
+   once (`GameState::audit_each_frame_once`,
+   `engineering-practices.md#what-one-prompt-costs-the-window`), where a debug build would otherwise walk the board again at every
    read.
 4. **The window shows it.** `WindowState::receive`, the view model, builds
    what to draw: Lightning Bolt marked clickable, a Pass button. `app.rs`
@@ -98,7 +98,7 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
 
 ## 5. Who computes what
 
-From `engineering-practices.md` §10, and A6g's rule (the owner): **the window
+From `engineering-practices.md#the-dev-gui`, and A6g's rule (the owner): **the window
 draws only the engine's generic surfaces**, the layer output,
 `ChoiceKind::subject()`, the options' ids, `ui::display`'s formatters and the
 trace sink, never a case per mechanic. What it cannot draw from them is an
@@ -116,7 +116,7 @@ gave it (you, a decorator, or the engine's own pass), so a game writes the
 same record whatever its seats were set to. The bridge only puts its lines in
 the files. The save's own lines, where the window was asked, the savestates
 and the moves, are the window's: which questions reach a person is one
-client's choice, so they stay out of the log (`engineering-practices.md` §10).
+client's choice, so they stay out of the log (`engineering-practices.md#the-dev-gui`).
 
 ## 6. Files on disk
 
@@ -140,7 +140,7 @@ From `devgui/`, where `cargo run` runs the window:
   here.
 - `tests/random_clicks.rs`: whole games played by seeded random clicks on
   anything the window offers. Every click must change the answer or complete
-  it (§10.3). The board editor's clicks too, with no game, the advanced
+  it ([random clicks](#random-clicks)). The board editor's clicks too, with no game, the advanced
   settings' among them: each must change the board or what is shown.
 - `tests/tools.rs`: Undo answer, savestates and the menu, the save and
   `--load`, on short boards through the session, with a replay superseded
@@ -158,20 +158,123 @@ From `devgui/`, where `cargo run` runs the window:
   frame without drawing it (`SKIP_SNAPSHOTS`), since its renderer is not the
   owner's machine and its runner has no GPU, so a board that stops reaching
   its picture's question fails there (`codebase-state.md` item 216).
-- `examples/prompt_cost.rs`: what one question costs the window (§10.4), and
+- `examples/prompt_cost.rs`: what one question costs the window
+  (`engineering-practices.md#what-one-prompt-costs-the-window`), and
   in a debug build what the layer memo's audit costs it. A PR that touches
   the snapshot or the view model quotes it before and after.
+
+### Random clicks
+
+`devgui/tests/random_clicks.rs` plays whole games with every seat's part
+taken by seeded random clicks, through `WindowState::input`. At each prompt it
+clicks anything the window would let a person click (a live button, a board
+item marked clickable, "Start over" or a yield one click in twenty, each live
+button's key, full control switched one prompt in twenty-five) until an answer
+completes: the half chosen and abandoned, the ordering reset midway, the
+bucket filled and emptied that no fixed rule makes. Three dealt seeds a pool,
+and three seeds on each review board and on the four-seat sample.
+
+- **Each game must finish**, the engine's thread must not panic, the engine
+  must accept every answer the view model builds, and every click the window
+  offers must change the answer or complete it: the view model asks one probe,
+  `Selection::is_live`, which runs the click on a copy.
+- **Each prompt, and each time a why opens or closes the panel, must first
+  drop a click and offer nothing in its beat**, and the dealt games must meet
+  the board's beat at least once.
+- **The board editor has random clicks of its own, with no game**: from an
+  empty board and four samples, clicks of anything it offers but Play and
+  Save, chosen by group first so the long list of names does not crowd out the
+  board, the advanced settings' switch, field and player rows among them, and
+  a name typed for Save as. Every click must change the board or what is
+  selected, the board must be its own text read back, and Undo must walk back
+  to the board opened; the run fails unless every kind was clicked.
+- **The debug build is the point.** The layer memo's audit runs in it, and the
+  window's snapshot reads every object at every prompt, which no engine test
+  does; the engine compiles at opt-level 1 there, its debug checks on.
+
+What each addition found is in
+`archive/engineering-practices-records.md#103-random-clicks`.
 
 ## 8. Reviewing a GUI PR
 
 1. Find the parts it touches in §2. Most PRs touch the plain-Rust ones: read
    them as engine code, asking whether a test fails when the code breaks.
-2. Read changes to `app.rs` against §10.1's checklist: per-frame work, never
+2. Read changes to `app.rs` against the egui checklist below: per-frame work, never
    waiting, where state lives, repaints, how threads end, errors in words,
    widget ids, and a click landing on a screen that just changed.
 3. Run the PR's click script, written in Magic terms, and look at its
    pictures. The check only a person can make is whether the window shows the
    game right.
+
+### The egui checklist
+
+A GUI PR's review reads each drawing file against these questions, and a
+review agent given the PR is given this section. egui is immediate mode:
+`eframe::App::ui` runs whole at every repaint, which is every pointer move over
+the window, every key, and every message the engine's thread wakes it for, and
+everything a drawing function calls runs that often.
+
+1. **Per-frame work and allocation.** Does a call's result change between two
+   frames that had no new message and no input? If not, it is built where the
+   change happens (`WindowState::receive`, `WindowState::input`) and the frame
+   only reads it, unless `prompt_cost`'s reading says it is too small to matter,
+   which is a measurement and not an argument. A list that grows with the game is drawn
+   through `ScrollArea::show_rows`, so a frame costs the rows on screen, and
+   every row is the one height `show_rows` was given: a row that wraps breaks
+   its arithmetic.
+2. **Blocking the UI thread.** Nothing a frame calls waits: `try_recv`, never
+   `recv`; no `join`, no `sleep`, no lock held across engine work, no file
+   read. A small read or write at a click, such as a board opened or saved, a
+   save `--load` reads, or the folder of boards listed again, is allowed;
+   anything slower is a thread whose result comes back as a message. The
+   engine's thread blocks on `recv` by design, and the UI thread never does.
+3. **What owns state between frames.** A value that survives a frame and can
+   change an answer is a field of the plain-Rust state, changed only through
+   `Session::input`; drawing takes the state by shared reference and returns
+   `Input`s. egui's own memory holds only what may reset with no answer
+   changing: a header's open flag, a scroll offset, a panel's width. No
+   `static`, `thread_local!`, `Cell` or `ui.data_mut` in a drawing file. A
+   widget that edits a value in place (`DragValue`) edits a copy, and the
+   change goes out as an `Input`.
+4. **Repaints.** eframe repaints on input and on request, so every message the
+   engine's thread sends is followed by the `wake` that requests a repaint, or
+   the window shows a stale board until the pointer moves. Nothing requests a
+   repaint unconditionally from inside a frame, which is a busy loop at full
+   CPU.
+5. **The lifetimes of threads and channels.** For each thread: what ends it,
+   and what each end of each channel does when its partner is gone. A
+   superseded game's thread ends when its channel closes, which is normal and
+   prints nothing, and nothing it does afterward reaches a file or a window that
+   a new game owns.
+6. **Errors shown to the person.** Every failure a person can cause or meet
+   reaches the window in words: what happened, and what to do. A refusal (a
+   scenario that does not load, a file that cannot be written) reads
+   differently from an engine panic, which is a bug report and says where its
+   decision log is. Nothing the person does ends in a panic on the UI thread,
+   or in a message only the terminal shows.
+7. **egui ids.** A stateful widget (`CollapsingHeader`, `ScrollArea`,
+   `ComboBox`, a window, a `DragValue` being typed into) keeps its state under
+   an id taken from its label unless it is given one. Two with one label in
+   one parent share their state, and one whose label changes loses it: a
+   header labeled "Graveyard (3)" snaps shut when a card arrives. Each gets an
+   `id_salt` from a key that names what it shows (the seat, the zone), never
+   from a list position or the label's text.
+8. **Input read against a changed frame.** egui reads a click against the
+   layout drawn in the frame that reads it. A prompt that replaces another
+   under the pointer takes the second click of a double click, or a held key's
+   repeat, that the person aimed at the first. The window's answer
+   (`codebase-state.md` item 201): for `SETTLE_SECONDS` after a prompt
+   arrives, `WindowState` drops any input that could answer it and shows
+   nothing live; a key's repeat answers nothing; and each prompt's widgets
+   take an id from its number, so focus dies with its prompt. A new kind of
+   input goes through `WindowState::input`, where the beat is. The same beat
+   follows two other moves (the dev GUI audit): the why panel opening or
+   closing slides the board, so a board click is dropped and the board offers
+   nothing for the beat after (`WindowState::board_settling_for`); and the
+   game and the editor switching, or another board opening, replace the
+   window, so every click is dropped (`Session::input`). A control drawn after
+   text that changes width moves under the pointer too, so each header draws
+   its buttons first, each whether or not it can act.
 
 ## 9. Where the tools sit
 

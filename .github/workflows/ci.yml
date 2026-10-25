@@ -1,7 +1,7 @@
 # Correctness only. This workflow deliberately does not gate on any timing
 # number: shared runners vary 2-3x run to run, so a performance gate here would
 # be flake rather than signal. The performance-pool A/B stays a local measurement at
-# `--threads 1` — see `plans/engineering-practices.md` §3.1.
+# `--threads 1` — see `plans/engineering-practices.md#the-close-out`.
 name: CI
 
 on:
@@ -91,14 +91,14 @@ jobs:
       - name: Build the fuzz harness
         run: cargo build --release --bin fuzz_games
 
-      # Floors 2 and 3 (`plans/engineering-practices.md` §3.1): what one clone
-      # of a Commander game allocates, against 64 allocations and 128 KB, at
-      # item 143's checkpoints and every decision, and on the fixture boards no
-      # seed reaches (an 8,000-trigger stack, a token churn); and what a fork
-      # copies between two decisions (`plans/clone-architecture.md` decision
-      # 6). Release, because a debug build's layer-memo audit re-walks every
-      # hit: 675 s there against about a second here, and about 15 s of build
-      # beside the harness's.
+      # Floors 2 and 3 (`plans/engineering-practices.md#the-floors`): what one
+      # clone of a Commander game allocates, against 64 allocations and 128 KB,
+      # at item 143's checkpoints and every decision, and on the fixture boards
+      # no seed reaches (an 8,000-trigger stack, a token churn); and what a fork
+      # copies between two decisions (`plans/clone-architecture.md` decision 6).
+      # Release, because a debug build's layer-memo audit re-walks every hit:
+      # 675 s there against about a second here, and about 15 s of build beside
+      # the harness's.
       - name: Clone bound — allocations and bytes per clone
         run: cargo test --release --test clone_bound_test --test clone_fixture_test --test fork_copies_test
 
@@ -131,8 +131,9 @@ jobs:
 
       # The same sweep over every registered card, so a card no `performance`
       # deck holds is still played: that pool changes only on purpose, so its
-      # readings compare across PRs (`engineering-practices.md` §3), and this
-      # one is where a new card's paths are met.
+      # readings compare across PRs
+      # (`engineering-practices.md#cards-and-pools`), and this one is where a
+      # new card's paths are met.
       - name: Fuzz — stress pool (every registered card)
         run: cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --pool stress
 
@@ -202,12 +203,12 @@ jobs:
         run: python3 plans/check_state_of_play.py --check
 
       # A ruling a registered card carries and no test names
-      # (`engineering-practices.md` §3.4a). Offline like the rest: the
-      # ledger is checked in, the fetch that refreshes it is manual, and
-      # `--check` reads the ledger and the `// RULING:` annotations only.
-      # So drift — Scryfall adding a ruling to a card that was correct
-      # when it was registered — fails in the pull request that re-fetches,
-      # and never in one whose branch touched nothing.
+      # (`engineering-practices.md#the-ledger-and-its-gate`). Offline like the
+      # rest: the ledger is checked in, the fetch that refreshes it is manual,
+      # and `--check` reads the ledger and the `// RULING:` annotations only. So
+      # drift — Scryfall adding a ruling to a card that was correct when it was
+      # registered — fails in the pull request that re-fetches, and never in one
+      # whose branch touched nothing.
       - name: Rulings ledger
         working-directory: .
         run: python3 plans/check_rulings.py --check
@@ -246,34 +247,43 @@ jobs:
         run: python3 plans/check_engine_map.py
 
       # The dev GUI's rule, logic in plain Rust under tests and egui only
-      # drawing (`engineering-practices.md` §10.2): no file but the drawing
-      # files names a window crate, and no drawing file names the engine.
-      # GUI code is what a review can least read line by line, so the line
-      # between the two is held here. Reads files only.
+      # drawing (`engineering-practices.md#the-dev-gui`): no file but the
+      # drawing files names a window crate, and no drawing file names the
+      # engine. GUI code is what a review can least read line by line, so the
+      # line between the two is held here. Reads files only.
       - name: egui only draws
         working-directory: .
         run: python3 plans/check_egui_only_draws.py
 
       # Three of CLAUDE.md's invariants, read off the source
-      # (`engineering-practices.md` §11): a printed characteristic read outside
-      # `oracle/`, an iteration over a hash field of `GameState`, and a write of
-      # a field whose change is an event outside the file that performs it.
-      # Each fails unless a tag in the source says why the rule does not apply
-      # there; the known violations are listed in the script by item. Review
-      # held these alone, and each was broken again within weeks of being
-      # written. Reads files only.
+      # (`engineering-practices.md#invariant-gates`): a printed characteristic
+      # read outside `oracle/`, an iteration over a hash field of `GameState`,
+      # and a write of a field whose change is an event outside the file that
+      # performs it. Each fails unless a tag in the source says why the rule
+      # does not apply there; the known violations are listed in the script by
+      # item. Review held these alone, and each was broken again within weeks of
+      # being written. Reads files only.
       - name: Invariants
         working-directory: .
         run: python3 plans/check_invariants.py
 
-  # The guards a release build compiles out, played over every registered
-  # card: each `debug_assert!`, and with them the layer walk's and the memo's
-  # audits, the mana watcher's and the pipeline's (`engineering-practices.md`
-  # §11.5). The `check` job's sittings are release, so they play past all of
-  # them. A job of its own, beside `check` rather than after it, because the
-  # audits make a game about a hundred times slower: 200 stress games took
-  # 25 s here against 0.21 s in release at 16 threads (2026-10-13). So this
-  # plays the first 50 of the same seed's games, 14 s at four threads.
+      # The practices page stays a page of rules, under its line budget, and a
+      # citation of a doc's section names a heading that exists: a section
+      # number says nothing about where it leads, and an anchor that names no
+      # heading leads nowhere. Reads files only.
+      - name: Practices page and section anchors
+        working-directory: .
+        run: python3 plans/check_practices_page.py
+
+  # The guards a release build compiles out, played over every registered card:
+  # each `debug_assert!`, and with them the layer walk's and the memo's audits,
+  # the mana watcher's and the pipeline's
+  # (`engineering-practices.md#the-checked-sitting`). The `check` job's sittings
+  # are release, so they play past all of them. A job of its own, beside `check`
+  # rather than after it, because the audits make a game about a hundred times
+  # slower: 200 stress games took 25 s here against 0.21 s in release at 16
+  # threads (2026-10-13). So this plays the first 50 of the same seed's games,
+  # 14 s at four threads.
   fuzz-checked:
     runs-on: ubuntu-latest
     defaults:
@@ -293,8 +303,9 @@ jobs:
       - name: Fuzz — stress pool, debug assertions on
         run: cargo run --profile release-checked --bin fuzz_games -- --games 50 --seed 12345 --pool stress
 
-      # Every card and the castable fixtures (`engineering-practices.md` §3),
-      # played only here, where the debug checks their builds carry fire.
+      # Every card and the castable fixtures
+      # (`engineering-practices.md#cards-and-pools`), played only here, where
+      # the debug checks their builds carry fire.
       - name: Fuzz — fixture pool, debug assertions on
         run: cargo run --profile release-checked --bin fuzz_games -- --games 50 --seed 12345 --pool fixtures
 

@@ -797,8 +797,9 @@ impl GameState {
         if !matched.arm().watches_its_host_leave() || self.find(aura).is_some() {
             return None;
         }
-        // `aura-found-in-graveyard`'s switch (`engineering-practices.md`
-        // §3.4b), with the CR 704.5m hook's: the graveyard only.
+        // `aura-found-in-graveyard`'s switch
+        // (`engineering-practices.md#when-a-ruling-and-the-cr-disagree`), with
+        // the CR 704.5m hook's: the graveyard only.
         self.events.held().iter().find_map(|record| match &record.event {
             GameEvent::ZoneChange { to: Zone::Graveyard, lki: Some(lki), .. } if lki.object() == aura => record.event.new_object(),
             _ => None,

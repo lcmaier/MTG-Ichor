@@ -101,7 +101,8 @@ fn board_with(card: Arc<CardData>) -> (GameState, ObjectId, ObjectId) {
 }
 
 /// Layer questions the oracle was asked — walks plus memo hits, which is
-/// `engineering-practices.md` §3's reading of those two rows together.
+/// `engineering-practices.md#the-cost-rows`'s reading of those two rows
+/// together.
 fn layer_queries(game: &GameState) -> u64 {
     game.diagnostics.layer_walks() + game.diagnostics.memo_hits()
 }

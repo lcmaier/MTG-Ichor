@@ -1,8 +1,8 @@
 //! A6e's cleanup, `history-and-frame-records`: the castable fixtures whose
 //! builds carry a debug check, which `--pool fixtures` plays in the checked
-//! sitting (`engineering-practices.md` §3). Invented, named as fixtures, and
-//! never in `default_registry`: each stands for a family of printed cards no
-//! registered card covers yet.
+//! sitting (`engineering-practices.md#cards-and-pools`). Invented, named as
+//! fixtures, and never in `default_registry`: each stands for a family of
+//! printed cards no registered card covers yet.
 //!
 //! | Fixture | Stands for | The check it reaches |
 //! |---|---|---|

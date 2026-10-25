@@ -3,7 +3,7 @@
 //!
 //! The oracle text below was verified on Scryfall on 2026-10-19 and
 //! 2026-10-20 and is quoted verbatim; each card's rulings were read the same
-//! day and sit in its doc comment (`engineering-practices.md` §3.4).
+//! day and sit in its doc comment (`engineering-practices.md#rulings`).
 //!
 //! | Card | The path | Pooled |
 //! |---|---|---|

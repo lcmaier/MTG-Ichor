@@ -715,11 +715,12 @@ fn angelic_destiny_gone_from_the_graveyard_is_not_returned() {
 }
 
 /// CR 400.7f finds the Aura in its owner's graveyard and nowhere else. Under
-/// Leyline of the Void the opponent's creature dies into its own graveyard
-/// and the trigger fires, but CR 704.5m's move of the Aura is replaced by an
-/// exile, so the card is never in the graveyard and stays in exile. The CR's
-/// text, against a reading that would find the card in the first public zone
-/// it went to: `engineering-practices.md` §3.4b's `aura-found-in-graveyard`.
+/// Leyline of the Void the opponent's creature dies into its own graveyard and
+/// the trigger fires, but CR 704.5m's move of the Aura is replaced by an exile,
+/// so the card is never in the graveyard and stays in exile. The CR's text,
+/// against a reading that would find the card in the first public zone it went
+/// to: `engineering-practices.md#when-a-ruling-and-the-cr-disagree`'s
+/// `aura-found-in-graveyard`.
 #[test]
 fn angelic_destiny_exiled_instead_of_its_state_based_move_is_not_returned() {
     let mut game = setup_two_player_game();

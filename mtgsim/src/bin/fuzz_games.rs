@@ -50,7 +50,7 @@
 // baseline was measured on and is the default, because an A/B against a pool
 // that moved is not an A/B; `stress` is every registered card, which is what
 // hunts panics and exercises effect interactions. See
-// `plans/engineering-practices.md` § "Two card pools".
+// `plans/engineering-practices.md#cards-and-pools`.
 //
 // `--seed N` is a full reproducibility contract: the same seed replays the same
 // games, turn for turn, in any process. Each game's three RNG streams — decks,
@@ -153,11 +153,11 @@ struct Args {
     scenario: Option<Scenario>,
     /// How many players sit at the table — one random deck each, `--players`.
     ///
-    /// Two by default, which keeps every earlier phase's output byte
-    /// identical. Four is v1's target and the run `engineering-practices.md`
-    /// §3 keeps a separate table for: it is where a player leaves the game
-    /// while it continues (CR 800.4), and nothing about that board is reachable
-    /// at two.
+    /// Two by default, which keeps every earlier phase's output byte identical.
+    /// Four is v1's target and the run
+    /// `engineering-practices.md#cards-and-pools` keeps a separate table for:
+    /// it is where a player leaves the game while it continues (CR 800.4), and
+    /// nothing about that board is reachable at two.
     players: usize,
     /// Cards per deck, `--deck-size`. Sixty by default, which is every
     /// recorded table's board and leaves `random_deck`'s RNG stream exactly
@@ -1517,8 +1517,8 @@ fn main() {
         // Engine work, and a *fixture* like the block above rather than a benchmark
         // like `=== Timing ===`: every number here is a pure function of the seed
         // and the card pool, so it is comparable across machines and months, which
-        // `ms/game` is not (`engineering-practices.md` §3 stores these and refuses
-        // to store that).
+        // `ms/game` is not (`engineering-practices.md#cards-and-pools` stores these
+        // and refuses to store that).
         //
         // **Read `Board walks` beside `Layer walks` first.** A layer walk is a memo
         // *miss*; a miss for a permanent walks the whole working set and fills the
@@ -1560,11 +1560,12 @@ fn main() {
         println!("  Prevention allocations: {:>2.2}", agg_stats.avg(agg_stats.total_prevention_allocations));
         // `DecisionProvider` prompts with two or more legal answers, per game —
         // `codebase-state.md` item 138's unit, and the denominator
-        // `engineering-practices.md` §3.1's ratchet reads CPU per game against.
-        // Not the prompt count: the engine asks at every priority point and
-        // most of those offer only `Pass`, so a prompt count measures the pass
-        // loop where this measures what an agent is handed. The second row is
-        // the first one's priority share, `backlog.md` §2.22's B boundary.
+        // `engineering-practices.md#the-budget`'s ratchet reads CPU per game
+        // against. Not the prompt count: the engine asks at every priority
+        // point and most of those offer only `Pass`, so a prompt count measures
+        // the pass loop where this measures what an agent is handed. The second
+        // row is the first one's priority share, `backlog.md` §2.22's B
+        // boundary.
         println!("  Decisions:        {:>8.0}", agg_stats.avg(agg_stats.total_decisions));
         println!("  Priority decisions: {:>6.0}", agg_stats.avg(agg_stats.total_priority_decisions));
         // Priority actions offered, begun and reversed (CR 732.1), per game:

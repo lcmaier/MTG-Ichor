@@ -67,10 +67,10 @@ use super::phase_cm_cards;
 ///
 /// **The rule: a phase that opens a new engine path adds one card here,
 /// deliberately, and re-records the gameplay table in
-/// `plans/engineering-practices.md` §3.** That table's seed-deterministic rows
-/// — turns, spells cast, creatures died — are what an addition invalidates and
-/// what still has to be re-measured. Registering a card is still not the same
-/// act as adding one here.
+/// `plans/engineering-practices.md#cards-and-pools`.** That table's
+/// seed-deterministic rows — turns, spells cast, creatures died — are what an
+/// addition invalidates and what still has to be re-measured. Registering a
+/// card is still not the same act as adding one here.
 const PERFORMANCE_POOL: [&str; 124] = [
     "Plains",
     "Island",
@@ -241,7 +241,7 @@ const PERFORMANCE_POOL: [&str; 124] = [
     // Not legendary and mono-red at four mana, which is the point: CR 614.5's
     // own example is two of these multiplying damage by 4, and that branch is
     // reachable from a registered board only through a pooled pair
-    // (`engineering-practices.md` §3.3, tier 1).
+    // (`engineering-practices.md#how-many-cards-a-mechanic-owes`, tier 1).
     //
     // Ghosts of the Innocent, Gisela and Angel of Suffering stay out: Ghosts
     // opens the same path as Furnace at seven mana, Gisela is {4}{R}{W}{W} and
@@ -318,7 +318,7 @@ const PERFORMANCE_POOL: [&str; 124] = [
     //
     // Seven mana is the most any pooled card has cost, so its reachability is
     // measured with `--require` rather than argued; see its row in
-    // `engineering-practices.md` §3.
+    // `engineering-practices.md#cards-and-pools`.
     //
     // The other three stay out. Alms Collector only ever watches an *opponent's*
     // instruction of two or more, and the pool's multi-card draws are Ancestral
@@ -607,8 +607,8 @@ const IN_DEVELOPMENT: [(&str, fn() -> Arc<CardData>); 0] = [];
 /// This keeps card definitions purely data-driven — no engine code needed.
 ///
 /// Two pools are built from these definitions — `default_registry` (everything)
-/// and `performance_pool` (representative). `plans/engineering-practices.md` §
-/// "Two card pools" says which to reach for.
+/// and `performance_pool` (representative). `plans/engineering-practices.md#cards-and-pools`
+/// says which to reach for.
 pub struct CardRegistry {
     cards: HashMap<String, fn() -> Arc<CardData>>,
     /// [`IN_DEVELOPMENT`]'s cards, or a test's.
@@ -766,8 +766,9 @@ impl CardRegistry {
 
         // The first replacement effect with printed card text.
         registry.register("Kalitas, Traitor of Ghet", phase_rb_cards::kalitas_traitor_of_ghet);
-        // The second and third replacement sources, which make CR 616.1's
-        // "two or more" branch reachable in a game (`engineering-practices.md` §3.3).
+        // The second and third replacement sources, which make CR 616.1's "two
+        // or more" branch reachable in a game
+        // (`engineering-practices.md#how-many-cards-a-mechanic-owes`).
         registry.register("Rest in Peace", phase_rb_cards::rest_in_peace);
         registry.register("Leyline of the Void", phase_rb_cards::leyline_of_the_void);
 
@@ -825,7 +826,7 @@ impl CardRegistry {
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
         // and until this card the annihilation had never happened in a fuzz
-        // game — `engineering-practices.md` §3.3.
+        // game — `engineering-practices.md#how-many-cards-a-mechanic-owes`.
         registry.register("Battlegrowth", phase_sba_cards::battlegrowth);
 
         // An Aura whose static ability lowers to `ObjectSet::Host`, and a spell
@@ -866,7 +867,7 @@ impl CardRegistry {
         // ability, the gather's second source and its first dynamic amount.
         // Myr Enforcer is pooled; Frogmite is the second copy of the same
         // path, which buys a wider stress board and not a slower measured
-        // one (`engineering-practices.md` §3).
+        // one (`engineering-practices.md#cards-and-pools`).
         registry.register("Myr Enforcer", phase_cm_cards::myr_enforcer);
         registry.register("Frogmite", phase_cm_cards::frogmite);
 
@@ -1244,9 +1245,10 @@ impl CardRegistry {
 impl CardRegistry {
     /// Every registered card and the castable fixtures: `fuzz_games --pool
     /// fixtures`, which the checked sitting plays, where the debug checks the
-    /// fixtures' builds carry fire (`engineering-practices.md` §3). A fixture
-    /// is no printed card, so it is listed apart and never joins
-    /// `default_registry`, whose numbers stay real cards'.
+    /// fixtures' builds carry fire
+    /// (`engineering-practices.md#cards-and-pools`). A fixture is no printed
+    /// card, so it is listed apart and never joins `default_registry`, whose
+    /// numbers stay real cards'.
     pub fn fixture_pool() -> Self {
         let mut pool = Self::default_registry();
         for (name, fixture) in crate::cards::phase_history_and_frame_records_cards::CASTABLE {

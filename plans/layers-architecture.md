@@ -1023,9 +1023,9 @@ residual rather than in advance.
   GUI's snapshot does, can run inside `GameState::audit_each_frame_once`, which checks
   each frame once: a member's by one pass at the first hit on any, the rest at their
   first hit. No walk input can change under a shared borrow, so it loses nothing
-  (`engineering-practices.md` §10.4).
+  (`engineering-practices.md#what-one-prompt-costs-the-window`).
 
-**Acceptance.** Byte-identical `--dump-events` and identical §3 fixture rows against the
+**Acceptance.** Byte-identical `--dump-events` and identical fixture rows (`engineering-practices.md#cards-and-pools`) against the
 unmemoized binary on both pools; `Layer walks` becomes the miss count and gains a
 `Memo hits` row beside it; `plans/fuzz_ab.py` for the time. Expected: walks per game
 from ~108k to ~4–6k and game time down by most of an order of magnitude — the residual
@@ -1147,7 +1147,7 @@ over 200 games, **865 M a game**, with every counter outside `=== Timing ===`
 identical to the native run's (62.0 turns a game, 0 errors, 0 panics), 524 s
 of wall clock — about 2.6 s a game against 76 ms native. Instruction counts at
 a fixed seed are the machine-independent half of a cost reading
-(`engineering-practices.md` §3.1); the shares below are of instructions,
+(`engineering-practices.md#the-budget`); the shares below are of instructions,
 inclusive figures overlap, and `callgrind_annotate --inclusive=yes | c++filt`
 reproduces them.
 
@@ -1209,7 +1209,7 @@ table above, over two builds made the same day: `main` at fb3be8e and
 `perf/ability-list-arc` at 5eb1e35. PR #156 registered the RF cards between
 the table above and this PR, so the `stress` pool is 161 cards where the
 table's was 159, and an instruction count travels only at identical games
-(`engineering-practices.md` §3.1) — the table above is not this pool's
+(`engineering-practices.md#the-budget`) — the table above is not this pool's
 "before". Every counter outside `=== Timing ===` is identical native and
 under valgrind on each arm, and identical between the arms (the A/B read
 `IDENTICAL` on every row, both pools, two seats and four).
@@ -1264,7 +1264,7 @@ id stamped in `add_object`, the printed ability id derived from the card,
 every id-keyed map still on `RandomState`; **hash** (87bee60) —
 `types::ids::IdHash` on all 27 id-keyed declarations. No card landed between
 A4f and this PR, so the `stress` pool is the same 161 cards and A4f's column
-above is comparable to the instruction (`engineering-practices.md` §3.1) —
+above is comparable to the instruction (`engineering-practices.md#the-budget`) —
 which the arms confirm: `hash_one::<&CardType>`, the frame's type-set
 lookups that neither arm touched, reads 6.76 G in all three. The counters
 outside `=== Timing ===` are identical native and under valgrind on each
@@ -1540,7 +1540,7 @@ carry the numbers, `fuzz-record.md` the re-recorded tables.
 **Lettered for the reason §13a is**, and written before LI-1 the way §13a was
 written before LH-1: the finding that sets the scope, the decisions the phase
 was asked to make first, the pieces, and a size for each PR measured against
-the tree rather than guessed (`engineering-practices.md` §4).
+the tree rather than guessed (`engineering-practices.md#sizing-a-phase`).
 
 **Why it extends this document.** All three pieces are CR 613: the board-wide
 pass is the frame CR 613.3, 613.6 and 613.7a describe; the dependency
@@ -1760,7 +1760,7 @@ The card registered where there is one, `PERFORMANCE_POOL` +1 per new engine
 path, §3 re-recorded with `plans/fuzz_ab.py` against a same-day `main`
 worktree, three-run determinism on both pools, `specdb owed` clean, and
 `// COVERS:` on exactly what each test builds. Item 7 qualifies for a trace
-page (`engineering-practices.md` §7) at the phase's close: it changes *how* a
+page (`engineering-practices.md#trace-pages`) at the phase's close: it changes *how* a
 read is answered, and the three boards above are its findings.
 
 ### Exit criteria — the phase
@@ -1796,7 +1796,7 @@ read is answered, and the three boards above are its findings.
 **Lettered for the reason §13a and §13b are**, and written before LJ-1 the way
 both of those were written before their first PR: the finding that sets the
 scope, the decisions the phase was asked to settle first, the pieces, and a
-size measured against the tree (`engineering-practices.md` §4).
+size measured against the tree (`engineering-practices.md#sizing-a-phase`).
 
 `codebase-state.md` "Before Layers" item 9, and critical-path **6a**'s
 prerequisite — `roadmap-v2.md` A5 puts it second of three, after item 124's
@@ -1993,7 +1993,7 @@ to break, only a type the compiler swaps. The one live matcher is the
 three-arm one at `condition.rs:96–98` under `Condition::CardInYourGraveyard`,
 which becomes a call to `object_matches_filter`.
 
-**~70 lines, and `engineering-practices.md` §4's RE-4 precedent is exactly
+**~70 lines, and `engineering-practices.md#gaps-a-phase-finds`'s RE-4 precedent is exactly
 this case**: a change under about eighty lines on a type the PR already has
 open is a normal diff, and deferring it buys a second pass over the same code.
 `ObjectFilter` is open here by decision 3.
@@ -2195,7 +2195,7 @@ one way that derivation can under-report (its own docstring says so). Written
 before the first PR the way §13a, §13b and §13c were: the finding that sets the
 scope, the decisions the phase was asked to settle first, the subrule triage,
 the pieces, and a size measured against the tree
-(`engineering-practices.md` §4).
+(`engineering-practices.md#sizing-a-phase`).
 
 Critical-path **6a**, and the last gate before item 6. Both stated
 prerequisites are in: `codebase-state.md` item 124's rename ✅ PR #136, and
@@ -2646,7 +2646,7 @@ rather than left delegating (0146cc75).
 | Tests — the two atoms, the two-ability board, the Jailer interaction, the assertions for 113.6a/h, the `stated_zones` invariant, determinism | `tests/phase_lk_integration_test.rs`, unit | ~300 |
 | Docs — this section, item 9's stub, items 75 and 119 re-derived, §11 item 9 (a)/(b)/(c), A5 closed, fuzz-record | `plans/` | ~280 |
 
-**~1,270 lines**, inside `engineering-practices.md` §4's 1,500–2,500 band with
+**~1,270 lines**, inside `engineering-practices.md#landing-a-phase`'s 1,500–2,500 band with
 room. The estimate this replaced was ~1,370 with a 140-line sweep row in it,
 and the interesting part is not that the number went down: it is that the row
 which was hardest to justify on *size* turned out to be the one that was wrong

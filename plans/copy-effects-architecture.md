@@ -702,7 +702,7 @@ been asked it twice.
   additional counter against CR 306.5b's, which CR 616.1c rules out, since
   the exception is part of the copy effect chosen at that step.
 
-**The decision, by `engineering-practices.md` §3.4b.**
+**The decision, by `engineering-practices.md#when-a-ruling-and-the-cr-disagree`.**
 - **The loyalty count rests on `lookahead-entry-counters`.** Ruling #7
   predates Kaito by five years and says "printed on the card plus one" of
   every planeswalker Spark Double copies; on Kaito's board that is 5, which is
@@ -836,7 +836,7 @@ eventually gets written for one.
 > one mechanism. A one-word difference lives **inside** a bucket, which is §9
 > item 8's finding in a second costume. Reading three cards from the bucket
 > catches it; a partition never will. Now a practice line in
-> `engineering-practices.md` §3: before making a word in a card's text
+> `engineering-practices.md#cards-and-pools`: before making a word in a card's text
 > structural, find two more cards in the bucket and check they print it.
 >
 > A permanent copying *itself* is very nearly a no-op — the capture is its own
@@ -1421,7 +1421,7 @@ close enough to. → §9 item 10.
 
 ## 7. Sizing and the phase plan
 
-Sized before writing and split in the doc, per `engineering-practices.md` §4.
+Sized before writing and split in the doc, per `engineering-practices.md#sizing-a-phase`.
 Every PR carries at least one consumer of what it builds. Sub-phases are
 numbered **CV-1 … `merging-and-meld`** ("copiable values"). `CP` and `LC` were both taken —
 `cards-unlocked-ledger.md`'s Running Totals uses `CP-A`…`CP-D` for checkpoints,
@@ -1488,7 +1488,7 @@ the copy without it, with every other exception that applies there.
 until an entry card needs it. Spark Double, pooled (100 → 101) and cast from
 hand; 33 tests, five atoms covered and four partially. The Kaito board
 extended the register row `lookahead-entry-counters` and added
-`copy-exception-conditions` (`engineering-practices.md` §3.4b), and Spark
+`copy-exception-conditions` (`engineering-practices.md#when-a-ruling-and-the-cr-disagree`), and Spark
 Double's ruling #7 keeps a `// RULING-DEVIATION:` test. +1,901 lines of code
 and tests.
 

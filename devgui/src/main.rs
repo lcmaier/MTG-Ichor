@@ -12,7 +12,7 @@
 //! test cards under: on the large review board a question waits about 40 ms
 //! there, nearly all of it the engine's own checks, with the engine lightly
 //! optimized (`Cargo.toml`); `cargo run --release` has none of them
-//! (`engineering-practices.md` §10.4).
+//! (`engineering-practices.md#what-one-prompt-costs-the-window`).
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};

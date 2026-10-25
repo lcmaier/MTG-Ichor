@@ -11,7 +11,7 @@ cd mtgsim && cargo test                   # must stay green
 cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard bar
 cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card, --audit checks every trigger dispatch
 python plans/specdb.py stats              # rules coverage by phase
-python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check && python plans/check_string_literals.py && python plans/check_type_surface.py && python plans/check_clippy_allows.py && python plans/check_engine_map.py && python plans/check_egui_only_draws.py && python plans/check_invariants.py   # all must pass
+python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check && python plans/check_string_literals.py && python plans/check_type_surface.py && python plans/check_clippy_allows.py && python plans/check_engine_map.py && python plans/check_egui_only_draws.py && python plans/check_invariants.py && python plans/check_practices_page.py   # all must pass
 ```
 
 ## Where authority lives
@@ -23,7 +23,7 @@ python plans/check_claude_md.py && python plans/check_module_layout.py && python
 | `plans/*-architecture.md` | One per CR subsystem; each owns its type shapes, phase codes and open questions. `layers` (613) · `replacement` (614–616, `RA`–`RE`) · `cant-effects` (101.2/614.17/613.11, `RS-*`, supersedes L15) · `copy-effects` (707/712/708/729 + Layer 1, `CV-*`, supersedes D5) · `cost` (601.2f–h/118.7–9/613.11's cost half/903.8, `CM-*`/`CP-*`, supersedes L15's cost half) · `triggers` (603 + 117.5/405.3/500.6/605.1b/608.2a/800.4d, the CR 603.10 reader, `TR-*`) · `setup` (103, the scenario loader, the save, `SU-*`) · `permission` (601.3's allows/602.2/602.5/113.6/305.1–2/606.3, `PM-*`) · `mana` (106/605, 601.2g–h's existence half, `MA-*`) · `clone` (what a fork shares, floors 2 and 3 mid-turn, `CL-*`). **Start at `plans/engine-map.md`**: one event through all of them, and where each invariant below lives. **A new subsystem extends this row, never adds one** |
 | `plans/cr-coverage-audit.md` | Whether the plan can *express* the frozen CR: the type-surface method, its calibration bar, and the findings register. `specdb.py orphaned`/`audit` confirm it; they are not the instrument |
 | `plans/backlog.md` | Everything off the critical path — one entry per mechanic: the surface that can't express the rule, rough size, what it blocks. **Not designs** — a mechanic graduates out to an architecture doc. Excluded from `orphaned`'s ownership set on purpose; §1 says why |
-| `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate, module layout, trace pages (§7), **the rules pass (§8)**, the invariant gates and their tags (§11). §3 owns the measuring rules; the measurements are `plans/fuzz-record.md`, newest-first, a block per phase |
+| `plans/engineering-practices.md` | **Every process rule, a sentence or two and a pointer each**: comments, names, sizing, measuring, cards and rulings, the gates and their tags. Cited by heading anchor (`engineering-practices.md#the-close-out`), never by number. Its reasoning is `plans/archive/engineering-practices-records.md`; the measurements are `plans/fuzz-record.md`, newest-first, a block per phase |
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — atomic tests from a close read of the CR. Authored; never generated. (`summaries/` is an authoring trail; nothing reads it) |
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |
@@ -42,7 +42,7 @@ by id and `put_on_stack.rs::activate_ability` must all index the *effective* lis
 mis-activates silently (CR 305.7 grants abilities that exist in no `CardData`).
 
 **An exemption is a tag in source, and `check_invariants.py` fails a read without one:** `// PRE-LAYER ZONE:`,
-`// AS PRINTED:`, `// NO ROW REACHES:`, each in `engineering-practices.md` §11. → `layers-architecture.md`.
+`// AS PRINTED:`, `// NO ROW REACHES:`, each in `engineering-practices.md#invariant-gates`. → `layers-architecture.md`.
 
 ## Registry membership is not effect existence
 
@@ -70,7 +70,7 @@ off the object's own effective ability list at layers 4, 5 and 7a; registering o
 
 **Never mutate observable game state outside `perform_action`'s own arms.** A direct write is
 invisible to CR 614 no matter how loudly it is *emitted* — the pipeline reads the proposal, not
-the event. Propose with `execute_action` / `change_zone`; `check_invariants.py` fails any other write (`engineering-practices.md` §11).
+the event. Propose with `execute_action` / `change_zone`; `check_invariants.py` fails any other write (`engineering-practices.md#invariant-gates`).
 
 - **A `ZoneChange` names its `ZoneChangeAct` and every proposal its `EventCause`; no catchall.** Only
   the pipeline, the trigger matcher, the history writer and a resolution counting its own records ("discarded this way") branch on `act`; every emitter names its record's cause.
@@ -161,13 +161,13 @@ AI games over the CLI. Two-player Standard is a checkpoint, not the target — s
 and the index markdowns — never hand-edit those, fix the session file and rebuild.
 **Annotate at write time** (`// COVERS:` above the `#[test]`, `// COVERS-PARTIAL:` when it does not
 build the whole atom), **never claim an atom a test doesn't prove**, and **a phase does not close
-until `owed` is clean for it** — a gate, not a report. → `engineering-practices.md` §5.
+until `owed` is clean for it** — a gate, not a report. → `engineering-practices.md#the-spec-database`.
 
 ## Git workflow
 
 One branch per unit of work → PR → merge to main; merge commit or "Rebase and merge", **never
 squash** — the project leans on its per-commit record. **Size a phase before writing it, and split
-it in the doc, not in the moment** → `engineering-practices.md` §4 owns the 1,500–2,500 band, the
+it in the doc, not in the moment** → `engineering-practices.md#sizing-a-phase` owns the 1,500–2,500 band, the
 one-consumer-per-PR rule and where review findings go. `gh` is installed; opening a PR is fine, but
 **merging to main is the user's call** — hand over the URL unless they say otherwise that session.
 
@@ -176,18 +176,18 @@ one-consumer-per-PR rule and where review findings go. `gh` is installed; openin
 - Small commits; messages explain *why* — they're part of the project record.
 - **Comment the *why*, and only where it is not recoverable from the code plus one rule
   number.** A war story goes in the commit message or the architecture doc, not the source.
-  → `engineering-practices.md` §2.
+  → `engineering-practices.md#comments`.
 - **A count or `file:line` in a doc is generated, or it drives a decision**; otherwise describe
-  it. → `engineering-practices.md` §2d.
+  it. → `engineering-practices.md#counts-in-docs`.
 - Don't refactor speculatively. American spelling, gated by `check_glossary.py`.
 - **Name for the call site:** the use alone must say what a name means, since its doc comment is
-  not there. → `engineering-practices.md` §2b.
+  not there. → `engineering-practices.md#names`.
 - **Before deferring a rules question, read the rule that *watches* the one you are
-  implementing** — it is in another chapter. → `engineering-practices.md` §8.
+  implementing** — it is in another chapter. → `engineering-practices.md#the-rules-pass`.
 - Test cards in `src/cards/phase_XX_cards.rs`; integration tests in `tests/phase_XX_integration_test.rs`.
-- **Dev GUI: logic is plain Rust under tests, egui only draws**; a GUI PR is reviewed by `engineering-practices.md` §10.
+- **Dev GUI: logic is plain Rust under tests, egui only draws**; a GUI PR is reviewed by `engineering-practices.md#the-dev-gui`.
   **Register every card you write, and read its rulings** — `check_rulings.py` gates the second, a
-  phase opening a new engine path adds one to `PERFORMANCE_POOL`. → `engineering-practices.md` §3, §3.4.
+  phase opening a new engine path adds one to `PERFORMANCE_POOL`. → `engineering-practices.md#cards-and-pools` and `engineering-practices.md#rulings`.
 - A bugfix must be shown to fail against the pre-fix tree (`git stash push mtgsim/src`) first.
 
 ## Maintaining this file
@@ -197,4 +197,4 @@ three lines plus a pointer — the reasoning, the war story and the rule numbers
 architecture doc. **Adding a section requires removing one**, and the removal is chosen against the
 whole file, not against whatever happens to sit next to the edit. **No progress snapshots, counts or
 ✅ marks** — this file loads before every task, a stale claim here is worse than no claim, and status
-belongs to `state-of-play.md`, derived from the architecture docs. → `engineering-practices.md` §1.
+belongs to `state-of-play.md`, derived from the architecture docs. → `engineering-practices.md#line-budgets`.

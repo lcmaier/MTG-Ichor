@@ -65,7 +65,8 @@ const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affec
 // ---------------------------------------------------------------------------
 
 /// A land with one mana ability, `{T}: <output>`. Invented, and named as one:
-/// it wears no printed card's name (`engineering-practices.md` §3).
+/// it wears no printed card's name
+/// (`engineering-practices.md#cards-and-pools`).
 fn mana_land(name: &str, output: ManaOutput) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Land)

@@ -247,12 +247,13 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
 /// Creature — Elf Druid, 3/4
 /// Lands you control are basic.
 ///
-/// **A fixture, and an invented name** (`engineering-practices.md` §3's
-/// rule): the battlefield half of Rootpath Purifier's "Lands you control and
-/// land cards in your library are basic", without the library clause, which
-/// waits on `codebase-state.md` layers item 9. Registering the printed card
-/// without that clause would wear its name while behaving differently, so
-/// this one wears its own and is registered in no pool.
+/// **A fixture, and an invented name**
+/// (`engineering-practices.md#cards-and-pools`'s rule): the battlefield half of
+/// Rootpath Purifier's "Lands you control and land cards in your library are
+/// basic", without the library clause, which waits on `codebase-state.md`
+/// layers item 9. Registering the printed card without that clause would wear
+/// its name while behaving differently, so this one wears its own and is
+/// registered in no pool.
 ///
 /// It is the board of the Purifier's 2022-10-14 ruling: "Lands that become
 /// basic are no longer nonbasic lands. This may change what effects can
@@ -339,16 +340,16 @@ pub fn kird_ape() -> Arc<CardData> {
 /// Enchant permanent
 /// As long as enchanted permanent is a creature, it has flying.
 ///
-/// **A fixture, and an invented name** (`engineering-practices.md` §3's
-/// rule): the third line of Rune of Flight, whose printed text is
-/// "Enchant permanent / When this Aura enters, draw a card. / As long as
-/// enchanted permanent is a creature, it has flying. / As long as enchanted
-/// permanent is an Equipment, it has 'Equipped creature has flying.'"
-/// (Scryfall, 2026-09-06). Two of those four lines are out of reach — the
-/// draw is a trigger (critical-path item 6), and the Equipment clause grants
-/// a *static* ability from a static ability, which registers no continuous
-/// effect (`codebase-state.md` "Before Layers" item 7g). Registering the
-/// printed card with either missing would wear its name while behaving
+/// **A fixture, and an invented name**
+/// (`engineering-practices.md#cards-and-pools`'s rule): the third line of Rune
+/// of Flight, whose printed text is "Enchant permanent / When this Aura enters,
+/// draw a card. / As long as enchanted permanent is a creature, it has flying.
+/// / As long as enchanted permanent is an Equipment, it has 'Equipped creature
+/// has flying.'" (Scryfall, 2026-09-06). Two of those four lines are out of
+/// reach — the draw is a trigger (critical-path item 6), and the Equipment
+/// clause grants a *static* ability from a static ability, which registers no
+/// continuous effect (`codebase-state.md` "Before Layers" item 7g). Registering
+/// the printed card with either missing would wear its name while behaving
 /// differently, so this one wears its own.
 ///
 /// It is CR 613.7a's own worked example one line short, and three phases
@@ -388,12 +389,12 @@ pub fn flight_clause() -> Arc<CardData> {
 /// As long as you control a Forest, each creature you control is an Ape in
 /// addition to its other types.
 ///
-/// **A fixture, and an invented name** (`engineering-practices.md` §3's
-/// rule), for a shape no printed card in reach has: a *layer-4* effect whose
-/// condition another layer-4 effect flips. Blood Moon sets a Taiga to
-/// Mountain, the Forest goes away, and this effect stops existing — so it
-/// depends on Blood Moon (CR 613.8a(b), the existence clause) and waits for
-/// it whatever the timestamps say.
+/// **A fixture, and an invented name**
+/// (`engineering-practices.md#cards-and-pools`'s rule), for a shape no printed
+/// card in reach has: a *layer-4* effect whose condition another layer-4 effect
+/// flips. Blood Moon sets a Taiga to Mountain, the Forest goes away, and this
+/// effect stops existing — so it depends on Blood Moon (CR 613.8a(b), the
+/// existence clause) and waits for it whatever the timestamps say.
 ///
 /// **It is the board `board::condition_reads` exists for.** Without the
 /// condition's channels the pair is settled independent by the static check

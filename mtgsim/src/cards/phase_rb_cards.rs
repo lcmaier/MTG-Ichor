@@ -148,7 +148,8 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
 /// exactly one candidate. CR 616.1 engages only among "two or more", so its
 /// ordering choice, its applied set across instances, and its APNAP ordering
 /// were unreachable in any game at any length. This card is the second
-/// candidate. `engineering-practices.md` §3.3 generalizes the lesson.
+/// candidate. `engineering-practices.md#how-many-cards-a-mechanic-owes`
+/// generalizes the lesson.
 ///
 /// **The pair is observable, which is what makes it a test and not a claim.**
 /// Both rewrites exile, but Kalitas carries a CR 615.5 rider and this does not:
@@ -228,10 +229,11 @@ pub fn rest_in_peace() -> Arc<CardData> {
 ///
 /// # Why *this* second card and not another copy of the shape
 ///
-/// A second card of the same shape buys nothing (`engineering-practices.md`
-/// §3.3). This one disagrees with [`rest_in_peace`] on both axes the CR cares
-/// about: it excludes tokens, and it is **owner-scoped** where that one is
-/// global. The second difference is the load-bearing one — CR 616.1 asks the
+/// A second card of the same shape buys nothing
+/// (`engineering-practices.md#how-many-cards-a-mechanic-owes`). This one
+/// disagrees with [`rest_in_peace`] on both axes the CR cares about: it
+/// excludes tokens, and it is **owner-scoped** where that one is global. The
+/// second difference is the load-bearing one — CR 616.1 asks the
 /// *affected object's controller*, so a global effect and an opponent-scoped
 /// effect can be offered to different players for different objects, which a
 /// same-scope pair would never exercise.

@@ -11,7 +11,7 @@
 > and order, the triggers waiting to be put on the stack, and the layer memo's
 > frames; what a write must go through to keep a fork apart from its parent;
 > and what reads floors 2 and 3 mid-turn. The floors themselves are
-> `engineering-practices.md` §3.1's. On what exists, `codebase-state.md` wins;
+> `engineering-practices.md#the-floors`'s. On what exists, `codebase-state.md` wins;
 > on what is being built, this file does; `CLAUDE.md`'s critical path owns the
 > ordering.
 > **Graduates:** `codebase-state.md` item 183's open half (a clone during the
@@ -20,8 +20,8 @@
 > state-based check's two walks of every object, folded in by the owner on
 > 2026-10-21).
 > **Companions:**
-> - `engineering-practices.md` §3.1, the floors and their board; §11, the
->   invariant gates.
+> - `engineering-practices.md#the-floors`, the floors and their board;
+>   `engineering-practices.md#invariant-gates`, the invariant gates.
 > - `layers-architecture.md` §12 "7a", the memo whose frames §3 decision 2
 >   bounds; §5.2, the termination argument those frames serve, which nothing
 >   here touches.
@@ -102,7 +102,7 @@ tests' 38; `stack_entries`' 11 are 6 and 5; `objects`' 8 are 4 and 4, with
 `get_object_mut`'s caller beside them.
 
 Every engine walk of the three maps is already tagged `ORDER-FREE:`
-(`engineering-practices.md` §11): each sorts by timestamp or epoch next, or
+(`engineering-practices.md#invariant-gates`): each sorts by timestamp or epoch next, or
 reads a set, a count or an `any`, so none observes the map's order.
 
 ### 1.3 The battlefield's 31 engine writers, by shape
@@ -560,8 +560,8 @@ reading also cannot see the cost decision 1 moves to the writes (§2.6).
 
 **Taken: all four** (the owner, 2026-10-21, at #266's review; CI's time is
 not the bottleneck). Floors 2 and 3 are then read at every decision and
-on the fixture boards, not only between turns. `engineering-practices.md`
-§3.1's definitions change in the build that makes them pass, not here.
+on the fixture boards, not only between turns.
+`engineering-practices.md#the-floors`'s definitions change in the build that makes them pass, not here.
 
 ### Decision 7 — determinism: what a fork shares never changes the game
 

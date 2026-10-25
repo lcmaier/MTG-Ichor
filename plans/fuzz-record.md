@@ -1,7 +1,7 @@
 # Fuzz record — the pooled fixture tables, phase by phase
 
 Every `**Re-recorded …**` block the project has written, moved out of
-`engineering-practices.md` §3 on 2026-09-13. §3 had grown to about 2,000 lines
+`engineering-practices.md#cards-and-pools` on 2026-09-13. That section had grown to about 2,000 lines
 and roughly 1,400 of them were record; the rules the section exists for were the
 shorter half of it. The rules stayed there; the numbers came here.
 
@@ -9,7 +9,7 @@ shorter half of it. The rules stayed there; the numbers came here.
 grants authority to anything. Each block is what one PR measured, written after
 that PR's A/B — evidence about a tree that existed on a date, never a target, a
 budget, or a claim about the tree you have now. The rules that govern the
-measuring stay in `engineering-practices.md` §3: which pool answers which
+measuring stay in `engineering-practices.md#cards-and-pools`: which pool answers which
 question, what a row may hold and what it may not (`ms/game` may not, and why),
 and how to read the five bold counter rows. Read those there; read this for what
 the numbers were.
@@ -19,7 +19,7 @@ had stopped being ordered — later phases were appended *below* LI-3 while the
 LI/LH tail kept its original newest-first order — so it was re-sorted on the
 move, same-date ties in merge order. **A phase that moves a pool re-records both
 the `performance` and the `stress` table and adds its block here**; that rule is
-`engineering-practices.md` §3's and stays there, restated here only so the next
+`engineering-practices.md#cards-and-pools`'s and stays there, restated here only so the next
 person appending knows where the numbers go.
 
 **Three runs were reunited with the entries that own them**, because sorting by
@@ -28,7 +28,7 @@ middle of RE-7's block: LI-3's three-arm A/B (what LI-3's summary calls "the
 three-arm table below", 900 lines further down and inside another entry); the
 CR 704.5p fix's fixture re-record, including a table row orphaned from its own
 header; and a run of instrument doctrine from the RD-3 review, which is a rule
-rather than a measurement and went back to `engineering-practices.md` §3. No
+rather than a measurement and went back to `engineering-practices.md#cards-and-pools`. No
 sentence in any of them was changed.
 
 **What the move preserved.** Every `**Re-recorded …**` heading is byte-identical
@@ -36,6 +36,65 @@ sentence in any of them was changed.
 and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
+
+## The latest floor readings
+
+The latest reading of each of `engineering-practices.md#the-floors`'s floors,
+replaced in place when it is taken again. `check_state_of_play.py` joins these
+with the limits on that page and draws both on the board, with each floor's
+room; the two tables must name the same floors.
+
+<!-- floor readings: begin -->
+| Floor | Reading | Read on | Where |
+|---|---|---|---|
+| 1. Decisions per loaded physical core-second | 15700 | 2026-10-06 | #225's pooled tree on `performance` at Commander scale, 200 games: 17,900 on one thread, 7.26 times that on 16 threads over 8 physical cores |
+| 2. Allocations per clone | 37 | 2026-10-21 | CL-1's tree: `clone_bound_test` in release at 188 checkpoints and 10,253 decisions over 24 Commander games, the worst `performance` 12353's decision at turn 31, and `clone_fixture_test`'s boards, at most 14 |
+| 2. Microseconds per clone | 1.8 | 2026-10-21 | CL-1's tree, the same 188 checkpoints, at each the median of five means of 2,000 clone-and-drops under the System allocator; the worst checkpoint of three runs, which read 1.75, 1.69 and 1.73. At decisions it is A6e's readiness pass's (`clone-architecture.md` decision 6(d)) |
+| 3. Kilobytes per clone | 8.7 | 2026-10-21 | the same readings, the worst `clone_fixture_test`'s 8,000 stacked triggers; at most 6.7 at a decision |
+<!-- floor readings: end -->
+
+### The floors' standing history
+
+Each floor's readings since it was adopted (2026-09-25), oldest first, with
+what moved it; a new reading is added to its row.
+
+| Floor | Standing |
+|---|---|
+| 1. ≥ 10,000 decisions per loaded physical core-second, Commander scale | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block) |
+| 2. Full-state clone ≤ 10 µs | **Holds** (item 180's fix, 2026-09-25): ≤ 40 allocations over the clone test's 24 games, ≤ 39 since item 183's half fix, `stress` seeds and the budget's own board, worst at `performance` 12358's turn 50. `performance` 12350 read 68 at turn 100 while every fork copied the registry rows' payloads, and reads 34 with them shared (`codebase-state.md` item 180). Time, from the bounded-state PR on the `stress` seeds: ≤ 8.5 µs over three sittings of five Commander games, against up to 1,479 allocations and 136 µs with the log. Since LL a row reaching the hidden zones reads 7.7–9.3 µs at its worst, against 7.1–7.3 without one (item 181, closed). A clone that rebuilds a spiked map (item 183) reads 7.8 µs at its worst on an idle machine, 6.8 before it. A clone taken during a deep stack is back-stopped before Phase 8 (item 183, `roadmap-v2.md` B10). **Read mid-turn at B10's design** (2026-10-21, `clone-architecture.md` §2): 78 allocations at a 22-trigger ordering, 3 of the clone test's 10,253 decisions over 64, none read by the test; 32,014 allocations and 8.2 ms on an 8,000-trigger wipe. **Shared since CL-1** (2026-10-21): at most 37 allocations over those 10,253 decisions and 34 between turns, 14 on the 8,000-trigger stack |
+| 3. ≤ 128 KB per state | **Holds** (the same PR): ≤ 107.1 KB at the end of a 168-turn game, the history bounded by the table; ≤ 112.4 KB with a row reaching the hidden zones (item 181). Breached on one fixture board by item 182, `stress` 12351 under Teferi's clause at 150.4 KB after a stack 29 deep, since a clone copied the maps' high-water capacity. **Holds again since that half of item 183 was fixed** (2026-09-26): ≤ 90.7 KB over the clone test's 210 readings, that game at 73.2. A clone during a deep stack is B10's: 10 MB on an 8,000-trigger wipe, 125 KB at 200 permanents, and 101 KB with no objects left after 2,000 tokens came and went, the layer memo's frames (`clone-architecture.md` §2.4, §2.5). **Since CL-1** (2026-10-21): at most 6.7 KB at every decision and 6.0 between turns, 8.7 KB on the 8,000-trigger stack, 1.5 KB after 4,000 tokens came and went, the memo bounded by the store |
+
+## How to read the cost rows
+
+A block's behavioral rows say what the engine **did**; its five bold rows say
+what it **spent doing it** (`state/diagnostics.rs`). They are fixtures by the
+same argument, a pure function of the seed and the pool, verified identical
+across three runs and across `--threads 1` and `--threads 8`, so a change to
+one means the engine's cost model moved
+(`engineering-practices.md#the-cost-rows`).
+
+- **Layer walks** is the headline. Almost every cost question in this engine
+  reduces to how many full CR 613 walks a game does. Since the epoch memo
+  (item 7a, 2026-09-03) it is the *miss* count: a walk is paid once per object
+  per epoch rather than once per question.
+- **Memo hits** is the rest of the questions. Walks plus hits is what the
+  oracle was asked, and it did not move when the memo landed. A hit share that
+  falls means some writer started bumping the epoch more often; one that rises
+  means the games got more repetitive, not the engine cheaper.
+- **Frames/walk** is what CR 613.7a's existence re-check costs — a walk needing
+  no sub-frame is 1.00, and `layers-architecture.md` §5.2's descending ceiling is
+  what bounds this number instead of letting it iterate.
+- **Dependency checks** is the CR 613.8 loop's slow path (LI-2): the
+  hypotheticals a game ran, each a frame clone per member reached. Zero
+  means the static channel check settled every pair in every layer; with
+  Urborg pooled it reads ~23 per game, nearly all Blood Moon beside Urborg
+  and Humility beside a creature static.
+- **Replacement gathers** and **restriction queries** are the two sweeps that
+  *multiply* into layer walks: one gather can be one walk per permanent. Reading
+  them beside the walk count is how you tell "a sweep got greedy" from "the game
+  got longer".
+
+## The records, newest first
 
 **Measured 2026-10-24 for item 318** (#285, `last-known-information-store`:
 one LKI store keyed by existence, the keepers' lists and the second captures
@@ -1402,8 +1461,8 @@ four-seat `stress` game hit the turn limit: game 553 (seed 1329), a standoff
 with life totals in the hundreds (Words of Worship, Exquisite Archangel),
 where Grafted Wargear was cast on turn 199 of 200.
 
-**Bramble Elemental pooled, at #252's review (2026-10-15).** `engineering-practices.md`
-§3: a phase that opens a new engine path adds one card to the pool, and
+**Bramble Elemental pooled, at #252's review (2026-10-15).**
+`engineering-practices.md#cards-and-pools`: a phase that opens a new engine path adds one card to the pool, and
 Bramble Elemental is the benign reader of the phase's records. The same
 **main** and **engine** arms, and **shipped** `19cf33c`, which carries the
 review's renames too; they change no behavior. Predictions, before the run:
@@ -1644,7 +1703,7 @@ same dispatch counts agreed; instructions per decision 0.6439 M → 0.6441 M,
 **+0.04%**. Every prediction held.
 
 **Re-recorded 2026-10-13 for A6q** (#247: the invariants as checks,
-`engineering-practices.md` §11). No card joins the registry or the pool (188
+`engineering-practices.md#invariant-gates`). No card joins the registry or the pool (188
 registered, 106 pooled), and no pool moved: the record is the budget's, and
 the first reading of the checked sitting. `close_out.py` against **main**
 `62361c6` (#246's merge), with two arms and an attribution arm:
@@ -2467,7 +2526,7 @@ within ±0.3%.
 | instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7527 M → 0.7527 M, **−0.01%** |
 
 Every prediction held. The close-out ran in 110 s. What the audit's scope
-does for a debug window is `engineering-practices.md` §10.4's reading, not
+does for a debug window is `engineering-practices.md#what-one-prompt-costs-the-window`'s reading, not
 this table's: the release binary `fuzz_games` builds has no audit.
 
 **Measured 2026-10-06 for the editor's advanced settings, first part**
@@ -2939,7 +2998,7 @@ was. The engine arms before review, `49ddfac`, and before the stamp,
 `baaf787`, read the same rows and −0.11% and −0.03%.
 
 **Measured 2026-10-01 for A6g's review practices** (the dev GUI's review
-path, `engineering-practices.md` §10), whose one engine change is a loss
+path, `engineering-practices.md#the-dev-gui`), whose one engine change is a loss
 bumping the layer epoch: finding 1 of PR #208's table, `layers-architecture.md`
 §12's list of walk inputs. No pool change. `close_out.py`: **main** `a51afec`
 (#207's merge) against **engine** `81b727f`, the fix's commit and the PR's only
@@ -3968,7 +4027,7 @@ the registry's per-row payloads (`codebase-state.md` item 180). `close_out.py`
 on `ddbf5ad` against `main`: every gameplay row **IDENTICAL** on both pools at two seats and four, no cost row moved, and 0.7675 M → 0.7665 M instructions per decision (**−0.14%**). Round 1's arm read 0.7666 M, so on this board, whose pool has few grants and fewer trigger matches, the `Arc`s cost nothing and save little.
 
 **Calibrated 2026-09-25: does a cycle estimate read CPU better than
-instructions?** (the process PR; `engineering-practices.md` §3.1's budget). The
+instructions?** (the process PR; `engineering-practices.md#the-budget`). The
 owner adopted callgrind for the per-PR budget on one condition: any cycle
 estimate had to rest on data. The sample was six engine builds whose layouts
 differ: 2026-09-15 (UUID ids), A4g's two 2026-09-16 arms, `28a1d18`, `45d32e7`

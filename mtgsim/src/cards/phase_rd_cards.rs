@@ -10,7 +10,8 @@
 //! about — an object, a player, or (Furnace of Rath) both — and *what it does
 //! to the amount*: multiply, halve, or prevent half. Every card below is a
 //! distinct pair of those, and none of them is a second copy of another's
-//! engine path (`engineering-practices.md` §3.3, tier 2):
+//! engine path (`engineering-practices.md#how-many-cards-a-mechanic-owes`, tier
+//! 2):
 //!
 //! | Card | Subject | Amount |
 //! |---|---|---|
@@ -42,10 +43,11 @@
 //! the battlefield, and registering a *printed* one fails
 //! `register-a-card-only-once-the-engine-can-play-it`: loyalty abilities have
 //! no `AbilityType` and no activation path, so a real Jace would be a card with
-//! three dead abilities wearing a real name, which `engineering-practices.md`
-//! §3 forbids. Leaving the arm out instead would leave `perform_action` marking
-//! damage on a permanent the targeting code already validates as "any target",
-//! which is the wrong answer waiting for a card.
+//! three dead abilities wearing a real name, which
+//! `engineering-practices.md#cards-and-pools` forbids. Leaving the arm out
+//! instead would leave `perform_action` marking damage on a permanent the
+//! targeting code already validates as "any target", which is the wrong answer
+//! waiting for a card.
 //!
 //! So the fixture is the middle, on the `graveyard_probe` convention §3.3
 //! already admits — and it is a consumer rather than a test prop.
@@ -74,10 +76,11 @@
 //! # RD-2 — CR 615.7 prevention shields, and the loop's unit
 //!
 //! **Four printed cards, one per shape a resolution-created prevention effect
-//! takes** (§9's RD-2 section; `engineering-practices.md` §3.3, tier 2). Every
+//! takes** (§9's RD-2 section;
+//! `engineering-practices.md#how-many-cards-a-mechanic-owes`, tier 2). Every
 //! one of them is a [`Primitive::CreateReplacement`] — the durational form
-//! `Effect::Replacement` refused to be — and they differ in what the
-//! resolution fills in and where the count lives:
+//! `Effect::Replacement` refused to be — and they differ in what the resolution
+//! fills in and where the count lives:
 //!
 //! | Card | Recipient | Rows at resolution | Count |
 //! |---|---|---|---|
@@ -100,7 +103,7 @@
 //!
 //! **Eight printed cards, and the axis is CR 609.7's source predicate: which
 //! half of it each card writes, and what it does once it matches** (§9's RD-3
-//! section; `engineering-practices.md` §3.3, tier 2).
+//! section; `engineering-practices.md#how-many-cards-a-mechanic-owes`, tier 2).
 //!
 //! | Card | `source` | `combat` | Rewrite |
 //! |---|---|---|---|
@@ -132,7 +135,7 @@
 //! its own host — a `Self` leaf with exactly one customer, which §8c's guard
 //! says to record rather than add. The card is unregisterable anyway until
 //! `cant-be-targeted` lands "hexproof as long as it's untapped", and a registered card with
-//! a dead ability under a real name is what `engineering-practices.md` §3
+//! a dead ability under a real name is what `engineering-practices.md#cards-and-pools`
 //! forbids.
 //!
 
@@ -448,7 +451,8 @@ pub fn angel_of_suffering() -> Arc<CardData> {
 /// It has no subtype. CR 205.3j gives every printed planeswalker one, and every
 /// name in `PlaneswalkerType` belongs to a real character — so borrowing one
 /// would put an invented card under a real planeswalker's name, which is
-/// exactly the thing `engineering-practices.md` §3 keeps out of the registry.
+/// exactly the thing `engineering-practices.md#cards-and-pools` keeps out of
+/// the registry.
 ///
 /// Attacking one stays out of reach: `combat::validation` refuses planeswalker
 /// attack targets, and that is combat's phase rather than this one's.

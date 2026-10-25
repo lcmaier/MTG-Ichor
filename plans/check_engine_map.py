@@ -2,9 +2,10 @@
 """
 check_engine_map - the engine map names only what exists, and its arm table is the enum.
 
-`plans/engine-map.md` is the page a reader starts from (`engineering-practices.md`
-§7.1, tier 3). A map of a moving tree rots without a sound: a function renamed,
-a file moved, a `GameAction` variant added. This is the re-reader.
+`plans/engine-map.md` is the page a reader starts from
+(`trace-pages.md#the-trace-sink-and-the-engine-map`, tier 3). A map of a
+moving tree rots without a sound: a function renamed, a file moved, a
+`GameAction` variant added. This is the re-reader.
 
     python plans/check_engine_map.py            # exit 1 when the map has rotted
     python plans/check_engine_map.py --drift    # also list what moved since the pin

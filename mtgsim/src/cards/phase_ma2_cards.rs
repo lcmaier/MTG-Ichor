@@ -2,7 +2,7 @@
 //!
 //! The oracle text below was verified on Scryfall on 2026-10-17 and is
 //! quoted verbatim, and the card's rulings were read the same day: it has
-//! none (`engineering-practices.md` §3.4).
+//! none (`engineering-practices.md#rulings`).
 //!
 //! | Card | The path | Pooled |
 //! |---|---|---|

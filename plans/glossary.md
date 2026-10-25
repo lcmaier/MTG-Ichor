@@ -128,7 +128,7 @@ the end of each step and phase. **(2)** a *card* pool — which registered cards
 harness plays. `PERFORMANCE_POOL` is **representative, not frozen** (it was
 frozen for a year; revised 2026-09-01, and a phase that opens a new engine path
 adds one card to it); `--pool stress` is every registered card. →
-`engineering-practices.md` §3.
+`engineering-practices.md#cards-and-pools`.
 
 **step** — **(1)** CR 500's turn step: `StepType`, an untap step, a combat
 damage step. **(2)** a rung of CR 616.1a–e's choice ladder — `ReplacementClass`,
@@ -167,7 +167,7 @@ lines into the trace file.
 `TriggerTier::Second`: a trigger whose condition is another ability triggering goes
 on the stack after the ones that are not, whatever APNAP says
 (`TriggerCondition::tier`). **(2)** the trace practice's three tiers
-(`engineering-practices.md` §7, §7.1): hand-authored pages, the engine's
+(`engineering-practices.md#trace-pages` and `trace-pages.md#the-trace-sink-and-the-engine-map`): hand-authored pages, the engine's
 sink, the codebase map.
 
 **probe** — **(1)** one read of a gate — a hash-set `is_empty` or `contains`,
@@ -183,7 +183,7 @@ under-approximate, or the answer it guards is silently lost —
 `replacement_ability_sources`, `cost_modification_ability_sources`.
 **(2)** a process checkpoint a phase must pass before it closes: "a gate, not a
 report" — `specdb.py`'s `owed`, the three `check_*.py` scripts. →
-`engineering-practices.md` §5.
+`engineering-practices.md#the-spec-database`.
 
 **census** — **(1)** a *card* census: a Scryfall query partitioning printed
 cards by mechanism, to size a phase before designing it.
@@ -280,10 +280,10 @@ in a game that asks for it (`fuzz_games --audit`). → `engine/triggers/audit.rs
 `triggers-architecture.md` §4.10. **(2)** A *debug audit*: a guard a release
 build compiles out that re-derives a kept answer the slow way and asserts it —
 the layer memo's, which re-walks every hit fresh, the mana watcher's and the
-pipeline's; CI's checked sitting is what plays them (`engineering-practices.md`
-§11.5). **(3)** In `plans/`, a *spine-phase audit*: the passes that read,
+pipeline's; CI's checked sitting is what plays them
+(`engineering-practices.md#the-checked-sitting`). **(3)** In `plans/`, a *spine-phase audit*: the passes that read,
 measure and disposition a critical-path item at its close
-(`engineering-practices.md` §9).
+(`spine-phase-audit.md`).
 
 ## The action pipeline (CR 614–616)
 
@@ -344,8 +344,8 @@ dispatches on. → `backlog.md` §2.29, graduated at RE-5's review.
 or a rule-stated facility is the CR rule that states it; a *printed customer*
 is a card in print that exercises it, and it is the facility's **test**, not
 the reason it is owed — a facility with none gets a fixture test and a
-reachability line that says "no printed producer" (`engineering-practices.md`
-§4, adopted at RE-5's review). "An arm the pipeline cannot apply is worse
+reachability line that says "no printed producer"
+(`engineering-practices.md#gaps-a-phase-finds`, adopted at RE-5's review). "An arm the pipeline cannot apply is worse
 than a missing one" is about an arm with no customer of either kind.
 
 **putter** — the player putting counters on an object or player: CR 122.6a's
@@ -787,12 +787,12 @@ departed player there. → `engine/leaving.rs`; `GameState::is_multiplayer`.
 **atom** — one atomic test in the spec corpus: a single checkable claim read off
 the CR, with an id like `ATOM-614.9-001`. Tests claim atoms with `// COVERS:` at
 write time, and a phase does not close until `specdb.py`'s `owed` is clean for
-it. → `engineering-practices.md` §5.
+it. → `engineering-practices.md#the-spec-database`.
 
 **trace** — one game's records from the trace sink, a JSON object per line,
 and the file that holds them; a *trace page* is tier 1's hand-authored walk
 and a trace is what tier 2 writes. The two meet at the spine. →
-`engineering-practices.md` §7, §7.1; `state::trace`.
+`engineering-practices.md#trace-pages` and `trace-pages.md#the-trace-sink-and-the-engine-map`; `state::trace`.
 
 **sink** — the trace sink, `TraceSink`: the one writer every emit point's
 record goes to, shared by every branch of a game and off by default. An
@@ -812,7 +812,7 @@ emitter announces a performed event to the log and there is one per event
 **spine** — a trace page's step rows, one per read, each labelled by what it
 consulted: what the sink generates and `plans/trace_spine.py` renders. Not the
 page — the map's questions, the comparison table and the closing section are
-the *argument*, and stay authored. → `engineering-practices.md` §7.1.
+the *argument*, and stay authored. → `trace-pages.md#the-trace-sink-and-the-engine-map`.
 
 **fork** — a clone of `GameState` taken so that one game can go two ways from the
 same point: a search forks at a decision and plays an answer on the fork, and
@@ -822,7 +822,7 @@ ability list, each registry row until one side writes it (`Arc::make_mut`), the
 object store, the battlefield and the stack a chunk at a time, and
 the event recorder's stream up to the fork, after which each side records its
 own. `Game::resume_turn_at_priority` finishes the turn a fork was taken in. What a
-fork may cost is floors 2 and 3 (`engineering-practices.md` §3.1), which the
+fork may cost is floors 2 and 3 (`engineering-practices.md#the-floors`), which the
 clone tests hold in CI at every decision. → `events::recorder`, `DurationRegistry`,
 `shared_stores`.
 

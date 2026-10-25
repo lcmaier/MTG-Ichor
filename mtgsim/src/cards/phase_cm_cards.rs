@@ -8,12 +8,13 @@
 //! the total cost" sentence exists for). Every oracle text was read on
 //! Scryfall on 2026-09-07 before it was quoted.
 //!
-//! **And the fixtures, registered nowhere** (`engineering-practices.md` §3's
-//! rule: an invented card may not wear a real name while behaving
-//! differently, and may not be cited as evidence about printed Magic). They
-//! exist because the corpus atoms name boards no three printed cards build —
-//! three reductions on one {1}{G} spell, a kicked spell under a tax, a spell
-//! that taps its own Trinisphere for mana between the lock and the payment.
+//! **And the fixtures, registered nowhere**
+//! (`engineering-practices.md#cards-and-pools`'s rule: an invented card may not
+//! wear a real name while behaving differently, and may not be cited as
+//! evidence about printed Magic). They exist because the corpus atoms name
+//! boards no three printed cards build — three reductions on one {1}{G} spell,
+//! a kicked spell under a tax, a spell that taps its own Trinisphere for mana
+//! between the lock and the payment.
 //!
 //! **CM-2: two printed cards, both affinity for artifacts** (CR 702.41a) —
 //! the spell's own cost ability, which is the pipeline's second gather source
@@ -310,12 +311,12 @@ pub fn red_reducer() -> Arc<CardData> {
 /// Power Reducer — {2}{W}
 /// Creature — Human Soldier, 2/2
 ///
-/// **A fixture, and an invented name.** "Spells you cast cost {X} less to
-/// cast, where X is this creature's power." Golden-Tail Trainer prints that
-/// shape and cannot be registered yet — its second ability is an attack
-/// trigger (critical-path item 6), and a card wearing its name with half its
-/// text is what `engineering-practices.md` §3 forbids. The *arm* has no such
-/// problem, so this fixture is its consumer.
+/// **A fixture, and an invented name.** "Spells you cast cost {X} less to cast,
+/// where X is this creature's power." Golden-Tail Trainer prints that shape and
+/// cannot be registered yet — its second ability is an attack trigger
+/// (critical-path item 6), and a card wearing its name with half its text is
+/// what `engineering-practices.md#cards-and-pools` forbids. The *arm* has no
+/// such problem, so this fixture is its consumer.
 ///
 /// It is a creature because the amount reads a power, and the reduction is
 /// read off the **effective** frame: an anthem on this makes it reduce more,

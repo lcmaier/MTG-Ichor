@@ -81,7 +81,7 @@ impl Zone {
 /// and Mycosynth Lattice and Painter's Servant open on "all cards that aren't
 /// on the battlefield". The rule outranks the card list anyway: a facility
 /// the CR states is owed whether or not a card prints it
-/// (`engineering-practices.md` §4).
+/// (`engineering-practices.md#sizing-a-phase`).
 ///
 /// A hand-rolled bitmask following `engine::layers::board::Channels` rather
 /// than a `bitflags` dependency the crate does not have.

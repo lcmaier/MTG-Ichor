@@ -2085,7 +2085,8 @@ impl GameState {
         self.move_object(object, to)?;
         // CR 400.7f finds the Aura in its owner's graveyard only, so not one a
         // replacement exiled instead: `aura-found-in-graveyard`'s switch
-        // (`engineering-practices.md` §3.4b), with the same-event half's.
+        // (`engineering-practices.md#when-a-ruling-and-the-cr-disagree`), with
+        // the same-event half's.
         if cause == EventCause::StateBasedAction(StateBasedAction::AuraAttachedIllegally)
             && to == Zone::Graveyard
             && let Some(aura) = leaving

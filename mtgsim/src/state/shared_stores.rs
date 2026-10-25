@@ -6,7 +6,7 @@
 //! maps and lists, a copy duplicates every permanent, every card's record,
 //! every stack entry and every waiting trigger, so it costs as much as the
 //! board is big: 10 MB and 8 ms with 8,000 triggers on the stack. Floors 2
-//! and 3 (`engineering-practices.md` §3.1) cap it at 10 µs and 128 KB.
+//! and 3 (`engineering-practices.md#the-floors`) cap it at 10 µs and 128 KB.
 //!
 //! **How.** The items sit in *chunks* of 32, each chunk behind an `Arc`, a
 //! pointer with a count of who holds it. Copying a store copies the list of

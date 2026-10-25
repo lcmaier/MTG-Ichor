@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The comment census: `engineering-practices.md` §2.1's instruments, in code.
+"""The comment census: `engineering-practices.md#the-comment-sweep`'s instruments, in code.
 
     python plans/references/comment-census.py                  # the readings, on the working tree
     python plans/references/comment-census.py --rev 0ac5c98    # the same readings at a commit, read from git
@@ -24,8 +24,9 @@ THE DEFINITIONS
     four lines" is five or more.
   * A hit is DATED when its block carries a date, a PR number or a phase
     code (`DATED`). The records say "paragraph"; the block is what lands
-    nearest the third record's readings (`engineering-practices.md` §2.1).
-  * The WIDE TIER is §2.1's grep as its first record wrote it, over comment
+    nearest the third record's readings
+    (`archive/engineering-practices-records.md#21-the-comment-audit--why-the-guard-is-a-sweep-and-not-a-budget`).
+  * The WIDE TIER is the sweep's grep as its first record wrote it, over comment
     lines in `.rs` files and over every line of live `plans/` markdown
     (`plans/archive/` and the corpus out). It is the count to record.
   * The TIGHT TIER is the list to read: about, roughly or one in before a
@@ -70,7 +71,7 @@ TIGHT = re.compile(
 PHASE_CODE = (
     r"\b(?:[A-Z]{2}-\d+[a-z]?|A\d+[a-z]+|Phase [0-9A-Z]+[a-z]?|R[A-H]|L[A-Z]-?\d*|"
     r"[LTD]\d+[a-z]?|CL)\b"
-    r"|`[a-z0-9]+(?:-[a-z0-9]+)+`"  # a phase still to come, by name (engineering-practices.md §4.2)
+    r"|`[a-z0-9]+(?:-[a-z0-9]+)+`"  # a phase still to come, by name (engineering-practices.md#naming-a-phase)
 )
 DATE = r"\b20\d\d-\d\d(?:-\d\d)?\b"
 PR_NUMBER = r"(?:\bPR\s*#?\d+|#\d{2,})\b"

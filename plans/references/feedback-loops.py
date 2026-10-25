@@ -45,7 +45,7 @@ THE DISPOSITIONS
 ----------------
   test      a test that closes the loop on a registered card or a cheap
             fixture, cited by name (`here` marks one this census wrote);
-  register  a row of `engineering-practices.md` §3.4b, where a ruling and the
+  register  a row of `engineering-practices.md#when-a-ruling-and-the-cr-disagree`, where a ruling and the
             CR disagree;
   backlog   a `backlog.md` entry, where the engine has no surface yet and
             nothing owns one;

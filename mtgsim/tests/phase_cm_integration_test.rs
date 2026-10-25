@@ -983,8 +983,8 @@ fn test_one_cost_taking_two_creatures_is_one_event() {
 // ---------------------------------------------------------------------------
 // The rulings pass — CM-3's five cards, read on Scryfall 2026-09-08
 //
-// `engineering-practices.md` §3.4: a card's rulings are the cheapest source of
-// boards the corpus does not have, because they were written about the cases
+// `engineering-practices.md#rulings`: a card's rulings are the cheapest source
+// of boards the corpus does not have, because they were written about the cases
 // players got wrong. What follows is every ruling on the five that this engine
 // can answer today; the ones it cannot are listed there with the reason.
 // ---------------------------------------------------------------------------

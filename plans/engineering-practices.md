@@ -1,1282 +1,340 @@
-# Engineering practices — how this codebase and its docs are written
+# Engineering practices — the rules
 
-**Authority:** this doc owns the *process* rules. The engine invariants live in
-`layers-architecture.md`, `replacement-architecture.md` and
-`cant-effects-architecture.md`; current state lives in `codebase-state.md`.
-`CLAUDE.md` states each rule in a few lines and points here or there for the
-reasoning — that split is itself one of the rules below.
+Every process rule the project keeps: how a PR is sized, measured, commented,
+named and gated. Each is a bold sentence, a line or two, and a pointer to where
+its reasoning lives. The engine's invariants are `CLAUDE.md`'s, and each
+subsystem's design is its architecture doc's. The history behind these rules,
+and the doc this page replaced, are `archive/engineering-practices-records.md`.
 
-Created 2026-08-29, closing theme G of `plans/handoffs/rb-review.md`. Three of
-its five sections are rules that existed only as habit until PR #62 showed what
-happens when a habit is the only enforcement.
+**By concept:** writing code is [comments](#comments), [names](#names),
+[records and concepts](#records-and-concepts) and [module layout](#module-layout);
+writing docs is [line budgets](#line-budgets) and [counts in docs](#counts-in-docs);
+designing is [the rules pass](#the-rules-pass) and
+[the standing review question](#the-standing-review-question); planning is
+[sizing a phase](#sizing-a-phase); cards are [cards and pools](#cards-and-pools)
+and [rulings](#rulings); measuring is [measuring](#measuring); closing work is
+[the spec database](#the-spec-database), [trace pages](#trace-pages) and
+[the spine-phase audit](#the-spine-phase-audit); the GUI is
+[the dev GUI](#the-dev-gui); and the checked invariants are
+[invariant gates](#invariant-gates).
 
----
+## How to cite this page
 
-## 1. `CLAUDE.md` has a line budget, and the budget is checked
+- **Cite a section by its heading's anchor:** `engineering-practices.md#the-close-out`,
+  GitHub's anchor for the heading, so the citation says where it leads, a grep
+  finds it, and on GitHub it is a link. Never by number.
+- **A heading here is a name other files use.** Rename one only with a sweep of
+  its citations; `python plans/check_practices_page.py` fails a citation that
+  resolves to no heading, and any citation of this page by section number.
+- **A rule that needs more than about three lines is two rules, or its
+  reasoning belongs in the doc it points to.**
 
-**The rule: 200 lines, hard.**
+## Line budgets
 
-```bash
-python plans/check_claude_md.py     # exit 1 if over; prints per-section counts
-```
+- **`CLAUDE.md` is 200 lines, hard**, checked by `check_claude_md.py`; this page
+  has its own budget, checked by `check_practices_page.py`. A raise is typed
+  (`--budget N`), so it is a visible act with a reason attached.
+- **An invariant in `CLAUDE.md` is at most three lines plus a pointer**; the
+  reasoning, the war story and the rule numbers live in the architecture doc.
+- **Adding a section requires removing one, chosen against the whole file**,
+  not against whatever sits next to the edit.
+- **A war story is not an invariant**, and **status is not content**: landed
+  status is derived onto `state-of-play.md` from ✅ headings, never written.
+- Why, and the cases: `archive/engineering-practices-records.md#1-claudemd-has-a-line-budget-and-the-budget-is-checked`.
 
-**Why a script.** The previous rule was "keep it durable — no progress
-snapshots or counts". It is a good rule and it did not work: the file crossed
-300 lines twice, both times by accretion that each individual edit could
-justify. A rule that can fail silently is not a mechanism. This one fails the
-way a warning fails.
+## Comments
 
-**Why 200 and not more.** `CLAUDE.md` loads into every session before the task
-does. Every line competes with the work, and a line that is *nearly* current is
-worse than a missing one, because it will be believed. 200 lines is roughly what
-the file held when it was last unambiguously worth reading end to end.
-
-**Three sub-rules, which are what make the cap reachable:**
-
-- **Every invariant is at most three lines plus a pointer.** The *statement* of
-  the rule lives in `CLAUDE.md`; the reasoning, the war story and the rule
-  numbers live in the architecture doc. RB left the replacement-pipeline section
-  at 48 lines re-arguing six decisions that `replacement-architecture.md` §4.1
-  already argues at length.
-- **Adding a section requires removing one.** The file describes the *current*
-  shape of the project. A project does not accumulate invariants forever; it
-  replaces them, and the discipline of naming what a new one displaces is how
-  you find out whether it is really new.
-- **A war story is not an invariant.** "This was the shape indestructible had
-  before Phase RB" is history. It belongs in the commit message that changed it,
-  or in the architecture doc that owns the decision.
-- **Status is not content** (added 2026-09-07). The file forbade "progress
-  snapshots or counts" and then spent its largest section on one: the critical
-  path carried ✅ marks, four dates and "RA, RB and all of RC are in", and it
-  was the one section that went stale on every merge. It now carries ordering
-  and dependencies only. **Landed status is derived** onto `state-of-play.md`
-  from a `###`/`####` architecture-doc heading carrying ✅ — the convention
-  three docs already followed. Making that true took two markers (RS-1, CV-1)
-  and one defect: `ARCH_DOCS` was a hand-maintained list that had never been
-  extended for `cost-architecture.md`, so CM-0, CM-1 and CM-2 shipped with the
-  right heading and appeared on no board. The list is a glob now.
-- **When the cap binds, choose the removal against the whole file.** The
-  cheapest edit is always to compress whatever sits next to the insertion, and
-  that optimises for shortenable rather than for least valuable. This section's
-  own trim is the example: three lines were taken from the ✅ entries for 6b and
-  7 to make room for `6a`, four hours before the ✅ entries were deleted
-  outright as the wrong kind of content.
-
-**Raising the cap is allowed and has to be typed.** `--budget N` exists so that
-a raise is a visible act with a reason attached, not a drift.
-
----
-
-## 2. The comment rule
-
-RB's comment density is far above the surrounding code — module essays, six-line
-paragraphs re-narrating the four lines under them, and design archaeology in
-source files. The rule that was missing:
-
-- **Comment the *why*, and only where the why is not recoverable from the code
-  plus one rule number.** `// CR 701.26a — only untapped permanents can be
-  tapped` earns its place. Six lines restating what the next four lines do does
-  not.
-- **One rule cite beats a paragraph.** If a comment needs more than about four
-  lines, that is the signal its reasoning belongs in `plans/` with a one-line
-  pointer from the source.
+- **Comment the *why*, and only where it is not recoverable from the code plus
+  one rule number.** `// CR 701.26a — only untapped permanents can be tapped`
+  earns its place; six lines restating the next four do not.
+- **One rule cite beats a paragraph.** A comment past about four lines is
+  reasoning that belongs in `plans/`, with a one-line pointer from the source.
 - **Say the rule, never a plans doc's number for it.** A `codebase-state.md`
-  item ("item 248") or a doc's private label ("L7") means nothing to a reader
-  of the code, the less once it is archived; write the CR rule or the
-  behavior instead. Plans docs may cite items (the owner, 2026-10-12, #244).
-- **A war story goes in the commit message or the architecture doc.** Source
-  comments are read by someone changing the code now; the story of what the code
-  used to be is read once, by someone doing archaeology, and `git log` and
-  `plans/` are where they will look.
-- **Doc comments on types and public functions are exempt from the brevity
-  half** — they are the API's documentation and `cargo doc` renders them. The
-  *why*-not-*what* half still applies.
+  item or a doc's private label means nothing in the code; plans docs may cite
+  items (the owner, #244).
+- **A war story goes in the commit message or the architecture doc.**
+- **Doc comments on types and public functions are exempt from brevity only**;
+  the why-not-what half still applies.
+- **A rule for new and edited code**, never a license to delete comments
+  nobody reread; existing density comes down by the sweep below.
 
-This is a rule for new and edited code. It is not a licence for a sweep that
-deletes comments nobody reread; themes C and E of the RB review are where the
-existing density comes down, file by file, as those files are touched anyway.
+### The comment sweep
 
----
+- **The guard is a sweep, not a length budget**: the stale comments it finds are
+  short, true when written, and outgrown by an unrelated change. Run it every
+  15–20 PRs and at the close of any phase that moved a measurable.
+- **`plans/references/comment-census.py` at both ends, with `--rev`**: the wide
+  tier is the count to record, the tight tier the list to read, and the block
+  census with its history words is what cuts lines.
+- **Re-derive or date every number; then delete what the code now says**, as a
+  separate read. A shorter comment that is wrong is not an improvement, so read
+  the doc comments of the subsystem the window built for a count or a tense.
+- **Run the history-word grep over every touched file before opening the PR.**
+- **`CLAUDE.md` carries no comment-length rule**; this sweep is the guard.
+- The four sweeps, their tables and what each found:
+  `archive/engineering-practices-records.md#21-the-comment-audit--why-the-guard-is-a-sweep-and-not-a-budget`.
 
-### 2.1 The comment audit — why the guard is a sweep and not a budget
+## Names
 
-**Asked in the RD-1 review (2026-09-08): should `CLAUDE.md` grow a rule against
-over-commenting, or should the codebase get periodic sweeps?** The answer is
-the sweep, and the reason is what the review actually found.
+A name is read where it is used: a card file, a match arm, a struct literal,
+with no doc comment and often no type prefix. If the use alone does not say what
+it is, rename it. Every name a PR adds is read against this list:
 
-It found three comments in two card files asserting that `fuzz_games::random_deck`
-"filters nonlands by color", with probabilities derived from it. Every one was
-true when written; the filter was removed months later by an unrelated change
-(the `Everywhere` land, 2026-09-03) that had no reason to touch a card file.
-**A length budget would not have caught any of them** — they were short, they
-were *why* rather than *what*, and each one justified a real decision. What was
-missing was a re-read.
+1. **Name the noun**: `ThisObject`, not `This`; a flag says it is one,
+   `is_state_trigger`.
+2. **Say what it does**: `SameInstanceAs(0)`, not `Instance(0)`.
+3. **Put the subsystem on a generic word in a shared module**: `TriggerTier`, not `Tier`.
+4. **Don't borrow a word someone else owns**: the CR owns counters and targets,
+   Phase 10 owns "agent", and "Vehicle" is a subtype.
+5. **Don't name a thing by what it isn't, or by a state it can't have**:
+   `EachOther`, not `Other`; `NONE`, not `EMPTY`.
+6. **Name a type by its contents**: `ObjectSet`, not `AffectedSet`.
+7. **Where the card's text has a phrase, use it**: `DoThisOnlyOnceEachTurn`.
+8. **Name the players**: a condition about a player says which ones.
+9. **A constructor says what it builds**: `IdMap::default()`, not
+   `Default::default()`; an empty value that is a claim is a named constant
+   (`ObjectSet::NO_OBJECTS`). Clippy's `default_trait_access` gates the first half.
+10. **A return names its parts**: a tuple only for a pair that is one thing;
+    otherwise a struct with named fields, or two functions.
 
-So the guard is an audit with an instrument, on the Deferred Migrations
-triage's cadence — **every 15–20 PRs**, and at the close of any phase that
-changed a measurable:
+- **One spelling per concept**: a second type naming the same object takes the
+  first's name (`TriggerSubject::ThisObject`, `EffectRecipient::ThisObject`).
+- **Retrofit where a PR reaches**: a phase that extends an enum reads its
+  existing names against the list and renames the failures in a mechanical
+  commit of their own, counted first. Live docs follow; the archive does not.
+- The review that asked for each check: `archive/engineering-practices-records.md#2b-names-are-read-at-the-call-site`.
 
-1. **Grep for claims that name a number**: `grep -rnE "(roughly|about|one in|
-   [0-9]+%|[0-9]+ of [0-9]+|measured|counted)" mtgsim/src plans` over comments.
-   A comment that carries a number is a comment that can go stale silently,
-   because nothing recomputes it.
-2. **Re-derive each one, or date it.** A claim that is still true gets a date;
-   a claim that has become history gets rewritten as history — "this was true
-   when X shipped, and Y changed it" — rather than deleted, because the
-   decision it justified is still in the tree.
-3. **Delete what the code now says.** A comment that restates a line it sits
-   above is the *other* failure, and this is where it gets removed — but it is
-   the cheaper of the two, because a redundant comment is noise while a stale
-   one is a wrong answer a reader will act on.
+### One-line wrappers
 
-**First recorded application — 2026-09-15, the post-RE audit's pass 2 (PR
-#143 for CI, PR #144 for the sweep), 80 PRs after the last sweep at #62.**
-The grep as written found **456 hits in `mtgsim/src`** (133 in `cards/`),
-**140 in `tests/`** and **1,049 in live `plans/`** (archive and the corpus
-excluded). Most of the `src/` count is the instrument's noise: 265 of the 323
-non-card hits were "about" as a preposition or "one in" inside "zone in" and
-"one instead". Read with a second, tighter tier — `about`, `roughly` and `one
-in` only before a quantity; `counted` and `measured` as verbs; any `N%` or
-`N of M` — the non-card `src/` list is **58**, of which 39 sat in a paragraph
-carrying no date, phase code or PR number, and **13 were measurements or
-censuses with no date**. Each was dated from `git blame`, or re-derived where
-the claim was about the tree (`pipeline.rs::substitute`'s counted block, 7 → 8
-templates and 235 → 310 lines; `card_pool_lowering_test`'s 52 → ~150 call
-sites); one estimate nobody had derived (`ManaPool`'s "99% case") became "the
-common case", and one future-tense doc (`GameAction`'s "in Phase 6 a pipeline
-will…") became history. Every `cards/` hit was a Scryfall census carrying its
-date already. The twelve `TODO`s citing the archived plan's vocabulary got a
-live owner in place of the label or were deleted where the code had moved on
-(one new owner had to be filed: `backlog.md` §2.32). `plans/` is dated by
-convention almost everywhere — the `Found by …` headings, `fuzz-record.md`'s
-`**Re-recorded YYYY-MM-DD**` blocks, the census line under each "Scope,
-measured" — and the six undated measurements left were dated in place. The
-sweep also caught what the instrument does not look for: one American-spelling
-gap at twelve sites (the forms are on `check_glossary.py`'s list now) and
-three stale line-number pointers in `codebase-state.md`. **After the sweep the
-tighter tier reads 19 in non-card `src/`, 6 in `cards/`, 12 in `tests/`, all of
-them `counted` or `measured` describing what the code does rather than a
-number** — that residue is the instrument's floor, not work. **Step 3 is a
-separate read, and the first cut skipped it**: dating and re-deriving replaced
-comment lines one for one (97 out, 96 in), and the owner read the net-positive
-PR as a sweep that cut nothing. Applied in full afterwards — every inline
-comment block in the 55 files the two PRs touch, read against the line beneath
-it — 144 lines came out of 20 files, nearly all from the pre-RB files
-(`mana_helpers`, `turns`, `game`, `zones`, `cast`, `types/mana`, `steps`) and
-almost none from the RB-era ones; 50 went in where an archived label needed a
-live owner. Read the whole file's comments, not the grep's hits. **Next time,
-run both tiers**: the tighter one is the list to read, the wider one is the count
-to record here, and a hit under the tighter tier with no date in its paragraph
-is the work.
+- **"It reads better at N call sites" is not a reason.** A wrapper earns its
+  place when it names a question the docs already ask in prose, pins a
+  comparison callers would get subtly wrong (`zone_function::functions_in`), or
+  is the narrow half of a pair whose wide half must stay reachable.
+- **Otherwise inline it; when one applies, the reason goes in its doc comment.**
+- **A chokepoint is a different question**, justified by what it makes impossible.
+- The worked cases: `archive/engineering-practices-records.md#2a-when-a-one-line-wrapper-earns-its-place`.
 
-**Second application — 2026-09-15, the same day, after the owner read the
-first as still too small (PRs #146, #147, #148, #149).** "Restates
-directly below it" catches a comment that repeats the code and misses a war
-story or an over-explanation, which is where the length was. Sized against the
-tree before starting: non-card, non-test `src/` carried **15,619 comment
-lines**, 12,675 of them in blocks over four lines (9,066 doc, 2,882 inline, 727
-module) and **4,358 in 249 blocks that narrate history** — phase codes, "used
-to", "until YYYY-MM-DD", "this PR", "the old …". Two rules, applied whole file
-by whole file from the largest candidate down and split at §4's diff band:
-history narration comes out of every comment kind, a doc comment keeping its
-summary and contract; and an inline `//` block over four lines is compressed
-to the decision, the rule cite and a pointer to the architecture doc that
-carries the reasoning. Card files were left alone — their comments are Scryfall
-censuses, dated already. Across the four PRs (3, 4, 49 and 1 files) the
-whole-file comment counts went **3,235 → 2,798, 3,358 → 2,794, 10,164 → 9,722
-and 521 → 492: 17,278 → 15,806, 1,472 lines out** and the source diffs 1,191,
-2,006, 1,932 and 463 lines. **The instrument for this pass is not the grep above.**
-It is a block list — every comment block over four lines, per file, with the
-history words flagged — read in full, then a second grep over the *whole* file
-for phase codes and the history words, because the block list misses a
-one-line "since RC-1" and a "Phase RB" in a section header; the second grep
-found about forty more sites the first pass had walked past. What it turned up
-that neither instrument looks for: **twelve comments the code had outgrown**,
-each corrected rather than shortened — `execute_action`'s doc still describing
-a "direct passthrough" with the pipeline as a future step, `ActionContext`'s
-"nothing reads either field yet" on fields with nine readers, `resolve_effect`'s
-"Phase 2 scope", a `replacement_ability_sources` doc waiting on a copy leg
-that existed, two "one reader" claims where there were three, a `CR 701.?`
-placeholder, a Destroy citing Create's rule number, a `first_strike_only` that
-"always false", a CR 704.7 test premise the losses batch had falsified, a
-"nothing reads `ctx.dp`", and an `ObjectFilter`-is-the-wrong-name paragraph
-that outlived the rename it asked for. And one gate interaction: deleting the
-only "this used to be `forced_bucket`" note in the crate turned
-`check_glossary.py` red, because the glossary's **step** entry anchored on the
-old name; the entry now says the rename without it. **Next time, run the
-history grep over every touched file before opening the PR**, and read the
-doc comments for stale claims as a step of its own — a shorter comment that is
-wrong is not an improvement.
+## Records and concepts
 
-**Third application — 2026-10-08, the triggers midpoint audit (A6k, PR
-#235 for the plan), 81 PRs after the second.** Reproduced before it was read, as the first two records'
-wording made necessary. The wide tier reproduces exactly: its grep over
-comment lines in `.rs` files and every line of live `plans/` reads the first
-record's 456 (133 in `cards/`), 140 and 1,049 at its tree, `949a519`. So does
-the second record's per-file count, lines starting `//` with test modules
-included, on its four PRs (3,235 → 2,798, 10,164 → 9,722, 521 → 492, and
-#147's −564). Its tree total does not: no definition tried gives 15,619 for
-non-card, non-test `src/` at `1e80147` (16,415 with test modules, 15,245
-without), and its 57 touched files alone summed 17,278. So 15,806, the
-touched files after, is not a tree total, and the tree-wide row is below. The
-tight tier was never written as a regex. This run's — about, roughly or one
-in before a quantity, counted or measured as verbs, any N% or N of M, undated
-when its paragraph carries no date, PR number or phase code — reads 63 with
-34 undated at `949a519`, where the record says 58 and 39, and 19 undated at
-`1e80147`, which is the record's after-reading. With those definitions, over
-non-card `src/` (the tiers with `bin/`, the block census without):
+### One record, never two kept in step
 
-| | `949a519`, before the sweeps | `61b488b`, after them | `0ac5c98`, 2026-10-08 |
-|---|---|---|---|
-| wide tier: non-card src / cards / tests / live plans | 323 / 133 / 140 / 1,049 | 274 / 132 / 140 / 1,063 | 431 / 149 / 217 / 1,864 |
-| tight tier, non-card src (undated) | 63 (34) | 45 (19) | 82 (53) |
-| comment lines, and their share of all lines | 16,506 | 15,034 (32.5%) | 21,295 (29.9%) |
-| in blocks over four lines: doc / inline / module | 9,123 / 2,869 / 680 | 8,649 / 1,582 / 710 | 11,024 / 1,918 / 1,183 |
-| blocks narrating history (their lines) | 254 (4,367) | 80 (1,311) | 107 (1,814) |
+- **Two collections whose entries must stay paired, by position or by key, are
+  one record split in two.** Every writer has to remember the other half, and a
+  missed half is silent until a reader pairs the wrong two. Put the fields on
+  one record. A collection derived and dropped at once is not a second copy.
+- **Mirror the CR's shape, so each of its readings is one place in the code.**
+  CR 113.7a's last known information is one store keyed by existence
+  (`GameState::lki`), and `departure_read` in `engine/triggers/dispatch.rs`
+  reads a departing object the two ways CR 603.10 and 603.6c give it: as its
+  record framed it for an arm that looks back, and as it is now for any other.
+  Two match arms, one per reading. → `triggers-architecture.md` §3.11.
 
-Comments grew more slowly than the code, which went from 46,269 lines to
-71,176. The history blocks and the inline blocks over four lines are what the
-second application's two rules cut, and today's are about half of what it
-found, so the sweep is sized at one PR, ~600–900 lines out, largest file
-first. The tight tier's undated list is the floor again, apart from two
-undated numbers in `layers/types.rs`. The comments whose numbers had moved
-most were outside the grep's reach: `Cargo.toml`'s five clippy allows each
-give a site count, and four had moved (4 → 6, 3 → 4, 3 → 7, 3 → 4, with 11
-holding), with nothing to say so. **Applied in PR #236**: comment lines
-21,295 → 20,699, inline blocks over four lines 1,918 → 1,150, blocks narrating
-history 107 (1,814 lines) → 84 (1,378), a 1,729-line source diff over 41
-files. As in the second application, the read found comments the code had
-outgrown, each corrected rather than shortened:
-- an event doc still promising the replacement registry;
-- a link to a variant that never existed;
-- "a fresh `ObjectId` per cast", where a spell keeps its card's id;
-- CR 113.6k called future work after it shipped;
-- `is_spell` "false for exactly one thing", which is two;
-- three phase codes naming work since done;
-- a count of 45 emission sites, which is 58.
+### Key a concept before storing it
 
-**Fourth application — 2026-10-22, the item 6 audit's pass 3 (PR #274), 38
-PRs after the third.** The instrument is a script now,
-`plans/references/comment-census.py`: every definition a constant, and
-`--rev` reads any commit. Calibrated at the records' own trees first: the wide
-tier, the comment lines and the blocks over four lines by kind reproduce
-exactly at all three; the history blocks read 254 at `949a519` and 249 at
-`1e80147`, the first and second records' counts, and 81 and 109 where the
-third says 80 and 107, once "no longer" is a history word; the tight tier
-reads 65 (35), 47 (21) and 85 (56) against 63 (34), 45 (19) and 82 (53), once
-a hit is dated by its whole block, the gap being "about one object" as a
-preposition. Over non-card `src/`:
+- **Ask what the CR keys a concept by, and who owns it, before deciding where it
+  lives or how long.** TR-2b chose where last known information lived by how
+  long each keeper needed it, and twenty fields followed; the key CR 400.7 gives
+  it, the existence, came only with #285's store.
+- **A concept with two owners is a finding.** The concept register and its gate
+  are `concept-census-and-register`'s (`handoffs/item-6-audit.md`, row 1d).
 
-| | `df2a14c8`, after #236 | `e010539e`, before | after #274 |
-|---|---|---|---|
-| wide tier: non-card src / cards / tests / live plans | 414 / 149 / 217 / 1,890 | 485 / 157 / 245 / 2,219 | 485 / 157 / 245 / 2,226 |
-| tight tier, non-card src (undated) | 78 (53) | 96 (71) | 96 (70) |
-| comment lines, and their share of all lines | 20,699 (29.3%) | 23,733 (29.3%) | 23,719 (29.3%) |
-| in blocks over four lines: doc / inline / module | 10,983 / 1,150 / 1,169 | 11,996 / 1,230 / 1,325 | 11,998 / 1,213 / 1,324 |
-| blocks narrating history (their lines) | 88 (1,465) | 100 (1,591) | 77 (1,183) |
+## Counts in docs
 
-**The window grew the comments and not the faults the last two sweeps cut.**
-The 3,034 lines since #236 are nearly all doc comments in the trigger code;
-the history blocks and the inline blocks over four lines barely moved, the
-comment rule having been applied at each PR's review. So the sweep was a
-328-line source diff over 41 files, and its yield was not length but the
-comments the code had outgrown, each corrected rather than shortened:
-- combat validation's constraints describing the old roadmap's Phase 3/4/5
-  plan, where every caller passes `none()` and `combat-restrictions` and `combat-requirements` own the effects;
-- `cast_spell`'s "placeholder (601.2d — T18c)" and mana-window placeholder,
-  and `AlternativeCost`'s "T18 will wire these into the casting pipeline";
-- CR 707.9d's drop "arrives with … CV-2", and the state check "is TR-6's,
-  and the dispatcher refuses it until then";
-- `unless` waiting for "Phase 6 to give `Condition` a meaning", and a mana
-  grant "critical-path item 6's";
-- a warning against tiebreaking on "a v4 `ObjectId`";
-- `ResolutionContext`'s doc reading "no targets: ChosenTargets::one(targets),",
-  a rename's sed inside a comment;
-- the random agent's "two pieces of state" and "two" non-uniform answers that
-  "both exist", three each;
-- two tests crediting a rule to `cant-cast-play-or-activate`, which has not landed;
-- the dispatch gate's "the zone map is keyed by ability";
-- three of seven type sizes, re-read with a throwaway probe.
+- **A count or `file:line` in a doc is generated, or it drives a decision**, and
+  the doc says which: the board's counts are regenerated; a sizing is rounded
+  and dated.
+- **Anything else is described, not counted**: "every `GameAction` variant has
+  an arm", not "the 26 variants"; name the function, not its line. A dated
+  record ("at TR-2b, 34 variants") is history and stays.
+- **It bites in contract sections, `codebase-state.md` item bodies outside
+  `**Sized:**`, and module doc comments**; a work-list or handoff may carry
+  exact counts, since it is consumed and deleted.
 
-The undated tight-tier list is the floor again, `counted` and `measured`
-describing the code. The numbers it does not see were the work: the type
-sizes, three Scryfall censuses with no date, and CR 702's keyword count
-(189, which holds). Outside the comment grep: four of the clippy table's
-five counts had moved again, and `ci.yml` called its glossary step "one of the
-four checks" and cited §11.4 for the checked sitting. **Next time, run the
-script at both ends with `--rev`, and read the doc comments of the subsystem
-the window built for a count or a phase's tense** — the history grep finds a
-"since RC-1" and never a "two" that became three.
+## The rules pass
 
-**What stays out of `CLAUDE.md`:** a comment-length rule. That file is 200
-lines and every section costs another; the rule it already has is the right
-one, and a second rule that duplicates it in the negative would buy nothing
-that this sweep does not.
+- **Before deferring a rules question, search the CR for the rule that watches
+  the one you are implementing.** Three greps: the chapter that owns the thing
+  you change; the chapter that watches it (CR 603 and 614 for an event, 613 for
+  a characteristic, 400.7 and 603.10 for a zone change); and the thing's name,
+  in the CR's words, across the whole file.
+- **The corpus too**: an atom written against one rule without the rule that
+  overrides it cannot reach its own board.
+- The case it comes from (CR 603.6c, found after RE-7 deferred it):
+  `archive/engineering-practices-records.md#8-the-rules-pass--read-the-rules-that-name-the-rule-not-just-the-site`.
 
-## 2a. When a one-line wrapper earns its place
+### What a new type must express
 
-Added 2026-09-14, at the LK review, because the question recurs: *is this
-one-line wrapper justified?* It kept being answered per-site, and the answer
-kept being "it reads better", which is not an answer — a name that only
-re-spells an expression is a second name for one thing, and the reader now has
-to learn both.
+For a new type, or one a phase grows, three questions, answered where the type
+is designed:
 
-**"It reads better at N call sites" is not a reason when N is small, and stops
-being a reason at all when N is 1.** Three things are:
+1. **What must it express at v1?** List what the CR lets it be, then count the
+   cards with a census script over Scryfall's data, calibrated on the
+   registered cards first (`plans/references/cast-census.md` §2 is the example).
+2. **Which rules let a card override it?** "Unless … says otherwise" (602.2),
+   "usually" (601.2), "by default" (701.9b); one that refuses an override "for
+   any reason" (305.2b) may be encoded as fixed.
+3. **Which card families override it, and how many cards?** A default the engine
+   hard-codes is a family with no owner until its first card arrives.
 
-1. **It names a question the expression only answers implicitly**, *and* that
-   name is already used in prose elsewhere. The test is whether the docs
-   already say "does X function in zone Z" — if the phrase is in the
-   architecture doc, the function should have it too. A name nobody writes in
-   prose fails this.
-2. **It pins a comparison or a borrow the callers would otherwise get wrong.**
-   The strongest form: the hand-written version compiles and is subtly wrong.
-   `zone_function::functions_in` is the worked example — it wraps
-   `functioning_zones(a, t).contains(z)`, and the shape a caller reaches for
-   instead is `functioning_zones(a, t) == ZoneSet::of(z)`, which is right for
-   every one-zone statement and silently false for Squee, the Immortal's "from
-   your graveyard **or** from exile". One caller, and the wrapper is still
-   worth it.
-3. **It is the narrow half of a pair whose wide half must stay reachable.**
-   The wide one is what tests assert against and what a future caller needs;
-   the narrow one is what callers should reach for. Both public, and the
-   narrow one's doc says which is which.
+## The standing review question
 
-**What to do when none of the three applies:** inline it. And when one does,
-**write the reason in the doc comment** — the reason is the whole justification,
-so a wrapper whose doc says only what the body says has not been justified. The
-review finding this section came from was a doc comment claiming "every caller
-but registration asks this shape" about a function with exactly one caller; the
-claim was checkable and wrong, and the real reason (2, above) was better.
+- **"What does this actually check, and what happens if it runs twice?"** Ask it
+  of any claim the engine makes about itself: name the values compared and
+  their types in a sentence, and say what a predicate that suppresses, memoizes
+  or short-circuits assumes about repeating.
+- **When:** any change to `ordering_cannot_change_outcome` or its leaf tables;
+  any new `EventPattern`, `Rewrite` or `GameActionTemplate` arm; any
+  `debug_assert` standing in for a proof; any "safe because …" whose because is
+  a list of cases.
+- **A premise that enumerates shapes breaks when the list grows**, so put a
+  property on the type whose arms grow (`EventPattern::reads_the_amount`),
+  beside the enum. A fact relating two types stays at its caller.
+- The three corrections that made it a rule: `archive/engineering-practices-records.md#41-the-standing-review-question`.
 
-Related and different: a wrapper that exists to be *the one door* through which
-a mutation happens is not this section's subject. `GameState::
-insert_battlefield_entity` and `set_object_timestamp` are chokepoints, and a
-chokepoint is justified by what it makes impossible, not by what it reads like.
+## Sizing a phase
 
-## 2b. Names are read at the call site
+- **Size a phase before writing it, and split it in the doc, not in the
+  moment.** Implementation PRs run 1,500–2,500 lines.
+- **The band counts code plus tests** (`mtgsim/src`, `mtgsim/tests`), with docs
+  reported beside it, net of generated files (`state-of-play.md`,
+  `rulings-ledger.json`, what `specdb.py build` writes). Track it at every
+  commit and flag a crossing at once.
+- **Hunt the gaps card by card before counting**: read every clause of every
+  card the phase names against the tree, and list each facility its rows do not
+  name.
+- **Read the intake at the first ticket**: `check_state_of_play.py --slotted
+  <name>` lists every open item slotted to the phase; take each or re-slot it.
+- **Every PR in a split carries at least one consumer of what it builds.**
+- **Review findings go to `plans/handoffs/<phase>-review.md`**, captured before
+  anything is fixed, triaged, and closed one theme per session.
+- **`git log main..HEAD` lies after a squash merge**; check content with
+  `git diff --stat origin/main HEAD`.
+- The phase that made it a rule (RB, at 2.2× the largest before it):
+  `archive/engineering-practices-records.md#4-sizing-a-phase-and-splitting-it`.
 
-Added 2026-09-24, at TR-2's sizing, because renames kept coming back in review.
-`EffectRecipient::This` became `ThisObject` before it was written, and the owner
-asked for the rule rather than the next rename.
+### Gaps a phase finds
 
-**A name is read where it is used**: in a card file, a match arm, a struct
-literal. The reader there has no doc comment and often no type prefix. If the
-use alone does not say what the thing is, rename it. Each check below is one a
-review has already had to make:
+- **An arm the PR's own type opens, with a printed customer and under about
+  eighty lines, ships in that PR.**
+- **The CR is the customer; a printed card is the test.** A facility the CR
+  states is owed whether or not a card prints it: it gets a fixture test and a
+  reachability line saying "no printed producer", never "nothing owed".
+- **A gap in the phase's own subsystem ships in the phase while the band
+  holds.** What is still filed takes one of two slots: "with the first
+  registered card that …" for a fix that is mechanical once a card needs it, or
+  a named phase or roadmap row for one that needs a design decision.
 
-1. **Name the noun.** `ThisObject`, not `This`. `to_objects` beside
-   `to_players`, not `to` (RD-4). `earlier_targets`, not `earlier` (A4i). A
-   flag says it is one: `is_state_trigger`, not `state`.
-2. **Say what it does.** `SameInstanceAs(0)`, not `Instance(0)`, which reads as
-   "is instance 0" (A4i).
-3. **Put the subsystem on a generic word in a shared module.** `TriggerTier`
-   and `TriggerSubject`, not `Tier` and `Subject` (TR-1).
-4. **Don't borrow a word someone else owns.** The CR owns counters
-   (`EngineCounters` became `Diagnostics`) and targets (CR 115; what an effect
-   applies to is "affected"). Phase 10 owns "agent" (`MiddlewareConfig`).
-   "Vehicle" is a subtype.
-5. **Don't name a thing by what it isn't, or by a state it can't have.**
-   `EachOther`, not `Other` (LI-2). `NONE`, not `EMPTY` (A4i).
-6. **Name a type by its contents.** `ObjectSet`, not `AffectedSet`.
-7. **Where the card's text has a phrase, use it.** `DoThisOnlyOnceEachTurn`
-   and `TriggersOnlyOnceEachTurn`, not `DoOnceEachTurn` and `OnceEachTurn`,
-   which differ by one word and name two different rules (CR 603.2h, and
-   Elvish Warmaster's ruling).
-8. **Name the players.** A condition about a player names which ones:
-   `Condition::Player { players, .. }` and `HistoryCount { players, .. }`,
-   never a leaf that assumes "you".
-9. **A constructor says what it builds.** `IdMap::default()`, not
-   `Default::default()`, which hid that the map carries the hasher's seed
-   (#158). An empty value that is a claim is a named constant:
-   `ObjectSet::NO_OBJECTS`, `DecisionLogHandle::NONE` (#211),
-   `RecordPlaces::NOT_COUNTED` (#248).
-10. **A return names its parts.** A tuple only for a pair that is one thing,
-    read together and named by its types: a map's entry, `(ManaType, u64)`, or
-    a block's `(blocker, attacker)`. Several answers whose meaning lives in the
-    doc comment are a struct with named fields, or two functions where callers
-    use them apart: `(String, String, bool)` says nothing at the call site
-    (TR-5c's review, the owner; `SourceBeforePaying` is the struct form). The
-    engine's existing tuple returns are swept at A6e (`codebase-state.md`
-    item 285).
+### Landing a phase
 
-**One spelling per concept.** When a second type needs a name the first already
-has, it takes the same one: `TriggerSubject::ThisObject` and
-`EffectRecipient::ThisObject` are the same object.
+- **A shipped phase marks its own heading** — `#### <name> — ✅ landed <date>`
+  in the owning architecture doc, in the commit that ships it; the board reads it.
+- **A landed phase's section is a stub of at most 40 lines**; its body moves to
+  `plans/archive/<doc>-landed.md` under the same heading in the landing PR, and
+  `check_state_of_play.py --check` fails a longer one.
 
-**One gate.** Item 9's first half is clippy's `default_trait_access`, refused in
-both crates' `[lints.clippy]` tables, so CI's clippy step fails it (#248). It
-passes a struct update's `..Default::default()`, whose type is the literal's,
-and a primitive's. A script could flag a bare pronoun and nothing else on this
-list, so the rest is a review checklist, applied to every name a PR adds. **Retrofit
-where a PR reaches**: a phase that extends an enum reads that enum's existing
-names against the list and renames the failures in a mechanical commit of their
-own, counted before it runs. The live docs follow the rename; `plans/archive/`
-does not.
+### Naming a phase
 
-## 2c. One collection of records, never two kept in step
+- **A phase has a plain name of a few words**, first wherever it is named; a
+  landed phase's old code follows it.
+- **A phase still to come is cited by its name, hyphenated in backticks**
+  (`combat-restrictions`): two to four words in the CR's words, "plus" joining
+  different work. A board-read heading puts it first; a branch is
+  `<subsystem>/<name>`.
+- **No new codes**, and a split names each part for what it delivers. A roadmap
+  row's ID orders work and never names it. Retired codes:
+  `archive/route-codes-renamed.md`.
+- **The index is generated**: the board's "Phases by name".
 
-Added 2026-09-27, at TR-2b's review. Two collections whose entries must stay
-paired, by position or by key, are one record split in two: a list of objects
-beside a list of their frames, or the stack's entries beside a map of what each
-names. Every writer then has to remember the other half, and a missed half is
-silent until a reader pairs the wrong two.
+## Cards and pools
 
-**Put the fields on one record.** TR-2b's kept LKI lists (`kept_lki`) are a field of the
-entry that names them (`PendingTrigger`, `StackEntry`, `ResolvingObject`), so
-they move with the entry and die with it. Its design rejected a `GameState` map
-keyed by `ObjectRef` for exactly this reason. A collection *derived* from
-another and dropped at once, such as `objects_lki_is_kept_for`, rebuilt for the one
-batch that needs it, is not a second copy, because nothing keeps it.
-
-## 2d. A count in a doc is generated, or it decides something
-
-Added 2026-10-22, at the item 6 audit's discovery (#271). A count or a
-`file:line` pointer written into prose is true the day it is written, and
-the next merge starts to make it false. Nothing checks it, so it rots
-silently. The audit's docs pass found 208 stale claims, and a large share
-of them were counts and pointers of this kind: a doc's length, an enum's
-variant count, a test total, a function's line.
-
-**A count earns its place in a doc in one of two ways:**
-
-1. **A script generates it.** `state-of-play.md`'s counts are regenerated,
-   and `check_state_of_play.py --check` fails when they go stale. A count
-   that belongs on the record goes there, or in a generated block like it.
-2. **It drives a decision or a gate**, and the doc says which. Examples:
-   the board's wrong-today row, `owed`'s count, `CLAUDE.md`'s 200 lines, a
-   PR's place in the 1,500–2,500 band, a sizing that decides one PR or
-   two. If it sizes work, round it ("about 2,700 lines") and date it.
-   Precision past what the decision needs only adds rot.
-
-**Anything else is described, not counted.** Write "every `GameAction`
-variant has an arm", not "the 26 variants". Write "the record carries its
-cause", not "`actions.rs:2141` sets it". Name the function and let a grep
-find it. A dated record that says when it was true ("at TR-2b, 34
-variants") is history, not a claim, and stays as written.
-
-**Where this bites:** an architecture doc's contract sections, a
-`codebase-state.md` item's body outside its `**Sized:**` line, and a
-module doc comment. A work-list or a handoff may carry exact counts,
-because it is consumed and deleted.
-
-## 3. Two card pools
-
-`cards/registry.rs` builds two of real cards, and a third for the checked
-sitting:
+`cards/registry.rs` builds three pools:
 
 | Pool | Contents | For | Flag |
 |---|---|---|---|
-| **performance** | a *representative* board (`PERFORMANCE_POOL`) — grows deliberately, one card per new engine path | A/B-ing an engine change, **interleaved in one sitting** | `--pool performance` (default) |
-| **stress** | every registered card (`default_registry`) | panics, errors, and effect interactions | `--pool stress` |
-| **fixtures** | every registered card and the castable fixtures (`fixture_pool`) | the debug checks a fixture's build carries, in CI's checked sitting (§11.5) only; keeps no table | `--pool fixtures` |
+| **performance** | a representative board (`PERFORMANCE_POOL`), grown one card per new engine path | A/B-ing an engine change, interleaved in one sitting | `--pool performance` (default) |
+| **stress** | every registered card | panics, errors, effect interactions | `--pool stress` |
+| **fixtures** | every registered card and the castable fixtures | the debug checks fixtures carry, in CI's checked sitting only; keeps no table | `--pool fixtures` |
 
-**Why two.** Before this split there was one pool, and it had to be both things
-at once — so a card that would have exercised the new pipeline was kept *out of
-the registry* on the grounds that it "would move the baseline". That is an
-argument for separating the pools, not for keeping cards out: an unregistered
-card is invisible to `fuzz_games`, to `card_pool_lowering_test`, and to
-`cli_play` all at once, which is three losses to protect one number.
-
-**And why the *freeze* went, 2026-09-01 — it is the same argument one level up.**
-RS-1 added a gated subsystem that no card in the pool could open, so its A/B
-measured only the closed path. Left alone, a frozen pool measures a shrinking
-fraction of the engine: eventually "flat on the performance pool" means "flat on
-the parts that existed in 2026-08". Keeping a card out of *this* pool to protect
-a number costs one measurement where keeping it out of the registry cost three —
-weaker, and the same shape. What the freeze was protecting no longer needs it:
-an interleaved A/B uses one pool in both arms by construction, so stability
-across months buys the timing measurement nothing.
-
-**The rules that follow:**
-
-- **Register the card.** Writing a card and registering it are the same act now.
-  Registration is what puts it in front of every check the project has.
-- **`PERFORMANCE_POOL` is representative, not frozen** (revised 2026-09-01; it
-  was frozen for a year). **A phase that opens a new engine path adds one card
-  to it, deliberately, and re-records both tables in `fuzz-record.md`.** Adding
-  is still not the same act as registering. `performance_pool()` panics on a name
-  that is no
-  longer registered, which is the guard against a rename shrinking the pool
-  silently — the one failure a deliberate addition does not have.
-- **Before making a word in a card's text *structural*, find two more cards in
-  the same bucket and check they print it.** CV-1 made "each **other** creature"
-  structural — a copy arm that excluded the donor with no way to say otherwise
-  — on the reading that a class-scoped copy always says "other". Mirrorform
-  prints the same shape without the word, and the arm could not express it at
-  all. **Structure is the expensive direction to be wrong in:** data that is
-  never varied costs a field, structure that has to vary costs an enum arm and
-  every match on it. The census cannot catch this — it partitions by
-  *mechanism*, and a one-word difference lives inside one bucket.
+- **Register the card**: writing a card and registering it are one act, and
+  registration puts it before every check the project has (once the engine
+  can play it).
+- **`PERFORMANCE_POOL` is representative, not frozen.** A phase that opens a new
+  engine path adds one card, deliberately, and re-records both tables in
+  `fuzz-record.md`; `performance_pool()` panics on a name no longer registered.
+- **Before a word in a card's text becomes structural, find two more cards in
+  the bucket that print it.** Structure is the expensive direction to be wrong in.
 - **A fixture may be invented. It must not wear a real card's name while
-  behaving differently, and it must not be cited in the spec corpus or the
-  plans as evidence about printed Magic.** Written down 2026-09-03; the rule
-  being applied until then — "no invented cards" — was written nowhere, and
-  this is the narrower one that actually earned the scars. Both scars are
-  about the *name*, not the invention: `phase5_pre_cards::inside_out` stays
-  unregistered because it simplifies a hybrid cost the engine cannot express
-  while wearing Inside Out's name, and `codebase-state.md` item 15's "Mind
-  Snare" was an invented name that reached the corpus and `roadmap.md` as a
-  printed card. A fixture with its own name, or a token with its real text
-  (Everywhere, `cards/dual_lands.rs::everywhere`, is the first admitted under this rule
-  as written), misleads nobody; a doc that cites either as a fact about Magic
-  does.
-- **`PERFORMANCE_POOL` measures cost; `--require` measures coverage. Do not
-  read either off the other.** Adding a card to the pool does *not* mean its path
-  gets walked: CV-1 put Cytoshape in and it resolved **16 times in 200 games**,
-  because any one card competes with the whole pool for 36 slots — and that
-  ratio worsens with every card added, forever. **The unforced number is not a
-  target**; `--require` is the answer to "was the path walked", and the pool
-  measures cost. `fuzz_games --require "Card A,Card B"` forces a copy of each
-  into every deck, then prints casts, resolutions, the share of games each
-  reached, **copies per deck**, and **board diversity**. **The flag repeats,
-  and that is how a card whose name contains a comma is named at all**
-  (RE-8, 2026-09-14): `-r "Opt" -r "Eligeth, Crossroads Augur"` is the union
-  of both, deduplicated, in the order given. Before it, Vorinclex, Monstrous
-  Raider (RE-5) and Eligeth were read through their tests instead — two
-  phases running, which is what made the ten-line fix worth taking — the share of games in
-  which a permanent of a color no required card has entered the battlefield.
-  **An empty `--require` changes nothing** — every RNG draw is guarded, so a
-  reachability run and a timing run come from one binary without the first
-  contaminating the second. **Run it once per phase that adds a card**, and put
-  the resolution count in the phase's ledger entry **beside its copies per
-  deck**: the flag adds one copy and the 36 draws add more, how many depends on
-  the pool they came from, and a count is only comparable per copy.
-
-  **It no longer seeds the deck's colors from the required card's
-  (2026-09-03).** It had to, because nothing in the registry made more than two
-  colors, and the price was the board: `--require Cytoshape` put every game on
-  a G/U pair, so the card met a white, black or red permanent in **none** of
-  them. Everywhere — the five-color land token, now the fill tier of every
-  deck's mana base (`random_deck`) — is what let the seeding go. Same 200 games
-  / seed 12345, `performance`:
-
-  | `--require Cytoshape` | cast | resolved | games | copies/deck | non-G/U permanent seen |
-  |---|---:|---:|---:|---:|---:|
-  | with color seeding (`main`, 6dedaf8) | 400 | 390 | 177 (88%) | 2.68 | 0 — by construction |
-  | without | 216 | 212 | 126 (63%) | 1.72 | **198 (99%)** |
-  | without, and the agent taps for the pip it owes | 230 | 228 | 131 (66%) | 1.72 | **200 (100%)** |
-  | the row above, plus `,Everywhere` forced | 222 | 219 | 125 (62%) | 1.72 | 200 (100%) |
-
-  **Read the copies column first. This table was first written without it, and
-  said "the resolution count halves, and that is the agent".** A deck seeded to
-  G/U drew its 36 nonlands from 21 cards and held 1.7 *extra* Cytoshapes; the
-  whole pool gives 0.7. A throwaway build that forced *exactly* one copy per
-  deck — not shipped, since the extra copies are more stress and that is what
-  the flag is for — read **149 / 141 / 133** resolutions for the first three
-  rows: the seeding was worth about 5%, the agent's fix none of it, and the
-  rest was copies. What the uniform tap *did* cost was real: with an any-color
-  land a tap was a five-sided die, and land taps per spell cast went 3.86 →
-  7.66. `RandomDecisionProvider` now taps for the pip it still owes, and the
-  generic split comes back from the prompt already clamped to what the pips
-  leave over (`ui/ask.rs`, 2026-09-03), which brings taps per cast to **3.18**
-  — below `main` — and the pool's spells per game from 22.6 back to 25.0. It does not raise a forced card's count, because that count is
-  bounded by drawing the copy and choosing it among everything else castable,
-  not by paying for it; and forcing Everywhere on top changes nothing either,
-  the deck already holding fourteen.
-- **Say which pool a number came from.** `fuzz_games` prints it in the header
-  and in the results block. The two pools are not comparable to each other, so a
-  pasted stats block without its pool name is not evidence of anything.
-
-**The tables these rules produce are in `plans/fuzz-record.md`, newest first**
-— a phase appends its block there whenever it moves a pool; the rules stay here.
-
-**Those tables are fixtures, not benchmarks, and the distinction is the point.**
-Every row is seed-deterministic, so it is comparable across machines and across
-months and a change to it means the *engine's behaviour* moved. **`ms/game` is
-deliberately absent** — it was in them until 2026-09-01 and never belonged:
-commit `a926627` established that a stored timing number is machine drift, and
-`CLAUDE.md` accordingly mandates an interleaved A/B in one sitting. A number you
-cannot compare is worse than no number, because someone will compare it.
-
-### The five bold rows are engine *cost*, and they are here for one reason
-
-A record entry's behavioural rows say what the engine **did**; the five bold ones
-say what it **spent doing it** (`state/diagnostics.rs`, added 2026-09-01). They
-are fixtures by the same argument — a pure function of the seed and the card
-pool, verified identical across three runs and across `--threads 1` and
-`--threads 8` on both pools — so
-a change to one means the engine's **cost model** moved, exactly as a change to
-"creatures died" means its behaviour did. Their own overhead was A/B'd and is
-below the noise floor.
-
-**They exist because an A/B has to be run by someone who already suspects
-something.** RC-2 shipped a 10.3% regression and its 10.3% fix in the same PR,
-and neither was visible in any stored number: every behavioural row was
-unchanged while `gather` went from walking one permanent to walking all of them.
-Layer walks per game would have roughly tripled and said so on sight. That is
-the gap this closes — not "make it fast", but "notice".
-
-**How to read them.**
-
-- **Layer walks** is the headline. Almost every cost question in this engine
-  reduces to how many full CR 613 walks a game does. Since the epoch memo
-  (item 7a, 2026-09-03) it is the *miss* count: a walk is paid once per object
-  per epoch rather than once per question.
-- **Memo hits** is the rest of the questions. Walks plus hits is what the
-  oracle was asked, and it did not move when the memo landed. A hit share that
-  falls means some writer started bumping the epoch more often; one that rises
-  means the games got more repetitive, not the engine cheaper.
-- **Frames/walk** is what CR 613.7a's existence re-check costs — a walk needing
-  no sub-frame is 1.00, and `layers-architecture.md` §5.2's descending ceiling is
-  what bounds this number instead of letting it iterate.
-- **Dependency checks** is the CR 613.8 loop's slow path (LI-2): the
-  hypotheticals a game ran, each a frame clone per member reached. Zero
-  means the static channel check settled every pair in every layer; with
-  Urborg pooled it reads ~23 per game, nearly all Blood Moon beside Urborg
-  and Humility beside a creature static.
-- **Replacement gathers** and **restriction queries** are the two sweeps that
-  *multiply* into layer walks: one gather can be one walk per permanent. Reading
-  them beside the walk count is how you tell "a sweep got greedy" from "the game
-  got longer".
-
-**The first thing they say is not about the sweeps.** ~109,000 walks against
-**669** gathers means the CR 614 pipeline is a low single-digit percentage of
-engine cost even when it sweeps the whole board. The overwhelming majority is
-ordinary oracle traffic — `has_type`, `get_effective_power`, summoning sickness,
-mana-ability discovery — each a full walk with no memo between calls. **That is
-`CLAUDE.md`'s critical-path item 7**, which already schedules cross-call
-memoization alongside the CR 613.8 dependency algorithm and already carries a
-hard back-stop before Phase 8. The measurement did not find new work; it found
-that the work already on the plan is the lever, and that a general optimization
-sweep would be aimed away from it. **Item 7a landed that memo on 2026-09-03**:
-walks per game 108,626 → 2,663 with every other row in the table unchanged,
-and the residual is in `layers-architecture.md` §12.
-
-**Adding them cost two determinism fixes, and that is the sharpest thing here.**
-`combat/steps.rs`'s first-strike scan and `targeting.rs`'s `has_any_legal_choice`
-both short-circuited an `any` over `battlefield`'s `HashMap` with a layer query
-inside. Both were **correct** under `CLAUDE.md`'s rule as it was written: `any`
-over a set is order-independent, so the *answer* never varied, and neither site
-ever showed up in `determinism_test` or in a `--dump-events` diff. What varied
-was how much work the engine did getting there — ~14 walks per 50 games. **Making
-cost a fixture is what turned two benign `HashMap` walks into determinism
-violations**, and `CLAUDE.md`'s determinism line now says "a choice, log **or
-count**" for that reason.
-
-Both columns moved when RS-1 added Sigarda and Diabolic Edict, which is what a
-pool addition is expected to do. The stress column's creatures-died halving is
-the edict and Kalitas together — the edict kills a creature the combat maths was
-counting on, and Kalitas exiles rather than letting things die.
-
-**Both columns moved again when RC-2 added Idyllic Beachfront and Chainbreaker,
-and the direction is worth reading.** Every row is *up*: three more turns per
-game, and more of everything that happens in a turn. The tapland is why — a land
-that enters tapped is a land that produces no mana the turn it lands, so a deck
-holding several of them curves out later and games run longer. The
-creatures-died jump on `performance` (5.9 → 8.6) is Chainbreaker: a 3/3 body for
-`{2}` that arrives as a 1/1 both blocks more often and dies more often than
-anything else in that pool. **This is a pool change, not an engine regression** —
-the engine A/B for the same PR ran on identical pools and is recorded in the PR.
-
-The stress column carries a third RC-2 card, Adaptive Shimmerer, which is
-registered but **not** in `PERFORMANCE_POOL` — which is why only that column
-moved a second time and why the two columns now differ by more than the pool
-sizes suggest.
-
-**One thing this instrument does not measure, found the hard way.** The
-`--require` block counts a card's **casts**, and RD-3's pooled question was
-about an *activated ability*: Circle of Protection: Red resolves in 130 of 200
-forced `stress` games, and its `{1}` ability is activated **12,660 times** in
-129 of them — about 98 per game it reaches the battlefield, which is the
-opposite of the prediction that asked for the number. The count came from
-`--dump-events` plus `grep "AbilityActivated: <name>"`, and until the report
-grows a counter that is the recipe. **A phase whose consumer is an activated
-ability should measure the activation, not the cast.**
-
-**Asked at the RD-3 review: cap how often the random agent may re-activate one
-ability? No** — and the reasons are this section's own doctrine. A cap makes
-every counter a function of a policy knob, which is exactly what keeps the
-seed-deterministic rows comparable across phases; the agent is not biased
-toward the ability in the first place, because `candidate_priority_actions`
-lists it **once** however many times it could be paid for, so what the number
-shows is leftover `{1}` having nothing else to buy; and the observed rate is
-already about 3–5 activations per turn, so a 3–5 cap would bind almost never
-while making the instrument dishonest — and a control that does *nothing* when
-activated is activated just as freely, so this is general agent behaviour and
-not a fact about one card.
-
-`codebase-state.md` item 104 carries the isolating control table (LK,
-2026-09-13). The headline
-matters for how this section reads a future phase: **the cost is the repeatable
-activation, not the registry rows it happens to make** — ~+29% CPU for the
-activation traffic and ~+6% for the rows on top — because an activation is a
-priority action plus a stack object plus two more priority rounds, so the game
-does more of everything it already does. The wanted fix is a per-ability
-activation **counter**, a diagnostic, never a behavioural cap.
-
-**And the corollary this section owes, because the first draft got it
-backwards** (item 105): "keep repeatable activations out of `PERFORMANCE_POOL`"
-is *not* the rule and must not become one. The pool has never held an ability
-activatable more than once a turn — seven registered non-mana activated
-abilities, two pooled, both `{T}`-gated — and that is an accident of what the
-phases have needed, not a boundary being enforced. Repeatable activations are
-ordinary Magic and are most of what a commander does; a cost instrument that
-excluded them would drift from the 4-player Commander game it exists to
-predict. §3's rule is unchanged — the first phase whose engine path *is* an
-activated ability pools one deliberately and re-records the table — and item
-104's numbers are the expected direction, not a reason to decline.
-
-### 3.1 The gate: both pools, one checklist, and the budget
-
-Each pool answers a question the other cannot, so a PR runs both. **They are
-different instruments, not a cheap and an expensive version of one.**
-
-| Pool | Question | Read | Grows with the card list? |
-|---|---|---|---|
-| **performance** | *Did my change make the engine slower?* | A **delta** between two builds, read in one run — never against a stored number | Deliberately: one card per new engine path, with a re-record |
-| **stress** | *Is there a card shape that makes the engine fall over?* | An **absolute threshold**: 0 errors, 0 panics, 0 turn-limit hits, and no tail number off its scale | Yes, by design |
-
-**Never A/B any number across a pool change.** It moves for two reasons at once
-— the change and the new cards — and that conflation is the thing the pool split
-exists to prevent. This is why the performance pool grows *deliberately*: an
-addition is the one moment a delta is not readable, so it is a decision with a
-re-record attached rather than a side effect of registering a card. A stress run
-is pass/fail against a ceiling; only the performance pool measures a delta.
-
-**The close-out, as one checklist (2026-09-25)**, which a brief points to rather
-than restating. Each step answers a question nothing else on the list answers.
-
-While building: **predictions** go in the PR body before any arm runs, one
-expected line per arm; **the band** is tracked at every commit (`git diff
---numstat <merge-base> HEAD -- mtgsim/src mtgsim/tests` against §4's
-1,500–2,500, flagged the moment it crosses, the total with docs beside it); and
-**docs go in the commit that changes what they describe**.
-
-After the last code commit, each once:
-1. `cargo build --all-targets` (zero warnings), `cargo clippy --all-targets --
-   -D warnings` and `cargo test`, never again after a docs-only commit; then
-   the check scripts on `CLAUDE.md`'s line.
-2. `python plans/close_out.py --arm main=origin/main --arm engine=<sha>
-   [--arm shipped=HEAD] [--require "<newly pooled cards>"]`, in the background
-   while the docs are written, about two minutes cold: each arm built apart,
-   the audited counters on both pools at two seats and four, the budget below,
-   the reachability read, the record block's table, and the copies the branch
-   made (§9, pass 3). The model pass over the branch's changed files runs
-   beside it, also in the background.
-3. **Game-by-game dump attribution only when a gameplay row moves that the
-   predictions did not** (200-game `--dump-events` per arm, diffed per game);
-   a moved cost row (§3's bold rows, the dispatcher's) is a reading.
-4. **The big audited smoke only when the PR touches the dispatcher or the
-   audit**: `fuzz_games --audit`, 1,000 games at seed 777, both pools and seats.
-5. What the close-out itself writes: the phase's stub and archive eviction (§4),
-   a `fuzz-record.md` block of about 50 lines (the table and only the moves
-   nobody predicted), the `roadmap-v2.md` row if the route changed, the PR body,
-   with each copy the branch made merged or kept with its reason.
-
-Dropped, each covered elsewhere: separate determinism runs (CI's step, below),
-status prose in `roadmap-v2.md` (`state-of-play.md` and the stub carry it), a
-timing sitting (the budget reads instructions), and readings a round does not need.
-
-**The budget (adopted 2026-09-15; read in instructions since 2026-09-25).** A
-phase's engine arm may cost at most **2.5 points of callgrind instructions per
-decision at identical counters** against `main` on `close_out.py`'s board
-(Commander scale, 20 games, the hasher's seed pinned), or the PR says why in its
-`fuzz-record.md` block and the reviewer decides. A decision is a prompt with two
-or more legal answers (`codebase-state.md` item 138). This is the per-PR half of
-a ratchet; the other half is each spine close's readiness pass (§9), a dated
-reading of decisions per core-second, never worse without a written reason. The
-owner chose a ratchet because today's pool is a floor of Commander's cost.
-
-**Why instructions.** A timing sitting's spread, ~2–6%, is wider than the
-budget: TR-2a's same two binaries read +2.9%, +1.3% and −0.2% in three sittings,
-and +0.18% in instructions, a count that repeats to ~0.01% with the seed pinned
-and on any machine. **Its blind spot is stalls, and a cycle estimate does not
-close it**: across six builds and four boards, instructions alone predicted the
-measured time deltas within 1.8 points on average, and weighting callgrind's
-simulated misses did worse (`fuzz-record.md`, "Calibrated 2026-09-25"). Time and
-a loaded machine's contention are read at the readiness pass. CI does not run
-the budget: two arm builds and two callgrind runs a push would triple its three
-minutes.
-
-**Three floors under the ratchet (adopted 2026-09-25).** The ratchet stops a
-change making the engine worse; the floors say where it stops being fit for v1's
-AI use case at all, as derived in `plans/references/ai-performance-floors.md`.
-
-| Floor | Definition | Instrument | Standing, 2026-09-25 |
-|---|---|---|---|
-| **1. ≥ 10,000 decisions per loaded physical core-second, Commander scale** | Board `--deck-size 100 --life 40 --players 4`, under the default bot stack (below); a decision as above, counted where it reaches the agent. Loaded = one-thread rate × (16-thread speed-up ÷ physical cores). The rate at which the 12–14 physical cores a GPU node gives one H100 keep it busy serving a 10M-parameter, 128-token policy | Item 6's close audit, counted by a provider innermost in the stack (the `Decisions` cells count in `ui::ask`, above the decorators), with callgrind instructions per decision recorded beside it so the reading travels | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block) |
-| **2. Full-state clone ≤ 10 µs** at item 143's checkpoints, at every decision, and on the fixture boards (since CL-1, `clone-architecture.md` decision 6) | Portable form: ≤ 1/6 of one decision's engine CPU. CI proxy: ≤ 64 allocations per clone | `tests/clone_bound_test.rs` (the checkpoints and every decision of its 24 games) and `tests/clone_fixture_test.rs` (an 8,000-trigger stack, a token churn), CI's release step, for the allocations, beside `tests/fork_copies_test.rs`, what a fork copies between decisions; the readiness pass for the time | **Holds** (item 180's fix, 2026-09-25): ≤ 40 allocations over the clone test's 24 games, ≤ 39 since item 183's half fix, `stress` seeds and the budget's own board, worst at `performance` 12358's turn 50. `performance` 12350 read 68 at turn 100 while every fork copied the registry rows' payloads, and reads 34 with them shared (`codebase-state.md` item 180). Time, from the bounded-state PR on the `stress` seeds: ≤ 8.5 µs over three sittings of five Commander games, against up to 1,479 allocations and 136 µs with the log. Since LL a row reaching the hidden zones reads 7.7–9.3 µs at its worst, against 7.1–7.3 without one (item 181, closed). A clone that rebuilds a spiked map (item 183) reads 7.8 µs at its worst on an idle machine, 6.8 before it. A clone taken during a deep stack is back-stopped before Phase 8 (item 183, `roadmap-v2.md` B10). **Read mid-turn at B10's design** (2026-10-21, `clone-architecture.md` §2): 78 allocations at a 22-trigger ordering, 3 of the clone test's 10,253 decisions over 64, none read by the test; 32,014 allocations and 8.2 ms on an 8,000-trigger wipe. **Shared since CL-1** (2026-10-21): at most 37 allocations over those 10,253 decisions and 34 between turns, 14 on the 8,000-trigger stack |
-| **3. ≤ 128 KB per state** | Deep clone size, bounded by the board's high-water mark and never by the turn count, at the same readings | The same tests, exact bytes with the hash seed pinned | **Holds** (the same PR): ≤ 107.1 KB at the end of a 168-turn game, the history bounded by the table; ≤ 112.4 KB with a row reaching the hidden zones (item 181). Breached on one fixture board by item 182, `stress` 12351 under Teferi's clause at 150.4 KB after a stack 29 deep, since a clone copied the maps' high-water capacity. **Holds again since that half of item 183 was fixed** (2026-09-26): ≤ 90.7 KB over the clone test's 210 readings, that game at 73.2. A clone during a deep stack is B10's: 10 MB on an 8,000-trigger wipe, 125 KB at 200 permanents, and 101 KB with no objects left after 2,000 tokens came and went, the layer memo's frames (`clone-architecture.md` §2.4, §2.5). **Since CL-1** (2026-10-21): at most 6.7 KB at every decision and 6.0 between turns, 8.7 KB on the 8,000-trigger stack, 1.5 KB after 4,000 tokens came and went, the memo bounded by the store |
-
-**The latest readings, on the board** (the owner, 2026-10-06, at #225's
-review). `check_state_of_play.py` renders this table onto
-`state-of-play.md` with each floor's room, so every pull request sees how
-close the engine is; a reading is replaced in place when it is taken again,
-and the dated record of every reading stays in `fuzz-record.md`. The
-"Standing" column above keeps the history and the reasons.
-
-<!-- floors: begin -->
-| Floor | Limit | Reading | Read on | Where |
-|---|---|---|---|---|
-| 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 2026-10-06 | #225's pooled tree on `performance` at Commander scale, 200 games: 17,900 on one thread, 7.26 times that on 16 threads over 8 physical cores |
-| 2. Allocations per clone | ≤ 64 | 37 | 2026-10-21 | CL-1's tree: `clone_bound_test` in release at 188 checkpoints and 10,253 decisions over 24 Commander games, the worst `performance` 12353's decision at turn 31, and `clone_fixture_test`'s boards, at most 14 |
-| 2. Microseconds per clone | ≤ 10 | 1.8 | 2026-10-21 | CL-1's tree, the same 188 checkpoints, at each the median of five means of 2,000 clone-and-drops under the System allocator; the worst checkpoint of three runs, which read 1.75, 1.69 and 1.73. At decisions it is A6e's readiness pass's (`clone-architecture.md` decision 6(d)) |
-| 3. Kilobytes per clone | ≤ 128 | 8.7 | 2026-10-21 | the same readings, the worst `clone_fixture_test`'s 8,000 stacked triggers; at most 6.7 at a decision |
-<!-- floors: end -->
-
-**Floor 1 is read under a named stack, as it is read on a named board.** Its
-denominator is what reaches the agent, and which prompts reach the agent is
-the seat's middleware, not the engine: `backlog.md` §2.22's default bot stack
-is the reference, `ManaWindowStop` on and the tap-solver decorator off. The
-census's two kinds move the reading in opposite directions. An engine elision
-(its rule 1) can only raise it, since the prompt was never a choice and the
-engine stops building it. A decorator (rule 2) lowers it with no engine
-slower: the engine still asks, the decorator answers, and the agent's
-decisions per game fall. That is the floor measuring what it should. It is a
-balance check, engine CPU per GPU pass, and a stack that hands the agent fewer
-decisions gives the GPU less work per game, so the loop runs more games a
-second while the engine becomes the tighter constraint. A reading under
-another stack is another operating point, never a regression, and floor 1 is
-not compared across a stack change, as nothing is A/B'd across a pool change:
-the unit moved, not the engine. The tap-solver decorator is the first such
-change (`backlog.md` §2.18).
-
-**Determinism.** Everything outside `=== Timing ===` is byte-identical at one
-seed, any `--threads` and any `MTGSIM_HASH_SEED`, and three seeds show an
-unordered sweep as a diff (A4g). CI checks it on every push, `prof_arm.sh`
-checks its native run against valgrind's, and the wrapper's counter runs are
-audited (`triggers-architecture.md` §4.10). `fuzz_ab.py` stays the tool for what
-the wrapper does not run: timing rounds, and `--copies` for a heavy board.
-
-### 3.2 Reading the tail, and why the mean cannot do this job
-
-`CPU/game` is a mean, and **a mean is the one statistic guaranteed to hide a
-performance cliff**: a card shape that makes the layer walk fall over moves the
-slowest game by orders of magnitude and a 50-game mean by about two percent. The
-`tail` lines report p50 / p99 / max instead, and `Slowest game` prints the seed,
-because every game is a pure function of its own seed and the outlier replays
-alone with `--seed N --games 1`.
-
-**Two tails, and the pair is the point.** `CPU/game` conflates *long* games with
-*slow* ones; `CPU/turn` divides that out. Compare them:
-
-**Absolute ms are comparable only *within one measurement sitting*, and that is
-not a caveat — it is the method.** Measured 2026-08-31: the performance pool read
-~63 ms p50 early in a session and ~72 ms p50 hours later, **13%** apart with
-byte-identical game content.
-
-**That gap was A/B'd against the obvious suspect and the suspect was cleared.**
-The tree had gained `ObjectFilter::ByOwner`, a new match arm in
-`object_matches_filter` — which `compute.rs` calls inside the layer walk, the
-hottest path the engine has. Two release binaries were built from the two
-commits into separate target directories and run **alternately** in one sitting,
-four runs each, on the pool whose cards are identical on both sides:
-
-| | pre-`ByOwner` | with `ByOwner` |
-|---|---|---|
-| CPU/game, 4 interleaved runs | 96.37 / 96.70 / 96.39 / 98.25 ms | 96.87 / 96.52 / 96.69 / 97.59 ms |
-
-**0.2% apart, and the game content byte-identical.** So the arm costs nothing and
-the drift is machine state — thermal or background load over a long session, not
-diagnosed further because it does not need to be. Note what the table also
-shows: *both* binaries read ~96 ms where the same pool read ~83–87 ms earlier
-that day. Within a sitting the spread is ~2%; across sittings it is ~15%.
-
-**So the performance pool is the control, and what you compare is the two pools
-measured together**, never stress-today against stress-last-week — and a
-suspicious cross-sitting delta gets an interleaved A/B before it gets a
-diagnosis. The numbers below are medians of three interleaved runs in one
-sitting, which is what makes the two columns mean anything beside each other.
-
-**Baselines, 200 games / seed 12345 / `--threads 1`, medians of three
-interleaved runs, 2026-08-31:**
-
-| | performance (55 — the pool as of 2026-08-31) | stress (58) |
-|---|---|---|
-| CPU/game p50 / p99 / max | 69.12 / 418.18 / 514.26 ms | 66.28 / 497.11 / 568.28 ms |
-| CPU/turn p50 / p99 / max | 2.59 / 7.04 / 7.58 ms | 2.48 / 7.51 / 8.59 ms |
-| game tail ratio (max ÷ p50) | 7.4x | 8.6x |
-| turn tail ratio (max ÷ p50) | 2.9x | 3.5x |
-
-**The ratios are the durable numbers**, and that is measured rather than
-asserted: across the 13% drift above, the performance pool's game-tail ratio held at
-**7.1–7.4x** and its turn-tail ratio at **2.8–2.9x**. Deterministic game content travels too, and it
-is what moved when Rest in Peace and Leyline of the Void landed and were widened
-to "from anywhere": stress avg turns 30.1 → **29.6**, max turns 98 → **75**.
-Games end sooner because graveyards stop filling — the cards doing their job,
-not a cost appearing. The performance column did not move at all, because
-registering a card was not the same act as adding one to that pool — which is
-still true, and is the half of the freeze that survived it (2026-09-01). What
-did not survive is the ms figures in this table: they are a *sitting*, not a
-baseline, and are kept only as the evidence for the ratios below them.
-
-**The two tails, and the gap between them is the finding.** The game tail runs
-7–9x the median and the turn tail about 3x. Most of the game tail is games being
-*longer* (73 and 87 turns against a ~30 average); the residual ~3x is genuine
-per-turn growth as the board fills — more permanents, more expensive layer
-walks. Superlinear but modest, and expected.
-
-**What a regression looks like, then.** A turn tail that climbs while the median
-holds is the signal to chase; a game tail that climbs with it is probably just a
-longer game. **The p99 equals the max below 100 games** — nearest-rank on 50
-samples puts rank 50 at the last element — so run 200 when the tail is the thing
-you are reading.
-
-**A timing mean is compared only within one sitting**, against a binary built
-from the other tree, and never against a figure in this file; the per-PR
-budget reads instructions (§3.1). The tail says whether a *new* cost appeared,
-not whether an existing one grew.
-
-### 3.3 How many cards a mechanic owes — ask the rule, not a quota
-
-**The question is "is this rule defined over one object, or over several?"** If
-several, one card leaves the multi-object branch unreachable — not rarely hit,
-*unreachable*, at any game count — and the tests pass because nothing can build
-the scenario. Count is the wrong metric; the axis the rule is defined over is
-the right one.
-
-**Tier 1 — the rule itself requires two, and one card is dead code.** CR 616.1
-applies only among "two or more"; CR 613.7 orders effects *within* a layer, so it
-needs two in one layer on one object; CR 614.5's applied set is keyed on effect
-*instance*; CR 704.7 collapses two actions with the same result. **Worked
-example, measured 2026-08-31 and closed the same day:** exactly one registered
-card produced a replacement effect (Kalitas), it is Legendary, and CR 704.5j is
-enforced — so no player could control two, and two opposing copies each apply
-only to the *other* player's creatures. CR 616.1's entire multi-candidate branch
-had never been reachable in a fuzz game. Rest in Peace and Leyline of the Void
-are the second and third sources; `phase_rb_integration_test.rs` now reaches
-CR 616.1 with two *printed* cards.
-
-**The sharpest part of that finding is what it says about coverage
-measurements.** The atom was not uncovered — `ATOM-616.1-001` had a passing test
-the whole time, built on `graveyard_probe`, a fixture defined in the test file
-and registered in no pool. **A bespoke fixture can cover an atom while the
-registered pool cannot build the same scenario**, so `specdb` coverage and fuzz
-reachability are different measurements and neither implies the other. When a
-rule needs two objects, check that two *registered* cards can produce them.
-
-**Tier 2 — two are valuable, and they must differ in shape.** RB's discovered
-hang was "a declined `exempt_from_614_5` optional without a second set" — a bug
-at the *intersection* of two attributes. A card with the ordinary shape never
-reaches it. The axes worth varying are the ones the CR itself names:
-optional/mandatory, self/other (CR 614.15), exempt/not, and which player the
-effect is scoped to (that is who CR 616.1 asks).
-
-**Tier 3 — one is plenty.** A keyword flag, a vanilla body, a one-shot with no
-interaction surface.
-
-**And the counter-pressure, which is equally real.** A second card of the *same
-shape* buys nothing, cards cost authoring plus registration plus a test, and PRs
-are sized 1,500–2,500. This must not become "N cards per phase". The current
-distribution is the argument for shape over count: **11** keyword creatures for a
-boolean flag, **1** card for the whole CR 616.1 pipeline, **1** for Layer 2.
-
-**What makes this cheap now.** Registering a card is not the same act as adding
-one to `PERFORMANCE_POOL`, so it cannot move a recorded fixture — it only grows
-the stress pool, which is read as a threshold. That is what §3 bought, and it
-survived the pool un-freezing (2026-09-01): what changed is that a phase opening
-a new engine path now *also* makes the second, deliberate move.
-
-**And the rule this section did not have, added 2026-09-01: a gap register
-needs a date on it too.** `codebase-state.md`'s fuzz-pool audit named six
-unreachable SBA paths, each with a blocker. Re-measured against 200 stress games
-with `--dump-events`, **two of the six had closed on their own** — a token
-ceasing to exist reached 43 times per 200 games once RB's Kalitas made tokens,
-and multi-member `GameAction::Destroy` batches 155 times, because two creatures
-trading in combat is one `execute_actions` call. The multi-member entry had been
-written about *mass removal from a spell*, which is still unwritable; the branch
-it worried about was being taken constantly by a route nobody had connected to
-it. **A gap named by its cause outlives the cause**, so the register is a
-measurement and gets re-run, not inherited — and counting an event signature in
-a `--dump-events` log is cheap enough that there is no excuse for inheriting.
-
----
-
-### 3.4 The rulings pass — read a card's rulings before you register it
-
-**Adopted 2026-09-08 (the owner, reviewing CM-3).** Oracle text has been
-verified against Scryfall since the corpus started. Rulings had not been, and
-they are the cheaper half: a card's rulings exist *because players got those
-cases wrong*, so they are a free list of the boards a naive implementation
-misses — written by the people who adjudicate them, and already minimal.
-
-**The rule: every card a phase registers gets a rulings pass, and the pass is
-written down.** For each ruling, one of three answers, and the third is as
-useful as the first:
-
-1. **Testable now** — it becomes a test, named after the ruling's claim.
-2. **Already tested** — say which test, so the next reader does not redo it.
-3. **Not yet expressible** — say which facility is missing and who owns it.
-   This is the valuable one: a ruling the engine cannot state is a gap
-   discovered from the outside, by someone who was not looking at the code.
-
-Fetch them with `curl` and a UA header, like the oracle text (`CLAUDE.md`'s
-references row): `/cards/named?exact=…` carries a `rulings_uri`.
-
-**Where it goes: in the card's own doc comment, under `# The rulings, and where
-each is tested`** — RD-1's shape, and the one to copy. Written down after RE-3's
-review asked the same question it had asked at RE-2's: RE-1, RE-2 and RE-3 each
-appended a module-level "rulings pass" block, and by the third the header of
-`phase_re_cards.rs` was **412 lines** of prose a reader had to scroll past to
-reach a card. Moved onto the cards it costs nothing and reads better — the
-rulings for Ali from Cairo are the paragraph above Ali from Cairo — and the
-module doc keeps what is genuinely about the *phase*: the axes, the design
-claims the cards were chosen to press on, and what a random deck can draw.
-
-**Format-variant rulings are dropped, not answered.** A Two-Headed Giant ruling
-gets no line: CR 810 is not implemented, "n/a" is not one of the three answers,
-and the list's whole value is that every entry names a board. The same goes for
-any ruling about a format §9 has not built.
-
-**What it caught on its first outing (CM-3, five cards, eleven rulings).** Six
-became tests, and none of them was a board the corpus had:
-
-- *"If a spell is both black and green, you pay {1} less, not {2} less"*
-  (Thunderscape Familiar). The card is one ability with an `Or` over two colour
-  leaves, so the gather returns one instance. Written as two abilities — the
-  obvious alternative, and the one a card author reaches for first — it would
-  reduce twice. **No atom in the corpus asks this**, and no test in CM-1 or
-  CM-2 could have caught it.
-- *"You must sacrifice exactly one creature … you cannot sacrifice additional
-  creatures"* (Altar's Reap). The prompt's bound is the claim, and
-  `picking_all` is the provider that falsifies it.
-- *"Players can only respond once this spell has been cast and all its costs
-  have been paid"* (Altar's Reap) and *"no player may take actions to try to
-  remove Foundry Inspector before that spell's cost is locked in"* — two cards'
-  rulings, one engine claim: nothing yields priority between CR 601.2a and
-  601.2i. Asserted as the absence of a priority prompt.
-- *"Choose the value for X first, and then reduce the cost by {1}"* (Foundry
-  Inspector), with the ruling's own numbers as the test's.
-
-Two were already tested (the Familiar's floor at zero; "if this card is
-sacrificed to pay part of a spell's cost, the cost reduction still applies",
-which is `ATOM-601.2h-001`). Three were not expressible and are recorded as
-such rather than skipped — chiefly *"the generic X cost is still considered
-generic even if there is a requirement that a specific color be used"*, which
-needs the spend-restriction model (`backlog.md` §2.19's neighbourhood).
-
-**And a leaf the pass does not reach by itself.** Writing the Familiar's
-"both black and green" test made the card's `Or` look covered when only its
-*left* leaf was: every board in the file casts a black spell, so
-`Or(Black, Black)` would have passed all of them. A ruling names a case; it does
-not name the ways an implementation can accidentally satisfy it. **After the
-rulings pass, ask what the card's filter has that no test varies** — here the
-right leaf and the "you cast" clause, three assertions, all of them green.
-
-### 3.4a How big is the retroactive half, and is the tool worth building?
-
-**Deferred once as "not worth the time", and the deferral was measured on the
-wrong thing.** The idea was a harness that forces every card in the official
-pool to pass all its Scryfall rulings. That tool cannot exist: a ruling is
-prose, and nothing compiles prose into an assertion. What *can* exist is a
-**ledger with a gate**, the shape `specdb` already proved — the corpus is
-authored, the join is generated, and the check fails when a claim has no
-disposition.
-
-**Census, re-counted 2026-09-17 at A4b, and this is the live one.** The
-2026-09-08 figures it replaces — 92 registered cards, 43 carrying a ruling
-(46%), 145 rulings, 87 of them on the then-73 pooled cards — are kept in the
-line below because the *rate* moved and the rate is what sizes the rest.
-
-| | |
-|---|---:|
-| registered names | 161 |
-| …real printings (the rest is one deliberate fixture, Loyalty Probe) | 160 |
-| cards carrying at least one ruling | 96 of 160 (60%) |
-| total rulings | 330 |
-| …on the 90 `PERFORMANCE_POOL` cards | 125 |
-| median rulings per card | 2 |
-| most on one card | 9 (Stunning Reversal, Live Fast, Bard, King of Dale — none pooled) |
-| most on a *pooled* card | 8 (Cytoshape) |
-
-`python plans/check_rulings.py` prints it from the ledger; nothing here is
-typed twice.
-
-**Cited cards (2026-10-16, the owner at #254's review).** A fixture shaped
-like a printed card cites that card's ruling with the same `// RULING:`,
-and `--fetch` takes every card a test cites as well as every registered
-one. A card only cited is owed nothing; once registered, it is owed every
-ruling, and finds the ones its fixtures already answer. The script's
-docstring, "Cited cards", has the workflow.
-
-**The registry grew 1.7× and the rulings grew 2.3×**, which is the number a
-re-count exists to find. Per card it is 1.58 → 2.06 and the carrying rate 46%
-→ 60%, so the phases since CM-3 registered rulings-heavier cards than the ones
-before them — unsurprising in hindsight, since a replacement or copy card is
-exactly the kind players ask about. It also means **a projection from the old
-ratio would have been wrong by a third**: 145 scaled by card count is ~250, and
-the count is 330.
-
-330 is still a bounded job. At CM-3's observed rate — 11 rulings into 6 tests,
-2 already-covered, 3 named gaps — it is roughly 180 tests across the whole
-registry, or 68 if the pool goes first. A4b's own sitting came in cheaper than
-that rate, for a reason worth writing down: see "what the queue's head is
-made of", below.
-
-**What the census cost, and what it immediately bought.** Reading the rulings of
-three pooled cards nobody had checked found `codebase-state.md` **item 82**:
-CR 704.5p's first sentence is not implemented, so an Equipment that becomes a
-creature stays attached — Bonesplitter under March of the Machines, both of them
-in `PERFORMANCE_POOL`, leaving a 2/2 reading 4/2 in any measured game where they
-meet. Nothing in the corpus, the suite or the fuzz harness had said so, and
-March's ruling says it in one sentence. **One afternoon of reading found a live
-bug in the measured pool**, which is the number the original deferral did not
-have.
-
-**So: build the ledger, not the verifier — and the unit of the gate is a
-linked test, not a disposition** (the owner, 2026-09-08, sharpening this
-section): *"card author needs to make a test and link it to the ruling for
-someone to review in PR review."* That is a stronger obligation than "record an
-answer" and a cheaper one to review, because it puts the ruling and the test
-side by side in the diff where a reviewer already is. The mechanism is
-`specdb`'s, one level over: a `// RULING:` annotation naming the card and the
-ruling's date carries what `// COVERS:` carries for an atom, the ledger holds
-the rulings themselves, and `--check` fails on a registered card with a ruling
-no test names. "Not expressible" stays a legal answer — it names the missing
-facility and its owner — because a gate with no honest escape gets satisfied
-dishonestly.
-
-**The end state (the owner, 2026-09-28): every official card has a test for
-each of its rulings, and passes it.** The retroactive half is its own
-pre-Phase-8 row, pooled cards first (`roadmap-v2.md` §C, `rulings-for-every-card`). A
-`not-expressible` disposition is interim under that rule: it names the
-facility whose landing makes the test writable.
-
-Two things fall out that no amount of care at card-add time gives you: **drift**
-— Scryfall adds rulings, so a card correct when registered can acquire one later
-that the engine violates, and nothing else in the project would ever notice —
-and a **pool-first work queue** for the 87.
-
-**And the reason to build it before the parser, not after.** The other half of
-the owner's plan is a static parser, so that a new set gives most of its cards
-for free and only the complex or genuinely new effects are hand-authored
-(`cost-architecture.md` §6's `hybrid-and-phyrexian-payment` row already leaves that parser a note about
-printed symbol order; Phase 8 is where it lands). A parser without this ledger
-is a liability rather than a shortcut: it turns card authoring from a
-deliberate act, where somebody read the card, into a bulk import where nobody
-did — and the *only* per-card evidence Scryfall ships that a machine cannot
-fabricate is the rulings. **The ledger is what makes machine-ingested cards
-safe to admit**, which reverses the dependency: it is not a nice-to-have
-alongside the parser, it is the parser's acceptance test. It also changes its
-own economics, because at that point the 145 rulings here are a pilot for
-thousands.
-
-**Built 2026-09-17 (A4b).** `plans/check_rulings.py`, `plans/rulings-ledger.json`,
-and the check line's fifth script. **The two halves of the sizing above
-disagreed with each other and the comparison was the right one**: 640 lines of
-Python, not ~250, but `check_state_of_play.py` is itself 487 — so "about
-`check_state_of_play.py`" was accurate and the number beside it was not. A
-fifth of the file is its docstring, which is where the four decisions below are
-spelled out for whoever runs the gate. The data file is 1,082 lines, one line
-per ruling so that an added ruling is an added line in `git diff`. Four
-decisions the section had left open, and what each was decided on:
-
-- **A `check_*.py` script, not a `specdb` subcommand.** The `CLAUDE.md` line
-  budget argued the other way and lost to one fact: **CI deliberately does not
-  run `specdb`** (the owner, 2026-08-31 — `plans/` is largely generated and its
-  labels are not trusted enough to block a merge), so a subcommand would have
-  been a report rather than a gate. Joining the `check_*` family is what makes
-  an unlinked ruling fail a pull request, which is what `check_state_of_play.py`
-  says in as many words. The budget cost turned out to be zero: the check line
-  is one line and takes a fifth `&&`.
-- **A ruling is keyed `<Card Name> #<n>`, with `n` stored and never reused.**
-  Card plus date was the obvious key and the census refuses it: **298 of the 330
-  — 90% — share a date with another ruling on the same card**, and 70 of the 84
-  cards carrying more than one carry all of them on a single date. A date
-  therefore needs an ordinal, and an ordinal derived
-  from position renumbers its neighbours when a ruling is inserted — silently
-  re-pointing every annotation below it. `specdb`'s rule for atom ids, for
-  `specdb`'s reason.
-- **Drift fails rather than reports, and the two are not in tension here.**
-  `--check` is offline, so it cannot see a ruling the ledger does not hold;
-  drift can only surface in the pull request that runs `--fetch`. The failing
-  form is the one that catches it *and* the one that cannot land on somebody
-  whose branch touched nothing.
-- **The escape is five kinds, not one free-text field**, because each becomes
-  untrue a different way and that is the only thing a disposition is for:
-  `not-expressible` (names a facility and a `plans/` doc that must exist),
-  `no-registered-card` (the engine can state it; nothing reaches the board),
-  `defect` (names a `codebase-state.md` item, which must exist),
-  `format-variant`, and `no-board` — a ruling about card frames names none and
-  never will. A `format-variant` is a disposition rather than a fetch-time
-  regex for the same reason: a filter re-decides it on every run, where a
-  judgement is made once.
-
-**The gate is scoped, or it is a report.** A card is in scope when someone has
-`read` it, or when its `first_seen` stamp is later than the ledger's `created`
-— a card registered *after* the ledger existed is one §3.4 already obliged.
-Everything else is the backlog: counted, queued, never failed. Same shape as
-`owed`'s `SHIPPED_PHASES` and for the same reason (§5.1).
-
-**Scheduled (the owner, 2026-09-08): after replacements, between phases —
-`roadmap-v2.md` row A4b.** It gates nothing and nothing gates it, which is the
-argument for giving it a slot rather than a "whenever": a task that is nobody's
-blocker is deferred indefinitely by default, and this one has already produced
-a live bug in the measured pool on its first afternoon (item 82). A4 was also
-believed to be the last point at which the retroactive half is a sitting
-rather than a project, since the registry only grows — **and the gate's scope
-rule turned out to defuse that** (`codebase-state.md` item 151). A card
-registered after the ledger is in scope immediately, so it never joins the
-backlog; the backlog is frozen at the 308 rulings on the 93 cards that predate
-the ledger and only shrinks. The reading can therefore be spread out without
-the job getting larger, which the slot's original argument assumed it could
-not be.
-
-The two halves stay separable and only one of them is the tool. **The tool** is
-the drift detector and the parser's acceptance test, and it is in place. **The
-reading** needs no tool and is pool-first — the pool is what every measurement
-walks, which is where item 82 came from — and within the pool it goes by
-descending ruling count, then by name, which is the order `--queue` prints.
-
-**A4b's sitting read the queue's head**: every pooled card carrying more than
-four rulings, which is Cytoshape (8), Culling Drone (7) and Yixlid Jailer (7).
-A rule rather than a count, so the next sitting does not have to ask where the
-last one stopped. Twenty-two rulings: thirteen answered by a test — ten new in
-`tests/rulings_pass_test.rs`, five annotations on tests that already existed —
-and nine by a disposition. **The remainder is 308 rulings over 93 cards, 103 of
-them on 38 pooled cards**, and it is the ledger's own backlog rather than a
-list in this file.
-
-### What the queue's head is made of, and what that predicts
-
-**No defect.** The engine answered all thirteen testable rulings correctly,
-which is a different result from item 82's afternoon and the reason is
-structural rather than luck: **a card with many rulings is a complex card, and
-in this crate a complex card is one some phase was built around.** Culling
-Drone is LE's Layer 5 CDA, Yixlid Jailer is LJ's whole point, Cytoshape is what
-CV-1 was sized against. Three spot-checks outside the head say the same thing
-from the other end — Badlands and Keldon Warlord are pool filler and were
-right; Furnace of Rath's tests *quote its rulings verbatim*, because RD was
-written from them.
-
-So the head of a count-ordered queue is the best-covered part of it, and the
-honest prediction is that **the gap rate rises as the queue drains**. That is
-not an argument to reorder it: an "already tested" answer is one annotation and
-is exactly what the gate wants, so the cheap cards genuinely are the ones to do
-first. It is an argument against reading the first sitting's zero as the
-registry's rate.
-
-### 3.4b When a ruling and the CR disagree — the policy and the register
-
-**Adopted 2026-09-29 (the owner, at RG's review).** The Comprehensive Rules are
-this engine's authority (`CLAUDE.md`), and a card's rulings are the
-adjudicators' answers for that card, which is what a judge applies at an event.
-They almost always agree. Where they do not, and also where two rules of the
-CR disagree on a board their text did not foresee (the text is then followed
-as rule 2 says, and the row keeps the other reading one switch away):
-
-1. **A ruling is the default for the card it names.** It is what an event
-   applies and what a player expects.
-2. **The CR's text wins over a ruling that contradicts it only once Wizards of
-   the Coast has acknowledged the contradiction or its staff have sided with
-   the text.** Until then the ruling is followed, and the conflict is a row
-   here marked open.
+  behaving differently, nor be cited in the corpus or plans as evidence about
+  printed Magic.**
+- **The pool measures cost; `--require` measures coverage.** The unforced count
+  is not a target. Run `--require` once per phase that adds a card and record
+  its resolutions beside its copies per deck, since a count compares only per
+  copy. An empty `--require` changes nothing.
+- **A phase whose consumer is an activated ability measures the activation, not
+  the cast**, and the random agent gets no behavioral cap: a diagnostic counter
+  instead. Repeatable activations are ordinary Magic and are not kept out of the pool.
+- **Say which pool a number came from**; the pools are not comparable.
+- **The tables are fixtures, not benchmarks**: seed-deterministic, comparable
+  across machines, and `ms/game` is never in them.
+- Why two pools, and the readings behind each rule:
+  `archive/engineering-practices-records.md#3-two-card-pools`.
+
+### How many cards a mechanic owes
+
+- **Ask whether the rule is defined over one object or several, not for a
+  quota.** Tier 1, the rule itself needs two (CR 616.1, 613.7, 614.5, 704.7),
+  and one card leaves a branch unreachable. Tier 2, two of different shape,
+  varied on the axes the CR names. Tier 3, one is plenty.
+- **When a rule needs two objects, check two *registered* cards can produce
+  them**: a bespoke fixture can cover an atom the pool cannot build.
+- **A second card of the same shape buys nothing**; never "N cards per phase".
+- **A gap register is re-measured, not inherited**: a gap named by its cause
+  outlives the cause.
+
+## Rulings
+
+- **Every card a phase registers gets a rulings pass, written down.** Each ruling
+  is testable now (a test named for its claim), already tested (say which), or
+  not yet expressible (name the facility and its owner).
+- **It goes in the card's doc comment, under `# The rulings, and where each is
+  tested`**, never a module block.
+- **Format-variant rulings are dropped, not answered.**
+- **After the pass, ask what the card's filter has that no test varies.**
+- Fetch with `curl` and a UA header: `/cards/named?exact=…` carries a
+  `rulings_uri`.
+
+### The ledger and its gate
+
+- **Every ruling of a registered card has a linked test** (`// RULING: <Card> #<n>`)
+  or one of five dispositions, and `check_rulings.py --check` fails one with
+  neither. A ruling's `#n` is stored and never reused; drift fails, found by
+  `--fetch`; the gate is scoped to cards read or registered after the ledger.
+- **A fixture shaped like a printed card cites its ruling the same way**, and
+  `--fetch` takes cited cards too.
+- **The end state is every official card tested against each of its rulings**,
+  pooled cards first (`roadmap-v2.md`, `rulings-for-every-card`); a
+  `not-expressible` disposition is interim.
+- The decisions' detail is `check_rulings.py`'s docstring; the census and
+  why the ledger comes before the parser:
+  `archive/engineering-practices-records.md#34a-how-big-is-the-retroactive-half-and-is-the-tool-worth-building`.
+
+### When a ruling and the CR disagree
+
+Adopted at RG's review (the owner, 2026-09-29). Also where two CR rules
+disagree on a board their text did not foresee.
+
+1. **A ruling is the default for the card it names.**
+2. **The CR's text wins over a contradicting ruling only once Wizards has
+   acknowledged the contradiction or its staff sided with the text**; until
+   then the ruling is followed, and the conflict is a row here marked open.
 3. **Where the CR is silent**, the latest official statement decides; failing
    one, the reading that fits the neighboring rules.
 4. **A deviation is one register row, one switch and a test, never an
-   exemption.** The ruling keeps its test: one on the ruling's own board that
-   asserts what the engine does instead, annotated
-   `// RULING-DEVIATION: <card> #<n> (<id>)`. `check_rulings.py` counts that as
-   the ruling's answer only when `<id>` is a row below, and refuses a ruling
-   answered both ways. So every ruling of a registered card keeps a test.
-5. **A gray area never holds up a PR.** It is decided by these rules in the PR
-   that meets it, recorded here, and pinned by a test. The register is re-read
-   whenever a new CR version lands in `MTG-Rules/versions/`.
-
-The switch column is what keeps a row cheap to reverse: the one place in the
-code that decides it. If Wizards changes the CR or the ruling, or a build for
-tournament play wants rulings throughout, the flip is that place and its tests.
+   exemption**: a test on the ruling's board, annotated
+   `// RULING-DEVIATION: <card> #<n> (<id>)`, which `check_rulings.py` accepts
+   only when `<id>` is a row below.
+5. **A gray area never holds up a PR**: decided by these rules in the PR that
+   meets it, recorded here, pinned by a test, and re-read at every new CR version.
 
 | Id | In tension | The engine follows | Switch | Reasoning | Tests |
 |---|---|---|---|---|---|
@@ -1284,1288 +342,261 @@ tournament play wants rulings throughout, the flip is that place and its tests.
 | `aura-found-in-graveyard` | CR 400.7f and 603.6e, under which an Aura's trigger on its enchanted permanent leaving finds the card the Aura became "in its owner's graveyard", against CR 400.7e and 603.6c, which find a moved object in the first public zone it went to. They part on a board where a replacement exiles the Aura and not its creature: Angelic Destiny on an opponent's creature under that opponent's Leyline of the Void, the creature dying into its own graveyard and the Aura exiled | the CR's text: no official statement on the board was found (2026-10-15). The other reading, the owner's at #253's review, is that "graveyard" names the default path CR 704.5m sends an Aura down rather than an exclusion; it is the switch's other position, and the one a custom card's "exile it instead" would want | the destination CR 400.7f asks for, in its two places: `to == Zone::Graveyard` in `perform_zone_change`'s CR 704.5m hook, and the `to: Zone::Graveyard` pattern in `aura_put_into_graveyard_beside_its_host`. "The first public zone it went to" is the flip | `triggers-architecture.md` §4.3, "An Aura's new object" | `angelic_destiny_exiled_instead_of_its_state_based_move_is_not_returned`, `angelic_destiny_exiled_beside_its_creature_is_not_returned` |
 | `copy-exception-conditions` | CR 707.9f checks a conditional copy exception "taking into account any other exceptions that effect includes", and is silent on two conditional exceptions whose effects decide each other's conditions: Spark Double's two counters, on a planeswalker whose type hangs on its loyalty counters, where a look-ahead that sees an entry's counters (`lookahead-entry-counters`) makes each exception's counter matter to the other | the words (the third rule; no official statement addresses it): each conditional exception is checked against the copy without it and with every other exception that applies there, a conditional one checked the same way without both. The only reading that passes 707.9f's own test on that board | whether 707.9f's frame includes the other conditional exceptions that apply, or only the unconditional ones: one line in the copy applier | `copy-effects-architecture.md` §4.1a, "The Kaito board" | `spark_double_copying_kaito_gets_one_loyalty_counter_and_a_plus_one` |
 
-### 3.5 The input we have none of — a human playing the game
-
-**Noted 2026-09-08, deliberately unscheduled.** Every verification method in
-this file is one a machine runs or a person reads: two card pools and a fuzz
-harness (§3), the atom corpus and its coverage gate (§5), the rulings pass
-(§3.4), trace pages (§7). **None of them is a person playing a game and
-noticing something is off**, and that is a distinct source of cases rather than
-a convenience — its whole value is that the boards come from someone's Magic
-knowledge instead of from a list somebody already wrote.
-
-The evidence that it would pay is this week's. `codebase-state.md` item 82 —
-an Equipment that becomes a creature staying attached, in the *measured* pool —
-survived 1,063 tests, months of fuzz games and a coverage gate, and was found
-by a human reading a card's rulings. A person playing would plausibly have
-equipped something, cast March of the Machines, and seen a 2/2 render as 4/2.
-Same mechanism, different door: outside knowledge generating a case nobody had
-thought to write down.
-
-**What it needs is not obviously a GUI**, and that is the part to establish
-before anyone builds one. `cli_play.rs` is 86 lines over a 756-line
-`ui/display.rs` that already groups the battlefield into creatures, lands and
-other, and formats the hand, the stack, the phase, the mana pool and the event
-log. "Hard to visualise" may be a display problem in one small file rather than
-a missing application — and a GUI drags in `backlog.md` §2.9's per-viewer
-information model, which is a v1 blocker in its own right, plus §2.21. The
-cheap first step is to sit with `cli_play` and write down what is actually
-unreadable: if the board prints fine but *why anything happened* is invisible,
-that is a different fix, and a much smaller one, than "we need a GUI".
-
-**Since 2026-09-30 that board printer is gone** (`codebase-state.md` item
-191, archived): `cli_play` had printed no board since SPECIAL-1c (2026-04-15),
-and A6g's dev GUI (`roadmap-v2.md`) draws its own.
-
-Not on the route. `roadmap-v2.md` row E owns the GUI as a v1 deliverable; this
-section owns the *reason* to want one early, so that when it is picked up the
-motivation on record is verification and not only delivery.
-
-## 4. Sizing a phase, and splitting it
-
-**Size a phase before writing it, and split it in the doc, not in the moment.**
-Implementation PRs here run 1,500–2,500 additions; the ones that went badly went
-past that. Phase RB shipped at +5,475 across 33 files — 2.2× the largest before
-it. The cause was not the decision to keep it whole, it was that nobody counted
-first: RA was split into three because someone counted call sites and wrote a
-*Measured size* column, and RB got nine bullets and no measurement, so it ran
-until it was done.
-
-**The band counts code plus tests** (`mtgsim/src` and `mtgsim/tests`), with the
-docs reported beside it — what the phases before TR-1 were held to (RE-8 2,225,
-RE-9 1,797, A4i 2,463, each 3,000–3,300 whole), since a phase's docs figure
-follows from its trace page and the eviction rule below, not from its design
-(the TR-1 review, 2026-09-22). The docs figure is net of generated files:
-`state-of-play.md`, `rulings-ledger.json` and what `specdb.py build` writes
-follow from the tree, and nobody writes them (TR-2b's review, 2026-09-27).
-
-**Hunt the gaps card by card before counting.** For each card a phase names,
-read every clause against the tree and list each facility it needs that the
-phase's rows do not name: a chooser, a mask's width, a source-relative
-"another". The triggers track's re-count (`plans/archive/triggers-architecture-landed.md`,
-"Re-counted 2026-09-24") found 3–11 such facilities in every phase and tests at about
-twice their row, with one read-only agent per phase; a sizing without the
-hunt is the one that misses.
-
-**A phase reads its intake list at its first ticket:** `python
-plans/check_state_of_play.py --slotted <code>` prints every open
-`codebase-state.md` item whose `**Slotted:**` line names it, and the sizing
-takes each one or re-slots it by name. The check fails on an open item with no
-home, so the list is complete (the owner, after #237: "how do we know we're
-not forgetting something").
-
-Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
-
-- **Every PR in a split carries at least one consumer of what it builds.** The
-  tempting seam is "engine first, consumers after", and it is wrong: RB's
-  pipeline commit was 1,306 lines with zero integration tests, because the
-  consumers are what make a pipeline testable — and its one real defect was
-  reachable only from the *last* consumer. Splitting relocates that risk rather
-  than removing it, so plan for a later PR fixing an earlier one.
-- **Review findings go to `plans/handoffs/<phase>-review.md`, not into a
-  session.** Capture everything before fixing anything, triage into
-  fix / doc / defer / design, then close one *theme* per session starting cold
-  from the file. A dozen unrelated fixes carried in one context is where quality
-  degrades; the themes exist because the rows inside one share a mental model.
-- **`git log main..HEAD` lies after a squash-merge** (same content, new SHA).
-  Check content: `git diff --stat origin/main HEAD`.
-- **An arm the PR's own type opens, with a printed customer and sized under
-  about eighty lines, ships in that PR** — adopted at RE-4's review
-  (2026-09-13, `plans/handoffs/re-4-review.md`, theme B). RE-4 opened
-  `TokenDef` and `EventPattern::CreateTokens` and recorded four arms on them
-  as ledger lines, each with its customers named and each under the size;
-  the review's question was why they were plates to juggle rather than
-  commits, and there was no answer. The ledger is for *facilities* that do
-  not exist yet, an arm whose type is open in the PR is a normal diff, and
-  deferring it costs a second pass over the same code. The band still holds
-  — RE-4 landed at the top of it with the arms in — and the exception is an
-  arm whose customer needs a facility the PR does not have (Xorn's template
-  exists; its Treasure does not), which is a ledger line pointing at that
-  facility.
-- **The CR is the customer; a printed card is the test** — adopted at RE-5's
-  review (2026-09-14, `plans/handoffs/re-5-review.md`, theme A). RE-5 sized
-  CR 122.6a's named putter, found no printed effect that specifies one, and
-  closed `codebase-state.md` item 43 on that. The owner's rule: a facility
-  the CR states is owed whether or not a card prints it — a card can be
-  printed next set, and custom card creation is a post-v1 goal, so any
-  author can write the rule's first sentence. A rule-stated facility with no
-  printed card gets a fixture test and a reachability line that says "no
-  printed producer", never "nothing owed"; the band above still decides
-  *when* it lands, not *whether*. Bold Plagiarist turned out to print the
-  shape anyway, on a proposal rather than an entry.
-- **A gap a phase finds in its own subsystem is built in that phase while
-  the band holds** — adopted at TR-5d's review (2026-10-20; the owner: "we're
-  almost at 300 codebase state items, I don't like piling up loose ends").
-  The RE-4 rule above covers an arm the PR's own type opens, and RE-6's
-  (`codebase-state.md`, Deferred Migrations) a wrong answer under thirty
-  lines. TR-5d's close-out filed three items that were neither: an
-  `AmountExpr` arm that refused (item 289), look-back frames read at the
-  wrong moment (290) and "prevented this way" (288). Two were commits, at
-  about 290 and 190 lines, and the PR stayed at 1,586. So the test is the
-  subsystem and the band, not the item's shape: a gap in code the phase
-  already changes, with a printed customer or a fixture, ships in the PR if
-  the PR stays inside 2,500. What is still filed takes one of two slots:
-  - **"With the first registered card that …"** only for a fix that is
-    mechanical once a card needs it: the facility exists, and the card brings
-    the one case it lacks.
-  - **A phase code or a `roadmap-v2.md` row** for an item that needs a design
-    decision, as 288 needs CR 607.2h's linked abilities. A card's registration
-    is not where a design is reviewed.
-
----
-
-**A shipped phase marks its own heading.** `#### <code> — <what it was> — ✅
-landed <date>` in the owning architecture doc, in the commit that ships it.
-This was already the habit for six of RC's phases and missing from four;
-`check_state_of_play.py` now reads those markers and fails when `CLAUDE.md`'s
-critical path still calls a landed phase "next", which is the drift that made
-`roadmap-v2.md` §2 unusable. **It only works on the track that has headings** —
-the "can't" and copy docs record phases in sizing tables with no status marker,
-so normalising those is the next cheap thing anyone touching them can do.
-
-**A landed phase's section is a stub, and the body is in the archive.** Added
-2026-09-11, when the replacement doc reached 7,100 lines with 28% of it under ✅
-headings and RE's sizing found three answers it needed sitting unread in the
-same file (skips said twice, the discard row stale for sixteen days, RD-1's
-`Mill` precedent 2,000 lines above the paragraph it contradicted). The design
-sections have a budget (`replacement-architecture.md` §0) and it held; the
-record had none. The rule is `codebase-state.md`'s eviction rule applied to
-the architecture docs: **in the PR that lands a phase, its section's body —
-the plan as sized, "as landed", "measured", reachability — moves to
-`plans/archive/<doc>-landed.md` under the same heading, and the live doc keeps
-the heading, a stub of what shipped and a pointer.** `check_state_of_play.py
---check` fails when a ✅ section keeps more than 40 lines. What stays live is
-what the *next* phase needs: the design sections, the sizing of unlanded
-phases, and §11-style findings still open. Rulings passes live in the *card's* own doc
-comment at registration (§3.4, corrected at RE-3's review); a sizing names the
-card and the rulings that become tests, one line each.
-
-### 4.1 The standing review question
-
-**"What does this actually check, and what happens if it runs twice?"**
-
-Ask it of any claim the engine makes about itself. It is written down because
-`pipeline::ordering_cannot_change_outcome` — one predicate, whose whole job is
-to prove that a CR 616.1 prompt has one outcome — has been **corrected in three
-consecutive PRs**, and because of *how* the three were found.
-
-**The three** (`replacement-architecture.md` §11 items 55, 58, 60; item 19 is the
-founding argument, not a defect). Two of them mis-stated the premise as a **list
-of shapes**: RD-1 wrote the multiplier shape as "the pattern is
-`EventPattern::DealDamage`", RE-2 found the draw shape needed a clause that list
-could not express, and RE-3 found a `Multiplier` over `EventPattern::GainLife`
-falling straight through the damage gate into a prompt the rules do not require.
-Each time the axis that moved was `EventPattern`, which grows one arm per
-`GameAction` variant every replacement phase — so every new arm landed outside a
-premise written before it existed. The third mis-stated it about **one
-application**: it argued the event after one rewrite is the same either way and
-inferred that the same members are still applicable, when applicability resolves
-against each instance's own controller. What was holding that theorem up was
-idempotence, which nothing had said.
-
-**How they were found is the argument for a standing question.** Two came out of
-review rather than from a test. The third came from a test that asserted *the
-absence of a prompt* — and that kind of test only exists because the review
-before it had established that it should. None of the three is a shape CI finds
-on its own: a suppression that is wrong produces a question nobody needed, or an
-answer that is right for a reason that will stop being true.
-
-So the question has two halves, and both earn their place:
-
-1. **What does this actually check?** Name the values being compared and their
-   types, in a sentence. *"`Rewrite: PartialEq` compares def data a card file
-   wrote; the release predicate reads no board at all; the debug check compares
-   one `GameAction` to one `GameAction`"* is the sentence that exposed item 60 —
-   the hole was invisible until someone had to write down what was being
-   compared. If the answer seems obvious, write it anyway: the writing is the
-   check.
-2. **What happens if it runs twice?** Any predicate that suppresses, memoizes or
-   short-circuits inside a loop has an iteration count it is not controlling. A
-   premise that argues one application has *assumed* something about repeating
-   it; make it say which.
-
-**When to ask it — a list, so it is a gate and not a mood.** Any change to
-`ordering_cannot_change_outcome` or its leaf tables; any new `EventPattern`,
-`Rewrite` or `GameActionTemplate` arm; any `debug_assert` standing in for a
-proof; and any "this is safe because …" in a doc comment where the *because* is
-a list of cases rather than a property.
-
-**The cheap tell, if you only remember one thing:** a premise that enumerates
-shapes will be wrong when the shape list grows, and the shape list always grows.
-Prefer a property on the type whose arms grow — `EventPattern::reads_the_amount`
-rather than `matches!(pattern, DealDamage { .. })` — and put it beside the enum,
-so the question is in front of whoever writes the next arm rather than buried in
-a predicate they have no reason to open. The contrast is
-`pipeline::filter_is_mods_invariant`, which stays at its caller because it
-relates *two* types and so is a fact about neither.
-
-**A reviewer does not need to know the subsystem to ask this.** All three were
-caught by asking about the *form* of the claim, not about Magic — which is why
-it belongs here rather than in a rules doc, and why it is worth asking even when
-the answer turns out to be "checked, and it holds".
-
-### 4.2 Naming a phase
-
-The owner, at #225's review (2026-10-06): codes had become what a reader had
-to decode, a roadmap row's ID, a family's letters and a split's suffix at once.
-Names came first after that, and the docs kept citing the codes, because a
-six-word name does not fit where a reference goes; at #274's merge
-(2026-10-22) the owner asked for the route ahead in names that say what each
-step delivers, and the item 6 audit's pass 5c (#282) retired its codes.
-
-- **A phase has a plain name of a few words**, which comes first wherever it
-  is named: in chat, in its PR's title and in its ✅ heading. A landed phase's
-  code follows the name (`The why panel's last part: what happened, from the
-  trace (SU-8)`).
-- **A phase or route row still to come is cited by its name, hyphenated in
-  backticks**: `combat-restrictions`, `game-formats`. Two to four
-  lowercase words saying what it delivers, in the CR's words where the CR has
-  them (CR 508.1c's restrictions) or a mechanic's keywords
-  (`convoke-delve-improvise`); "plus" joins parts that are different work, and
-  such a name may run longer (`chosen-color-plus-could-produce`). The form goes
-  wherever a code went — a table cell, a `**Slotted:**` line, a source
-  comment — since the board reads it and `git grep` finds it. A heading the
-  board reads puts it first (`` | **`token-copies` — token copies** | ``,
-  `` ### `token-copies` — … — ✅ 2026-… ``); a branch is `<subsystem>/<name>`.
-- **No new codes.** The families' letters stay on landed phases, which commit
-  messages, PR titles and the archive read in. A track is cited by its
-  subsystem in prose ("the mana phases"), never by its letters. A split names
-  each part for what it delivers (`cant-be-targeted` and
-  `cant-cast-play-or-activate`), never a part 1, a part 2 or a suffix.
-- **A roadmap row's ID orders landed work and never names it.** `A6g` says
-  where the dev GUI sat on the route; a row still to come has its name in its
-  first cell. The codes pass 5c retired are `plans/archive/route-codes-renamed.md`.
-- **The index is generated.** The state-of-play board's "Phases by name" lists
-  every phase the architecture docs name, by its plain name, with what text
-  cites it by: the landed ones from their ✅ headings, a plain-named one
-  included, and the ones still to build from the docs' headings and sizing
-  tables (`check_state_of_play.py`'s `phase_index`). A phase lands with a ✅
-  heading, or the board cannot see it.
-
-## 5. The spec database as a gate
-
-`plans/specdb.py` joins the atomic-test corpus to the test suite and the CR, so
-coverage is a query rather than prose. Its module docstring is the command
-reference; these are the rules around it.
-
-**Annotate at write time**, directly above `#[test]`: `// COVERS:` when the test
-builds the atom's whole scenario, `// COVERS-PARTIAL:` otherwise. **Never claim
-an atom a test doesn't prove** — a false link is worse than a blank. `suspicious`
-is a smell test: a hit means read it, silence proves nothing. Tests with no atom
-are normal; this measures rules coverage, not completeness.
-
-**A phase does not close until `owed` is clean for it.** Every atom in the phase
-is covered, or explicitly deferred with a reason written down. Add the phase to
-`SHIPPED_PHASES` when it lands — that is what arms the gate.
-
-**Why it is a gate and not a report.** Phase 5-Pre shipped carrying 223 atoms
-and zero coverage. One of them specified the CR 400.7 `zone_change_epoch` field
-by name, and nothing asked — so the design was lost for two years and
-rediscovered by hand.
-
-**Triage what `owed` reports as a fact or a feature**, because they have
-opposite economics:
-
-- A **fact** — object identity, who cast this, an object's characteristics an
-  instant ago — is unrecoverable if not captured at the moment it exists, and
-  adding it later means re-threading every system built in between. Record it on
-  the first customer. Phase RA was, in its entirety, a facts phase.
-- A **feature** — a filter leaf, an enum arm — is a normal diff whenever it
-  lands, so defer it freely and apply the two-customers guard
-  (`replacement-architecture.md` §8c).
-
-Count cards to decide *when* to build a feature; never to decide *whether* to
-record a fact.
-
----
-
-
-### 5.1 What `owed` does not cover, and what closed RC instead
-
-**`owed`'s default scope is `SHIPPED_PHASES`** — `ALREADY-IMPL`, `Phase 5-Pre`,
-`Phase 5-Layers` — and the constant's own comment says why: an atom parked in a
-phase that has *not* landed is being waited on, so counting it would make the
-query a report rather than a gate. Correct, and it has a consequence nobody had
-written down: **Phase 6 is not in that list, so no replacement phase has ever
-been gated by `owed`.** Every RC exit line that says "`specdb owed` unchanged"
-is a true statement about three *other* phases. What actually held RC's spec
-coverage to account was the `// COVERS:` discipline above, plus `orphans` and
-`suspicious`, and those are per-PR habits rather than a gate.
-
-**Two things follow.** Add `Phase 6` to `SHIPPED_PHASES` when RE lands, which is
-what turns the habit into a gate for the whole replacement track — and until
-then, a replacement phase that wants the real number runs
-`specdb owed --phase "Phase 6"` and reads it as a to-do list for RD and RE (54
-atoms as of 2026-09-03, nearly all damage and prevention). **Done 2026-09-15,
-at the post-RE audit's close-out**: the query was run once by hand against
-the finished track (127 atoms, 50 uncovered, 21 of them ticketed `NEW`), every
-uncovered atom was given a line — annotated, tested, or re-filed with its
-owner — and Phase 6 joined the constant. The triage is `backlog.md` §3.3's
-second application block; from here the gate is armed for the track, and a
-phase that adds Phase 6 atoms closes against it like any other.
-
-**And the seam neither instrument covers:** a defect in shipped behaviour that
-has no atom is invisible to both `owed` and Deferred Migrations. RC-5's item 61
-is one — the card ruling it violates was never written into the corpus, so no
-query could have asked for it. That is what the review pass is for, and it is
-the argument for `plans/state-of-play.md` rendering the contrast rather than
-letting the two words blur.
-
-## 6. Module layout — a `mod.rs` declares and re-exports; it does not define
-
-**Checked, not trusted:** `python plans/check_module_layout.py`, in CI beside the
-`CLAUDE.md` budget. It fails on `fn`, `struct`, `enum`, `trait`, `impl`, `type`,
-`const` or `static` at the top of a line in any `mod.rs` under `mtgsim/src/`.
-`lib.rs` and `main.rs` are exempt — they are crate roots, and a crate-level
-re-export belongs in one.
-
-A `mod.rs` may carry module docs, `mod` declarations, `use`/`pub use`,
-attributes, and `macro_rules!`. **A macro is the exception because it is
-metacode, not implementation** (the owner, 2026-09-28), and because a
-`macro_rules!` is in scope only after its definition: a parent `mod.rs`, above
-its `mod` lines, is where a macro its children share belongs
-(`types::counted_enum!`). The implementation goes in a sibling **named for what
-it does**.
-`engine/replacement/` is the pattern to copy: `gather.rs` finds things,
-`pipeline.rs` decides, `instance.rs` names one, and `mod.rs` is the page you
-read to learn that.
-
-**Why this needed a mechanism.** Every `mod.rs` in the crate was a pure
-re-exporter for two years, by unwritten convention — and then two phases in a
-row put a few hundred lines of working code in one. Nobody argued for it; "this
-module is small enough to be one file" is a locally reasonable thought that
-produces a globally inconsistent tree. A rule that can fail silently is not a
-mechanism, which is §1's argument for the `CLAUDE.md` budget and the same
-argument here.
-
-**The cost is not aesthetic.** `mod.rs` is the file you open to find out what a
-module *contains*. Once it also contains the implementation, that question takes
-a second read — and the next file added to the module has to relitigate where it
-goes, because the module no longer has a shape to match.
-
-**Splitting is not the same as adding files.** A one-file module is fine:
-`engine/restriction/` is `mod.rs` plus `predicate.rs`, and `predicate.rs` is
-allowed to be the whole module. What is not fine is that file being called
-`mod.rs`.
-
----
-
-## 7. Trace pages
-
-A **trace page** is a hand-authored HTML file under `plans/traces/` that walks
-two or three real board states through the engine call by call, with every read
-labelled by what it consulted — the board, a hypothetical frame, a registry, a
-player. It ends in a table of where those reads differ.
-
-It is not a design doc and not a test. A design doc says what the engine should
-do; a test asserts one outcome; the page shows the **path between them**, which
-is the thing a diff cannot show and a reviewer cannot reconstruct. The first
-pages were written because a review asked a question the diff could not answer.
-
-Three existed when the practice was written down (RC-4b, CV-1, RC-5), and they
-are the template; every page since has a row:
-
-| Page | Phase | What it proves |
-|---|---|---|
-| `rc-4b-entering-is-one-event.html` | RC-4b | four entries through the CR 614.12 look-ahead frame, each read labelled board or frame, and what RC-4b changed trace by trace |
-| `cv-1-a-copy-is-a-snapshot.html` | CV-1 | a Cytoshape resolution from the choice to the copy row and back, and CR 707.4's re-copy tearing that row down through the existence check |
-| `rc-5-applying-an-entry-can-move-the-board.html` | RC-5 | devour's selection and its nested batch, the zone chain that makes CR 614.13b bite, `frame_of(source)` and §5b's asymmetry, and two entries decided against one board |
-| `item-7-an-effect-waits-for-what-it-reads.html` | LI-2 + LI-3, closing item 7 | the CR 613.8 loop's fast and slow paths; the judge answer's four-card layer 4 step by step through `next_ready` and the journal; a condition that *is* a dependency (Simian Clause under Blood Moon, with the sabotage step that shows what `condition_reads` buys) and one that is not (Kird Ape, two layers apart); the read-by-read table |
-| `li-1-one-pass-per-board.html` | LI-1 | the `Board` struct field by field, the entry's three routes, and Humility + Citanul Hierophants through the old walk and the pass — the one read that produced the wrong answer, and where it reads from now; a look-ahead entry; a graveyard Keldon Warlord |
-| `re-2-a-draw-carries-its-lineage.html` | RE-2 | the first decomposed event: two Thought Reflections through the applied set that travels with it, and the same board without it — a stack overflow at depth two rather than a wrong number; Teferi's exception living in the shape of the event tree instead of a counter; **Alms Collector in both encodings**, the shipped one and the one §9 sized, which is a CR 104.4b loop; three Notion Thieves moving the event's subject and CR 616.1's chooser with it; the read-by-read table |
-| `rd-2-a-decision-is-per-subject.html` | RD-2 | the CR 616.1 loop's new unit: two shield counters under two blockers through the per-member loop and the per-subject one, and the first-strike twin that shows the key is the batch; Furnace beside Mending Hands in both orders; a `NextDamage(3)` under sources of 2 and 4 with the allocation asked once; the two boards where nothing is consumed — Safe Passage beside Mending Hands, and a `Once` half chosen against 1 — and the consume-after-apply order that makes them right |
-| `rf-a-source-off-the-battlefield.html` | RF | the gather's zone leg read by read: a Colossus in a library while a Bolt resolves, which is why neither library is ever walked (the map, the printed-def precheck, and the two things that *would* walk a zone); the same Colossus second of three in a mill — one batch, one member replaced, the same-zone no-op, the rider after the batch; a Colossus commander sacrificed, which is CR 616.1 twice on one card and CR 701.24c's shuffle of a library the card never reached; the read-by-read table |
-| `a4i-a-target-belongs-to-an-instance.html` | A4i | CR 115.3's instance of "target" as the unit a chosen object is filed under: three equal atoms as three instances, "another target" and how its exclusion stacks, CR 608.2b as two rules; the read-by-read table |
-| `tr-1-a-trigger-is-matched-at-the-close.html` | TR-1 | the window is the event, matched against one batch's records at its close: Humility and an ETB creature entering as one event, an artifact dying in the wipe that kills the creatures it watches, Wild Growth inside the mana window; the read-by-read table |
-| `rg-an-entry-write-changes-what-applies-next.html` | RG | the CR 616.1 loop over an entry, from traced runs: a Bears under Master Biomancer, where the Mutant lives as state and why Humility leaves it; Adaptive Shimmerer under Biomancer beside Doubling Season, premise (d)'s extra gather and the four orders; Kaito beside Oath of Gideon, CR 306.5b on the frame and the feeds table's last row, in both orders, with the gray area the judges split on; the read-by-read table |
-| `cv-2b-an-exception-is-checked-without-itself.html` | CV-2b | CR 707.9f's check, from traced runs: Spark Double copying a legend, where each conditional exception is checked on a look-ahead of the copy without it; the Kaito board, where the two exceptions read each other's counters and both apply, so neither CR 306.5b nor Oath of Gideon is gathered after; and a later copy in the same entry taking the exception's counter back |
-| `ma-1-a-payment-is-a-matching-not-a-count.html` | MA-1 | "can this player pay this cost" answered as a matching, not a count, on six boards: Everywhere against `{1}{G}`, a Tundra and a Plains under Hall's condition, Mana Reflection on Everywhere, Wild Growth on a Badlands under Mana Reflection, Chainbreaker paying its own `{3}`, eight Plains with Krark-Clan Ironworks and Doubling Cube; the read-by-read table |
-| `tr-5g-a-multiplier-is-read-where-its-trigger-looks.html` | TR-5g | CR 603.2d's count read through the dispatcher's kinds of candidate list: Panharmonicon beside Soul Warden (the live list), Gandalf dying beside a Golem (a departure's frame), a granted multiplier whose granter dies (a snapshot); which list answers which arm |
-| `tr-4d-control-is-announced-by-a-sweep.html` | TR-4d, written at the item 6 audit | CR 603.10d's look-back with no performer to watch: a steal ending at cleanup, which the gate's second half announces; the first control row, kept before it writes, at both sites; Ray of Command's rows with no batch between, where a change not yet announced keeps no newer frame; each fix taken out once; which frame each look-back reads |
-| `tr-5h-every-history-read-is-a-scan-of-one-log.html` | TR-5h, written at the item 6 audit | the history log's three readers: Vengeful Warchief's "first time each turn" and Paladin of Atonement's "last turn", the damage facts with a flicker, and the layer memo's keys beside each write that moves them, with the note and the reframe each taken out once; what each read scans, and what it read before |
-
-**When to write one: at phase close, for a phase that changes *how* a read is
-answered rather than what the answer is.** That is the property the pages above
-share, and it is why a phase that adds a card, an enum arm or a pool entry does
-not get one. The phases that qualify were listed when the practice started:
-RC-4 ✓, RC-4b ✓, CV-1 ✓, RC-5 ✓, item 7 ✓ (twice — LI-1 mid-phase, because the
-pass changed every read at once, and the close), RD-2 ✓ (the loop's unit; the
-one RD phase that qualifies, decided at its close as §9 scheduled), RE-2 ✓ (the
-applied set answered for a decomposed event; one of the two RE phases §9 named,
-decided at its close), RE-4 ✗ (decided *no* at its close, 2026-09-13: the
-read it was named for was RC-5's page's already, and what it changed is what
-is proposed — the archive's "Trace-page decisions" has the argument), RF ✓
-(decided *no* at its close on the same test and reversed at its review the
-same day, 2026-09-16: the owner could not see why the gather's zone leg walks
-no library the moment a Colossus is in one, which is this section's own
-trigger — a question the diff could not answer), RG ✓ (decided *no* at its
-close and reversed at its review, 2026-09-29, the same way: the design and the
-new code in `pipeline.rs` could not be linked from the diff),
-TR-5g ✓ (decided at its review, 2026-10-20, the same way: the owner asked
-how the dispatcher's candidate lists work, and the count reads multipliers
-through them), critical-path item 6 ✓ (decided phase by phase at its close
-audit, 2026-10-22: TR-1's page and TR-5g's, and TR-4d's control sweep and
-TR-5h's history log, owed then and written in the audit's pass 5, 2026-10-23;
-each heading in `triggers-architecture.md` §12 says why), **`cant-be-targeted`** and **`cant-cast-play-or-activate`**. Budget
-two to three hours; that is the right cost for a phase's close and the wrong
-cost for a question asked mid-debugging, which is what tier 2 below is for.
-
-**Its examples are the phase's findings, not its feature list.** A page that
-walks the happy path explains the feature; a page that walks the board the
-review argued about explains the phase.
-
-**And a page may walk a design the phase rejected** — RE-2's does, side by side
-with the one that shipped. That is not a second feature list: the two Alms
-Collector encodings differ by a printed ruling and by whether the game
-terminates, and the *test* for it can only assert that the loop does not happen.
-Where a phase's finding is "this other reading is wrong", the page is the only
-artifact that can show why.
-
-**Naming: `<phase>-<claim>.html`**, kebab-case, where the claim is the sentence
-the page proves — `rc-4b-entering-is-one-event`, not `rc-4b-traces`. The file
-name is the first thing the next reader sees, and a phase code alone tells them
-nothing.
-
-**Structure**, in this order:
-
-1. **The map** — the boards, the cards, and which trace answers which question.
-   A mermaid flowchart of the path, with the phase's new nodes coloured.
-2. **Lettered traces** — A, B, C…, each a numbered walk. Every step names the
-   function and what it read.
-3. **Where the reads differ** — the comparison table. This is the payload.
-4. **A closing section that ties it to the phase** — what changed, trace by
-   trace, or what is still open.
-
-**Pinned, never maintained.** The first comment in the file, in its `<head>`
-right after the charset and viewport `<meta>` lines, names the commit and the
-frozen CR version. A page records the engine *at that
-commit*; when a later phase changes a path, it gets **its own page**, and the
-old one is left alone. That is what makes it safe to write in this much detail
-— nothing has to be kept true — and it is why the pin is not optional: a stale
-page has to say so in its own head.
-
-**Self-contained**, and only the CDNs the artifact sandbox allows: fonts from
-Google Fonts, mermaid from jsDelivr, nothing else. **Linked from two places** —
-the owning architecture doc's phase entry and the phase's `codebase-state.md`
-entry — because the `plans/` markdown stays the authority and a page nothing
-links is a page nobody finds.
-
-**What not to do.** Do not generate a page from every test: the point is the two
-examples that carry the phase's idea, and eight hundred traces are a log, not an
-explanation. Do not diagram code that is about to change — the codebase map
-below waited for the entry-hop fix for exactly that reason.
-
-### 7.1 The two tiers this does not cover
-
-Tier 1 is the practice above. Two more were planned with it, and both are
-schedulable rather than done:
-
-- **Tier 2 — engine-emitted traces.** A `TraceSink` on `GameState`, off by
-  default and gated the way `Diagnostics` is, recording what tier 1 records
-  by hand: each proposal entering a batch, each pipeline iteration, each
-  top-level layer walk, and the performed events. JSON lines, plus a script
-  that turns one into a page in this format, so tier 1 becomes generated.
-  **Landed 2026-09-18 (row A4c, PR #170)** as `mtgsim/src/state/trace.rs`: five
-  emit points — the batch, the CR 616.1 iteration, the layer walk, the
-  decision boundary (A4h's addition: the prompt, and the rejection between a
-  prompt and its re-ask) and the performed event — off at one branch each,
-  reachable as `fuzz_games --trace DIR`, `cli_play --trace PATH` and
-  `test_support::install_trace`. `plans/trace_spine.py` renders one game's
-  lines through `plans/traces/viewer.html`, which also reads a file dropped
-  on it. **Tier 1 is not subsumed.** A sink generates a page's *spine* — the
-  step rows, each read labelled by what it consulted — and never its
-  argument: which boards, which question each answers, the "where the reads
-  differ" table and the closing section are authored, and a generated page
-  marks their places. What it is for is the question asked mid-debugging,
-  and the regeneration of a page's rows after a refactor: rd-2's Trace A
-  regenerated from its test found two rows the pinned page states and
-  today's engine does not (row A4c's record in
-  `plans/archive/roadmap-v2-landed.md` has them), which is the diff a spine
-  exists to show and not a reason to touch the page. The two corrections
-  item 5 recorded before the code held: "gated the way `Diagnostics` is"
-  became one `Option` branch per emit point with the payload built behind
-  it, and the check was `IDENTICAL` on every counter with the sink compiled
-  in and off, and on (`fuzz-record.md`, the A4c block). **Read back in the
-  window since SU-8** (`setup-architecture.md` §7c): `TraceRecord::read`, beside
-  the writer, is its inverse over every record kind, and the dev GUI's why
-  panel answers a question about the past, what an event did and which
-  triggered abilities were asked about it, from the trace of a replay to the
-  open question.
-- **Tier 3 — the engine map.** One page: the modules and what each owns, the
-  chokepoint's arms, the three gate legs a new replacement source must
-  extend, the two `object_matches_filter`s, the accessor pair, and the
-  decision sites item 40 tracks — everything `CLAUDE.md` states as an
-  invariant, drawn once. **And, since the owner widened it at CV-2b's review
-  (2026-09-29), one event's path from proposal to triggers**: which
-  subsystem owns each step, and each seam where one reads another's output,
-  linked to its architecture doc section and trace page, so a reader moving
-  between triggers, copies and replacement has one place to start. **Landed
-  2026-09-29 (row `rust-notes`) as `plans/engine-map.md`**: markdown rather than a page
-  beside the traces, because it is refreshed where a trace page is pinned, and
-  its walk is Spark Double copying Soul Warden beside Master Biomancer, read off
-  the trace sink. `plans/check_engine_map.py` keeps it true. The arm check is
-  the planned ten lines. The rest checks every file, name, link and section
-  the page cites, since the widened page cites hundreds. Its `--drift` is a
-  refresh's to-do list.
-
-**Where this was written down before, and why that was wrong.** All of the
-above lived in a section of `rc-4b-entering-is-one-event.html` itself — a
-plan for the practice, inside one instance of the practice. It was invisible
-to `grep`, unreachable from `CLAUDE.md`'s authority table, and pinned to a
-commit like the trace around it, so the convention aged like a snapshot when
-it is the one part that must not. Lifted here 2026-09-03. The page keeps its
-section as the historical record; **this is the authority.**
-
-## 8. The rules pass — read the rules that name the *rule*, not just the site
-
-**Before deferring a rules question, search the CR for the rule that watches
-the one you are implementing.** The census habit this project runs — read the
-tree, then read the rule that names each call site — finds what an event *does*
-and is blind to what *observes* it, because the observer is written somewhere
-else entirely.
-
-RE-7 is the scar. CR 800.4a says what becomes of a departing player's
-permanents, and it says nothing about triggers; so "does a leaves-the-
-battlefield ability fire when a permanent leaves the *game*?" was recorded as
-an open question, with `GameEvent::LeftTheGame` shipped without the CR 603.10a
-frame a matcher would need. **CR 603.6c answers it in the sentence that names
-the event** — "leaves-the-battlefield abilities trigger when a permanent moves
-from the battlefield to another zone, **or when a phased-in permanent leaves
-the game because its owner leaves the game**" — and the search that would have
-found it is one `grep` for the rule number of the *other* side.
-
-**The habit, three greps and about two minutes:**
-
-1. `grep` the chapter that owns the thing you are changing (800.4 for a
-   departure) — this is the census's own step, and it is the one that is never
-   skipped.
-2. `grep` the chapter that owns the thing that *watches* it. For an event
-   that is CR 603 (triggers) and CR 614 (replacement); for a characteristic,
-   CR 613; for a zone change, CR 400.7 and CR 603.10.
-3. `grep` the *name* of what you are building, in the CR's own words, across
-   the whole file. "leaves the game" appears in 603.6c, and 603.6c is nowhere
-   near 800.4.
-
-**What makes this worth a section rather than a comment**: the failure is
-silent and it is *shaped like progress*. A deferral with a reachability line
-and a size reads exactly like a deferral that was researched, and the ledger
-cannot tell them apart — `codebase-state.md`'s rule catches an entry longer
-than its fix, not an entry whose premise was never checked. The counter-example
-is `replacement-architecture.md` §11 item 64, where the same search *was* run
-and CR 604.2 plus CR 614.4 closed a design question two rules away from the one
-being implemented; the difference between the two was a few minutes of reading,
-not a difference in difficulty.
-
-**And it applies to the corpus, not only to code.** `ATOM-800.4c-001`'s board
-could not reach its own rule — it had the creature's owner leave, which
-CR 800.4a's first clause forbids — and that is the same failure from the
-authoring side: a scenario written against one rule without the rule that
-overrides it. → `replacement-architecture.md` §11 items 70 and 73.
-
-### 8.1 The second question — what a new type must express at v1
-
-**The first question asks which rule watches the one being implemented. The
-second asks what the type must express when v1 ships, and it is asked of the
-cards as well as the CR.** It was added 2026-10-05 by `codebase-state.md`
-item 212. SU-7's review found four surfaces shaped after today's engine:
-- a reason named for the hand, CR 601.3's default rather than its
-  permission;
-- a controller test asked once per source, where CR 602.2's exception is
-  printed per ability;
-- four cost arms that refused every payment;
-- a why that explained three question kinds of 27.
-
-A count of the cards would have shown each one when the type was designed.
-
-For a new type, or a type a phase grows, three questions:
-
-1. **What must it express at v1?** Read the rules that own it, and list what
-   the CR lets it be. Then count the cards. A census script over Scryfall's
-   data does it: each family against the surface, each number beside its
-   query. The replacement, trigger, "can't", copy and casting censuses in
-   `plans/references/` are the pattern, and a census calibrates on the
-   registered cards before anyone reads its tables.
-2. **Which rules let a card override it?** CR 101.1 lets card text override
-   any rule, and some rules name their own exception: "unless the object
-   specifically says otherwise" (602.2), "usually the hand" (601.2), "by
-   default" (701.9b). List them for the area. A rule that refuses an override
-   "for any reason" (305.2b, 305.3) is one the type may encode as fixed.
-3. **Which card families override it, and how many cards?** A default the
-   engine hard-codes is a family with no owner until its first card arrives.
-   That is item 212's finding in one sentence.
-
-**The answer goes where the type is designed.** A shape that cannot hold a
-family the count shows costs less to change before the first arm copies it: a
-`u32` count, where 96 cost pieces need an X or an amount the board decides, is the example. The worked
-example is `plans/references/cast-census.md` §2.
-
----
-
-## 9. The spine-phase audit — a close is audited, not declared
-
-**When a critical-path item closes, audit it before the next one starts.**
-Decided by the owner at the post-RE audit (2026-09-15): the audit recurs at
-each spine-phase close — the next at critical-path item 6's — as a set of
-passes with named instruments, each pass its own PR, planned in a
-`plans/handoffs/` file that the last pass's PR deletes. Findings land where the
-project already records them: a numbered item under a dated `### Found by …`
-heading in `codebase-state.md`'s Deferred Migrations, a `backlog.md` §2 entry
-for a mechanic with no surface, a stale claim rewritten in place, a rule here.
-The run's own record is a `### … — audited YYYY-MM-DD` heading in
-`codebase-state.md`, pointers not prose, written when the handoff goes.
-
-**Why a practice and not a checklist in the closing PR.** The first run found
-that "done" was defined in five places and collected in none — the doc's
-findings list, its known-missing table, its out-of-scope list, the CR row and
-the `owed` query — and that `specdb owed` had never been run for the phase at
-its close, because `SHIPPED_PHASES` did not contain it. It found the §2.1
-sweep overdue by eighty PRs against a fifteen-to-twenty cadence, no throughput
-target stated anywhere in `plans/`, and the performance levers ranked by
-argument rather than by a profile. None of those is a bug a test catches;
-each is a claim about the tree that had gone stale without anything re-reading
-it, which is §8's failure shaped like progress. A closing PR is the wrong
-place to look for them, because the person closing the phase is the one who
-believes the claims. Reading, measuring and dispositioning is its own sitting
-with its own instruments, and it runs at the one moment the material is fresh
-and the registry is still small enough for the retroactive halves to be
-sittings rather than projects.
-
-**The passes, each with its instrument.** In this order: the close-out gates
-the rest, the eviction opens second, hygiene and readiness commute, scheduling
-needs the close-out and readiness.
-
-1. **The close-out.** The phase's done-checklist read off the tree and every
-   entry dispositioned — closed, scheduled with an owner, or deferred with a
-   dated reachability line and a size. Instruments: **the board**
-   (`check_state_of_play.py --write` then `--check`; its two bolded rows are
-   the work) and **`specdb owed --phase "<the phase>"`** once `SHIPPED_PHASES`
-   gains it — a gate, so the phase is not closed until it is clean (§5); the
-   doc's own findings list, its known-missing table and its out-of-scope list
-   re-read against what landed since; the summaries — `codebase-state.md`'s
-   TL;DR and the CR row, and the README's status block, its implemented table
-   and its roadmap rows — rewritten in place, never appended to. Produces the
-   retrospective in `replacement-architecture.md` §14's shape: pointers, under
-   150 lines, written once and not maintained. A fix found here is shown to
-   fail first; one that moves a pool is its own PR with a `fuzz-record.md`
-   block.
-2. **The eviction.** The phase doc's pre-build reasoning and closed findings
-   move to `plans/archive/<doc>-landed.md` under **the ≤40-line stub rule**,
-   planned section by section with line counts before anything moves: every
-   heading byte-identical so `grep` still lands, every closed item leaving its
-   `N. **title**` line so every outside citation resolves, every outside
-   citation of a moved section read against its stub, `check_glossary.py` on
-   the result. Opens second, after the close-out merges, so the stubs point at
-   a retrospective that exists on `main`.
-3. **Hygiene and CI.** **§2.1's two grep tiers** — the wide one is the count
-   to record, the tight one the list to read — plus the history-word block
-   list over every touched file (§2.1's second record, which is the
-   instrument that actually cut lines); every `TODO` given a live owner or
-   deleted; **clippy counted before it is decided** (`cargo clippy
-   --all-targets`, the count deciding which lints go to `-D` and which are
-   allowed with a reason each); the toolchain pin measured; every step in
-   `ci.yml`, each with a comment giving its reason. `plans/references/comment-census.py`
-   reads both tiers and the block census at any commit (§2.1's fourth record). **Helpers built more
-   than once** (the owner, 2026-10-06, at #225's review, which found the
-   permanents a player controls built in six places, one of them a helper
-   the engine never called): **`plans/similar_functions.py`**. Its token scan
-   lists functions whose tokens nearly match; since A6l (2026-10-10, after
-   #239's review found a rule spelled three times, each copy short and
-   written differently) it also keys every engine function by its inputs, by
-   each pair of reads it makes in a row and by its equality tests, and lists
-   a key that functions in different files share. Its docstring says what
-   none of the five can see. `--against main` leaves only what a branch
-   added, and `close_out.py` prints it at every close, so a PR's copies are
-   met at its own review; the whole report is this pass's list. Beside it
-   runs **a model pass** (the owner, 2026-10-10, at #240's review): a
-   subagent not shown the report reads the code for one fact computed twice,
-   with the inventory's §2a prompt, over the files a branch changed at every
-   close and over a spine phase's whole subsystem at its close. It is not
-   repeatable, which is why the script stays the list of record, but on the
-   trigger code it found 11 facts the report does not list. Each copy is
-   routed to one helper or kept with its reason. The first inventory is
-   `plans/references/duplicate-inventory.md`.
-4. **Readiness.** Is the engine on track for the harness use case? **Its first
-   duty is the ratchet's re-reading** (§3.1): decisions per core-second on
-   both boards at four seats and one thread, recorded as a dated reading
-   beside the previous close's, and it may not read worse per decision without
-   a written reason; then §3.1's three floors. Instruments: **the census provider** (item 138's two
-   counters once they land; a throwaway counting provider around
-   `fuzz_games`' own decks and streams until then), **the clone timer** with a
-   counting allocator (item 143's table, extended at each close), **the fork
-   record-and-replay** (item 41's test — record every answer, clone at a
-   round start, replay, compare the logs verbatim; the id mask retired with
-   A4g on 2026-09-16, since a fork's ids are its parent's), **`plans/panic_surface.py`**
-   (the engine's release-active surface, separated from the unit-test tails;
-   a surface growing faster than the engine is the finding), **the three-run
-   contention read** (`--threads 1`, 8 and 16 at 200 games, item 138's lever
-   7) and **callgrind under WSL** (`layers-architecture.md` §12's instrument
-   paragraph: `valgrind --tool=callgrind` over `fuzz_games` at a fixed seed,
-   `callgrind_annotate --inclusive=yes`; the instruction count is the reading
-   that travels between machines, the milliseconds stay in this pass).
-   Produces the lever list re-ranked by instruction share, each lever sized in
-   its item.
-5. **Scheduling.** **One table**: each open track phase and lattice entry, what
-   it unlocks in cards (the ledger and the docs' consumer lists — no Scryfall
-   count re-derived) and in atoms (`spec.sqlite` by rule prefix, the prefixes
-   named), what it needs, and which of the next spine phase's design questions
-   needs it landed first; then a proposed order for the between-phases slot.
-   The pass proposes; the owner decides. The first instance is `roadmap-v2.md` §3a's A table — the between-phases rows it gained on 2026-09-15, which §3b explains.
-
-**Binding rules across passes.** Docs and small fixes only — anything larger
-becomes a scheduled item with an owner. No count is re-derived that a doc
-already carries with a date, and a number in a heading is a number that will
-be wrong. A pass re-reads what it touches: every number in a pass's brief is
-a starting point, and two of the first run's were wrong (§11 held 99
-findings, not 108; clippy read 114 sites, not "hundreds"), which is the reason
-the brief says so about itself.
-
-**The first instance — the post-RE audit, 2026-09-15**, at critical-path item
-5's close, the day RE-9 merged. Planned as `plans/handoffs/post-re-audit.md`
-(PR #141), which pass 4's PR #154 deleted; its last text is `git show
-341ebf9:plans/handoffs/post-re-audit.md`, and the record is
-`codebase-state.md`, "Was critical-path item 5 done, and what sits before item
-6? — audited 2026-09-15". Where each pass's output lives:
-
-- **Close-out (PR #142):** the board's classifier corrected and Phase 6 armed
-  in `SHIPPED_PHASES`; the Phase 6 `owed` triage, `backlog.md` §3.3's second
-  block; `replacement-architecture.md` §8a, §11 items 3, 4 and 14, §12, §13
-  and §14; `codebase-state.md`'s TL;DR, its CR 614–616 row, and "Found by the
-  post-RE audit (2026-09-15)" — item 134, and items 59, 60, 122 and 131
-  scheduled; item 118 fixed in it.
-- **Eviction (PR #151):** `replacement-architecture.md` 6,725 → 3,401 lines,
-  the archive 4,933 → 8,647, planned section by section in the handoff and
-  re-counted against the tree in the same block.
-- **Hygiene and CI (PRs #143, #144 re-landed by #145, then #146–#149):**
-  clippy adopted at `-D warnings` with five lints allowed, `check_glossary.py`
-  in CI, the floor measured at 1.88 and recorded as `rust-version`; §2.1's
-  two recorded applications, the second over every non-card source file;
-  twelve `TODO`s re-owned, one new owner filed (`backlog.md` §2.32).
-- **Readiness (PR #153):** `codebase-state.md` items 138–143; §3.1's budget
-  and ratchet; `layers-architecture.md` §12's callgrind subsection;
-  `backlog.md` §2.22's ask table; `plans/panic_surface.py`; item 41 promoted
-  to a requirement and item 69 closed.
-- **Scheduling (PR #154):** `roadmap-v2.md` §3a's A table (the `A4x` rows) and §3b, this section, and the audited heading
-  above; the two after-the-passes artifacts — the codebase map (§7.1's tier 3)
-  and the Rust notes — homed at `roadmap-v2.md` row `rust-notes`.
-
-**What the next run adds, at critical-path item 6's close.** The ratchet's
-second reading against item 138's first, read through the counters rather
-than a probe; `plans/panic_surface.py` re-run; the trace-page decision
-recorded on the phase heading (§7); `check_glossary.py --suggest` triaged,
-which is the glossary's own obligation at a phase close; `roadmap-v2.md` §3b's
-table re-derived, since every count in it carries the date it was read; and
-`rust-notes`'s two artifacts, if still open, because the trigger phase is the largest
-new subsystem the map would have to absorb.
-
-**And pass 3 at the midpoint of a long item** (the owner, 2026-10-08, at
-A6k's brief). A critical-path item longer than about eight PRs gets the
-hygiene pass halfway through, planned in a handoff and dispositioned as the
-close's passes are, with one more question: a shape review of the code the
-rest of the item will extend. Which lists hand a position across a call or
-a mutation; which facts the rules fix at a moment the code recomputes later;
-where matching is done outside the one matcher; and what a per-event path
-scans, read off a profile. The other passes stay at the close. Item 6's
-midpoint is A6k (`roadmap-v2.md`), between TR-3b and TR-3c: 81 PRs after
-the second sweep, with about eight engine PRs left before item 6 closes.
-
-## 10. GUI code — logic in plain Rust, egui only drawing
-
-Added 2026-10-01, at A6g's review practices PR (`roadmap-v2.md` A6g). The
-owner's call at SU-2's review: GUI code is the part of the tree the owner can
-least review line by line. The review that catches an engine bug leans on the
-algorithm and the CR, and a frame loop leans on neither, so the GUI's review
-is made mechanical, and the code is shaped so that most of it is not GUI code.
-
-**The rule: logic is plain Rust under tests, and egui only draws.** The dev GUI
-(`devgui/`) is a bridge to the engine's thread, an owned snapshot of the board,
-a view model that turns the snapshot into what the window shows and a click
-into an answer, and a session that owns one game. Those are reviewed as the
-engine is, by reading them against §2b's names and asking whether a test fails
-when the code breaks, and they carry the tests. The drawing files lay out what
-the view model built and report the person's clicks; they are reviewed against
-§10.1's checklist and by running them, and §10.2's gate holds the line between
-the two halves.
-
-**Start at `plans/devgui-map.md`**: the parts, one question's trip from the
-engine to the window and back, and how each part is reviewed.
-
-**Every GUI PR body carries three things** besides the usual ones:
-- **its files sorted by how to review them**: read closely (the plain Rust),
-  read against §10.1 (the drawing), check by running;
-- **a click script in Magic terms**: the board to load, what to click, and
-  what the window should then say;
-- **every picture it changed** (`devgui/tests/snapshots/`), old beside new.
-
-**The decision log is the engine's, not the window's** (the owner, at A6g's
-playable PR, 2026-10-02). A seat's provider sees only the prompts that reach
-it, which its settings decide, so a log written there differs for one game
-played with auto-yield and the same game played under full control. The
-engine writes every answer, whoever gave it, and the passes it makes itself
-(`state::decision_log`), and a client only attaches the writer. A seat's mode
-is never in the log: it changes who answers, not the game, and it tells a
-reader what the player expects.
-
-**What the engine says and what a client draws** (the owner, at A6g's playable
-PR, 2026-10-02). Display work is of three kinds, and each has one home:
-- **a fact only the rules compute**, such as characteristics through the
-  layers, copiable values, the legal options or a prompt's subject, is the
-  engine's, since a client cannot get it without the layer walk;
-- **wording every reader sees alike**, such as names, questions, option
-  labels and log lines, is `ui::display`'s, in the engine crate because the
-  decision log and the trace say the same words;
-- **how it looks**, such as layout, color, emphasis, fading and what is
-  hidden, is the client's.
-
-A review asks of each new `ui::display` function or engine surface: would a
-second display client (the CLI, v1's GUI in `backlog.md` §2.38) compute the
-same thing from the same facts? If so it is the engine's; if it is how one
-client chose to look, it is the client's. `ui::display::type_line_now` is the
-worked case: each word's status is a set difference against the copiable
-values (CR 707.2) and its order is Oracle's or the card's, so the engine gives
-both, and fading a lost word is the dev GUI's (`TypeWordView::faded`).
-
-### 10.1 The checklist for egui code
-
-A GUI PR's review reads each drawing file against these questions, and a
-review agent given the PR is given this section. egui is immediate mode:
-`eframe::App::ui` runs whole at every repaint, which is every pointer move over
-the window, every key, and every message the engine's thread wakes it for, and
-everything a drawing function calls runs that often.
-
-1. **Per-frame work and allocation.** Does a call's result change between two
-   frames that had no new message and no input? If not, it is built where the
-   change happens (`WindowState::receive`, `WindowState::input`) and the frame
-   only reads it, unless §10.4's reading says it is too small to matter,
-   which is a measurement and not an argument. A list that grows with the game is drawn
-   through `ScrollArea::show_rows`, so a frame costs the rows on screen, and
-   every row is the one height `show_rows` was given: a row that wraps breaks
-   its arithmetic.
-2. **Blocking the UI thread.** Nothing a frame calls waits: `try_recv`, never
-   `recv`; no `join`, no `sleep`, no lock held across engine work, no file
-   read. A small read or write at a click, such as a board opened or saved, a
-   save `--load` reads, or the folder of boards listed again, is allowed;
-   anything slower is a thread whose result comes back as a message. The
-   engine's thread blocks on `recv` by design, and the UI thread never does.
-3. **What owns state between frames.** A value that survives a frame and can
-   change an answer is a field of the plain-Rust state, changed only through
-   `Session::input`; drawing takes the state by shared reference and returns
-   `Input`s. egui's own memory holds only what may reset with no answer
-   changing: a header's open flag, a scroll offset, a panel's width. No
-   `static`, `thread_local!`, `Cell` or `ui.data_mut` in a drawing file. A
-   widget that edits a value in place (`DragValue`) edits a copy, and the
-   change goes out as an `Input`.
-4. **Repaints.** eframe repaints on input and on request, so every message the
-   engine's thread sends is followed by the `wake` that requests a repaint, or
-   the window shows a stale board until the pointer moves. Nothing requests a
-   repaint unconditionally from inside a frame, which is a busy loop at full
-   CPU.
-5. **The lifetimes of threads and channels.** For each thread: what ends it,
-   and what each end of each channel does when its partner is gone. A
-   superseded game's thread ends when its channel closes, which is normal and
-   prints nothing, and nothing it does afterward reaches a file or a window that
-   a new game owns.
-6. **Errors shown to the person.** Every failure a person can cause or meet
-   reaches the window in words: what happened, and what to do. A refusal (a
-   scenario that does not load, a file that cannot be written) reads
-   differently from an engine panic, which is a bug report and says where its
-   decision log is. Nothing the person does ends in a panic on the UI thread,
-   or in a message only the terminal shows.
-7. **egui ids.** A stateful widget (`CollapsingHeader`, `ScrollArea`,
-   `ComboBox`, a window, a `DragValue` being typed into) keeps its state under
-   an id taken from its label unless it is given one. Two with one label in
-   one parent share their state, and one whose label changes loses it: a
-   header labeled "Graveyard (3)" snaps shut when a card arrives. Each gets an
-   `id_salt` from a key that names what it shows (the seat, the zone), never
-   from a list position or the label's text.
-8. **Input read against a changed frame.** egui reads a click against the
-   layout drawn in the frame that reads it. A prompt that replaces another
-   under the pointer takes the second click of a double click, or a held key's
-   repeat, that the person aimed at the first. The window's answer
-   (`codebase-state.md` item 201): for `SETTLE_SECONDS` after a prompt
-   arrives, `WindowState` drops any input that could answer it and shows
-   nothing live; a key's repeat answers nothing; and each prompt's widgets
-   take an id from its number, so focus dies with its prompt. A new kind of
-   input goes through `WindowState::input`, where the beat is. The same beat
-   follows two other moves (the dev GUI audit): the why panel opening or
-   closing slides the board, so a board click is dropped and the board offers
-   nothing for the beat after (`WindowState::board_settling_for`); and the
-   game and the editor switching, or another board opening, replace the
-   window, so every click is dropped (`Session::input`). A control drawn after
-   text that changes width moves under the pointer too, so each header draws
-   its buttons first, each whether or not it can act.
-
-**First applied to the whole crate at A6g's review practices PR**, by a review
-agent given this list, a budget and a stop-and-report rule; the findings are
-in that PR's table, each fixed there or given a `codebase-state.md` item.
-**Applied again at the dev GUI audit** (2026-10-06), over what the ten PRs
-after it added, the same way, with the owner's notes from use; its findings
-are in that PR's table.
-
-### 10.2 The rule as a gate
-
-`python plans/check_egui_only_draws.py`, in CI's check job and on
-`CLAUDE.md`'s line, fails when a file other than the drawing files names a
-window crate (egui and its family, eframe, winit, wgpu), and when a drawing
-file names the engine (`mtgsim::`): what the window shows comes through the
-view model, where a test can read it. The drawing files are three, each listed
-in the script with why it is one: `src/app.rs`, the window; `src/main.rs`, which
-starts eframe over what `launch` read from the command line; and
-`tests/screenshots.rs`, which draws the review pictures. A new drawing file is
-a line in that list, which a review reads in the diff. Comments and string
-literals are not read, so "nothing here knows egui" stays a doc comment.
-
-Its first run, on the tree before A6g's review fixed anything, found
-`main.rs` reading the command line, untested, and naming the engine to find a
-scenario's seed (finding 3 of that PR's table).
-
-### 10.3 Random clicks
-
-`devgui/tests/random_clicks.rs` plays whole games with every seat's part
-taken by seeded random clicks, through `WindowState::input`. At each prompt
-it clicks anything the window would let a person click (a live button, a
-board item marked clickable, "Start over" one click in twenty) until an
-answer completes: the half chosen and abandoned, the ordering reset midway,
-the bucket filled and emptied that no fixed rule makes. Three dealt seeds a
-pool, and three seeds on each review board and on the four-seat sample:
-twenty-one games in about 23 s of the debug build CI runs, read locally with
-the engine at opt-level 1 (§10.4). Each game must finish, the engine's thread must not panic,
-the engine must accept every answer the view model builds, and every click
-the window offers must change the answer or complete it: the view model asks
-one probe, `Selection::is_live`, which runs the click on a copy. The games
-reach single and multiple picks and all three allocations (generic mana,
-combat damage, trample damage); no ordering and no number, which the view
-model's unit tests carry.
-
-**The debug build is the point.** The layer memo's audit runs in it, and the
-window's snapshot reads every object at every prompt, which no engine test
-does. Its first run found an engine bug that way: a loss bumped no layer
-epoch (A6g's review, finding 1).
-
-**Since A6g's playable PR** the clicks also set and stop yields, press each
-live button's key, and switch full control between prompts, one prompt in
-twenty-five, which asks at the priority points the engine otherwise passes
-itself; they keep the window's clock, and each prompt must first drop a click
-and offer nothing in its beat. A fourth review board, `reask.scenario`,
-declares blocks illegally. Its second find came from full control's extra
-prompts: `Scenario::write`, which the snapshot calls, indexed a blocker's
-attacker after the attacker, a token, had ceased to exist.
-
-**Since the seats PR** the window plays every seat, and so do the clicks. A
-yield is one click in twenty, as "Start over" is. A yield as likely as any
-other click had both seats passing at most priority prompts, so a game ran
-on to the end of the libraries: one stress game ran 112 turns, 2,892 prompts
-and 40 s in debug.
-
-**Since SU-3** the board editor has random clicks of its own, with no game:
-from an empty board and four samples, three seeds each, 200 clicks of
-anything the editor offers but Play and Save, chosen by group first (the
-game's facts, the seats, the cards, the card being edited, the lines shown
-as text, the search, Undo), so the long list of names does not crowd out the
-board. Every click must change the board or what is selected, the board must
-be its own text read back, and Undo must walk back to the board opened:
-3,000 clicks in about 0.7 s of the debug build. Their first runs found two
-clicks the editor offered that changed nothing, a move past identical lines
-and a second copy of a tagged card (`setup-architecture.md`'s SU-3 archive).
-
-**Since the editor's advanced settings** (#227) the clicks also turn the
-switch, type lines into its field (lines the grammar reads, one it refuses,
-and one that says nothing) and click each player row's control. The run
-fails unless every one of them was clicked, and the state a click must
-change includes the switch and the field: 3,000 clicks in about 1.0 s.
-
-**Since the dev GUI audit** the games keep the board's beat as they keep the
-prompt's: each time a why opens or closes the panel, the board must offer
-nothing until the beat has passed, and the dealt games must meet it at least
-once. A number typed into an editor's field is `EditorInput::NumberTyped`,
-whose consecutive edits of one field are one undo step, so Undo walking back
-to the board opened checks that join too.
-
-**Since #231** the editor's clicks type a name for Save as. The guard that
-a reference reaches its card had held by the stream's luck, 7 picks in 3,000
-clicks and the one that landed, and the new kind of click moved the stream
-off it. So a pick waiting for its card is answered by one three times in
-four, as a person picking does.
-
-### 10.4 What one prompt costs the window
-
-`cargo run --release --example prompt_cost`, in `devgui/`, reads what the
-window pays at each prompt and at each repaint, on a large board
-(`tests/scenarios/large.scenario`: 188 objects, seat 0's priority prompt) or
-on one given as its argument: `Snapshot::build` on the engine's thread, with
-the layer memo warm and cold, and of that the board's scenario text;
-`WindowState::receive` as the prompt arrives; and the views `app::draw`
-builds again at every repaint. Each is the median and the slowest tenth of
-200 runs, beside the allocations and bytes one run asks for. **A number to
-read beside a change, not a gate**: the time is the machine's and the
-allocations are the code's, and a GUI PR that touches the snapshot or the
-view model quotes its before and after.
-
-**The first reading**, 2026-10-01, on the owner's Windows machine, release,
-at A6g's review PR before its fixes:
-
-| | median | p90 | allocations | bytes |
-|---|---|---|---|---|
-| snapshot, memo warm | 196 µs | 296 µs | 3,829 | 274,665 |
-| snapshot, memo cold | 272 µs | 351 µs | 4,778 | 462,305 |
-| of which the board text | 60 µs | 94 µs | 838 | 72,735 |
-| receive | 13 µs | 21 µs | 573 | 40,210 |
-| views, every repaint | 27 µs | 34 µs | 671 | 40,185 |
-
-So §10.1's first question has a measured answer for the views and the board
-text: each is built again every time, and neither is worth a cache. **A debug
-build is another matter.** The snapshot read 125 ms a prompt there, about 640
-times its release cost, because the layer memo's audit walks the board again
-at every memo hit and the snapshot hits the memo several times a permanent.
-That audit is what found the engine bug in §10.3, so the window runs in debug
-to test cards and in release for a large board, which `main.rs`'s usage says.
-
-**Since the seats PR the dev GUI's debug build compiles the engine at
-opt-level 1**, its debug checks still on (`setup-architecture.md` §7b,
-decision 5). Read in debug on the same board, 2026-10-03, on the owner's
-machine:
-
-| debug | median before | median after | allocations, both |
+## Measuring
+
+### The close-out
+
+Each pool answers a question the other cannot, so a PR runs both:
+**performance** asks *did my change make the engine slower?*, read as a delta
+between two builds in one run; **stress** asks *is there a card shape that makes
+the engine fall over?*, read against a threshold (0 errors, 0 panics, 0
+turn-limit hits). **Never A/B any number across a pool change.**
+
+While building: **predictions** in the PR body before any arm runs, one line per
+arm; **the band** tracked at every commit (`git diff --numstat <merge-base> HEAD
+-- mtgsim/src mtgsim/tests`); **docs in the commit that changes what they
+describe**. After the last code commit, each once:
+
+1. `cargo build --all-targets` (zero warnings), `cargo clippy --all-targets --
+   -D warnings` and `cargo test`, never again after a docs-only commit; then the
+   check scripts on `CLAUDE.md`'s line.
+2. `python plans/close_out.py --arm main=origin/main --arm engine=<sha>
+   [--arm shipped=HEAD] [--require "<newly pooled cards>"]`, in the background
+   while the docs are written: the audited counters on both pools at two seats
+   and four, the budget, the reachability read, the record block's table, and
+   the copies the branch made. The model pass over the changed files runs beside it.
+3. **Game-by-game dump attribution only when a gameplay row moves that the
+   predictions did not**; a moved cost row is a reading.
+4. **The big audited smoke only when the PR touches the dispatcher or the
+   audit**: `fuzz_games --audit`, 1,000 games at seed 777, both pools and seats.
+5. The close-out writes the phase's stub and archive eviction, a `fuzz-record.md`
+   block of about 50 lines (the table and only the moves nobody predicted), the
+   roadmap row if the route changed, and the PR body, each copy the branch made
+   merged or kept with its reason.
+
+Not run: separate determinism runs (CI's step), status prose in the roadmap, a
+timing sitting (the budget reads instructions).
+
+### The budget
+
+- **A phase's engine arm may cost at most 2.5 points of callgrind instructions
+  per decision, at identical counters, against `main`** on `close_out.py`'s
+  board (Commander scale, 20 games, the hasher's seed pinned), or the PR says
+  why in its `fuzz-record.md` block and the reviewer decides. A decision is a
+  prompt with two or more legal answers.
+- **It is the per-PR half of a ratchet**; the other half is each spine close's
+  readiness reading of decisions per core-second, never worse without a reason.
+- **Instructions, not time**: a timing sitting spreads 2–6%, wider than the
+  budget, while instructions repeat to ~0.01%. Stalls are read at readiness.
+- Adopted 2026-09-15, in instructions since 2026-09-25; the calibration is
+  `fuzz-record.md`, "Calibrated 2026-09-25".
+
+### The floors
+
+The ratchet stops the engine getting worse; the floors say where it stops being
+fit for v1's AI use case at all (derived in `plans/references/ai-performance-floors.md`).
+`check_state_of_play.py` joins the limits below with the latest readings in
+`fuzz-record.md#the-latest-floor-readings` and draws both on the board.
+
+<!-- floors: begin -->
+| Floor | Limit | Definition | Instrument |
 |---|---|---|---|
-| snapshot, memo warm | 121.7 ms | 29.5 ms | 203,801 |
-| snapshot, memo cold | 122.3 ms | 29.6 ms | 203,989 |
-| of which the board text | 0.70 ms | 0.16 ms | 838 |
-| receive | 27 µs | 26 µs | 387 |
-| views, every repaint | 88 µs | 87 µs | 713 |
+| 1. Decisions per loaded physical core-second | ≥ 10000 | at Commander scale (`--deck-size 100 --life 40 --players 4`) under the default bot stack; a decision counted where it reaches the agent; loaded = the one-thread rate × (16-thread speed-up ÷ physical cores) | the readiness pass, counted by a provider innermost in the stack, with callgrind instructions per decision beside it |
+| 2. Allocations per clone | ≤ 64 | CI's proxy for a full-state clone within 10 µs, at item 143's checkpoints, at every decision and on the fixture boards | `clone_bound_test` and `clone_fixture_test` in CI's release step, with `fork_copies_test` beside them |
+| 2. Microseconds per clone | ≤ 10 | a full-state clone, portably ≤ 1/6 of one decision's engine CPU, at the same readings | the readiness pass |
+| 3. Kilobytes per clone | ≤ 128 | deep clone size, bounded by the board's high-water mark and never by the turn count | the same tests, exact bytes with the hash seed pinned |
+<!-- floors: end -->
 
-The snapshot is about 4× faster, and the window's own code, still at
-opt-level 0, is unchanged. The debug checks are still most of a debug
-snapshot's cost: it allocates 59 MB where release allocates 0.27 MB, the same
-code but for them. The dev GUI audit at the end of A6g's row weighs that.
+- **Floor 1 is read under a named stack** (`backlog.md` §2.22's default:
+  `ManaWindowStop` on, the tap-solver decorator off), as it is read on a named
+  board. A reading under another stack is another operating point, never a
+  regression, and is not compared across a stack change.
+- **A reading is replaced in place when it is taken again**; every reading's
+  dated record stays in `fuzz-record.md`.
 
-**Since SU-3 `prompt_cost` reads the board editor too**, on the same board
-opened in it: its view, which `app::draw` builds again at every repaint in
-the editor, and one edit at a click, which writes the board, reads it back
-and has the loader check it. Read 2026-10-03, the owner's machine:
+### Reading the tail
 
-| | release median | debug median | allocations |
-|---|---|---|---|
-| the editor's view, every repaint | 19.2 µs | 104.0 µs | 487 |
-| an edit, at a click | 142–146 µs | 278.4 µs | 1,660 |
+- **A mean is the one statistic guaranteed to hide a cliff**: read p50 / p99 /
+  max, and `CPU/turn` beside `CPU/game`, since a long game is not a slow one.
+  The slowest game's seed replays alone with `--seed N --games 1`.
+- **A timing compares only within one sitting**, interleaved against a binary
+  built from the other tree, never against a figure in a doc; a suspicious
+  cross-sitting delta gets an interleaved A/B before a diagnosis.
+- **A turn tail that climbs while the median holds is the signal**; a game tail
+  climbing with it is probably a longer game. Run 200 games when the tail is
+  read: below 100, p99 is the max.
+- The sitting that showed it: `archive/engineering-practices-records.md#32-reading-the-tail-and-why-the-mean-cannot-do-this-job`.
 
-So the view is built again at each repaint, as the game's views are, and an
-edit is checked at the click, on the window's thread, well inside §10.1's
-second question and `setup-architecture.md` §7b's 0.82 ms. The snapshot's
-board text fell to 601 allocations from 838, since a card line is written
-straight into its formatter.
+### The cost rows
 
-**Since SU-5 `prompt_cost` reads the header's tools too**, Undo answer,
-Savestate and a menu of three entries, which `app::draw` builds again at
-every repaint: 0.1–0.2 µs and 6 allocations in release (2026-10-04, the
-owner's machine). The other readings, taken twice interleaved with `main`'s,
-kept every allocation and byte and read within noise, so the tools put no
-work on a prompt: the save is read when a message arrives or a tool is
-clicked, never in a frame.
+- **The bold rows of a record block are engine cost, and they are fixtures**:
+  a pure function of the seed and the pool, so a change means the cost model
+  moved, as a change to "creatures died" means behavior did. How to read each:
+  `fuzz-record.md#how-to-read-the-cost-rows`.
+- **So a count is part of determinism**: an `any` over a hash map with a layer
+  query inside is a violation, even when its answer cannot vary.
 
-**Since the editor's advanced settings** (#227) `prompt_cost` reads the
-editor's view with them on, and a line typed, added and undone. Read
-2026-10-06, the owner's machine, release, two sittings interleaved with
-`main`'s:
+### Determinism
 
-| | `main` | with the settings |
-|---|---|---|
-| the editor's view, switch off, every repaint | 18.9 µs, 487 allocations | 18.8 µs, 491 |
-| the editor's view, switch on, every repaint | — | 19.1–19.2 µs, 507 |
-| an edit, at a click | 127.9–129.7 µs, 1,660 | 126.6–127.1 µs, 1,660 |
-| a line typed, added and undone, at clicks | — | 224–234 µs, 3,171 |
+- **Everything outside `=== Timing ===` is byte-identical at one seed, any
+  `--threads` and any `MTGSIM_HASH_SEED`.** CI checks it on every push, and
+  `prof_arm.sh` checks its native run against valgrind's. `fuzz_ab.py` stays the
+  tool for timing rounds and `--copies` on a heavy board.
 
-A typed line parses the board twice where an edit parses once, still well
-inside §10.1's second question. The other readings kept every allocation
-and byte.
+## The spec database
 
-**The dev GUI audit's reading: what a debug window pays for the layer memo's
-audit** (2026-10-06, the owner's machine, the window's debug build: the engine
-at opt-level 1, its audits on). A question's wait is the whole time from an
-answer to the next question, read by a throwaway probe that played each
-board by rule (`window_by_rule`) to its end or 400 questions; the rest is
-`prompt_cost`, which reads the audit's cost of a snapshot in a debug build.
-The late four-seat board is a dealt game (seed 6, the performance pool)
-played by rule to turn 32, written by "Save board as scenario", its two
-tokens taken out.
+- **Annotate at write time**, above `#[test]`: `// COVERS:` when the test builds
+  the atom's whole scenario, `// COVERS-PARTIAL:` otherwise.
+- **Never claim an atom a test doesn't prove**; a false link is worse than a
+  blank. `suspicious` is a smell test, and silence proves nothing.
+- **A phase does not close until `owed` is clean for it**, every atom covered or
+  deferred with a reason; adding the phase to `SHIPPED_PHASES` arms the gate.
+  CI does not run `specdb` (the owner, 2026-08-31).
+- **Triage what `owed` reports as a fact or a feature.** A fact (object
+  identity, who cast it, characteristics an instant ago) is unrecoverable if not
+  captured when it exists, so record it on the first customer; a feature is a
+  normal diff, deferred freely. Count cards to decide when to build a feature,
+  never whether to record a fact.
+- **A defect with no atom is invisible to both `owed` and Deferred Migrations**;
+  that is the review's to find.
+- The command reference is `specdb.py`'s docstring; why it is a gate:
+  `archive/engineering-practices-records.md#5-the-spec-database-as-a-gate`.
 
-| debug | a question's wait | with the audit paused | a snapshot, audited at every read | paused |
-|---|---|---|---|---|
-| the large board: 188 objects, 61 permanents | 69.7 ms | 1.15 ms | 28.4 ms, 203,564 allocations | 0.96 ms, 8,142 |
-| four seats, turn 32: 180 objects, 21 permanents | 5.4 ms | 0.85 ms | 2.56 ms | 0.85 ms |
-| the four-seat sample: 33 objects, 3 permanents | 7.9 ms | 0.40 ms | 0.23 ms | 0.16 ms |
+## Module layout
 
-So the audit is 85–98% of what a debug window waits, in two parts. The
-window's own reads at a question, the snapshot and each why, are about two
-fifths of it on the large board: one snapshot there makes 628 memo hits,
-about three an object, and each hit's audit walks the whole board again for
-a permanent. The engine's own work between questions is the rest.
+- **A `mod.rs` declares and re-exports; it does not define.** Module docs, `mod`
+  declarations, `use`, attributes, and `macro_rules!` a module's children share
+  (metacode, in scope only after it is defined). `lib.rs` and `main.rs` are
+  exempt. `check_module_layout.py` fails the rest.
+- **The implementation goes in a sibling named for what it does**:
+  `engine/replacement/`'s `gather.rs`, `pipeline.rs`, `instance.rs`. A one-file
+  module is fine; that file is not called `mod.rs`.
 
-**Decided** (the brief left it open, to decide after the reading): neither a
-sampled audit nor a fast-debug launch flag, but the window's reads audited
-once, which loses nothing. A question's reads hold the game by shared
-reference, so no walk input can change while they run, and an object's
-characteristics that matched a fresh walk once (its frame, in the layers'
-words) match it at every later hit: `GameState::audit_each_frame_once` checks
-the frame the memo holds for every object the board's pass walks against one
-pass, at the first hit on any of them, and each other object's at its first
-hit, and `GuiSeat::ask` opens it for everything the seat reads while its
-question is open. Read again with it:
+## Trace pages
 
-| debug | a question's wait | a snapshot | a why at a question | a why of a card in hand |
-|---|---|---|---|---|
-| the large board | 41.5 ms (69.7) | 1.08 ms, 8,910 allocations (28.4 ms) | 0.14 ms (1.65) | 0.08 ms (7.29) |
-| four seats, turn 32 | 3.4 ms (5.4) | 1.00 ms (2.56) | 0.02 ms | 0.01 ms |
-| the four-seat sample | 6.9 ms (7.9) | 0.18 ms (0.23) | — | — |
+- **Write one at the close of a phase that changes *how* a read is answered**,
+  not what the answer is: not for a card, an enum arm or a pool entry. Its
+  examples are the phase's findings, and it may walk a design the phase rejected.
+  The decision is recorded on the phase's heading.
+- **Pinned, never maintained**: a page records the engine at the commit its
+  `<head>` names, and a later change gets its own page.
+- **Linked from the owning architecture doc's phase entry and the phase's
+  `codebase-state.md` entry**, and listed in `trace-pages.md`.
+- **The trace sink makes a page's spine, never its argument**: the boards, the
+  questions and the "where the reads differ" table are authored.
+- The format, the naming, the index and the trace sink: `trace-pages.md`. The
+  engine map, one event through every subsystem, is `engine-map.md`, kept true
+  by `check_engine_map.py`.
 
-What is left is the engine's own audit between questions, about 40 ms a
-question on the large board, spread across its whole turn: a scope around
-the priority question's options took 8 ms of it. Only pausing the audit
-takes the rest, and the audit with it, so no flag was built; on the largest
-board the tree has, a debug window waits about 40 ms a question.
+## The spine-phase audit
 
-Release has no audit, and its readings moved nowhere: two sittings
-interleaved with `main`'s, every time within noise and every allocation the
-same, but that `EditorInput`, and `Input` with it, grew from 32 bytes to 40
-with `NumberTyped`, whose second `(BoardNumber, i64)` took the niche the
-tag had. A view holding inputs grows with it: the editor's 2.7 KB a repaint
-on the large board, and one allocation (490 to 491).
+- **When a critical-path item closes, audit it before the next starts**, as
+  passes with named instruments, each its own PR, planned in a `plans/handoffs/`
+  file the last pass's PR deletes. A closing PR is the wrong place: the person
+  closing believes the claims.
+- **Findings land where the project records them**: a numbered
+  `codebase-state.md` item under a dated "Found by" heading, a `backlog.md`
+  entry, a stale claim rewritten in place, a rule here.
+- **An audit ships docs and small fixes only**; anything larger is a scheduled
+  item with an owner. A pass re-reads what it touches, and a number in its brief
+  is a starting point.
+- **A critical-path item longer than about eight PRs gets the hygiene pass at
+  its midpoint**, with a shape review of the code the rest will extend.
+- The passes and their instruments: `spine-phase-audit.md`.
 
----
+## The dev GUI
 
-## 11. The invariants as gates
+- **Logic is plain Rust under tests, and egui only draws.** The bridge, the
+  snapshot, the view model and the session are reviewed as the engine is; the
+  drawing files lay out what the view model built and report clicks.
+  `check_egui_only_draws.py` fails a window crate outside the drawing files, or
+  the engine inside one. A new drawing file is a line in its list.
+- **A drawing file is reviewed against the egui checklist**, which a review
+  agent is given: `devgui-map.md#the-egui-checklist`.
+- **Every GUI PR body carries** its files sorted by how to review them, a click
+  script in Magic terms, and every picture it changed, old beside new.
+- **The decision log is the engine's, not the window's**: the engine writes
+  every answer and its own passes; a seat's mode is never in it.
+- The parts and their tests, random clicks among them: `devgui-map.md`.
 
-Three of `CLAUDE.md`'s invariants have a shape a grep can see: the
-layer-system read, the chokepoint, and determinism at the decision boundary.
-`python plans/check_invariants.py`, in CI's check job and on `CLAUDE.md`'s
-line, reads those shapes. Review held them alone until A6q (2026-10-13), and
-the read of the tree that day found each broken again within weeks of being
-written. The fourth, "randomness is owned", is a clippy lint (§11.4), and the
-guards a release build compiles out are played in CI (§11.5).
+### What the engine says and what a client draws
 
-**The three checks.**
+- **A fact only the rules compute is the engine's**; **wording every reader sees
+  alike is `ui::display`'s**; **how it looks is the client's.**
+- **The review's question**: would a second display client compute the same
+  thing from the same facts? Then it is the engine's (`ui::display::type_line_now`
+  is the worked case).
+
+### What one prompt costs the window
+
+- **A GUI PR that touches the snapshot or the view model quotes `prompt_cost`'s
+  before and after** (`cargo run --release --example prompt_cost`, in `devgui/`).
+  A number to read beside a change, not a gate.
+- **Per-frame work is built where its input changes unless the reading says it
+  is too small to matter**, which is a measurement, not an argument.
+- The readings so far: `archive/engineering-practices-records.md#104-what-one-prompt-costs-the-window`.
+
+## Invariant gates
+
+`check_invariants.py`, in CI and on `CLAUDE.md`'s line, reads three of
+`CLAUDE.md`'s invariants:
 
 - **printed**: `card_data.` and one of `types`, `subtypes`, `supertypes`,
-  `colors`, `keyword_flags` or `abilities`, or the same through a local bound
-  to a whole card (`let card = &obj.card_data;`, `let Some(card) =
-  ...Arc::clone(&o.card_data)`). Allowed in `oracle/`, the route and the
-  questions asked of a card in hand, and in `cards/`, the definitions.
-- **unordered**: `.iter()`, `.keys()`, `.values()`, their `_mut` and `into_`
-  forms, `.drain()`, `.retain()`, or a `for`, over a hash-keyed field of
-  `GameState`. The fields are read off its declaration, so a new `IdMap` is
-  covered the day it is added. Tests are read too: one that takes the first
-  of two permanents out of a map passes by the hasher's seed.
-- **write**: an assignment, a `&mut` borrow or a membership-changing method
-  (`insert`, `push`, `retain`, `take`, …) on a field whose change is an event
-  (a zone's membership, life, tapped, damage, attachment, combat, the game's
-  result), or a call to the store's writer of one (`move_object`, `attach`,
-  `add_counters`, …), outside the file `PERFORMERS` names for it.
+  `colors`, `keyword_flags` or `abilities`, or the same through a local bound to
+  a whole card; allowed in `oracle/` and `cards/`.
+- **unordered**: an iteration, `drain` or `retain` over a hash-keyed field of
+  `GameState`, read off its declaration, tests included.
+- **write**: a write to a field whose change is an event, or a call to the
+  store's writer of one, outside the file `PERFORMERS` names for it.
 
-`#[cfg(test)]` items and `test_support.rs` are not read by printed and write:
-a test builds and inspects a board directly, which is what it is for.
+`#[cfg(test)]` items and `test_support.rs` are not read by printed and write.
 
-### 11.1 The tags
+### The tags
 
-A site the rule does not mean carries a tag that says why, in the comment
-block directly above its statement or trailing on its own line. Above, it
-covers the whole statement (a `let`, an `if` with its `else`, a match arm, a
-`fn`), and a blank line between ends the block. A tag on a whole-card local
-covers every read through it. The word starts its comment line; one quoted
-mid-sentence is a mention, which is how this section can name them.
+A site the rule does not mean carries a tag that says why, starting a comment
+line in the block directly above its statement (covering the whole statement),
+or trailing on its line.
 
 | Tag | Check | Says |
 |---|---|---|
-| `PRE-LAYER ZONE:` | printed | asked before the layer system can answer for the object: cast and play legality from a hand, an entering permanent's lookahead (CR 614.12), `register_static_effects`, whose registry is the walk's own input |
-| `AS PRINTED:` | printed | the card as printed, for a display, a statistic or the scenario format's ability numbering; no rule reads it |
-| `NO ROW REACHES:` | printed | asked of an object no continuous effect reaches, whose printed characteristics are its effective ones, or with a leg that asks the effective list when a row may reach |
-| `ORDER-FREE:` | unordered | nothing observes the order: a sort by a total key next, a set, a count, an `any`, each entry written alone and nothing announced |
-| `CAST-ROLLBACK:` | write | CR 601.2a's move onto the stack and its rewind, silent both ways and announced at 601.2i (`replacement-architecture.md` §2) |
-| `NOT REPLACEABLE:` | write | a write no replacement effect can watch for (CR 614.1), so nothing is proposed: damage wearing off (CR 514.2), removal from combat (CR 506.4, 511.3), the deathtouch flag CR 704.5h reads. Named for CR 614 and not CR 700.1, under which each is still an event, and the removal is announced as one (`RemovedFromCombat`). `NOT AN EVENT:` until 2026-10-17 |
+| `PRE-LAYER ZONE:` | printed | asked before the layer system can answer for the object: legality from a hand, an entering permanent's lookahead (CR 614.12), `register_static_effects` |
+| `AS PRINTED:` | printed | the card as printed, for a display, a statistic or the scenario format; no rule reads it |
+| `NO ROW REACHES:` | printed | an object no continuous effect reaches, or with a leg that asks the effective list when one may |
+| `ORDER-FREE:` | unordered | nothing observes the order: a sort by a total key next, a set, a count, an `any`, each entry written alone |
+| `CAST-ROLLBACK:` | write | CR 601.2a's move onto the stack and its rewind, silent both ways and announced at 601.2i |
+| `NOT REPLACEABLE:` | write | a write no replacement effect can watch for (CR 614.1): damage wearing off, removal from combat, the deathtouch flag |
 
-`AUXILIARY-MOVE:` is the one chokepoint tag the gate does not read. It marks
-a batch, CR 614.13's moves, and a batch is proposed.
+- **`AUXILIARY-MOVE:` is not read by the gate**: it marks a batch, which is proposed.
+- **A count is not order-free if its closure walks the layers**, since a walk
+  writes a trace record.
+- **On a hot path, order is paid for only while tracing**: sort under
+  `trace_on()` alone, in one block (the owner, #247).
 
-**A count is not order-free if its closure walks the layers.** A walk writes
-a trace record, so a count over the battlefield that asks `has_type` of each
-permanent writes the trace in the hasher's order; `oracle/board.rs` held the
-trace to that first. The first sweep found five such sites and ordered them.
-One was reached: the first-strike sweep, whose trace for stress game 32 at
-seed 12345 differed under two hasher seeds on `main` and agrees on the fix.
+### Performers and known violations
 
-**On a hot path, the order is paid for only while tracing.** The replacement
-gather runs on every proposal, and ordering its off-battlefield sources cost
-0.38 points of instructions per decision for an order only the trace reads.
-So it sorts under `trace_on()` alone, in one block deleting which restores
-`main`'s code (the owner, at #247's review: the AI use case's floors come
-first). The tag on its untraced loop says why that is order-free.
+- **A new performer is a row in `PERFORMERS`**, with its reason, read in the diff.
+- **`KNOWN` lists violations an item owns, by item number; an entry matching
+  nothing fails**, so the PR that closes the item takes its entry off.
 
-### 11.2 Performers and known violations
+### What the gate does not see
 
-`PERFORMERS`, in the script, says where each event-bearing field is written,
-a row per file with its reason: `perform_action`'s file and the store's
-(every field); `move_object`'s; the setup (a scenario's board, CR 103.3's
-shuffle); the declarations (CR 508.1, 509.1, which no effect replaces); and
-the four files that put an ability on the stack and take it off (CR 602.2a,
-603.3, 608.2n). **A new performer is a row, which a review reads in the
-diff**, the same shape as §10.2's drawing files.
+A `&CardData` handed to a function; iteration through a local bound to a map,
+or a write through a `&mut` a helper returned; the `std` hash maps off
+`GameState` (CI's three-process determinism step catches a leak there);
+`devgui/`; a swallowed `Result` and registry membership. Review owns them.
+Making event fields private is `route-review`'s question.
 
-`KNOWN` lists the violations an item already owns, by item number, because a
-source comment carries none: item 6's CR 704.5q annihilation (TR-5b) and
-item 263's CR 104.4b draw (TR-6). An entry that matches nothing fails, so
-the PR that closes an item takes its entry off in the same diff: TR-4b took
-four.
+### Randomness
 
-### 11.3 What the gate does not see
+- **`clippy.toml` refuses every way rand offers to draw from the thread's RNG or
+  the OS**, for both crates; the opt-outs `CLAUDE.md` names carry
+  `#[expect(clippy::disallowed_methods, reason = …)]`, never `allow`.
 
-- A `&CardData` handed to a function, which reads it under a name the gate
-  cannot follow. The layer question is at the call site, for review.
-- Iteration through a local bound to a map, and a write through a
-  `&mut PermanentState` a helper returned under another name.
-- The `std` `HashMap`s and `HashSet`s off `GameState`, a card's colors or a
-  permanent's counters, which `RandomState` orders differently in every
-  process. CI's determinism step runs three processes, so a leak there that
-  reaches the fuzz output fails it.
-- `devgui/`, which reaches the engine through its snapshot, by id.
-- A swallowed `Result` (item 262 was one, fixed in A6r), and registry
-  membership. Neither is a shape.
+### The checked sitting
 
-**The row's first instrument, privacy, is not built.** A6q's row asked for
-the fields that change game state to be private to the module that performs
-actions. That is about 85 fields and 2,700 read and write sites, several
-bands, and the integration tests read the fields from outside the crate. The
-write check stands in for it. Whether to make them private is `route-review`'s question.
-
-### 11.4 Randomness: `clippy.toml`
-
-At the repository's root, so clippy reads it for both crates. Its
-`disallowed-methods` and `disallowed-types` refuse every way rand 0.9 offers
-to draw from the thread's RNG or the OS. The three opt-outs `CLAUDE.md` names
-carry `#[expect(clippy::disallowed_methods, reason = …)]`, not `allow`, so an
-opt-out that stops drawing entropy fails clippy and its attribute cannot
-outlive it. The clippy step's "never at the site" is about the lints
-`Cargo.toml`'s table allows crate-wide; these are exceptions to a lint it
-never allows.
-
-### 11.5 The checked sitting
-
-`[profile.release-checked]` is release with debug assertions and overflow
-checks on, and CI's `fuzz-checked` job plays 50 stress games under it beside
-the `check` job, then 50 of the `fixtures` pool (§3): the registered cards
-with the castable fixtures (`cards::phase_history_and_frame_records_cards`),
-whose builds carry debug checks no registered card reaches yet. The release sittings compile out every `debug_assert!`, and
-with them the layer walk's and the memo's audits, the mana watcher's and the
-pipeline's, so before A6q no CI game ran any of them.
-
-Its size was read first (2026-10-13, 16 threads, an idle machine): 200 stress
-games took 25.2 s under the profile against 0.21 s in release, about 120
-times, the memo's audit most of it. That is far past the twice-the-step that
-would have let the release sitting switch over, so the checked one is its
-own job and smaller: the first 50 games of the same seed, 14 s at four
-threads.
-
-The nine tests that assert a `debug_assert!` fires are
-`#[cfg(debug_assertions)]`, so `cargo test --release --lib` passes. Each
-guards a card the engine cannot express: the static lowering's six, the
-walk's and the condition's static-context evaluators, and two zone statements
-on one ability. **None needs to be loud in release**, because the checked
-sitting plays every registered card with them on. A card from outside the
-registry would want each as an `Err` at load, which is post-v1 custom-card
-work.
+- **`[profile.release-checked]`, release with debug assertions and overflow
+  checks, plays 50 stress games and 50 of the `fixtures` pool in CI's
+  `fuzz-checked` job**, so the audits a release build compiles out are played.
+- **A test asserting a `debug_assert!` fires is `#[cfg(debug_assertions)]`**;
+  none needs to be loud in release, since the checked sitting plays every
+  registered card with them on.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 check_egui_only_draws - the dev GUI's logic is plain Rust under tests, and
-egui only draws (`engineering-practices.md` §10).
+egui only draws (`engineering-practices.md#the-dev-gui`).
 
 GUI code is the part of the tree the owner can least review line by line, so
 the review path keeps it to a thin layer over plain Rust, which is reviewed

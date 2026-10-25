@@ -75,7 +75,7 @@ fn blank(name: &str) -> Arc<CardData> {
 
 /// A fixture sorcery whose whole text is one primitive aimed at a target
 /// player. Invented, and named as one: it wears no printed card's name
-/// (`engineering-practices.md` §3).
+/// (`engineering-practices.md#cards-and-pools`).
 fn fixture_spell(name: &str, primitive: Primitive) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .ability(AbilityDef {
@@ -495,8 +495,8 @@ fn test_opt_can_bottom_the_card_it_looked_at() {
 ///
 /// A fixture rather than a printed card: no registered card scries more than
 /// one, and the ordering is what this atom is about — so it is built with a
-/// fixture and said so (`engineering-practices.md` §4, "the CR is the
-/// customer; a printed card is the test").
+/// fixture and said so (`engineering-practices.md#gaps-a-phase-finds`, "the CR
+/// is the customer; a printed card is the test").
 #[test]
 fn test_scry_three_bottoms_one_and_reorders_the_rest() {
     let mut game = setup_two_player_game();
@@ -691,10 +691,10 @@ fn test_a_scry_with_cards_to_spare_looked_at_all_of_them() {
 ///
 /// **A fixture, and the card is named rather than worn.** Kenessos' other
 /// ability looks at the top card of its controller's library and acts on what
-/// it is, which is `backlog.md` §2.9's information model, so the card cannot
-/// be registered whole — and a fixture must not wear a real card's name while
-/// behaving differently (`engineering-practices.md` §3). The arm is built
-/// because the CR states the event and a printed card wants it.
+/// it is, which is `backlog.md` §2.9's information model, so the card cannot be
+/// registered whole — and a fixture must not wear a real card's name while
+/// behaving differently (`engineering-practices.md#cards-and-pools`). The arm
+/// is built because the CR states the event and a printed card wants it.
 fn scry_plus_one() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Scry Doubler")
         .card_type(CardType::Enchantment)

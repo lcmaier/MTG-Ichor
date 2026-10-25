@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """similar_functions — one fact computed in more than one place.
 
-An instrument for `engineering-practices.md` §9's hygiene pass, not a gate:
+An instrument for `spine-phase-audit.md`'s hygiene pass, not a gate:
 card definitions resemble each other by design, so the list is read, never
 counted against a threshold. It was written at #225's review (2026-10-06),
 which found the permanents a player controls built in six places, and widened

@@ -2,7 +2,7 @@
 //!
 //! Every oracle text below was verified on Scryfall on 2026-10-07 and is
 //! quoted verbatim; each card's rulings were read the same day and sit in its
-//! own doc comment (`engineering-practices.md` §3.4).
+//! own doc comment (`engineering-practices.md#rulings`).
 //!
 //! | Card | The path | Pooled |
 //! |---|---|---|

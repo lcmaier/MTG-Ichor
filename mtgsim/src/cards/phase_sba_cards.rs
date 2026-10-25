@@ -2,10 +2,10 @@
 //!
 //! Every SBA in `engine/sba.rs` has a unit test. That is a different
 //! measurement from whether any *registered* card can build the scenario, and
-//! `engineering-practices.md` §3.3 is where the two came apart: "a bespoke
-//! fixture can cover an atom while the registered pool cannot build the same
-//! scenario, so `specdb` coverage and fuzz reachability are different
-//! measurements and neither implies the other."
+//! `engineering-practices.md#how-many-cards-a-mechanic-owes` is where the two
+//! came apart: "a bespoke fixture can cover an atom while the registered pool
+//! cannot build the same scenario, so `specdb` coverage and fuzz reachability
+//! are different measurements and neither implies the other."
 //!
 //! This file is that gap closed one rule at a time. The entry bar is the one
 //! §3.3 sets — **name the blocker before reaching for a card.** An SBA whose

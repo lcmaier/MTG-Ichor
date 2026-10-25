@@ -44,7 +44,7 @@ AI games over the CLI. Two-player Standard is a checkpoint, not the target — s
 
 Every phase the architecture docs (`plans/*-architecture.md`, globbed) name,
 by its plain name, with what text cites it by: a landed phase's code, or a
-phase still to come's name, hyphenated (`engineering-practices.md` §4.2).
+phase still to come's name, hyphenated (`engineering-practices.md#naming-a-phase`).
 The codes those names replaced are in `plans/archive/route-codes-renamed.md`.
 
 ### Landed
@@ -182,9 +182,9 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 ## Performance floors
 
-The latest reading of each of `engineering-practices.md` §3.1's floors, from
-the table there, and how much room it leaves. A floor with less than 20% room
-is bolded.
+Each floor's limit (`engineering-practices.md#the-floors`) and latest reading
+(`fuzz-record.md#the-latest-floor-readings`), and how much room it leaves. A floor
+with less than 20% room is bolded.
 
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
@@ -247,7 +247,7 @@ was never written into the corpus. And `owed`'s default scope is `SHIPPED_PHASES
 which gained Phase 6 only at the post-RE audit (2026-09-15): until then a
 replacement phase closing against "owed is clean" was making a claim about three
 *other* phases, and what actually gated it was the `// COVERS:` annotation
-discipline. → `engineering-practices.md` §5.
+discipline. → `engineering-practices.md#the-spec-database`.
 
 ## Half-finished work
 

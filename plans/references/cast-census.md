@@ -108,7 +108,7 @@ assignment is written where it lives:
 
 ## 2. The rules pass — what each surface must express at v1
 
-`engineering-practices.md` §8's habit, with the question item 212 adds. For
+`engineering-practices.md#the-rules-pass`'s habit, with the question item 212 adds. For
 each surface: the rule that owns it, the rules that watch it, and what it
 must express at v1. Read in CR 601.2, 602, 118, 106, 605, 113.6, 116 and 305,
 with 107 and 702 where those send.

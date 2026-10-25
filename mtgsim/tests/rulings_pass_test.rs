@@ -1,6 +1,7 @@
-//! The retroactive rulings pass — `engineering-practices.md` §3.4a.
+//! The retroactive rulings pass —
+//! `engineering-practices.md#the-ledger-and-its-gate`.
 //!
-//! §3.4 makes a rulings pass part of registering a card, and these are the
+//! `engineering-practices.md#rulings` makes a rulings pass part of registering a card, and these are the
 //! cards that were registered before that rule existed. The ledger
 //! (`plans/rulings-ledger.json`) holds the rulings themselves and
 //! `plans/check_rulings.py` is the gate; a `// RULING:` line above a test is

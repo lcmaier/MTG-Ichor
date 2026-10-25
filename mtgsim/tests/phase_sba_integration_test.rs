@@ -3,11 +3,12 @@
 //!
 //! `engine/sba.rs` already unit-tests every SBA here. What it cannot show is
 //! that the *card pool* can build the scenario, and
-//! `engineering-practices.md` §3.3 is explicit that those are two measurements:
-//! "a bespoke fixture can cover an atom while the registered pool cannot build
-//! the same scenario". CR 704.5q's annihilation sweep is the worked example —
-//! two passing unit tests since Phase 5-Pre, and **zero occurrences across 200
-//! stress games** until [`battlegrowth`] was registered.
+//! `engineering-practices.md#how-many-cards-a-mechanic-owes` is explicit that
+//! those are two measurements: "a bespoke fixture can cover an atom while the
+//! registered pool cannot build the same scenario". CR 704.5q's annihilation
+//! sweep is the worked example — two passing unit tests since Phase 5-Pre, and
+//! **zero occurrences across 200 stress games** until [`battlegrowth`] was
+//! registered.
 //!
 //! So every test below builds its board from registry cards, and the fixtures
 //! it does use ([`vanilla_creature`]) are only ever the *other* creature on the

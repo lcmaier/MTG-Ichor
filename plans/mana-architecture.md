@@ -132,7 +132,7 @@ Callgrind on `main`, the budget's board (`--games 20 --seed 12345 --pool
 performance --players 4 --deck-size 100 --life 40`, `MTGSIM_HASH_SEED=1`):
 7,856,427,581 instructions over 628 decisions a game, so **625,512 a
 decision**. **A point is one percent of that, 6,255 instructions a
-decision**: `engineering-practices.md` §3.1's budget lets a PR add 2.5
+decision**: `engineering-practices.md#the-budget` lets a PR add 2.5
 points at identical games, and every "points" figure below is this unit.
 
 | What | Share | Calls | Per call | Per decision |
@@ -793,7 +793,7 @@ re-ask that moves the agent's stream.
 ## 6. The build, sized
 
 Each PR carries a consumer and lands in or under the band
-(`engineering-practices.md` §4). Sizes are code plus tests, and the
+(`engineering-practices.md#sizing-a-phase`). Sizes are code plus tests, and the
 card-by-card hunt runs in each PR's brief.
 
 | PR | Shape | Size | Consumer | Closes |
@@ -804,7 +804,7 @@ card-by-card hunt runs in each PR's brief.
 | **`any-color-plus-painlands-plus-signets`, a color chosen at resolution, a mana ability that does more, a mana ability with a mana cost** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; the Ironworks loop's three facilities (`roadmap-v2.md` `ironworks-loop`) | `backlog.md` §2.19 |
 | **`chosen-color-plus-could-produce`, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
 | **`convoke-delve-improvise`, paying with permanents or cards** | §3.9: the entries; the payment prompt in `plan_payment`; the taps and exiles through the chokepoint. Cards: Stoke the Flames, Treasure Cruise, Reverse Engineer, a waterbend card. Assist and offering go here if the hunt keeps it in band, else to C with a card each | ~900 engine, ~1,000 tests: 1,900–2,400 | four cards | `cast-census.md` §7's payment row |
-| **`mana-payment-solver`, a person's seat: the solver and item 211** | §3.12's solver and decorator, wired in `cli_play` and the dev GUI behind the toggle, with a `fuzz_games` flag off by default; §3.11's shape C (a `SeatMode` field, the "add mana" entry, CR 605.3a's window at priority). A GUI PR: `engineering-practices.md` §10's review | ~600 engine and client, ~600 tests: 1,100–1,400 | the CLI and dev GUI person's seat | `backlog.md` §2.18's solver (§2.22 rows 6 and 7), item 211 |
+| **`mana-payment-solver`, a person's seat: the solver and item 211** | §3.12's solver and decorator, wired in `cli_play` and the dev GUI behind the toggle, with a `fuzz_games` flag off by default; §3.11's shape C (a `SeatMode` field, the "add mana" entry, CR 605.3a's window at priority). A GUI PR: `engineering-practices.md#the-dev-gui`'s review | ~600 engine and client, ~600 tests: 1,100–1,400 | the CLI and dev GUI person's seat | `backlog.md` §2.18's solver (§2.22 rows 6 and 7), item 211 |
 
 **Ordering.**
 - **MA-1 landed before SU-8** (decision 7). It removed the wrong offer

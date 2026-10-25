@@ -100,7 +100,7 @@ all faster than SipHash. Three reasons none of them is here:
    crate is left supplying the one multiply.
 3. **The hasher is part of the determinism contract**, and the contract is
    written in this tree (`CLAUDE.md`, "Determinism at the decision boundary";
-   `engineering-practices.md` §3.1). A behavior the project's reproducibility
+   `engineering-practices.md#determinism`). A behavior the project's reproducibility
    rests on should be readable in the project, in full, by whoever next
    changes how ids are minted.
 

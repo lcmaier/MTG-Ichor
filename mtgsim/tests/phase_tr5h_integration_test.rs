@@ -1,9 +1,10 @@
 //! Phase TR-5h — one history of what happened (`triggers-architecture.md`
 //! §12, TR-5h).
 //!
-//! Every count a card reads is a sum over the history log's rows, and each
-//! row carries its object as the event left it (CR 603.10). The fixtures are
-//! invented and carry their own names (`engineering-practices.md` §3).
+//! Every count a card reads is a sum over the history log's rows, and each row
+//! carries its object as the event left it (CR 603.10). The fixtures are
+//! invented and carry their own names
+//! (`engineering-practices.md#cards-and-pools`).
 
 use std::sync::Arc;
 

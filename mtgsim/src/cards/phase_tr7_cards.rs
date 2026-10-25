@@ -2,7 +2,7 @@
 //!
 //! The oracle text below was verified on Scryfall on 2026-10-21 and is quoted
 //! verbatim; each card's rulings were read the same day and sit in its doc
-//! comment (`engineering-practices.md` §3.4). With Blood Artist the three
+//! comment (`engineering-practices.md#rulings`). With Blood Artist the three
 //! make a loop: sacrifice the Scarecrow to the Seer, persist returns it with
 //! a -1/-1 counter beside Grumgully's +1/+1, CR 704.5q removes the pair, and
 //! it can persist again.

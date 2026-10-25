@@ -54,7 +54,7 @@ Reads the counters, not the milliseconds: the timing table prints ms per
 1,000 walks and per 1,000 queries (walks plus memo hits) beside the median,
 because "the game got longer", "the walk got slower" and "fewer questions
 walked" are three different findings. It prints us per decision for a fourth:
-the ratchet's own unit (`engineering-practices.md` 3.1), which is what says
+the ratchet's own unit (`engineering-practices.md#the-budget`), which is what says
 whether a change cost the agent anything rather than the machine.
 """
 

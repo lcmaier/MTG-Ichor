@@ -1,7 +1,7 @@
 //! Floors 2 and 3 in CI: what one clone of a Commander game allocates, at item
 //! 143's checkpoints through the game's end and **at every decision**
-//! (`engineering-practices.md` §3.1; `clone-architecture.md` decision 6). A
-//! search clones mid-turn too, where the stack and the triggers waiting hold
+//! (`engineering-practices.md#the-floors`; `clone-architecture.md` decision 6).
+//! A search clones mid-turn too, where the stack and the triggers waiting hold
 //! what between turns they do not: TR-5g's games reached 78 allocations at a
 //! 22-trigger ordering prompt while every checkpoint read under 64.
 //!

@@ -2413,7 +2413,7 @@ fn library_on_death(name: &str) -> Arc<CardData> {
 // close: the *atom* was covered while the **registered pool** could not build
 // the scenario, so `fuzz_games` had never once run the branch at any game count.
 // Kalitas was the only registered replacement source and it is Legendary.
-// → `engineering-practices.md` §3.3.
+// → `engineering-practices.md#how-many-cards-a-mechanic-owes`.
 // ---------------------------------------------------------------------------
 
 // COVERS-PARTIAL: ATOM-616.1-001

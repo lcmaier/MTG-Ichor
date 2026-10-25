@@ -42,7 +42,7 @@ one disposition:
 - **test**: a test on a registered card or a cheap fixture closes the loop
   today, cited by name. "Written here" marks the seven this census added, in
   `mtgsim/tests/feedback_loop_census_test.rs`;
-- **register row**: a row of `engineering-practices.md` §3.4b's register,
+- **register row**: a row of `engineering-practices.md#when-a-ruling-and-the-cr-disagree`'s register,
   where a ruling and the CR disagree;
 - **backlog**: a `backlog.md` entry, where the engine has no surface yet and
   no document owns one;

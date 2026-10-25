@@ -1527,7 +1527,7 @@ strongest argument in this document for `Duration` being a field on
 **Sized before writing, and split in the doc.** `CLAUDE.md`'s git-workflow
 section is explicit that RB's failure was not keeping it whole but not counting
 first, and that every PR in a split must carry at least one consumer of what it
-builds. Both rules are applied below. The landed phases are numbered `RS-0` and `RS-1`; the rest are named (`engineering-practices.md` §4.2).
+builds. Both rules are applied below. The landed phases are numbered `RS-0` and `RS-1`; the rest are named (`engineering-practices.md#naming-a-phase`).
 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
@@ -1656,7 +1656,7 @@ and §4.9's candidate filter — with indestructible moved onto it,
 Written 2026-09-07, and the heading is the point: this doc recorded RS-1 only
 in a sizing-table cell, so the generated board could not see it and `CLAUDE.md`
 carried the status instead. The convention is a `###`/`####` heading with ✅
-(`engineering-practices.md` §1).
+(`engineering-practices.md#line-budgets`).
 
 ## 8. Testing — the atoms this owes
 

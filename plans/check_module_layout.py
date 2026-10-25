@@ -131,7 +131,7 @@ def main() -> int:
     print(
         "A `mod.rs` declares and re-exports; the code goes in a sibling named for\n"
         "what it does — `engine/replacement/` is the pattern to copy. See\n"
-        "`plans/engineering-practices.md` §6."
+        "`plans/engineering-practices.md#module-layout`."
     )
     return 1
 

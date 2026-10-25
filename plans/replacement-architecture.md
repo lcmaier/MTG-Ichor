@@ -815,7 +815,7 @@ snapshot was taken after that, so a survivor looking back missed the grant.
 Three engine PRs, split on two seams. RH-1 changes the record's vocabulary and
 nothing a game does. RH-2 changes how a batch carries its members and when a
 destruction's move is decided. RH-3 changes what the record holds and when it
-is read. Each is sized against `engineering-practices.md` §4's band of
+is read. Each is sized against `engineering-practices.md#sizing-a-phase`'s band of
 1,500–2,500, code and tests apart. Sizings have run 1.5–2× on code, so the band
 check uses that range.
 
@@ -924,7 +924,7 @@ Predicted: RH-1 within ±0.3 points of `main`, since it is code-only and the
 record keeps its size. RH-2 between −0.1 and +0.1: item 248's −0.04, and a
 batch that no longer clones each proposal into its group. RH-3 between −0.05
 and +0.2, decision 5's ceiling. Each is read at close-out by `close_out.py` on
-this same board, against `engineering-practices.md` §3.1's budget.
+this same board, against `engineering-practices.md#the-budget`.
 
 ### 2b.11 Decisions, and what is left open
 
@@ -2449,8 +2449,8 @@ item 4), which is not the overlay's but the two-event entry it sits on.
 
 ### 5e. A ruling that reads the look-ahead otherwise (decided 2026-09-29)
 
-**The register row is `lookahead-entry-counters`** (`engineering-practices.md`
-§3.4b). CR 614.12 decides which replacement effects apply to an entry against
+**The register row is `lookahead-entry-counters`**
+(`engineering-practices.md#when-a-ruling-and-the-cr-disagree`). CR 614.12 decides which replacement effects apply to an entry against
 the permanent "as it would exist on the battlefield, taking into account
 replacement effects that have already modified how it enters". The frame is
 built per iteration for that reason (§5, `EntryFrame`), and since RG the
@@ -2675,7 +2675,7 @@ task:
 (As built, the guard is a gate rather than visibility: `GameState`'s fields
 stayed `pub`, and `plans/check_invariants.py` fails any write to observable
 state outside `perform_action`'s arms that carries no tag,
-`engineering-practices.md` §11.)
+`engineering-practices.md#invariant-gates`.)
 
 A new card then costs a `GameAction` variant plus a `perform_action` arm plus an
 `EventPattern` arm — three edits in three known places, and per §3.2b usually no
@@ -3007,7 +3007,7 @@ arms writes `entry.tapped`, writes `life_total`, or moves a card library→hand.
 
 ### Phase RB — the replacement pipeline, with counters and regeneration as consumers — ✅ landed 2026-08-26
 
-**Shipped.** `ReplacementDef`, `EventPattern`, `Rewrite`, `ReplacementClass`, `Uses`, `Effect::Replacement` with its `then`, `ReplacementEffectRegistry`, and `apply_replacements` — §4.1's CR 616.1 loop with 614.5, 616.1g and CR 101.4's APNAP — with CR 122.1c/d/h counters, CR 701.19 regeneration and Kalitas as consumers and 704.6d / 903.9b beside. Shipped at +5,475 across 33 files, 2.2× the band, because nobody counted first: `engineering-practices.md` §4's cautionary case.
+**Shipped.** `ReplacementDef`, `EventPattern`, `Rewrite`, `ReplacementClass`, `Uses`, `Effect::Replacement` with its `then`, `ReplacementEffectRegistry`, and `apply_replacements` — §4.1's CR 616.1 loop with 614.5, 616.1g and CR 101.4's APNAP — with CR 122.1c/d/h counters, CR 701.19 regeneration and Kalitas as consumers and 704.6d / 903.9b beside. Shipped at +5,475 across 33 files, 2.2× the band, because nobody counted first: `engineering-practices.md#sizing-a-phase`'s cautionary case.
 
 → The section as sized, what the building changed and the measurement: `plans/archive/replacement-architecture-landed.md`, "RB" (evicted 2026-09-11).
 
@@ -3048,7 +3048,7 @@ accepts that a later PR may fix an earlier one.
 | **RC-5 — auxiliary zone changes and a dynamic entry amount** ✅ | CR 614.13/13a/13b, a dynamic `EnterWith` amount. **Re-sized 2026-09-03 before code**: the batch-scoped frame was RC-4b's and CR 613.7m is RE's — see below | sized below: ~1,200 + ~250, after the re-size dropped the ~400 | medium — a new decision site, and the only piece the re-size did not shrink |
 
 **Every RC PR that ships a card owes a *second* card of a different shape**
-(`engineering-practices.md` §3.3). RB shipped exactly one — Kalitas — and the
+(`engineering-practices.md#how-many-cards-a-mechanic-owes`). RB shipped exactly one — Kalitas — and the
 consequence, measured 2026-08-31, is that CR 616.1's multi-candidate branch has
 never been reachable in a fuzz game: Kalitas is Legendary, so no player controls
 two, and two opposing copies each apply only to the *other* player's creatures.
@@ -3115,7 +3115,7 @@ CR 616.1 orders it (the Kaito board, cast from hand) and Layer 6 removes it
 +1,760 / −468 in code and tests.
 
 **The engine arm read +2.62 points of instructions per decision, 0.12 over
-`engineering-practices.md` §3.1's budget.** CR 306.5b's type test was a SipHash
+`engineering-practices.md#the-budget`.** CR 306.5b's type test was a SipHash
 on every frame of every pass, and each Mutant that sorts between Urborg and
 Blood Moon re-runs Urborg's dependency hypothetical (CR 613.8c). At the review
 the frame's types became a bitset (`CardTypes`), which takes `main` 13.9%
@@ -3137,7 +3137,7 @@ last row, and the gray area the judges split on).
 ### Phase RD — damage (CR 615, 609.7, 614.9, 120.3) — sized 2026-09-08, four PRs
 
 **RD ships as four PRs, and the count comes from this phase's work, not from
-RA's or RC's.** The seam test is `engineering-practices.md` §4's: a PR boundary
+RA's or RC's.** The seam test is `engineering-practices.md#sizing-a-phase`'s: a PR boundary
 sits where a printed consumer can exercise everything before it and needs
 nothing after it, with each piece inside the 1,500–2,500 band. Applied to the
 engine changes below it cuts four times — a doubler needs only player scoping
@@ -3284,7 +3284,7 @@ Three arms per PR through `plans/fuzz_ab.py` against a same-day `main` worktree,
 
 #### Trace page — decide at RD-2's close
 
-`engineering-practices.md` §7's rule — "a phase that changes *how* a read is
+`engineering-practices.md#trace-pages`'s rule — "a phase that changes *how* a read is
 answered rather than what the answer is" — is met by RD-2 and by nothing else in
 RD: grouping by subject changes how every `DealDamage` proposal's decision is
 reached. So the decision is taken at RD-2's close rather than RD-4's, and if
@@ -3352,7 +3352,7 @@ counters PR while the type is on the table.
 RD was one kind cut four ways along its mechanisms; RE is seven kinds that share
 one mechanism — each adds a `GameAction` family, its `EventPattern` arm, a
 performer that moves an existing direct write behind the chokepoint, and printed
-cards that watch it. `engineering-practices.md` §4's seam test cuts between
+cards that watch it. `engineering-practices.md#sizing-a-phase`'s seam test cuts between
 every pair of kinds and inside none of them, and no two kinds share a consumer
 except where one card carries two statics (Doubling Season, Alhammarret's
 Archive), which is an ordering constraint and not a merge. Every number below
@@ -3557,7 +3557,7 @@ time, so it is now a property of `EventPattern` rather than a list of kinds
 unions rather than replaces, and `PlayerSet::Nobody` on an object-only
 restriction keeps meaning what it always meant.
 
-**Trace page: no**, decided at the close — `engineering-practices.md` §7 named
+**Trace page: no**, decided at the close — `engineering-practices.md#trace-pages` named
 RE-2 and RE-4 and not this one, and the premise generalization does not change
 it: moving a read's answer from a list of shapes to a property of the type
 answers the *same* question in the same place. The rule that would catch it is
@@ -3869,7 +3869,7 @@ Three arms per PR, and unlike RD **five of the nine middle arms add proposals**,
 
 **RE-1: no** and **RE-10: no**, recorded at the post-RE audit (2026-09-15) —
 the two RE phases this heading had not named, because neither produced a
-candidate under `engineering-practices.md` §7's rule. RE-1 adds three
+candidate under `engineering-practices.md#trace-pages`'s rule. RE-1 adds three
 proposal kinds and a consumable queue: what is *proposed*, RE-4's argument.
 RE-10 moves where the turn's position is stored (a `Vec` the drainer indexes)
 and touches no read on any event's path. Each phase's boards are one test with
@@ -3878,7 +3878,7 @@ one assertion — `two_meditates_make_a_player_skip_their_next_two_turns`,
 `cursor + 1`. Recorded here rather than in the archive's "Trace-page
 decisions", which is for phases that produced a candidate and declined it.
 
-`engineering-practices.md` §7's rule is met twice: RE-2 changes *how* the
+`engineering-practices.md#trace-pages`'s rule is met twice: RE-2 changes *how* the
 applied set is answered for a decomposed event (a draw carries its lineage), and
 RE-4 changes how an entry's frame is answered inside a plural batch (a token is
 decided against a board its siblings have not entered). Neither is the happy
@@ -4460,8 +4460,8 @@ current at the post-RE audit (2026-09-15); "through RB" had stood since
   family, the shield cycle, the CR 609.7 sources, redirection) are recorded
   only in the phase stubs above. Owed with the next ledger pass (A4b's
   rulings ledger is the natural sitting).
-- `engineering-practices.md` — ✅ §5.1's `owed` gap closed 2026-09-15 (Phase 6
-  in `SHIPPED_PHASES`); §7's trace-page list names RE-2 ✓ and RE-4 ✗.
+- `engineering-practices.md` — ✅ the `owed` gap (`engineering-practices.md#the-spec-database`) closed 2026-09-15 (Phase 6
+  in `SHIPPED_PHASES`); the trace-page decisions name RE-2 ✓ and RE-4 ✗ (`trace-pages.md#the-pages`).
 - `fuzz-record.md` — ✅ a block per phase that moved a pool, RE-9's the newest.
 
 ---
@@ -4531,10 +4531,10 @@ Each is a §11 item; the number is the pointer.
   twenty-four PRs. The pre-build reasoning was the half it did not cover,
   which is the eviction the audit planned and ran as pass 1b (PR #151).
 - **Trace pages: four across the track** (RC-4b, RC-5, RD-2, RE-2), each
-  decided at the close against `engineering-practices.md` §7's one rule,
+  decided at the close against `engineering-practices.md#trace-pages`'s one rule,
   each refusal argued in the archive's "Trace-page decisions".
 - **The `owed` gate was never armed for Phase 6** until this audit
-  (`engineering-practices.md` §5.1; `backlog.md` §3.3's second block). What
+  (`engineering-practices.md#the-spec-database`; `backlog.md` §3.3's second block). What
   held the track was the `// COVERS:` discipline per PR — enough, and not a
   gate: four atoms were found proven and unclaimed at the close-out.
 - **"Not wrong today" read as wrong today** on the board for a week — the

@@ -2,7 +2,7 @@
 //!
 //! The oracle text below was verified on Scryfall on 2026-10-21 and is quoted
 //! verbatim; the card's rulings were read the same day and sit in its doc
-//! comment (`engineering-practices.md` §3.4).
+//! comment (`engineering-practices.md#rulings`).
 //!
 //! | Card | The path | Pooled |
 //! |---|---|---|
@@ -77,7 +77,7 @@ pub fn emperor_crocodile() -> Arc<CardData> {
 /// ability costs "exile two cards from your graveyard", and
 /// `Cost::ExileFromGraveyard` is neither checked nor paid
 /// (`engine::costs`). A card under its real name may not carry a dead
-/// ability (`engineering-practices.md` §3).
+/// ability (`engineering-practices.md#cards-and-pools`).
 pub fn immortal_coils_state_trigger() -> Arc<CardData> {
     CardDataBuilder::new("Fixture: Immortal Coil's state trigger")
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 2))

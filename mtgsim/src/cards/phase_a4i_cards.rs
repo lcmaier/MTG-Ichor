@@ -18,11 +18,11 @@
 //! in the pool; the land was the missing piece.
 //!
 //! **What a random deck can draw.** Seeds of Strength is the only one in
-//! `PERFORMANCE_POOL` (`engineering-practices.md` §3.1 — one card per new
-//! engine path, deliberately, with a re-record attached). It is the cheapest of
-//! the five, it is castable with a single creature on the board because
-//! CR 601.2c lets all three clauses name it, and at that board it asks nothing
-//! at all: one legal choice for a fixed count of one is not a choice.
+//! `PERFORMANCE_POOL` (`engineering-practices.md#cards-and-pools` — one card
+//! per new engine path, deliberately, with a re-record attached). It is the
+//! cheapest of the five, it is castable with a single creature on the board
+//! because CR 601.2c lets all three clauses name it, and at that board it asks
+//! nothing at all: one legal choice for a fixed count of one is not a choice.
 //! The other four are registered and unpooled — Plague Spores and Incremental
 //! Growth want boards a random game will not build, and Jagged Lightning's
 //! `TargetCount::Exactly(2)` is the same engine path Seeds of Strength already
@@ -74,9 +74,9 @@ fn target_creature() -> EffectRecipient {
 /// tree, so the card carries it — see `EffectRecipient::SameInstanceAs`.
 ///
 /// In `PERFORMANCE_POOL`, and why: several-clause casting is a new engine path
-/// (`engineering-practices.md` §3.1), and this is the cheapest card that walks
-/// it — two mana, both colors reachable from the pool's duals, and castable
-/// with one creature on the board.
+/// (`engineering-practices.md#cards-and-pools`), and this is the cheapest card
+/// that walks it — two mana, both colors reachable from the pool's duals, and
+/// castable with one creature on the board.
 ///
 /// # The rulings, and where each is tested
 ///
@@ -193,7 +193,7 @@ pub fn incremental_growth() -> Arc<CardData> {
 ///
 /// Registered and unpooled: `TargetCount::Exactly(2)` walks the same
 /// announcement loop Seeds of Strength already walks, so pooling it would move
-/// the stream for no new path (`engineering-practices.md` §3.1).
+/// the stream for no new path (`engineering-practices.md#cards-and-pools`).
 ///
 /// # The rulings, and where each is tested
 ///

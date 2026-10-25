@@ -331,7 +331,7 @@ fn a_creature_with_lethal_damage_under_leyline_is_destroyed_by_the_rule() {
 
 /// **Fixture.** "If a card would be put into an opponent's hand from their
 /// library, exile it instead." No printed card redirects a draw's move; the
-/// CR is the customer (`engineering-practices.md` §4).
+/// CR is the customer (`engineering-practices.md#gaps-a-phase-finds`).
 fn fixture_draw_exiler() -> Arc<CardData> {
     let def = ReplacementDef::new(
         EventPattern::ZoneChange {

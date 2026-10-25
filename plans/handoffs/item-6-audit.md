@@ -2,7 +2,7 @@
 
 **Opened 2026-10-22**, the day PR #269 (TR-7) merged and the last build
 phase of critical-path item 6, triggered abilities, landed with it. This is
-the audit `engineering-practices.md` §9 runs at a spine item's close, the
+the audit `engineering-practices.md#the-spine-phase-audit` runs at a spine item's close, the
 second after the post-RE audit (`git show 341ebf9:plans/handoffs/post-re-audit.md`).
 It covers `roadmap-v2.md` rows A6e (item 6's close audit) and A6h (the docs
 audit), which sit together on item 6's line before `information-model-design`. This file is the
@@ -100,7 +100,7 @@ pass re-reads what it touches: a number here is a starting point.
   runs at `50f0b8b8` with every fix it names taken out once in a scratchpad
   copy of the crate; linked from `triggers-architecture.md` §12's two
   headings, `codebase-state.md`'s "Found after TR-4d" and "Found by TR-5h"
-  entries and `engineering-practices.md` §7's table, and §18's "owed" bullet
+  entries and `trace-pages.md`'s table, and §18's "owed" bullet
   gone. TR-5h's damage-fact and gate boards are its own fixtures, since no
   registered card reads a damage fact or the log from a layer, and its page
   shows a record's place in its turn reading #265's tally. **Pass 5 is
@@ -114,7 +114,7 @@ pass re-reads what it touches: a number here is a starting point.
 - Pass 5c, the names for the phases ahead, ran in session 5c as one PR,
   #282, on `audit/item-6-phase-names` (§9). Done: every phase and route row
   still to come is cited by its name, hyphenated in backticks
-  (`engineering-practices.md` §4.2), in the docs and in source, test and dev
+  (`engineering-practices.md#naming-a-phase`), in the docs and in source, test and dev
   GUI comments; the retired codes are `plans/archive/route-codes-renamed.md`;
   the board reads the names, and every open item's home is the one it had
   (149 route-homed, 5 card-homed, 12 records, 0 homeless). Decided at its
@@ -138,10 +138,18 @@ pass re-reads what it touches: a number here is a starting point.
   2026-10-24): `last-known-information-store`, item 318, the PR after it.
   It ran as #285 on `audit/last-known-information-store`: the design note
   first, its four decisions taken at its review (`triggers-architecture.md`
-  §3.11), then the build on the same branch. Item 318 closed. The next PR is
-  `practices-rules-page` (1c), which rewrites the whole of
-  `engineering-practices.md` as a short page of rules, §2c's per-keeper
-  example, which this PR retired, among them.
+  §3.11), then the build on the same branch. Item 318 closed. The next PR,
+  `practices-rules-page` (1c), ran as #286 on `audit/practices-rules-page`:
+  the design note first, its four decisions taken at its review, then the
+  build on the same branch. Done: `engineering-practices.md` is a page of
+  rules, each a sentence or two and a pointer, cited by heading anchor and
+  never by number; the doc as it stood is
+  `plans/archive/engineering-practices-records.md`, under a table mapping
+  each old number to its anchor; the trace-page format, the spine audit's
+  passes and the egui checklist have docs of their own; the floor readings
+  are `fuzz-record.md`'s; every citation was rewritten, and
+  `check_practices_page.py` fails a number or an anchor that names no
+  heading. The next PR is `concept-census-and-register` (1d).
 
 ## 1. Why this audit is bigger than the last
 
@@ -271,8 +279,8 @@ As §9 and the post-RE audit set it:
 - **A rule** goes to `engineering-practices.md`.
 - **The run's record** is a `### Was critical-path item 6 done, and what
   sits before `information-model-design`? — audited YYYY-MM-DD` heading in `codebase-state.md`,
-  pointers not prose, written when this file goes; and `engineering-practices.md`
-  §9 gains the second instance's per-pass record and what the next run adds.
+  pointers not prose, written when this file goes; and
+  `spine-phase-audit.md` gains the second instance's per-pass record and what the next run adds.
 
 ## 4. The passes
 
@@ -689,7 +697,7 @@ third went to items 242, 243, 246 and C0 on 2026-10-10), 239
 Python and a CI step), 269 (seven per-object `AmountExpr` variants, with the
 naming sweep), `AbilityDef.instances`, the naming sweep itself, and the
 model pass's survivors, folded into band-sized PRs by theme
-(`engineering-practices.md` §4). Each that moves a pool carries its own
+(`engineering-practices.md#sizing-a-phase`). Each that moves a pool carries its own
 A/B; each that changes a hot path, its own callgrind arm. The plan below
 places each.
 
@@ -714,7 +722,7 @@ row from its figure, both read against the tree. Where a build's line gives
 no test size, its tests count as many lines as its code (#280's rule).
 *Sized* is that sum. *Carried* is the code at 1.5–2×, the overrun sizings
 have run, plus the tests; a counted sweep is carried as counted. The band is
-`engineering-practices.md` §4's 1,500–2,500, code plus tests. "Pools" says
+`engineering-practices.md#sizing-a-phase`'s 1,500–2,500, code plus tests. "Pools" says
 whether `performance` and `stress` are predicted to move. Every close-out
 runs the A/B and the budget; a PR that moves a pool also owes the
 attribution. "Hot path" names the path whose callgrind read the budget is
@@ -727,7 +735,7 @@ about.
 | 1c | `practices-rules-page` | `engineering-practices.md` as a short page of rules, each three lines and a pointer, its records and measurements moved to the archive and the subsystem docs (added at #284's review) | — | — | docs | — | identical | none |
 | 1d | `concept-census-and-register` | Each CR concept that names a thing, every type and field that holds it and its one owner; a gate that fails a new field holding an owned concept without a register line (added at #284's review) | — | — | its census's | — | identical | none |
 | 2 | `resolution-context-rider` | `ResolutionContext`'s two rider numbers as one optional value | 137 | — | ~130 | ~130–160 | identical | none |
-| 3 | `trigger-matcher-merges` | The trigger matcher's facts, each written once | 247, 301, 302, 304, 309, 315, and 317 (decision 2) | 2, 3, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 30, 53, 54, 55, 59, 67, 68; and 5 | ~910 | ~1,250–1,600; ~1,350–1,800 with 317 | identical for the merges; with 317 both pools differ, since Blood Artist's order prompts go: a three-arm A/B | the dispatch, and §3.1's audited smoke |
+| 3 | `trigger-matcher-merges` | The trigger matcher's facts, each written once | 247, 301, 302, 304, 309, 315, and 317 (decision 2) | 2, 3, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 30, 53, 54, 55, 59, 67, 68; and 5 | ~910 | ~1,250–1,600; ~1,350–1,800 with 317 | identical for the merges; with 317 both pools differ, since Blood Artist's order prompts go: a three-arm A/B | the dispatch, and the close-out's audited smoke (`engineering-practices.md#the-close-out`) |
 | 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296 | 46 | ~1,550–1,800 | ~1,700–2,100 | identical | the replacement gather's membership test |
 | 5 | `batches-durations-and-control` | The triage's batches, durations and control builds, two record checks among them | 17, 20, 26, 61, 62, 134, 148, 300, "Before Layers" 13 | — | ~1,390 | ~1,750–2,100 | identical: 300's narrow form keeps Ray of Command's order | phase 2's check per member, the duration sweep per batch |
 | 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307 | 38 | ~1,230 | ~1,500–1,800 | identical | castability's assignment (155) |
@@ -790,13 +798,17 @@ item 124's precedent that a sweep does not ride inside a rules change.
    floors, and its lifetime.
 1c. `practices-rules-page`, added at #284's review (the owner,
    2026-10-24). `engineering-practices.md` is 175 KB, and its records and
-   measurements bury its rules: §2c's last-known-information example
+   measurements bury its rules: its last-known-information example
    blessed the split item 318 undoes, and nothing asked the global
    question. The rules become a short page, each three lines and a
    pointer as `CLAUDE.md`'s are; the records and measurements move to the
    archive and to the subsystem docs they belong to, as the fuzz tables did
    to `fuzz-record.md`; a rule a script can check is listed as a gate to
-   build. After the store, so §2c is rewritten once.
+   build. After the store, so the rule on one record is rewritten once.
+   - Taken at #286's review (the owner, 2026-10-24): the short page at the
+     same path; citations by heading anchor, not stable numbers, since a
+     number says nothing about where it leads; the trace-page doc named
+     `trace-pages.md` for what it holds; and the gate.
    - Asked at #285's review (the owner, 2026-10-24): whether the rules
      belong in `CLAUDE.md` instead. `CLAUDE.md` is at its 200-line limit,
      so the page is linked from it, unless the owner chooses otherwise at
@@ -836,7 +848,20 @@ item 124's precedent that a sweep does not ride inside a rules change.
        spell being cast, CR 601.2f; a permanent about to enter, CR 614.12;
        a survivor's list from just before a batch, CR 603.10; a history
        row's object as the event left it; a live list already walked). The
-       census decides whether it stays one arm, honestly named, or splits.
+       census decides whether it stays one arm, honestly named, or splits
+       (moved here at #285's merge, the owner, 2026-10-24):
+       - first, whether any filter on those paths reads a fact beyond the
+         characteristics (tapped, attacking), which the arm reads live:
+         now, where the characteristics are from another moment (a
+         survivor's tapped state after the batch, an entering permanent's
+         in its old zone);
+       - then the shape. One arm leaves a reader that cares one answer for
+         all five: `TriggerSubject::Host` answers "not attached", right for
+         an entering permanent and wrong for a walked live list, which no
+         caller sends there today and nothing stops. One arm per moment
+         makes every reader decide. The recommendation at #285's review
+         was a moment tag on the one arm, which readers that do not care
+         ignore and readers that do must match.
 2. `resolution-context-rider`. Item 137: every resolution that is not a CR
    615.5 rider writes two `None`s about riders. It becomes one optional
    value, at 99 literals (48 when the item was filed).
@@ -963,7 +988,7 @@ item 124's precedent that a sweep does not ride inside a rules change.
        `EventRecord.seq` among them;
      - a name that says last known information with other words in it
        takes the `lki_` prefix, as `lki_as_read_by` does.
-   - Item 285: the tuple returns, sorted by `engineering-practices.md` §2b's
+   - Item 285: the tuple returns, sorted by `engineering-practices.md#names`'s
      rule 10.
    - `AbilityDef.instances`: the list the builder fills, taken out of the
      231 struct literals that write it, 205 of them empty.
@@ -975,6 +1000,18 @@ item 124's precedent that a sweep does not ride inside a rules change.
      are read first, then the 30 in `engine/replacement/`.
    - Item 284: the check that a card-homed item is met when its card is
      registered. It is Python and a CI step, outside the band.
+   - Four rules of `engineering-practices.md` a script could check, slotted
+     here at #286's review, each to `check_practices_page.py` or a check
+     beside it:
+     - `#comments`: a source comment cites the CR rule, never a plans item
+       number, a doc's private label or a phase code, once the old lines in
+       `src/` are swept;
+     - `#names`: no bare pronoun, `Other` or `EMPTY` as a variant name, read
+       off the enums;
+     - `#trace-pages`: a page's `<head>` names its commit and CR version, and
+       an architecture doc and `codebase-state.md` each link it;
+     - `#the-spine-phase-audit`: every `ci.yml` step carries a comment giving
+       its reason.
 
 **Placed elsewhere, each with its reason.**
 - Items 138, 142 and 143: readiness, pass 4.
@@ -1279,8 +1316,8 @@ review).** `--pool fixtures` is every registered card plus the registered
 fixtures, run only in the `fuzz-checked` job, where the consistency checks
 fire: about 14 s for 50 games at four threads by that job's own stress
 reading, and about 40–60 lines (a `CardPool` arm in `fuzz_games`, fixtures
-registered apart from `default_registry`, a row in `engineering-practices.md`
-§3's table). `stress` stays real cards, and the fixture pool keeps no table.
+registered apart from `default_registry`, a row in
+`engineering-practices.md#cards-and-pools`'s table). `stress` stays real cards, and the fixture pool keeps no table.
 It lands in the cleanup with the first build PR whose fixture carries a
 check, so the pool has a consumer; only castable fixtures join it.
 
@@ -1361,7 +1398,7 @@ trace page (`triggers-architecture.md` §12, each heading). TR-4d's control
 sweep and TR-5h's history log change how a read is answered, and neither
 has a page: they are owed, and the owner earmarked both for this pass at
 #272's review. They are written in this pass's PRs at
-`engineering-practices.md` §7's budget, two to three hours each.
+`trace-pages.md`'s budget, two to three hours each.
 
 #### Work-list (discovery, 2026-10-22)
 
@@ -1458,8 +1495,8 @@ discovery logs name them, with line ranges, in the workflow's journal.
 doc's own words or a close paraphrase, and the correction is the text as it
 would be rewritten in place. A `CLAUDE.md` correction must not add a line
 (the 200-line budget): each one stays on its line. Many rows here are a
-stale count or pointer. A correction follows `engineering-practices.md`
-§2d (added in #271): it drops the number, or describes the thing, rather
+stale count or pointer. A correction follows
+`engineering-practices.md#counts-in-docs` (added in #271): it drops the number, or describes the thing, rather
 than writing today's value in.
 
 **`CLAUDE.md`, and `engine-map.md` §2.7** (6)
@@ -1486,7 +1523,7 @@ than writing today's value in.
 | engine-map §2.2 The chokepoint's arms (199) | "Three doors sit beside `execute_action` `engine/actions.rs:598`: `execute_actions` for a simultaneous event, `execute_actions_decomposing` ... and `execute_actions_new_batch` ... for `// AUXILIARY-MOVE:` (CR 614.13)." | engine/actions.rs:831 (execute_caused_actions); its callers engine/sba.rs:540, engine/returns.rs:90 | "Four doors sit beside `execute_action` `engine/actions.rs:598`: `execute_actions` for a simultaneous event, `execute_caused_actions` `engine/actions.rs:831` for one whose members carry causes of their own (CR 704.3's state-based actions, CR 610.3d's returns), `execute_actions_decomposing` `engine/actions.rs:723` for CR 121.2's draws, and `execute_actions_new_batch` `engine/actions.rs:765` for `// AUXILIARY-MOVE:` (CR 614.13)." |
 | engine-map §2.3 The gates, and the three legs a new source extends (209-222) | Each reader skips its sweep behind a gate with three legs, and "a new route onto the list needs a leg on every gate"; the table lists five gates: replacement, restriction, cost, trigger, state trigger | engine/triggers/dispatch.rs:1509 (trigger_multiplier_sources_now); state/game_state.rs:608 (trigger_multiplier_sources, written at :2083); state/continuous_effects.rs:185-186 (RegistryScopeSummary's any_granted_trigger_multiplier, any_copied_trigger_multiplier) | Add a row: "\| trigger multiplier (CR 603.2d) \| `count_additional_triggers` `engine/triggers/dispatch.rs:1529`, over `trigger_multiplier_candidates` `engine/triggers/dispatch.rs:1480`; the gate at `trigger_multiplier_sources_now` `engine/triggers/dispatch.rs:1509` \| `trigger_multiplier_sources` \| `any_granted_trigger_multiplier`, `any_copied_trigger_multiplier`; a departure's CR 603.10a frame and a look-back snapshot are two more probes \|" |
 | engine-map §2.3 The gates, trigger row (221) | "\| trigger \| `detect` ...; the gate at `engine/triggers/dispatch.rs:446` \| `trigger_sources`, `zone_trigger_sources` \| ...": two printed stores | state/game_state.rs:756 (newcomer_trigger_sources), written at state/game_state.rs:2030 in register_static_effects (state/game_state.rs:1984); probed at engine/triggers/dispatch.rs:748 via newcomer_trigger_carriers (engine/triggers/dispatch.rs:975) | Printed: `trigger_sources`, `zone_trigger_sources`, `newcomer_trigger_sources` (off the battlefield, a printed trigger whose every event arm is the object itself moving, `TriggerDef::triggers_only_on_this_object_moving`; asked only of the window that brought the object there, via `newcomer_trigger_carriers`). Also: `detect` is at `engine/triggers/dispatch.rs:735` and its gate at `:741-766`, not 430/446. |
-| engine-map §2.7 Every CLAUDE.md invariant, where it lives, rows for characteristics, no observable mutation, observable order, randomness (291-316) | The Lives-at column names what each rule protects (`perform_action` `engine/actions.rs:1153`, `battlefield_ordered`, `GameState::rng`, `tests/determinism_test.rs`), not the gates CLAUDE.md says enforce them | plans/check_invariants.py:67-71 (TAGS printed/unordered/write), :384-391 (advice per check); clippy.toml:9-24 (disallowed-methods/types) | Only the characteristics row needs a fix: its tag list gains `// NO ROW REACHES:` (`prints_cost_ability` `engine/cost_determination/gather.rs:208`), the tags `plans/check_invariants.py`'s printed check accepts (the line-295 fix). The other three rows are true; to cite gates, add `engineering-practices.md` §11 to their Doc column, never `PERFORMERS` in Lives-at (check_engine_map.py:162-165 fails it). |
+| engine-map §2.7 Every CLAUDE.md invariant, where it lives, rows for characteristics, no observable mutation, observable order, randomness (291-316) | The Lives-at column names what each rule protects (`perform_action` `engine/actions.rs:1153`, `battlefield_ordered`, `GameState::rng`, `tests/determinism_test.rs`), not the gates CLAUDE.md says enforce them | plans/check_invariants.py:67-71 (TAGS printed/unordered/write), :384-391 (advice per check); clippy.toml:9-24 (disallowed-methods/types) | Only the characteristics row needs a fix: its tag list gains `// NO ROW REACHES:` (`prints_cost_ability` `engine/cost_determination/gather.rs:208`), the tags `plans/check_invariants.py`'s printed check accepts (the line-295 fix). The other three rows are true; to cite gates, add `engineering-practices.md#invariant-gates` to their Doc column, never `PERFORMERS` in Lives-at (check_engine_map.py:162-165 fails it). |
 | engine-map §2.7 Every CLAUDE.md invariant, where it lives (295) | Characteristics row: "exemptions tagged `// PRE-LAYER ZONE:` and `// AS PRINTED:` (`printed_faces` `ui/display.rs:160`), and `register_static_effects` ...", naming two tags | engine/cost_determination/gather.rs:209, engine/triggers/audit.rs:155 (`// NO ROW REACHES:`) | "exemptions tagged `// PRE-LAYER ZONE:`, `// AS PRINTED:` (`printed_faces` `ui/display.rs:160`) and `// NO ROW REACHES:` (`prints_cost_ability` `engine/cost_determination/gather.rs:208`, `objects_that_may_trigger` `engine/triggers/audit.rs:154`), and `register_static_effects` `state/game_state.rs:1583`", keeping the name-plus-file:line form that check_engine_map.py's NAMED pattern checks. |
 | engine-map §2.7 Every CLAUDE.md invariant, where it lives (312) | "\| Riders run after the performed event, carrying its applied set \| phase 3 `engine/actions.rs:1032`; `Rider::lineage` `engine/replacement/pipeline.rs:76` \|" | engine/actions.rs:1048 (execute_batch_inner: no phase 3); engine/actions.rs:1268 (execute_riders, called at :896, :1017); engine/actions.rs:1375 (resolve_riders, called at :872, :966); engine/replacement/pipeline.rs:81 (Rider::lineage) | "\| Riders run after the performed event, carrying its applied set \| `execute_riders` `engine/actions.rs:1268` (a batch that dispatches its own window: its riders as a batch of their own, after that dispatch) and `resolve_riders` `engine/actions.rs:1375` (a nested or decomposed batch's, inside the window it joined); `Rider::lineage` `engine/replacement/pipeline.rs:81` \| `replacement-architecture.md` §4.1a \|". These are today's lines, so re-pin the header with this row. |
 
@@ -1689,12 +1726,12 @@ than writing today's value in.
 | backlog §2.22 decorator table, row 6 (1506) | Row 6, "tap solver, oracle half": "nothing — a query: a covering set for `remaining_cost`" … "**the one row with algorithmic legwork**, below; designed in `mana-architecture.md` (#224), MA-1" | oracle/mana_supply.rs:18 ("It answers whether a payment exists, never which") | designed in `mana-architecture.md` (#224): the existence check landed in MA-1 (#225), and the covering set, the solver, is MA-6 (§3.12) |
 | backlog §2.22 "Rows 6 and 7, the tap solver, framed" (1629-1636) | "The other customer is **`castable_spells`' affordability**, which is a heuristic overapproximation today (… `find_mana_sources`)" … "the harness prints no rewind count today" | oracle/mana_helpers.rs:160-169; oracle/mana_supply.rs:11-14 | The other customer was **`castable_spells`' affordability**, a heuristic overapproximation (`find_mana_sources`) until MA-1 (#225) replaced it with `oracle::mana_supply`'s exact check, Hall's condition (`mana-architecture.md` §3.2), exact for every registered card; the shapes it still reads one way are `codebase-state.md` item 213. The rewinds it removed are what `fuzz_games` prints as "Actions reversed" (22.4 a game fell to 0.0). What remains for the solver is the payment itself, MA-6 (§3.12). |
 | backlog §2.22 "This is the one row with algorithmic legwork" (1661-1667) | "`find_mana_sources` returns `None` on any hybrid, Phyrexian or X symbol — the heuristic the matching replaces is a one-unit-per-source greedy that gives up on half the symbol alphabet." | oracle/mana_supply.rs:11-16 (`covers`: Gale/Hall condition over entries with amounts); types/mana.rs:185-196 | Before MA-1 (#225), `find_mana_sources` was a one-unit-per-source greedy that returned `None` on any hybrid, Phyrexian or X symbol. MA-1 replaced it with `ManaSupply::covers`, exact for existence (Gale's/Hall's condition over entries with amounts), but it still refuses what `ManaCost::demand` cannot tally: hybrid and Phyrexian symbols and an activated ability's {X} (CP-1's), {S} (item 33's); a spell's X is expanded first by `with_x_as`. It answers whether a payment exists, never which; the solver that returns a covering set is MA-6's. |
-| backlog §2.22 row 9, the reversal (item 72) (1705-1709) | "*Reverse all* is, and cheaply: `GameState` is `Clone` and a no-log clone is 4–6 µs (item 42's measurement)" … restores it, "truncating `events` to the snapshot's length." | state/game_state.rs:778-784 (`pub events: EventWindow`, flushed when the outermost dispatch returns); events/recorder.rs:10-14 (a RecorderHandle's Clone is the fork; the clone's stream is its own) | … `GameState` is `Clone` and a clone is a few microseconds (CL-1's reading, `clone-architecture.md`: 1.8 µs between turns at worst, 4.5–4.7 µs under an 8,000-trigger stack, against floor 2's 10 µs in `engineering-practices.md` §3.1), so the engine takes one at the window's first activation and, if the player takes CR 732.1's offer at the rewind, restores it. Nothing needs truncating: the clone carries `events`, a window flushed when the outermost dispatch returns, and its recorder handle is a fork, so the restored state's stream ends at the snapshot. (The refuters disagree on where 1.8 µs is read: engineering-practices:728 §3.1 vs clone-architecture:684.) |
+| backlog §2.22 row 9, the reversal (item 72) (1705-1709) | "*Reverse all* is, and cheaply: `GameState` is `Clone` and a no-log clone is 4–6 µs (item 42's measurement)" … restores it, "truncating `events` to the snapshot's length." | state/game_state.rs:778-784 (`pub events: EventWindow`, flushed when the outermost dispatch returns); events/recorder.rs:10-14 (a RecorderHandle's Clone is the fork; the clone's stream is its own) | … `GameState` is `Clone` and a clone is a few microseconds (CL-1's reading, `clone-architecture.md`: 1.8 µs between turns at worst, 4.5–4.7 µs under an 8,000-trigger stack, against floor 2's 10 µs in `engineering-practices.md#the-floors`), so the engine takes one at the window's first activation and, if the player takes CR 732.1's offer at the rewind, restores it. Nothing needs truncating: the clone carries `events`, a window flushed when the outermost dispatch returns, and its recorder handle is a fork, so the restored state's stream ends at the snapshot. (The refuters disagree on where 1.8 µs is read: engineering-practices:728 §3.1 vs clone-architecture:684.) |
 | cast-census §5 Mana abilities, the MANA table's last column and the prose (368-384, 410-414) | "The check misreads both: it counts Ironworks' sacrifice as free and Sol Ring's `{C}{C}` as one mana. The last column is item 162's (`oracle/mana_helpers.rs::find_mana_sources`, `available_mana_sources`)." | oracle/mana_supply.rs:121-133, 243-267 (entries carry each way's mana; sacrifices and fodder via `sacrifice_candidates` and `SacrificeOutlet`) | The check read both wrongly before MA-1: it counted Ironworks' sacrifice as free and Sol Ring's `{C}{C}` as one mana. The last column is that check (`find_mana_sources`, gone since #225). `oracle::mana_supply` counts Sol Ring's two, and Ironworks once per artifact it can sacrifice (`mana-architecture.md` §3.1, §3.3). The column text lives in cast-census.py:538-576: fix it there, then regenerate. |
 | cast-census §8 mana symbols, the prose after the SYMBOLS block (506-507) | "Blaze and Protean Hydra are the registered X spells." | cards/registry.rs:1035 (`registry.register("Goblin Negotiation", phase_tr5d_cards::goblin_negotiation)`); cards/phase_tr5d_cards.rs:107-111 (mana cost {X}{R}{R}) | Blaze, Protean Hydra and Goblin Negotiation are the registered X spells. |
 | cr-coverage-audit §4 The sweep, "Rows added by the re-sweep" table, rows `ReplacementEffectRegistry` and `TargetInstance` (232, 244) | 244: "`TargetInstance` *(pass 3)* \| a target that left and came back (CR 400.7) \| main item 10's `target_epochs`"; 232: "a chosen source (CR 609.7a); targets held across a move (CR 400.7) \| feature; main item 10" | engine/targeting.rs:27 (`pub chosen: Vec<TargetRef>`), :41 (`enum TargetRef { Object(ObjectRef), Player }`); state/replacement_effects.rs:105 (`pub targets: Vec<TargetRef>`); types/replacement.rs:668 (`SourcePattern.object`); no `target_epochs` in src | 244: \| `TargetInstance` *(pass 3)* \| a target that left and came back (CR 400.7) \| **built** — `TargetRef` carries the epoch, compared at CR 608.2b (main item 10, closed by CV-1b, #230) \|. 232, keeping the CR column: \| `ReplacementEffectRegistry` \| a chosen source (CR 609.7a); targets held across a move (CR 400.7) \| **built** — `targets: Vec<TargetRef>` (main item 10, closed by CV-1b, #230); a chosen source is `SourcePattern.object`, an `ObjectRef` the resolution fills (TR-3c, #239) \|. Line 248 (`RestrictionRegistry`) and §4a 305/347 name item 10 the same way (unchecked). |
-| engineering-practices §7 Trace pages, the page table (1562-1575) | "Three existed when the practice was written down, and they are the template:" over a ten-row table (rc-4b … cv-2b) | plans/traces/a4i-a-target-belongs-to-an-instance.html, ma-1-a-payment-is-a-matching-not-a-count.html, tr-1-a-trigger-is-matched-at-the-close.html, tr-5g-a-multiplier-is-read-where-its-trigger-looks.html (14 pages; the table lists ten) | Add four rows, each with its "What it proves" cell, in landing order: `a4i-a-target-belongs-to-an-instance.html` (A4i) and `tr-1-a-trigger-is-matched-at-the-close.html` (TR-1) after rf; `ma-1-a-payment-is-a-matching-not-a-count.html` (MA-1, six boards) and `tr-5g-a-multiplier-is-read-where-its-trigger-looks.html` (TR-5g) after cv-2b. Line 1562: "Three existed when the practice was written down (RC-4b, CV-1, RC-5); every page since is listed here:". Same early count: "Both existing pages" (1559/1560), "the two above" (1578). (Refuter 2 drafted the four cells: route-and-practice.json, for-a6h#10.) |
-| engineering-practices §7 Trace pages, "Pinned, never maintained" (1626) | "**Pinned, never maintained.** The first line of the file is an HTML comment naming the commit and the frozen CR version." | plans/traces/*.html line 6 (every page, viewer.html included) | **Pinned, never maintained.** The first comment in the file, the one in its `<head>` right after the charset and viewport `<meta>` lines, names the commit and the frozen CR version. Same paragraph (1631): "a stale page has to say so on its own first line" → "in its own head". |
+| trace-pages.md Trace pages, the page table (1562-1575) | "Three existed when the practice was written down, and they are the template:" over a ten-row table (rc-4b … cv-2b) | plans/traces/a4i-a-target-belongs-to-an-instance.html, ma-1-a-payment-is-a-matching-not-a-count.html, tr-1-a-trigger-is-matched-at-the-close.html, tr-5g-a-multiplier-is-read-where-its-trigger-looks.html (14 pages; the table lists ten) | Add four rows, each with its "What it proves" cell, in landing order: `a4i-a-target-belongs-to-an-instance.html` (A4i) and `tr-1-a-trigger-is-matched-at-the-close.html` (TR-1) after rf; `ma-1-a-payment-is-a-matching-not-a-count.html` (MA-1, six boards) and `tr-5g-a-multiplier-is-read-where-its-trigger-looks.html` (TR-5g) after cv-2b. Line 1562: "Three existed when the practice was written down (RC-4b, CV-1, RC-5); every page since is listed here:". Same early count: "Both existing pages" (1559/1560), "the two above" (1578). (Refuter 2 drafted the four cells: route-and-practice.json, for-a6h#10.) |
+| engineering-practices.md#trace-pages Trace pages, "Pinned, never maintained" (1626) | "**Pinned, never maintained.** The first line of the file is an HTML comment naming the commit and the frozen CR version." | plans/traces/*.html line 6 (every page, viewer.html included) | **Pinned, never maintained.** The first comment in the file, the one in its `<head>` right after the charset and viewport `<meta>` lines, names the commit and the frozen CR version. Same paragraph (1631): "a stale page has to say so on its own first line" → "in its own head". |
 | glossary **matcher** entry (624-625) | "Besides the replacement pipeline, the only code that may branch on a zone change's `act`." | engine/resolve.rs:2622 (`act: ZoneChangeAct::Discarded`); engine/triggers/history.rs:260 (`act: ZoneChangeAct::Cast \| ZoneChangeAct::Drawn, .. } => {}`) | Besides the replacement pipeline, one of the few places that branch on a zone change's `act`. The others are the history, which drafts no row for a cast or a draw, and a resolution's "discarded this way" count (`AmountExpr::DiscardedThisWay`). (A refuter found the same stale claim at CLAUDE.md:76 and replacement:1070.) |
 | roadmap-v2 §3 The spine, item 5 (115) | "**RC — ETB replacements — is next, and is the largest single unlock before triggers: ~1,350 cards**" | codebase-state:15 ("Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE … critical-path item 5 closed with RE-9"); roadmap-v2:636 ("RC 6 ✅") | **RC — ETB replacements — was the largest single unlock before triggers (~1,350 cards, counted 2026-08-31); it landed in six PRs, RC-1–RC-5 with RC-4b (2026-09-01 → 2026-09-03), and item 5 closed with RE-9.** (There is no RC-6.) |
 | roadmap-v2 §3a A, row A4d, the Rust notes (241) | "what the borrow checker forced (the accessor pair, `FrameCache`'s overlay in place of a clone, `ActionContext`'s plumbing)" | engine/layers/board.rs:346 (`Board::entity`), :977 (`rows_in_layer`); no `FrameCache` in src | what the borrow checker forced (the accessor pair, `Board`'s look-ahead overlay in place of a clone, `ActionContext`'s plumbing) |
@@ -1749,7 +1786,7 @@ before acting on it.
 | setup §3 Where it lives, options table (227) and recommended shape (233-236) | `Scenario::parse(&text)?.build(&registry)?` returns a `Game`; sketch: `let mut game = scenario.build(..)?; game.resume(&dp)?;` | Returns a `BuiltScenario`, the `Game` and its `SetupActions`; sketch: `let BuiltScenario { mut game, setup } = scenario.build(..)?; game.resume(&SetupDriver::new(setup, &seats))?;` | §3 is the design-time decision table (2026-09-30, status "design"); its decision, an engine module `mtgsim::scenario`, holds, and §5.3 and §8 SU-2 already qualify the return type. |
 | clone §Header, Status (3) | "**Status:** design, 2026-10-21, for `roadmap-v2.md` B10; no code." | "**Status:** landed. Designed 2026-10-21 (#266) for `roadmap-v2.md` B10; its one build, CL-1, landed 2026-10-21 (#267, §7)." §1–§2's numbers were measured on `b86c59c1`, before CL-1. | A dated record of the design, which the same header qualifies ("CL-1 landed 2026-10-21 (§7)", added on purpose in b613148a). replacement, triggers, copy-effects and cant-effects still say "No code" after their builds landed. |
 | clone §Header, Companions (27-28) | "`triggers-architecture.md` §4, the dispatcher's queue and placement, which write two of the stores." | "`triggers-architecture.md` §4, the dispatcher's queue, and §5, placement, which write two of the stores." | The engine claim holds (dispatch.rs:829,834 queue; placement.rs:35-102 drains). Only the cross-doc section number is off, and it was wrong from 14db570a, not drift: worth a tidy-up, not a stale-claim fix. |
-| clone §1.1 The stores (71-75) | "`FitOnClone` (`types/ids.rs:450`) is item 183's half fix ... The history log ... is the tree's one store shared in chunks" | `FitOnClone` was item 183's half fix; CL-1 removed it (decision 4). The history log was then the one chunked store; since CL-1 `state/shared_stores.rs` holds the others. | §1 is the pre-build baseline of a dated design, qualified by the status line, §7 ("Before") and decision 4 ("drop it"). b613148a kept §1–§3 on purpose (engineering-practices §4). Owed eviction, not a one-paragraph fix. |
+| clone §1.1 The stores (71-75) | "`FitOnClone` (`types/ids.rs:450`) is item 183's half fix ... The history log ... is the tree's one store shared in chunks" | `FitOnClone` was item 183's half fix; CL-1 removed it (decision 4). The history log was then the one chunked store; since CL-1 `state/shared_stores.rs` holds the others. | §1 is the pre-build baseline of a dated design, qualified by the status line, §7 ("Before") and decision 4 ("drop it"). b613148a kept §1–§3 on purpose (engineering-practices.md#landing-a-phase). Owed eviction, not a one-paragraph fix. |
 | clone §Decision 5, "What the check does today" (471-484) | "each check walks every object in the game to find the few that moved (`engine/sba.rs:137` and `:295`)." | "What the check did before CL-1": each check walked every object. Since CL-1 both rules read `arrivals_since_last_sba_check` (`engine/sba.rs:133`), and the walk is kept in debug builds only (`:141`). | A dated design record ("design, 2026-10-21", "CL-1 landed"). The pointers are b86c59c1's, decision 5's "Taken: (b)" already keeps the debug walk, and §7 closes item 293. |
 | clone §Decision 5, "The list" (486-489) | "Every move into a zone goes through one function, `arrive_in_zone` (`engine/zones.rs:250`), which already stamps each move with its epoch." | `arrive_in_zone` (`engine/zones.rs:256`) | The claim holds: it is the only writer of zone and epoch, and :250 still lands in its own doc comment. 250 was exact at b86c59c1 in a dated doc, so :256 is a cosmetic retarget, not a fix. |
 | clone §Decision 7, rule 4 (578-581) | "which `a_fork_reading_a_left_out_card_leaves_the_originals_memo_as_it_was` already asserts for today's map." | "which `a_fork_reading_a_left_out_card_leaves_the_originals_memo_as_it_was` (`state/layer_memo.rs:787`) asserts on the frames' table." | Pre-build design text: "today's map" is the doc's name for the pre-CL-1 baseline, and §7 records that the frames moved into chunks. The test at layer_memo.rs:787 still asserts rule 4. |
@@ -1791,7 +1828,7 @@ test comments, over 55 files. `RS-2` alone is 136.
   (the subsystem and what it delivers, as the board's Phase column already
   reads: "Combat, the predicate half"), whether a short handle survives
   beside it for branches and greps, and how a phase split later is named
-  (`engineering-practices.md` §4.2).
+  (`engineering-practices.md#naming-a-phase`).
 - **A mapping table**, old code to new name, kept where a reader of an old
   commit message finds it.
 - **The sweep**, mechanical once the table exists, since each code is one
@@ -1818,7 +1855,7 @@ these codes. The board reads 149 route-homed, 5 card-homed, 12 records, 0
 homeless and **5** reachable — wrong today at that commit (the brief said 4;
 the board is current at `305e6195`, so the check is "unchanged from 5").
 
-**The problem the scheme solves.** `engineering-practices.md` §4.2 (#225's
+**The problem the scheme solves.** `engineering-practices.md#naming-a-phase` (#225's
 review) already puts a phase's plain name first in a title and its code
 after. The docs kept citing the code anyway, 1,228 times, because a name of
 six words does not fit where a reference goes: a table cell, a `**Slotted:**`
@@ -2001,8 +2038,8 @@ review).** Decision 4 is applied: A6e's row reads about 10–15 PRs and A6h's
 The clippy count; `similar_functions.py`'s current report; the TL;DR and
 the CR row's text; the bodies of the 34 trigger PRs for older-subsystem
 fixes made inside a phase (TR-5d's CR 615.13, TR-4d's item 131);
-`backlog.md`'s and `engineering-practices.md`'s growth by subsystem; §3's
-subsections paragraph by paragraph; whether `panic_surface.py`'s two runs
+`backlog.md`'s and `engineering-practices.md`'s growth by subsystem; the old doc's §3
+subsections paragraph by paragraph (`archive/engineering-practices-records.md`); whether `panic_surface.py`'s two runs
 counted alike. Each pass reads what it needs of these.
 
 ## 8. Briefs
@@ -2019,9 +2056,9 @@ changed.
 | Discovery (session 1: Workflows A, B and C, pass 2's script) | #271 | the work-lists under passes 1, 2, 3 and 5 |
 | 1. Close-out (2–3 PRs) | #272 | one PR: the side findings reproduced; items 297–299 filed; 53 verdicts re-dated; §13, §15 and §16 dispositioned; items 96, 197 and 217 and §15.4 fixed; `owed` clean; the TL;DR, the CR 603 row and `triggers-architecture.md` §18 |
 | 2. Eviction (1) | #273 | one PR: the whole sections and §4.9's `loop-detection` input moved, the 22 amendments collapsed into the text they overruled (−239 lines), 8 outside citations re-pointed; `triggers-architecture.md` 4,736 → 3,853, the archive 5,618 → 7,067 |
-| 3. Hygiene and CI (1–2), then A6e's cleanup (8) | #274, #283, #284, #285 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup, #283: the plan, 60 items and 40 merge rows in eight themed PRs, each item's **Slotted:** line naming its PR. Its first PR, `history-and-frame-records`, #284: 11 items closed, 278 and 279 built and narrowed (278's CR 509.4 entry to `layers-combat-and-counters`), the 12 merge rows, `--pool fixtures`. PR 1b, `last-known-information-store`, #285: item 318 closed, one LKI store keyed by existence, the keepers' lists and the second captures gone, the four view types folded into `ObjectInformation` |
+| 3. Hygiene and CI (1–2), then A6e's cleanup (8) | #274, #283, #284, #285, #286 | the hygiene half, one PR: `comment-census.py`, §2.1's fourth application (history blocks 100 → 77, the outgrown comments corrected); every `ci.yml` step commented and `history_held_test` given a step; clippy re-counted, all five allows kept; the 1.88 floor re-measured; items 301–315 filed; `--suggest` triaged, seven terms defined; the README brought to item 6's close, and §9's close-out now lists it (the owner, at #274's review). A6e's cleanup, #283: the plan, 60 items and 40 merge rows in eight themed PRs, each item's **Slotted:** line naming its PR. Its first PR, `history-and-frame-records`, #284: 11 items closed, 278 and 279 built and narrowed (278's CR 509.4 entry to `layers-combat-and-counters`), the 12 merge rows, `--pool fixtures`. PR 1b, `last-known-information-store`, #285: item 318 closed, one LKI store keyed by existence, the keepers' lists and the second captures gone, the four view types folded into `ObjectInformation` |
 | The card-homed triage (1, then its builds in the cleanup) | #280 | one PR: the 51 items dispositioned in their `**Slotted:**` lines with verdicts re-dated, 31 builds for A6e's cleanup with their fixtures and six consistency checks, 14 to rows (`route-review`, `ironworks-loop`, `mana-ability-costs`, `chosen-color-plus-could-produce` and `any-color-plus-painlands-plus-signets`, `permission-design`, `remaining-costs`), 5 kept with their cards, item 109 closed, item 273 to `ironworks-loop`; the fixture pool priced for the owner |
 | 4. Readiness (2) | | |
-| 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to `route-review`. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md` §7. Done |
-| 5c. Names for the phases ahead (1) | #282 | added at #274's merge; one PR: the design reviewed, then the sweep — the scheme in `engineering-practices.md` §4.2, the record of the codes, the board reading names with every item's home unchanged, the hexproof phase split, `game-formats` widened, Phase 9's remainder put to `route-review` |
+| 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to `route-review`. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md#trace-pages`. Done |
+| 5c. Names for the phases ahead (1) | #282 | added at #274's merge; one PR: the design reviewed, then the sweep — the scheme in `engineering-practices.md#naming-a-phase`, the record of the codes, the board reading names with every item's home unchanged, the hexproof phase split, `game-formats` widened, Phase 9's remainder put to `route-review` |
 | 6. Scheduling (1) | | |
