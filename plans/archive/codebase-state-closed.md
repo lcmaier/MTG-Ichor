@@ -8184,3 +8184,38 @@ One LKI store keyed by existence, written once by `depart` and read by `lki`, wi
      **Slotted:** A6e's cleanup, `last-known-information-store`, the PR after
      `history-and-frame-records` (the owner, 2026-10-24): its design note
      reviewed first, then the build on the same branch.
+
+### Item 137 — closed 2026-10-24 by PR #288 (`resolution-context-rider`)
+
+`ResolutionContext`'s two rider numbers are one `rider: Option<RiderAmounts>`, `None` outside a CR 615.5 rider; inside one `damage_prevented` is a plain number and `replaced_amount` stays optional. The pipeline's `Rider` carries the same `RiderAmounts`, so `resolve_rider` moves one value; `ReplacedAmount` refuses outside a rider and, separately, inside one whose event carried no amount. The sweep: 101 literals, 30 now `ResolutionContext::untargeted(..)`, 7 taking the rest from it, 62 writing `rider: None`.
+
+*Original entry:*
+
+137. **`ResolutionContext` carries CR 615.5's two rider numbers as two
+     `Option<u64>` fields that every non-rider resolution sets to `None`.**
+     Their own docs say "for a rider and for nothing else"; the type says
+     two independent optionals, so every site that builds a context — seven
+     in `src/`, forty-one in `tests/` — writes `replaced_amount: None,
+     damage_prevented: None` about a mechanism it has never heard of, which
+     the RE-9 review called out at the mana resolver. The honest shape is one
+     optional thing: `rider: Option<RiderAmounts { replaced_amount:
+     Option<u64>, damage_prevented: u64 }>` — `None` on every ordinary
+     resolution, and inside a rider the prevented amount is a plain number
+     (its `Some(0)` case is a rider that prevented nothing) while the
+     replaced amount stays optional (a zone change has none).
+
+     **Reachability (2026-09-15):** reachable, and not wrong — a shape.
+     `AmountExpr::ReplacedAmount` and `DamagePrevented` refuse correctly
+     outside a rider today; what is wrong is what forty-eight sites have to
+     say to construct a context.
+
+     **Sized:** the struct, the one writer (`resolve_rider` in
+     `engine/actions.rs`), the two readers in `evaluate_amount`, and a
+     mechanical sweep of the literals — ~48 sites, most of them
+     `rider: None` — **its own PR**, on main item 124's precedent that a
+     sweep does not ride inside a rules change. `ResolutionContext::
+     untargeted(source, controller)` is the call-side half and shipped with
+     RE-9; the mana resolver uses it.
+     **Slotted:** A6e's cleanup, as a PR of its own,
+     `resolution-context-rider`, sweeping the `ResolutionContext` literals (99
+     on `50c459d4`) to one `rider` field.
