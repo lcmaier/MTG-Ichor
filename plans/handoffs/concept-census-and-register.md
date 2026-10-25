@@ -181,10 +181,16 @@ was spent to pay a cost"): nothing holds the objects that paid. The
 mana half is owned (`StackEntry.mana_spent`, carried to `CastFacts`). A
 source that paid its own cost is read through the LKI store by its
 existence. Another object that paid (Altar's Reap's and Bone Splinters'
-sacrificed creature, CR 601.2h) has no holder; no registered card reads it
-back. So the concept has a key (the spell or ability's existence) and no
-owner. It gets a register line saying so, pointed at item 30's slot,
-`spell-copies`, so the first holder written is the owner.
+sacrificed creature, CR 601.2h) has no holder. So the concept has a key (the
+spell or ability's existence) and no owner. Item 30 sizes the missing half
+at about 40–60 lines, a list of the paid objects' existences on `StackEntry`
+beside the cost decisions, and slots it at `spell-copies` "or the first
+Fling-shaped card, whichever comes first", which is a card-shaped slot. The
+census re-slots it to `resolution-recipients-and-amounts`, which builds item
+269's `AmountExpr::ValueOf(which object, which value)`: "the sacrificed
+creature's power" (Fling; CR 601.2h, read through 608.2h's last known
+information) is one more object word there, and its fixture is the
+consumer. The register names `StackEntry`'s list as the owner.
 
 **`ObjectInformation::Characteristics`**, the catch-all arm: an object read
 with characteristics its caller already holds (`oracle/characteristics.rs`).
@@ -214,39 +220,32 @@ anything beyond characteristics. The matcher can
 
 `TriggerSubject::Host` answers "not attached" for the arm, which is right
 for an entering permanent and wrong for a walked live list; no caller sends
-one there today, and nothing stops one. No registered card's filter on these
-paths reads a moment-sensitive leaf: Sphere Grid's counters and Relentless
-Assault's "attacked this turn" are read live, through `Current`. So the
-mismatch is not reachable by a card today; it is reachable by the CR.
+one there today, and nothing stops one. The CR lets a filter on any of
+these paths read those facts, so the arm is wrong for the CR whatever the
+registered cards do, and decision 5 fixes it for that reason. That no
+registered card's filter on these paths reads one today (Sphere Grid's
+counters and Relentless Assault's "attacked this turn" go through `Current`)
+matters only to the prediction that the pools stay identical.
 
 ## 3. Decisions
 
 ### Decision 1 — what counts as a concept, and where the list comes from
 
-**The shared problem.** The census's claim is "every concept has one owner,
-and every holder is listed". That is only as good as the two lists under it:
-the concepts, and the holders.
+**Revised at review (2026-10-24), after the owner asked whether a pass over
+the CR was feasible. Recommended: from the tree, not from the CR.** The
+census reads the tree's holders, and the concepts are whatever they
+hold: each one named when a holder first needs it, with the one CR rule that
+names it, checked against `tmnt.txt` by script. Its claim is "every holder
+in the state types and the proposals is classed".
 
-- **(a) Top-down, from the CR's glossary.** Its 726 terms, less 197 keyword
-  abilities and actions and 20 obsolete, leave about 509 to triage once:
-  names a thing in a game, names a procedure, or names a mechanic. The claim
-  becomes "every glossary term triaged". **It misses concepts the glossary
-  does not list**: there is no entry for "controller", "life total", an
-  object's existence, or CR 603.10's look-back frame. Two of those are the
-  concepts this PR exists for.
-- **(b) Bottom-up, from the tree's holders.** Every holder in §1's first two
-  rows is classed, and the concepts are whatever the holders hold. The claim
-  becomes "every holder classed". **It misses a concept with no holder**:
-  "what paid" is exactly that, and so is anything the engine has not built.
-- **(c) Both, reconciled.** *(Recommended.)* The concept list starts from the
-  glossary's triage; the holders come from the script. A holder no concept
-  claims either adds a concept, with the CR rule that names it (checked
-  against `tmnt.txt` by script), or takes a *none* class with its reason.
-  A concept no holder holds gets a register line saying so and where its
-  owner is slotted. Then both enumerations are closed and each checks the
-  other. The triage is kept as a list (`plans/references/glossary-triage.tsv`,
-  each term and its class), so the next CR version's new terms are the ones
-  without a class.
+A top-down list from the CR was considered and dropped. Its only use would
+be a concept no holder holds, and such a concept cannot have two owners,
+which is the census's question; finding what the engine cannot express is
+the type-surface method's job (`cr-coverage-audit.md#2-the-method--the-type-surface`), and "what
+paid" is already its finding, item 30. A pass over the glossary would cost a
+reading of about 2,200 of the CR's lines, and the glossary has no entry for
+"controller" or CR 603.10's look-back frame anyway, so it would not have
+been complete.
 
 ### Decision 2 — method and cost
 
@@ -257,15 +256,18 @@ refuters scaled with findings. Each option below was piloted on the same
 191-holder slice.
 
 - **(a) A script and one reader, by concept.** *(Recommended.)* The script
-  prints each concept's holders by its query (decision 4), then the holders
-  no query claims. One person reads them in sequence. **Piloted:** about 30k
+  classes the mechanical holders itself: id allocators, indices, and every
+  holder whose type is a key, which the agent found was about three quarters
+  of the slice (140 of 191). It lists each key whose type is an `ObjectId`
+  in a stored struct for the narrow-key check, which is a quick batch read.
+  What is left for one person to read in sequence is about 200 of the 850
+  holders, grouped by concept, about 40–60 concepts. **Piloted:** about 30k
   tokens in this session for the slice (13k of listing, about 10k of source
   read where a doc comment did not settle a holder, the rest the
   classification). That reading was quicker than the agent's and missed the
-  narrow key and the restated frames, so price it at twice that for the
-  agent's thoroughness: about 270k for the 850 holders, plus about 30k for the
-  glossary triage and 20k for the unclaimed list. **About 320k tokens, one
-  long session or two.**
+  narrow key and the restated frames, so price it at twice that per holder
+  read, over the holders that are left. **About 120–180k tokens, one
+  session.**
 - **(b) A read-only fan-out of agents.** Needs your opt-in. **Piloted:** one
   agent read the same slice in **190,609 tokens and 20 tool calls** (about
   seven minutes), six times this session's cost, because each tool call
@@ -285,7 +287,7 @@ refuters scaled with findings. Each option below was piloted on the same
 
 **The shared problem.** The register is the census's standing result,
 read by a gate and by anyone adding a field; the census's one-time record
-(the method, the triage, the calibration) needs a home beside it.
+(the method, the calibration) needs a home beside it.
 
 - **(a) A section of `cr-coverage-audit.md`.** *(Recommended.)* A new
   `## 4c. Concepts and their owners` after §4b, which is the same shape for
@@ -366,7 +368,7 @@ two of the three callers had an `Lki` in hand and dropped it.
 - **(c) One arm per moment.** Every match on the arm decides for every
   moment (nine matches today), though most of them do not care.
 - **(d) (b), after handing the two callers that hold an `Lki` the `Lki`.**
-  *(Recommended.)* `TriggerCandidateFrame::Before` carries its snapshot's
+  **Taken at review (the owner, 2026-10-24).** `TriggerCandidateFrame::Before` carries its snapshot's
   `Lki`, and the `SameZoneMove` history row keeps its `RowFrame::LastKnown`;
   both then read through `ObjectInformation::LastKnown`, whose readers already
   answer counters, attachments and combat as of the frame (its doc already
@@ -417,21 +419,19 @@ docs beside. Under the recommendations:
 | Piece | Kind | Lines |
 |---|---|---:|
 | `plans/references/concept-census.py`: the lister, the queries, `--holders <concept>`, `--unclaimed` | tooling | 250–350 |
-| `plans/references/glossary-triage.tsv`: 726 terms, each with its class | data | ~730 |
 | `cr-coverage-audit.md`'s new section 4c, the census and the register: about 50–70 concepts | docs | 350–450 |
 | Findings: `codebase-state.md` items and `**Slotted:**` lines, the cleanup plan's rows | docs | 100–200 |
 | `check_type_surface.py`'s second half, and its probe | tooling | 150–250 |
 | Decision 5 (d) | code and tests | 150–250 |
 
-So about 150–250 lines in the band and about 1,600–2,200 of docs, data and
-tooling beside it. If decision 5 takes (a), the PR is docs and tooling
-alone, as the brief said it would be. The reading itself is decision 2's
-price, about 320k tokens. The findings' fixes are not in this PR: each
+So about 150–250 lines in the band and about 850–1,250 of docs and tooling
+beside it, one PR. The reading itself is decision 2's price, about 120–180k
+tokens. The findings' fixes are not in this PR: each
 goes to the PR whose types it touches.
 
 ## 5. The build, commit by commit
 
-1. The census script and the glossary's triage.
+1. The census script.
 2. The census, concept by concept, into `cr-coverage-audit.md`'s new section,
    under decision 6's rule for records, every key holder checked against
    the CR's key, and the unclaimed holders read last.
