@@ -92,7 +92,7 @@ impl FilterReferents for TextReferents<'_, '_> {
     }
 
     fn source_owner(&mut self) -> Option<PlayerId> {
-        self.identity.source.and_then(|source| self.game.objects.get(&source)).map(|object| object.owner)
+        self.identity.source.and_then(|source| self.game.owner_of(source))
     }
 
     fn earlier_targets(&self) -> EarlierTargets<'_> {

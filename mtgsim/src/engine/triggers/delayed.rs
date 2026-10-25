@@ -34,7 +34,7 @@ use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
-    DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, EventIndex, EventKindMask, Lki,
+    DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, EventIndex, EventKindMask,
     PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerOrigin, TriggerSeq,
     TriggeringEvent, TriggeringEventObjects,
     TriggerTurn,
@@ -151,19 +151,13 @@ impl GameState {
         Some(pending_of(matched_of(reflexive, EventIndex(0), Vec::new()), reflexive))
     }
 
-    /// The source's owner as an entry naming it is made (CR 108.3), read now
-    /// because the store can lose the source before the entry reads it. One
-    /// already gone — a token that ceased to exist before its ability
-    /// resolved (CR 704.5d), or an object whose owner has left the game (CR
-    /// 800.4a) — is known by the last known information its resolution kept.
-    /// No owner anywhere is a missed capture.
+    /// The source's owner as an entry naming it is made (CR 108.3), kept on
+    /// the entry because the store can lose the source unframed before the
+    /// entry reads it: a return is no keeper, and a card that leaves the game
+    /// from a graveyard with its owner leaves no last known information. No
+    /// owner now is a missed capture.
     pub(crate) fn owner_of_source(&self, source: ObjectRef) -> Result<PlayerId, String> {
-        if let Some(object) = self.objects.get(&source.id) {
-            return Ok(object.owner);
-        }
-        self.lki_as_resolving_reads(source).map(Lki::owner).ok_or_else(|| {
-            format!("{} is gone, and the resolution kept no last known information to say who owned it", source.id)
-        })
+        self.owner_of(source.id).ok_or_else(|| format!("{} is gone, and nothing kept its last known information to say who owned it", source.id))
     }
 
 

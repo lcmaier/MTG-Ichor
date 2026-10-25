@@ -1625,9 +1625,7 @@ impl GameState {
             Primitive::ShuffleLibrary => {
                 let players: Vec<PlayerId> = match recipient {
                     EffectRecipient::Controller => vec![ctx.controller],
-                    EffectRecipient::ThisObject => {
-                        vec![self.get_object(ctx.effect_source())?.owner]
-                    }
+                    EffectRecipient::ThisObject => vec![self.source_owner_of(ctx)?],
                     EffectRecipient::Implicit => {
                         return Err(format!(
                             "a `Primitive::ShuffleLibrary` on {:?} names no library; use `Controller` or `ThisObject`",
@@ -2671,6 +2669,13 @@ impl GameState {
 
     // --- Helper: determine which player an effect applies to ---
 
+    /// "Its owner" of the resolving effect's source (CR 108.3), wherever the
+    /// source has gone (`owner_of`).
+    fn source_owner_of(&self, ctx: &ResolutionContext) -> Result<PlayerId, String> {
+        let source = ctx.effect_source();
+        self.owner_of(source).ok_or_else(|| format!("{source} is gone, and nothing kept its last known information to say who owned it"))
+    }
+
     /// The player a `PlayerRef` names at resolution: who puts the counters on
     /// for `Primitive::AddCounters` and `GetCounters` (CR 122.6a's shape on a
     /// proposal), and who chooses for `Effect::Optional`.
@@ -2690,7 +2695,7 @@ impl GameState {
         Ok(match by {
             PlayerRef::You => ctx.controller,
             PlayerRef::Player(pid) => *pid,
-            PlayerRef::Owner => self.get_object(ctx.effect_source())?.owner,
+            PlayerRef::Owner => self.source_owner_of(ctx)?,
             PlayerRef::Opponent => {
                 let targeted = targets.iter().find_map(|t| match t {
                     ResolvedTarget::Player(pid) if *pid != ctx.controller => Some(*pid),
