@@ -254,6 +254,7 @@ discipline. → `engineering-practices.md#the-spec-database`.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
+- `plans/handoffs/concept-census-and-register.md`
 - `plans/handoffs/item-6-audit.md`
 
 ## What this file deliberately does not know
