@@ -232,7 +232,8 @@ matters only to the prediction that the pools stay identical.
 ### Decision 1 — what counts as a concept, and where the list comes from
 
 **Revised at review (2026-10-24), after the owner asked whether a pass over
-the CR was feasible. Recommended: from the tree, not from the CR.** The
+the CR was feasible, and built on with the owner's go-ahead: from the tree,
+not from the CR.** The
 census reads the tree's holders, and the concepts are whatever they
 hold: each one named when a holder first needs it, with the one CR rule that
 names it, checked against `tmnt.txt` by script. Its claim is "every holder
@@ -402,8 +403,8 @@ reshaping a payload. A "cannot disagree" premise is also a list of cases,
 which breaks when the list grows
 (`engineering-practices.md#the-standing-review-question`).
 
-**Recommended: one holder per key, with no exception, and a record's values
-keyed by its event.** A record's `owner`, `controller` or frame says what was
+**Taken at review (the owner, 2026-10-24): one holder per key, with no
+exception, and a record's values keyed by its event.** A record's `owner`, `controller` or frame says what was
 true as the event happened, which is what CR 603.10 and 608.2h read: a
 trigger reads the event, not the board after it. The object's own owner is
 keyed by the object. Most of a record's facts can be read nowhere else
