@@ -835,8 +835,9 @@ CR 301.5, 303.4, 701.3a. **Key:** the attachment's existence: it is attached
 to one object. **Query:** type `ObjectId` named `attached_to`; type
 `ObjectId` named `attached_by`; type `ObjectId` named `host`; type
 `ObjectRef` named `host`
-- `PermanentState` ×2 — owner, `attached_to`, and a copy from the host's
-  end, `attached_by`, kept in step by every attach and unattach: item 322.
+- `PermanentState` ×2 — owner, `attached_to`, and the host's end,
+  `attached_by`, which "each Aura attached to it" reads; `GameState::attach`
+  and `detach` write both, and item 322 checks that they agree.
 - `PermanentFacts` ×2 — moment: both ends, in an `Lki`.
 - `EnterMods` — hand-over: what an entering permanent will be attached to.
 - `GameAction` — owner: a proposal's host.
@@ -850,8 +851,9 @@ combat. **Query:** type `AttackTarget`; type `AttackingInfo`; type
 `blocked_by`; type `bool` named `is_blocked`
 - `PermanentState` ×2 — owner: what it attacks and what it blocks.
 - `AttackingInfo` ×3 — owner of what it attacks and whether it is blocked
-  (CR 509.1h), and a copy from the attacker's end of the blocks,
-  `blocked_by`: item 323.
+  (CR 509.1h), and the attacker's end of the blocks, `blocked_by`, written
+  with the blocker's end by the declaration and each removal from combat:
+  item 323 checks that they agree.
 - `BlockingInfo` — owner of the blocks, from the blocker's end.
 - `PermanentFacts` — moment: what it was attacking, in an `Lki`.
 - `CombatExit` ×2 — moment: what it attacked or blocked as it left combat.
@@ -1136,7 +1138,8 @@ one value, and the narrow keys are read inside their window.
 - **A source's owner, copied by each keeper**: `DelayedTrigger.owner`,
   `UntilReturn.owner`. → item 247's T12, `trigger-matcher-merges`.
 - **An attachment held from both ends**, and **a block held from both
-  ends**. → items 322 and 323, `layers-combat-and-counters`.
+  ends**: both ends are read and stay, and nothing checks that they agree.
+  → items 322 and 323, `layers-combat-and-counters`.
 - **The last control sweep's view held twice**, and **"controlled since"
   equal to the entry turn by construction**. → items 324 and 325,
   `batches-durations-and-control`.
@@ -1152,7 +1155,7 @@ concept, an object as it was just before an event, owned by the record or
 the snapshot the moment belongs to, with two hand-overs (a batch's capture,
 the control sweep's frame) that hold the value before its owner exists; and
 **`ObjectInformation::Characteristics`** now names its moment, built at the
-census (`FrameMoment`).
+census (`FrameContext`).
 
 ---
 

@@ -10006,13 +10006,16 @@ keyed by its event.
      **Slotted:** A6e's cleanup, in `trigger-matcher-merges`.
 
 320. **Records name an object by its id where the CR keys it by existence.**
-     Most `GameEvent` payloads carry a bare `ObjectId`, and `ZoneChange`
-     carries the epoch of the existence its move made but none for the one
-     that left unless its frame is present (CR 400.7). A reader that needs
-     the existence takes it off the board at dispatch, and
+     An object keeps its `ObjectId` through every zone change, and the
+     `zone_change_epoch` beside it says which existence it is (CR 400.7); an
+     `ObjectRef` is the two together. Most `GameEvent` payloads carry the id
+     alone, and `ZoneChange` carries the epoch of the existence its move made
+     but none for the one that left unless its frame is present. A reader
+     that needs the existence takes it off the board at dispatch, and
      `DelayedTrigger.source_left_at`'s doc says the field exists because "a
      departure record names the object's id and not which existence of it
-     moved".
+     moved". No new id is minted: the fix adds the epoch the object already
+     has to the records that name it.
      **Reachability (2026-10-24):** reachable — not wrong today: dispatch
      reads a record inside its window, before a later move can give the id
      another existence, and the history log keys its rows by existence.
@@ -10037,23 +10040,29 @@ keyed by its event.
      answers is that PR's first question.
      **Slotted:** A6e's cleanup, in `trigger-matcher-merges`, after item 320.
 
-322. **An attachment is held from both ends.** `PermanentState.attached_to`
-     and `attached_by`, and an `Lki`'s copies of both, are one relation (CR
-     701.3a: an attachment is attached to one object), kept in step by every
-     attach and unattach (`engineering-practices.md#one-record-never-two-kept-in-step`).
-     **Reachability (2026-10-24):** reachable — not wrong today: one
-     performer writes both ends.
-     **Sized:** ~40–80 lines: `attached_to` the owner, and `attached_by`
-     either derived by one function or kept as an index that function alone
-     writes, with a debug check that it is the inverse.
+322. **An attachment is held from both ends, and nothing checks that they
+     agree.** `PermanentState.attached_to` and `attached_by`, and an `Lki`'s
+     copies of both, are one relation (CR 701.3a), and both ends are read:
+     "enchanted creature" from the attachment, "each Aura attached to it" and
+     a departure's unattaches from the host. Both stay. `GameState::attach`
+     and `detach` are the only writers of either, so the pair is kept in step
+     by one place (`engineering-practices.md#one-record-never-two-kept-in-step`);
+     what is missing is the check. A trigger on becoming attached reads the
+     `Attached` record, which names both ends, not these fields.
+     **Reachability (2026-10-24):** reachable — not wrong today: one pair of
+     performers writes both ends.
+     **Sized:** ~15–25 lines: a debug check, at a batch's close, that each
+     end is the other's inverse.
      **Slotted:** A6e's cleanup, in `layers-combat-and-counters`, beside merge
      row 41's attachments.
 
-323. **A block is held from both ends.** `AttackingInfo.blocked_by` and
-     `BlockingInfo.blocking` (CR 509.1) are kept in step by the declaration
-     and by each removal from combat, the shape item 322 names.
+323. **A block is held from both ends, written in two places.**
+     `AttackingInfo.blocked_by` and `BlockingInfo.blocking` (CR 509.1) are
+     both read, as item 322's ends are, and both stay. They are written by
+     the declaration (`engine/combat/steps.rs`) and by each removal from
+     combat (`GameState::remove_from_combat`), each writing both ends.
      **Reachability (2026-10-24):** reachable — not wrong today.
-     **Sized:** ~40–80 lines, item 322's shape.
+     **Sized:** ~15–25 lines: item 322's debug check over the combat's blocks.
      **Slotted:** A6e's cleanup, in `layers-combat-and-counters`, beside
      "Before card breadth" 6's multi-block damage, which reads both ends.
 
