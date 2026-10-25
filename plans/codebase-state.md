@@ -6006,8 +6006,9 @@ closed. **The last of RE's ten PRs.**
 137. **~~`ResolutionContext` carries CR 615.5's two rider numbers as two
      `Option<u64>` fields that every non-rider resolution sets to `None`.~~ —
      ✅ CLOSED 2026-10-24 (PR #288, `resolution-context-rider`).** — archived.
-     One field, `rider: Option<RiderAmounts>`, written by `resolve_rider` and
-     read by `AmountExpr::ReplacedAmount` and `DamagePrevented`; the 101
+     One field, `replaced_event: Option<ReplacedEvent>`, written by
+     `resolve_rider` and read by `AmountExpr::ReplacedAmount` and
+     `DamagePrevented`, the prevented amount on its damage arm alone; the 101
      literals swept, 37 of them to `ResolutionContext::untargeted`.
      **Reachability (2026-10-24):** closed — PR #288.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 137".

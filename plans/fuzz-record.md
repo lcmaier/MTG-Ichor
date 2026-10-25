@@ -97,10 +97,11 @@ one means the engine's cost model moved
 ## The records, newest first
 
 **Measured 2026-10-24 for item 137** (#288, `resolution-context-rider`:
-`ResolutionContext`'s two rider numbers one optional `RiderAmounts`, and the
+`ResolutionContext`'s two rider numbers one optional `ReplacedEvent`, and the
 sweep of its literals; A6e's cleanup PR 2). No card moves, so no table is
-re-recorded. One `close_out.py` sitting against **main** `a0e4c51` (#287's
-merge); **rider** `8811d91` is the branch's engine commit.
+re-recorded. Two `close_out.py` sittings against **main** `a0e4c51` (#287's
+merge): **rider** `8811d91`, the first push's struct, and **event** `8087b3b`,
+the enum the review asked for, the branch's last engine commit.
 
 **Predictions, before any arm ran:**
 - every game identical on both pools at two seats and four, and the
@@ -112,22 +113,26 @@ merge); **rider** `8811d91` is the branch's engine commit.
 
 | | 2 seats | 4 seats |
 |---|---|---|
-| gameplay rows, rider vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
-| audit, rider, dispatches agreed, performance / stress | 175,509 / 173,877 | 337,915 / 353,342 |
-| instructions / decision, callgrind, the Commander board | | 0.7441 M → 0.7412 M, **−0.39%** |
+| gameplay rows, rider and event vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, rider and event, dispatches agreed, performance / stress | 175,509 / 173,877 | 337,915 / 353,342 |
+| instructions / decision, callgrind, the Commander board, rider | | 0.7441 M → 0.7412 M, **−0.39%** |
+| the same, event | | 0.7435 M → 0.7409 M, **−0.34%** |
 | clone, worst decision (`clone_bound_test`) | | 40 allocations, 6.5 KB, as #287 |
 | held, log and store together (`history_held_test`) | | 4,265 B a turn, as #287 |
 
-**The miss: −0.39% where ±0.3% was the bound, and it is inlining.**
-Callgrind's self cost per function, arm against arm: the castability and
-mana cluster (`oracle::mana_helpers`, `mana_supply` and `characteristics`,
-with `prohibition_sweeping`) reads −30.8 M of the total −27.6 M, and the rest
-is +3.3 M, scattered. In it `controls`, `mana_production_of` and
+**The miss: −0.39% and −0.34% where ±0.3% was the bound, and it is
+inlining.** Callgrind's self cost per function, arm against arm: the
+castability and mana cluster (`oracle::mana_helpers`, `mana_supply` and
+`characteristics`, with `prohibition_sweeping`) reads −30.8 M of the total
+−27.6 M at the first sitting and −30.3 M of −24.5 M at the second, the rest
+scattered. In it `controls`, `mana_production_of` and
 `can_begin_to_cast` are inlined into `activatable_abilities_with`,
 `can_cast_with` and `ManaSupply::read`: the functions #278's +0.55% was read
 off, moving back. None of them is code this PR changes, and the rider path is
 flat (`resolve_riders`, 151,286 → 151,284 instructions over the 20 games). Not
-chased.
+chased. `main` itself read 0.7441 M at the first sitting and 0.7435 M at the
+second, one commit built twice, so the reading moves about 0.1% between
+sittings.
 
 **Measured 2026-10-24 for 1d** (#287, `concept-census-and-register`: the
 census of the fields the game holds, its register and gate, and

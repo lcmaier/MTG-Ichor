@@ -8187,7 +8187,7 @@ One LKI store keyed by existence, written once by `depart` and read by `lki`, wi
 
 ### Item 137 — closed 2026-10-24 by PR #288 (`resolution-context-rider`)
 
-`ResolutionContext`'s two rider numbers are one `rider: Option<RiderAmounts>`, `None` outside a CR 615.5 rider; inside one `damage_prevented` is a plain number and `replaced_amount` stays optional. The pipeline's `Rider` carries the same `RiderAmounts`, so `resolve_rider` moves one value; `ReplacedAmount` refuses outside a rider and, separately, inside one whose event carried no amount. The sweep: 101 literals, 30 now `ResolutionContext::untargeted(..)`, 7 taking the rest from it, 62 writing `rider: None`.
+`ResolutionContext`'s two rider numbers are one `replaced_event: Option<ReplacedEvent>`, `None` outside a CR 615.5 rider, and inside one an enum of what the event was: `Damage { amount, prevented }`, `Amount(n)` for any other event with a number, `NoAmount`. The prevented amount exists only on damage, and an event's amount is never optional where it has one (decided at #288's review). The pipeline's `Rider` carries the same `ReplacedEvent`, so `resolve_rider` moves one value; each reader refuses outside a rider and, separately, inside one whose event lacks its number. The sweep: 101 literals, 30 now `ResolutionContext::untargeted(..)`, 7 taking the rest from it, 62 writing `replaced_event: None`.
 
 *Original entry:*
 
