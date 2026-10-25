@@ -19,7 +19,7 @@ use crate::types::restriction::SourceFilter;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
 use crate::engine::replacement::EventSubject;
-use crate::events::event::{CounterSubject, CreationPoint, DamageTarget, EventRecord, EventId, GameEvent, ResolutionStamp};
+use crate::events::event::{CounterSubject, CreationPoint, DamageTarget, EventRecord, EventId, GameEvent, LifeChange, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
@@ -1529,8 +1529,11 @@ impl TriggerEvent {
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { mana, .. }) => {
                 Some(mana.iter().map(|(_, n)| *n).sum())
             }
-            (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { old, new, .. }) => {
-                Some((new - old).max(0) as u64)
+            (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { .. }) => {
+                Some(match record.life_change() {
+                    Some(LifeChange::Gained(n)) => n,
+                    Some(LifeChange::Lost(_)) | None => 0,
+                })
             }
             // A counter is one occurrence of a per-counter arm, so "that many"
             // of it is one; the other readings sum the record's counters.
@@ -1538,8 +1541,11 @@ impl TriggerEvent {
             | (TriggerEvent::CountersRemovedFrom { multiplicity, .. }, GameEvent::CountersRemovedFrom { n, .. }) => {
                 Some(multiplicity.counter_occurrences(*n).1)
             }
-            (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { old, new, .. }) => {
-                Some((old - new).max(0) as u64)
+            (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { .. }) => {
+                Some(match record.life_change() {
+                    Some(LifeChange::Lost(n)) => n,
+                    Some(LifeChange::Gained(_)) | None => 0,
+                })
             }
             // The cards looked at, which a short library makes fewer than
             // the scry's number (Elrond, Master of Healing's first ruling).

@@ -32,7 +32,7 @@ use crate::engine::trace_records;
 use crate::events::event::{EventRecord, EventId, GameEvent};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::state::game_state::GameState;
-use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, EventIndex, EventKindMask, Lki,
     PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerOrigin, TriggerSeq,
@@ -245,16 +245,21 @@ impl GameState {
     }
 
     /// A turn has begun. An entry waiting for an extra turn that is neither
-    /// this turn nor still in the queue can never trigger: that turn has
-    /// ended, or it was skipped, and CR 614.10a says anything scheduled for a
-    /// skipped turn won't happen.
+    /// this turn nor still coming can never trigger: that turn has ended, or
+    /// it was skipped, and CR 614.10a says anything scheduled for a skipped
+    /// turn won't happen.
     pub(crate) fn drop_delayed_triggers_of_gone_turns(&mut self) {
-        let current = self.extra_turn;
-        let queue = &self.turn_queue;
-        self.delayed_triggers.retain(|d| match d.turn {
-            TriggerTurn::Extra(turn) => current == Some(turn) || queue.iter().any(|e| e.id == turn),
-            TriggerTurn::Any | TriggerTurn::LaterThan(_) => true,
-        });
+        let gone: Vec<ExtraTurnId> = self
+            .delayed_triggers
+            .iter()
+            .filter_map(|d| match d.turn {
+                TriggerTurn::Extra(turn) if !self.extra_turn_is_coming(turn) => Some(turn),
+                TriggerTurn::Extra(_) | TriggerTurn::Any | TriggerTurn::LaterThan(_) => None,
+            })
+            .collect();
+        if !gone.is_empty() {
+            self.delayed_triggers.retain(|d| !matches!(d.turn, TriggerTurn::Extra(turn) if gone.contains(&turn)));
+        }
     }
 
     /// Whether the turn in progress is one a delayed trigger bound to `turn`

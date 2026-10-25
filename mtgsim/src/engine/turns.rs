@@ -233,6 +233,13 @@ impl GameState {
         None
     }
 
+    /// Whether extra turn `turn` is this turn or still to come (CR 500.7). One
+    /// whose player has left the game before taking it never comes: the
+    /// rotation passes it by (`next_turn_taker`).
+    pub fn extra_turn_is_coming(&self, turn: ExtraTurnId) -> bool {
+        self.extra_turn == Some(turn) || self.turn_queue.iter().any(|queued| queued.id == turn && self.in_game(queued.player))
+    }
+
     /// CR 500.7 — give `player` an extra turn directly after this one: the
     /// queue's newest entry, so the most recently created turn is taken
     /// first. Returns its id, which "that turn" names.

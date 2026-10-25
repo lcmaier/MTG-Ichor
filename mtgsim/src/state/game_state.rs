@@ -251,6 +251,14 @@ pub struct AbilityIdentity {
     pub ability: AbilityId,
 }
 
+impl AbilityIdentity {
+    /// CR 603.7h's "this ability": the same ability of the same object,
+    /// whichever instance, which "the third time this turn" counts by (§6.5).
+    pub fn whichever_instance(self) -> (ObjectRef, AbilityId) {
+        (self.source, self.ability.definition())
+    }
+}
+
 /// How deep inside itself the engine is: three counters that answer one
 /// question, so they are one field on `GameState` rather than three.
 ///
@@ -2047,7 +2055,7 @@ impl GameState {
     ) {
         use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
         use crate::objects::card_data::AbilityType;
-        use crate::types::effects::{Duration, Effect};
+        use crate::types::effects::Duration;
 
         // PRE-LAYER ZONE: the abilities it arrived with, printed or a copy's. The
         // registry this builds is the layer walk's input, so the walk cannot answer.
@@ -2074,10 +2082,8 @@ impl GameState {
             // the battlefield set, or the zone map when CR 113.6k puts the
             // ability's function somewhere else. The same CR 113.6 gate as
             // the static path below, on the arrived-with types for the same reason.
-            if ability.ability_type == AbilityType::Triggered {
-                if let Effect::Triggered(def) = &ability.effect
-                    && crate::engine::zone_function::functions_in(ability, types, zone)
-                {
+            if let Some(def) = ability.effect.as_trigger() {
+                if crate::engine::zone_function::functions_in(ability, types, zone) {
                     if zone == Zone::Battlefield {
                         // Accumulated, not replaced: a permanent with two
                         // triggered abilities is one entry reading both

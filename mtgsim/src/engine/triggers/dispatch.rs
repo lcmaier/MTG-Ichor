@@ -34,8 +34,8 @@ use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::ui::decision::AsksNobody;
-use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent};
-use crate::objects::card_data::{AbilityDef, CardData};
+use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent, LifeChange};
+use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::{AttackTarget, CostChoices};
@@ -772,7 +772,7 @@ impl GameState {
         let newcomers = self.newcomer_trigger_carriers(window);
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
-                r.event.lki().is_some_and(|(lki, ..)| lki.characteristics().abilities.iter().any(is_triggered))
+                r.event.lki().is_some_and(|(lki, ..)| lki.characteristics().abilities.iter().any(|ability| ability.effect.as_trigger().is_some()))
             })
         });
         // The battlefield probe and the named rows read the mask. The zone
@@ -1603,7 +1603,7 @@ impl GameState {
         for (index, candidate) in candidates.iter().enumerate() {
             let chars = candidate.frame.characteristics();
             for ability in chars.abilities.iter() {
-                let Effect::Triggered(def) = &ability.effect else { continue };
+                let Some(def) = ability.effect.as_trigger() else { continue };
                 // CR 113.6 is asked of each ability: the object is here
                 // because *some* ability of its functions here (§4.2).
                 if !functions_in(ability, &chars.types, candidate.zone) {
@@ -1955,14 +1955,15 @@ impl GameState {
             (TriggerEvent::TurnBegins { whose }, GameEvent::TurnBegin { player, .. }) => {
                 triggering_event_if(whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
             }
-            // The sign is the split. A 0 gain never reaches the log (CR
-            // 119.10, `replacement::never_happens`).
-            (TriggerEvent::GainsLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
-                triggering_event_if(new > old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
-            }
-            (TriggerEvent::LosesLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
-                triggering_event_if(new < old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
-            }
+            // The direction is the split.
+            (TriggerEvent::GainsLife { player: who, .. }, GameEvent::LifeChanged { player_id, .. }) => triggering_event_if(
+                matches!(event.life_change(), Some(LifeChange::Gained(_)))
+                    && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)),
+            ),
+            (TriggerEvent::LosesLife { player: who, .. }, GameEvent::LifeChanged { player_id, .. }) => triggering_event_if(
+                matches!(event.life_change(), Some(LifeChange::Lost(_)))
+                    && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)),
+            ),
             (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell_id, caster: who }) => {
                 let spell_ok = match spell {
                     None => true,
@@ -2112,9 +2113,7 @@ impl GameState {
             (
                 TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility },
                 GameEvent::AbilityResolved { identity: resolved, .. },
-            ) => triggering_event_if(referents.this_ability.is_some_and(|this| {
-                this.source == resolved.source && this.ability.definition() == resolved.ability.definition()
-            })),
+            ) => triggering_event_if(referents.this_ability.is_some_and(|this| this.whichever_instance() == resolved.whichever_instance())),
             // Read after the event: the attach is done when the dispatch asks
             // (Siona, Captain of the Pyleas' fourth ruling).
             (
@@ -2490,7 +2489,7 @@ impl GameState {
     /// earlier in the same window — `None` for a token, which came from
     /// nowhere (CR 111.2). The entry's performer announces both, so the
     /// window holds the move whenever it holds the entry.
-    fn entry_origin(&self, id: ObjectId, entered_at: EventId) -> Option<Zone> {
+    pub(super) fn entry_origin(&self, id: ObjectId, entered_at: EventId) -> Option<Zone> {
         let held = self.events.held();
         let before = held.partition_point(|r| r.seq < entered_at);
         for record in held[..before].iter().rev() {
@@ -2754,10 +2753,6 @@ pub(super) fn fold_occurrences(
             1
         }
     }
-}
-
-fn is_triggered(def: &AbilityDef) -> bool {
-    matches!(def.effect, Effect::Triggered(_))
 }
 
 fn carries_a_trigger_multiplier(chars: &EffectiveCharacteristics) -> bool {

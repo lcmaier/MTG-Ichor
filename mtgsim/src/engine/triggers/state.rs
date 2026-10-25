@@ -26,7 +26,7 @@ use crate::engine::zone_function::functions_in;
 use crate::objects::card_data::CardData;
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::{AbilityIdentity, GameState};
-use crate::types::effects::{Effect, EffectRecipient};
+use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     EventIndex, EventKind, EventKindMask, PendingTrigger, Referred, TriggerBinding, TriggerCondition, TriggerDef, TriggerLimit,
@@ -121,7 +121,7 @@ impl GameState {
         let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
         let controller = controller_or_owner(self, id).unwrap_or(object.owner);
         for ability in chars.abilities.iter() {
-            let Effect::Triggered(def) = &ability.effect else { continue };
+            let Some(def) = ability.effect.as_trigger() else { continue };
             let TriggerCondition::State(condition) = &def.condition else { continue };
             if !functions_in(ability, &chars.types, object.zone) {
                 continue;

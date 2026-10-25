@@ -27,7 +27,6 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{BatchId, EventRecord, EventId};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::GameState;
-use crate::types::effects::Effect;
 use crate::types::ids::{ObjectId, ObjectRef};
 
 /// The audit's state on a game that turned it on.
@@ -104,7 +103,7 @@ impl GameState {
     /// Every object in every zone that could carry a triggered ability
     /// (`GameState::objects_that_may_carry`).
     pub(super) fn objects_that_may_trigger(&self) -> Vec<ObjectId> {
-        self.objects_that_may_carry(|effect| matches!(effect, Effect::Triggered(_)))
+        self.objects_that_may_carry(|effect| effect.as_trigger().is_some())
     }
 
     /// The window's triggers over the candidate set with no shortcut in it.

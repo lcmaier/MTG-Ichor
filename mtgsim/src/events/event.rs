@@ -535,7 +535,26 @@ pub enum GameEvent {
     StateBasedActionPerformed,
 }
 
+/// A life total's change (CR 119.3), by its direction: what "gains life"
+/// and "loses life" each read (CR 119.9 makes each source's its own event).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LifeChange {
+    Gained(u64),
+    Lost(u64),
+}
+
 impl GameEvent {
+    /// The life change this record is; `None` for any other record. A 0
+    /// change is no event and never reaches the log (CR 119.10).
+    pub fn life_change(&self) -> Option<LifeChange> {
+        let GameEvent::LifeChanged { old, new, .. } = self else { return None };
+        match new.cmp(old) {
+            std::cmp::Ordering::Greater => Some(LifeChange::Gained(new.abs_diff(*old))),
+            std::cmp::Ordering::Less => Some(LifeChange::Lost(new.abs_diff(*old))),
+            std::cmp::Ordering::Equal => None,
+        }
+    }
+
     /// The card or permanent this zone change put into its destination, as an
     /// `ObjectRef`: its id with the epoch the move gave it. A moved object is a
     /// new object (CR 400.7), so this is how "return it" after a dies trigger

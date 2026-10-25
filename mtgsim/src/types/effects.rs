@@ -2616,6 +2616,16 @@ impl Effect {
         }
     }
 
+    /// The triggered ability's def, for an ability that is one (CR 603). Its
+    /// tag says the same (`registry`'s test), and this is the one the
+    /// dispatcher, the state check and the gate's filing read.
+    pub fn as_trigger(&self) -> Option<&std::sync::Arc<crate::types::triggers::TriggerDef>> {
+        match self {
+            Effect::Triggered(def) => Some(def),
+            _ => None,
+        }
+    }
+
     /// The trigger multiplier a static body is (CR 603.2d), with the "as long
     /// as" clause wrapped around it if there is one: the same peel, asked by
     /// every leg of the dispatch's count and by the count itself, which alone

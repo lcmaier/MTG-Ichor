@@ -12,7 +12,7 @@ use std::sync::Arc;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::events::event::{DamageTarget, EventId, GameEvent};
+use crate::events::event::{DamageTarget, EventId, GameEvent, LifeChange};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history_log::{HistoryRow, RowFact, RowFrame, RowKind, FIRST_TURN};
 use crate::types::history::TurnFact;
@@ -172,8 +172,7 @@ impl GameState {
     fn count(&mut self, update: &HistoryUpdate) {
         match update {
             HistoryUpdate::AbilityResolved { identity } => {
-                let key = (identity.source, identity.ability.definition());
-                *self.history.resolutions_this_turn.entry(key).or_insert(0) += 1;
+                *self.history.resolutions_this_turn.entry(identity.whichever_instance()).or_insert(0) += 1;
             }
             HistoryUpdate::CardDrawn { player } if self.turn_number >= FIRST_TURN && self.in_own_draw_step(*player) => {
                 if let Some(history) = self.history.players.get_mut(*player) {
@@ -222,7 +221,7 @@ impl GameState {
 
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
     pub(crate) fn resolutions_this_turn_of(&self, identity: AbilityIdentity) -> u32 {
-        self.history.resolutions_this_turn.get(&(identity.source, identity.ability.definition())).copied().unwrap_or(0)
+        self.history.resolutions_this_turn.get(&identity.whichever_instance()).copied().unwrap_or(0)
     }
 
     /// The log's rows for record `seq` of `window`, each its object as the
@@ -266,19 +265,13 @@ impl GameState {
                     draft_history_row(Some(*player_id), Some(object), frame, RowFact::Drew);
                 }
             }
-            GameEvent::LifeChanged { player_id, old, new, .. } if new > old => {
-                draft_history_row(Some(*player_id), None, RowFrame::None, RowFact::GainedLife((new - old) as u64));
-            }
-            GameEvent::LifeChanged { player_id, old, new, .. } if new < old => {
-                draft_history_row(Some(*player_id), None, RowFrame::None, RowFact::LostLife((old - new) as u64));
-            }
-            // Where it came from is its zone change's, in the same window; a
-            // token comes from none (CR 111.2).
+            GameEvent::LifeChanged { player_id, .. } => match record.event.life_change() {
+                Some(LifeChange::Gained(n)) => draft_history_row(Some(*player_id), None, RowFrame::None, RowFact::GainedLife(n)),
+                Some(LifeChange::Lost(n)) => draft_history_row(Some(*player_id), None, RowFrame::None, RowFact::LostLife(n)),
+                None => {}
+            },
             GameEvent::PermanentEnteredBattlefield { object_id, controller } => {
-                let from = window.iter().filter_map(|&other| self.events.record(other)).find_map(|other| match &other.event {
-                    GameEvent::ZoneChange { object_id: moved, from, to: Zone::Battlefield, .. } if moved == object_id => Some(*from),
-                    _ => None,
-                });
+                let from = self.entry_origin(*object_id, seq);
                 if let Some((object, frame)) = current(*object_id) {
                     debug_assert!(
                         self.battlefield.get(object_id).is_none_or(|entry| entry.entered_battlefield_turn == self.turn_number),
@@ -380,8 +373,11 @@ impl GameState {
             GameEvent::CardDrawn { player_id, .. } => HistoryUpdate::CardDrawn { player: *player_id },
             // CR 504: the draw step's count starts over.
             GameEvent::StepBegin { step: StepType::Draw, player } => HistoryUpdate::DrawStepBegan { player: *player },
-            GameEvent::LifeChanged { player_id, old, new, .. } if new > old => HistoryUpdate::LifeGained { player: *player_id },
-            GameEvent::LifeChanged { player_id, old, new, .. } if new < old => HistoryUpdate::LifeLost { player: *player_id },
+            GameEvent::LifeChanged { player_id, .. } => match record.event.life_change() {
+                Some(LifeChange::Gained(_)) => HistoryUpdate::LifeGained { player: *player_id },
+                Some(LifeChange::Lost(_)) => HistoryUpdate::LifeLost { player: *player_id },
+                None => return None,
+            },
             GameEvent::PhaseBegin { phase: PhaseType::Combat, .. } => HistoryUpdate::CombatBegan,
             _ => return None,
         })
