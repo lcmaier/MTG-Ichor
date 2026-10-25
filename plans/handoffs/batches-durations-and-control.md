@@ -22,8 +22,8 @@ its owner's graveyard.
 **Words this note uses.**
 
 - A **batch** is one event made of several things that happen at once: the
-  creatures one state-based check destroys (CR 704.3), the two tokens one
-  effect creates, the cards a player draws one at a time are not one.
+  creatures one state-based check destroys (CR 704.3), or the two tokens one
+  effect creates. Cards drawn one at a time are a batch each (CR 121.2).
 - **Phase 1 (deciding)** works out, for each thing in the batch and against
   the board as it was before any of it, which replacement effects apply and
   in what order (CR 616.1). An "as this enters" choice is made here (CR
