@@ -2829,6 +2829,17 @@ fn carries_a_trigger_multiplier(chars: &EffectiveCharacteristics) -> bool {
     chars.abilities.iter().any(|ability| ability.effect.as_trigger_multiplier().is_some())
 }
 
+/// A card for a frame whose object has left the game (CR 800.4a): the name
+/// the frame carried and its abilities, which is what CR 603.3's "text of
+/// the ability that created it" needs and nothing more.
+fn frame_card(frame: &EffectiveCharacteristics) -> CardData {
+    let mut builder = crate::objects::card_data::CardDataBuilder::new(&frame.name);
+    for ability in frame.abilities.iter() {
+        builder = builder.ability(ability.clone());
+    }
+    Arc::try_unwrap(builder.build()).unwrap_or_else(|arc| (*arc).clone())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2857,15 +2868,3 @@ mod tests {
         assert_eq!(admitted, 38);
     }
 }
-
-/// A card for a frame whose object has left the game (CR 800.4a): the name
-/// the frame carried and its abilities, which is what CR 603.3's "text of
-/// the ability that created it" needs and nothing more.
-fn frame_card(frame: &EffectiveCharacteristics) -> CardData {
-    let mut builder = crate::objects::card_data::CardDataBuilder::new(&frame.name);
-    for ability in frame.abilities.iter() {
-        builder = builder.ability(ability.clone());
-    }
-    Arc::try_unwrap(builder.build()).unwrap_or_else(|arc| (*arc).clone())
-}
-
