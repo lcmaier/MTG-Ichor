@@ -541,7 +541,7 @@ impl ContinuousEffectRegistry {
     /// sweep asks it of every change.
     pub fn remove_rows_ending_with_control_of(&mut self, source: ObjectId, now: PlayerId) -> Vec<Arc<ContinuousEffect>> {
         let ends = |row: &ContinuousEffect| row.source == source && row.duration.ends_with_control_of_its_source() && row.controller != now;
-        if !self.effects.iter().any(|row| ends(row)) {
+        if !self.effects.iter().any(ends) {
             return Vec::new();
         }
         self.mutating(|rows| rows.remove_rows_ending_with_control_of(source, now))
