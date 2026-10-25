@@ -2739,14 +2739,13 @@ impl GameState {
         self.owner_of(source).ok_or_else(|| format!("{source} is gone, and nothing kept its last known information to say who owned it"))
     }
 
-    /// The player a `PlayerRef` names at resolution: who puts the counters on
-    /// for `Primitive::AddCounters` and `GetCounters` (CR 122.6a's shape on a
-    /// proposal), and who chooses for `Effect::Optional`.
-    ///
-    /// The player an instruction names as it is applied (CR 608.2d): "an
-    /// opponent" it does not target is its controller's choice among the
-    /// opponents still in the game, asked only when there are two or more
-    /// (Akroan Horse's ruling). Every other reference, and a target, reads as
+    /// The player an instruction names as it is applied (CR 608.2d): who
+    /// puts the counters on for `Primitive::AddCounters` and `GetCounters`
+    /// (CR 122.6a's shape on a proposal), who chooses for `Effect::Optional`,
+    /// and who gains control for `GainControl`. "An opponent" it does not
+    /// target is its controller's choice among the opponents still in the
+    /// game, asked only when there are two or more (Akroan Horse's ruling).
+    /// Every other reference, and a target, reads as
     /// [`Self::resolve_player_ref`] reads it.
     fn player_the_instruction_names(
         &self,

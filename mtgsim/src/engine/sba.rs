@@ -159,15 +159,14 @@ fn moved_since(
 }
 
 impl GameState {
-    /// Check and perform all state-based actions.
-    /// Returns true if any SBA was performed (caller should re-check).
     /// Whether a state-based action applies to `subject`: whether no card
     /// says it does not (`Restriction::RuleDoesNotApply`, CR 101.1).
     fn state_based_action_applies(&self, rule: StateBasedAction, subject: ObjectOrPlayerId) -> bool {
-        let rule = crate::types::restriction::RuleAction::StateBased(rule);
-        !crate::engine::restriction::is_prohibited(self, &crate::engine::restriction::Query::RuleAction { rule, subject })
+        crate::engine::restriction::rule_applies(self, crate::types::restriction::RuleAction::StateBased(rule), subject)
     }
 
+    /// Check and perform all state-based actions.
+    /// Returns true if any SBA was performed (caller should re-check).
     pub fn check_state_based_actions(
         &mut self,
         decisions: &dyn DecisionProvider,

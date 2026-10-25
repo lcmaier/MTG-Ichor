@@ -96,6 +96,13 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
     prohibition(game, query).is_some()
 }
 
+/// CR 101.1 — whether `rule`'s own action applies to `subject`: whether no
+/// card says it does not (`Restriction::RuleDoesNotApply`). The one ask of
+/// axis 4, for every site where a rule acts.
+pub(crate) fn rule_applies(game: &GameState, rule: RuleAction, subject: ObjectOrPlayerId) -> bool {
+    !is_prohibited(game, &Query::RuleAction { rule, subject })
+}
+
 /// [`is_prohibited`], naming the restriction it found first, in the order its
 /// sources are swept. Which one is named is a reader's question, never a
 /// rule's: any one forbids it (CR 101.2).
@@ -191,7 +198,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 /// Does this restriction forbid what the query asks about?
 ///
 /// The outer `match` is on a **pair**: the restriction's axis on the left, the
-/// question's axis on the right. Only the two same-axis pairs can match, which
+/// question's axis on the right. Only each same-axis pair can match, which
 /// is why the cross pairs return `false` rather than being an error — a
 /// `Restriction::ApplyReplacement` simply has nothing to say about a proposed
 /// event, the way a lock has nothing to say about a door it does not fit.

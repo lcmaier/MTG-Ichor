@@ -426,10 +426,7 @@ impl GameState {
                 let rule = crate::types::restriction::RuleAction::CleanupDamageRemoval;
                 let removed: Vec<ObjectId> = damaged
                     .into_iter()
-                    .filter(|&id| {
-                        let query = crate::engine::restriction::Query::RuleAction { rule, subject: ObjectOrPlayerId::Object(id) };
-                        !crate::engine::restriction::is_prohibited(self, &query)
-                    })
+                    .filter(|&id| crate::engine::restriction::rule_applies(self, rule, ObjectOrPlayerId::Object(id)))
                     .collect();
                 // NOT REPLACEABLE: CR 514.2's damage wearing off. The cards that
                 // stop it say the rule does not apply; none replaces it.
