@@ -12,7 +12,7 @@
 //!
 //! # The growth contract
 //!
-//! [`Restriction`] grows on **three axes and no other**, and each is an
+//! [`Restriction`] grows on **four axes and no other**, and each is an
 //! enumeration the engine already owns (§3.3):
 //!
 //! | Axis | What a "can't" attaches to | Bounded by | Open? |
@@ -20,6 +20,11 @@
 //! | 1 | an event the engine proposes | `GameAction`, via [`EventPattern`] | grows with the engine |
 //! | 2 | a choice a player makes | `ChoiceKind` (`ui/choice_types.rs`) | grows with the engine |
 //! | 3 | the application of an effect | `gather`'s one application site | **closed at one arm** |
+//! | 4 | a rule's own action | [`RuleAction`]: the check's `StateBasedAction`, and each turn-based action a card switches off | grows with its first card |
+//!
+//! Axis 4 is asked where the rule acts: the state-based check of every
+//! member it gathers, ahead of CR 704.7's collapse, and CR 514.2's wipe of
+//! each damaged permanent.
 //!
 //! Axis 1 never grows *here*: a new replaceable event arrives as a `GameAction`
 //! variant and reaches [`Restriction::Event`] through `EventPattern` for free.

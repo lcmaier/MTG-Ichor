@@ -501,7 +501,7 @@ owns:
 | 1 | an event the engine proposes | `GameAction` variants, via `EventPattern` | grows with the engine |
 | 2 | a choice a player makes | `ChoiceKind` (`ui/choice_types.rs`) | grows with the engine |
 | 3 | the application of an effect | `gather`'s one application site | **closed at one arm** |
-| 4 | a rule's own action | `RuleAction`: the check's `StateBasedAction`, and each turn-based action a card can switch off | grows with its first card (CR 500.4's mana emptying is next) |
+| 4 | a rule's own action | `RuleAction`: the check's `StateBasedAction`, and each turn-based action a card can switch off | grows with its first card |
 
 - **`Event` never grows.** New replaceable event kinds arrive as `GameAction`
   variants and reach this arm through `EventPattern` for free. A change that
@@ -516,7 +516,11 @@ owns:
   every member it gathers, ahead of CR 704.7's collapse, so every 704.5 subrule
   is covered by one site; a subrule that asks a player first (the legend rule,
   704.6d's commander) asks it before the prompt. A turn-based action joins
-  `RuleAction` with its first card and asks at its own site.
+  `RuleAction` with its first card and asks at its own site. CR 500.4's mana
+  emptying is not one: "mana doesn't empty" (Upwelling, Omnath) is a
+  `ManaPersistence` row kind the mana pool's expiry reads
+  (`codebase-state.md` Deferred Migrations item 4), since a pool's mana can
+  also persist until a stated time rather than not empty at all.
 - **Per-card variety goes in the filters**, which are `ObjectFilter`,
   `CardFilter` and `PlayerRef` — vocabulary that already exists and that §2.4
   measured as sufficient for 60 of 62 observed shapes.

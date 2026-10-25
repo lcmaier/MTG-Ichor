@@ -178,8 +178,9 @@ Carried at the plan's 1.5–2× on code, that's **1,720–2,940**, against the p
      read (an amount's "an opponent's hand", the enters-attacking filter's
      player test) are `&self` and can't ask, so they keep the `Err` above two
      players: the choice would have to be made earlier in their instruction,
-     which is their first card's work. It adds a `ChoiceKind` arm, which
-     brings in the dev GUI gate.
+     which is item 333's, slotted to `multiplayer-rules`. It adds a
+     `ChoiceKind` arm, which brings in the dev GUI gate. The build found a
+     fourth instruction, `AddCounters`' "by", and asks it too.
    - (b) Only `GainControl`'s arm asks, and the other two instruction sites
      keep their `Err`.
 
@@ -193,13 +194,16 @@ Carried at the plan's 1.5–2× on code, that's **1,720–2,940**, against the p
    review, 2026-10-25), an axis for every rule whose own action a card can
    switch off. `rule` is `StateBased(StateBasedAction)`, reusing the
    existing one-variant-per-CR-704.5-subrule enum, or `CleanupDamageRemoval`
-   (CR 514.2); `ManaEmptying` (CR 500.4) joins with its first card. Printed
-   families: 7 cards keep damage through cleanup, 31 keep mana between steps,
-   11 switch off the legend rule (CR 704.5j) and 8 say "you don't lose the
-   game for having 0 or less life" (704.5a; Scryfall, 2026-10-25). The wipe
-   asks it per permanent, and the state-based check asks it once per subrule
-   candidate, gated on a registry flag so a board with no such effect pays
-   nothing: every 704.5 subrule is switchable at once, printed or custom,
+   (CR 514.2). Printed families: 7 cards keep damage through cleanup, 11
+   switch off the legend rule (CR 704.5j) and 8 say "you don't lose the game
+   for having 0 or less life" (704.5a; Scryfall, 2026-10-25). The 31 that
+   keep mana between steps (CR 500.4) are `ManaPersistence`'s, a planned
+   row kind of the mana pool's expiry, and not this axis's. The wipe asks it
+   per permanent, and the state-based check once per member, behind the
+   restriction sweep's own gate: free on a board with no "can't" source at
+   all, and a sweep of the sources per member otherwise, which the budget
+   read on the pool's boards (+0.07%). Every 704.5 subrule is switchable at
+   once, printed or custom,
    with fixtures for 704.5a and 704.5j beside the wipe's (+40–60 lines and
    their fixtures). 704.5a needs this axis and not the event axis's "can't
    lose": the check's one `PlayerLoses` names its first reason, so vetoing

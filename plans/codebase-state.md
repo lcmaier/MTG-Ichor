@@ -9874,3 +9874,25 @@ keyed by its event.
      CR 702.104b's "if tribute wasn't paid" is the card's.
      **Slotted:** with the first registered card that has tribute.
 
+### Found by `durations-and-control` (2026-10-25)
+
+333. **"An opponent" in a read refuses above two players.** Since #293 an
+     instruction that names "an opponent" it does not target asks its
+     controller which as it applies (CR 608.2d,
+     `player_the_instruction_names`). Two places name one while only
+     reading: an amount's "the number of cards in an opponent's hand"
+     (`AmountExpr::CountOf` with a hand, through `evaluate_amount`) and the
+     enters-attacking filter's player test. Both are `&self` and read
+     through `resolve_player_ref`, which refuses with two or more opponents.
+     CR 608.2d makes the choice the instruction's, so the answer is the
+     instruction choosing its opponent before it reads, and the read taking
+     that player. Found at #293's pre-review.
+     **Reachability (2026-10-25):** unreachable — no registered card reads
+     an amount or an enters-attacking filter over "an opponent" it does not
+     target; reachable at four seats with the first that does.
+     **Sized:** ~30–50 lines and a three-seat fixture: the instruction names
+     its opponent once, through the one asking function, and the two reads
+     are handed that player.
+     **Slotted:** `multiplayer-rules`, CR 800 at four seats, where "an
+     opponent" stops being the only one.
+
