@@ -1745,7 +1745,7 @@ impl GameState {
                 }
                 attack.is_blocked = true;
                 self.bump_layer_epoch_if_read(GatedWalkInput::Combat);
-                self.emit_event(GameEvent::BecameBlocked { attacker }, ctx.cause)?;
+                self.emit_event(GameEvent::BecameBlocked { attacker: self.existence_of(attacker)? }, ctx.cause)?;
                 Ok(())
             }
 

@@ -88,12 +88,15 @@ fn declare_blocks(game: &mut GameState, per_defender: &[Vec<(ObjectId, ObjectId)
     assert!(dp.is_empty(), "every scripted declaration was asked");
 }
 
-/// Every `BlockersDeclared` record, in order.
+/// Every `BlockersDeclared` record, in order, each creature by id.
 fn declarations(game: &GameState) -> Vec<(Vec<(ObjectId, ObjectId)>, Vec<ObjectId>)> {
     game.recorded_events()
         .events()
         .filter_map(|event| match event {
-            GameEvent::BlockersDeclared { blocks, unblocked } => Some((blocks.clone(), unblocked.clone())),
+            GameEvent::BlockersDeclared { blocks, unblocked } => Some((
+                blocks.iter().map(|(blocker, attacker)| (blocker.id, attacker.id)).collect(),
+                unblocked.iter().map(|attacker| attacker.id).collect(),
+            )),
             _ => None,
         })
         .collect()

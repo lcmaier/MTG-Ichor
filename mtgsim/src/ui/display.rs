@@ -1074,7 +1074,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                         AttackTarget::Player(player) => player_in_log(player),
                         AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => named(id),
                     };
-                    format!("{} -> {}", named(attacker), attacked)
+                    format!("{} -> {}", named(attacker.id), attacked)
                 })
                 .collect();
             format!("AttackersDeclared: [{}]", attacks.join(", "))
@@ -1091,7 +1091,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                         }
                         (None, []) => name,
                         (None, blocked) => {
-                            let blocked: Vec<String> = blocked.iter().map(|&id| named(id)).collect();
+                            let blocked: Vec<String> = blocked.iter().map(|attacker| named(attacker.id)).collect();
                             format!("{name} blocking {}", blocked.join(" and "))
                         }
                     }
@@ -1101,12 +1101,12 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         }
         BlockersDeclared { blocks, unblocked } => {
             let pairs: Vec<String> = blocks.iter()
-                .map(|(b, a)| format!("{} blocks {}", named(*b), named(*a)))
-                .chain(unblocked.iter().map(|a| format!("{} unblocked", named(*a))))
+                .map(|(b, a)| format!("{} blocks {}", named(b.id), named(a.id)))
+                .chain(unblocked.iter().map(|a| format!("{} unblocked", named(a.id))))
                 .collect();
             format!("BlockersDeclared: [{}]", pairs.join(", "))
         }
-        BecameBlocked { attacker } => format!("BecameBlocked: {}", named(*attacker)),
+        BecameBlocked { attacker } => format!("BecameBlocked: {}", named(attacker.id)),
         SpellCast { spell, caster } => {
             format!("SpellCast: {} casts {}", player_in_log(*caster), named(spell.id))
         }
@@ -1709,11 +1709,14 @@ mod tests {
             GameEvent::TurnBegin { player: 0, turn_number: 1 },
             GameEvent::PermanentEnteredBattlefield { object: reference(game, id()), controller: 0 },
             GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: Some(reference(game, id())) },
-            GameEvent::AttackersDeclared { attackers: vec![(attacker, AttackTarget::Planeswalker(walker))] },
-            GameEvent::BlockersDeclared { blocks: vec![(blocker, blocked)], unblocked: vec![unblocked] },
-            GameEvent::BecameBlocked { attacker: id() },
+            GameEvent::AttackersDeclared { attackers: vec![(reference(game, attacker), AttackTarget::Planeswalker(walker))] },
+            GameEvent::BlockersDeclared {
+                blocks: vec![(reference(game, blocker), reference(game, blocked))],
+                unblocked: vec![reference(game, unblocked)],
+            },
+            GameEvent::BecameBlocked { attacker: reference(game, id()) },
             GameEvent::RemovedFromCombat {
-                removed: vec![CombatExit { object: reference(game, exit), attacking: None, blocking: vec![exit_blocked] }],
+                removed: vec![CombatExit { object: reference(game, exit), attacking: None, blocking: vec![reference(game, exit_blocked)] }],
             },
             GameEvent::SpellCast { spell: reference(game, id()), caster: 0 },
             GameEvent::AbilityResolved { identity: identity(game, id()), controller: 0 },

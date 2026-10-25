@@ -328,20 +328,20 @@ impl GameState {
             }
             GameEvent::AttackersDeclared { attackers } => {
                 for &(attacker, target) in attackers {
-                    if let Some((object, frame)) = current(attacker) {
+                    if let Some((object, frame)) = current(attacker.id) {
                         draft_history_row(Some(self.active_player), Some(object), frame, RowFact::Attacked(target));
                     }
                 }
             }
             GameEvent::BlockersDeclared { blocks, .. } => {
                 for &(blocker, attacker) in blocks {
-                    if let (Some((object, frame)), Some(attacker)) = (current(blocker), self.object_ref(attacker)) {
+                    if let (Some((object, frame)), Some(attacker)) = (current(blocker.id), self.object_ref(attacker.id)) {
                         draft_history_row(controller(&frame), Some(object), frame, RowFact::Blocked(attacker));
                     }
                 }
             }
             GameEvent::BecameBlocked { attacker } => {
-                if let Some((object, frame)) = current(*attacker) {
+                if let Some((object, frame)) = current(attacker.id) {
                     draft_history_row(controller(&frame), Some(object), frame, RowFact::BecameBlocked);
                 }
             }

@@ -236,19 +236,21 @@ pub enum GameEvent {
     // --- Combat ---
     /// CR 508.1: each creature declared as an attacker, with what it attacks
     /// (CR 508.1b). A creature put onto the battlefield attacking is in no
-    /// record: it never "attacked" (CR 508.4).
-    AttackersDeclared { attackers: Vec<(ObjectId, AttackTarget)> },
+    /// record: it never "attacked" (CR 508.4). What it attacks is the
+    /// combat's own `AttackTarget`, a permanent by id: the record is
+    /// unbatched, so its dispatch reads that permanent at the record's moment.
+    AttackersDeclared { attackers: Vec<(ObjectRef, AttackTarget)> },
     /// CR 509.1: every defending player's blocks (CR 802.4), each as (blocker,
     /// attacker), and each attacking creature no creature was declared
     /// blocking, which became an unblocked creature (CR 509.1h). One record
     /// for the step, written when nobody blocks too, since CR 509.3g's
     /// "attacks and isn't blocked" reads the declaration whole.
-    BlockersDeclared { blocks: Vec<(ObjectId, ObjectId)>, unblocked: Vec<ObjectId> },
+    BlockersDeclared { blocks: Vec<(ObjectRef, ObjectRef)>, unblocked: Vec<ObjectRef> },
     /// CR 509.1h: an unblocked attacking creature became blocked by an
     /// effect, no creature blocking it. "Whenever this becomes blocked"
     /// reads it (CR 509.3c); "becomes blocked by a creature" never does
     /// (509.3d).
-    BecameBlocked { attacker: ObjectId },
+    BecameBlocked { attacker: ObjectRef },
     /// CR 506.4, 511.3: permanents removed from combat at once, each with
     /// what it was attacking or blocking as it was removed, which CR 508.5
     /// reads once its creature has left combat. No replaceable event
@@ -714,8 +716,8 @@ impl GameEvent {
             | CountersPutOn { subject: ObjectOrPlayer::Object(object), .. }
             | CountersRemovedFrom { subject: ObjectOrPlayer::Object(object), .. }
             | DamageDealt { source: object, target: ObjectOrPlayer::Player(_), .. }
-            | DamagePrevented { target: ObjectOrPlayer::Object(object), .. } => each(object.id),
-            BecameBlocked { attacker: id } => each(*id),
+            | DamagePrevented { target: ObjectOrPlayer::Object(object), .. }
+            | BecameBlocked { attacker: object } => each(object.id),
             AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
                 each(identity.source.id)
             }
@@ -765,7 +767,7 @@ impl GameEvent {
             // Each attacker, and the planeswalker or battle it attacks.
             AttackersDeclared { attackers } => {
                 for &(attacker, target) in attackers {
-                    each(attacker);
+                    each(attacker.id);
                     if let Some(attacked) = target.permanent() {
                         each(attacked);
                     }
@@ -773,11 +775,11 @@ impl GameEvent {
             }
             BlockersDeclared { blocks, unblocked } => {
                 for &(blocker, attacker) in blocks {
-                    each(blocker);
-                    each(attacker);
+                    each(blocker.id);
+                    each(attacker.id);
                 }
-                for &attacker in unblocked {
-                    each(attacker);
+                for attacker in unblocked {
+                    each(attacker.id);
                 }
             }
             // Each permanent removed, and what it attacked or blocked.
@@ -787,8 +789,8 @@ impl GameEvent {
                     if let Some(attacked) = exit.attacking.and_then(AttackTarget::permanent) {
                         each(attacked);
                     }
-                    for &attacker in &exit.blocking {
-                        each(attacker);
+                    for attacker in &exit.blocking {
+                        each(attacker.id);
                     }
                 }
             }
@@ -820,7 +822,7 @@ pub struct CombatExit {
     /// whose planeswalker or battle had left combat first (CR 506.4c).
     pub attacking: Option<AttackTarget>,
     /// The attackers it was blocking.
-    pub blocking: Vec<ObjectId>,
+    pub blocking: Vec<ObjectRef>,
 }
 
 /// Which of CR 701.3d's ways an attachment stopped being attached to its

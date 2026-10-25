@@ -2291,9 +2291,9 @@ pub(crate) mod samples {
             ("TurnBegin", GameEvent::TurnBegin { player: 0, turn_number: 1 }),
             ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None }),
             ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object: identity.source, controller: 0 }),
-            ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![(id, AttackTarget::Player(1))] }),
-            ("BlockersDeclared", GameEvent::BlockersDeclared { blocks: vec![(id, id)], unblocked: Vec::new() }),
-            ("BecameBlocked", GameEvent::BecameBlocked { attacker: id }),
+            ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![(identity.source, AttackTarget::Player(1))] }),
+            ("BlockersDeclared", GameEvent::BlockersDeclared { blocks: vec![(identity.source, identity.source)], unblocked: Vec::new() }),
+            ("BecameBlocked", GameEvent::BecameBlocked { attacker: identity.source }),
             ("AbilityTriggered", GameEvent::AbilityTriggered {
                 trigger: TriggerId(0),
                 origin: TriggerOrigin::Object(identity),

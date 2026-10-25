@@ -2084,11 +2084,11 @@ impl GameState {
                 }
                 let attacks = attackers
                     .iter()
-                    .filter(|&&(id, target)| {
-                        self.subject_matches(attacker, ObjectInformation::Current(id), referents, seq)
+                    .filter(|&&(declared, target)| {
+                        self.subject_matches(attacker, ObjectInformation::Current(declared.id), referents, seq)
                             && defender.as_ref().is_none_or(|asked| self.defender_matches(asked, target, referents, seq))
                     })
-                    .filter_map(|&(id, target)| Some((self.subject_after(event, id)?, self.attacked(target)?)));
+                    .filter_map(|&(declared, target)| Some((self.subject_after(event, declared.id)?, self.attacked(target)?)));
                 match occurrence {
                     AttackOccurrence::Attacker => {
                         attacks.map(|(attacker, defender)| TriggeringEventObjects::Attack { attacker, defender }).collect()
@@ -2300,8 +2300,8 @@ impl GameState {
             GameEvent::BecameBlocked { attacker: blocked },
         ) = (arm, &record.event)
         {
-            let watched = self.subject_matches(attacker, ObjectInformation::Current(*blocked), referents, record.seq);
-            let attacker = self.subject_after(&record.event, *blocked).filter(|_| watched);
+            let watched = self.subject_matches(attacker, ObjectInformation::Current(blocked.id), referents, record.seq);
+            let attacker = self.subject_after(&record.event, blocked.id).filter(|_| watched);
             return attacker.map(|attacker| TriggeringEventObjects::BlockedBy { attacker, blockers: Vec::new() }).into_iter().collect();
         }
         let (
@@ -2315,8 +2315,8 @@ impl GameState {
         // Each creature on one side of the declaration once, in the order it
         // first appears there. The CR fixes no order among one event's
         // occurrences; an attack's defenders are read the same way.
-        let each_on = |side: fn(&(ObjectId, ObjectId)) -> ObjectId| {
-            let mut each: Vec<ObjectId> = Vec::new();
+        let each_on = |side: fn(&(ObjectRef, ObjectRef)) -> ObjectRef| {
+            let mut each: Vec<ObjectRef> = Vec::new();
             for pair in blocks {
                 if !each.contains(&side(pair)) {
                     each.push(side(pair));
@@ -2324,14 +2324,14 @@ impl GameState {
             }
             each
         };
-        let blocker_of = |&(b, _): &(ObjectId, ObjectId)| b;
-        let attacker_of = |&(_, a): &(ObjectId, ObjectId)| a;
+        let blocker_of = |&(b, _): &(ObjectRef, ObjectRef)| b;
+        let attacker_of = |&(_, a): &(ObjectRef, ObjectRef)| a;
         // CR 506.5: the only creature declared as a blocker.
         if *alone && each_on(blocker_of).len() != 1 {
             return Vec::new();
         }
-        let is = |subject: &TriggerSubject, id: ObjectId| self.subject_matches(subject, ObjectInformation::Current(id), referents, seq);
-        let now = |id: ObjectId| self.subject_after(event, id);
+        let is = |subject: &TriggerSubject, named: ObjectRef| self.subject_matches(subject, ObjectInformation::Current(named.id), referents, seq);
+        let now = |named: ObjectRef| self.subject_after(event, named.id);
         let enough = |n: usize| count.unwrap_or(CountIs::AtLeast(1)).satisfied_by(n as u64);
         match *occurrence {
             BlockOccurrence::Block => blocks

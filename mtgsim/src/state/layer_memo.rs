@@ -491,7 +491,8 @@ mod tests {
         assert!(game.history.log.rows_newest_first().any(|row| row.fact.kind() == crate::state::history_log::RowKind::DealtDamage));
         assert_eq!(power(&game, bears), (Some(2), true), "a damage row is not what the static read");
 
-        game.emit_event(GameEvent::AttackersDeclared { attackers: vec![(bears, AttackTarget::Player(1))] }, cause).unwrap();
+        let attacker = game.object_ref(bears).unwrap();
+        game.emit_event(GameEvent::AttackersDeclared { attackers: vec![(attacker, AttackTarget::Player(1))] }, cause).unwrap();
         assert_eq!(power(&game, bears), (Some(5), false), "an attack row is, and the bears attacked");
     }
 
