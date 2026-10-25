@@ -367,6 +367,15 @@ impl DefenderFilter {
             | (DefenderFilter::Permanent(_), AttackTarget::Player(_)) => false,
         }
     }
+
+    /// Whether a planeswalker or a battle, an object, can be what it names.
+    pub fn admits_a_permanent(&self) -> bool {
+        match self {
+            DefenderFilter::Player(_) => false,
+            DefenderFilter::Permanent(_) => true,
+            DefenderFilter::Or(either, or) => either.admits_a_permanent() || or.admits_a_permanent(),
+        }
+    }
 }
 
 /// What one occurrence of an attack trigger is (CR 603.2c): each creature
@@ -1356,9 +1365,15 @@ impl TriggerEvent {
 
     /// The parts an object can play in this arm's triggering events: what an
     /// instruction may name, which a registry test checks every registered
-    /// card against.
+    /// card against. Read off the arm's fields, so an arm that watches a
+    /// player declares no object in the player's place: damage to a player
+    /// has no recipient object (CR 120.1), and a player attacked is no object
+    /// attacked (CR 506.3).
     pub fn event_roles(&self) -> &'static [EventRole] {
         match self {
+            TriggerEvent::DamageDealt { recipient: DamageRecipient::Player(_), .. } => &[EventRole::DamageSource],
+            TriggerEvent::DamageIsPrevented { recipient: DamageRecipient::Player(_), .. } => &[],
+            TriggerEvent::Attacks { defender: Some(defender), .. } if !defender.admits_a_permanent() => &[EventRole::Attacker],
             TriggerEvent::ZoneChange { .. }
             | TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
@@ -2375,6 +2390,42 @@ mod tests {
                 assert_eq!(arm.reads(record), reads.contains(name), "{arm:?} reading a {name} record");
             }
         }
+    }
+
+    /// An arm that watches a player declares no event role a player fills:
+    /// damage to a player has no recipient object (CR 120.1), and a player
+    /// attacked is no object attacked (CR 506.3), so "that creature" there is
+    /// refused at the registry rather than finding nothing at resolution.
+    #[test]
+    fn an_arm_that_watches_a_player_declares_no_object_in_its_place() {
+        let each = Multiplicity::PerOccurrence;
+        let you = || Some(PlayerRef::You);
+        let to_you = TriggerEvent::DamageDealt {
+            source: TriggerSubject::Any,
+            recipient: DamageRecipient::Player(you()),
+            combat: None,
+            excess: false,
+            multiplicity: each,
+        };
+        assert_eq!(to_you.event_roles(), &[EventRole::DamageSource]);
+        let prevented_to_you = TriggerEvent::DamageIsPrevented { recipient: DamageRecipient::Player(you()), multiplicity: each };
+        assert_eq!(prevented_to_you.event_roles(), &[] as &[EventRole]);
+        let attacks_you = TriggerEvent::Attacks {
+            attacker: TriggerSubject::Any,
+            defender: Some(DefenderFilter::Player(you())),
+            occurrence: AttackOccurrence::Attacker,
+            alone: false,
+            multiplicity: each,
+        };
+        assert_eq!(attacks_you.event_roles(), &[EventRole::Attacker]);
+        let attacks_anything = TriggerEvent::Attacks {
+            attacker: TriggerSubject::Any,
+            defender: Some(DefenderFilter::Or(Box::new(DefenderFilter::Player(you())), Box::new(DefenderFilter::Permanent(ObjectFilter::All)))),
+            occurrence: AttackOccurrence::Attacker,
+            alone: false,
+            multiplicity: each,
+        };
+        assert_eq!(attacks_anything.event_roles(), &[EventRole::Attacker, EventRole::Attacked]);
     }
 
     /// CR 603.10a's classes, asked of an arm that names both zones, are the

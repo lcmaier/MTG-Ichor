@@ -1883,6 +1883,24 @@ impl GameState {
         referents: &TriggerReferents<'_>,
         record: &EventRecord,
     ) -> Vec<TriggeringEventObjects> {
+        let events = self.triggering_events_of_pair(arm, referents, record);
+        // What an instruction may name is the arm's declaration
+        // (`TriggerEvent::event_roles`), so an event carries no other part.
+        debug_assert!(
+            events.iter().flat_map(TriggeringEventObjects::objects).all(|(role, _)| arm.event_roles().contains(&role)),
+            "{arm:?} declares fewer event roles than {:?} carries",
+            record.event
+        );
+        events
+    }
+
+    /// [`Self::triggering_events_in`]'s pairing of an arm with a record.
+    fn triggering_events_of_pair(
+        &self,
+        arm: &TriggerEvent,
+        referents: &TriggerReferents<'_>,
+        record: &EventRecord,
+    ) -> Vec<TriggeringEventObjects> {
         let (seq, event) = (record.seq, &record.event);
         if !arm.reads(event) {
             return Vec::new();
@@ -2535,12 +2553,11 @@ impl GameState {
     }
 
     /// The objects `record`'s one triggering event is about (§3.4), each as
-    /// the existence the trigger remembers (`subject_after`). The arm says
-    /// which event roles its events may carry, grouped as `event_roles()`
-    /// groups them, and an object role this event fills with a player names
-    /// no object; its record is one `triggering_events_in` matched to it. An
-    /// object the store no longer holds leaves the event about none. An
-    /// attack record holds one event per attacker, which
+    /// the existence the trigger remembers (`subject_after`), grouped as the
+    /// arm's `event_roles()` groups them; a part this event fills with a
+    /// player names no object. Its record is one `triggering_events_in`
+    /// matched to it. An object the store no longer holds leaves the event
+    /// about none. An attack record holds one event per attacker, which
     /// `triggering_events_in` makes, so it answers none here.
     fn triggering_event_objects(&self, arm: &TriggerEvent, record: &EventRecord) -> TriggeringEventObjects {
         match arm {
