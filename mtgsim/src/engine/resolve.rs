@@ -7,7 +7,7 @@ use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, PtValue, Timestamp,
 };
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, DamageTarget, EventId, GameEvent, ResolutionStamp};
+use crate::events::event::{CounterSubject, EventId, GameEvent, ResolutionStamp};
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::objects::card_data::AbilityDef;
@@ -556,7 +556,7 @@ impl GameState {
             // **now**", resolved here and ordered for the CR 616.1 prompt and the log.
             Primitive::DealDamage { amount: amount_expr, unpreventable } => {
                 let amount = self.evaluate_amount(amount_expr, ctx, None)?;
-                let targets: Vec<DamageTarget> = match recipient {
+                let targets: Vec<ObjectOrPlayerId> = match recipient {
                     // CR 120.1 — damage is dealt to permanents and players, so
                     // a zone-reaching recipient has nothing to be dealt to.
                     EffectRecipient::FilteredObjectsIn(..) => {
@@ -569,10 +569,10 @@ impl GameState {
                         .battlefield_ids_ordered()
                         .into_iter()
                         .filter(|&id| self.matches_for_effect(id, filter, ctx))
-                        .map(DamageTarget::Object)
+                        .map(ObjectOrPlayerId::Object)
                         .collect(),
                     // "Deals 2 damage to you": Char, a painland.
-                    EffectRecipient::Controller => vec![DamageTarget::Player(ctx.controller)],
+                    EffectRecipient::Controller => vec![ObjectOrPlayerId::Player(ctx.controller)],
                     EffectRecipient::Implicit => {
                         return Err(format!(
                             "a `Primitive::DealDamage` on {:?} names no recipient; damage is dealt to \
@@ -602,8 +602,8 @@ impl GameState {
                     | EffectRecipient::ChosenBy(_) => targets
                         .iter()
                         .map(|t| match t {
-                            ObjectOrPlayerId::Object(id) => DamageTarget::Object(*id),
-                            ObjectOrPlayerId::Player(pid) => DamageTarget::Player(*pid),
+                            ObjectOrPlayerId::Object(id) => ObjectOrPlayerId::Object(*id),
+                            ObjectOrPlayerId::Player(pid) => ObjectOrPlayerId::Player(*pid),
                         })
                         .collect(),
                 };

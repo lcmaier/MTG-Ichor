@@ -36,7 +36,6 @@ use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::engine::layers::types::{EffectModification, Layer, PtValue};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
@@ -1031,7 +1030,7 @@ fn a_clone_of_a_commander_is_not_a_commander() {
     let ctx = ActionContext::new(&dp);
     let hit = |source| GameAction::DealDamage {
         source,
-        target: DamageTarget::Player(0),
+        target: ObjectOrPlayerId::Player(0),
         amount: 2,
         is_combat: true,
         unpreventable: false,

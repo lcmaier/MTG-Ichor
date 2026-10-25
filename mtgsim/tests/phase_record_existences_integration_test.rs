@@ -8,14 +8,14 @@ use std::sync::Arc;
 use mtgsim::cards::authoring::triggers::{counters_removed_from, triggered_ability, whenever};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
-use mtgsim::events::event::{CounterSubject, DamageTarget};
+use mtgsim::events::event::CounterSubject;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp, vanilla_creature};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, Primitive};
-use mtgsim::types::ids::ObjectId;
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
 
@@ -86,7 +86,7 @@ fn a_damage_trigger_reads_a_source_that_left_in_its_event_as_it_dealt_the_damage
     game.continuous_effects.add(registered(bears, Layer::Layer5Color, timestamp, EffectModification::SetColors([Color::Red].into_iter().collect())));
     let deals = GameAction::DealDamage {
         source: bears,
-        target: DamageTarget::Player(1),
+        target: ObjectOrPlayerId::Player(1),
         amount: 1,
         is_combat: false,
         unpreventable: false,

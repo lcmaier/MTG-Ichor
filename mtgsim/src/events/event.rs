@@ -842,33 +842,10 @@ pub enum UnattachRoute {
     HostLeft,
 }
 
-/// What damage is being dealt to, in a proposal. A record names its object
-/// by existence instead ([`ObjectOrPlayer`], [`Self::for_record`]).
-///
-/// `Copy` because CR 614.9's redirection moves one of these into a
-/// rewritten proposal while the original is still being read for the rule's
-/// "or from" leg, and both halves are ids.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DamageTarget {
-    Player(PlayerId),
-    Object(ObjectId),
-}
-
-impl DamageTarget {
-    /// The recipient as the record of the damage names it: a player as it
-    /// is, an object as `GameState::existence_for_record` names it.
-    pub(crate) fn for_record(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
-        Ok(match self {
-            DamageTarget::Player(player) => ObjectOrPlayer::Player(player),
-            DamageTarget::Object(id) => ObjectOrPlayer::Object(game.existence_for_record(id)?),
-        })
-    }
-}
-
 /// What counters are being put on or taken off — CR 122.1's "a marker placed
 /// on an object or player".
 ///
-/// [`DamageTarget`]'s shape, for the same reason it has one: the two halves are
+/// [`ObjectOrPlayerId`]'s shape, for the same reason it has one: the two halves are
 /// ids, CR 616.1's chooser is the object's controller for one and the player
 /// for the other, and a `PlayerState` holds counters of the same
 /// `CounterType` a permanent does because CR 701.34a's proliferate sweeps

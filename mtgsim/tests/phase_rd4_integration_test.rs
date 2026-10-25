@@ -19,7 +19,6 @@ use mtgsim::cards::phase_rd_cards::{
 };
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{
     AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
 };
@@ -36,7 +35,7 @@ use mtgsim::types::effects::{
     ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, RetargetSpec, Rewrite, Uses,
@@ -78,7 +77,7 @@ fn counts(game: &GameState) -> Vec<u64> {
 fn deal(
     game: &mut GameState,
     source: ObjectId,
-    target: DamageTarget,
+    target: ObjectOrPlayerId,
     amount: u64,
     unpreventable: bool,
     ctx: &ActionContext,
@@ -278,7 +277,7 @@ fn pariah_puts_damage_aimed_at_you_onto_the_enchanted_creature() {
     let source = probe(&mut game, 1);
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, false, &ctx);
 
     assert_eq!(life(&game, 0), 20, "the damage never reached the player");
     assert_eq!(marked(&game, host), 3, "it reached the enchanted creature");
@@ -306,7 +305,7 @@ fn pariah_whose_host_has_left_the_battlefield_does_nothing() {
     let ctx = test_ctx();
 
     game.change_zone(host, Zone::Graveyard, ZoneChangeAct::Destroyed, &ctx).unwrap();
-    deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, false, &ctx);
 
     assert_eq!(life(&game, 0), 17, "the damage was dealt as proposed");
 }
@@ -347,14 +346,14 @@ fn a_registry_row_whose_source_has_left_the_battlefield_redirects_nothing() {
 
     // It works while the source is there — the control, so the test below is
     // about the destination and not about the row.
-    deal(&mut game, source, DamageTarget::Player(0), 2, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 2, false, &ctx);
     assert_eq!(life(&game, 0), 20);
     assert_eq!(marked(&game, redirector), 2);
 
     game.change_zone(redirector, Zone::Graveyard, ZoneChangeAct::Destroyed, &ctx).unwrap();
     assert_eq!(game.replacement_effects.len(), 1, "the row outlives its source");
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, false, &ctx);
 
     assert_eq!(life(&game, 0), 17, "the damage was dealt as proposed");
 }
@@ -374,7 +373,7 @@ fn pariah_attached_to_nothing_does_nothing() {
     let source = probe(&mut game, 1);
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, false, &ctx);
 
     assert_eq!(life(&game, 0), 17);
 }
@@ -401,7 +400,7 @@ fn a_redirect_onto_a_noncreature_permanent_does_nothing() {
     let source = probe(&mut game, 1);
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, false, &ctx);
 
     assert_eq!(life(&game, 0), 17, "an enchantment is not a legal destination");
 }
@@ -418,7 +417,7 @@ fn palisade_giant_takes_the_damage_aimed_at_you() {
     let source = probe(&mut game, 1);
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Player(0), 5, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 5, false, &ctx);
 
     assert_eq!(life(&game, 0), 20);
     assert_eq!(marked(&game, giant), 5);
@@ -440,7 +439,7 @@ fn reflect_damage_sends_the_next_damage_back_to_its_sources_controller() {
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Player(0),
+            target: ObjectOrPlayerId::Player(0),
             amount: 4,
             is_combat: false,
             unpreventable: false,
@@ -476,7 +475,7 @@ fn a_once_redirect_to_a_player_who_has_left_the_game_keeps_its_row() {
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Player(0),
+            target: ObjectOrPlayerId::Player(0),
             amount: 4,
             is_combat: false,
             unpreventable: false,
@@ -506,8 +505,8 @@ fn palisade_giant_takes_the_damage_aimed_at_your_other_permanents() {
     let source = probe(&mut game, 1);
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Object(mine), 2, false, &ctx);
-    deal(&mut game, source, DamageTarget::Object(theirs), 2, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Object(mine), 2, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Object(theirs), 2, false, &ctx);
 
     assert_eq!(marked(&game, mine), 0, "a permanent its controller controls");
     assert_eq!(marked(&game, theirs), 2, "one they do not");
@@ -540,7 +539,7 @@ fn a_count_applied_to_unpreventable_damage_prevents_nothing_and_is_not_reduced()
     );
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Player(0), 4, true, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 4, true, &ctx);
 
     assert_eq!(life(&game, 0), 16, "all four, none of it prevented");
     assert_eq!(counts(&game), vec![3], "the count was not touched");
@@ -567,7 +566,7 @@ fn a_three_damage_count_under_five_unpreventable_damage_survives_intact() {
     );
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Player(0), 5, true, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 5, true, &ctx);
 
     assert_eq!(life(&game, 0), 15);
     assert_eq!(counts(&game), vec![3]);
@@ -601,7 +600,7 @@ fn a_riders_prevented_amount_is_zero_under_unpreventable_damage() {
     );
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, true, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, true, &ctx);
 
     assert_eq!(life(&game, 0), 17, "three dealt, none prevented, none gained");
     assert_eq!(counts(&game), vec![3]);
@@ -636,7 +635,7 @@ fn two_prevention_effects_on_unpreventable_damage_are_each_applied_once() {
     let dp = RecordingDecisionProvider::picking(0);
     let ctx = ActionContext::new(&dp);
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, true, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, true, &ctx);
 
     assert_eq!(life(&game, 0), 17, "neither prevented anything");
     assert_eq!(dp.prompts(), 1, "two candidates, one CR 616.1 choice, then none");
@@ -655,7 +654,7 @@ fn a_cant_be_prevented_row_makes_a_whole_event_prevention_prevent_nothing() {
     cant_be_prevented_this_turn(&mut game, banner, 1);
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, false, &ctx);
 
     assert_eq!(life(&game, 0), 17, "the Angel's Prevent prevented nothing");
     assert_eq!(game.players[0].graveyard.len(), 6, "and its rider still milled 2x3");
@@ -677,7 +676,7 @@ fn a_static_cant_be_prevented_ability_makes_a_prevention_prevent_nothing() {
     let source = probe(&mut game, 1);
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, false, &ctx);
 
     assert_eq!(life(&game, 0), 17);
     assert_eq!(game.players[0].graveyard.len(), 6);
@@ -692,7 +691,7 @@ fn without_the_restriction_the_same_board_prevents_the_damage() {
     let source = probe(&mut game, 1);
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, false, &ctx);
 
     assert_eq!(life(&game, 0), 20);
     assert_eq!(game.players[0].graveyard.len(), 6);
@@ -716,7 +715,7 @@ fn a_cant_be_prevented_row_leaves_a_count_intact() {
     cant_be_prevented_this_turn(&mut game, banner, 1);
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Object(target), 2, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Object(target), 2, false, &ctx);
 
     assert_eq!(marked(&game, target), 2);
     assert_eq!(counts(&game), vec![4], "CR 615.12's last sentence");
@@ -758,7 +757,7 @@ fn under_a_cant_be_prevented_row_the_angel_still_mills_and_reverse_damage_gains_
     game.execute_action(
         GameAction::DealDamage {
             source: bolt_source,
-            target: DamageTarget::Player(0),
+            target: ObjectOrPlayerId::Player(0),
             amount: 3,
             is_combat: false,
             unpreventable: false,
@@ -813,7 +812,7 @@ fn a_shield_counter_still_prevents_preventable_damage() {
     let source = probe(&mut game, 0);
     let ctx = test_ctx();
 
-    deal(&mut game, source, DamageTarget::Object(target), 4, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Object(target), 4, false, &ctx);
 
     assert_eq!(marked(&game, target), 0);
     assert_eq!(
@@ -840,7 +839,7 @@ fn a_redirect_hands_the_event_to_the_destinations_own_shield_counter() {
     let dp = RecordingDecisionProvider::picking(0);
     let ctx = ActionContext::new(&dp);
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, false, &ctx);
 
     assert_eq!(life(&game, 0), 20, "redirected off the player");
     assert_eq!(marked(&game, host), 0, "and prevented on the creature");
@@ -870,7 +869,7 @@ fn a_redirect_carries_the_unpreventable_flag_onto_the_destination() {
     let dp = RecordingDecisionProvider::picking(0);
     let ctx = ActionContext::new(&dp);
 
-    deal(&mut game, source, DamageTarget::Player(0), 3, true, &ctx);
+    deal(&mut game, source, ObjectOrPlayerId::Player(0), 3, true, &ctx);
 
     assert_eq!(life(&game, 0), 20, "redirected off the player");
     assert_eq!(marked(&game, host), 3, "and the shield counter prevented none of it");

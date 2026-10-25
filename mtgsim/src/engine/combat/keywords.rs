@@ -4,24 +4,23 @@
 // `assign_combat_damage` in resolution.rs calls these as an orchestrator.
 
 use crate::engine::combat::resolution::CombatDamageAssignment;
-use crate::events::event::DamageTarget;
 use crate::oracle::characteristics::{has_keyword, get_effective_toughness};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::ui::ask::ask_choose_trample_damage_assignment;
 use crate::ui::decision::DecisionProvider;
 
-/// Convert an `AttackTarget` to a `DamageTarget`.
+/// Convert an `AttackTarget` to an `ObjectOrPlayerId`.
 ///
 /// Used by trample and unblocked-attacker logic to determine where
 /// overflow or direct damage goes.
-pub fn attack_target_to_damage_target(target: &AttackTarget) -> DamageTarget {
+pub fn attack_target_to_damage_target(target: &AttackTarget) -> ObjectOrPlayerId {
     match target {
-        AttackTarget::Player(pid) => DamageTarget::Player(*pid),
-        AttackTarget::Planeswalker(oid) => DamageTarget::Object(*oid),
-        AttackTarget::Battle(oid) => DamageTarget::Object(*oid),
+        AttackTarget::Player(pid) => ObjectOrPlayerId::Player(*pid),
+        AttackTarget::Planeswalker(oid) => ObjectOrPlayerId::Object(*oid),
+        AttackTarget::Battle(oid) => ObjectOrPlayerId::Object(*oid),
     }
 }
 
@@ -74,7 +73,7 @@ pub fn lethal_damage_owed(
     source_has_deathtouch: bool,
 ) -> u64 {
     let mut assigned_amount = 0u64;
-    for assignment in assigned.iter().filter(|a| a.target == DamageTarget::Object(blocker) && a.amount > 0) {
+    for assignment in assigned.iter().filter(|a| a.target == ObjectOrPlayerId::Object(blocker) && a.amount > 0) {
         if has_keyword(game, assignment.source, KeywordFlag::Deathtouch) {
             return 0;
         }
@@ -149,7 +148,7 @@ pub fn assign_trample_damage(
         if amount > 0 && game.battlefield.contains_key(&blocker_id) {
             assignments.push(CombatDamageAssignment {
                 source: attacker_id,
-                target: DamageTarget::Object(blocker_id),
+                target: ObjectOrPlayerId::Object(blocker_id),
                 amount,
             });
         }
@@ -168,7 +167,7 @@ pub fn assign_trample_damage(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::event::DamageTarget;
+    use crate::types::ids::ObjectOrPlayerId;
     use crate::ui::choice_types::ChoiceKind;
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::test_support::{
@@ -256,7 +255,7 @@ mod tests {
         let blocker = place_creature(&mut game, 1, 0, 5);
         let plain = place_creature(&mut game, 0, 2, 2);
         let deathtouch = place_creature_with_keywords(&mut game, 0, 1, 1, &[KeywordFlag::Deathtouch]);
-        let to_blocker = |source, amount| CombatDamageAssignment { source, target: DamageTarget::Object(blocker), amount };
+        let to_blocker = |source, amount| CombatDamageAssignment { source, target: ObjectOrPlayerId::Object(blocker), amount };
         assert_eq!(lethal_damage_owed(&game, blocker, &[to_blocker(plain, 2)], false), 3);
         assert_eq!(lethal_damage_owed(&game, blocker, &[to_blocker(deathtouch, 1)], false), 0);
         assert_eq!(lethal_damage_owed(&game, blocker, &[to_blocker(plain, 5)], true), 0);
@@ -268,7 +267,7 @@ mod tests {
     fn test_attack_target_player() {
         assert_eq!(
             attack_target_to_damage_target(&AttackTarget::Player(1)),
-            DamageTarget::Player(1)
+            ObjectOrPlayerId::Player(1)
         );
     }
 
@@ -288,7 +287,7 @@ mod tests {
         scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: trampler,
-                defending_target: DamageTarget::Player(1),
+                defending_target: ObjectOrPlayerId::Player(1),
             },
             vec![2, 2],
         );
@@ -298,10 +297,10 @@ mod tests {
         );
 
         let to_blocker: Vec<_> = assignments.iter()
-            .filter(|a| a.target == DamageTarget::Object(blocker))
+            .filter(|a| a.target == ObjectOrPlayerId::Object(blocker))
             .collect();
         let to_player: Vec<_> = assignments.iter()
-            .filter(|a| a.target == DamageTarget::Player(1))
+            .filter(|a| a.target == ObjectOrPlayerId::Player(1))
             .collect();
         assert_eq!(to_blocker.len(), 1);
         assert_eq!(to_blocker[0].amount, 2);
@@ -326,7 +325,7 @@ mod tests {
         scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: trampler,
-                defending_target: DamageTarget::Player(1),
+                defending_target: ObjectOrPlayerId::Player(1),
             },
             vec![1, 3],
         );
@@ -337,10 +336,10 @@ mod tests {
 
         // Deathtouch: 1 is lethal → 1 to blocker, 3 tramples
         let to_blocker: Vec<_> = assignments.iter()
-            .filter(|a| a.target == DamageTarget::Object(blocker))
+            .filter(|a| a.target == ObjectOrPlayerId::Object(blocker))
             .collect();
         let to_player: Vec<_> = assignments.iter()
-            .filter(|a| a.target == DamageTarget::Player(1))
+            .filter(|a| a.target == ObjectOrPlayerId::Player(1))
             .collect();
         assert_eq!(to_blocker.len(), 1);
         assert_eq!(to_blocker[0].amount, 1);
@@ -369,10 +368,10 @@ mod tests {
 
         // 2 power vs 3 toughness: all 2 to blocker, no overflow
         let to_blocker: Vec<_> = assignments.iter()
-            .filter(|a| a.target == DamageTarget::Object(blocker))
+            .filter(|a| a.target == ObjectOrPlayerId::Object(blocker))
             .collect();
         let to_player: Vec<_> = assignments.iter()
-            .filter(|a| a.target == DamageTarget::Player(1))
+            .filter(|a| a.target == ObjectOrPlayerId::Player(1))
             .collect();
         assert_eq!(to_blocker.len(), 1);
         assert_eq!(to_blocker[0].amount, 2);

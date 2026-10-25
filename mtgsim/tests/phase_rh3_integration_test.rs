@@ -15,7 +15,7 @@ use mtgsim::cards::authoring::{another, dies, leaves_the_battlefield, triggered_
 use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
 use mtgsim::engine::replacement::ReplacementInstanceId;
 use mtgsim::events::cause::{EventCause, GeneratedBy};
-use mtgsim::events::event::{DamageTarget, GameEvent, ResolutionStamp};
+use mtgsim::events::event::{GameEvent, ResolutionStamp};
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::controller_or_owner;
 use mtgsim::state::game_state::GameState;
@@ -29,7 +29,7 @@ use mtgsim::types::effects::{
     AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet,
     Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::restriction::SourceFilter;
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerEvent, TriggerSubject};
@@ -478,7 +478,7 @@ fn with_one_damage(others: Vec<GameAction>, source: ObjectId, creature: ObjectId
     batch.push(GameAction::DealDamage {
         source,
         source_lki: None,
-        target: DamageTarget::Object(creature),
+        target: ObjectOrPlayerId::Object(creature),
         amount: 1,
         is_combat: false,
         unpreventable: false,

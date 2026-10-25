@@ -35,7 +35,7 @@ use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::zone_function::functions_as_static;
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
+use crate::events::event::{CounterSubject, ResolutionStamp};
 use crate::objects::card_data::AbilityDef;
 use crate::oracle::characteristics::{controller_or_owner, FrameContext, ObjectInformation};
 use crate::state::continuous_effects::puts_a_replacement_ability;
@@ -44,7 +44,7 @@ use crate::types::effects::{
     ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
@@ -92,11 +92,11 @@ pub(crate) enum EventSubject {
     Game,
 }
 
-impl From<DamageTarget> for EventSubject {
-    fn from(target: DamageTarget) -> Self {
+impl From<ObjectOrPlayerId> for EventSubject {
+    fn from(target: ObjectOrPlayerId) -> Self {
         match target {
-            DamageTarget::Object(id) => EventSubject::Object(id),
-            DamageTarget::Player(player) => EventSubject::Player(player),
+            ObjectOrPlayerId::Object(id) => EventSubject::Object(id),
+            ObjectOrPlayerId::Player(player) => EventSubject::Player(player),
         }
     }
 }

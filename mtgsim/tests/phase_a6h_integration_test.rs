@@ -22,7 +22,6 @@ use mtgsim::cards::phase_rs_cards::sigarda_host_of_herons;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::cost_determination::cost_modifications_for;
 use mtgsim::types::ids::ObjectOrPlayerId;
-use mtgsim::events::event::DamageTarget;
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
@@ -153,7 +152,7 @@ fn a_trample_split_with_nothing_left_over_is_answered_unasked() {
     let attacker = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let blocker = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let (blocked, over) =
-        ask_choose_trample_damage_assignment(&asks_nobody(), &game, 0, attacker, &[blocker], DamageTarget::Player(1), 2, &[2], None);
+        ask_choose_trample_damage_assignment(&asks_nobody(), &game, 0, attacker, &[blocker], ObjectOrPlayerId::Player(1), 2, &[2], None);
     assert_eq!((blocked, over), (vec![(blocker, 2)], 0));
     assert_eq!(
         not_asked(&game),

@@ -18,7 +18,7 @@ use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, StateBasedAction};
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::events::event::{CounterSubject, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameResult, GameState, StepType};
 use mtgsim::test_support::{
@@ -188,7 +188,7 @@ fn damage_to_a_planeswalker_removes_loyalty_that_no_player_removed() {
     game.execute_action(
         GameAction::DealDamage {
             source: bears,
-            target: DamageTarget::Object(walker),
+            target: ObjectOrPlayerId::Object(walker),
             amount: 2,
             is_combat: false,
             unpreventable: false,
@@ -988,7 +988,7 @@ fn hydra_with(game: &mut GameState, n: u64) -> ObjectId {
 
 fn damage(game: &mut GameState, source: ObjectId, target: ObjectId, amount: u64, unpreventable: bool) {
     game.execute_action(
-        GameAction::DealDamage { source, target: DamageTarget::Object(target), amount, is_combat: false, unpreventable, source_lki: None },
+        GameAction::DealDamage { source, target: ObjectOrPlayerId::Object(target), amount, is_combat: false, unpreventable, source_lki: None },
         &test_ctx(),
     )
     .expect("the damage event");

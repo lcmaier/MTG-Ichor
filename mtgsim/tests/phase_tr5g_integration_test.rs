@@ -32,7 +32,7 @@ use mtgsim::test_support::{
     creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_two_player_game, static_ability,
     test_dp, vanilla_creature,
 };
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
@@ -901,7 +901,7 @@ fn a_game_that_ends_drops_the_triggers_still_waiting() {
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     resolve_all(&mut game, &test_dp());
     game.players[1].life_total = 2;
-    let hit = GameAction::DealDamage { source: bear, target: DamageTarget::Player(1), amount: 2, is_combat: false, unpreventable: false, source_lki: None };
+    let hit = GameAction::DealDamage { source: bear, target: ObjectOrPlayerId::Player(1), amount: 2, is_combat: false, unpreventable: false, source_lki: None };
     game.execute_action(hit, &ActionContext::new(&test_dp())).unwrap();
     assert_eq!(waiting_from(&game, grid), 1, "the damage triggered it");
 

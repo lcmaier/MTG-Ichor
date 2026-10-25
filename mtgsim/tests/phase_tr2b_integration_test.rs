@@ -20,7 +20,7 @@ use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_po
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::events::event::{CounterSubject, GameEvent};
 use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
@@ -676,7 +676,7 @@ fn lifelinker(game: &mut GameState) -> ObjectId {
     put_on_battlefield(game, vanilla_creature(1, 1, &[KeywordFlag::Lifelink]), 0)
 }
 
-fn hit(source: ObjectId, target: DamageTarget, is_combat: bool) -> GameAction {
+fn hit(source: ObjectId, target: ObjectOrPlayerId, is_combat: bool) -> GameAction {
     GameAction::DealDamage { source, target, amount: 1, is_combat, unpreventable: false, source_lki: None }
 }
 
@@ -731,7 +731,7 @@ fn two_lifelink_creatures_trigger_paragon_twice_and_only_the_first_acts() {
     let mut game = setup_two_player_game();
     let paragon = put_on_battlefield(&mut game, nykthos_paragon(), 0);
     let (a, b) = (lifelinker(&mut game), lifelinker(&mut game));
-    let hits = vec![hit(a, DamageTarget::Player(1), true), hit(b, DamageTarget::Player(1), true)];
+    let hits = vec![hit(a, ObjectOrPlayerId::Player(1), true), hit(b, ObjectOrPlayerId::Player(1), true)];
     game.execute_actions(hits, &test_ctx()).unwrap();
     assert_eq!(pending(&game), 2, "two sources, two gains");
     place(&mut game, &ScriptedDecisionProvider::new());
@@ -751,7 +751,7 @@ fn a_creature_dealt_lethal_damage_as_you_gain_life_gets_no_counters() {
     let paragon = put_on_battlefield(&mut game, nykthos_paragon(), 0);
     let source = lifelinker(&mut game);
     let doomed = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
-    game.execute_action(hit(source, DamageTarget::Object(doomed), false), &test_ctx()).unwrap();
+    game.execute_action(hit(source, ObjectOrPlayerId::Object(doomed), false), &test_ctx()).unwrap();
     place(&mut game, &test_dp());
     assert_eq!(game.get_object(doomed).unwrap().zone, Zone::Graveyard);
     resolve_answering(&mut game, true);
@@ -767,7 +767,7 @@ fn one_lifelink_creature_dealing_damage_twice_at_once_is_one_gain() {
     put_on_battlefield(&mut game, nykthos_paragon(), 0);
     let trampler = lifelinker(&mut game);
     let blocker = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
-    let hits = vec![hit(trampler, DamageTarget::Object(blocker), true), hit(trampler, DamageTarget::Player(1), true)];
+    let hits = vec![hit(trampler, ObjectOrPlayerId::Object(blocker), true), hit(trampler, ObjectOrPlayerId::Player(1), true)];
     game.execute_actions(hits, &test_ctx()).unwrap();
     assert_eq!((pending(&game), game.players[0].life_total), (1, 22));
 }

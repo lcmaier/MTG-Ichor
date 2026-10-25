@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, GameEvent, ResolutionStamp};
+use crate::events::event::{AppliedReplacement, CounterSubject, GameEvent, ResolutionStamp};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
@@ -18,7 +18,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ReplacedEvent;
 use crate::objects::card_data::AbilityType;
 use crate::types::replacement::{TokenKind, TokenSubstitution};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{
     AmountRewrite, AuxiliaryMove, CopyDonor, EnterMods, EnterModsTemplate, EntryCounters,
@@ -604,7 +604,7 @@ pub(crate) fn apply_replacements(
         // Whom it prevented damage to, and how much, in member order: a
         // redirect earlier in the loop can leave two members of one group
         // dealing damage to two recipients.
-        let mut prevented_to: Vec<(DamageTarget, u64)> = Vec::new();
+        let mut prevented_to: Vec<(ObjectOrPlayerId, u64)> = Vec::new();
         for (k, &pos) in applicable.iter().enumerate() {
             let event = group[pos].event.take().expect("gathered this iteration, so live");
             let went_to = destination(&event);
@@ -2896,21 +2896,21 @@ fn retarget_destination(
     spec: RetargetSpec,
     damage_source: ObjectId,
     damage_source_lki: Option<&crate::types::triggers::Lki>,
-) -> Option<DamageTarget> {
+) -> Option<ObjectOrPlayerId> {
     match spec {
-        RetargetSpec::ToEffectSource => Some(DamageTarget::Object(chosen.source)),
+        RetargetSpec::ToEffectSource => Some(ObjectOrPlayerId::Object(chosen.source)),
         // CR 303.4m, read now rather than captured — the same `attached_to`
         // read `ObjectSet::Host` makes, because an Aura registered its effect
         // before it was attached to anything.
         RetargetSpec::ToHost => crate::oracle::board::host_of(game, chosen.source)
-            .map(DamageTarget::Object),
+            .map(ObjectOrPlayerId::Object),
         // CR 109.5 asked of the *damage's* source, wherever it is: a spell on
         // the stack has no battlefield entry, so this falls through to its
         // owner, which is its controller for every card cast from its owner's
         // own hand. A source that left before dealing it is asked as it last
         // existed (CR 608.2h).
         RetargetSpec::ToDamageSourceController => {
-            ObjectInformation::of(damage_source, damage_source_lki).controller(game).map(DamageTarget::Player)
+            ObjectInformation::of(damage_source, damage_source_lki).controller(game).map(ObjectOrPlayerId::Player)
         }
     }
 }
@@ -2932,10 +2932,10 @@ fn retarget_destination(
 /// and a legality re-check here would get shroud and protection wrong: a
 /// redirect is not targeting (CR 115.1), so a hexproof creature is a perfectly
 /// good destination.
-fn redirection_is_legal(game: &GameState, to: DamageTarget, from: DamageTarget) -> bool {
+fn redirection_is_legal(game: &GameState, to: ObjectOrPlayerId, from: ObjectOrPlayerId) -> bool {
     let destination_ok = match to {
-        DamageTarget::Player(pid) => game.in_game(pid),
-        DamageTarget::Object(id) => {
+        ObjectOrPlayerId::Player(pid) => game.in_game(pid),
+        ObjectOrPlayerId::Object(id) => {
             game.battlefield.contains_key(&id) && {
                 let types = get_effective_types(game, id);
                 types.contains(&CardType::Creature)
@@ -2945,8 +2945,8 @@ fn redirection_is_legal(game: &GameState, to: DamageTarget, from: DamageTarget) 
         }
     };
     let origin_ok = match from {
-        DamageTarget::Player(pid) => game.in_game(pid),
-        DamageTarget::Object(_) => true,
+        ObjectOrPlayerId::Player(pid) => game.in_game(pid),
+        ObjectOrPlayerId::Object(_) => true,
     };
     destination_ok && origin_ok
 }

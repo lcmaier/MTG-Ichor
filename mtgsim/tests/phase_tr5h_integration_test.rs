@@ -14,7 +14,6 @@ use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::scenario::Scenario;
@@ -124,7 +123,7 @@ fn a_rows_frame_sees_the_rows_of_its_own_window() {
 
     let damage = GameAction::DealDamage {
         source: linker,
-        target: DamageTarget::Player(1),
+        target: ObjectOrPlayerId::Player(1),
         amount: 2,
         is_combat: false,
         unpreventable: false,
@@ -266,7 +265,7 @@ fn banner_over(fact: ObjectFact) -> Arc<CardData> {
         .build()
 }
 
-fn deal_damage(game: &mut GameState, source: ObjectId, target: DamageTarget, is_combat: bool) {
+fn deal_damage(game: &mut GameState, source: ObjectId, target: ObjectOrPlayerId, is_combat: bool) {
     let damage = GameAction::DealDamage { source, target, amount: 1, is_combat, unpreventable: false, source_lki: None };
     game.execute_action(damage, &test_ctx()).unwrap();
 }
@@ -279,7 +278,7 @@ fn was_dealt_damage_this_turn_reads_the_rows_dealt_to_it() {
     put_on_battlefield(&mut game, banner_over(ObjectFact::WasDealtDamage), 0);
     let wall = put_on_battlefield(&mut game, vanilla_creature(0, 4, &[]), 0);
     let shooter = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
-    deal_damage(&mut game, shooter, DamageTarget::Object(wall), false);
+    deal_damage(&mut game, shooter, ObjectOrPlayerId::Object(wall), false);
     assert_eq!(get_effective_power(&game, wall), Some(1), "the wall was dealt damage");
     assert_eq!(get_effective_power(&game, shooter), Some(1), "the shooter dealt it");
 }
@@ -295,9 +294,9 @@ fn dealt_combat_damage_to_an_opponent_reads_whom_and_how() {
     let raider = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let pinger = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
-    deal_damage(&mut game, raider, DamageTarget::Player(1), true);
-    deal_damage(&mut game, pinger, DamageTarget::Player(1), false);
-    deal_damage(&mut game, theirs, DamageTarget::Player(0), true);
+    deal_damage(&mut game, raider, ObjectOrPlayerId::Player(1), true);
+    deal_damage(&mut game, pinger, ObjectOrPlayerId::Player(1), false);
+    deal_damage(&mut game, theirs, ObjectOrPlayerId::Player(0), true);
     let powers = [raider, pinger, theirs].map(|id| get_effective_power(&game, id));
     assert_eq!(powers, [Some(3), Some(2), Some(2)]);
 }

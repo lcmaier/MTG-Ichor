@@ -29,7 +29,7 @@ use mtgsim::cards::phase_tr3b_cards::flickerwisp;
 use mtgsim::cards::phase_tr3c_cards::cornered_crook;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::legality::damage_sources;
 use mtgsim::state::game_state::GameState;
@@ -253,7 +253,7 @@ fn a_shield_does_not_prevent_the_damage_of_the_object_its_source_became() {
     game.execute_action(
         GameAction::DealDamage {
             source: probe,
-            target: DamageTarget::Player(0),
+            target: ObjectOrPlayerId::Player(0),
             amount: 2,
             is_combat: false,
             unpreventable: false,
@@ -375,7 +375,7 @@ fn two_existences_of_one_object_are_two_sources_told_apart() {
     game.execute_action(
         GameAction::DealDamage {
             source: myr,
-            target: DamageTarget::Player(0),
+            target: ObjectOrPlayerId::Player(0),
             amount: 1,
             is_combat: false,
             unpreventable: false,

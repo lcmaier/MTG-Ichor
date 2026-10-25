@@ -408,6 +408,21 @@ pub enum ObjectOrPlayerId {
     Player(PlayerId),
 }
 
+impl ObjectOrPlayerId {
+    /// The object or player as a record names it: a player as it is, an
+    /// object as `GameState::existence_for_record` names it (CR 400.7).
+    pub(crate) fn for_record(
+        self,
+        game: &crate::state::game_state::GameState,
+    ) -> Result<crate::types::triggers::ObjectOrPlayer, String> {
+        use crate::types::triggers::ObjectOrPlayer;
+        Ok(match self {
+            ObjectOrPlayerId::Player(player) => ObjectOrPlayer::Player(player),
+            ObjectOrPlayerId::Object(id) => ObjectOrPlayer::Object(game.existence_for_record(id)?),
+        })
+    }
+}
+
 /// One CR 500.7 extra turn, from the effect that creates it until it begins
 /// or is skipped: which entry of the turn queue a turn came from. "That turn"
 /// (Final Fortune) names one turn by it, and a skipped extra turn (CR

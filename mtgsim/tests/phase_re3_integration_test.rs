@@ -20,7 +20,7 @@ use mtgsim::cards::phase_re_cards::{
 };
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
@@ -155,7 +155,7 @@ fn bolt_player(game: &mut GameState, source: ObjectId, victim: PlayerId, amount:
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Player(victim),
+            target: ObjectOrPlayerId::Player(victim),
             amount,
             is_combat: false,
             unpreventable: false,
@@ -661,7 +661,7 @@ fn ali_helps_on_the_earthquake_that_kills_him() {
         vec![
             GameAction::DealDamage {
                 source,
-                target: DamageTarget::Player(0),
+                target: ObjectOrPlayerId::Player(0),
                 amount: 10,
                 is_combat: false,
                 unpreventable: false,
@@ -669,7 +669,7 @@ fn ali_helps_on_the_earthquake_that_kills_him() {
             },
             GameAction::DealDamage {
                 source,
-                target: DamageTarget::Object(ali),
+                target: ObjectOrPlayerId::Object(ali),
                 amount: 10,
                 is_combat: false,
                 unpreventable: false,

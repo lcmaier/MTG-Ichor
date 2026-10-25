@@ -13,7 +13,7 @@ use mtgsim::cards::phase_rb_cards::{
     kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
 };
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::events::event::{CounterSubject, GameEvent};
 use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
@@ -482,7 +482,7 @@ fn test_a_shield_counter_prevents_damage_and_the_rider_removes_a_counter() {
     game.execute_action(
         GameAction::DealDamage {
             source: bolt,
-            target: DamageTarget::Object(bear),
+            target: ObjectOrPlayerId::Object(bear),
             amount: 3,
             is_combat: false,
             unpreventable: false,
@@ -529,7 +529,7 @@ fn test_zero_damage_is_not_an_event_a_prevention_effect_can_see() {
     game.execute_action(
         GameAction::DealDamage {
             source: bolt,
-            target: DamageTarget::Object(bear),
+            target: ObjectOrPlayerId::Object(bear),
             amount: 0,
             is_combat: false,
             unpreventable: false,
@@ -572,7 +572,7 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
     game.execute_action(
         GameAction::DealDamage {
             source: bolt,
-            target: DamageTarget::Object(bear),
+            target: ObjectOrPlayerId::Object(bear),
             amount: 3,
             is_combat: false,
             unpreventable: false,

@@ -22,7 +22,7 @@ use mtgsim::cards::phase_tr7_cards::{grumgully_the_generous, viscera_seer, wingr
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::combat::validation::can_block;
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::events::event::{CounterSubject, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_name, get_effective_toughness, has_keyword, has_type};
 use mtgsim::state::game_state::GameState;
@@ -35,7 +35,7 @@ use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
     CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, SelectionFilter, TypeChange,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{CopyDonor, EnterMods, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
@@ -444,7 +444,7 @@ fn a_scarecrow_killed_through_its_plus_counter_stays_dead() {
     let source = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let damage = GameAction::DealDamage {
         source,
-        target: DamageTarget::Object(scarecrow),
+        target: ObjectOrPlayerId::Object(scarecrow),
         amount: 2,
         is_combat: false,
         unpreventable: false,

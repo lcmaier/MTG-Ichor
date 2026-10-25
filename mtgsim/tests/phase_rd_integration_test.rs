@@ -15,7 +15,7 @@ use mtgsim::cards::phase_rd_cards::{
 };
 use mtgsim::cards::{keyword_creatures, phase_rb_cards};
 use mtgsim::engine::actions::{ActionContext, GameAction};
-use mtgsim::events::event::{BatchId, DamageTarget, GameEvent};
+use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_on_battlefield, set_attacking, set_blocked_by,
@@ -23,7 +23,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::CounterType;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -41,7 +41,7 @@ fn bolt_player(game: &mut GameState, source: ObjectId, victim: PlayerId, amount:
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Player(victim),
+            target: ObjectOrPlayerId::Player(victim),
             amount,
             is_combat: false,
             unpreventable: false,
@@ -63,7 +63,7 @@ fn bolt_player_with(
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Player(victim),
+            target: ObjectOrPlayerId::Player(victim),
             amount,
             is_combat: false,
             unpreventable: false,
@@ -139,7 +139,7 @@ fn the_life_loss_is_a_proposal_and_reaches_the_pipeline() {
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Object(victim),
+            target: ObjectOrPlayerId::Object(victim),
             amount: 1,
             is_combat: false,
             unpreventable: false,
@@ -229,7 +229,7 @@ fn three_damage_to_a_five_loyalty_planeswalker_leaves_two() {
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Object(probe),
+            target: ObjectOrPlayerId::Object(probe),
             amount: 3,
             is_combat: false,
             unpreventable: false,
@@ -255,7 +255,7 @@ fn lethal_damage_to_a_planeswalker_reaches_cr_704_5i() {
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Object(probe),
+            target: ObjectOrPlayerId::Object(probe),
             amount: 3,
             is_combat: false,
             unpreventable: false,
@@ -294,7 +294,7 @@ fn damage_to_a_creature_planeswalker_both_marks_and_removes_loyalty() {
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Object(probe),
+            target: ObjectOrPlayerId::Object(probe),
             amount: 2,
             is_combat: false,
             unpreventable: false,
@@ -326,7 +326,7 @@ fn damage_to_a_noncreature_nonplaneswalker_marks_nothing() {
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Object(enchantment),
+            target: ObjectOrPlayerId::Object(enchantment),
             // Furnace doubles it; the point is that 6 lands nowhere.
             amount: 3,
             is_combat: false,
@@ -516,7 +516,7 @@ fn giselas_two_halves_never_apply_to_one_damage_proposal() {
         vec![
             GameAction::DealDamage {
                 source,
-                target: DamageTarget::Object(mine),
+                target: ObjectOrPlayerId::Object(mine),
                 amount: 3,
                 is_combat: false,
                 unpreventable: false,
@@ -524,7 +524,7 @@ fn giselas_two_halves_never_apply_to_one_damage_proposal() {
             },
             GameAction::DealDamage {
                 source,
-                target: DamageTarget::Object(theirs),
+                target: ObjectOrPlayerId::Object(theirs),
                 amount: 3,
                 is_combat: false,
                 unpreventable: false,
@@ -574,7 +574,7 @@ fn trample_assigns_lethal_before_furnace_doubles() {
     dp.expect_allocation(
         ChoiceKind::AssignTrampleDamage {
             attacker_id: mammoth,
-            defending_target: DamageTarget::Player(1),
+            defending_target: ObjectOrPlayerId::Player(1),
         },
         vec![2, 1],
     );
@@ -718,7 +718,7 @@ fn angel_of_suffering_does_not_protect_its_controllers_permanents() {
     game.execute_action(
         GameAction::DealDamage {
             source,
-            target: DamageTarget::Object(mine),
+            target: ObjectOrPlayerId::Object(mine),
             amount: 3,
             is_combat: false,
             unpreventable: false,

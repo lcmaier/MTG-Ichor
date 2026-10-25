@@ -13,7 +13,7 @@ use crate::engine::layers::copy::{CopiableValues, copiable_values, copiable_valu
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, DamageTarget, EventRecord, GameEvent, NamesAsAnnounced};
+use crate::events::event::{AppliedReplacement, EventRecord, GameEvent, NamesAsAnnounced};
 use crate::types::triggers::ObjectOrPlayer;
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer, UnaskedChoice};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, CardData, paragraphs};
@@ -28,7 +28,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaSymbol, ManaType};
@@ -396,10 +396,10 @@ pub fn attack_target_name(game: &GameState, target: &AttackTarget) -> String {
     }
 }
 
-fn damage_target_name(game: &GameState, target: &DamageTarget) -> String {
+fn damage_target_name(game: &GameState, target: &ObjectOrPlayerId) -> String {
     match target {
-        DamageTarget::Player(player) => player_name(*player),
-        DamageTarget::Object(id) => named(game, *id),
+        ObjectOrPlayerId::Player(player) => player_name(*player),
+        ObjectOrPlayerId::Object(id) => named(game, *id),
     }
 }
 

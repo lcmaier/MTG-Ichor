@@ -42,7 +42,7 @@ use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::events::event::{CounterSubject, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
@@ -114,7 +114,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
     game.players[player].life_total
 }
 
-fn deal_damage(game: &mut GameState, source: ObjectId, target: DamageTarget, amount: u64) {
+fn deal_damage(game: &mut GameState, source: ObjectId, target: ObjectOrPlayerId, amount: u64) {
     game.execute_action(
         GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_lki: None },
         &test_ctx(),
@@ -311,7 +311,7 @@ fn a_shield_against_a_chosen_source_does_not_watch_the_object_it_returns_as() {
     leave_and_return(&mut game, red, Zone::Graveyard, ZoneChangeAct::Destroyed);
     assert_eq!(game.replacement_effects.len(), 1, "it watches the existence it chose, by identity");
 
-    deal_damage(&mut game, red, DamageTarget::Player(0), 4);
+    deal_damage(&mut game, red, ObjectOrPlayerId::Player(0), 4);
     assert_eq!(life(&game, 0), 16, "the returned creature is not the chosen source");
 }
 
@@ -327,7 +327,7 @@ fn a_shield_on_a_creature_ends_when_it_moves() {
     leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeAct::Put);
     assert!(game.replacement_effects.is_empty());
 
-    deal_damage(&mut game, red, DamageTarget::Object(bears), 3);
+    deal_damage(&mut game, red, ObjectOrPlayerId::Object(bears), 3);
     assert_eq!(game.battlefield[&bears].damage_marked, 3, "nothing prevented it");
 }
 
@@ -352,8 +352,8 @@ fn a_shield_for_you_and_a_creature_keeps_protecting_you() {
     let row = game.replacement_effects.iter().next().expect("the player half keeps the row");
     assert_eq!(row.def.affected_objects, ObjectSet::Fixed(Vec::new()));
 
-    deal_damage(&mut game, red, DamageTarget::Object(bears), 3);
-    deal_damage(&mut game, red, DamageTarget::Player(0), 3);
+    deal_damage(&mut game, red, ObjectOrPlayerId::Object(bears), 3);
+    deal_damage(&mut game, red, ObjectOrPlayerId::Player(0), 3);
     assert_eq!(game.battlefield[&bears].damage_marked, 3, "the new creature is not protected");
     assert_eq!(life(&game, 0), 20, "you still are");
 }
@@ -495,7 +495,7 @@ fn a_stolen_creature_destroyed_goes_home_as_a_new_object() {
     )
     .unwrap();
     let red = put_on_battlefield(&mut game, red_creature(1), 0);
-    deal_damage(&mut game, red, DamageTarget::Object(bears), 1);
+    deal_damage(&mut game, red, ObjectOrPlayerId::Object(bears), 1);
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
         ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: bears },
@@ -537,9 +537,9 @@ fn a_blocker_that_dies_before_damage_is_out_of_the_division() {
     assert_eq!(blocked_by, Some(vec![stays]), "removed from combat as it left");
 
     let assignments = assign_combat_damage(&game, &ScriptedDecisionProvider::new(), 0, false);
-    let from_attacker: Vec<(DamageTarget, u64)> =
+    let from_attacker: Vec<(ObjectOrPlayerId, u64)> =
         assignments.iter().filter(|a| a.source == attacker).map(|a| (a.target, a.amount)).collect();
-    assert_eq!(from_attacker, vec![(DamageTarget::Object(stays), 3)]);
+    assert_eq!(from_attacker, vec![(ObjectOrPlayerId::Object(stays), 3)]);
 }
 
 // ---------------------------------------------------------------------------

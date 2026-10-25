@@ -37,7 +37,7 @@ use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer}
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::engine::triggers::{could_be_a_mana_ability, visible_to_all};
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::get_effective_controller;
@@ -196,7 +196,7 @@ fn next_upkeep(game: &mut GameState) -> PlayerId {
     panic!("no upkeep began");
 }
 
-fn deal(game: &mut GameState, source: ObjectId, target: DamageTarget, amount: u64, combat: bool) {
+fn deal(game: &mut GameState, source: ObjectId, target: ObjectOrPlayerId, amount: u64, combat: bool) {
     game.execute_action(
         GameAction::DealDamage { source, target, amount, is_combat: combat, unpreventable: false, source_lki: None },
         &test_ctx(),
@@ -823,7 +823,7 @@ fn prevented_damage_triggers_nothing() {
     let fog_card = put_in_hand(&mut game, fog(), 0);
     resolve_effect_from(&mut game, fog_card, 0, &fog().abilities[0].effect, Vec::new(), &test_dp());
 
-    deal(&mut game, attacker, DamageTarget::Player(0), 3, true);
+    deal(&mut game, attacker, ObjectOrPlayerId::Player(0), 3, true);
 
     assert_eq!(life(&game, 0), 20);
     assert_eq!(pending(&game), 0, "CR 603.2g — a prevented event triggers nothing");
@@ -848,7 +848,7 @@ fn prevented_damage_triggers_nothing() {
         0,
     );
     let attacker = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
-    deal(&mut game, attacker, DamageTarget::Player(0), 3, true);
+    deal(&mut game, attacker, ObjectOrPlayerId::Player(0), 3, true);
     assert_eq!(pending(&game), 1);
 }
 
@@ -924,7 +924,7 @@ fn damage_triggers_still_fire_when_the_creature_regenerates() {
     );
     let bolt = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
 
-    deal(&mut game, bolt, DamageTarget::Object(troll), 3, false);
+    deal(&mut game, bolt, ObjectOrPlayerId::Object(troll), 3, false);
     assert_eq!(pending(&game), 1, "the damage was dealt");
 
     place(&mut game, &test_dp());
@@ -1210,7 +1210,7 @@ fn felidar_sovereign_does_nothing_when_life_drops_before_it_resolves() {
 
     // In response, 5 damage: 37 life.
     let bolt = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
-    deal(&mut game, bolt, DamageTarget::Player(0), 5, false);
+    deal(&mut game, bolt, ObjectOrPlayerId::Player(0), 5, false);
     assert_eq!(life(&game, 0), 37);
     let before = game.recorded_events().len();
 
@@ -1485,8 +1485,8 @@ fn each_source_of_simultaneous_life_gain_triggers_separately() {
 
     game.execute_actions(
         vec![
-            GameAction::DealDamage { source: a, target: DamageTarget::Player(1), amount: 2, is_combat: true, unpreventable: false, source_lki: None },
-            GameAction::DealDamage { source: b, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false, source_lki: None },
+            GameAction::DealDamage { source: a, target: ObjectOrPlayerId::Player(1), amount: 2, is_combat: true, unpreventable: false, source_lki: None },
+            GameAction::DealDamage { source: b, target: ObjectOrPlayerId::Player(1), amount: 3, is_combat: true, unpreventable: false, source_lki: None },
         ],
         &test_ctx(),
     )
@@ -1806,7 +1806,7 @@ fn a_battlefield_only_trigger_is_not_asked_from_the_graveyard() {
     assert_eq!(pending(&game), 1, "the from-anywhere trigger, once");
 
     // A creature deals damage to Dread's owner while Dread is in the graveyard.
-    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    deal(&mut game, attacker, ObjectOrPlayerId::Player(0), 2, true);
     assert_eq!(
         pending(&game),
         1,
@@ -1822,7 +1822,7 @@ fn the_same_trigger_is_asked_from_the_battlefield() {
     put_on_battlefield(&mut game, dread_shaped(), 0);
     let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    deal(&mut game, attacker, ObjectOrPlayerId::Player(0), 2, true);
     assert_eq!(pending(&game), 1, "a creature dealt damage to Dread's controller");
 }
 
@@ -1873,7 +1873,7 @@ fn a_trigger_condition_is_asked_only_where_it_functions() {
     destroy_all(&mut game, &[vigil], source);
     assert_eq!(pending(&game), 1, "the from-anywhere condition, once");
 
-    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    deal(&mut game, attacker, ObjectOrPlayerId::Player(0), 2, true);
     assert_eq!(
         pending(&game),
         1,
@@ -1888,7 +1888,7 @@ fn both_conditions_function_on_the_battlefield() {
     put_on_battlefield(&mut game, one_ability_two_zones(), 0);
     let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    deal(&mut game, attacker, ObjectOrPlayerId::Player(0), 2, true);
     assert_eq!(pending(&game), 1, "the damage condition, from the battlefield");
 }
 

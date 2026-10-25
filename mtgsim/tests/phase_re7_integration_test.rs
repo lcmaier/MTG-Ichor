@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::events::cause::{EventCause, GameRule, StateBasedAction};
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState, Phase, PhaseType, StackEntry, StepType};
@@ -714,18 +714,18 @@ fn a_tramplers_blocker_still_takes_damage_when_the_defending_player_has_left() {
     let assignments =
         mtgsim::engine::combat::resolution::assign_combat_damage(&game, &dp, 0, false);
 
-    let from_attacker: Vec<&DamageTarget> = assignments
+    let from_attacker: Vec<&ObjectOrPlayerId> = assignments
         .iter()
         .filter(|a| a.source == attacker)
         .map(|a| &a.target)
         .collect();
     assert_eq!(
         from_attacker,
-        vec![&DamageTarget::Object(blocker)],
+        vec![&ObjectOrPlayerId::Object(blocker)],
         "the blocker's share stands and the player's is not assigned"
     );
     assert!(
-        assignments.iter().all(|a| !matches!(a.target, DamageTarget::Player(_))),
+        assignments.iter().all(|a| !matches!(a.target, ObjectOrPlayerId::Player(_))),
         "CR 800.4e: nothing is assigned to a player who has left"
     );
 }
@@ -767,7 +767,7 @@ fn combat_damage_is_assigned_to_a_player_still_in_the_game() {
         mtgsim::engine::combat::resolution::assign_combat_damage(&game, &test_dp(), 0, false);
 
     assert_eq!(assignments.len(), 1);
-    assert_eq!(assignments[0].target, DamageTarget::Player(1));
+    assert_eq!(assignments[0].target, ObjectOrPlayerId::Player(1));
     assert_eq!(assignments[0].amount, 3);
 }
 
