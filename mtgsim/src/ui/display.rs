@@ -961,10 +961,10 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         DamageTarget::Player(player) => player_in_log(player),
     };
     match event {
-        ZoneChange { object_id, owner, from, to, act, lki, applied, new_epoch: _ } => {
+        ZoneChange { departed, from, to, act, applied, new_epoch: _ } => {
             // The act says what was done and the CR 603.10a frame says every
             // type it had, which is what a Gideon or an artifact creature needs.
-            let was = lki.as_ref().map(|f| {
+            let was = departed.lki().map(|f| {
                 // Sorted: `types` is a `HashSet`, and an unsorted log line
                 // differs run to run.
                 let mut names: Vec<String> = f.characteristics().types.iter().map(|t| format!("{:?}", t)).collect();
@@ -972,7 +972,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 format!(" ({})", names.join(" "))
             }).unwrap_or_default();
             format!("ZoneChange: {}{} [{}] {:?} -> {:?} [{:?}] by {}{}",
-                    named(*object_id), was, player_in_log(*owner), from, to, act, cause_words(cause, named), replaced_by_words(applied.as_deref(), named))
+                    named(departed.object().id), was, player_in_log(departed.owner()), from, to, act, cause_words(cause, named), replaced_by_words(applied.as_deref(), named))
         }
         ControlChanged { to, lki } => {
             let from = lki.characteristics().controller;
@@ -1158,8 +1158,8 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             "Unattached: {} from {} ({:?})",
             named(attachment.id), named(former_host.id), route
         ),
-        LeftTheGame { object_id, owner, from, lki: _ } => {
-            format!("LeftTheGame: {} ({}, from {:?})", named(*object_id), player_in_log(*owner), from)
+        LeftTheGame { departed, from } => {
+            format!("LeftTheGame: {} ({}, from {:?})", named(departed.object().id), player_in_log(departed.owner()), from)
         }
         TokenCreated { object_id, owner, zone, .. } => {
             format!("TokenCreated: {} ({}, in {:?})", named(*object_id), player_in_log(*owner), zone)
@@ -1264,6 +1264,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+    use crate::events::event::Departed;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
@@ -1687,12 +1688,10 @@ mod tests {
         let (attacker, walker, blocker, blocked, unblocked, exit, exit_blocked) = (id(), id(), id(), id(), id(), id(), id());
         vec![
             GameEvent::ZoneChange {
-                object_id: id(),
-                owner: 0,
+                departed: Departed::Unframed { object: reference(game, id()), owner: 0 },
                 from: Zone::Battlefield,
                 to: Zone::Graveyard,
                 act: ZoneChangeAct::Destroyed,
-                lki: None,
                 applied: None,
                 new_epoch: 1,
             },
@@ -1746,7 +1745,7 @@ mod tests {
                 former_host_left: false,
             },
             GameEvent::ControlChanged { to: 1, lki: lki(game, controlled) },
-            GameEvent::LeftTheGame { object_id: id(), owner: 1, from: Zone::Battlefield, lki: None },
+            GameEvent::LeftTheGame { departed: Departed::Unframed { object: reference(game, id()), owner: 1 }, from: Zone::Battlefield },
             GameEvent::SameZoneMove { zone: Zone::Battlefield, act: ZoneChangeAct::Destroyed, applied: None, lki: lki(game, kept) },
             GameEvent::TokenCreated { object_id: id(), owner: 0, zone: Zone::Battlefield, definition: Arc::new(crate::cards::phase_re_cards::goblin_token()) },
             GameEvent::TokenCeasedToExist { object_id: id() },
@@ -1832,7 +1831,7 @@ mod tests {
                 assert!(line.contains(&format!("{expected} (")), "{line:?} does not print {id} as {expected}");
             }
             let moved = match event {
-                GameEvent::ZoneChange { object_id, .. } | GameEvent::LeftTheGame { object_id, .. } => Some(*object_id),
+                GameEvent::ZoneChange { departed, .. } | GameEvent::LeftTheGame { departed, .. } => Some(departed.object().id),
                 _ => None,
             };
             // Every "#12)", the shape a line names an object in.

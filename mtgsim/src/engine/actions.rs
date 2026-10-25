@@ -5,7 +5,7 @@ use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_da
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventId, GameEvent, UnattachRoute};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, Departed, EventId, GameEvent, UnattachRoute};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
@@ -2079,20 +2079,17 @@ impl GameState {
             return self.announce_same_zone_move(object, from, act, lki, applied, cause);
         }
 
-        let leaving = self.object_ref(object);
+        let leaving = self.object_ref(object).ok_or_else(|| format!("{object} moved from the {from:?}, and the store has no such object"))?;
         let departure = self.depart(object, from, Some(to));
         self.move_object(object, to)?;
         // CR 400.7f finds the Aura in its owner's graveyard only, so not one a
         // replacement exiled instead: `aura-found-in-graveyard`'s switch
         // (`engineering-practices.md#when-a-ruling-and-the-cr-disagree`), with
         // the same-event half's.
-        if cause == EventCause::StateBasedAction(StateBasedAction::AuraAttachedIllegally)
-            && to == Zone::Graveyard
-            && let Some(aura) = leaving
-        {
-            self.aura_put_into_graveyard_by_the_check(aura);
+        if cause == EventCause::StateBasedAction(StateBasedAction::AuraAttachedIllegally) && to == Zone::Graveyard {
+            self.aura_put_into_graveyard_by_the_check(leaving);
         }
-        self.announce_zone_change(object, from, to, act, departure.frame.clone(), applied, cause)?;
+        self.announce_zone_change(leaving, from, to, act, departure.frame.clone(), applied, cause)?;
         self.announce_unattached_by_leaving(departure, cause)
     }
 
@@ -2121,7 +2118,7 @@ impl GameState {
     /// CR 601.2i announcement is made outside every batch.
     pub(crate) fn announce_zone_change(
         &mut self,
-        object: ObjectId,
+        left: ObjectRef,
         from: Zone,
         to: Zone,
         act: ZoneChangeAct,
@@ -2129,9 +2126,10 @@ impl GameState {
         applied: Option<Arc<[AppliedReplacement]>>,
         cause: EventCause,
     ) -> Result<(), String> {
-        let moved = self.get_object(object)?;
+        let moved = self.get_object(left.id)?;
         let (owner, new_epoch) = (moved.owner, moved.zone_change_epoch);
-        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, applied, new_epoch }, cause)?;
+        let departed = Departed::of(left, owner, lki);
+        self.emit_event(GameEvent::ZoneChange { departed, from, to, act, applied, new_epoch }, cause)?;
         Ok(())
     }
 

@@ -23,25 +23,63 @@ use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerSeq};
 /// facts about what happened, not requests for what should happen. What a
 /// replacement effect reads is the proposal before it is performed
 /// (`engine::actions::GameAction`, CR 614), never one of these.
+/// The existence a move ended (CR 400.7) and its owner (CR 108.3), each
+/// held once: by the move's frame where it carries one (CR 603.10a, and any
+/// mover a keeper reads), which names both, and as the two alone where it
+/// does not.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Departed {
+    Framed(Lki),
+    Unframed { object: ObjectRef, owner: PlayerId },
+}
+
+impl Departed {
+    /// The existence that left.
+    pub fn object(&self) -> ObjectRef {
+        match self {
+            Departed::Framed(lki) => lki.object(),
+            Departed::Unframed { object, .. } => *object,
+        }
+    }
+
+    pub fn owner(&self) -> PlayerId {
+        match self {
+            Departed::Framed(lki) => lki.owner(),
+            Departed::Unframed { owner, .. } => *owner,
+        }
+    }
+
+    /// The frame the move carries, if it carries one.
+    pub fn lki(&self) -> Option<&Lki> {
+        match self {
+            Departed::Framed(lki) => Some(lki),
+            Departed::Unframed { .. } => None,
+        }
+    }
+
+    /// `object`, `owner`'s, as `frame` says it left.
+    pub fn of(object: ObjectRef, owner: PlayerId, frame: Option<Lki>) -> Departed {
+        match frame {
+            Some(lki) => {
+                debug_assert!(lki.object() == object && lki.owner() == owner, "{} left with another object's frame", object.id);
+                Departed::Framed(lki)
+            }
+            None => Departed::Unframed { object, owner },
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum GameEvent {
     // --- Zone transitions ---
     ZoneChange {
-        object_id: ObjectId,
-        owner: PlayerId,
-        from: Zone,
-        to: Zone,
-        /// What was done (`replacement-architecture.md` §2b.2). A redirect
-        /// keeps it (CR 614.6).
-        ///
-        /// **Only the readers [`ZoneChangeAct`](crate::engine::actions::ZoneChangeAct)
-        /// names may branch on this.**
-        act: ZoneChangeAct,
-        /// CR 603.10a — the object's characteristics an instant *before* it
-        /// moved, for a move in one of the rule's three classes
-        /// (`zone_change_looks_back`): leaving the battlefield, a card leaving
-        /// a graveyard, an object all players could see put into a hand or
-        /// library. `None` for any other move, which no trigger looks back at.
+        /// The existence that moved and its owner, and its frame: CR
+        /// 603.10a's characteristics an instant *before* it moved, for a move
+        /// in one of the rule's three classes (`zone_change_looks_back`):
+        /// leaving the battlefield, a card leaving a graveyard, an object all
+        /// players could see put into a hand or library, and for any mover a
+        /// keeper reads. Unframed for any other move, which no trigger looks
+        /// back at.
         ///
         /// Leaves-the-battlefield abilities "look back in time": the game reads
         /// the object as it existed before the event, which is how a creature
@@ -52,18 +90,26 @@ pub enum GameEvent {
         /// abilities generated the instant it leaves, so the layer walk a
         /// moment later answers about a graveyard card.
         ///
-        /// Behind an `Arc`, and the layer memo's own: the widest type in the
-        /// engine is shared rather than copied, so a trigger binding that
-        /// copies this record copies a pointer (`triggers-architecture.md` §3.4).
-        /// It names the existence that left (CR 400.7), which `object_id`
-        /// cannot: what a dies trigger's "it deals damage" was (CR 608.2h).
-        lki: Option<Lki>,
+        /// The frame is behind an `Arc`, and the layer memo's own: the widest
+        /// type in the engine is shared rather than copied, so a trigger
+        /// binding that copies this record copies a pointer
+        /// (`triggers-architecture.md` §3.4). What a dies trigger's "it deals
+        /// damage" was (CR 608.2h).
+        departed: Departed,
+        from: Zone,
+        to: Zone,
+        /// What was done (`replacement-architecture.md` §2b.2). A redirect
+        /// keeps it (CR 614.6).
+        ///
+        /// **Only the readers [`ZoneChangeAct`](crate::engine::actions::ZoneChangeAct)
+        /// names may branch on this.**
+        act: ZoneChangeAct,
         /// The replacement effects that applied to this move, in the order
         /// they applied (CR 614.5), each as it applied. `None` for a move
         /// nothing replaced.
         applied: Option<Arc<[AppliedReplacement]>>,
         /// CR 400.7e's new object: the epoch the move stamped, which
-        /// [`GameEvent::new_object`] pairs with `object_id`. A later move
+        /// [`GameEvent::new_object`] pairs with the object's id. A later move
         /// makes another object, which "it" never finds (CR 603.6c).
         new_epoch: ZoneChangeEpoch,
     },
@@ -467,16 +513,15 @@ pub enum GameEvent {
     /// produced it, the same window `perform_zone_change` has. `None` for an
     /// object that was not a permanent, which is every other zone: a card
     /// leaving the game from a graveyard leaves no graveyard (Erebos's Titan's
-    /// third ruling).
+    /// third ruling). `departed` holds the frame where the move carries
+    /// one, and the existence and its owner where it does not.
     ///
     /// CR 603.6c's qualifier is the one part with no implementation: a *phased
     /// out* permanent does not trigger, and phasing (CR 702.26) is not built
     /// (`codebase-state.md`, "Phasing"). Every permanent is phased in today.
     LeftTheGame {
-        object_id: ObjectId,
-        owner: PlayerId,
+        departed: Departed,
         from: Zone,
-        lki: Option<Lki>,
     },
 
     /// A move a replacement sent back into the zone it was leaving: Darksteel
@@ -562,8 +607,8 @@ impl GameEvent {
     /// again (CR 603.6c). `None` for a record that is not a zone change.
     pub fn new_object(&self) -> Option<ObjectRef> {
         match self {
-            GameEvent::ZoneChange { object_id, new_epoch, .. } => {
-                Some(ObjectRef { id: *object_id, zone_change_epoch: *new_epoch })
+            GameEvent::ZoneChange { departed, new_epoch, .. } => {
+                Some(ObjectRef { id: departed.object().id, zone_change_epoch: *new_epoch })
             }
             _ => None,
         }
@@ -620,8 +665,8 @@ impl GameEvent {
     /// record and for a move no look-back reads.
     pub fn lki(&self) -> Option<(&Lki, Zone, PlayerId)> {
         match self {
-            GameEvent::ZoneChange { lki: Some(lki), from, owner, .. }
-            | GameEvent::LeftTheGame { lki: Some(lki), from, owner, .. } => Some((lki, *from, *owner)),
+            GameEvent::ZoneChange { departed: Departed::Framed(lki), from, .. }
+            | GameEvent::LeftTheGame { departed: Departed::Framed(lki), from } => Some((lki, *from, lki.owner())),
             GameEvent::SpellCountered { lki, .. } => Some((lki, Zone::Stack, lki.owner())),
             _ => None,
         }

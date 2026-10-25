@@ -34,7 +34,7 @@ use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::ui::decision::AsksNobody;
-use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent, LifeChange};
+use crate::events::event::{BatchId, CounterSubject, DamageTarget, Departed, EventRecord, EventId, GameEvent, LifeChange};
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::oracle::characteristics::controller_or_owner;
@@ -568,10 +568,10 @@ impl AnsweredArms {
 /// A departure's subject `id` as an arm reads it: as its record framed it for
 /// an arm that looks back, and as it is now for any other, "from anywhere"
 /// among them (CR 603.6c, 603.10).
-fn departure_read<'a>(arm: &TriggerEvent, id: ObjectId, lki: &'a Option<Lki>) -> ObjectInformation<'a> {
-    match lki {
+fn departure_read<'a>(arm: &TriggerEvent, departed: &'a Departed) -> ObjectInformation<'a> {
+    match departed.lki() {
         Some(lki) if arm.looks_back() => ObjectInformation::LastKnown(lki),
-        _ => ObjectInformation::Current(id),
+        _ => ObjectInformation::Current(departed.object().id),
     }
 }
 
@@ -965,7 +965,7 @@ impl GameState {
         // (`engineering-practices.md#when-a-ruling-and-the-cr-disagree`), with
         // the CR 704.5m hook's: the graveyard only.
         self.events.held().iter().find_map(|record| match &record.event {
-            GameEvent::ZoneChange { to: Zone::Graveyard, lki: Some(lki), .. } if lki.object() == aura => record.event.new_object(),
+            GameEvent::ZoneChange { to: Zone::Graveyard, departed: Departed::Framed(lki), .. } if lki.object() == aura => record.event.new_object(),
             _ => None,
         })
     }
@@ -1918,8 +1918,8 @@ impl GameState {
                     // The subject is read as the record framed it only for an
                     // arm that looks back (CR 603.10a); "from anywhere" reads the
                     // object after the move (CR 603.6c's last sentence, 603.10).
-                    GameEvent::ZoneChange { object_id, owner, from, to, act, lki, .. } => {
-                        (departure_read(arm, *object_id, lki), *owner, change.matches(Some(*from), *to, Some(*act)) && caused())
+                    GameEvent::ZoneChange { departed, from, to, act, .. } => {
+                        (departure_read(arm, departed), departed.owner(), change.matches(Some(*from), *to, Some(*act)) && caused())
                     }
                     // CR 603.6c names this event for a leaves-the-battlefield
                     // ability, and for nothing else: a card leaving the game
@@ -1927,10 +1927,11 @@ impl GameState {
                     // third ruling). Nothing narrower either — no `to`, no act,
                     // no cause. Only a phased-in permanent's, which is one its
                     // departure framed (`zone_change_looks_back_at`).
-                    GameEvent::LeftTheGame { object_id, owner, from, lki } => {
+                    GameEvent::LeftTheGame { departed, from } => {
                         let leaves_the_battlefield =
                             change.from == Some(Zone::Battlefield) && change.to.is_none() && change.act.is_none() && by.is_none();
-                        (departure_read(arm, *object_id, lki), *owner, *from == Zone::Battlefield && lki.is_some() && leaves_the_battlefield)
+                        let framed = departed.lki().is_some();
+                        (departure_read(arm, departed), departed.owner(), *from == Zone::Battlefield && framed && leaves_the_battlefield)
                     }
                     // The act a replacement kept in its zone (CR 614.6), which
                     // only an arm that names an act reads: a mill, not "leaves
@@ -2199,8 +2200,8 @@ impl GameState {
             // one gaining it, and its controller as it left.
             (
                 TriggerEvent::ControlChanges { subject, from, to: None },
-                GameEvent::ZoneChange { from: left, lki, .. } | GameEvent::LeftTheGame { from: left, lki, .. },
-            ) => match lki {
+                GameEvent::ZoneChange { from: left, departed, .. } | GameEvent::LeftTheGame { from: left, departed },
+            ) => match departed.lki() {
                 Some(lki) if *left == Zone::Battlefield => triggering_event_if(
                     from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.characteristics().controller, referents))
                         && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
@@ -2546,7 +2547,7 @@ impl GameState {
         let before = held.partition_point(|r| r.seq < entered_at);
         for record in held[..before].iter().rev() {
             match &record.event {
-                GameEvent::ZoneChange { object_id, to: Zone::Battlefield, from, .. } if *object_id == id => {
+                GameEvent::ZoneChange { departed, to: Zone::Battlefield, from, .. } if departed.object().id == id => {
                     return Some(*from)
                 }
                 GameEvent::TokenCreated { object_id, .. } if *object_id == id => return None,
@@ -2613,12 +2614,11 @@ impl GameState {
         let id = match event {
             // The existence that left the game, which the store no longer
             // holds by the time the record is read (CR 800.4a).
-            GameEvent::LeftTheGame { lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
+            GameEvent::LeftTheGame { departed, .. } => return TriggeringEventObjects::Object(departed.object()),
             GameEvent::SameZoneMove { lki, .. } | GameEvent::ControlChanged { lki, .. } => lki.object().id,
             GameEvent::SpellCountered { lki, .. } => lki.object().id,
-            GameEvent::ZoneChange { object_id, .. }
-            | GameEvent::LeftTheGame { object_id, .. }
-            | GameEvent::Tapped { object_id }
+            GameEvent::ZoneChange { departed, .. } => departed.object().id,
+            GameEvent::Tapped { object_id }
             | GameEvent::Untapped { object_id }
             | GameEvent::PermanentEnteredBattlefield { object_id, .. }
             | GameEvent::TokenCreated { object_id, .. } => *object_id,

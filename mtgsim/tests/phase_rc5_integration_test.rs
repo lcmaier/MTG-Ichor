@@ -65,8 +65,8 @@ fn zone_changes(
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
-                Some((*object_id, *from, *to, *act))
+            GameEvent::ZoneChange { departed, from, to, act, .. } => {
+                Some((departed.object().id, *from, *to, *act))
             }
             _ => None,
         })

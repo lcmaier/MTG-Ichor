@@ -12,7 +12,7 @@ use std::sync::Arc;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::events::event::{DamageTarget, EventId, GameEvent, LifeChange};
+use crate::events::event::{DamageTarget, Departed, EventId, GameEvent, LifeChange};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history_log::{HistoryRow, RowFact, RowFrame, RowKind, FIRST_TURN};
 use crate::types::history::TurnFact;
@@ -149,11 +149,12 @@ impl GameState {
     #[cfg(debug_assertions)]
     fn assert_each_zone_change_has_its_row(&self, stamps: &[RowStamp], drafts: &[(EventId, RowDraft)]) {
         for stamp in stamps {
-            let Some(GameEvent::ZoneChange { object_id, to, act, .. }) = self.events.record(stamp.seq).map(|r| &r.event) else { continue };
+            let Some(GameEvent::ZoneChange { departed, to, act, .. }) = self.events.record(stamp.seq).map(|r| &r.event) else { continue };
+            let object_id = departed.object().id;
             let written = match (to, act) {
                 (_, ZoneChangeAct::Cast | ZoneChangeAct::Drawn) => true,
                 (Zone::Battlefield, _) => drafts.iter().any(|(_, draft)| {
-                    matches!(draft.fact, RowFact::EnteredBattlefield { .. }) && draft.object.is_some_and(|object| object.id == *object_id)
+                    matches!(draft.fact, RowFact::EnteredBattlefield { .. }) && draft.object.is_some_and(|object| object.id == object_id)
                 }),
                 _ => drafts.iter().any(|(seq, draft)| *seq == stamp.seq && matches!(draft.fact, RowFact::LeftZone { .. })),
             };
@@ -283,27 +284,27 @@ impl GameState {
             // A draw, a cast and an entry are their own rows.
             GameEvent::ZoneChange { to: Zone::Battlefield, .. }
             | GameEvent::ZoneChange { act: ZoneChangeAct::Cast | ZoneChangeAct::Drawn, .. } => {}
-            GameEvent::ZoneChange { object_id, owner, from, to, act, lki, new_epoch, .. } => {
-                let became = ObjectRef { id: *object_id, zone_change_epoch: *new_epoch };
+            GameEvent::ZoneChange { departed: moved, from, to, act, new_epoch, .. } => {
+                let became = ObjectRef { id: moved.object().id, zone_change_epoch: *new_epoch };
                 let fact = RowFact::LeftZone { from: *from, to: *to, act: *act, became };
-                match lki {
-                    Some(lki) => {
+                match moved {
+                    Departed::Framed(lki) => {
                         let (object, frame) = departed(lki);
                         draft_history_row(Some(lki.characteristics().controller), object, frame, fact);
                     }
-                    None => draft_history_row(Some(*owner), Some(became), as_left(frame_as_left(became)), fact),
+                    Departed::Unframed { owner, .. } => draft_history_row(Some(*owner), Some(became), as_left(frame_as_left(became)), fact),
                 }
             }
             GameEvent::SameZoneMove { zone, act, lki, .. } => {
                 let fact = RowFact::LeftZone { from: *zone, to: *zone, act: *act, became: lki.object() };
                 draft_history_row(Some(lki.owner()), Some(lki.object()), RowFrame::LastKnown(lki.clone()), fact);
             }
-            GameEvent::LeftTheGame { owner, from, lki: Some(lki), .. } => {
+            GameEvent::LeftTheGame { departed: Departed::Framed(lki), from } => {
                 let (object, frame) = departed(lki);
-                draft_history_row(Some(*owner), object, frame, RowFact::LeftTheGame { from: *from });
+                draft_history_row(Some(lki.owner()), object, frame, RowFact::LeftTheGame { from: *from });
             }
-            GameEvent::LeftTheGame { object_id, owner, from, lki: None } => {
-                draft_history_row(Some(*owner), self.object_ref(*object_id), RowFrame::None, RowFact::LeftTheGame { from: *from });
+            GameEvent::LeftTheGame { departed: Departed::Unframed { object, owner }, from } => {
+                draft_history_row(Some(*owner), Some(*object), RowFrame::None, RowFact::LeftTheGame { from: *from });
             }
             // A source that left before dealing it deals it as it last existed
             // (CR 608.2h).

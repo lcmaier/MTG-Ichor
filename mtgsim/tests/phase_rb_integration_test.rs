@@ -55,8 +55,8 @@ fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> 
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
-                Some((*object_id, *from, *to, *act))
+            GameEvent::ZoneChange { departed, from, to, act, .. } => {
+                Some((departed.object().id, *from, *to, *act))
             }
             _ => None,
         })

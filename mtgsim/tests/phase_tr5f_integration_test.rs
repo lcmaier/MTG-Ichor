@@ -22,7 +22,7 @@ use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy};
-use mtgsim::events::event::{CombatExit, EventRecord, GameEvent};
+use mtgsim::events::event::{CombatExit, Departed, EventRecord, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::history_log::RowFact;
@@ -274,7 +274,7 @@ fn leaving_the_battlefield_removes_it_with_no_removal_record() {
     let left = records
         .events()
         .find_map(|event| match event {
-            GameEvent::ZoneChange { from: Zone::Battlefield, lki: Some(lki), .. } => Some(lki.attacking()),
+            GameEvent::ZoneChange { from: Zone::Battlefield, departed: Departed::Framed(lki), .. } => Some(lki.attacking()),
             _ => None,
         })
         .expect("the zone change");
@@ -370,7 +370,7 @@ fn an_attacker_that_stops_being_a_creature_leaves_combat() {
     assert!(game.battlefield[&ring].attacking.is_none(), "CR 506.4: it stopped being a creature");
     let records = game.recorded_events();
     let window = records.records_from(before);
-    let destroyed = first_in(window, |event| matches!(event, GameEvent::ZoneChange { object_id, .. } if *object_id == march));
+    let destroyed = first_in(window, |event| matches!(event, GameEvent::ZoneChange { departed, .. } if departed.object().id == march));
     let removal = first_in(window, |event| matches!(event, GameEvent::RemovedFromCombat { .. }));
     assert_eq!(removal.stamp.batch, destroyed.stamp.batch, "one event with its cause");
     assert_eq!(removal.stamp.cause, EventCause::GameRule(GameRule::CombatantTypeChanged));
@@ -451,7 +451,7 @@ fn a_change_of_control_a_batch_causes_is_announced_in_its_window() {
     assert_eq!(get_effective_controller(&game, bears), Some(1));
     let records = game.recorded_events();
     let window = records.records_from(before);
-    let destroyed = first_in(window, |event| matches!(event, GameEvent::ZoneChange { object_id, .. } if *object_id == sower));
+    let destroyed = first_in(window, |event| matches!(event, GameEvent::ZoneChange { departed, .. } if departed.object().id == sower));
     let back = first_in(window, |event| matches!(event, GameEvent::ControlChanged { lki, .. } if lki.object().id == bears));
     assert_eq!(back.stamp.batch, destroyed.stamp.batch);
 }

@@ -80,8 +80,8 @@ fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> 
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
-                Some((*object_id, *from, *to, *act))
+            GameEvent::ZoneChange { departed, from, to, act, .. } => {
+                Some((departed.object().id, *from, *to, *act))
             }
             _ => None,
         })
@@ -103,10 +103,10 @@ fn last_zone_change_cause(game: &GameState) -> Option<EventCause> {
 fn lki_for(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
     let mut found = None;
     for e in game.recorded_events().events() {
-        if let GameEvent::ZoneChange { object_id, lki, .. } = e
-            && *object_id == id {
+        if let GameEvent::ZoneChange { departed, .. } = e
+            && departed.object().id == id {
             assert!(found.is_none(), "expected exactly one zone change for {}", id);
-            found = Some(lki.as_ref().map(|d| Arc::clone(d.frame())));
+            found = Some(departed.lki().map(|d| Arc::clone(d.frame())));
         }
     }
     found.expect("no zone change for that object")
@@ -684,10 +684,10 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
         .records()
         .iter()
         .find_map(|r| match &r.event {
-            GameEvent::ZoneChange { object_id, owner, from, to, act, lki, .. }
-                if *object_id == died =>
+            GameEvent::ZoneChange { departed, from, to, act, .. }
+                if departed.object().id == died =>
             {
-                Some((*owner, *from, *to, *act, r.stamp.cause, lki.as_ref().map(|d| d.characteristics())))
+                Some((departed.owner(), *from, *to, *act, r.stamp.cause, departed.lki().map(|d| d.characteristics())))
             }
             _ => None,
         })

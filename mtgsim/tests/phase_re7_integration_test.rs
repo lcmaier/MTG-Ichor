@@ -63,8 +63,8 @@ fn departures(game: &GameState) -> Vec<(ObjectId, PlayerId, Zone)> {
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::LeftTheGame { object_id, owner, from, .. } => {
-                Some((*object_id, *owner, *from))
+            GameEvent::LeftTheGame { departed, from } => {
+                Some((departed.object().id, departed.owner(), *from))
             }
             _ => None,
         })
@@ -300,7 +300,7 @@ fn every_object_a_departing_player_owns_leaves_the_game_from_every_zone() {
         .recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::LeftTheGame { from, lki, .. } => Some((*from, lki.is_some())),
+            GameEvent::LeftTheGame { from, departed } => Some((*from, departed.lki().is_some())),
             _ => None,
         })
         .collect();
@@ -310,7 +310,7 @@ fn every_object_a_departing_player_owns_leaves_the_game_from_every_zone() {
         "and nothing else does: no other zone has a permanent to look back at"
     );
     let lki = game.recorded_events().events().find_map(|e| match e {
-        GameEvent::LeftTheGame { object_id, lki, .. } if *object_id == permanent => lki.as_ref().map(|d| std::sync::Arc::clone(d.frame())),
+        GameEvent::LeftTheGame { departed, .. } if departed.object().id == permanent => departed.lki().map(|d| std::sync::Arc::clone(d.frame())),
         _ => None,
     });
     assert_eq!(lki.expect("a frame").power, Some(2), "and it is the permanent as it was");
@@ -337,7 +337,7 @@ fn the_frame_a_permanent_leaves_the_game_with_is_the_one_the_board_made() {
     departs(&mut game, 1, &test_dp());
 
     let lki = game.recorded_events().events().find_map(|e| match e {
-        GameEvent::LeftTheGame { object_id, lki, .. } if *object_id == bears => lki.as_ref().map(|d| std::sync::Arc::clone(d.frame())),
+        GameEvent::LeftTheGame { departed, .. } if departed.object().id == bears => departed.lki().map(|d| std::sync::Arc::clone(d.frame())),
         _ => None,
     });
     let lki = lki.expect("a frame");
@@ -549,7 +549,7 @@ fn a_permanent_the_departing_player_controls_but_does_not_own_is_exiled() {
         .records()
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::ZoneChange { object_id, act, .. } if *object_id == angel => Some((*act, r.stamp.cause)),
+            GameEvent::ZoneChange { departed, act, .. } if departed.object().id == angel => Some((*act, r.stamp.cause)),
             _ => None,
         })
         .collect();
@@ -863,10 +863,10 @@ fn a_creature_dying_in_the_same_check_is_destroyed_and_then_leaves_the_game() {
         .recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, to: Zone::Graveyard, .. } if *object_id == doomed => {
+            GameEvent::ZoneChange { departed, to: Zone::Graveyard, .. } if departed.object().id == doomed => {
                 Some("died")
             }
-            GameEvent::LeftTheGame { object_id, .. } if *object_id == doomed => Some("left"),
+            GameEvent::LeftTheGame { departed, .. } if departed.object().id == doomed => Some("left"),
             _ => None,
         })
         .collect();

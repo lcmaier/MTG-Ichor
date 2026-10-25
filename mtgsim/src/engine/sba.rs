@@ -907,8 +907,8 @@ mod tests {
             .records()
             .iter()
             .filter_map(|r| match &r.event {
-                crate::events::event::GameEvent::ZoneChange { object_id, .. } => {
-                    Some((*object_id, r.stamp.cause, r.batch()))
+                crate::events::event::GameEvent::ZoneChange { departed, .. } => {
+                    Some((departed.object().id, r.stamp.cause, r.batch()))
                 }
                 _ => None,
             })
@@ -1358,8 +1358,8 @@ mod tests {
             matches!(
                 r.event,
                 crate::events::event::GameEvent::ZoneChange {
-                    object_id, to: Zone::Graveyard, act: ZoneChangeAct::Put, ..
-                } if object_id == aura_id
+                    ref departed, to: Zone::Graveyard, act: ZoneChangeAct::Put, ..
+                } if departed.object().id == aura_id
             ) && r.stamp.cause == EventCause::StateBasedAction(StateBasedAction::AuraAttachedIllegally)
         });
         assert!(has_event);

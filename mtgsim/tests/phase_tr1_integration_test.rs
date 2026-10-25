@@ -1293,7 +1293,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
         .records_from(before)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::ZoneChange { object_id, .. } if *object_id == target => Some("destroyed"),
+            GameEvent::ZoneChange { departed, .. } if departed.object().id == target => Some("destroyed"),
             GameEvent::AbilityResolved { .. } => Some("resolved"),
             _ => None,
         })

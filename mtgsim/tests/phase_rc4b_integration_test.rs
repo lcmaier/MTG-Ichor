@@ -55,8 +55,8 @@ fn zone_changes(game: &GameState, start: usize) -> Vec<(ObjectId, Zone, Zone, Zo
     log_after(game, start)
         .iter()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
-                Some((*object_id, *from, *to, *act))
+            GameEvent::ZoneChange { departed, from, to, act, .. } => {
+                Some((departed.object().id, *from, *to, *act))
             }
             _ => None,
         })
@@ -68,8 +68,8 @@ fn moves_of(game: &GameState, start: usize, id: ObjectId) -> Vec<(Zone, Zone, Zo
     log_after(game, start)
         .iter()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, act, lki, .. } if *object_id == id => {
-                Some((*from, *to, *act, lki.is_some()))
+            GameEvent::ZoneChange { departed, from, to, act, .. } if departed.object().id == id => {
+                Some((*from, *to, *act, departed.lki().is_some()))
             }
             _ => None,
         })

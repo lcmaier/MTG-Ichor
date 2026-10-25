@@ -590,7 +590,7 @@ fn test_zone_change_is_announced_before_the_entry() {
         .recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, to: Zone::Battlefield, .. } if *object_id == id => {
+            GameEvent::ZoneChange { departed, to: Zone::Battlefield, .. } if departed.object().id == id => {
                 Some("zone-change")
             }
             GameEvent::PermanentEnteredBattlefield { object_id, .. } if *object_id == id => {

@@ -1460,8 +1460,9 @@ impl TriggerEvent {
     /// "That player" (§3.4). `None` for an event about no player.
     pub fn player_of(&self, record: &GameEvent) -> Option<PlayerId> {
         match (self, record) {
-            (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { owner, .. })
-            | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { owner, .. }) => Some(*owner),
+            (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { departed, .. } | GameEvent::LeftTheGame { departed, .. }) => {
+                Some(departed.owner())
+            }
             (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { lki, .. }) => Some(lki.owner()),
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { player_id, .. }) => Some(*player_id),
             (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. })
@@ -2209,6 +2210,7 @@ impl PendingTrigger {
 #[cfg(test)]
 pub(crate) mod samples {
     use super::*;
+    use crate::events::event::Departed;
     use crate::state::game_state::AbilityIdentity;
     use crate::types::ids::{AbilityId, ObjectRef};
 
@@ -2231,16 +2233,14 @@ pub(crate) mod samples {
         };
         vec![
             ("ZoneChange", GameEvent::ZoneChange {
-                object_id: id,
-                owner: 0,
+                departed: Departed::Unframed { object: identity.source, owner: 0 },
                 from: Zone::Battlefield,
                 to: Zone::Graveyard,
                 act: ZoneChangeAct::Destroyed,
-                lki: None,
                 applied: None,
                 new_epoch: 1,
             }),
-            ("LeftTheGame", GameEvent::LeftTheGame { object_id: id, owner: 0, from: Zone::Battlefield, lki: None }),
+            ("LeftTheGame", GameEvent::LeftTheGame { departed: Departed::Unframed { object: identity.source, owner: 0 }, from: Zone::Battlefield }),
             ("Tapped", GameEvent::Tapped { object_id: id }),
             ("Untapped", GameEvent::Untapped { object_id: id }),
             ("ManaAdded", GameEvent::ManaAdded { player_id: 0, source_id: id, mana: Vec::new(), tapped_for_mana: false, source_lki: None }),

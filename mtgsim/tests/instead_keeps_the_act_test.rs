@@ -63,8 +63,8 @@ fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> 
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
-                Some((*object_id, *from, *to, *act))
+            GameEvent::ZoneChange { departed, from, to, act, .. } => {
+                Some((departed.object().id, *from, *to, *act))
             }
             _ => None,
         })
@@ -79,7 +79,7 @@ fn the_record_of(game: &GameState, object: ObjectId) -> (Zone, Zone, ZoneChangeA
         .iter()
         .rev()
         .find_map(|r| match r.event {
-            GameEvent::ZoneChange { object_id, from, to, act, .. } if object_id == object => {
+            GameEvent::ZoneChange { ref departed, from, to, act, .. } if departed.object().id == object => {
                 Some((from, to, act, r.stamp.cause))
             }
             _ => None,
