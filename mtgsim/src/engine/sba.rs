@@ -15,7 +15,7 @@ use crate::oracle::characteristics::{
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use crate::engine::replacement::{subject_of, EventSubject};
+use crate::engine::replacement::subject_of;
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::zones::Zone;
@@ -523,7 +523,7 @@ impl GameState {
         // decides under the move's cause, and one finds an attachment the batch
         // moved already unattached by its leaving (CR 701.3d). Each kind of
         // counter CR 704.5q removes is one too, ahead of the moves.
-        let mut seen: HashSet<(EventSubject, CollapsedResult)> = HashSet::new();
+        let mut seen: HashSet<(Option<ObjectOrPlayerId>, CollapsedResult)> = HashSet::new();
         batch.retain(|(action, _)| {
             CollapsedResult::of(action).is_none_or(|result| seen.insert((subject_of(action), result)))
         });

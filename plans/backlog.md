@@ -309,7 +309,7 @@ record, corrected where it was wrong.*
   difference that these three read the *source's* keywords where 120.3c/e read
   the target's types. `codebase-state.md` item 86 carries the dated line.
 - **Counters on an object off the battlefield** (RE-5's review, 2026-09-14,
-  R3) — the store, not the subject. `CounterSubject::Object(ObjectId)` names
+  R3) — the store, not the subject. `ObjectOrPlayerId::Object(ObjectId)` names
   any object and CR 122.1a/b already speak of "a creature card in a zone
   other than the battlefield", so the event vocabulary is done; what is not
   is that counters live on `PermanentState`, `perform_action`'s counter arms

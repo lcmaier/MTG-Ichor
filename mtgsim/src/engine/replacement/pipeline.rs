@@ -39,7 +39,7 @@ use crate::ui::ask::ask_choose_replacement;
 use super::entry_copy::enter_as_copy;
 use super::gather::{applies_to, must_choose_among};
 use super::{
-    chooser_for, gather, subject_of, AppliedReplacements, EntryFrame, EventSubject, ReplacementInstance,
+    chooser_for, gather, subject_of, AppliedReplacements, EntryFrame, ReplacementInstance,
     ReplacementInstanceId,
 };
 
@@ -86,10 +86,10 @@ pub(crate) struct Rider {
     /// `EffectRecipient::Target` in a `then` names the object or the player the
     /// replacement was about.
     ///
-    /// An [`EventSubject`] rather than an object id: a rider on a *player* event
+    /// An object or a player rather than an object id: a rider on a *player* event
     /// (Reverse Damage's gain, Angel of Suffering's mill) has to name the player
     /// (`replacement-architecture.md` §11 item 16).
-    pub subject: EventSubject,
+    pub subject: Option<ObjectOrPlayerId>,
     /// Becomes the rider's `ResolutionContext::replaced_event`.
     pub replaced_event: ReplacedEvent,
     pub effect: Effect,
@@ -156,7 +156,7 @@ impl BatchMember {
 /// the order CR 616.1 decides them.
 #[derive(Debug)]
 pub(crate) struct SubjectGroup {
-    pub subject: EventSubject,
+    pub subject: Option<ObjectOrPlayerId>,
     pub members: Vec<BatchMember>,
 }
 
@@ -333,7 +333,7 @@ fn never_happens(action: &GameAction) -> bool {
 ///
 /// **Decisions are per `(batch, subject)`; rewrites are per member**
 /// (`replacement-architecture.md` §9, RD decision 3; §11 items 15 and 24).
-/// `group` is every batch member sharing one [`EventSubject`] — the two
+/// `group` is every batch member sharing one [`subject_of`] — the two
 /// blockers' damage to one attacker, two attackers' damage to one player —
 /// and it gets **one** applied set, one chooser and one loop: a chosen
 /// instance is applied to each member it applies to, its rider queued once
@@ -598,7 +598,10 @@ pub(crate) fn apply_replacements(
         // what the whole application did (decision 7).
         let mut replaced_amount: Option<u64> = None;
         let mut replaced_damage = false;
-        let mut rider_subject: Option<EventSubject> = None;
+        // The first member's subject, read before its rewrite: CR 615.5's "that much"
+        // is about the event the effect replaced, so a later redirect in the same loop
+        // does not rename Reverse Damage's player.
+        let rider_subject = applicable.first().and_then(|&pos| group[pos].event.as_ref()).map_or(subject, subject_of);
         let mut outcome = Applied::default();
         let mut redirected = false;
         // Whom it prevented damage to, and how much, in member order: a
@@ -620,7 +623,6 @@ pub(crate) fn apply_replacements(
             // members of one group can have different subjects once a redirect
             // has moved one of them.
             let member_subject = subject_of(&event);
-            rider_subject.get_or_insert(member_subject);
             let share = shares.as_ref().map(|s| s[k]);
             // Kept for `check_order_invariance`'s fourth shape, which asks what
             // a *different* member would have substituted for this same event.
@@ -683,10 +685,7 @@ pub(crate) fn apply_replacements(
                 // The group's final applied set, once the loop has it.
                 lineage: AppliedReplacements::EMPTY,
                 controller: chosen.controller,
-                // The first member's subject, read before its rewrite: CR 615.5's "that much"
-                // is about the event the effect replaced, so a later redirect in the same loop
-                // does not rename Reverse Damage's player.
-                subject: rider_subject.unwrap_or(subject),
+                subject: rider_subject,
                 // One kind of event per group, since a pattern matches one
                 // `GameAction` arm, and damage always carries its amount.
                 replaced_event: match (replaced_damage, replaced_amount) {
@@ -806,11 +805,11 @@ impl OptionalAnswer {
 }
 
 impl IterationTrace {
-    fn new(iteration: u64, first: &GameAction, subject: &EventSubject) -> Self {
+    fn new(iteration: u64, first: &GameAction, subject: &Option<ObjectOrPlayerId>) -> Self {
         IterationTrace {
             iteration,
             event: render_debug(first),
-            subject: render_debug(subject),
+            subject: subject.map_or_else(|| "Game".to_string(), |subject| render_debug(&subject)),
             frame_computed: false,
             candidates: Vec::new(),
             prohibited: Vec::new(),
@@ -1747,7 +1746,7 @@ fn check_order_invariance(
     chosen: &ReplacementInstance,
     before: &GameAction,
     next: &GameAction,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
     member: usize,
     unsuppressed: &[(ReplacementInstance, Vec<usize>)],
 ) {
@@ -1936,10 +1935,10 @@ fn check_exempt_terminates(
     Ok(())
 }
 
-fn subject_object(subject: EventSubject) -> Option<ObjectId> {
+fn subject_object(subject: Option<ObjectOrPlayerId>) -> Option<ObjectId> {
     match subject {
-        EventSubject::Object(id) => Some(id),
-        EventSubject::Player(_) | EventSubject::Game => None,
+        Some(ObjectOrPlayerId::Object(id)) => Some(id),
+        Some(ObjectOrPlayerId::Player(_)) | None => None,
     }
 }
 
@@ -2023,7 +2022,7 @@ fn consume_use(game: &mut GameState, chosen: &ReplacementInstance, outcome: Appl
 /// took effect (decision 7). The rider is queued regardless, by the caller —
 /// that is the middle sentence, and `AmountExpr::DamagePrevented` reading 0 is
 /// what makes "if damage is prevented this way" need no `Effect::Conditional`.
-fn is_unpreventable(game: &GameState, unpreventable: bool, subject: EventSubject) -> bool {
+fn is_unpreventable(game: &GameState, unpreventable: bool, subject: Option<ObjectOrPlayerId>) -> bool {
     unpreventable
         || is_prohibited(
             game,
@@ -2059,7 +2058,7 @@ fn apply_rewrite(
     ctx: &ActionContext,
     chosen: &ReplacementInstance,
     event: GameAction,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
     share: Option<u64>,
 ) -> Result<(Option<GameAction>, Applied), String> {
     // Every arm but `Amount` changes the event whenever it is chosen, and
@@ -2617,7 +2616,7 @@ fn substitute(
     chosen: &ReplacementInstance,
     template: &GameActionTemplate,
     event: GameAction,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
 ) -> Result<GameAction, String> {
     match (template, event) {
         // CR 614.6: the modified event is the one that happens, and a new
@@ -2736,19 +2735,19 @@ fn substitute(
 
         // CR 614.1a's kind changes: a draw becomes a gain (Words of Worship), a gain
         // a loss (Tainted Remedy). The subject does not move, so neither carries a
-        // `player`; an `EventSubject::Object` is the authoring error. A substituted
+        // `player`; an object subject is the authoring error. A substituted
         // loss is no damage's — calling it damage would hand it to Ali from Cairo's
         // clamp, which watches CR 120.3a's loss only — and keeps the replaced
         // event's cause, as every substitute does (CR 614.6).
         (GameActionTemplate::GainLife { amount }, event) => match subject_of(&event) {
-            EventSubject::Player(player) => Ok(GameAction::GainLife {
+            Some(ObjectOrPlayerId::Player(player)) => Ok(GameAction::GainLife {
                     player,
                     amount: template_amount(chosen, *amount, &event)?,
                     // CR 609.6: the replacement effect's own source is the
                     // source of what it substitutes.
                     source: chosen.source,
                 }),
-            EventSubject::Object(_) | EventSubject::Game => Err(format!(
+            Some(ObjectOrPlayerId::Object(_)) | None => Err(format!(
                 "replacement {:?} rewrites to a life gain but matched {:?}, whose subject \
                  is not a player. Its `EventPattern` and its `Rewrite` \
                  describe different events.",
@@ -2756,12 +2755,12 @@ fn substitute(
             )),
         },
         (GameActionTemplate::LoseLife { amount }, event) => match subject_of(&event) {
-            EventSubject::Player(player) => Ok(GameAction::LoseLife {
+            Some(ObjectOrPlayerId::Player(player)) => Ok(GameAction::LoseLife {
                     player,
                     amount: template_amount(chosen, *amount, &event)?,
                     damage_source: None,
                 }),
-            EventSubject::Object(_) | EventSubject::Game => Err(format!(
+            Some(ObjectOrPlayerId::Object(_)) | None => Err(format!(
                 "replacement {:?} rewrites to a life loss but matched {:?}, whose subject \
                  is not a player. Its `EventPattern` and its `Rewrite` \
                  describe different events.",
@@ -2824,8 +2823,8 @@ fn substitute(
         // player wins: nothing printed hands a substituted win elsewhere, so there
         // is no `player` field until a card prints one.
         (GameActionTemplate::PlayerWins, event) => match subject_of(&event) {
-            EventSubject::Player(player) => Ok(GameAction::PlayerWins { player }),
-            EventSubject::Object(_) | EventSubject::Game => Err(format!(
+            Some(ObjectOrPlayerId::Player(player)) => Ok(GameAction::PlayerWins { player }),
+            Some(ObjectOrPlayerId::Object(_)) | None => Err(format!(
                 "replacement {:?} rewrites to a win but matched {:?}, whose subject is \
                  not a player. Its `EventPattern` and its `Rewrite` describe \
                  different events.",

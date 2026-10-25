@@ -381,7 +381,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
 ///
 /// The phase's only prevention consumer, and the only effect in it that is
 /// about **no object at all**: `ObjectSet::Fixed(vec![])` beside
-/// `PlayerSet::You`. Its rider is what makes `Rider.subject` an `EventSubject`
+/// `PlayerSet::You`. Its rider is what makes `Rider.subject` an object or a player
 /// rather than an `Option<ObjectId>` — "mill" needs to name the player the
 /// damage was aimed at (`codebase-state.md` item 27) — and "twice that many"
 /// is `AmountExpr::Multiply(ReplacedAmount, 2)`, read off the event as the

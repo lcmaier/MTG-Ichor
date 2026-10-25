@@ -1402,9 +1402,7 @@ impl GameState {
         rider: crate::engine::replacement::Rider,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        use crate::engine::replacement::EventSubject;
         use crate::engine::resolve::ResolutionContext;
-        use crate::types::ids::ObjectOrPlayerId;
 
         let rctx = ResolutionContext {
             source: rider.source,
@@ -1414,11 +1412,7 @@ impl GameState {
             // CR 615.5's rider acts on the replaced event's subject, which is
             // one thing and therefore one instance. A draw is replaced by
             // nothing, so no rider has the game for its subject.
-            targets: crate::engine::targeting::ChosenTargets::one(match rider.subject {
-                EventSubject::Object(id) => vec![ObjectOrPlayerId::Object(id)],
-                EventSubject::Player(pid) => vec![ObjectOrPlayerId::Player(pid)],
-                EventSubject::Game => Vec::new(),
-            }),
+            targets: crate::engine::targeting::ChosenTargets::one(rider.subject.into_iter().collect()),
             replaced_event: Some(rider.replaced_event),
             trigger: None,
         };

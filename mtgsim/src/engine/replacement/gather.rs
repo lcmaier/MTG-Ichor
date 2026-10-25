@@ -77,73 +77,57 @@ pub enum CounterEffectKind {
 }
 
 /// What a proposed event is *about* — CR 614.1's "whatever they're affecting"
-/// and CR 616.1's "the affected object ... or the affected player".
+/// and CR 616.1's "the affected object ... or the affected player". `None` for
+/// an event about the game itself, a draw (CR 104.4): no player is affected
+/// rather than another, so CR 616.1 has no chooser, and no effect's affected
+/// set names it.
 ///
-/// Named for the *event*, not for the effect, because `ObjectSet` already
-/// answers the other question — which objects an effect applies to — and the
-/// two are asked one line apart in [`applies_to`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum EventSubject {
-    Object(ObjectId),
-    Player(PlayerId),
-    /// An event about the game itself, a draw (CR 104.4): no player is
-    /// affected rather than another, so CR 616.1 has no chooser, and no
-    /// effect's affected set names it.
-    Game,
-}
-
-impl From<ObjectOrPlayerId> for EventSubject {
-    fn from(target: ObjectOrPlayerId) -> Self {
-        match target {
-            ObjectOrPlayerId::Object(id) => EventSubject::Object(id),
-            ObjectOrPlayerId::Player(player) => EventSubject::Player(player),
-        }
-    }
-}
-
-/// The object or player a proposed action is about.
-pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
+/// The *event's* subject, not the effect's: which objects an effect applies to
+/// is `ObjectSet`'s question, and the two are asked one line apart in
+/// [`applies_to`].
+pub(crate) fn subject_of(action: &GameAction) -> Option<ObjectOrPlayerId> {
+    use ObjectOrPlayerId::{Object, Player};
     match action {
-        GameAction::DealDamage { target, .. } => EventSubject::from(*target),
-        GameAction::DrawCards { player, .. } => EventSubject::Player(*player),
-        GameAction::DrawCard { player, .. } => EventSubject::Player(*player),
-        GameAction::GainLife { player, .. } => EventSubject::Player(*player),
-        GameAction::LoseLife { player, .. } => EventSubject::Player(*player),
-        GameAction::ZoneChange { object, .. } => EventSubject::Object(*object),
-        GameAction::Untap { object } => EventSubject::Object(*object),
-        GameAction::Tap { object } => EventSubject::Object(*object),
-        GameAction::BecomeBlocked { attacker } => EventSubject::Object(*attacker),
-        GameAction::Destroy { object, .. } => EventSubject::Object(*object),
-        GameAction::EnterBattlefield { object, .. } => EventSubject::Object(*object),
+        GameAction::DealDamage { target, .. } => Some(*target),
+        GameAction::DrawCards { player, .. } => Some(Player(*player)),
+        GameAction::DrawCard { player, .. } => Some(Player(*player)),
+        GameAction::GainLife { player, .. } => Some(Player(*player)),
+        GameAction::LoseLife { player, .. } => Some(Player(*player)),
+        GameAction::ZoneChange { object, .. } => Some(Object(*object)),
+        GameAction::Untap { object } => Some(Object(*object)),
+        GameAction::Tap { object } => Some(Object(*object)),
+        GameAction::BecomeBlocked { attacker } => Some(Object(*attacker)),
+        GameAction::Destroy { object, .. } => Some(Object(*object)),
+        GameAction::EnterBattlefield { object, .. } => Some(Object(*object)),
         // CR 614.16's "under your control": the tokens are created for a
         // player, and CR 616.1's chooser is that player.
-        GameAction::CreateTokens { controller, .. } => EventSubject::Player(*controller),
-        GameAction::CreateTokenIn { object, .. } => EventSubject::Object(*object),
+        GameAction::CreateTokens { controller, .. } => Some(Player(*controller)),
+        GameAction::CreateTokenIn { object, .. } => Some(Object(*object)),
         // CR 122.1's "on an object or player": CR 616.1's chooser is the
         // permanent's controller or the player getting them.
-        GameAction::AddCounters { subject, .. } | GameAction::RemoveCounters { subject, .. } => EventSubject::from(*subject),
-        GameAction::Attach { attachment, .. } | GameAction::Unattach { attachment } => EventSubject::Object(*attachment),
+        GameAction::AddCounters { subject, .. } | GameAction::RemoveCounters { subject, .. } => Some(*subject),
+        GameAction::Attach { attachment, .. } | GameAction::Unattach { attachment } => Some(Object(*attachment)),
         // CR 616.1's "affected object": the token, whose owner chooses.
-        GameAction::TokenCeasesToExist { object } => EventSubject::Object(*object),
+        GameAction::TokenCeasesToExist { object } => Some(Object(*object)),
         // CR 614.10's three units are all about a *player* — "skip **your**
         // next turn", "**players** skip their upkeep steps" — so CR 616.1's
         // chooser is the player whose turn it is and Eon Hub on a four-player
         // table asks nobody.
-        GameAction::BeginTurn { player, .. } => EventSubject::Player(*player),
-        GameAction::BeginPhase { player, .. } => EventSubject::Player(*player),
-        GameAction::BeginStep { player, .. } => EventSubject::Player(*player),
+        GameAction::BeginTurn { player, .. } => Some(Player(*player)),
+        GameAction::BeginPhase { player, .. } => Some(Player(*player)),
+        GameAction::BeginStep { player, .. } => Some(Player(*player)),
         // CR 701.22a's "look at the top N cards of **your** library": the
         // scrying player, who is CR 616.1's chooser for Eligeth.
-        GameAction::Scry { player, .. } => EventSubject::Player(*player),
+        GameAction::Scry { player, .. } => Some(Player(*player)),
         // CR 616.1's "the affected player": the one who would lose or win.
-        GameAction::PlayerLoses { player, .. } => EventSubject::Player(*player),
-        GameAction::PlayerWins { player } => EventSubject::Player(*player),
-        GameAction::GameEndsInADraw => EventSubject::Game,
+        GameAction::PlayerLoses { player, .. } => Some(Player(*player)),
+        GameAction::PlayerWins { player } => Some(Player(*player)),
+        GameAction::GameEndsInADraw => None,
         // CR 106.6a's mana enters a *player's* pool, and CR 616.1's chooser
         // is that player; a spell's production has no permanent to be about.
-        GameAction::ProduceMana { player, .. } => EventSubject::Player(*player),
+        GameAction::ProduceMana { player, .. } => Some(Player(*player)),
         // CR 701.24a — "a player shuffles their library".
-        GameAction::ShuffleLibrary { player } => EventSubject::Player(*player),
+        GameAction::ShuffleLibrary { player } => Some(Player(*player)),
     }
 }
 
@@ -152,7 +136,7 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
 ///
 /// A lookup, and therefore already N-player-safe — no `bool`, no "the other
 /// player".
-/// Takes the whole proposal rather than its [`EventSubject`], because **an
+/// Takes the whole proposal rather than its [`subject_of`], because **an
 /// entry's chooser is not a property of the board**. A permanent that has not
 /// entered yet has no controller, so `controller_or_owner` falls through to its
 /// owner — the wrong player the moment someone casts a permanent spell they do
@@ -169,9 +153,9 @@ pub(crate) fn chooser_for(game: &GameState, action: &GameAction) -> Option<Playe
     match action {
         GameAction::EnterBattlefield { controller, .. } => Some(*controller),
         other => match subject_of(other) {
-            EventSubject::Player(pid) => Some(pid),
-            EventSubject::Object(id) => controller_or_owner(game, id),
-            EventSubject::Game => None,
+            Some(ObjectOrPlayerId::Player(pid)) => Some(pid),
+            Some(ObjectOrPlayerId::Object(id)) => controller_or_owner(game, id),
+            None => None,
         },
     }
 }
@@ -449,7 +433,7 @@ fn gather_sweeping(
 /// different event from its neighbor's.
 struct EventProposal<'a, 'g> {
     action: &'a GameAction,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
     /// Who or what caused it, for [`ReplacementDef::by`].
     cause: EventCause,
     /// CR 614.12's look-ahead for the subject, when the caller holds one; the
@@ -647,7 +631,7 @@ pub(crate) fn applies_to_mana_production(
     let action =
         GameAction::ProduceMana { player, source: producer, mana: Vec::new(), special: Vec::new(), tapped_for_mana, source_lki: None };
     let cause = EventCause::Effect { resolution: ResolutionStamp { source: producer, controller: player }, generated_by };
-    let proposal = EventProposal { action: &action, subject: EventSubject::Player(player), cause, frame: None };
+    let proposal = EventProposal { action: &action, subject: Some(ObjectOrPlayerId::Player(player)), cause, frame: None };
     def_applies(game, def, source, controller, &proposal)
 }
 
@@ -693,7 +677,7 @@ pub(super) fn applies_to(
     game: &GameState,
     instance: &ReplacementInstance,
     action: &GameAction,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
     cause: EventCause,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
@@ -755,16 +739,16 @@ pub(crate) fn set_affects(
     affected_players: &PlayerSet,
     source: ObjectId,
     controller: PlayerId,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
     let id = match subject {
-        EventSubject::Object(id) => id,
+        Some(ObjectOrPlayerId::Object(id)) => id,
         // CR 109.5 resolves "you" against the effect's *current* controller,
         // which is exactly what `controller` is here — the sweep reads it off
         // the board on every gather rather than snapshotting it at ETB.
-        EventSubject::Player(pid) => return affected_players.contains(controller, pid),
-        EventSubject::Game => return false,
+        Some(ObjectOrPlayerId::Player(pid)) => return affected_players.contains(controller, pid),
+        None => return false,
     };
     match affected {
         // CR 303.4m's host by id like the other two: an entering permanent is

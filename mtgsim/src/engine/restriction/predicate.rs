@@ -12,12 +12,12 @@ use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::object_filter::TextReferents;
 use crate::events::cause::EventCause;
-use crate::engine::replacement::{pattern_watches, set_affects, subject_of, EntryFrame, EventSubject};
+use crate::engine::replacement::{pattern_watches, set_affects, subject_of, EntryFrame};
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
 use crate::types::effects::{ObjectSet, PlayerSet};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{
@@ -48,7 +48,7 @@ pub(crate) enum Query<'a> {
     /// CR 701.19c / 615.12 — may this replacement effect be applied?
     ApplyReplacement {
         kind: ReplacementKindFilter,
-        subject: EventSubject,
+        subject: Option<ObjectOrPlayerId>,
     },
 }
 
@@ -120,7 +120,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
     // Ahead of the gate, because `get_effective_abilities` is not how a keyword
     // is found and the gate would skip it (§3.5 commitment 2).
     if let Query::Event { action, cause, .. } = query
-        && let EventSubject::Object(id) = subject_of(action)
+        && let Some(ObjectOrPlayerId::Object(id)) = subject_of(action)
         && let Some(keyword) = keyword_prohibits(game, id, action, *cause) {
         return Some(Prohibition { source: id, by: ProhibitedBy::Keyword(keyword) });
     }

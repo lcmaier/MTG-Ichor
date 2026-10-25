@@ -3682,7 +3682,7 @@ audit is at the end.
 
 ### Found by RD-4 — redirection and unpreventable damage (2026-09-09)
 
-106. **`RetargetSpec::ToFixed(DamageTarget)` is the one arm §9 designed that
+106. **`RetargetSpec::ToFixed(ObjectOrPlayerId)` is the one arm §9 designed that
      RD-4 did not build, and it is a *feature* on the triage rather than a
      fact.** §9's RD-4 section names four arms; three shipped. A "fixed"
      destination is Harm's Way's "any target" and Divine Deflection's — both
