@@ -1557,7 +1557,8 @@ mod tests {
     // RD-2
     // -----------------------------------------------------------------------
 
-    use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+    use crate::engine::resolve::ResolutionContext;
+    use crate::types::ids::ObjectOrPlayerId;
     use crate::events::event::GameEvent;
     use crate::state::replacement_effects::RegisteredReplacementEffect;
     use crate::test_support::put_in_hand;
@@ -1569,7 +1570,7 @@ mod tests {
         game: &mut GameState,
         card: Arc<CardData>,
         controller: crate::types::ids::PlayerId,
-        targets: Vec<ResolvedTarget>,
+        targets: Vec<ObjectOrPlayerId>,
     ) -> crate::types::ids::ObjectId {
         let id = put_in_hand(game, card.clone(), controller);
         let ctx = ResolutionContext {
@@ -1607,7 +1608,7 @@ mod tests {
     #[test]
     fn mending_hands_makes_one_row_counting_four_on_its_target() {
         let mut game = setup_two_player_game();
-        let spell = resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Player(1)]);
+        let spell = resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Player(1)]);
         let rows = rows(&game);
         assert_eq!(rows.len(), 1);
         let row = rows[0];
@@ -1627,7 +1628,7 @@ mod tests {
     fn mending_hands_on_a_creature_fills_the_object_set() {
         let mut game = setup_two_player_game();
         let bear = place_vanilla_creature(&mut game, 1, 2, 2, &[]);
-        resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bear)]);
+        resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Object(bear)]);
         let row = rows(&game)[0];
         assert_eq!(row.def.affected_objects, ObjectSet::Fixed(vec![bear]));
         assert_eq!(row.def.affected_players, PlayerSet::Nobody);

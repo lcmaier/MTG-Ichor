@@ -34,7 +34,7 @@ use mtgsim::cards::phase_tr1_cards::{
 };
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::engine::triggers::{could_be_a_mana_ability, visible_to_all};
 use mtgsim::events::event::{DamageTarget, GameEvent};
@@ -56,7 +56,7 @@ use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
     ObjectSet, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSpent, ManaType};
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::types::triggers::{
@@ -146,7 +146,7 @@ fn resolve_effect_from(
     source: ObjectId,
     controller: PlayerId,
     effect: &Effect,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
     dp: &dyn DecisionProvider,
 ) {
     let ctx = ResolutionContext {
@@ -919,7 +919,7 @@ fn damage_triggers_still_fire_when_the_creature_regenerates() {
         shaman,
         0,
         &Effect::Atom(Primitive::Regenerate, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))),
-        vec![ResolvedTarget::Object(troll)],
+        vec![ObjectOrPlayerId::Object(troll)],
         &test_dp(),
     );
     let bolt = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
@@ -1080,7 +1080,7 @@ fn the_trigger_is_controlled_by_whoever_controlled_the_source_when_it_triggered(
         treason,
         1,
         &act_of_treason().abilities[0].effect,
-        vec![ResolvedTarget::Object(sentinel)],
+        vec![ObjectOrPlayerId::Object(sentinel)],
         &test_dp(),
     );
     assert_eq!(get_effective_controller(&game, sentinel), Some(1), "stolen before placement");
@@ -1358,7 +1358,7 @@ fn a_bound_object_is_still_affected_after_it_changes_characteristics() {
         EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
     );
     let wand = put_on_battlefield(&mut game, sol_ring(), 1);
-    resolve_effect_from(&mut game, wand, 1, &change, vec![ResolvedTarget::Object(bear)], &test_dp());
+    resolve_effect_from(&mut game, wand, 1, &change, vec![ObjectOrPlayerId::Object(bear)], &test_dp());
     assert!(!mtgsim::oracle::characteristics::is_creature(&game, bear));
 
     place(&mut game, &test_dp());
@@ -1538,7 +1538,7 @@ fn an_effect_that_counters_abilities_counters_a_triggered_ability() {
         stifle,
         1,
         &Effect::Atom(Primitive::CounterAbility, EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1))),
-        vec![ResolvedTarget::Object(ability)],
+        vec![ObjectOrPlayerId::Object(ability)],
         &test_dp(),
     );
 

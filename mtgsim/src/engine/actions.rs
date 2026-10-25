@@ -1386,7 +1386,7 @@ impl GameState {
     /// (`Rider::lineage`, CR 614.5): they are the rest of the replacement's
     /// effect. Events nested inside them are contained and start fresh.
     ///
-    /// A player subject becomes a `ResolvedTarget::Player` rather than being
+    /// A player subject becomes an `ObjectOrPlayerId::Player` rather than being
     /// flattened away: Angel of Suffering's "prevent that damage and mill twice
     /// that many cards" mills the player the damage was aimed at.
     fn resolve_riders(&mut self, riders: Vec<crate::engine::replacement::Rider>, ctx: &ActionContext) -> Result<(), String> {
@@ -1403,7 +1403,8 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<(), String> {
         use crate::engine::replacement::EventSubject;
-        use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+        use crate::engine::resolve::ResolutionContext;
+        use crate::types::ids::ObjectOrPlayerId;
 
         let rctx = ResolutionContext {
             source: rider.source,
@@ -1414,8 +1415,8 @@ impl GameState {
             // one thing and therefore one instance. A draw is replaced by
             // nothing, so no rider has the game for its subject.
             targets: crate::engine::targeting::ChosenTargets::one(match rider.subject {
-                EventSubject::Object(id) => vec![ResolvedTarget::Object(id)],
-                EventSubject::Player(pid) => vec![ResolvedTarget::Player(pid)],
+                EventSubject::Object(id) => vec![ObjectOrPlayerId::Object(id)],
+                EventSubject::Player(pid) => vec![ObjectOrPlayerId::Player(pid)],
                 EventSubject::Game => Vec::new(),
             }),
             replaced_event: Some(rider.replaced_event),

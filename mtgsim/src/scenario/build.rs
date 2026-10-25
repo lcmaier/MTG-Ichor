@@ -13,7 +13,6 @@ use crate::engine::layers::compute::seed_frame;
 use crate::state::history_log::{HistoryRow, RowFact, RowFrame, FIRST_TURN};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::cards::registry::CardRegistry;
-use crate::engine::resolve::ResolvedTarget;
 use crate::objects::card_data::{AbilityType, CardData};
 use crate::objects::object::GameObject;
 use crate::oracle::characteristics::{get_effective_abilities, get_effective_controller, get_effective_types};
@@ -24,7 +23,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, StepType};
 use crate::state::history::PlayerHistory;
 use crate::types::card_types::CardType;
 use crate::types::history::{HistorySpan, TurnFact};
-use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::zones::Zone;
 use crate::ui::decision::PriorityAction;
 
@@ -723,7 +722,7 @@ impl<'s> Loader<'s> {
     /// card in a graveyard or exile, or a spell an earlier line casts: what a
     /// target can be when the line is played, with libraries and hands left
     /// out, so twenty Forests in a library need no tags.
-    fn setup_target(&self, target: &Targeted, cast: &[(ObjectId, usize)], line: usize) -> Result<ResolvedTarget, ScenarioError> {
+    fn setup_target(&self, target: &Targeted, cast: &[(ObjectId, usize)], line: usize) -> Result<ObjectOrPlayerId, ScenarioError> {
         match target {
             Targeted::Player(player) => {
                 let player = self.checked_player(*player, line)?;
@@ -731,7 +730,7 @@ impl<'s> Loader<'s> {
                     let message = format!("player {player} has left the game, and is no target (CR 800.4a)");
                     return Err(ScenarioError::at(ScenarioErrorKind::Unreachable, line, message));
                 }
-                Ok(ResolvedTarget::Player(player))
+                Ok(ObjectOrPlayerId::Player(player))
             }
             Targeted::Card(card) => {
                 let what = "permanent, card in a graveyard or exile, or spell an earlier line casts";
@@ -739,7 +738,7 @@ impl<'s> Loader<'s> {
                 let targetable = |c: &CreatedObject| {
                     matches!(c.zone, Zone::Battlefield | Zone::Graveyard | Zone::Exile) || cast.iter().any(|(id, _)| *id == c.id)
                 };
-                self.one_named(card, line, what, none, targetable).map(ResolvedTarget::Object)
+                self.one_named(card, line, what, none, targetable).map(ObjectOrPlayerId::Object)
             }
         }
     }

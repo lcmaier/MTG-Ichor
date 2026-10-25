@@ -21,7 +21,7 @@ use mtgsim::cards::authoring::{at_beginning_of, damage_to_is_prevented, triggere
 use mtgsim::cards::phase_rd_cards::{mending_hands, safe_passage};
 use mtgsim::cards::phase_tr5d_cards::{goblin_negotiation, selfless_squire};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GeneratedBy};
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
@@ -41,7 +41,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::history::ObjectFact;
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::types::keywords::KeywordFlag;
@@ -59,7 +59,7 @@ use mtgsim::ui::display::format_record;
 // ---------------------------------------------------------------------------
 
 /// Resolve `card`'s first ability for `controller`, the way the spell would.
-fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId, targets: Vec<ResolvedTarget>) {
+fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId, targets: Vec<ObjectOrPlayerId>) {
     let id = put_in_hand(game, card.clone(), controller);
     let ctx = ResolutionContext {
         source: id,
@@ -159,7 +159,7 @@ fn selfless_squire_grows_from_any_prevention_of_damage_to_you() {
     let mut game = setup_two_player_game();
     let source = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
     let squire = squire_from_last_turn(&mut game, 0);
-    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Player(0)]);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Player(0)]);
 
     deal_together(&mut game, vec![damage(source, DamageTarget::Player(0), 3)], &test_dp());
     assert_eq!(waiting_from(&game, squire), 1);
@@ -178,8 +178,8 @@ fn two_prevention_effects_on_one_damage_are_two_triggers() {
     let mut game = setup_two_player_game();
     let source = put_on_battlefield(&mut game, vanilla_creature(6, 6, &[]), 1);
     let squire = squire_from_last_turn(&mut game, 0);
-    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Player(0)]);
-    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Player(0)]);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Player(0)]);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Player(0)]);
     let before = game.recorded_events().len();
 
     let dp = RecordingDecisionProvider::picking(0);
@@ -293,7 +293,7 @@ fn prevent_makes_a_prevention_effect_and_a_trigger_on_damage_is_not_one() {
     let elves = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[]), 0);
     put_on_battlefield(&mut game, watcher, 1);
     put_on_battlefield(&mut game, gains_that_much(dealt), 0);
-    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bears)]);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Object(bears)]);
     let before = life(&game, 0);
 
     let three_each = vec![damage(source, DamageTarget::Object(bears), 3), damage(source, DamageTarget::Object(elves), 3)];
@@ -483,7 +483,7 @@ fn prevented_damage_is_no_excess() {
     let mut game = setup_two_player_game();
     let source = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bears)]);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Object(bears)]);
     let before = game.recorded_events().len();
 
     deal_together(&mut game, vec![damage(source, DamageTarget::Object(bears), 5)], &test_dp());
@@ -791,7 +791,7 @@ fn the_damage_dealt_this_way_is_what_prevention_left() {
     let fixture = fixture_sorcery(siphon);
     let mut game = setup_two_player_game();
     let giant = put_on_battlefield(&mut game, vanilla_creature(7, 7, &[]), 1);
-    resolve_spell(&mut game, mending_hands(), 1, vec![ResolvedTarget::Object(giant)]);
+    resolve_spell(&mut game, mending_hands(), 1, vec![ObjectOrPlayerId::Object(giant)]);
 
     let id = put_in_hand(&mut game, fixture, 0);
     let dp = ScriptedDecisionProvider::new();

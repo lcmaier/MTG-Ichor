@@ -27,7 +27,7 @@ use mtgsim::cards::phase_tr2a_cards::{
 };
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
@@ -47,7 +47,7 @@ use mtgsim::types::effects::{
     TargetCount, TypeChange,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
@@ -165,7 +165,7 @@ fn steal(game: &mut GameState, victim: ObjectId, player: PlayerId) {
         ability_source: None,
         controller: player,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(victim)]),
         replaced_event: None,
         trigger: None,
     };
@@ -650,7 +650,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(id)]),
         replaced_event: None,
         trigger: None,
     };
@@ -1305,7 +1305,7 @@ fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(trigger)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(trigger)]),
         replaced_event: None,
         trigger: None,
     };
@@ -1379,7 +1379,7 @@ fn retype(game: &mut GameState, id: ObjectId, add: Vec<Subtype>, remove: Vec<Sub
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(id)]),
         replaced_event: None,
         trigger: None,
     };

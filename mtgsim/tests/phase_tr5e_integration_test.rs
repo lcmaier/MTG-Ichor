@@ -20,7 +20,7 @@ use mtgsim::cards::authoring::{
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::phase_tr5e_cards::hellrider;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::{ChosenTargets, FilterIdentity};
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::events::event::GameEvent;
@@ -35,7 +35,7 @@ use mtgsim::types::effects::{
     PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::triggers::{DefenderFilter, EventRole, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -133,7 +133,7 @@ fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, target: O
         ability_source: None,
         controller: player,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(target)]),
         replaced_event: None,
         trigger: None,
     };
@@ -332,7 +332,7 @@ fn a_creature_turned_green_after_it_attacks_triggers_nothing() {
         ability_source: None,
         controller: 0,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(drake)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(drake)]),
         replaced_event: None,
         trigger: None,
     };
@@ -546,7 +546,7 @@ fn any_defending_player_is_each_opponent_of_the_attacking_player_in_combat() {
     let legal = |game: &GameState| -> Vec<bool> {
         creatures
             .iter()
-            .map(|&id| game.validate_targets(&target, &[ResolvedTarget::Object(id)], mtgsim::test_support::fixed_target_bounds(&target), 1, FilterIdentity::NONE).is_ok())
+            .map(|&id| game.validate_targets(&target, &[ObjectOrPlayerId::Object(id)], mtgsim::test_support::fixed_target_bounds(&target), 1, FilterIdentity::NONE).is_ok())
             .collect()
     };
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) });

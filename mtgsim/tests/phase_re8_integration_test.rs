@@ -26,7 +26,7 @@ use mtgsim::cards::phase_re8_cards::{
 };
 use mtgsim::cards::phase_re_cards::notion_thief;
 use mtgsim::engine::actions::ZoneChangeAct;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{EventRecord, GameEvent};
 use mtgsim::objects::card_data::{
     AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
@@ -43,7 +43,7 @@ use mtgsim::types::effects::{
     ObjectSet, AmountExpr, DiscardChooser, Effect, EffectRecipient, PlayerSet, Primitive,
 };
 use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -160,7 +160,7 @@ fn resolve_spell_at(
         ability_source: None,
         controller: caster,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Player(target_player)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Player(target_player)]),
         replaced_event: None,
         trigger: None,
     };

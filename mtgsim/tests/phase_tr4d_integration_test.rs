@@ -33,7 +33,7 @@ use mtgsim::cards::phase_rb_cards::leyline_of_the_void;
 use mtgsim::cards::phase_rf_cards::darksteel_colossus;
 use mtgsim::cards::phase_tr4d_cards::{multanis_presence, ray_of_command};
 use mtgsim::engine::actions::GameAction;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer, ObjectSet};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
@@ -54,7 +54,7 @@ use mtgsim::types::effects::{
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, TriggerEvent, TriggerSubject,
@@ -99,7 +99,7 @@ fn resolve_at(game: &mut GameState, player: PlayerId, primitive: Primitive, obje
         ability_source: None,
         controller: player,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(object)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(object)]),
         replaced_event: None,
         trigger: None,
     };
@@ -543,7 +543,7 @@ fn steal(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         ability_source: None,
         controller: thief,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(victim)]),
         replaced_event: None,
         trigger: None,
     };

@@ -28,12 +28,12 @@ use mtgsim::test_support::{
     state_based_ctx,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::types::effects::{
     ObjectSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::replacement::{
     regeneration_rider, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
@@ -1095,7 +1095,7 @@ fn regenerate(game: &mut GameState, source: ObjectId, target: ObjectId) {
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(target)]),
         replaced_event: None,
         trigger: None,
     };
@@ -1300,7 +1300,7 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(bear)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(bear)]),
         replaced_event: None,
         trigger: None,
     };
@@ -1341,7 +1341,7 @@ fn test_cant_be_regenerated_does_not_withhold_other_replacements() {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(bear)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(bear)]),
         replaced_event: None,
         trigger: None,
     };

@@ -744,7 +744,7 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::resolve::ResolvedTarget;
+    use crate::types::ids::ObjectOrPlayerId;
     use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
     use crate::types::card_types::*;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
@@ -909,7 +909,7 @@ mod tests {
         assert_eq!(entry.chosen_targets.len(), 1, "one instance of \"target\"");
         assert_eq!(
             entry.chosen_targets[0].as_resolved_targets().collect::<Vec<_>>(),
-            vec![ResolvedTarget::Player(1)]
+            vec![ObjectOrPlayerId::Player(1)]
         );
         assert!(entry.is_spell);
     }

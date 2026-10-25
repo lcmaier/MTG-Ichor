@@ -19,7 +19,7 @@ use mtgsim::cards::phase_tr5e_cards::hellrider;
 use mtgsim::cards::phase_tr5f_cards::{attacking_human_token, hanweir_garrison, relentless_assault};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::compute_characteristics;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy};
 use mtgsim::events::event::{CombatExit, DepartedObject, EventRecord, GameEvent};
@@ -40,7 +40,7 @@ use mtgsim::types::effects::{
     PlayerRef, PlayerSet, Primitive, TypeChange,
     ReturnUnder, SelectionFilter, TargetCount, TokenDef,
 };
-use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::triggers::{DefenderFilter, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
@@ -98,7 +98,7 @@ fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, target: O
         ability_source: None,
         controller: player,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(target)]),
         replaced_event: None,
         trigger: None,
     };
@@ -437,7 +437,7 @@ fn a_change_of_control_a_batch_causes_is_announced_in_its_window() {
         ability_source: game.object_ref(sower),
         controller: 0,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(bears)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(bears)]),
         replaced_event: None,
         trigger: None,
     };

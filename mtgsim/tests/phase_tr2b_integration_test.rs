@@ -18,7 +18,7 @@ use mtgsim::cards::phase_rd_cards::safe_passage;
 use mtgsim::cards::phase_tr2b_cards::{cosis_trickster, nykthos_paragon, psychosis_crawler};
 use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_power, get_effective_toughness};
 use mtgsim::engine::actions::GameAction;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::types::triggers::ObjectOrPlayer;
@@ -35,7 +35,7 @@ use mtgsim::types::effects::{
     EffectRecipient, ObjectFilter, Pick, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
@@ -455,7 +455,7 @@ fn an_exile_edict_chooses_through_the_same_recipient() {
         })),
     );
     let ctx = ResolutionContext {
-        targets: ChosenTargets::one(vec![ResolvedTarget::Player(1)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Player(1)]),
         ..ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell)
     };
     game.resolve_effect(&exiles, &ctx, &test_dp()).unwrap();
@@ -529,7 +529,7 @@ fn the_recheck_of_a_stolen_source_reads_the_player_it_triggered_for() {
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     let ctx = ResolutionContext {
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(reckoner)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(reckoner)]),
         ..ResolutionContext::untargeted(thief, 1, mtgsim::events::cause::GeneratedBy::Spell)
     };
     game.resolve_effect(&steal, &ctx, &test_dp()).unwrap();

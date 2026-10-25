@@ -398,6 +398,16 @@ pub struct ObjectRef {
     pub zone_change_epoch: ZoneChangeEpoch,
 }
 
+/// An object or a player, by id: what a proposal acts on, and a target as a
+/// resolution reads it once CR 608.2b has kept it. The role is the field's
+/// name — a target, a damage recipient (CR 120.1), a counter's subject (CR
+/// 122.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ObjectOrPlayerId {
+    Object(ObjectId),
+    Player(PlayerId),
+}
+
 /// One CR 500.7 extra turn, from the effect that creates it until it begins
 /// or is skipped: which entry of the turn queue a turn came from. "That turn"
 /// (Final Fortune) names one turn by it, and a skipped extra turn (CR

@@ -17,7 +17,7 @@ use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game::Game;
@@ -34,7 +34,7 @@ use mtgsim::types::effects::{
     TargetCount,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::{EventRole, TriggerCondition, TriggerDef};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -141,7 +141,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(id)]),
         replaced_event: None,
         trigger: None,
     };

@@ -14,7 +14,7 @@ use mtgsim::cards::phase_lf_cards;
 use mtgsim::cards::phase_rs_cards::{diabolic_edict, sigarda_host_of_herons};
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{EffectModification, Layer};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::restrictions::RegisteredRestriction;
 use mtgsim::test_support::{
@@ -26,7 +26,7 @@ use mtgsim::types::effects::{
     Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick,
     PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::restriction::{
@@ -136,7 +136,7 @@ fn resolve_edict(
         ability_source: None,
         controller: caster,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Player(victim)]),
         replaced_event: None,
         trigger: None,
     };
@@ -181,7 +181,7 @@ fn resolve_edict_effect(
         ability_source: None,
         controller: caster,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Player(victim)]),
         replaced_event: None,
         trigger: None,
     };
@@ -652,7 +652,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(a), ResolvedTarget::Object(b)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(a), ObjectOrPlayerId::Object(b)]),
         replaced_event: None,
         trigger: None,
     };

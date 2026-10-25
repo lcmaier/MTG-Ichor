@@ -29,7 +29,7 @@ use mtgsim::cards::phase_a4i_cards::{
 };
 use mtgsim::cards::phase_ld_cards::ensoul_artifact_spell;
 use mtgsim::cards::phase_re_cards::{skullcrack, vorinclex_monstrous_raider};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
 use mtgsim::oracle::legality::candidate_priority_actions;
@@ -44,7 +44,7 @@ use mtgsim::types::effects::{
     ColorChange, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive,
     SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -193,7 +193,7 @@ fn make_black(game: &mut GameState, id: ObjectId, controller: PlayerId) {
         ability_source: None,
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(id)]),
         replaced_event: None,
         trigger: None,
     };
@@ -356,7 +356,7 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
     assert!(
         game.validate_targets(
             &two_creatures,
-            &[ResolvedTarget::Object(a), ResolvedTarget::Object(b)], mtgsim::test_support::fixed_target_bounds(&two_creatures),
+            &[ObjectOrPlayerId::Object(a), ObjectOrPlayerId::Object(b)], mtgsim::test_support::fixed_target_bounds(&two_creatures),
             0,
             mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_ok(),
@@ -365,7 +365,7 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
     assert!(
         game.validate_targets(
             &two_creatures,
-            &[ResolvedTarget::Object(a), ResolvedTarget::Object(a)], mtgsim::test_support::fixed_target_bounds(&two_creatures),
+            &[ObjectOrPlayerId::Object(a), ObjectOrPlayerId::Object(a)], mtgsim::test_support::fixed_target_bounds(&two_creatures),
             0,
             mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_err(),
@@ -375,11 +375,11 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
     // And the same object *is* legal once for each of two instances.
     let one_creature = target_creature();
     let mut earlier_targets = ChosenTargets::NONE;
-    earlier_targets.push(vec![ResolvedTarget::Object(a)]);
+    earlier_targets.push(vec![ObjectOrPlayerId::Object(a)]);
     assert!(
         game.validate_targets(
             &one_creature,
-            &[ResolvedTarget::Object(a)], mtgsim::test_support::fixed_target_bounds(&one_creature),
+            &[ObjectOrPlayerId::Object(a)], mtgsim::test_support::fixed_target_bounds(&one_creature),
             0,
             mtgsim::engine::targeting::FilterIdentity {
                 earlier_targets: mtgsim::engine::object_filter::EarlierTargets::Chosen(&earlier_targets),

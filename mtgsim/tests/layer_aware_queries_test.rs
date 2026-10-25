@@ -19,8 +19,7 @@ use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::effects::{
     CounterType, Duration, EffectRecipient, ObjectFilter, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::ObjectId;
-use mtgsim::engine::resolve::ResolvedTarget;
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -64,7 +63,7 @@ fn test_animated_artifact_is_a_legal_creature_target() {
 
     let recipient =
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
-    let targets = vec![ResolvedTarget::Object(artifact_id)];
+    let targets = vec![ObjectOrPlayerId::Object(artifact_id)];
 
     // Before: not a creature, so targeting must fail.
     assert!(!is_creature(&game, artifact_id));
@@ -95,7 +94,7 @@ fn test_detyped_creature_is_not_a_legal_creature_target() {
 
     let recipient =
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
-    let targets = vec![ResolvedTarget::Object(bears_id)];
+    let targets = vec![ObjectOrPlayerId::Object(bears_id)];
     assert!(game.validate_targets(&recipient, &targets, mtgsim::test_support::fixed_target_bounds(&recipient), 0, FilterIdentity::NONE).is_ok());
 
     add_layer4(
@@ -128,7 +127,7 @@ fn test_permanent_filter_by_type_sees_layer4() {
         SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)),
         TargetCount::Exactly(1),
     );
-    let targets = vec![ResolvedTarget::Object(artifact_id)];
+    let targets = vec![ObjectOrPlayerId::Object(artifact_id)];
     assert!(game.validate_targets(&recipient, &targets, mtgsim::test_support::fixed_target_bounds(&recipient), 0, FilterIdentity::NONE).is_err());
 
     add_layer4(&mut game, artifact_id, EffectModification::AddType(CardType::Creature));

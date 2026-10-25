@@ -22,7 +22,7 @@ use mtgsim::cards::phase_rc_cards::containment_priest;
 use mtgsim::cards::phase_re_cards::laboratory_maniac;
 use mtgsim::engine::layers::copy::copiable_values;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
@@ -40,7 +40,7 @@ use mtgsim::types::effects::{
     ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, PlayerSet, Primitive,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::EventPattern;
@@ -74,7 +74,7 @@ fn resolve_spell(
         ability_source: None,
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(targets.into_iter().map(ResolvedTarget::Object).collect()),
+        targets: ChosenTargets::one(targets.into_iter().map(ObjectOrPlayerId::Object).collect()),
         replaced_event: None,
         trigger: None,
     };

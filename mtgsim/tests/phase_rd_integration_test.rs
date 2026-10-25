@@ -604,7 +604,7 @@ fn trample_assigns_lethal_before_furnace_doubles() {
 /// > many cards.
 ///
 /// The rider names the player the damage was aimed at — RD-1's
-/// `ResolvedTarget::Player` — and reads the event's amount through
+/// `ObjectOrPlayerId::Player` — and reads the event's amount through
 /// `AmountExpr::Multiply(ReplacedAmount, 2)`.
 #[test]
 fn angel_of_suffering_prevents_the_damage_and_mills_twice_that_many() {

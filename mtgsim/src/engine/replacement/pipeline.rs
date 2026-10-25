@@ -3024,8 +3024,8 @@ fn entry_copy_donor(
                 crate::oracle::legality::enumerate_legal_selections(game, selection, None, controller)
                     .into_iter()
                     .filter_map(|t| match t {
-                        crate::engine::resolve::ResolvedTarget::Object(id) => Some(id),
-                        crate::engine::resolve::ResolvedTarget::Player(_) => None,
+                        crate::types::ids::ObjectOrPlayerId::Object(id) => Some(id),
+                        crate::types::ids::ObjectOrPlayerId::Player(_) => None,
                     })
                     .collect();
             match (candidates.as_slice(), chosen.def.optional) {

@@ -99,7 +99,7 @@ fn resolve_spell_at(
     game: &mut GameState,
     card: Arc<CardData>,
     controller: PlayerId,
-    targets: Vec<mtgsim::engine::resolve::ResolvedTarget>,
+    targets: Vec<mtgsim::types::ids::ObjectOrPlayerId>,
 ) -> ObjectId {
     resolve_spell_with(game, card, controller, targets, &test_dp())
 }
@@ -110,7 +110,7 @@ fn resolve_spell_with(
     game: &mut GameState,
     card: Arc<CardData>,
     controller: PlayerId,
-    targets: Vec<mtgsim::engine::resolve::ResolvedTarget>,
+    targets: Vec<mtgsim::types::ids::ObjectOrPlayerId>,
     dp: &dyn mtgsim::ui::decision::DecisionProvider,
 ) -> ObjectId {
     let id = put_in_hand(game, card.clone(), controller);
@@ -708,7 +708,7 @@ fn a_cant_be_prevented_row_leaves_a_count_intact() {
         &mut game,
         mending_hands(),
         0,
-        vec![mtgsim::engine::resolve::ResolvedTarget::Object(target)],
+        vec![mtgsim::types::ids::ObjectOrPlayerId::Object(target)],
     );
     assert_eq!(counts(&game), vec![4]);
     let source = probe(&mut game, 1);
@@ -750,7 +750,7 @@ fn under_a_cant_be_prevented_row_the_angel_still_mills_and_reverse_damage_gains_
         &mut game,
         reverse_damage(),
         0,
-        vec![mtgsim::engine::resolve::ResolvedTarget::Player(0)],
+        vec![mtgsim::types::ids::ObjectOrPlayerId::Player(0)],
         &dp,
     );
     assert_eq!(chosen_damage_source(&game), Some(bolt_source), "the source under test");
@@ -792,7 +792,7 @@ fn pinpoint_avalanche_into_a_shield_counter_deals_the_damage_and_removes_the_cou
         &mut game,
         pinpoint_avalanche(),
         0,
-        vec![mtgsim::engine::resolve::ResolvedTarget::Object(target)],
+        vec![mtgsim::types::ids::ObjectOrPlayerId::Object(target)],
     );
 
     assert_eq!(marked(&game, target), 4, "the damage can't be prevented");

@@ -28,7 +28,7 @@ use mtgsim::cards::phase_re_cards::{
     eon_hub, meditate, moment_of_silence, time_walk, yawgmoths_bargain,
 };
 use mtgsim::engine::actions::ActionContext;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData};
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
@@ -37,7 +37,7 @@ use mtgsim::test_support::{
     setup_two_player_game, test_dp,
 };
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -54,7 +54,7 @@ fn resolve_spell(
     game: &mut GameState,
     card: Arc<CardData>,
     controller: PlayerId,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
 ) -> ObjectId {
     let id = put_in_hand(game, card.clone(), controller);
     let ctx = ResolutionContext {
@@ -498,7 +498,7 @@ fn a_skip_created_during_the_combat_phase_meets_no_proposal_and_expires() {
 
     // Moment of Silence's second ruling: "It must be used before the combat
     // phase starts or it has no effect."
-    resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
+    resolve_spell(&mut game, moment_of_silence(), 0, vec![ObjectOrPlayerId::Player(0)]);
     assert_eq!(game.replacement_effects.len(), 1);
 
     let before = game.recorded_events().len();
@@ -533,7 +533,7 @@ fn a_skip_on_a_player_whose_turn_it_is_not_watches_nothing() {
     game.set_turn_position(Phase { phase_type: PhaseType::Precombat, step: None });
 
     // Player 0 is the active player; the row is around player 1.
-    resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(1)]);
+    resolve_spell(&mut game, moment_of_silence(), 0, vec![ObjectOrPlayerId::Player(1)]);
 
     let before = game.recorded_events().len();
     let (phase, step) = game.advance_turn(&test_dp()).unwrap();
@@ -567,7 +567,7 @@ fn a_skipped_phase_proposes_none_of_its_steps() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
     game.set_turn_position(Phase { phase_type: PhaseType::Precombat, step: None });
-    resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
+    resolve_spell(&mut game, moment_of_silence(), 0, vec![ObjectOrPlayerId::Player(0)]);
 
     let before = game.recorded_events().len();
     let (phase, step) = game.advance_turn(&test_dp()).unwrap();
@@ -730,7 +730,7 @@ fn pump_until_your_next_turn(game: &mut GameState, creature: ObjectId, controlle
         ability_source: None,
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(creature)]),
         replaced_event: None,
         trigger: None,
     };

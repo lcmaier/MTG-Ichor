@@ -28,7 +28,7 @@ use mtgsim::cards::phase_tr1_cards::blood_artist;
 use mtgsim::cards::phase_tr3b_cards::flickerwisp;
 use mtgsim::cards::phase_tr3c_cards::cornered_crook;
 use mtgsim::engine::actions::GameAction;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::legality::damage_sources;
@@ -45,7 +45,7 @@ use mtgsim::types::effects::{
     AmountExpr, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef,
     Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
@@ -770,7 +770,7 @@ fn zone(game: &GameState, id: ObjectId) -> Zone {
     game.get_object(id).unwrap().zone
 }
 
-fn top_targets(game: &GameState) -> Vec<Vec<ResolvedTarget>> {
+fn top_targets(game: &GameState) -> Vec<Vec<ObjectOrPlayerId>> {
     let top = *game.stack.last().expect("something on the stack");
     game.stack_entries[&top].chosen_targets.iter().map(|i| i.as_resolved_targets().collect()).collect()
 }
@@ -829,7 +829,7 @@ fn the_manticores_first_trigger_has_no_target_and_its_second_waits_for_responses
     resolve_may(&mut game, true, None);
     place_targeting(&mut game, ChoiceOption::Player(1));
     assert_eq!(zone(&game, ogre), Zone::Graveyard, "the creature is sacrificed first");
-    assert_eq!(top_targets(&game), vec![vec![ResolvedTarget::Player(1)]], "the second ability has the target");
+    assert_eq!(top_targets(&game), vec![vec![ObjectOrPlayerId::Player(1)]], "the second ability has the target");
     assert_eq!(life(&game, 1), 20, "and the damage waits on the stack, where players may respond");
 }
 
@@ -943,7 +943,7 @@ fn cornered_crooks_target_is_chosen_for_its_second_ability() {
     resolve_may(&mut game, true, None);
     assert!(game.stack.is_empty(), "the second ability has triggered, and is not yet on the stack");
     place_targeting(&mut game, ChoiceOption::Player(1));
-    assert_eq!(top_targets(&game), vec![vec![ResolvedTarget::Player(1)]]);
+    assert_eq!(top_targets(&game), vec![vec![ObjectOrPlayerId::Player(1)]]);
     let top = *game.stack.last().unwrap();
     assert_eq!(game.stack_entries[&top].ability_identity.map(|i| i.source.id), Some(crook), "Cornered Crook's (CR 603.7e)");
 }

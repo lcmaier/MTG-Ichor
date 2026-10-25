@@ -21,7 +21,7 @@ use mtgsim::cards::phase_rb_cards::rest_in_peace;
 use mtgsim::cards::phase_rs_cards::sigarda_host_of_herons;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::cost_determination::cost_modifications_for;
-use mtgsim::engine::resolve::ResolvedTarget;
+use mtgsim::types::ids::ObjectOrPlayerId;
 use mtgsim::events::event::DamageTarget;
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::state::battlefield::AttackTarget;
@@ -117,7 +117,7 @@ fn a_fixed_count_taking_every_legal_recipient_is_answered_unasked() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let spell = put_in_hand(&mut game, card_of_type("Fixture Bolt", CardType::Instant), 0);
     let target_creature = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
-    let legal = [ResolvedTarget::Object(bears)];
+    let legal = [ObjectOrPlayerId::Object(bears)];
 
     let chosen = ask_select_recipients(&asks_nobody(), &game, 0, &target_creature, spell, &legal, 1, 1);
     assert_eq!(chosen, legal);

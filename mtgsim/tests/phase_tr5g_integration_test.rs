@@ -22,7 +22,7 @@ use mtgsim::cards::phase_tr1_cards::{soul_warden, wild_growth};
 use mtgsim::cards::phase_tr5g_cards::panharmonicon;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
@@ -40,7 +40,7 @@ use mtgsim::types::effects::{
     SelectionFilter, Selector, TargetCount, TokenDef,
 };
 use mtgsim::types::history::CountIs;
-use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::triggers::{
@@ -432,7 +432,7 @@ fn a_copied_multiplier_is_found_through_the_registry_summary() {
         ability_source: None,
         controller: 0,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(copyist)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(copyist)]),
         replaced_event: None,
         trigger: None,
     };

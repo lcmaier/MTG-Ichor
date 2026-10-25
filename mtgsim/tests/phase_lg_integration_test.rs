@@ -12,7 +12,7 @@ use mtgsim::cards::{phase5_pre_cards, phase_le_cards, phase_lf_cards, phase_lg_c
 use mtgsim::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
 };
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_controller, get_effective_power, has_keyword,
@@ -31,7 +31,7 @@ use mtgsim::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{new_object_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_object_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::zones::Zone;
@@ -53,7 +53,7 @@ fn act_of_treason(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         ability_source: None,
         controller: thief,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(victim)]),
         replaced_event: None,
         trigger: None,
     };
@@ -84,7 +84,7 @@ fn gain_control(
         ability_source: None,
         controller: thief,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(target)]),
         replaced_event: None,
         trigger: None,
     };
@@ -638,7 +638,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
     assert!(
         game.validate_targets(
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
-            &[ResolvedTarget::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
+            &[ObjectOrPlayerId::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
             0,
             mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_ok(),
@@ -647,7 +647,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
     assert!(
         game.validate_targets(
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
-            &[ResolvedTarget::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
+            &[ObjectOrPlayerId::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
             1,
             mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_err(),
@@ -659,7 +659,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
     assert!(
         game.validate_targets(
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
-            &[ResolvedTarget::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
+            &[ObjectOrPlayerId::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
             1,
             mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_ok(),
@@ -668,7 +668,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
     assert!(
         game.validate_targets(
             &EffectRecipient::Target(filter, TargetCount::Exactly(1)),
-            &[ResolvedTarget::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
+            &[ObjectOrPlayerId::Object(creature)], mtgsim::types::effects::TargetBounds { fewest: 1, most: 1 },
             0,
             mtgsim::engine::targeting::FilterIdentity::NONE)
         .is_err(),

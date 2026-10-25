@@ -5,9 +5,8 @@
 use std::cell::{Cell, RefCell};
 
 use super::board::{SetupAction, SetupVerb};
-use crate::engine::resolve::ResolvedTarget;
 use crate::state::game_state::GameState;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::ManaCost;
 use crate::ui::auto_payer::AutoPayer;
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_of};
@@ -43,7 +42,7 @@ pub(super) struct ResolvedSetupAction {
     /// offers it: `CastSpell` or `ActivateAbility`.
     pub(super) action: PriorityAction,
     /// `written.targets`, each resolved, in the same order.
-    pub(super) targets: Vec<ResolvedTarget>,
+    pub(super) targets: Vec<ObjectOrPlayerId>,
 }
 
 /// Plays a scenario's setup actions from the board, then hands every prompt
@@ -273,7 +272,7 @@ impl LineAnswers<'_> {
         {
             self.refuse(format!("it says `x {x}`, and the spell was cast with X = {}", entry.x_value.unwrap_or(0)));
         }
-        let chosen: Vec<ResolvedTarget> = entry.chosen_targets.iter().flat_map(|instance| instance.as_resolved_targets()).collect();
+        let chosen: Vec<ObjectOrPlayerId> = entry.chosen_targets.iter().flat_map(|instance| instance.as_resolved_targets()).collect();
         let untaken = line.targets.iter().zip(self.taken.borrow().iter()).position(|(target, taken)| !taken && !chosen.contains(target));
         if let Some(i) = untaken {
             self.refuse(format!("it names {} as a target, and no target it was cast or activated with is that", line.written.targets[i]));
@@ -300,8 +299,8 @@ impl LineAnswers<'_> {
                 break;
             }
             let wanted = match target {
-                ResolvedTarget::Object(id) => ChoiceOption::Object(*id),
-                ResolvedTarget::Player(target) => ChoiceOption::Player(*target),
+                ObjectOrPlayerId::Object(id) => ChoiceOption::Object(*id),
+                ObjectOrPlayerId::Player(target) => ChoiceOption::Player(*target),
             };
             if let Some(index) = position_of(options, game, &wanted.as_logged(game), &picks).filter(|_| !*taken) {
                 picks.push(index);

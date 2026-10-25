@@ -22,7 +22,7 @@ use mtgsim::cards::authoring::{becomes_attached, becomes_unattached, triggered_a
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lh_cards::{bonesplitter, equip, holy_strength};
 use mtgsim::cards::phase_tr4b_cards::{bramble_elemental, grafted_wargear};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::engine::actions::GameAction;
@@ -40,7 +40,7 @@ use mtgsim::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
     TargetCount, TypeChange,
 };
-use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::EnterMods;
@@ -382,7 +382,7 @@ fn a_fortification_stays_on_a_land_and_is_unattached_from_a_creature() {
 fn aura_spell_targeting(game: &mut GameState, controller: PlayerId, target: ObjectId) -> ObjectId {
     let aura = put_spell_on_stack(game, holy_strength(), controller);
     let enchant = holy_strength().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
-    let chosen = TargetInstance::from_announcement(game, enchant, &[ResolvedTarget::Object(target)]).unwrap();
+    let chosen = TargetInstance::from_announcement(game, enchant, &[ObjectOrPlayerId::Object(target)]).unwrap();
     game.stack_entries.get_mut(&aura).unwrap().chosen_targets = vec![chosen];
     aura
 }
@@ -432,7 +432,7 @@ fn an_aura_returned_to_the_battlefield_announces_that_it_became_attached() {
     let aura = put_in_graveyard(&mut game, holy_strength(), 0);
     let source = mtgsim::types::ids::new_object_id();
     let ctx = ResolutionContext {
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(aura)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(aura)]),
         ..ResolutionContext::untargeted(source, 0, GeneratedBy::Spell)
     };
     let back = Effect::Atom(
@@ -725,7 +725,7 @@ fn an_aura_that_takes_a_creature_triggers_siona_as_the_creature_it_made_yours() 
 
     let aura = put_spell_on_stack(&mut game, control_aura(), 0);
     let enchant = control_aura().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
-    let chosen = TargetInstance::from_announcement(&game, enchant, &[ResolvedTarget::Object(theirs)]).unwrap();
+    let chosen = TargetInstance::from_announcement(&game, enchant, &[ObjectOrPlayerId::Object(theirs)]).unwrap();
     game.stack_entries.get_mut(&aura).unwrap().chosen_targets = vec![chosen];
     game.resolve_top_of_stack(&test_dp()).unwrap();
     resolve_all(&mut game, &test_dp());
@@ -853,7 +853,7 @@ fn grafted_wargear_that_stops_being_an_equipment_sacrifices_its_creature() {
     let not_equipment = TypeChange { remove_subtypes: vec![equipment_subtype()], ..TypeChange::NONE };
     let source = mtgsim::types::ids::new_object_id();
     let ctx = ResolutionContext {
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(wargear)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(wargear)]),
         ..ResolutionContext::untargeted(source, 0, GeneratedBy::Spell)
     };
     let strip = Effect::Atom(
@@ -899,7 +899,7 @@ fn grafted_wargear_does_not_sacrifice_its_creature_after_it_returned() {
         ),
     ]);
     let spell = put_spell_on_stack(&mut game, card_of_type("Probe Flicker", CardType::Instant), 0);
-    let chosen = TargetInstance::from_announcement(&game, exile_it, &[ResolvedTarget::Object(first)]).unwrap();
+    let chosen = TargetInstance::from_announcement(&game, exile_it, &[ObjectOrPlayerId::Object(first)]).unwrap();
     let entry = game.stack_entries.get_mut(&spell).unwrap();
     entry.effect = Arc::new(flicker);
     entry.chosen_targets = vec![chosen];

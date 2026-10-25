@@ -25,7 +25,7 @@ use mtgsim::cards::phase_rd_cards::{
 };
 use mtgsim::cards::basic_lands::plains;
 use mtgsim::engine::actions::{ActionContext, GameAction};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{BatchId, CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::GameState;
@@ -39,7 +39,7 @@ use mtgsim::types::effects::{
     ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding, Uses,
 };
@@ -59,7 +59,7 @@ fn resolve_spell(
     game: &mut GameState,
     card: Arc<CardData>,
     controller: PlayerId,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
 ) -> ObjectId {
     let id = put_in_hand(game, card.clone(), controller);
     let ctx = ResolutionContext {
@@ -76,7 +76,7 @@ fn resolve_spell(
 }
 
 /// Mending Hands cast by `caster` on `target`.
-fn mending_hands_on(game: &mut GameState, caster: PlayerId, target: ResolvedTarget) -> ObjectId {
+fn mending_hands_on(game: &mut GameState, caster: PlayerId, target: ObjectOrPlayerId) -> ObjectId {
     resolve_spell(game, mending_hands(), caster, vec![target])
 }
 
@@ -333,7 +333,7 @@ fn a_static_prevent_one_reduces_each_simultaneous_source_separately_guardian_ser
 fn a_next_damage_count_depletes_per_point_and_the_rest_is_dealt() {
     let mut game = setup_two_player_game();
     let source = source_for(&mut game, 0);
-    mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+    mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
 
     bolt(&mut game, source, DamageTarget::Player(1), 5);
 
@@ -348,7 +348,7 @@ fn a_next_damage_count_depletes_per_point_and_the_rest_is_dealt() {
 fn a_next_damage_count_depletes_across_events() {
     let mut game = setup_two_player_game();
     let source = source_for(&mut game, 0);
-    mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+    mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
 
     bolt(&mut game, source, DamageTarget::Player(1), 3);
     assert_eq!(life(&game, 1), 20);
@@ -364,7 +364,7 @@ fn a_next_damage_count_depletes_across_events() {
 #[test]
 fn an_unspent_count_expires_at_cleanup() {
     let mut game = setup_two_player_game();
-    mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+    mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
     assert_eq!(counts(&game), vec![4]);
     mtgsim::test_support::pass_turn(&mut game);
     assert!(game.replacement_effects.is_empty(), "this turn is over");
@@ -384,7 +384,7 @@ fn two_attackers_into_a_shielded_player_prompt_one_allocation_and_any_answer_pre
     for (allocation, expected) in [(vec![2, 1], vec![3]), (vec![0, 3], vec![2, 1])] {
         let mut game = setup_two_player_game();
         let pinger = source_for(&mut game, 0);
-        let spell = mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+        let spell = mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
         bolt(&mut game, pinger, DamageTarget::Player(1), 1);
         assert_eq!(counts(&game), vec![3]);
         let attackers = attackers_into(&mut game, &[2, 4]);
@@ -416,7 +416,7 @@ fn two_attackers_into_a_shielded_player_prompt_one_allocation_and_any_answer_pre
 #[test]
 fn a_single_source_is_prevented_without_an_allocation_prompt() {
     let mut game = setup_two_player_game();
-    mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+    mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
     attackers_into(&mut game, &[3]);
     game.process_combat_damage(&ScriptedDecisionProvider::new(), false).unwrap();
     assert_eq!(life(&game, 1), 20);
@@ -488,7 +488,7 @@ fn a_shield_made_after_the_damage_prevents_none_of_it() {
 
     bolt(&mut game, source, DamageTarget::Player(1), 3);
     assert_eq!(life(&game, 1), 17);
-    mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+    mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
     assert_eq!(life(&game, 1), 17, "nothing to prevent retroactively");
     assert_eq!(counts(&game), vec![4], "and nothing spent");
 
@@ -537,7 +537,7 @@ fn a_fixture_rider_reads_the_prevented_amount_until_reverse_damage_lands_in_rd_3
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Player(1)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Player(1)]),
         replaced_event: None,
         trigger: None,
     };
@@ -691,7 +691,7 @@ fn mending_hands_beside_furnace_prevents_then_doubles_or_doubles_then_prevents()
         let mut game = setup_two_player_game();
         let source = source_for(&mut game, 0);
         put_on_battlefield(&mut game, furnace_of_rath(), 0);
-        mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+        mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
 
         let dp = ScriptedDecisionProvider::new();
         dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![pick]);
@@ -715,7 +715,7 @@ fn safe_passage_beside_mending_hands_spends_the_count_only_when_it_prevented() {
         let mut game = setup_two_player_game();
         let source = source_for(&mut game, 0);
         resolve_spell(&mut game, safe_passage(), 1, Vec::new());
-        mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+        mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
 
         let dp = ScriptedDecisionProvider::new();
         dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![pick]);

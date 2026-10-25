@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -25,7 +25,7 @@ use mtgsim::types::effects::{
     AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     ObjectSet, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::replacement::{
     CopyDonor, EnterModsTemplate, EntryCopyTemplate, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
@@ -50,7 +50,7 @@ fn opponents_creatures() -> EffectRecipient {
 }
 
 /// Resolve `effect` as an instant `controller` cast, with `targets` chosen.
-fn resolve(game: &mut GameState, controller: PlayerId, effect: &Effect, targets: Vec<ResolvedTarget>) {
+fn resolve(game: &mut GameState, controller: PlayerId, effect: &Effect, targets: Vec<ObjectOrPlayerId>) {
     let source = place_bare(game, card_of_type("A6m Instant", CardType::Instant), controller);
     let ctx = ResolutionContext {
         source,
@@ -70,7 +70,7 @@ fn destroy(game: &mut GameState, creature: ObjectId) {
         Primitive::Destroy,
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
-    resolve(game, 0, &effect, vec![ResolvedTarget::Object(creature)]);
+    resolve(game, 0, &effect, vec![ObjectOrPlayerId::Object(creature)]);
 }
 
 fn power_toughness(game: &GameState, id: ObjectId) -> (Option<i32>, Option<i32>) {
@@ -116,7 +116,7 @@ fn test_a_resolving_set_power_toughness_over_a_filter_affects_each_creature_it_n
         Primitive::GainControl(Duration::Indefinite),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
-    resolve(&mut game, 1, &gain_control, vec![ResolvedTarget::Object(mine)]);
+    resolve(&mut game, 1, &gain_control, vec![ObjectOrPlayerId::Object(mine)]);
     assert_eq!(get_effective_controller(&game, mine), Some(1));
     assert_eq!(power_toughness(&game, mine), (Some(2), Some(2)));
 }
@@ -379,7 +379,7 @@ fn test_a_granted_conditional_restriction_is_the_boards_only_restriction_and_app
         Primitive::GrantAbility(std::sync::Arc::new(cant_be_destroyed_while_untapped), Duration::UntilEndOfTurn),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(2)),
     );
-    resolve(&mut game, 1, &grant, vec![ResolvedTarget::Object(untapped), ResolvedTarget::Object(tapped)]);
+    resolve(&mut game, 1, &grant, vec![ObjectOrPlayerId::Object(untapped), ObjectOrPlayerId::Object(tapped)]);
     game.battlefield.get_mut(&tapped).expect("on the battlefield").tapped = true;
     assert!(game.restriction_ability_sources.is_empty() && game.restrictions.is_empty());
 

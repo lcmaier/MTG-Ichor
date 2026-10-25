@@ -15,7 +15,7 @@ use mtgsim::cards::phase_rc_cards::{chainbreaker, master_biomancer};
 use mtgsim::cards::phase_tr5b_cards::{protean_hydra, simic_ascendancy};
 use mtgsim::cards::phase_tr4a_cards::strangleroot_geist;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, StateBasedAction};
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
@@ -30,7 +30,7 @@ use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{CountersOn, Multiplicity, ObjectOrPlayer, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
@@ -54,7 +54,7 @@ fn fixture_object() -> Arc<CardData> {
 fn resolve_targeting(
     game: &mut GameState,
     player: PlayerId,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
     effect: &Effect,
     dp: &dyn DecisionProvider,
 ) {
@@ -78,7 +78,7 @@ fn counters_on_target(game: &mut GameState, player: PlayerId, target: ObjectId, 
         primitive,
         EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
     );
-    resolve_targeting(game, player, vec![ResolvedTarget::Object(target)], &effect, &test_dp());
+    resolve_targeting(game, player, vec![ObjectOrPlayerId::Object(target)], &effect, &test_dp());
 }
 
 fn put(kind: CounterType, n: u64) -> Primitive {

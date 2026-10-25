@@ -21,7 +21,7 @@ use mtgsim::cards::phase_re_cards::{
 };
 use mtgsim::cards::phase_sba_cards::battlegrowth;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{CounterSubject, GameEvent};
 use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -36,7 +36,7 @@ use mtgsim::types::effects::{
     ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{
     AmountRewrite, EnterModsTemplate, EntryCountersTemplate, EventPattern, ReplacementDef, Rewrite,
     Rounding,
@@ -64,7 +64,7 @@ fn fixture_object() -> Arc<CardData> {
 fn resolve_targeting(
     game: &mut GameState,
     player: PlayerId,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
     effect: &Effect,
     dp: &dyn DecisionProvider,
 ) {
@@ -95,7 +95,7 @@ fn put_counters_on(
         Primitive::AddCounters { counter: kind, amount: AmountExpr::Fixed(n), by: PlayerRef::You },
         EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
     );
-    resolve_targeting(game, player, vec![ResolvedTarget::Object(target)], &effect, dp);
+    resolve_targeting(game, player, vec![ObjectOrPlayerId::Object(target)], &effect, dp);
 }
 
 /// How many `kind` counters `id` carries.
@@ -565,7 +565,7 @@ fn resolve_card_on(
     dp: &dyn DecisionProvider,
 ) {
     let effect = mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell");
-    resolve_targeting(game, player, vec![ResolvedTarget::Object(target)], &effect, dp);
+    resolve_targeting(game, player, vec![ObjectOrPlayerId::Object(target)], &effect, dp);
 }
 
 /// Every token on the battlefield, in timestamp order.
@@ -836,7 +836,7 @@ fn winding_constrictor_applies_to_each_instruction() {
         put_one(EffectRecipient::SameInstanceAs(0)),
     ]);
 
-    resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(bears)], &twice, &test_dp());
+    resolve_targeting(&mut game, 0, vec![ObjectOrPlayerId::Object(bears)], &twice, &test_dp());
 
     assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 4, "one plus one, twice");
 }
@@ -1048,7 +1048,7 @@ fn a_named_putter_on_a_proposal_is_that_player_not_the_effects_controller() {
             Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by },
             EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
         );
-        resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(mine)], &effect, &test_dp());
+        resolve_targeting(&mut game, 0, vec![ObjectOrPlayerId::Object(mine)], &effect, &test_dp());
         count(&game, mine, CounterType::PlusOnePlusOne)
     };
     assert_eq!(put_by(PlayerRef::Opponent), 0, "the opponent put on half of one");
@@ -1084,8 +1084,8 @@ fn a_prevention_over_a_removal_watches_counters_removed() {
         )
     };
 
-    resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(bears)], &remove(CounterType::PlusOnePlusOne), &test_dp());
-    resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(bears)], &remove(CounterType::Charge), &test_dp());
+    resolve_targeting(&mut game, 0, vec![ObjectOrPlayerId::Object(bears)], &remove(CounterType::PlusOnePlusOne), &test_dp());
+    resolve_targeting(&mut game, 0, vec![ObjectOrPlayerId::Object(bears)], &remove(CounterType::Charge), &test_dp());
 
     assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 2, "the removal was prevented");
     assert_eq!(count(&game, bears, CounterType::Charge), 0, "another kind's removal was not");
