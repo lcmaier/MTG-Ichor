@@ -160,6 +160,14 @@ impl GameState {
             }
         }
         self.control_effects_at_last_sweep = rows;
+        // CR 611.2b: "for as long as you control" it ends as it changes hands,
+        // and a later change back does not begin it again (Dragonlord
+        // Silumgar's ruling). What ending a steal returns is the next sweep's.
+        for change in &sweep.changes {
+            self.continuous_effects.remove_rows_ending_with_control_of(change.object, change.to);
+            self.replacement_effects.remove_rows_ending_with_control_of(change.object, change.to);
+            self.restrictions.remove_rows_ending_with_control_of(change.object, change.to);
+        }
         sweep
     }
 

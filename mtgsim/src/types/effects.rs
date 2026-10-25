@@ -611,6 +611,10 @@ pub enum Duration {
     WhileEnchanted,
     /// As long as the permanent is equipped by the source
     WhileEquipped,
+    /// "For as long as you control [this]" (Dragonlord Silumgar): ends as
+    /// the source leaves the battlefield or another player gains control of
+    /// it, and regaining control does not begin it again (its ruling).
+    WhileYouControlSource,
     /// Lasts until end of game (or until removed)
     Indefinite,
 }
@@ -621,8 +625,25 @@ impl Duration {
     /// enchanting or equipping), wherever the effect is registered.
     pub fn ends_with_its_source(self) -> bool {
         match self {
-            Duration::WhileSourceOnBattlefield | Duration::WhileEnchanted | Duration::WhileEquipped => true,
+            Duration::WhileSourceOnBattlefield
+            | Duration::WhileEnchanted
+            | Duration::WhileEquipped
+            | Duration::WhileYouControlSource => true,
             Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => false,
+        }
+    }
+
+    /// CR 611.2b — a duration that also ends as its source changes hands
+    /// away from the effect's controller.
+    pub fn ends_with_control_of_its_source(self) -> bool {
+        match self {
+            Duration::WhileYouControlSource => true,
+            Duration::WhileSourceOnBattlefield
+            | Duration::WhileEnchanted
+            | Duration::WhileEquipped
+            | Duration::UntilEndOfTurn
+            | Duration::UntilYourNextTurn
+            | Duration::Indefinite => false,
         }
     }
 }

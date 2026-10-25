@@ -481,7 +481,10 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
 fn duration_reads(d: &Duration) -> TriggerBindingReads {
     match d {
         Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => TriggerBindingReads::NONE,
-        Duration::WhileSourceOnBattlefield | Duration::WhileEnchanted | Duration::WhileEquipped => TriggerBindingReads::SOURCE,
+        Duration::WhileSourceOnBattlefield
+        | Duration::WhileEnchanted
+        | Duration::WhileEquipped
+        | Duration::WhileYouControlSource => TriggerBindingReads::SOURCE,
     }
 }
 

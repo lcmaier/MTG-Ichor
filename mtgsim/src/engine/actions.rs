@@ -896,6 +896,10 @@ impl GameState {
         self.events.close_batch(previous);
         settled?;
         let (performed, riders) = result?;
+        #[cfg(debug_assertions)]
+        if outermost && self.nesting.dispatch_depth == 0 {
+            self.assert_no_row_outlives_its_object();
+        }
         if outermost {
             // CR 603.2, at the batch's close: the window is the event. Every
             // permanent on the battlefield after it, the newcomers included, is

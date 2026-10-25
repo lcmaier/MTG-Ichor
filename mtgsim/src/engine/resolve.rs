@@ -1141,7 +1141,7 @@ impl GameState {
 
             Primitive::ChangeType(type_change, duration) => {
                 let affected = self.affected_permanents(recipient, targets, ctx);
-                if affected.is_empty() {
+                if affected.is_empty() || self.never_starts(*duration, ctx) {
                     return Ok(());
                 }
                 // A TypeChange may produce several Layer 4 rows: CR 613.6 makes them
@@ -1297,6 +1297,9 @@ impl GameState {
             // Censer-Bearer's ruling); `Implicit` at each event (Safe Passage's).
             // Per-target shapes author an empty `Fixed`, as `Restrict` does.
             Primitive::CreateReplacement(def, duration, pattern_fill) => {
+                if self.never_starts(*duration, ctx) {
+                    return Ok(());
+                }
                 // CR 113.7a — an ability's source is the object that has it,
                 // so a row an activated ability makes names the permanent, not
                 // the ephemeral stack object CR 608.2n deletes at the end of
@@ -1445,6 +1448,9 @@ impl GameState {
             // `Duration` is the card's, never the engine's: CR 608.2c hands scope to a
             // human reader (`cant-effects-architecture.md` §9 finding 1).
             Primitive::Restrict(def, duration) => {
+                if self.never_starts(*duration, ctx) {
+                    return Ok(());
+                }
                 // **A restriction naming nobody waits for the resolution's targets**:
                 // an empty `Fixed` beside `Nobody`, filled one row per target, since one
                 // row naming both would make a second copy a no-op under CR 614.5.
@@ -1764,12 +1770,29 @@ impl GameState {
         affected: Vec<ObjectId>,
         modification: EffectModification,
     ) -> Result<Option<(Timestamp, EffectId)>, String> {
-        if affected.is_empty() {
+        if affected.is_empty() || self.never_starts(duration, ctx) {
             return Ok(None);
         }
         self.settle_before_a_resolution_effect(actx)?;
         let timestamp = self.allocate_timestamp();
         Ok(Some((timestamp, self.add_resolution_row(ctx, layer, duration, timestamp, affected, modification))))
+    }
+
+    /// CR 611.2b — "if the 'for as long as' duration never starts, the
+    /// effect does nothing": the object it lasts as long as is the ability's
+    /// own, and it has left the battlefield or become a new object there (CR
+    /// 400.7, Sower of Temptation's ruling), or, for "as long as you control"
+    /// it, is no longer this resolution's controller's. A spell is never on
+    /// the battlefield to last as long as.
+    fn never_starts(&self, duration: Duration, ctx: &ResolutionContext) -> bool {
+        if !duration.ends_with_its_source() {
+            return false;
+        }
+        let Some(watched) = ctx.ability_source else { return true };
+        if !self.battlefield.contains_key(&watched.id) || self.object_ref(watched.id) != Some(watched) {
+            return true;
+        }
+        duration.ends_with_control_of_its_source() && get_effective_controller(self, watched.id) != Some(ctx.controller)
     }
 
     /// CR 603.2: what an earlier instruction's effect did to a controller or
@@ -1930,6 +1953,9 @@ impl GameState {
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
+        if self.never_starts(duration, ctx) {
+            return Ok(());
+        }
         // --- 1. The two roles -------------------------------------------
         let (donor, affected): (ObjectId, Vec<ObjectId>) = match roles {
             CopyRoles::RecipientsCopyChosen(filter) => {
