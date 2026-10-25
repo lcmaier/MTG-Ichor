@@ -1668,7 +1668,7 @@ impl GameState {
                 }
                 entry.tapped = false;
                 self.bump_layer_epoch_if_read(GatedWalkInput::TappedStatus);
-                self.emit_event(GameEvent::Untapped { object_id: object }, ctx.cause)?;
+                self.emit_event(GameEvent::Untapped { object: self.existence_of(object)? }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1683,8 +1683,7 @@ impl GameState {
                 if !self.battlefield.contains_key(&host) {
                     return Err(format!("Cannot attach to {}: not on the battlefield", host));
                 }
-                let former_host = self.battlefield[&attachment].attached_to;
-                let unattached_from = former_host.and_then(|former| self.object_ref(former));
+                let unattached_from = self.battlefield[&attachment].attached_to.and_then(|former| self.object_ref(former));
                 // CR 701.3b — already there: the effect does nothing, and
                 // nothing "becomes attached" (CR 603.2e's transition rule).
                 if self.attach(attachment, host) {
@@ -1693,7 +1692,8 @@ impl GameState {
                     if let (Some(former), Some(moved)) = (unattached_from, self.object_ref(attachment)) {
                         self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, false, false, ctx.cause)?;
                     }
-                    self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
+                    let (attachment, host) = (self.existence_of(attachment)?, self.existence_of(host)?);
+                    self.emit_event(GameEvent::Attached { attachment, host, former_host: unattached_from }, ctx.cause)?;
                 }
                 Ok(())
             }
@@ -1726,7 +1726,7 @@ impl GameState {
                 }
                 entry.tapped = true;
                 self.bump_layer_epoch_if_read(GatedWalkInput::TappedStatus);
-                self.emit_event(GameEvent::Tapped { object_id: object }, ctx.cause)?;
+                self.emit_event(GameEvent::Tapped { object: self.existence_of(object)? }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1858,7 +1858,8 @@ impl GameState {
                     && can_enter_attached(self, object)
                     && self.attach(object, host)
                 {
-                    self.emit_event(GameEvent::Attached { attachment: object, host, former_host: None }, ctx.cause)?;
+                    let (attachment, host) = (self.existence_of(object)?, self.existence_of(host)?);
+                    self.emit_event(GameEvent::Attached { attachment, host, former_host: None }, ctx.cause)?;
                 }
                 Ok(())
             }
@@ -1883,9 +1884,10 @@ impl GameState {
                 if !token.is_token || zone == Zone::Battlefield {
                     return Err(format!("{} cannot cease to exist: CR 704.5d is a token's off the battlefield", object));
                 }
+                let ended = self.existence_of(object)?;
                 self.remove_from_zone_collection(object, zone)?;
                 self.remove_object(object);
-                self.emit_event(GameEvent::TokenCeasedToExist { object_id: object }, ctx.cause)?;
+                self.emit_event(GameEvent::TokenCeasedToExist { token: ended }, ctx.cause)?;
                 Ok(())
             }
 
@@ -2032,9 +2034,13 @@ impl GameState {
                         None => announced.push((mana_type, n)),
                     }
                 }
+                let source = match &source_lki {
+                    Some(lki) => lki.object(),
+                    None => self.existence_of(source)?,
+                };
                 self.emit_event(GameEvent::ManaAdded {
                     player_id: player,
-                    source_id: source,
+                    source,
                     mana: announced,
                     tapped_for_mana,
                     source_lki,
@@ -2166,7 +2172,7 @@ impl GameState {
             .find(|(id, _)| *id == object)
             .map(|(_, definition)| Arc::clone(definition))
             .ok_or_else(|| format!("{object} is announced as a token no creation made"))?;
-        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone, definition }, cause)?;
+        self.emit_event(GameEvent::TokenCreated { token: self.existence_of(object)?, owner, zone, definition }, cause)?;
         Ok(())
     }
 

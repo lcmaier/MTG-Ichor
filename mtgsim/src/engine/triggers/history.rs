@@ -261,8 +261,8 @@ impl GameState {
                     draft_history_row(Some(*caster), Some(object), frame, RowFact::Cast { from });
                 }
             }
-            GameEvent::CardDrawn { player_id, card_id } => {
-                if let Some((object, frame)) = current(*card_id) {
+            GameEvent::CardDrawn { player_id, card } => {
+                if let Some((object, frame)) = current(card.id) {
                     draft_history_row(Some(*player_id), Some(object), frame, RowFact::Drew);
                 }
             }
@@ -271,7 +271,8 @@ impl GameState {
                 Some(LifeChange::Lost(n)) => draft_history_row(Some(*player_id), None, RowFrame::None, RowFact::LostLife(n)),
                 None => {}
             },
-            GameEvent::PermanentEnteredBattlefield { object_id, controller } => {
+            GameEvent::PermanentEnteredBattlefield { object, controller } => {
+                let object_id = &object.id;
                 let from = self.entry_origin(*object_id, seq);
                 if let Some((object, frame)) = current(*object_id) {
                     debug_assert!(

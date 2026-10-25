@@ -2951,7 +2951,7 @@ impl GameState {
         for record in self.events.resolution_records(stamp, mark) {
             let moved = match &record.event {
                 GameEvent::ZoneChange { from, to, .. } => record.event.new_object().map(|o| (o, Some(*from), *to)),
-                GameEvent::TokenCreated { object_id, zone, .. } => self.object_ref(*object_id).map(|o| (o, None, *zone)),
+                GameEvent::TokenCreated { token, zone, .. } => self.object_ref(token.id).map(|o| (o, None, *zone)),
                 _ => None,
             };
             if let Some((object, from, to)) = moved

@@ -379,8 +379,8 @@ fn attaches_of(game: &GameState, attachment: ObjectId) -> Vec<(ObjectId, Option<
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::Attached { attachment: a, host, former_host } if *a == attachment => {
-                Some((*host, *former_host))
+            GameEvent::Attached { attachment: a, host, former_host } if a.id == attachment => {
+                Some((host.id, former_host.map(|former| former.id)))
             }
             _ => None,
         })

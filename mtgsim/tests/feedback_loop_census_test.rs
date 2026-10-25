@@ -170,7 +170,7 @@ fn a_soldier_token_dies_and_ceases_to_exist_in_one_cycle() {
         .iter()
         .filter_map(|r| match &r.event {
             GameEvent::ZoneChange { departed, .. } if departed.object().id == token => Some(true),
-            GameEvent::TokenCeasedToExist { object_id } if *object_id == token => Some(false),
+            GameEvent::TokenCeasedToExist { token: ended } if ended.id == token => Some(false),
             _ => None,
         })
         .collect();

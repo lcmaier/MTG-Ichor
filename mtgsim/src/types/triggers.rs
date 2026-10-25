@@ -2275,9 +2275,9 @@ pub(crate) mod samples {
                 new_epoch: 1,
             }),
             ("LeftTheGame", GameEvent::LeftTheGame { departed: DepartedObject::WithoutLki { object: identity.source, owner: 0 }, from: Zone::Battlefield }),
-            ("Tapped", GameEvent::Tapped { object_id: id }),
-            ("Untapped", GameEvent::Untapped { object_id: id }),
-            ("ManaAdded", GameEvent::ManaAdded { player_id: 0, source_id: id, mana: Vec::new(), tapped_for_mana: false, source_lki: None }),
+            ("Tapped", GameEvent::Tapped { object: identity.source }),
+            ("Untapped", GameEvent::Untapped { object: identity.source }),
+            ("ManaAdded", GameEvent::ManaAdded { player_id: 0, source: identity.source, mana: Vec::new(), tapped_for_mana: false, source_lki: None }),
             ("DamageDealt", GameEvent::DamageDealt {
                 source_id: id,
                 target: DamageTarget::Player(0),
@@ -2290,7 +2290,7 @@ pub(crate) mod samples {
             ("StepBegin", GameEvent::StepBegin { step: StepType::Upkeep, player: 0 }),
             ("TurnBegin", GameEvent::TurnBegin { player: 0, turn_number: 1 }),
             ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None }),
-            ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object_id: id, controller: 0 }),
+            ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object: identity.source, controller: 0 }),
             ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![(id, AttackTarget::Player(1))] }),
             ("BlockersDeclared", GameEvent::BlockersDeclared { blocks: vec![(id, id)], unblocked: Vec::new() }),
             ("BecameBlocked", GameEvent::BecameBlocked { attacker: id }),
@@ -2301,10 +2301,10 @@ pub(crate) mod samples {
                 caused_by: Some(EventId(0)),
             }),
             ("SpellCast", GameEvent::SpellCast { spell_id: id, caster: 0 }),
-            ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id }),
+            ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card: identity.source }),
             ("LibraryShuffled", GameEvent::LibraryShuffled { player_id: 0 }),
             ("AbilityResolved", GameEvent::AbilityResolved { identity, controller: 0 }),
-            ("Attached", GameEvent::Attached { attachment: id, host: id, former_host: None }),
+            ("Attached", GameEvent::Attached { attachment: identity.source, host: identity.source, former_host: None }),
             ("Unattached", GameEvent::Unattached {
                 attachment: identity.source,
                 former_host: identity.source,
@@ -2319,7 +2319,7 @@ pub(crate) mod samples {
             }),
             ("Scried", GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 }),
             ("TokenCreated", GameEvent::TokenCreated {
-                object_id: id,
+                token: identity.source,
                 owner: 0,
                 zone: Zone::Battlefield,
                 definition: Arc::new(crate::cards::phase_re_cards::goblin_token()),
@@ -2350,7 +2350,7 @@ pub(crate) mod samples {
                 by: Some(0),
                 now: 0,
             }),
-            ("TokenCeasedToExist", GameEvent::TokenCeasedToExist { object_id: id }),
+            ("TokenCeasedToExist", GameEvent::TokenCeasedToExist { token: identity.source }),
         ]
     }
 

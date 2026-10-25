@@ -532,12 +532,12 @@ fn extract_stats<'a>(
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
                 stats.combat_phases_with_attackers += 1;
             }
-            GameEvent::PermanentEnteredBattlefield { object_id, .. } => {
+            GameEvent::PermanentEnteredBattlefield { object, .. } => {
                 // AS PRINTED: the colors, for the reason `named` reads the
                 // printed name: the question is which *cards* the required
                 // one met, and a copy's effective color is its donor's.
                 if !watch.is_empty() && !stats.met_another_color {
-                    let printed = game.objects.get(object_id).map(|o| &o.card_data.colors);
+                    let printed = game.objects.get(&object.id).map(|o| &o.card_data.colors);
                     if printed.is_some_and(|cs| cs.iter().any(|c| !required_colors.contains(c))) {
                         stats.met_another_color = true;
                     }

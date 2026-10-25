@@ -845,7 +845,7 @@ fn test_tapping_for_mana_is_recorded() {
 
     assert!(game.battlefield.get(&land).unwrap().tapped);
     assert!(
-        game.recorded_events().events().any(|e| matches!(e, GameEvent::Tapped { object_id } if *object_id == land)),
+        game.recorded_events().events().any(|e| matches!(e, GameEvent::Tapped { object } if object.id == land)),
         "CR 603.2e: becoming tapped is a transition, and it is announced",
     );
 }

@@ -1052,9 +1052,9 @@ mod tests {
         game.bump_layer_epoch();
         let (diagnostics, lines) = (format!("{:?}", game.diagnostics), trace.lines().len());
 
-        let names = game.names_as_announced(&GameEvent::Tapped { object_id: clone }, &EventCause::Harness);
+        let names = game.names_as_announced(&GameEvent::Tapped { object: game.object_ref(clone).unwrap() }, &EventCause::Harness);
         assert_eq!(names.as_deref(), Some(&vec![(clone, "Grizzly Bears".to_string())]));
-        assert_eq!(game.names_as_announced(&GameEvent::Tapped { object_id: bears }, &EventCause::Harness), None);
+        assert_eq!(game.names_as_announced(&GameEvent::Tapped { object: game.object_ref(bears).unwrap() }, &EventCause::Harness), None);
         assert_eq!(format!("{:?}", game.diagnostics), diagnostics);
         assert!(game.layer_memo.get(clone, game.layer_epoch()).is_none(), "the walk's frame stayed in the memo");
         assert_eq!(trace.lines().len(), lines);
@@ -1075,7 +1075,7 @@ mod tests {
         let row = registered(card, Layer::Layer1Copy, timestamp, EffectModification::CopyFrom(Arc::new(values)));
         game.continuous_effects.add(row);
 
-        let names = game.names_as_announced(&GameEvent::CardDrawn { player_id: 0, card_id: card }, &EventCause::Harness);
+        let names = game.names_as_announced(&GameEvent::CardDrawn { player_id: 0, card: game.object_ref(card).unwrap() }, &EventCause::Harness);
         assert_eq!(names.as_deref(), Some(&vec![(card, "Grizzly Bears".to_string())]));
     }
 }

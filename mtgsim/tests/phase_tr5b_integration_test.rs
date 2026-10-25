@@ -269,7 +269,7 @@ fn an_entry_announces_its_counters_after_itself_in_its_batch() {
     let records = log.records_from(start);
     let entered = records
         .iter()
-        .position(|r| matches!(r.event, GameEvent::PermanentEnteredBattlefield { object_id, .. } if object_id == chained))
+        .position(|r| matches!(r.event, GameEvent::PermanentEnteredBattlefield { object, .. } if object.id == chained))
         .expect("it entered");
     let put = records.iter().position(|r| matches!(r.event, GameEvent::CountersPutOn { .. })).expect("its counters were announced");
     assert!(entered < put, "the entry first, then what it entered with");

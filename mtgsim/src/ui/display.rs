@@ -1023,19 +1023,19 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             let instances = if *instances > 1 { format!(", chosen for {instances} instances") } else { String::new() };
             format!("Targeted: {target} by {by} [{}]{instances}", player_in_log(*controller))
         }
-        Tapped { object_id } => format!("Tapped: {}", named(*object_id)),
-        Untapped { object_id } => format!("Untapped: {}", named(*object_id)),
-        CardDrawn { player_id, card_id, .. } => {
-            format!("CardDrawn: {} drew {}", player_in_log(*player_id), named(*card_id))
+        Tapped { object } => format!("Tapped: {}", named(object.id)),
+        Untapped { object } => format!("Untapped: {}", named(object.id)),
+        CardDrawn { player_id, card, .. } => {
+            format!("CardDrawn: {} drew {}", player_in_log(*player_id), named(card.id))
         }
-        ManaAdded { player_id, source_id, mana, tapped_for_mana, .. } => {
+        ManaAdded { player_id, source, mana, tapped_for_mana, .. } => {
             let mana_str: Vec<String> = mana.iter()
                 .map(|(t, v)| format!("{:?}:{}", t, v))
                 .collect();
             format!(
                 "ManaAdded: {} from {} [{}]{}",
                 player_in_log(*player_id),
-                named(*source_id),
+                named(source.id),
                 mana_str.join(", "),
                 if *tapped_for_mana { " tapped for mana" } else { "" },
             )
@@ -1060,8 +1060,8 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         PhaseBegin { phase, player } => format!("PhaseBegin: {:?} [{}]", phase, player_in_log(*player)),
         StepBegin { step, player } => format!("StepBegin: {:?} [{}]", step, player_in_log(*player)),
         TurnBegin { player, turn_number } => format!("TurnBegin: {} turn {}", player_in_log(*player), turn_number),
-        PermanentEnteredBattlefield { object_id, controller } => {
-            format!("ETB: {} [{}]", named(*object_id), player_in_log(*controller))
+        PermanentEnteredBattlefield { object, controller } => {
+            format!("ETB: {} [{}]", named(object.id), player_in_log(*controller))
         }
         LifeChanged { player_id, old, new, source, .. } => {
             let src = match source {
@@ -1150,9 +1150,9 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         Attached { attachment, host, former_host } => match former_host {
             Some(former) => format!(
                 "Attached: {} to {} (from {})",
-                named(*attachment), named(*host), named(*former)
+                named(attachment.id), named(host.id), named(former.id)
             ),
-            None => format!("Attached: {} to {}", named(*attachment), named(*host)),
+            None => format!("Attached: {} to {}", named(attachment.id), named(host.id)),
         },
         Unattached { attachment, former_host, route, .. } => format!(
             "Unattached: {} from {} ({:?})",
@@ -1161,11 +1161,11 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         LeftTheGame { departed, from } => {
             format!("LeftTheGame: {} ({}, from {:?})", named(departed.object().id), player_in_log(departed.owner()), from)
         }
-        TokenCreated { object_id, owner, zone, .. } => {
-            format!("TokenCreated: {} ({}, in {:?})", named(*object_id), player_in_log(*owner), zone)
+        TokenCreated { token, owner, zone, .. } => {
+            format!("TokenCreated: {} ({}, in {:?})", named(token.id), player_in_log(*owner), zone)
         }
-        TokenCeasedToExist { object_id } => {
-            format!("TokenCeasedToExist: {}", named(*object_id))
+        TokenCeasedToExist { token } => {
+            format!("TokenCeasedToExist: {}", named(token.id))
         }
         StateBasedActionPerformed => "StateBasedActionPerformed".to_string(),
     }
@@ -1695,16 +1695,16 @@ mod tests {
                 applied: None,
                 new_epoch: 1,
             },
-            GameEvent::Tapped { object_id: id() },
-            GameEvent::Untapped { object_id: id() },
-            GameEvent::CardDrawn { player_id: 0, card_id: id() },
-            GameEvent::ManaAdded { player_id: 0, source_id: id(), mana: Vec::new(), tapped_for_mana: true, source_lki: None },
+            GameEvent::Tapped { object: reference(game, id()) },
+            GameEvent::Untapped { object: reference(game, id()) },
+            GameEvent::CardDrawn { player_id: 0, card: reference(game, id()) },
+            GameEvent::ManaAdded { player_id: 0, source: reference(game, id()), mana: Vec::new(), tapped_for_mana: true, source_lki: None },
             GameEvent::DamageDealt { source_id: a, target: DamageTarget::Object(b), amount: 1, excess: 0, is_combat: false, source_lki: None },
             GameEvent::DamagePrevented { target: DamageTarget::Object(c), amount: 1, by: ReplacementInstanceId::StaticAbility(reference(game, d), AbilityId::printed("x", 0)) },
             GameEvent::PhaseBegin { phase: PhaseType::Precombat, player: 0 },
             GameEvent::StepBegin { step: StepType::Upkeep, player: 0 },
             GameEvent::TurnBegin { player: 0, turn_number: 1 },
-            GameEvent::PermanentEnteredBattlefield { object_id: id(), controller: 0 },
+            GameEvent::PermanentEnteredBattlefield { object: reference(game, id()), controller: 0 },
             GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: Some(id()) },
             GameEvent::AttackersDeclared { attackers: vec![(attacker, AttackTarget::Planeswalker(walker))] },
             GameEvent::BlockersDeclared { blocks: vec![(blocker, blocked)], unblocked: vec![unblocked] },
@@ -1736,7 +1736,11 @@ mod tests {
             GameEvent::LibraryShuffled { player_id: 0 },
             GameEvent::CountersPutOn { subject: CounterSubject::Object(id()), counter_type: CounterType::PlusOnePlusOne, n: 1, by: 0, now: 1 },
             GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(id()), counter_type: CounterType::PlusOnePlusOne, n: 1, by: None, now: 0 },
-            GameEvent::Attached { attachment: attached, host, former_host: Some(former) },
+            GameEvent::Attached {
+                attachment: reference(game, attached),
+                host: reference(game, host),
+                former_host: Some(reference(game, former)),
+            },
             GameEvent::Unattached {
                 attachment: reference(game, unattached),
                 former_host: reference(game, unhosted),
@@ -1747,8 +1751,8 @@ mod tests {
             GameEvent::ControlChanged { to: 1, lki: lki(game, controlled) },
             GameEvent::LeftTheGame { departed: DepartedObject::WithoutLki { object: reference(game, id()), owner: 1 }, from: Zone::Battlefield },
             GameEvent::SameZoneMove { zone: Zone::Battlefield, act: ZoneChangeAct::Destroyed, applied: None, lki: lki(game, kept) },
-            GameEvent::TokenCreated { object_id: id(), owner: 0, zone: Zone::Battlefield, definition: Arc::new(crate::cards::phase_re_cards::goblin_token()) },
-            GameEvent::TokenCeasedToExist { object_id: id() },
+            GameEvent::TokenCreated { token: reference(game, id()), owner: 0, zone: Zone::Battlefield, definition: Arc::new(crate::cards::phase_re_cards::goblin_token()) },
+            GameEvent::TokenCeasedToExist { token: reference(game, id()) },
             GameEvent::StateBasedActionPerformed,
         ]
     }

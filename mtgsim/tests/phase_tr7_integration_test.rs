@@ -726,7 +726,7 @@ fn the_return_announces_two_counter_rows_and_one_check_removes_both() {
     let records = log.records_from(start);
     let entry = records
         .iter()
-        .find(|r| matches!(r.event, GameEvent::PermanentEnteredBattlefield { object_id, .. } if object_id == scarecrow))
+        .find(|r| matches!(r.event, GameEvent::PermanentEnteredBattlefield { object, .. } if object.id == scarecrow))
         .expect("it returned")
         .batch();
     let put: Vec<_> = records

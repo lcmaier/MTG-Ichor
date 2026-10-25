@@ -135,10 +135,10 @@ pub enum GameEvent {
     /// tapped — it does not fire for a redundant tap, and does not fire for a
     /// permanent that *enters* tapped. CR 701.26a agrees from the other side:
     /// only untapped permanents can be tapped at all.
-    Tapped { object_id: ObjectId },
+    Tapped { object: ObjectRef },
 
     /// A permanent became untapped (CR 701.26b). Transition-only, as `Tapped`.
-    Untapped { object_id: ObjectId },
+    Untapped { object: ObjectRef },
 
     /// A player drew a card (CR 121.1).
     ///
@@ -152,7 +152,7 @@ pub enum GameEvent {
     /// Not emitted when the library was empty: nothing was drawn, and CR 704.5b
     /// handles the attempt as a state-based action instead.
     ///
-    CardDrawn { player_id: PlayerId, card_id: ObjectId },
+    CardDrawn { player_id: PlayerId, card: ObjectRef },
 
     // --- Mana ---
     /// CR 106.6a / 106.12 — a spell or ability produced mana, performed as
@@ -166,7 +166,7 @@ pub enum GameEvent {
     /// permanent is tapped for mana" triggers read off the performed event.
     ManaAdded {
         player_id: PlayerId,
-        source_id: ObjectId,
+        source: ObjectRef,
         mana: Vec<(ManaType, u64)>,
         tapped_for_mana: bool,
         /// The source as it last existed, where its own mana ability's cost
@@ -215,7 +215,7 @@ pub enum GameEvent {
     TurnBegin { player: PlayerId, turn_number: u32 },
 
     // --- Permanents ---
-    PermanentEnteredBattlefield { object_id: ObjectId, controller: PlayerId },
+    PermanentEnteredBattlefield { object: ObjectRef, controller: PlayerId },
 
     // --- Life ---
     /// `source` is a gain's source, or the source of the damage a loss is a
@@ -475,7 +475,7 @@ pub enum GameEvent {
     /// by the `GameAction::Attach` performer on the transition only — an
     /// attach to the host it is already on is CR 701.3b's "does nothing" and
     /// announces nothing.
-    Attached { attachment: ObjectId, host: ObjectId, former_host: Option<ObjectId> },
+    Attached { attachment: ObjectRef, host: ObjectRef, former_host: Option<ObjectRef> },
 
     /// An Aura, Equipment or Fortification stopped being attached to
     /// `former_host` (CR 701.3d), by `route`. Each is the existence it was at
@@ -584,11 +584,12 @@ pub enum GameEvent {
     /// what the creation made it from, after any replacement substituted
     /// another (Divine Visitation), which "when you do" after "create a
     /// [token]" asks (Ajani, Nacatl Avenger's eighth ruling).
-    TokenCreated { object_id: ObjectId, owner: PlayerId, zone: Zone, definition: Arc<crate::types::effects::TokenDef> },
+    TokenCreated { token: ObjectRef, owner: PlayerId, zone: Zone, definition: Arc<crate::types::effects::TokenDef> },
 
     /// A token in a non-battlefield zone ceased to exist (rule 704.5d).
     /// Not a zone change — the token is simply removed from the game.
-    TokenCeasedToExist { object_id: ObjectId },
+    /// `token` is the existence that ended, named before the store lost it.
+    TokenCeasedToExist { token: ObjectRef },
 
     // --- State-based ---
     StateBasedActionPerformed,
@@ -694,15 +695,15 @@ impl GameEvent {
     pub fn for_each_object_named(&self, mut each: impl FnMut(ObjectId)) {
         use GameEvent::*;
         match self {
-            Tapped { object_id: id }
-            | Untapped { object_id: id }
-            | PermanentEnteredBattlefield { object_id: id, .. }
-            | CountersPutOn { subject: CounterSubject::Object(id), .. }
+            Tapped { object }
+            | Untapped { object }
+            | PermanentEnteredBattlefield { object, .. }
+            | TokenCreated { token: object, .. }
+            | TokenCeasedToExist { token: object }
+            | CardDrawn { card: object, .. }
+            | ManaAdded { source: object, .. } => each(object.id),
+            CountersPutOn { subject: CounterSubject::Object(id), .. }
             | CountersRemovedFrom { subject: CounterSubject::Object(id), .. }
-            | TokenCreated { object_id: id, .. }
-            | TokenCeasedToExist { object_id: id }
-            | CardDrawn { card_id: id, .. }
-            | ManaAdded { source_id: id, .. }
             | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
             | DamagePrevented { target: DamageTarget::Object(id), .. }
             | SpellCast { spell_id: id, .. }
@@ -748,10 +749,10 @@ impl GameEvent {
                 each(former_host.id);
             }
             Attached { attachment, host, former_host } => {
-                each(*attachment);
-                each(*host);
+                each(attachment.id);
+                each(host.id);
                 if let Some(former_host) = former_host {
-                    each(*former_host);
+                    each(former_host.id);
                 }
             }
             // Each attacker, and the planeswalker or battle it attacks.
@@ -1281,8 +1282,9 @@ mod tests {
     fn test_a_batch_stamps_every_event_it_emits() {
         let mut window = EventWindow::new();
         let outer = window.open_batch();
-        window.push(GameEvent::Tapped { object_id: ObjectId::UNASSIGNED }, window.stamp_caused_by(EventCause::Harness), None);
-        window.push(GameEvent::Untapped { object_id: ObjectId::UNASSIGNED }, window.stamp_caused_by(EventCause::Harness), None);
+        let object = ObjectRef { id: ObjectId::UNASSIGNED, zone_change_epoch: 0 };
+        window.push(GameEvent::Tapped { object }, window.stamp_caused_by(EventCause::Harness), None);
+        window.push(GameEvent::Untapped { object }, window.stamp_caused_by(EventCause::Harness), None);
         window.close_batch(outer);
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
 

@@ -64,8 +64,8 @@ fn entries(game: &GameState) -> Vec<(ObjectId, usize)> {
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::PermanentEnteredBattlefield { object_id, controller } => {
-                Some((*object_id, *controller))
+            GameEvent::PermanentEnteredBattlefield { object, controller } => {
+                Some((object.id, *controller))
             }
             _ => None,
         })

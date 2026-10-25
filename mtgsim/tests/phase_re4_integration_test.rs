@@ -105,7 +105,7 @@ fn creations(game: &GameState, start: usize) -> Vec<(ObjectId, Zone)> {
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::TokenCreated { object_id, zone, .. } => Some((*object_id, *zone)),
+            GameEvent::TokenCreated { token, zone, .. } => Some((token.id, *zone)),
             _ => None,
         })
         .collect()
@@ -117,7 +117,7 @@ fn entered(game: &GameState, start: usize) -> Vec<ObjectId> {
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::PermanentEnteredBattlefield { object_id, .. } => Some(*object_id),
+            GameEvent::PermanentEnteredBattlefield { object, .. } => Some(object.id),
             _ => None,
         })
         .collect()
@@ -129,7 +129,7 @@ fn ceased(game: &GameState, start: usize) -> Vec<ObjectId> {
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::TokenCeasedToExist { object_id } => Some(*object_id),
+            GameEvent::TokenCeasedToExist { token } => Some(token.id),
             _ => None,
         })
         .collect()

@@ -1613,7 +1613,7 @@ impl GameState {
             self.combat_had_attackers = true;
         }
         self.emit_event(
-            crate::events::event::GameEvent::PermanentEnteredBattlefield { object_id: id, controller: effective },
+            crate::events::event::GameEvent::PermanentEnteredBattlefield { object: self.existence_of(id)?, controller: effective },
             cause,
         )?;
         self.announce_entry_counters(id, effective, mods, cause)?;

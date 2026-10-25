@@ -1967,9 +1967,9 @@ impl GameState {
                         && self.subject_of_a_move_matches(subject, moved, left, referents, seq),
                 )
             }
-            (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
-            | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
-                triggering_event_if(self.subject_matches(subject, ObjectInformation::Current(*object_id), referents, seq))
+            (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object })
+            | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object }) => {
+                triggering_event_if(self.subject_matches(subject, ObjectInformation::Current(object.id), referents, seq))
             }
             (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, .. }) => triggering_event_if(
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents))
@@ -1983,10 +1983,10 @@ impl GameState {
             }
             (
                 TriggerEvent::ManaAdded { .. },
-                GameEvent::ManaAdded { source_id, mana: added, tapped_for_mana: tapped, .. },
+                GameEvent::ManaAdded { source, mana: added, tapped_for_mana: tapped, .. },
             ) => {
                 let added = |m: ManaType| added.iter().any(|(t, n)| *t == m && *n > 0);
-                let producer = ManaProducer { id: *source_id, tapped_for_mana: *tapped, lki: event.source_lki() };
+                let producer = ManaProducer { id: source.id, tapped_for_mana: *tapped, lki: event.source_lki() };
                 triggering_event_if(self.mana_added_arm_matches(arm, producer, added, referents, seq))
             }
             (
@@ -2051,8 +2051,9 @@ impl GameState {
             }
             (
                 TriggerEvent::EntersBattlefield { subject, controller, from, was_cast, .. },
-                GameEvent::PermanentEnteredBattlefield { object_id, controller: rc },
+                GameEvent::PermanentEnteredBattlefield { object, controller: rc },
             ) => {
+                let object_id = &object.id;
                 // The join (§4.4): `from` off the same object's zone change in
                 // this window — a token has none — and "cast" off the facts the
                 // permanent keeps (CR 400.7d).
@@ -2190,8 +2191,8 @@ impl GameState {
                 TriggerEvent::BecomesAttached { attachment: watched, host: on },
                 GameEvent::Attached { attachment, host, .. },
             ) => triggering_event_if(
-                self.subject_matches(watched, ObjectInformation::Current(*attachment), referents, seq)
-                    && self.subject_matches(on, ObjectInformation::Current(*host), referents, seq),
+                self.subject_matches(watched, ObjectInformation::Current(attachment.id), referents, seq)
+                    && self.subject_matches(on, ObjectInformation::Current(host.id), referents, seq),
             ),
             // CR 603.10c: each end as it was just before, which for one that
             // left in this event is its departure's frame.
@@ -2612,7 +2613,7 @@ impl GameState {
                 GameEvent::ZoneChange { departed, to: Zone::Battlefield, from, .. } if departed.object().id == id => {
                     return Some(*from)
                 }
-                GameEvent::TokenCreated { object_id, .. } if *object_id == id => return None,
+                GameEvent::TokenCreated { token, .. } if token.id == id => return None,
                 _ => {}
             }
         }
@@ -2680,14 +2681,14 @@ impl GameState {
             GameEvent::SameZoneMove { lki, .. } | GameEvent::ControlChanged { lki, .. } => lki.object().id,
             GameEvent::SpellCountered { lki, .. } => lki.object().id,
             GameEvent::ZoneChange { departed, .. } => departed.object().id,
-            GameEvent::Tapped { object_id }
-            | GameEvent::Untapped { object_id }
-            | GameEvent::PermanentEnteredBattlefield { object_id, .. }
-            | GameEvent::TokenCreated { object_id, .. } => *object_id,
+            GameEvent::Tapped { object }
+            | GameEvent::Untapped { object }
+            | GameEvent::PermanentEnteredBattlefield { object, .. }
+            | GameEvent::TokenCreated { token: object, .. } => object.id,
             // The existence that made the mana, where its own cost moved it.
             GameEvent::ManaAdded { source_lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
-            GameEvent::ManaAdded { source_id, .. } => *source_id,
-            GameEvent::CardDrawn { card_id, .. } => *card_id,
+            GameEvent::ManaAdded { source, .. } => source.id,
+            GameEvent::CardDrawn { card, .. } => card.id,
             GameEvent::SpellCast { spell_id, .. } => *spell_id,
             _ => return TriggeringEventObjects::NoObject,
         };
@@ -2728,7 +2729,7 @@ impl GameState {
     fn attachment_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
         match event {
             GameEvent::Attached { attachment, host, .. } => {
-                match (self.subject_after(event, *attachment), self.subject_after(event, *host)) {
+                match (self.subject_after(event, attachment.id), self.subject_after(event, host.id)) {
                     (Some(attachment), Some(host)) => TriggeringEventObjects::Attach { attachment, host },
                     _ => TriggeringEventObjects::NoObject,
                 }
@@ -2770,7 +2771,7 @@ impl GameState {
     /// beside it.
     fn newcomer_from(&self, event: &GameEvent) -> Option<ObjectRef> {
         match event {
-            GameEvent::TokenCreated { object_id, .. } => self.object_ref(*object_id),
+            GameEvent::TokenCreated { token, .. } => self.object_ref(token.id),
             event => event.new_object(),
         }
     }

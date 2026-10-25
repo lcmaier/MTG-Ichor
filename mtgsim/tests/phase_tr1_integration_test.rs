@@ -1393,7 +1393,7 @@ fn wild_growth_adds_its_mana_at_once_without_the_stack() {
         .recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ManaAdded { source_id, tapped_for_mana, .. } => Some((*source_id, *tapped_for_mana)),
+            GameEvent::ManaAdded { source, tapped_for_mana, .. } => Some((source.id, *tapped_for_mana)),
             _ => None,
         })
         .collect();
