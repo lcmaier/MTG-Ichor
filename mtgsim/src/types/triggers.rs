@@ -18,7 +18,6 @@ use crate::types::restriction::SourceFilter;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
-use crate::engine::replacement::EventSubject;
 use crate::events::event::{CreatedAt, EventRecord, EventId, GameEvent, LifeChange, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
@@ -455,8 +454,7 @@ impl ObjectOrPlayer {
 }
 
 /// The objects a triggering event is about, each by the part it played, as the
-/// existence the dispatch found (CR 400.7): the one fact a record, which names
-/// its objects by id, does not carry. One variant per shape of event.
+/// existence its record names (CR 400.7). One variant per shape of event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TriggeringEventObjects {
     /// A step beginning, a life change, a player losing.
@@ -1278,12 +1276,12 @@ impl TriggerEvent {
     /// trigger is one of, the counters' object or player, or the damage's
     /// recipient. `None` for every other arm, and for a record it does not
     /// read.
-    pub(crate) fn occurrence_subject(&self, record: &GameEvent) -> Option<EventSubject> {
+    pub(crate) fn occurrence_subject(&self, record: &GameEvent) -> Option<ObjectOrPlayer> {
         match (self.occurrence_subject_part()?, record) {
             (OccurrenceSubject::CountersOn, GameEvent::CountersPutOn { subject, .. } | GameEvent::CountersRemovedFrom { subject, .. }) => {
-                Some(EventSubject::from(*subject))
+                Some(*subject)
             }
-            (OccurrenceSubject::DamageRecipient, GameEvent::DamageDealt { target, .. }) => Some(EventSubject::from(*target)),
+            (OccurrenceSubject::DamageRecipient, GameEvent::DamageDealt { target, .. }) => Some(*target),
             (OccurrenceSubject::CountersOn | OccurrenceSubject::DamageRecipient, _) => None,
         }
     }
@@ -1766,7 +1764,7 @@ impl TriggerBinding {
     }
 
     /// "Its power", "if it had": the object that played `role` in the
-    /// one triggering event, as the existence the dispatch found. `None` for a
+    /// one triggering event, as the existence its record names. `None` for a
     /// "one or more" trigger, which has no single object.
     pub fn triggering_object(&self, role: EventRole) -> Option<ObjectRef> {
         self.triggering_event()?.objects.get(self.event()?.role_as_recorded(role))

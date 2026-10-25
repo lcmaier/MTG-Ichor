@@ -313,7 +313,9 @@ pub struct TriggerBinding {
 
 A zone change's record carries the object the move made (`new_epoch`), so
 the object a zone-change trigger finds is read off the record, never off the
-store at dispatch (`subject_after`, item 177; RH-3).
+store at dispatch (item 177; RH-3). Every other record names each of its
+objects by the existence the event was about, and the trigger remembers
+that existence (item 328, `record-existences`).
 
 **The projections live on the arm, and they are exhaustive matches.**
 `TriggerEvent::player_of(&GameEvent) -> Option<PlayerId>` and
