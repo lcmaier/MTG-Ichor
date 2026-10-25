@@ -122,6 +122,7 @@ then `99c2c96`, with the fix the audited smoke asked for.
 | clone, worst decision (`clone_bound_test`), `main` → `99c2c96` | | 40 → 39 allocations, 6.0 KB, `stress` 777; one fewer in every game |
 | held, log and store together (`history_held_test`), `99c2c96` | | 4,234 B a turn, as `main` |
 | audited smoke, `99c2c96`, 1,000 games at seed 777, performance / stress: errors, panics, turn limits | 0 / 0 | 0 / 0 |
+| the review's arm, `ab7a987` (the zone statement hoisted to every ability's root): gameplay rows; instructions; audited smoke | **IDENTICAL** on both pools and seats; 0 / 0 errors, panics, turn limits | 0.7414 M → 0.7443 M, **+0.39%** |
 
 **The miss: the audited smoke, at the first engine arm.** `stress` at four
 seats, seed 1476: Blood Artist dies in the window where Bridge from
