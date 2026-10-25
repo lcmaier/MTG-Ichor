@@ -2365,7 +2365,8 @@ impl GameState {
         let spell = self.object_ref(id).ok_or_else(|| format!("countering {id}, which is in no zone"))?;
         self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, actx)?;
         let lki = self.lki(spell).cloned().ok_or_else(|| format!("countering {id}, which left the stack unframed"))?;
-        let countered = crate::events::event::GameEvent::SpellCountered { spell_id: id, controller, countered_by: ctx.source, lki };
+        debug_assert_eq!(lki.characteristics().controller, controller, "{id}'s frame names another controller than the stack's");
+        let countered = crate::events::event::GameEvent::SpellCountered { countered_by: ctx.source, lki };
         self.emit_event(countered, actx.cause)
     }
 

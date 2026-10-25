@@ -452,7 +452,7 @@ fn a_change_of_control_a_batch_causes_is_announced_in_its_window() {
     let records = game.recorded_events();
     let window = records.records_from(before);
     let destroyed = first_in(window, |event| matches!(event, GameEvent::ZoneChange { object_id, .. } if *object_id == sower));
-    let back = first_in(window, |event| matches!(event, GameEvent::ControlChanged { object_id, .. } if *object_id == bears));
+    let back = first_in(window, |event| matches!(event, GameEvent::ControlChanged { lki, .. } if lki.object().id == bears));
     assert_eq!(back.stamp.batch, destroyed.stamp.batch);
 }
 

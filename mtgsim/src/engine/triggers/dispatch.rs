@@ -1936,8 +1936,8 @@ impl GameState {
                     // only an arm that names an act reads: a mill, not "leaves
                     // your library". The object is asked as it was, which is
                     // how it still is.
-                    GameEvent::SameZoneMove { owner, zone, act, lki, .. } => {
-                        (ObjectInformation::LastKnown(lki), *owner, change.matches(Some(*zone), *zone, Some(*act)) && caused())
+                    GameEvent::SameZoneMove { zone, act, lki, .. } => {
+                        (ObjectInformation::LastKnown(lki), lki.owner(), change.matches(Some(*zone), *zone, Some(*act)) && caused())
                     }
                     _ => return Vec::new(),
                 };
@@ -2187,9 +2187,9 @@ impl GameState {
             ),
             // CR 603.10d: the subject as it was before the change, "you" its
             // controller then (the candidate's, off its frame from before).
-            (TriggerEvent::ControlChanges { subject, from, to }, GameEvent::ControlChanged { from: lost, to: gained, lki, .. }) => {
+            (TriggerEvent::ControlChanges { subject, from, to }, GameEvent::ControlChanged { to: gained, lki }) => {
                 triggering_event_if(
-                    from.as_ref().is_none_or(|p| self.player_ref_is(p, *lost, referents))
+                    from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.characteristics().controller, referents))
                         && to.as_ref().is_none_or(|p| self.player_ref_is(p, *gained, referents))
                         && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
                 )
@@ -2614,19 +2614,19 @@ impl GameState {
             // The existence that left the game, which the store no longer
             // holds by the time the record is read (CR 800.4a).
             GameEvent::LeftTheGame { lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
+            GameEvent::SameZoneMove { lki, .. } | GameEvent::ControlChanged { lki, .. } => lki.object().id,
+            GameEvent::SpellCountered { lki, .. } => lki.object().id,
             GameEvent::ZoneChange { object_id, .. }
             | GameEvent::LeftTheGame { object_id, .. }
-            | GameEvent::SameZoneMove { object_id, .. }
             | GameEvent::Tapped { object_id }
             | GameEvent::Untapped { object_id }
             | GameEvent::PermanentEnteredBattlefield { object_id, .. }
-            | GameEvent::ControlChanged { object_id, .. }
             | GameEvent::TokenCreated { object_id, .. } => *object_id,
             // The existence that made the mana, where its own cost moved it.
             GameEvent::ManaAdded { source_lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
             GameEvent::ManaAdded { source_id, .. } => *source_id,
             GameEvent::CardDrawn { card_id, .. } => *card_id,
-            GameEvent::SpellCast { spell_id, .. } | GameEvent::SpellCountered { spell_id, .. } => *spell_id,
+            GameEvent::SpellCast { spell_id, .. } => *spell_id,
             _ => return TriggeringEventObjects::NoObject,
         };
         self.subject_after(event, id).map_or(TriggeringEventObjects::NoObject, TriggeringEventObjects::Object)

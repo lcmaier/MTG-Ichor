@@ -294,9 +294,9 @@ impl GameState {
                     None => draft_history_row(Some(*owner), Some(became), as_left(frame_as_left(became)), fact),
                 }
             }
-            GameEvent::SameZoneMove { owner, zone, act, lki, .. } => {
+            GameEvent::SameZoneMove { zone, act, lki, .. } => {
                 let fact = RowFact::LeftZone { from: *zone, to: *zone, act: *act, became: lki.object() };
-                draft_history_row(Some(*owner), Some(lki.object()), RowFrame::LastKnown(lki.clone()), fact);
+                draft_history_row(Some(lki.owner()), Some(lki.object()), RowFrame::LastKnown(lki.clone()), fact);
             }
             GameEvent::LeftTheGame { owner, from, lki: Some(lki), .. } => {
                 let (object, frame) = departed(lki);

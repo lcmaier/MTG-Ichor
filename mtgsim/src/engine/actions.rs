@@ -2108,8 +2108,7 @@ impl GameState {
         cause: EventCause,
     ) -> Result<(), String> {
         let lki = lki.ok_or_else(|| format!("{object} was kept in the {zone:?} with no frame to announce it by"))?;
-        let owner = self.get_object(object)?.owner;
-        self.emit_event(GameEvent::SameZoneMove { object_id: object, owner, zone, act, applied, lki }, cause)
+        self.emit_event(GameEvent::SameZoneMove { zone, act, applied, lki }, cause)
     }
 
     /// **The only emitter of `GameEvent::ZoneChange`.** Three callers, each of

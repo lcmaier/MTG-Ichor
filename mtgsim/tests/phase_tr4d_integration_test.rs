@@ -594,7 +594,7 @@ fn the_change_is_announced_before_the_next_instruction() {
         .records_from(before)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::ControlChanged { object_id, from: 1, to: 0, .. } if *object_id == bears => Some("control"),
+            GameEvent::ControlChanged { to: 0, lki } if lki.object().id == bears && lki.characteristics().controller == 1 => Some("control"),
             GameEvent::Untapped { object_id } if *object_id == bears => Some("untap"),
             _ => None,
         })
@@ -897,7 +897,7 @@ fn ray_of_command_taps_the_creature_in_the_cleanup_step() {
         .iter()
         .filter_map(|r| match &r.event {
             GameEvent::StepBegin { step: StepType::Cleanup, .. } => Some("cleanup"),
-            GameEvent::ControlChanged { object_id, .. } if *object_id == bears => Some("back"),
+            GameEvent::ControlChanged { lki, .. } if lki.object().id == bears => Some("back"),
             GameEvent::Tapped { object_id } if *object_id == bears => Some("tapped"),
             _ => None,
         })

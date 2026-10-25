@@ -796,7 +796,7 @@ fn that_spell_or_ability_is_the_one_that_targeted_it() {
         .recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::SpellCountered { spell_id, .. } => Some(*spell_id),
+            GameEvent::SpellCountered { lki, .. } => Some(lki.object().id),
             _ => None,
         })
         .collect();

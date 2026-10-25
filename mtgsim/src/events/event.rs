@@ -265,12 +265,12 @@ pub enum GameEvent {
     /// `source` is the exiling spell or ability's source, `returns` what it
     /// exiled.
     UntilReturnMade { id: UntilReturnId, source: ObjectId, controller: PlayerId, returns: Vec<ObjectId> },
-    /// A spell was countered (CR 701.6a). `controller` is its controller as
-    /// it left the stack: in its owner's graveyard it has none (CR 108.4a).
-    /// `lki` is the spell as it was on the stack, its entry included, which
-    /// "whenever a spell is countered" looks back at (CR 603.10e): who cast
-    /// it, and what it was before it became a card in a graveyard.
-    SpellCountered { spell_id: ObjectId, controller: PlayerId, countered_by: ObjectId, lki: Lki },
+    /// A spell was countered (CR 701.6a). `lki` is the spell as it was on the
+    /// stack, its entry included, which "whenever a spell is countered" looks
+    /// back at (CR 603.10e): the existence it was, who cast it, its
+    /// controller as it left the stack (in its owner's graveyard it has none,
+    /// CR 108.4a), and what it was before it became a card in a graveyard.
+    SpellCountered { countered_by: ObjectId, lki: Lki },
     /// An activated or triggered ability was countered (CR 701.6b), named by
     /// what it is: the stack object ceased to exist as it was countered.
     AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectId },
@@ -436,14 +436,15 @@ pub enum GameEvent {
         former_host_left: bool,
     },
 
-    /// A permanent's controller became `to` from `from` (CR 613.1b): a
-    /// control-changing effect started or ended. No performer does this, so
+    /// A permanent's controller became `to` (CR 613.1b): a control-changing
+    /// effect started or ended. No performer does this, so
     /// `announce_control_changes` finds it, comparing each permanent with the
     /// controller the stream last announced; one sweep's changes are one
     /// event. `lki` is the permanent as it was before, which "when you lose
     /// control of" and "an opponent gains control of" look back to (CR
-    /// 603.10d): it names `from` as its controller.
-    ControlChanged { object_id: ObjectId, from: PlayerId, to: PlayerId, lki: Lki },
+    /// 603.10d): the existence, and the controller it had, the one it went
+    /// from.
+    ControlChanged { to: PlayerId, lki: Lki },
 
     // --- Multiplayer (CR 800.4a) ---
     /// An object owned by a player who has just left the game left it too.
@@ -482,13 +483,12 @@ pub enum GameEvent {
     /// Colossus milled, and shuffled into its library instead. The act it
     /// replaced still happened (CR 614.6; the card "is still milled", Jess
     /// Dunks on Zellix, Sanity Flayer), so `act` and `applied` say what was
-    /// done and what replaced it, and `lki` is the card as it was. **Not a
-    /// zone change**: nothing left a zone and no new object was made (CR
-    /// 400.7), so it is no departure, and only an arm that names an act reads
-    /// it (`triggers-architecture.md` §3.12a decision 3).
+    /// done and what replaced it, and `lki` is the card as it was, the
+    /// existence and its owner. **Not a zone change**: nothing left a zone
+    /// and no new object was made (CR 400.7), so it is no departure, and only
+    /// an arm that names an act reads it (`triggers-architecture.md` §3.12a
+    /// decision 3).
     SameZoneMove {
-        object_id: ObjectId,
-        owner: PlayerId,
         zone: Zone,
         act: ZoneChangeAct,
         applied: Option<Arc<[AppliedReplacement]>>,
@@ -641,8 +641,6 @@ impl GameEvent {
             | CountersPutOn { subject: CounterSubject::Object(id), .. }
             | CountersRemovedFrom { subject: CounterSubject::Object(id), .. }
             | TokenCreated { object_id: id, .. }
-            | SameZoneMove { object_id: id, .. }
-            | ControlChanged { object_id: id, .. }
             | TokenCeasedToExist { object_id: id }
             | CardDrawn { card_id: id, .. }
             | ManaAdded { source_id: id, .. }
@@ -677,11 +675,15 @@ impl GameEvent {
                     each(*source);
                 }
             }
-            DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
-            | SpellCountered { spell_id: a, countered_by: b, .. } => {
+            DamageDealt { source_id: a, target: DamageTarget::Object(b), .. } => {
                 each(*a);
                 each(*b);
             }
+            SpellCountered { countered_by, lki } => {
+                each(lki.object().id);
+                each(*countered_by);
+            }
+            SameZoneMove { lki, .. } | ControlChanged { lki, .. } => each(lki.object().id),
             Unattached { attachment, former_host, .. } => {
                 each(attachment.id);
                 each(former_host.id);

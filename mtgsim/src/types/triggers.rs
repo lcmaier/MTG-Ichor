@@ -1461,8 +1461,8 @@ impl TriggerEvent {
     pub fn player_of(&self, record: &GameEvent) -> Option<PlayerId> {
         match (self, record) {
             (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { owner, .. })
-            | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { owner, .. })
-            | (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { owner, .. }) => Some(*owner),
+            | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { owner, .. }) => Some(*owner),
+            (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { lki, .. }) => Some(lki.owner()),
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { player_id, .. }) => Some(*player_id),
             (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. })
             | (TriggerEvent::DamageIsPrevented { .. }, GameEvent::DamagePrevented { target, .. }) => match target {
@@ -1482,8 +1482,8 @@ impl TriggerEvent {
             (TriggerEvent::ActivatesAbility { .. }, GameEvent::AbilityActivated { controller, .. }) => Some(*controller),
             // The player who gained control.
             (TriggerEvent::ControlChanges { .. }, GameEvent::ControlChanged { to, .. }) => Some(*to),
-            // Its controller as it left the stack, as the record keeps it.
-            (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { controller, .. }) => Some(*controller),
+            // Its controller as it left the stack, as its frame keeps it.
+            (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { lki, .. }) => Some(lki.characteristics().controller),
             (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { player_id, .. })
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { player_id })
             | (TriggerEvent::PlayerLoses { .. }, GameEvent::PlayerLost { player_id }) => Some(*player_id),
@@ -2298,10 +2298,10 @@ pub(crate) mod samples {
                 instances: 1,
             }),
             ("AbilityActivated", GameEvent::AbilityActivated { identity, controller: 0, mana_ability: false, from: Zone::Battlefield, source_lki: None }),
-            ("SpellCountered", GameEvent::SpellCountered { spell_id: id, controller: 0, countered_by: id, lki: lki.clone() }),
+            ("SpellCountered", GameEvent::SpellCountered { countered_by: id, lki: lki.clone() }),
             ("PlayerLost", GameEvent::PlayerLost { player_id: 0 }),
-            ("SameZoneMove", GameEvent::SameZoneMove { object_id: id, owner: 0, zone: Zone::Library, act: ZoneChangeAct::Milled, applied: None, lki: lki.clone() }),
-            ("ControlChanged", GameEvent::ControlChanged { object_id: id, from: 0, to: 1, lki }),
+            ("SameZoneMove", GameEvent::SameZoneMove { zone: Zone::Library, act: ZoneChangeAct::Milled, applied: None, lki: lki.clone() }),
+            ("ControlChanged", GameEvent::ControlChanged { to: 1, lki }),
             ("CountersPutOn", GameEvent::CountersPutOn {
                 subject: CounterSubject::Object(id),
                 counter_type: CounterType::PlusOnePlusOne,
