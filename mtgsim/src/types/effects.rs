@@ -520,24 +520,24 @@ impl PlayerSet {
 /// both: Furnace of Rath's "a permanent or player" is both, Angel of
 /// Suffering's "you" players and no object.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ObjectAndPlayerSet {
+pub struct AffectedSet {
     pub objects: ObjectSet,
     pub players: PlayerSet,
 }
 
-impl ObjectAndPlayerSet {
+impl AffectedSet {
     /// No object and no player: an effect a resolution creates, authored for
     /// the resolution's targets to fill in.
-    pub const NOTHING: ObjectAndPlayerSet = ObjectAndPlayerSet { objects: ObjectSet::NO_OBJECTS, players: PlayerSet::Nobody };
+    pub const NOTHING: AffectedSet = AffectedSet { objects: ObjectSet::NO_OBJECTS, players: PlayerSet::Nobody };
 
     /// These objects and no player.
     pub fn objects(objects: ObjectSet) -> Self {
-        ObjectAndPlayerSet { objects, players: PlayerSet::Nobody }
+        AffectedSet { objects, players: PlayerSet::Nobody }
     }
 
     /// These players and no object.
     pub fn players(players: PlayerSet) -> Self {
-        ObjectAndPlayerSet { objects: ObjectSet::NO_OBJECTS, players }
+        AffectedSet { objects: ObjectSet::NO_OBJECTS, players }
     }
 
     /// CR 400.7 — does it refer to `object` by identity? Only its object
@@ -553,15 +553,15 @@ impl ObjectAndPlayerSet {
     }
 }
 
-impl From<ObjectSet> for ObjectAndPlayerSet {
+impl From<ObjectSet> for AffectedSet {
     fn from(objects: ObjectSet) -> Self {
-        ObjectAndPlayerSet::objects(objects)
+        AffectedSet::objects(objects)
     }
 }
 
-impl From<PlayerSet> for ObjectAndPlayerSet {
+impl From<PlayerSet> for AffectedSet {
     fn from(players: PlayerSet) -> Self {
-        ObjectAndPlayerSet::players(players)
+        AffectedSet::players(players)
     }
 }
 

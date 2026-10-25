@@ -147,7 +147,7 @@ use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::ids::AbilityId;
 use crate::types::effects::{
-    ObjectAndPlayerSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
+    AffectedSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
     PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::keywords::KeywordFlag;
@@ -237,7 +237,7 @@ pub fn furnace_of_rath() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to a permanent or player, it deals double that damage to that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                ObjectAndPlayerSet { objects: affected, players },
+                AffectedSet { objects: affected, players },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             ),
         ))
@@ -291,7 +291,7 @@ pub fn ghosts_of_the_innocent() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to a permanent or player, it deals half that damage, rounded down, to that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                ObjectAndPlayerSet { objects: affected, players },
+                AffectedSet { objects: affected, players },
                 Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
             ),
         ))
@@ -354,14 +354,14 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to an opponent or a permanent an opponent controls, that source deals double that damage to that player or permanent instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                ObjectAndPlayerSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)), players: PlayerSet::Opponents },
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)), players: PlayerSet::Opponents },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             ),
         ))
         .ability(static_replacement("If a source would deal damage to you or a permanent you control, prevent half that damage, rounded up.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                ObjectAndPlayerSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)), players: PlayerSet::You },
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)), players: PlayerSet::You },
                 Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Up)),
             ),
         ))
@@ -612,7 +612,7 @@ pub fn safe_passage() -> Arc<CardData> {
                     Box::new(
                         ReplacementDef::new(
                             EventPattern::DealDamage { source: None, combat: None },
-                            ObjectAndPlayerSet { objects: ObjectSet::battlefield_filter(creatures_you_control()), players: PlayerSet::You },
+                            AffectedSet { objects: ObjectSet::battlefield_filter(creatures_you_control()), players: PlayerSet::You },
                             Rewrite::Prevent,
                         ),
                     ),
@@ -1024,7 +1024,7 @@ pub fn fog() -> Arc<CardData> {
                     Box::new(
                         ReplacementDef::new(
                             EventPattern::DealDamage { source: None, combat: Some(true) },
-                            ObjectAndPlayerSet { objects: affected, players },
+                            AffectedSet { objects: affected, players },
                             Rewrite::Prevent,
                         ),
                     ),
@@ -1088,7 +1088,7 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
                     ))),
                     combat: None,
                 },
-                ObjectAndPlayerSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)), players: PlayerSet::Opponents },
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)), players: PlayerSet::Opponents },
                 Rewrite::Amount(AmountRewrite::Plus(2)),
             ),
         ))
@@ -1109,7 +1109,7 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
 fn all_damage_to_you(objects: ObjectSet, spec: RetargetSpec) -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::DealDamage { source: None, combat: None },
-        ObjectAndPlayerSet { objects, players: PlayerSet::You },
+        AffectedSet { objects, players: PlayerSet::You },
         Rewrite::Retarget(spec),
     )
 }
@@ -1295,7 +1295,7 @@ pub fn reflect_damage() -> Arc<CardData> {
                                 source: Some(SourcePattern::chosen()),
                                 combat: None,
                             },
-                            ObjectAndPlayerSet { objects: affected, players },
+                            AffectedSet { objects: affected, players },
                             Rewrite::Retarget(RetargetSpec::ToDamageSourceController),
                         )
                         .once(),

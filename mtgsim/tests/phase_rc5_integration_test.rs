@@ -32,7 +32,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    ObjectAndPlayerSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive,
 };
 use mtgsim::types::ids::ObjectId;
@@ -268,7 +268,7 @@ fn your_own_abilities_cant_sacrifice(name: &str) -> Arc<CardData> {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
-                affected: ObjectAndPlayerSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
+                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
                 by: Some(mtgsim::types::restriction::SourceFilter::ControlledBy(PlayerRef::You)),
             },
         )))))
@@ -290,7 +290,7 @@ fn cant_sacrifice_your_creatures(name: &str) -> Arc<CardData> {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
-                affected: ObjectAndPlayerSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
+                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
                 by: None,
             },
         )))))

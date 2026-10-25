@@ -2137,7 +2137,7 @@ impl GameState {
                 TriggerEvent::BecomesTarget { target: watched, by: kind, controller: whose, .. },
                 GameEvent::Targeted { target, by, ability_source, controller, .. },
             ) => {
-                let target_ok = self.object_or_player_subject_matches(watched, *target, referents, seq);
+                let target_ok = self.object_or_player_matches(watched, *target, referents, seq);
                 let kind_ok = kind.admits(ability_source.is_none())
                     && match kind {
                         TargetedBy::Spell(Some(filter)) => {
@@ -2376,7 +2376,7 @@ impl GameState {
         };
         let matched = counter_type.is_none_or(|k| k == kind)
             && by.as_ref().is_none_or(|p| who.is_some_and(|who| self.player_ref_is(p, who, referents)))
-            && self.object_or_player_subject_matches(watched, on, referents, record.seq);
+            && self.object_or_player_matches(watched, on, referents, record.seq);
         if !matched {
             return Vec::new();
         }
@@ -2394,7 +2394,7 @@ impl GameState {
     /// (`ObjectOrPlayerSubject::Player`) asks the player `it` names, any
     /// player for `None`. A player never matches an object arm, nor the
     /// reverse.
-    fn object_or_player_subject_matches(
+    fn object_or_player_matches(
         &self,
         watched: &ObjectOrPlayerSubject,
         it: ObjectOrPlayer,

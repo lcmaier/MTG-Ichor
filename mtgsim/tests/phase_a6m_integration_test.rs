@@ -22,7 +22,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    ObjectAndPlayerSet, AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    AffectedSet, AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -335,7 +335,7 @@ fn test_a_resolving_restriction_over_a_filter_reaches_creatures_that_arrive_late
         Primitive::Restrict(
             RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::Destroy { source: None },
-                affected: ObjectAndPlayerSet::NOTHING,
+                affected: AffectedSet::NOTHING,
                 by: None,
             }),
             Duration::UntilEndOfTurn,
@@ -366,7 +366,7 @@ fn test_a_granted_conditional_restriction_is_the_boards_only_restriction_and_app
         Condition::SourceUntapped,
         Box::new(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::Destroy { source: None },
-            affected: ObjectAndPlayerSet::objects(ObjectSet::SourceOnly),
+            affected: AffectedSet::objects(ObjectSet::SourceOnly),
             by: None,
         })))),
     ));

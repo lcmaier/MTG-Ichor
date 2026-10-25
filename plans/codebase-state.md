@@ -9470,7 +9470,7 @@ scan of the history log, and the place in a turn that reads a tally since
      said `target`. Row 64's `CountersOn` and `TargetSubject` are one
      `ObjectOrPlayerSubject` with one matcher; `DamageRecipient` and
      `DefenderFilter` keep theirs. What an effect is affecting is one
-     `ObjectAndPlayerSet` on `ReplacementDef` and both `Restriction` arms, objects,
+     `AffectedSet` on `ReplacementDef` and both `Restriction` arms, objects,
      players or both, asked by one `set_affects` of the merged subject. Its
      A/B read every gameplay row identical on both pools at two seats and
      four, so the verdict stood: reachable — not wrong.

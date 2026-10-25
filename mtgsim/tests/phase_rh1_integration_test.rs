@@ -26,7 +26,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::Cost;
-use mtgsim::types::effects::{ObjectAndPlayerSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive};
+use mtgsim::types::effects::{AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
@@ -85,7 +85,7 @@ fn watcher(shape: Shape, change: ZoneChangePattern) -> Arc<CardData> {
             Vec::new(),
             Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern,
-                affected: ObjectAndPlayerSet::objects(yours),
+                affected: AffectedSet::objects(yours),
                 by: Some(by),
             }))),
         ),

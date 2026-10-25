@@ -32,7 +32,7 @@
 //! `Effect` tree — no new vocabulary at all.
 
 use crate::types::effects::{
-    ObjectAndPlayerSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef,
+    AffectedSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef,
     PlayerSet, TokenDef,
 };
 use crate::state::game_state::{PhaseType, StepType};
@@ -66,7 +66,7 @@ pub struct ReplacementDef {
     /// breaks silently (`replacement-architecture.md` §11 item 2). The player
     /// half is a [`PlayerSet`] rather than an `ObjectSet` variant, for the
     /// reason that type's own docs give.
-    pub affected: ObjectAndPlayerSet,
+    pub affected: AffectedSet,
 
     /// What must have *caused* the event for this effect to apply — the
     /// clause "a spell or ability an opponent controls causes you to …"
@@ -1941,8 +1941,8 @@ impl ReplacementDef {
     /// bug rather than a style choice.
     ///
     /// `affected` is its objects (an `ObjectSet`), its players (a
-    /// `PlayerSet`), or both (an [`ObjectAndPlayerSet`]).
-    pub fn new(pattern: EventPattern, affected: impl Into<ObjectAndPlayerSet>, rewrite: Rewrite) -> Self {
+    /// `PlayerSet`), or both (an [`AffectedSet`]).
+    pub fn new(pattern: EventPattern, affected: impl Into<AffectedSet>, rewrite: Rewrite) -> Self {
         let class = ReplacementClass::from_rewrite(&rewrite);
         ReplacementDef {
             pattern,

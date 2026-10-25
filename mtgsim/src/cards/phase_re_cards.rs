@@ -318,7 +318,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    ObjectAndPlayerSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
+    AffectedSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
     PatternFill, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
     TokenDef,
 };
@@ -1221,7 +1221,7 @@ pub fn skullcrack() -> Arc<CardData> {
                     Primitive::Restrict(
                         RestrictionDef::new(Restriction::Event {
                             pattern: EventPattern::GainLife,
-                            affected: ObjectAndPlayerSet::players(PlayerSet::Everyone),
+                            affected: AffectedSet::players(PlayerSet::Everyone),
                             by: None,
                         }),
                         Duration::UntilEndOfTurn,
@@ -1234,7 +1234,7 @@ pub fn skullcrack() -> Arc<CardData> {
                     Primitive::Restrict(
                         RestrictionDef::new(Restriction::ApplyReplacement {
                             kind: ReplacementKindFilter::Prevention,
-                            affected: ObjectAndPlayerSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
+                            affected: AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
                         }),
                         Duration::UntilEndOfTurn,
                     ),
@@ -1562,12 +1562,12 @@ pub fn platinum_angel() -> Arc<CardData> {
         .rules_text("Flying\nYou can't lose the game and your opponents can't win the game.")
         .ability(static_restriction("You can't lose the game and your opponents can't win the game.", Restriction::Event {
             pattern: EventPattern::PlayerLoses,
-            affected: ObjectAndPlayerSet::players(PlayerSet::You),
+            affected: AffectedSet::players(PlayerSet::You),
             by: None,
         }))
         .ability(static_restriction("You can't lose the game and your opponents can't win the game.", Restriction::Event {
             pattern: EventPattern::PlayerWins,
-            affected: ObjectAndPlayerSet::players(PlayerSet::Opponents),
+            affected: AffectedSet::players(PlayerSet::Opponents),
             by: None,
         }))
         .build()
@@ -2143,14 +2143,14 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
         .ability(static_replacement("If you would put one or more counters on a permanent or player, put twice that many of each of those kinds of counters on that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: Some(PlayerSet::You) },
-                ObjectAndPlayerSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             ),
         ))
         .ability(static_replacement("If an opponent would put one or more counters on a permanent or player, they put half that many of each of those kinds of counters on that permanent or player instead, rounded down.",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: Some(PlayerSet::Opponents) },
-                ObjectAndPlayerSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
                 Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
             ),
         ))

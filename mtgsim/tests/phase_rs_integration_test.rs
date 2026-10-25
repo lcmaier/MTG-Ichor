@@ -23,7 +23,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    ObjectAndPlayerSet, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick,
+    AffectedSet, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick,
     PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -609,7 +609,7 @@ fn test_a_resolution_created_restriction_expires_with_its_stated_duration() {
             created_on_turn: 1,
             def: RestrictionDef::new(Restriction::ApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,
-                affected: ObjectAndPlayerSet::objects(ObjectSet::Fixed(vec![bear])),
+                affected: AffectedSet::objects(ObjectSet::Fixed(vec![bear])),
             }),
         });
     }
@@ -636,7 +636,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         Primitive::Restrict(
             RestrictionDef::new(Restriction::ApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,
-                affected: ObjectAndPlayerSet::objects(ObjectSet::Fixed(Vec::new())),
+                affected: AffectedSet::objects(ObjectSet::Fixed(Vec::new())),
             }),
             Duration::UntilEndOfTurn,
         ),
@@ -680,7 +680,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
 
     let effect = Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
         pattern: EventPattern::Destroy { source: None },
-        affected: ObjectAndPlayerSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
+        affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));
     let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);

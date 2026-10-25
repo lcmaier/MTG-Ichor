@@ -61,7 +61,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    ObjectAndPlayerSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -176,7 +176,7 @@ fn cant_be_destroyed(game: &mut GameState, object: ObjectId) {
         created_on_turn: turn,
         def: RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::Destroy { source: None },
-            affected: ObjectAndPlayerSet::objects(ObjectSet::Fixed(vec![object])),
+            affected: AffectedSet::objects(ObjectSet::Fixed(vec![object])),
             by: None,
         }),
     });
@@ -341,7 +341,7 @@ fn a_shield_for_you_and_a_creature_keeps_protecting_you() {
         &mut game,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectAndPlayerSet { objects: ObjectSet::Fixed(vec![bears]), players: PlayerSet::You },
+            AffectedSet { objects: ObjectSet::Fixed(vec![bears]), players: PlayerSet::You },
             Rewrite::Prevent,
         ),
     );

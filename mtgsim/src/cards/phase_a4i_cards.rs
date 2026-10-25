@@ -34,7 +34,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectAndPlayerSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
@@ -239,7 +239,7 @@ pub fn plague_spores() -> Arc<CardData> {
                     kind: ReplacementKindFilter::Regeneration,
                     // `Primitive::Restrict` overwrites the object set with the
                     // resolution's targets — this atom's instance.
-                    affected: ObjectAndPlayerSet::NOTHING,
+                    affected: AffectedSet::NOTHING,
                 }),
                 Duration::UntilEndOfTurn,
             ),

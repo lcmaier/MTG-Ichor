@@ -88,7 +88,7 @@ it is, rename it. Every name a PR adds is read against this list:
    Phase 10 owns "agent", and "Vehicle" is a subtype.
 5. **Don't name a thing by what it isn't, or by a state it can't have**:
    `EachOther`, not `Other`; `NONE`, not `EMPTY`.
-6. **Name a type by its contents**: `ObjectSet`, not `AffectedSet`.
+6. **Name a type by its contents**: a set of objects alone is `ObjectSet`, not `AffectedSet`, which names the objects and players an effect affects.
 7. **Where the card's text has a phrase, use it**: `DoThisOnlyOnceEachTurn`.
 8. **Name the players**: a condition about a player says which ones.
 9. **A constructor says what it builds**: `IdMap::default()`, not

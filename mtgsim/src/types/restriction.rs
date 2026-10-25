@@ -2,7 +2,7 @@
 //!
 //! A "can't" is discovered exactly the way a replacement effect is and differs
 //! from one only in what it is asked at (`cant-effects-architecture.md` §3.1).
-//! So this module borrows [`EventPattern`] and [`ObjectAndPlayerSet`]
+//! So this module borrows [`EventPattern`] and [`AffectedSet`]
 //! verbatim and adds one field of its own; the vocabulary that would have been
 //! new is vocabulary the replacement pipeline already owns.
 //!
@@ -34,7 +34,7 @@
 use crate::state::game_state::GameState;
 use crate::engine::object_filter::{player_ref_names, FilterReferents};
 use crate::events::cause::EventCause;
-use crate::types::effects::{ObjectAndPlayerSet, PlayerRef};
+use crate::types::effects::{AffectedSet, PlayerRef};
 use crate::types::replacement::EventPattern;
 
 /// One CR 101.2 "can't" — a prohibition on an action or an event.
@@ -93,7 +93,7 @@ pub enum Restriction {
         /// replacement effect that would replace a life gain event affecting
         /// that player won't do anything"*, which falls out of `is_prohibited`
         /// being asked ahead of `gather`.
-        affected: ObjectAndPlayerSet,
+        affected: AffectedSet,
         by: Option<SourceFilter>,
     },
 
@@ -123,22 +123,22 @@ pub enum Restriction {
         /// predicate as the effect it withholds
         /// (`cant-effects-architecture.md` §3.1). Skullcrack's is every
         /// permanent and every player.
-        affected: ObjectAndPlayerSet,
+        affected: AffectedSet,
     },
 }
 
 impl Restriction {
     /// What it is affecting, whichever arm it is. Every arm names one, and
-    /// `Primitive::Restrict` fills an authored [`ObjectAndPlayerSet::NOTHING`] with the
+    /// `Primitive::Restrict` fills an authored [`AffectedSet::NOTHING`] with the
     /// resolution's targets without caring which arm it is.
-    pub fn affected(&self) -> &ObjectAndPlayerSet {
+    pub fn affected(&self) -> &AffectedSet {
         match self {
             Restriction::Event { affected, .. } | Restriction::ApplyReplacement { affected, .. } => affected,
         }
     }
 
     /// [`Self::affected`], to fill in.
-    pub fn affected_mut(&mut self) -> &mut ObjectAndPlayerSet {
+    pub fn affected_mut(&mut self) -> &mut AffectedSet {
         match self {
             Restriction::Event { affected, .. } | Restriction::ApplyReplacement { affected, .. } => affected,
         }
