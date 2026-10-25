@@ -418,7 +418,7 @@ docs beside. Under the recommendations:
 |---|---|---:|
 | `plans/references/concept-census.py`: the lister, the queries, `--holders <concept>`, `--unclaimed` | tooling | 250–350 |
 | `plans/references/glossary-triage.tsv`: 726 terms, each with its class | data | ~730 |
-| `cr-coverage-audit.md#4c-…`, the census and the register: about 50–70 concepts | docs | 350–450 |
+| `cr-coverage-audit.md`'s new section 4c, the census and the register: about 50–70 concepts | docs | 350–450 |
 | Findings: `codebase-state.md` items and `**Slotted:**` lines, the cleanup plan's rows | docs | 100–200 |
 | `check_type_surface.py`'s second half, and its probe | tooling | 150–250 |
 | Decision 5 (d) | code and tests | 150–250 |
