@@ -322,7 +322,7 @@ pub enum GameEvent {
     /// `source` and `controller` are CR 603.7d–g's.
     DelayedTriggerCreated {
         id: DelayedTriggerId,
-        source: ObjectId,
+        source: ObjectRef,
         controller: PlayerId,
         rules_text: AbilityText,
         duration: DelayedDuration,
@@ -332,7 +332,7 @@ pub enum GameEvent {
     /// record for a log and a client, as [`Self::DelayedTriggerCreated`] is.
     /// `source` is the exiling spell or ability's source, `returns` what it
     /// exiled.
-    UntilReturnMade { id: UntilReturnId, source: ObjectId, controller: PlayerId, returns: Vec<ObjectId> },
+    UntilReturnMade { id: UntilReturnId, source: ObjectRef, controller: PlayerId, returns: Vec<ObjectRef> },
     /// A spell was countered (CR 701.6a). `lki` is the spell as it was on the
     /// stack, its entry included, which "whenever a spell is countered" looks
     /// back at (CR 603.10e): the existence it was, who cast it, its
@@ -732,11 +732,11 @@ impl GameEvent {
                 each(ability_source.unwrap_or(*by).id);
             }
             AbilityTriggered { origin, .. } => each(origin.source()),
-            DelayedTriggerCreated { source, .. } => each(*source),
+            DelayedTriggerCreated { source, .. } => each(source.id),
             UntilReturnMade { source, returns, .. } => {
-                each(*source);
-                for &returned in returns {
-                    each(returned);
+                each(source.id);
+                for returned in returns {
+                    each(returned.id);
                 }
             }
             LifeChanged { source, .. } => {

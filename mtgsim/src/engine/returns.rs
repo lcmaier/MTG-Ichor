@@ -159,9 +159,9 @@ impl GameState {
         self.next_until_return_id += 1;
         let made = GameEvent::UntilReturnMade {
             id,
-            source: source.id,
+            source,
             controller,
-            returns: returns.iter().map(|(object, _)| object.id).collect(),
+            returns: returns.iter().map(|&(object, _)| object).collect(),
         };
         self.emit_event(made, cause)?;
         let created_at = CreatedAt::now(&self.events);

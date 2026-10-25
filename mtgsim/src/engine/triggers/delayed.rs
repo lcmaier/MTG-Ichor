@@ -82,7 +82,7 @@ impl GameState {
         let owner = self.owner_of_source(provenance.source)?;
         let created = GameEvent::DelayedTriggerCreated {
             id,
-            source: provenance.source.id,
+            source: provenance.source,
             controller: provenance.controller,
             rules_text: template.rules_text,
             duration: template.duration,

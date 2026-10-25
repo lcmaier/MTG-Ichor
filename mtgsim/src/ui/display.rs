@@ -998,14 +998,14 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             };
             format!(
                 "DelayedTriggerCreated: {} [{}], {fires}: \"{}\"",
-                delayed_trigger_in_log(&named(*source), *id),
+                delayed_trigger_in_log(&named(source.id), *id),
                 player_in_log(*controller),
                 rules_text.words
             )
         }
         UntilReturnMade { id, source, controller, returns } => {
-            let returns: Vec<String> = returns.iter().map(|object| named(*object)).collect();
-            format!("UntilReturnMade: {}'s return {} [{}]: {}", named(*source), id.0, player_in_log(*controller), returns.join(", "))
+            let returns: Vec<String> = returns.iter().map(|object| named(object.id)).collect();
+            format!("UntilReturnMade: {}'s return {} [{}]: {}", named(source.id), id.0, player_in_log(*controller), returns.join(", "))
         }
         Targeted { target, by, ability_source, controller, instances } => {
             let target = match target {
@@ -1731,12 +1731,17 @@ mod tests {
             GameEvent::AbilityTriggered { trigger: TriggerId(0), origin: TriggerOrigin::Object(identity(game, id())), controller: 0, caused_by: Some(EventId(0)) },
             GameEvent::DelayedTriggerCreated {
                 id: crate::types::ids::DelayedTriggerId(1),
-                source: id(),
+                source: reference(game, id()),
                 controller: 0,
                 rules_text: "".into(),
                 duration: DelayedDuration::Once,
             },
-            GameEvent::UntilReturnMade { id: UntilReturnId(1), source: id(), controller: 0, returns: vec![id()] },
+            GameEvent::UntilReturnMade {
+                id: UntilReturnId(1),
+                source: reference(game, id()),
+                controller: 0,
+                returns: vec![reference(game, id())],
+            },
             GameEvent::SpellCountered { countered_by: reference(game, id()), lki: lki(game, counted) },
             GameEvent::AbilityCountered { identity: identity(game, id()), controller: 0, countered_by: reference(game, countered) },
             GameEvent::SpellFizzled { spell: reference(game, id()), controller: 0 },

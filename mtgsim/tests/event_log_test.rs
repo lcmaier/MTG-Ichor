@@ -435,7 +435,7 @@ fn a_delayed_triggers_creation_is_recorded_once_and_triggers_nothing() {
     assert!(game.delayed_triggers[0].created_at.first_record > creations[0], "created after its own record");
     assert_eq!(EventKind::from_record(&GameEvent::DelayedTriggerCreated {
         id: game.delayed_triggers[0].id,
-        source: game.delayed_triggers[0].source.id,
+        source: game.delayed_triggers[0].source,
         controller: 0,
         rules_text: game.delayed_triggers[0].rules_text,
         duration: DelayedDuration::Once,
