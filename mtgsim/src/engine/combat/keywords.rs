@@ -25,6 +25,12 @@ pub fn attack_target_to_damage_target(target: &AttackTarget) -> DamageTarget {
     }
 }
 
+/// Whether `creature` has first strike or double strike (CR 702.7b,
+/// 702.4b): what puts it in the first-strike combat damage step.
+pub fn strikes_first(game: &GameState, creature: ObjectId) -> bool {
+    has_keyword(game, creature, KeywordFlag::FirstStrike) || has_keyword(game, creature, KeywordFlag::DoubleStrike)
+}
+
 /// Determine whether a creature should deal damage in the current
 /// combat damage step, given first strike / double strike rules.
 ///
@@ -41,8 +47,7 @@ pub fn should_deal_damage_this_step(
     first_strike_only: bool,
 ) -> bool {
     if first_strike_only {
-        has_keyword(game, creature_id, KeywordFlag::FirstStrike)
-            || has_keyword(game, creature_id, KeywordFlag::DoubleStrike)
+        strikes_first(game, creature_id)
     } else {
         // Normal step: skip if already dealt FS damage and not double strike
         if game.dealt_first_strike_damage.contains(&creature_id)

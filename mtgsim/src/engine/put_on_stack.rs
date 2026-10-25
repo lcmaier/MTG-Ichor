@@ -629,10 +629,7 @@ impl GameState {
         total_costs: &[Cost],
         decisions: &dyn DecisionProvider,
     ) {
-        let mana_cost_for_window = total_costs
-            .iter()
-            .find_map(|c| if let Cost::Mana(mc) = c { Some(mc.clone()) } else { None })
-            .unwrap_or_else(ManaCost::zero);
+        let mana_cost_for_window = Cost::mana_part(total_costs);
 
         // CR 601.2g opens the window only "if the total cost includes a mana
         // payment": no Ironworks sacrifices while casting Mox Opal (the judge's

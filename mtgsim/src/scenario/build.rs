@@ -8,7 +8,7 @@ use std::sync::Arc;
 use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario, SetupVerb, Targeted};
 use super::error::{ScenarioError, ScenarioErrorKind};
 use super::setup::{ResolvedSetupAction, SetupActions};
-use super::text::{draw_step_skipped, in_combat_from, position_word};
+use super::text::{attackers_were_declared, declared_at, draw_step_skipped, in_combat_from, position_word};
 use crate::engine::layers::compute::seed_frame;
 use crate::state::history_log::{HistoryRow, RowFact, RowFrame, FIRST_TURN};
 use crate::state::layer_memo::GatedWalkInput;
@@ -476,11 +476,8 @@ impl<'s> Loader<'s> {
         // CR 103.8: only a turn-1 board before its draw step has the skip to
         // come, and `begin_step` refuses every draw step while it is set.
         self.state.skip_first_draw = self.scenario.step.step == Some(StepType::Upkeep) && draw_step_skipped(&self.state, turn);
-        // ORDER-FREE: whether any is attacking.
-        let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
-            || self.state.history.count(active, TurnFact::AttackersDeclared, turn..=turn) > 0;
-        self.state.combat_had_attackers = self.in_combat_from(StepType::DeclareAttackers) && attacked;
-        self.state.blockers_declared = self.in_combat_from(StepType::DeclareBlockers) && attacked;
+        let attacked = attackers_were_declared(&self.state, active, turn);
+        (self.state.combat_had_attackers, self.state.blockers_declared) = declared_at(self.scenario.step, attacked);
         let skipped_without_attackers = matches!(
             self.scenario.step.step,
             Some(StepType::DeclareBlockers | StepType::FirstStrikeDamage | StepType::CombatDamage)

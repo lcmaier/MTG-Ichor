@@ -7,7 +7,7 @@
 //! engine's own, with the reason beside it.
 
 use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
-use super::text::{draw_step_skipped, every_turn_fact, in_combat_from};
+use super::text::{attackers_were_declared, declared_at, draw_step_skipped, every_turn_fact};
 use crate::engine::layers::compute::seed_frame;
 use crate::state::history_log::{RowFact, FIRST_TURN};
 use crate::engine::layers::intrinsic::intrinsic_entry_counter_kind;
@@ -186,12 +186,8 @@ impl<'g> Writer<'g> {
         if *last_turn_began != natural {
             self.report("turns that left the natural rotation (an extra or a skipped turn), which CR 302.6 reads");
         }
-        // ORDER-FREE: whether any is attacking.
-        let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
-            || history.count(active, TurnFact::AttackersDeclared, turn..=turn) > 0;
-        if *combat_had_attackers != (attacked && in_combat_from(*phase, StepType::DeclareAttackers))
-            || *blockers_declared != (attacked && in_combat_from(*phase, StepType::DeclareBlockers))
-        {
+        let attacked = attackers_were_declared(self.state, active, turn);
+        if (*combat_had_attackers, *blockers_declared) != declared_at(*phase, attacked) {
             self.report("whether attackers or blockers were declared, which the board does not show (CR 508.8)");
         }
         if !blocker_damage_divisions.is_empty() {

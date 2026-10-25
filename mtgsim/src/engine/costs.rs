@@ -24,7 +24,7 @@ use crate::state::game_state::GameState;
 use crate::types::effects::ObjectFilter;
 use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::mana::{ManaCost, ManaSpent, ManaType};
+use crate::types::mana::{ManaSpent, ManaType};
 use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
 use crate::types::zones::Zone;
 
@@ -313,14 +313,8 @@ impl GameState {
     ) -> Result<PaymentPlan, String> {
         let ordered: Vec<Cost> = ordered_for_payment(costs).into_iter().cloned().collect();
 
-        // The mana component's generic part, split across the pool. Merged into
-        // one component at 601.2f (`cost_determination::total`), so `find` is
-        // exact for a spell; an ability's cost list is its printed one and has
-        // at most one mana entry.
-        let mana_cost = ordered
-            .iter()
-            .find_map(|c| if let Cost::Mana(mc) = c { Some(mc.clone()) } else { None })
-            .unwrap_or_else(ManaCost::zero);
+        // The mana component's generic part, split across the pool.
+        let mana_cost = Cost::mana_part(&ordered);
         let generic_allocation = if mana_cost.generic_count() == 0 {
             HashMap::new()
         } else {

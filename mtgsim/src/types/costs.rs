@@ -50,6 +50,16 @@ impl Cost {
         }
     }
 
+    /// The mana a cost list asks for: every `Mana` cost's symbols in order,
+    /// {0} for a list with none. What CR 601.2g's window offers mana toward
+    /// and CR 601.2h's plan pays. A spell's total has one (CR 601.2f merges
+    /// them, `cost_determination::total`), and so does every printed
+    /// ability's list.
+    pub fn mana_part(costs: &[Cost]) -> ManaCost {
+        let symbols = costs.iter().filter_map(|cost| if let Cost::Mana(mana) = cost { Some(&mana.symbols) } else { None }).flatten();
+        ManaCost { symbols: symbols.copied().collect() }
+    }
+
     /// A cost list split into its mana component, every `Mana` cost's symbols
     /// in order, and its other costs in theirs. The mana is `None` where the
     /// list has no mana cost at all, as an alternative cost of "pay 2 life"

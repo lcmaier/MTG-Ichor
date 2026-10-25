@@ -519,46 +519,21 @@ impl TriggeringEventObjects {
     /// The object that played `role`, if this event has exactly one:
     /// a defender's attackers are several, and [`Self::objects`] has them.
     pub fn get(&self, role: EventRole) -> Option<ObjectRef> {
-        match (self, role) {
-            (TriggeringEventObjects::Object(object), EventRole::Object)
-            | (TriggeringEventObjects::Damage { source: object, .. }, EventRole::DamageSource)
-            | (TriggeringEventObjects::Attack { attacker: object, .. }, EventRole::Attacker)
-            | (TriggeringEventObjects::Attach { attachment: object, .. }, EventRole::Attachment)
-            | (TriggeringEventObjects::Attach { host: object, .. }, EventRole::Host)
-            | (TriggeringEventObjects::Block { blocker: object, .. }, EventRole::Blocker)
-            | (TriggeringEventObjects::Block { attacker: object, .. }, EventRole::Attacker)
-            | (TriggeringEventObjects::Blocking { blocker: object, .. }, EventRole::Blocker)
-            | (TriggeringEventObjects::BlockedBy { attacker: object, .. }, EventRole::Attacker)
-            | (TriggeringEventObjects::Unblocked { attacker: object }, EventRole::Attacker)
-            | (TriggeringEventObjects::Target { by: object, .. }, EventRole::SpellOrAbility)
-            | (TriggeringEventObjects::Prevention { recipient: object }, EventRole::DamageRecipient) => Some(*object),
-            (TriggeringEventObjects::Target { target, .. }, EventRole::Target) => target.object(),
-            (TriggeringEventObjects::Damage { recipient: object, .. }, EventRole::DamageRecipient)
-            | (TriggeringEventObjects::Attack { defender: object, .. }, EventRole::Attacked)
-            | (TriggeringEventObjects::Defense { defender: object, .. }, EventRole::Attacked) => object.object(),
-            (
-                TriggeringEventObjects::NoObject
-                | TriggeringEventObjects::Object(_)
-                | TriggeringEventObjects::Damage { .. }
-                | TriggeringEventObjects::Prevention { .. }
-                | TriggeringEventObjects::Attack { .. }
-                | TriggeringEventObjects::Defense { .. }
-                | TriggeringEventObjects::Attach { .. }
-                | TriggeringEventObjects::Block { .. }
-                | TriggeringEventObjects::Blocking { .. }
-                | TriggeringEventObjects::BlockedBy { .. }
-                | TriggeringEventObjects::Unblocked { .. }
-                | TriggeringEventObjects::Target { .. },
-                _,
-            ) => None,
-        }
+        self.pairs().0.into_iter().flatten().find(|&(part, _)| part == role).map(|(_, object)| object)
     }
 
     /// Each object, with the part it played.
     pub fn objects(&self) -> impl Iterator<Item = (EventRole, ObjectRef)> + '_ {
-        // Up to two objects, then the several of one event role: a defender's
-        // attackers, a blocker's attackers, a blocked creature's blockers.
-        let (pairs, several): ([Option<(EventRole, ObjectRef)>; 2], (EventRole, &[ObjectRef])) = match self {
+        let (pairs, (role, several)) = self.pairs();
+        pairs.into_iter().flatten().chain(several.iter().map(move |&object| (role, object)))
+    }
+
+    /// Each variant's parts, the one table of them: up to two objects with
+    /// one part each, then the several of one part (a defender's attackers,
+    /// a blocker's attackers, a blocked creature's blockers), which
+    /// [`Self::get`] does not name.
+    fn pairs(&self) -> ([Option<(EventRole, ObjectRef)>; 2], (EventRole, &[ObjectRef])) {
+        match self {
             TriggeringEventObjects::NoObject => ([None, None], (EventRole::Attacker, &[])),
             TriggeringEventObjects::Object(object) => ([Some((EventRole::Object, *object)), None], (EventRole::Attacker, &[])),
             TriggeringEventObjects::Damage { source, recipient } => (
@@ -596,9 +571,7 @@ impl TriggeringEventObjects {
                 [target.object().map(|o| (EventRole::Target, o)), Some((EventRole::SpellOrAbility, *by))],
                 (EventRole::Attacker, &[]),
             ),
-        };
-        let (role, several) = several;
-        pairs.into_iter().flatten().chain(several.iter().map(move |&object| (role, object)))
+        }
     }
 }
 

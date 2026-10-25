@@ -42,7 +42,7 @@ use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::state::history_log::RowFact;
-use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
+use crate::types::effects::{Condition, Effect, EffectRecipient, PlayerRef, Primitive};
 use crate::engine::targeting::TargetRef;
 use crate::types::history::CountIs;
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
@@ -986,13 +986,7 @@ impl GameState {
             if !triggered_ability_kinds(row).intersects(window_kinds) {
                 continue;
             }
-            match &row.affected_objects {
-                ObjectSet::SourceOnly => named.push(row.source),
-                ObjectSet::Fixed(ids) => named.extend(ids.iter().copied()),
-                // A host is a permanent (CR 301.5, 303.4).
-                ObjectSet::Host => named.extend(crate::oracle::board::host_of(self, row.source)),
-                ObjectSet::Filter { .. } => {}
-            }
+            named.extend(row.affected_objects.named_objects(self, row.source).into_iter().flatten());
         }
         named
     }

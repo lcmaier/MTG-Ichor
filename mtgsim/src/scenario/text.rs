@@ -10,6 +10,7 @@ use crate::state::game::starting_player_skips_first_draw;
 use crate::state::game_state::{initial_step, next_step, GameState, Phase, PhaseType, StepType, TurnPlan};
 use crate::types::effects::CounterType;
 use crate::types::history::{HistorySpan, TurnFact};
+use crate::types::ids::PlayerId;
 use crate::ui::display::{phase_name, step_name};
 
 impl Scenario {
@@ -90,6 +91,21 @@ pub fn turn_positions() -> impl Iterator<Item = Phase> {
 pub(super) fn in_combat_from(position: Phase, from: StepType) -> bool {
     let index = |p: Phase| turn_positions().position(|q| q == p);
     position.phase_type == PhaseType::Combat && index(position) >= index(Phase { phase_type: PhaseType::Combat, step: Some(from) })
+}
+
+/// Whether `active`'s attackers were declared this turn `turn`: a creature
+/// attacking now, or the turn's count of declarations. A board at the
+/// declare attackers step or after says the rest (`declared_at`).
+pub(super) fn attackers_were_declared(state: &GameState, active: PlayerId, turn: u32) -> bool {
+    // ORDER-FREE: whether any is attacking.
+    state.battlefield.values().any(|e| e.attacking.is_some()) || state.history.count(active, TurnFact::AttackersDeclared, turn..=turn) > 0
+}
+
+/// What a board at `position` has declared, attackers and then blockers,
+/// given whether attackers were: each once its step has come (CR 508.8 skips
+/// the rest of combat without attackers).
+pub(super) fn declared_at(position: Phase, attacked: bool) -> (bool, bool) {
+    (attacked && in_combat_from(position, StepType::DeclareAttackers), attacked && in_combat_from(position, StepType::DeclareBlockers))
 }
 
 /// Whether turn `turn`'s draw step is the one CR 103.8a skips: turn 1's, in a
