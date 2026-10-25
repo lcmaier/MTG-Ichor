@@ -701,8 +701,9 @@ CR 109.1, 400.7. **Key:** the object and the zone change that made it, an
 - `GameObject` — owner: the existence the object is now.
 - `ObjectRef` — key: the key itself.
 - `GameEvent` — moment: `ZoneChange.new_epoch`, the existence a move made
-  (CR 400.7e). The existence that left has no key on the record without its
-  frame: a narrow key, item 320.
+  (CR 400.7e). The existence that left is its `Departed`'s, the frame's or
+  the unframed pair's (item 320, #289); the other records' plain ids are
+  item 328.
 - `GameState` ×2 — none: the epoch allocator, and a debug build's window
   for the state-based check's old walk.
 
@@ -712,10 +713,13 @@ CR 108.3. **Key:** the object, for its whole life. **Owner:** `GameObject`.
 - `GameObject` — owner.
 - `LkiBody` — moment: the owner of an ended existence, which the object store
   loses at CR 704.5d and 800.4a.
-- `GameEvent` ×4 — moment: each record's own; `ZoneChange`, `LeftTheGame` and
-  `SameZoneMove` also carry it in their frame, one key twice: item 319.
-- `DelayedTrigger` — copy: its source's owner, item 247's T12.
-- `UntilReturn` — copy: its source's owner, item 247's T12.
+- `GameEvent` — moment: `TokenCreated.owner`, CR 111.2's creator. A move's
+  owner is its `Departed`'s, and a kept move's its frame's (item 319, #289).
+- `Departed` — moment: an unframed departure's owner, which no frame holds.
+- `DelayedTrigger` — hand-over: its source's owner, written once from
+  `owner_of` as the entry is made, since a source can leave the store
+  unframed before the entry reads it (item 247's T12, kept at #289).
+- `UntilReturn` — hand-over: as `DelayedTrigger`'s; a return is no keeper.
 
 #### Controller
 CR 108.4, 110.2, 113.8, 603.3a, 613.1b. Several concepts share the word,
@@ -741,8 +745,8 @@ controller when it was created. **Query:** type `PlayerId` named `controller`
 - `ResolutionStamp` — moment: the resolving object's controller, as the event
   it caused happened.
 - `RowFact` — moment: the controller of what targeted, as it targeted.
-- `GameEvent` ×11 — moment: each record's own; `SpellCountered`'s also in its
-  frame, item 319.
+- `GameEvent` ×10 — moment: each record's own. A countered spell's and a
+  control change's "from" are their frames' (item 319, #289).
 
 #### Characteristics at a moment
 CR 109.3, 613.1. **Key:** an existence and a moment. **Owner:** the layer
@@ -763,8 +767,11 @@ existence) for a survivor's list before a batch. **Owner:** the LKI store for
 an ended existence; the record, or the snapshot, for the other two.
 **Query:** type `Lki`
 - `EndedExistences` — owner: the LKI store's entries, by existence.
-- `GameEvent` ×8 — key for a departure, a handle to the store's own `Lki`;
-  owner for a survivor's frame (`ControlChanged`, `SameZoneMove`).
+- `GameEvent` ×6 — key for a source that left (`source_lki`) and a countered
+  spell, handles to the store's own `Lki`; owner for a survivor's frame
+  (`ControlChanged`, `SameZoneMove`).
+- `Departed` — key for a framed departure, a handle to the store's own
+  `Lki`.
 - `ObjectSnapshot` — owner: a survivor's frame before a batch.
 - `RowFrame` — key: a handle to the store's or a record's `Lki`.
 - `LkiCapture` — hand-over: the CR 603.10a frame taken before a batch
@@ -933,8 +940,10 @@ named `controller_since_turn`; type `u32` named `control_since_turn`
 
 #### Which record ended an existence
 CR 400.7. **Key:** the existence. **Query:** type `EventId` named `left_at`
-- `DelayedTrigger` — copy: its source's, held by the keeper that reads it.
-- `RememberedObject` — copy: as `DelayedTrigger`'s; both are item 321.
+
+No holder: the departure record names the existence that left
+(`Departed`), and a remembered object is asked against the existence a
+record names (item 321, #289). The two keepers' copies are gone.
 
 ### What no entry claims
 

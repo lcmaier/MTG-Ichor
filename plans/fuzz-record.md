@@ -96,6 +96,89 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-10-25 for item 317** (#289, `trigger-matcher-merges`:
+the trigger matcher's facts each written once, items 247, 301, 302, 304,
+309, 315 and 319–321, and item 317 as its last commit; A6e's cleanup PR 3).
+No card moves, and item 317 moves both pools, so both §3 columns are new
+baselines. One `close_out.py` sitting against **main** `1e7b6f9` (#288's
+merge): **merges** `f762a2f`, every commit before item 317, and **shipped**
+`74d4c6b`.
+
+**Predictions, before any arm ran** (#289's body):
+- the merges arm identical to `main` on both pools at two seats and four,
+  every engine-work row too, since nothing changes what is matched or asked;
+- the shipped arm differing on both pools, each move at a dropped order
+  prompt for one ability's agreeing triggers that target, Blood Artist's;
+- instructions per decision within ±0.3% for the merges arm;
+- the clone floors and held memory as #288 left them.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, merges vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, merges, dispatches agreed, performance / stress | 175,509 / 173,877 | 337,915 / 353,342 |
+| gameplay rows, shipped vs `main`, performance / stress | differ / differ | differ / differ |
+| audit, shipped, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,027 |
+| shipped vs merges, 100 games at seed 4242: games diverging, each first at a dropped prompt, performance / stress | 4 / 4 | 16 / 9 |
+| instructions / decision, merges vs `main`, callgrind, the Commander board | | 0.7405 M → 0.7346 M, **−0.79%** |
+| the same, `main` with only `battlefield_ids_ordered`'s sort unstable | | 0.7404 M → 0.7338 M, **−0.90%** |
+| clone, worst decision (`clone_bound_test`), `main` → merges | | 40 allocations, 6.5 → 6.4 KB |
+| held, log and store together (`history_held_test`), merges | | 4,265 B a turn, as #288 |
+| audited smoke, shipped, 1,000 games at seed 777, performance / stress: errors, panics, turn limits | 0 / 0 | 0 / 0 |
+
+**The miss: −0.79% where ±0.3% was the bound, and one change is all of
+it.** Self costs did not reconcile (inlining moves them between callers), so
+a throwaway arm of `main` changed one line, row 13's: `in_timestamp_order`
+sorts the battlefield with `sort_unstable_by_key`, which keys that never tie
+allow, where `battlefield_ids_ordered` ran a stable sort, eight times a
+state-based sweep. That arm alone reads −0.90%, gameplay identical, so the
+rest of the merges is about +0.1 point, the reading's spread between
+sittings. **The 0.1 KB** at the worst decision is the three `left_at` fields
+item 321 removed, 16 bytes a delayed trigger and a remembered object.
+
+**Item 317's moves, game by game.** The shipped and merges binaries dumped
+100 games of each board at seed 4242, compared line by line as each line's
+kind and the objects it names (a dump renders names at the game's end, by
+where each card ended, so a later divergence renames an early line). 33 of
+400 diverge, and every one first differs at the shipped arm's `NotAsked:
+OrderTriggers` note where the merges arm asked: Blood Artist's in 17, a card
+the dump cannot name, having ended in a hidden zone, in 15, and two
+Flickerwisps' targeted entries in one. The random agent answered that prompt
+from the RNG, so each game moves from there.
+
+**§3 fixture rows, shipped `74d4c6b`, two seats, 50 games / seed 12345.**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 20 (40.0%) / 29 (58.0%) | 23 (46.0%) / 26 (52.0%) |
+| Wins by effect | 1 | 1 |
+| Avg turns | 26.5 | 24.2 |
+| Spells cast | 20.7 | 19.5 |
+| Lands played | 15.7 | 14.9 |
+| Combat w/ atk | 9.7 | 8.3 |
+| Creatures died | 7.4 | 4.2 |
+| Damage events | 22.5 | 19.0 |
+| Total damage | 63.0 | 54.8 |
+| Life changes | 15.5 | 15.9 |
+| **Layer walks** | **390** | **423** |
+| **Board walks** | **225** | **226** |
+| **Memo hits** | **51,083** | **53,636** |
+| **Layer frames** | **4,171** | **4,240** |
+| **Frames/walk** | **10.69** | **10.03** |
+| **Dependency checks** | **12** | **17** |
+| **Replacement gathers** | **927** | **877** |
+| **Restriction queries** | **929** | **879** |
+| Mana productions | 67 | 70 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.42 | 1.84 |
+| Max batch depth | 4 | 5 |
+| Decisions | 185 | 200 |
+| Priority decisions | 66 | 78 |
+| Actions reversed | 0.1 | 0.1 |
+| Triggers placed | 7.5 | 7.3 |
+| Windows past gate | 82.8 | 87.6 |
+| Candidate visits | 112.8 | 116.4 |
+| Trigger matches | 8.3 | 6.7 |
+
 **Measured 2026-10-24 for item 137** (#288, `resolution-context-rider`:
 `ResolutionContext`'s two rider numbers one optional `ReplacedEvent`, and the
 sweep of its literals; A6e's cleanup PR 2). No card moves, so no table is

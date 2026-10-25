@@ -8809,39 +8809,17 @@ ones on the last-known-information and zone-change surface are items 176 and
      **Reachability (2026-10-14):** closed — PR #250.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 246".
 
-247. **The trigger code applies a trigger's tail, queues it and folds its
-     records in two places each.** The inventory §3.2's T1–T9 by name: the
-     arm, limit and intervening "if" (T1), the queue step (T2), CR 603.2c's
-     fold (T3), CR 603.7a's "existed before", which `is_due` reads without
-     the creating batch (T4), CR 603.2h's key (T5), the audit's own
-     `TriggerCandidate` literal, whose departed card has no abilities (T6),
-     the arms' multiplicities and record kinds (T7), an extra turn still
-     coming, which the waiting panel defines again (T8), and three small
-     ones (T9).
-     **Reachability (2026-10-22):** unreachable — `wait_to_return` makes a
-     return after its exile batch closes and no registered rider makes one
-     (T4; a replacement rider running `ExileUntil` could, pass 3's row 25); the
-     audit's `describe` compares no card (T6); only the waiting panel reads
-     its copy (T8).
-     **Sized:** ~200–350 lines over `triggers/dispatch.rs`, `delayed.rs` and
-     `audit.rs`, after TR-7, so the merges take the whole phase's shape.
-     **Slotted:** A6e's cleanup, in `trigger-matcher-merges`, with the
-     work-list's rows it names (`plans/handoffs/item-6-audit.md`, pass 3).
-     **Widened by TR-4a's model pass (2026-10-14):** the inventory §3.6's
-     T12's remaining sites ("its owner" of a gone source, beside
-     `owner_of_source`), T14 (the objects a waiting entry names), T15 (which
-     object a non-filter `ObjectSet` names) and T16 (the "as long as" peel).
-     #251 fixed T10, T11 and T12's first site, each shown failing first.
-     **Confirmed by the concept census (2026-10-24,
-     `cr-coverage-audit.md#4c-concepts-and-their-owners`):** T12's remaining
-     holders are `DelayedTrigger.owner` and `UntilReturn.owner`, each a copy
-     of its source's owner (CR 108.3), which `GameObject` owns and the LKI
-     store keeps for a framed departure.
-     **Widened by TR-5c's model pass (2026-10-18):** the inventory §3.7's
-     T19 (the mana part of a cost list), T20 (which role holds several
-     objects) and T21's three small ones, and T17's log half, which PR
-     #284 fixed with item 297; #261 fixed T17
-     and T18, each shown failing first, and merged eight others.
+247. **~~The trigger code applies a trigger's tail, queues it and folds its
+     records in two places each.~~ — ✅ CLOSED 2026-10-25 (PR #289,
+     `trigger-matcher-merges`).** — archived. Every T-entry merged or kept with
+     its reason (#289's body): T1's tail, T2's queue, T3's fold, T4's
+     `CreationPoint`, T6's candidate constructors, T7's tables with a pairing
+     test over all 30 arms, T8's `extra_turn_is_coming`, T9's three, T12's
+     `owner_of` with its two hand-overs kept, T14 re-read, T15's
+     `named_objects`, T16's peel, T19's `mana_part`, T20's `pairs`, T21's
+     `strikes_first`; the work-list's merge rows with them.
+     **Reachability (2026-10-25):** closed — PR #289.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 247".
 
 ### Found by items 176 and 177's design (2026-10-10)
 
@@ -9717,47 +9695,22 @@ numbers were `45d4a130`'s, so each is cited here by its function. Rows 14,
 10, 39, 42 and 64 joined items 213, 265, 291 and 292 as dated paragraphs, and
 row 57 is item 297.
 
-301. **A state trigger's "not left the stack" asks the queue and the stack,
-     never the resolving slot.** CR 603.8: a state-triggered ability "doesn't
-     trigger again until the ability has resolved, has been countered, or has
-     otherwise left the stack". `state_trigger_has_not_left_the_stack`
-     (`engine/triggers/state.rs`) walks the pending queue and the stack, where
-     `lki_keepers` (`engine/triggers/dispatch.rs`) walks those and
-     `self.resolving`, CR 608.2n's ability mid-resolution, and
-     `aura_put_into_graveyard_by_the_check` walks the first two again. So a
-     state trigger whose own resolution emits an event while its state still
-     holds reads as having left, and queues again before it has resolved.
-     Row 1 of the model pass.
-     **Reachability (2026-10-22):** unreachable — Emperor Crocodile, the only
-     registered state trigger, sacrifices its own source; 1,000 `stress`
-     games (`--require "Emperor Crocodile" --seed 101`) show no repeat.
-     **Sized:** ~25 lines and a test: the three walks over `lki_keepers`'
-     legs, the resolving one included, on a fixture state trigger that keeps
-     its state while it resolves, shown failing first.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `trigger-matcher-merges` (`plans/handoffs/item-6-audit.md`, pass 3's
-     cleanup).
+301. **~~A state trigger's "not left the stack" asks the queue and the stack,
+     never the resolving slot.~~ — ✅ CLOSED 2026-10-25 (PR #289,
+     `trigger-matcher-merges`).** — archived. The state check walks
+     `lki_keepers`' legs, the resolving one included, as CR 400.7f's write-back
+     does.
+     **Reachability (2026-10-25):** closed — PR #289.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 301".
 
-302. **Each caller of `candidates_now` puts the dispatch gate's legs together
-     itself, and the dispatch walks the whole zone map.** `detect`,
-     `find_matches` and `look_back_frames` (`engine/triggers/dispatch.rs`) and
-     `state_trigger_candidates` (`engine/triggers/state.rs`) each gather the
-     battlefield readers, the named carriers, the newcomers, the unattributed
-     zones and the zone sources before calling it. `zone_trigger_sources`
-     files each object's `EventKindMask`, and the state check reads only the
-     objects filed under `BoardState`, but `find_matches` passes every key
-     whatever kinds the window holds. A cost, not a wrong answer: a window no
-     zone source's ability reads still asks each of them. `look_back_frames`
-     takes every kind on purpose, and its comment says why. Row 4.
-     **Reachability (2026-10-22):** reachable — not wrong: a cost only,
-     wherever a source whose trigger works from a graveyard or a hand sits
-     beside a window it cannot read.
-     **Sized:** ~25 lines: one constructor for the legs, keyed on the
-     window's kinds.
-     **Slotted:** A6e's cleanup, in `trigger-matcher-merges`, builds the one
-     constructor with today's legs, and A6e's readiness pass
-     (`plans/handoffs/item-6-audit.md`, pass 4) prices the zone leg's filter
-     on it (the cleanup's plan, decision 3).
+302. **~~Each caller of `candidates_now` puts the dispatch gate's legs together
+     itself, and the dispatch walks the whole zone map.~~ — ✅ CLOSED 2026-10-25
+     (PR #289, `trigger-matcher-merges`).** — archived. `TriggerGate`, built by
+     `trigger_gate` for the dispatch, the look-back snapshot and the state
+     check, with today's legs (`OffTheBattlefield`); the zone leg's filter is
+     readiness's to price on it.
+     **Reachability (2026-10-25):** closed — PR #289.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 302".
 
 303. **~~Which facts carry a place in their player's turn is listed four times, and one way the lists can disagree is silent.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
      `TriggerEvent::placed_fact` is the arm's side, which the registry's
@@ -9765,24 +9718,13 @@ row 57 is item 297.
      **Reachability (2026-10-23):** closed — PR #284.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 303".
 
-304. **`event_roles` declares object roles some of its arms' events never
-     carry.** `TriggerEvent::event_roles` (`types/triggers.rs`) is what the
-     registry checks an instruction's "that creature" against;
-     `triggering_event_objects` (`engine/triggers/dispatch.rs`) binds it.
-     `DamageDealt`, `DamageIsPrevented` and `Attacks` declare
-     `DamageRecipient` or `Attacked`, which an event about a player does not
-     carry as an object, so a card naming the role on an arm that watches a
-     player passes the registry and finds nothing at resolution. Row 11; the
-     doc on `triggering_event_objects`, which stated the declaration as the
-     event's, was corrected in this pass's PR.
-     **Reachability (2026-10-22):** unreachable — no registered card names
-     `DamageRecipient` or `Attacked`.
-     **Sized:** ~20 lines: `event_roles` narrowed by the arm's fields, and a
-     debug assert that a bound role is carried. One
-     declaration per arm, an `event_shape` type, is the design of the audit's
-     §6 decision 2, ~60–100 lines, and nothing found calls for it.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `trigger-matcher-merges`.
+304. **~~`event_roles` declares object roles some of its arms' events never
+     carry.~~ — ✅ CLOSED 2026-10-25 (PR #289, `trigger-matcher-merges`).** —
+     archived. `event_roles` reads the arm's fields, so an arm that watches a
+     player declares no object in its place; an event carrying an undeclared
+     part is a debug check in `triggering_events_in`.
+     **Reachability (2026-10-25):** closed — PR #289.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 304".
 
 305. **~~An unattach keeps one end's frame when both ends leave in one event.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
      `GameEvent::Unattached` carries `attachment_lki` and `former_host_lki`:
@@ -9828,22 +9770,13 @@ row 57 is item 297.
      **Slotted:** A6e, the cleanup of item 6's close audit, in
      `layers-combat-and-counters`.
 
-309. **A template naming a referred object its arm never remembers is made
-     empty, and never triggers, with no error.** CR 603.7c: a delayed
-     trigger's "that creature" is the object the effect that made it
-     referred to. `TriggerEvent::watches_referred` and `subject`
-     (`types/triggers.rs`) answer which arms read one, `resolve_primitive`
-     (`engine/resolve.rs`) remembers one only for those, and
-     `triggering_events_in` and `block_events` (`engine/triggers/dispatch.rs`)
-     read it. A template naming `Referred` in a field `subject()` does not
-     return remembers nothing, so it matches an empty set: no registry error,
-     no trigger. Row 52.
-     **Reachability (2026-10-22):** unreachable — Ray of Command's is a
-     `ControlChanges` subject, which it remembers.
-     **Sized:** ~10–40 lines of authoring validation and a ~25-line test,
-     failing first.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `trigger-matcher-merges`.
+309. **~~A template naming a referred object its arm never remembers is made
+     empty, and never triggers, with no error.~~ — ✅ CLOSED 2026-10-25 (PR
+     #289, `trigger-matcher-merges`).** — archived.
+     `TriggerEvent::names_referred`, and `readings_its_arms_cannot_give`
+     refuses a referred object its arm's subject does not remember.
+     **Reachability (2026-10-25):** closed — PR #289.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 309".
 
 310. **~~Two lists of the objects a record names, kept in step by nothing.~~ — ✅ CLOSED 2026-10-23 (PR #284, `history-and-frame-records`).** — archived.
      A sentinel test builds one record of every `GameEvent` variant and
@@ -9883,17 +9816,12 @@ row 57 is item 297.
      **Reachability (2026-10-23):** closed — PR #284.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 314".
 
-315. **`AbilityTriggers`' "caused by" checks only the record's kind.**
-     `is_caused_by` (`engine/triggers/dispatch.rs`) answers "the event that
-     caused this trigger was arm X" by the record's kind, where a trigger
-     multiplier's match runs the arm's full predicates through
-     `triggering_events_in`. Row 66.
-     **Reachability (2026-10-22):** unreachable — nothing builds
-     `AbilityTriggers` with `caused_by: Some`.
-     **Sized:** ~5–10 lines and a fixture: route the check through
-     `triggering_events_in`, or drop the field.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `trigger-matcher-merges`.
+315. **~~`AbilityTriggers`' "caused by" checks only the record's kind.~~ — ✅
+     CLOSED 2026-10-25 (PR #289, `trigger-matcher-merges`).** — archived. The
+     cause is matched as the arm it names, through `triggering_events_in`, as a
+     multiplier's is.
+     **Reachability (2026-10-25):** closed — PR #289.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 315".
 
 ### Found by the item 6 audit, pass 5 — the docs audit (2026-10-22)
 
@@ -9925,32 +9853,14 @@ row 57 is item 297.
      put the command zone on the board (`roadmap-v2.md` §3a, "From triggers
      to Phase 8").
 
-317. **CR 603.3b's elision asks the order of one ability's agreeing triggers
-     when they target, where no order can change the game.**
-     `trigger_order_cannot_change_outcome` refuses entries with an instance
-     of "target" or a mode, on the ground that CR 603.3c and 603.3d choose
-     them as each entry goes on the stack, so the order decides who chooses
-     against what. For entries of one def that agree on every fact it reads,
-     it does not: each entry's targets and modes are still chosen one at a
-     time as it is placed, and the entries are interchangeable, so any order
-     with any sequence of choices builds the stack the first order builds
-     with the same sequence. Found by the owner's question at #278's review,
-     several lands entering at once under Bristly Bill, Spine Sower
-     ("Landfall — Whenever a land you control enters, put a +1/+1 counter on
-     target creature."). The tier-2 condition was not re-read.
-     **Reachability (2026-10-22):** reachable — not wrong; a prompt that
-     adds no outcome. Blood Artist, registered and pooled, triggers once per
-     creature that dies and targets a player, so a wipe that kills three asks
-     the order of its three triggers before it asks each one's target.
-     **Sized:** ~5 lines: drop the instance condition, and the mode one,
-     which no registered trigger reaches until `backlog.md` §2.7; §5.2's
-     reasons rewritten; TR-1's `two_triggers_with_targets_are_asked_their_order`
-     restated as "one ability's agreeing triggers are not ordered, and each
-     is still targeted". It drops a prompt the random agent answers, so the
-     stream moves: a `differ` A/B and the fixtures that script the order.
-     **Slotted:** A6e's cleanup, in `trigger-matcher-merges` as its last
-     commit, with a three-arm `differ` A/B (`plans/handoffs/item-6-audit.md`,
-     pass 3's plan, decision 2).
+317. **~~CR 603.3b's elision asks the order of one ability's agreeing triggers
+     when they target, where no order can change the game.~~ — ✅ CLOSED
+     2026-10-25 (PR #289, `trigger-matcher-merges`).** — archived. The instance
+     condition goes: one ability's agreeing triggers are not ordered, and each
+     is still targeted. Blood Artist's order prompts go: 33 of 400 sampled
+     games diverge, each first at a dropped prompt.
+     **Reachability (2026-10-25):** closed — PR #289.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 317".
 
 ### Found by #284's review (2026-10-24)
 
@@ -9973,53 +9883,29 @@ below is a concept held twice for one key, or keyed more narrowly than the
 CR keys it; the census's rule is one holder per key, with a record's values
 keyed by its event.
 
-319. **A record restates a fact its own frame holds.** `ZoneChange.owner`
-     and `LeftTheGame.owner` beside their frame's owner when they carry one,
-     `SameZoneMove.owner` beside its frame's always, and
-     `SpellCountered.controller` and `ControlChanged.from` beside their
-     frames' controllers (`events/event.rs`): the record's event is one key,
-     held twice, and a reader may take either.
-     **Reachability (2026-10-24):** reachable — not wrong today: each pair is
-     written from one value as the record is emitted.
-     **Sized:** ~30–50 lines: a record reads the fact off its frame where it
-     has one and keeps the field where it has none; the matcher arms and log
-     lines that read the field are re-pointed.
-     **Slotted:** A6e's cleanup, in `trigger-matcher-merges`.
+319. **~~A record restates a fact its own frame holds.~~ — ✅ CLOSED 2026-10-25
+     (PR #289, `trigger-matcher-merges`).** — archived. Each restated fact is
+     read off its record's frame: `SameZoneMove`'s owner, `ControlChanged`'s
+     "from", `SpellCountered`'s controller, and a move's owner through
+     `Departed`.
+     **Reachability (2026-10-25):** closed — PR #289.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 319".
 
-320. **Records name an object by its id where the CR keys it by existence.**
-     An object keeps its `ObjectId` through every zone change, and the
-     `zone_change_epoch` beside it says which existence it is (CR 400.7); an
-     `ObjectRef` is the two together. Most `GameEvent` payloads carry the id
-     alone, and `ZoneChange` carries the epoch of the existence its move made
-     but none for the one that left unless its frame is present. A reader
-     that needs the existence takes it off the board at dispatch, and
-     `DelayedTrigger.source_left_at`'s doc says the field exists because "a
-     departure record names the object's id and not which existence of it
-     moved". No new id is minted: the fix adds the epoch the object already
-     has to the records that name it.
-     **Reachability (2026-10-24):** reachable — not wrong today: dispatch
-     reads a record inside its window, before a later move can give the id
-     another existence, and the history log keys its rows by existence.
-     **Sized:** ~150–300 lines: each payload that names an existence carries
-     an `ObjectRef`, the zone change both, with its emitters and the matcher
-     arms that read them. Item 291 then makes object-or-player one type by
-     reference over the result.
-     **Slotted:** A6e's cleanup, in `trigger-matcher-merges`, which lands
-     before item 291's merge of the object-or-player types.
+320. **~~Records name an object by its id where the CR keys it by existence.~~
+     — ✅ CLOSED 2026-10-25 (PR #289, `trigger-matcher-merges`).** — archived.
+     Split in the doc at #289: a move's records (`Departed`) and the three
+     always-framed records (their frame) name their existence; the other
+     payloads' plain ids are item 328, at `one-fact-one-type`.
+     **Reachability (2026-10-25):** closed — PR #289.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 320".
 
-321. **Which record ended an existence is held by each keeper that reads
-     it.** `DelayedTrigger.source_left_at`, `RememberedObject.left_at` and
-     each `Referred` entry's are written by one loop in
-     `engine/triggers/delayed.rs` as their objects move, a copy per keeper of
-     a fact keyed by the existence: the shape the LKI store replaced, one
-     level down.
-     **Reachability (2026-10-24):** reachable — not wrong today: the loop
-     writes every keeper of the moving object.
-     **Sized:** ~40–60 lines after item 320: the record that ended an
-     existence is found by the existence, from the records its departure
-     wrote, and the fields go. Whether the LKI store's entry or the log
-     answers is that PR's first question.
-     **Slotted:** A6e's cleanup, in `trigger-matcher-merges`, after item 320.
+321. **~~Which record ended an existence is held by each keeper that reads
+     it.~~ — ✅ CLOSED 2026-10-25 (PR #289, `trigger-matcher-merges`).** —
+     archived. `DelayedTrigger.source_left_at` and `RememberedObject.left_at`
+     gone; a remembered object is the existence a record names, a departure's
+     own.
+     **Reachability (2026-10-25):** closed — PR #289.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 321".
 
 322. **An attachment is held from both ends, and nothing checks that they
      agree.** `PermanentState.attached_to` and `attached_by`, and an `Lki`'s
@@ -10086,3 +9972,45 @@ keyed by its event.
      **Sized:** ~30–60 lines: `StackEntry` holds a `CostChoices`, and the
      sites that write the two fields write it.
      **Slotted:** A6e's cleanup, in `one-fact-one-type`.
+
+### Found by `trigger-matcher-merges` (2026-10-25)
+
+328. **Most record payloads still name an object by its id alone.** Item 320
+     landed for a move's two records, whose `Departed` names the existence
+     that left, and for the three that always carry a frame. Eighteen fields
+     still hold a bare `ObjectId` where the CR keys the object by existence
+     (CR 400.7): `Tapped`, `Untapped`, `CardDrawn.card_id`,
+     `ManaAdded.source_id`, `DamageDealt.source_id`,
+     `PermanentEnteredBattlefield`, `BecameBlocked`, `SpellCast`,
+     `Targeted.by`, `DelayedTriggerCreated.source`, `UntilReturnMade.source`,
+     the two `countered_by`s, `SpellFizzled`, `Attached`'s two ends,
+     `TokenCreated` and `TokenCeasedToExist`, beside the ids inside
+     `AttackersDeclared`, `BlockersDeclared`, `LifeChanged.source`,
+     `CounterSubject` and `DamageTarget`.
+     **Reachability (2026-10-25):** reachable — not wrong today: a dispatch
+     reads a record inside its window, and `subject_after` takes the object
+     as the dispatch finds it. Converting a field makes the trigger name the
+     existence the event was about, which differs for an object that moved
+     again in its own window: the CR's answer (CR 400.7), and a move in the
+     stream, which is why it did not ride a PR predicted identical.
+     **Sized:** ~300 lines: each field an `ObjectRef`, its emitters, and its
+     readers in the matcher, the history, the log and the tests; a `differ`
+     A/B attributed to the windows where an object moved twice.
+     **Slotted:** A6e's cleanup, in `one-fact-one-type`, with item 291, which
+     makes object-or-player one type by reference over the result.
+
+329. **A replacement's rider names no ability source, so `ExileUntil`
+     refuses its "this".** `resolve_rider` builds the rider's
+     `ResolutionContext` with `ability_source: None`, and
+     `Primitive::ExileUntil` takes a context with none for a spell's, so a
+     rider that exiles "until this leaves the battlefield" errors ("a spell
+     is never on the battlefield to leave it"), where CR 603.7f's reading for
+     a delayed trigger makes the static ability's object the source. Found
+     building item 247's T4 fixture, which needed such a rider.
+     **Reachability (2026-10-25):** unreachable — no registered rider
+     exiles, and no printed card was checked.
+     **Sized:** ~10–20 lines and a fixture: the rider's context names its
+     replacement's source, and the T4 board (a return made inside a rider's
+     batch) then shows CR 603.7a's filter failing first.
+     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`.
+

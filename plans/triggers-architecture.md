@@ -633,10 +633,12 @@ departures from the sketch, each forced by a board:
   (`codebase-state.md` item 223). `create_delayed_trigger` (named
   `register_delayed_trigger` until TR-3c's review) is the one door, and
   603.7g's special action will call it.
-- **`source_left_at`**: a departure record names the object's id and not
-  which existence of it moved, so the movers note the record that ended a
-  delayed trigger's source. "When this creature leaves the battlefield"
-  matches that record and no later object's.
+- **`source_left_at`**, gone with item 321 (#289): a departure record
+  named the object's id and not which existence of it moved, so the movers
+  noted the record that ended a delayed trigger's source. A departure now
+  names the existence that left (`Departed`), and "when this creature
+  leaves the battlefield" matches the record whose existence is its source,
+  and no later object's.
 - **`source_frame`**, added at the review, then `source_lki`, an `Lki`, from
   TR-4a: CR 113.7a's last known information, the frame the source left with.
   Since #285 the entry holds no frame: `objects_lki_is_kept_for` names the
@@ -1471,9 +1473,10 @@ The rest, row by row where it is not obvious:
 - `Targeted` names its target as an `ObjectRef` and its spell or ability by
   `by`. `spell-copies`'s copies and CR 115.7's changed targets each announce a new one,
   since a copy with new targets is a new targeting.
-- `RememberedObject.left_at` is noted by the two movers whose record follows
-  the move at once (`note_delayed_source_moving`). A same-zone move notes
-  nothing, which is right while it makes no new object (CR 400.7).
+- A remembered object is the existence a record names (item 321, #289): a
+  departure's own (`Departed`), and for any other record the existence its
+  frame keeps or the object as it is now. A same-zone move names the
+  existence it kept, which is right while it makes no new object (CR 400.7).
 - No printed delayed trigger reads an object it refers to after that object has
   left. `o:"at the beginning of the next" (o:"that creature's power" or
   o:"that creature's toughness" or o:"its power")` is 5 cards, and each reads
