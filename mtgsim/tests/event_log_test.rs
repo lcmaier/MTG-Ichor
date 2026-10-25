@@ -21,7 +21,7 @@ use mtgsim::cards::phase_tr1_cards::soul_warden;
 use mtgsim::cards::phase_tr3a_cards::blessed_wine;
 use mtgsim::cards::phase_tr3b_cards::banishing_light;
 use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;
 use mtgsim::scenario::Scenario;
@@ -35,7 +35,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
-use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId, UntilReturnId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId, UntilReturnId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{DelayedDuration, EventKind};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
@@ -167,7 +167,7 @@ fn a_countered_spell_says_whose_it_was() {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(bolt)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(bolt)]),
         replaced_event: None,
         trigger: None,
     };
@@ -196,7 +196,7 @@ fn a_countered_ability_is_named_by_its_source() {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(ability)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(ability)]),
         replaced_event: None,
         trigger: None,
     };

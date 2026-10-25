@@ -24,7 +24,7 @@ use mtgsim::test_support::{
     card_of_type, creature_with_ability, put_in_graveyard, put_on_battlefield, registered,
     setup_two_player_game, static_ability, vanilla_creature,
 };
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::test_support::{test_ctx, test_dp};
 use mtgsim::types::effects::{
@@ -32,7 +32,7 @@ use mtgsim::types::effects::{
     TargetCount,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::ids::{AbilityId, ObjectId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -467,7 +467,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(creature)]),
         replaced_event: None,
         trigger: None,
     };
@@ -509,7 +509,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(creature)]),
         replaced_event: None,
         trigger: None,
     };
@@ -548,7 +548,7 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(creature)]),
         replaced_event: None,
         trigger: None,
     };
@@ -602,7 +602,7 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(creature)]),
         replaced_event: None,
         trigger: None,
     };

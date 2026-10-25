@@ -19,8 +19,7 @@ use mtgsim::cards::phase_sba_cards::battlegrowth;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
 use mtgsim::events::cause::{EventCause, StateBasedAction};
-use mtgsim::events::event::{DamageTarget, GameEvent};
-use mtgsim::types::triggers::ObjectOrPlayer;
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::oracle::characteristics::{get_effective_name, get_effective_power, get_effective_toughness};
 use mtgsim::state::game_state::GameState;
@@ -28,7 +27,7 @@ use mtgsim::test_support::{
     put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::effects::{CounterType, EffectRecipient};
-use mtgsim::types::ids::ObjectId;
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -250,7 +249,7 @@ fn test_deathtouch_damage_is_read_by_one_check() {
     let nighthawk = put_on_battlefield(&mut game, card("Vampire Nighthawk"), 1);
     let damage = GameAction::DealDamage {
         source: nighthawk,
-        target: DamageTarget::Object(colossus),
+        target: ObjectOrPlayerId::Object(colossus),
         amount: 1,
         is_combat: false,
         unpreventable: false,

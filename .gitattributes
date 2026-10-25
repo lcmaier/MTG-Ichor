@@ -1,0 +1,5 @@
+# Every text file is checked out with LF, the ending the repository already
+# stores and CI's Linux checkout already uses. Without this, `core.autocrlf`
+# on Windows checks files out CRLF while scripts write LF back, so one working
+# copy holds both and an edit anchored on a newline misses.
+* text=auto eol=lf

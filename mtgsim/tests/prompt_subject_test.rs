@@ -16,12 +16,11 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::events::event::DamageTarget;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, PhaseType, StepType};
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
@@ -221,7 +220,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::DeclareAttackers,
         ChoiceKind::DeclareBlockers,
         ChoiceKind::AssignCombatDamage { attacker_id: id },
-        ChoiceKind::AssignTrampleDamage { attacker_id: id, defending_target: DamageTarget::Player(1) },
+        ChoiceKind::AssignTrampleDamage { attacker_id: id, defending_target: ObjectOrPlayerId::Player(1) },
         ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(2)) },
         ChoiceKind::ChooseAlternativeCost { spell_id: id },
         ChoiceKind::ChooseAdditionalCosts { spell_id: id },

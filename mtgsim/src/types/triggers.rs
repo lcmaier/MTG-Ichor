@@ -23,10 +23,10 @@ use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
 use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, TokenDef};
-use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::history::TurnFact;
 use crate::types::mana::ManaType;
-use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
+use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 
 /// CR 603.1 — "[When/Whenever/At] [trigger condition or event], [effect]".
 #[derive(Debug, Clone, PartialEq)]
@@ -220,13 +220,14 @@ enum OccurrenceSubject {
     DamageRecipient,
 }
 
-/// What a counter arm's counters are on (CR 122.1): an object, or a player.
+/// "Which object or player" an arm is about: what its counters are on (CR
+/// 122.1), or what becomes the target (CR 115.1).
 #[derive(Debug, Clone, PartialEq)]
-pub enum CountersOn {
-    /// "On this creature", "on a creature you control".
+pub enum ObjectOrPlayerSubject {
+    /// "On this creature", "a permanent you control".
     Object(TriggerSubject),
-    /// "Whenever you get one or more counters": a player, or any player for
-    /// `None`.
+    /// "Whenever you get one or more counters", "becomes the target": a
+    /// player, or any player for `None`.
     Player(Option<PlayerRef>),
 }
 
@@ -256,15 +257,6 @@ impl TriggerSubject {
             TriggerSubject::Filter(_) | TriggerSubject::Any => false,
         }
     }
-}
-
-/// What becomes the target (CR 115.1): an object, or a player.
-#[derive(Debug, Clone, PartialEq)]
-pub enum TargetSubject {
-    /// "This creature", "a permanent you control".
-    Object(TriggerSubject),
-    /// "You", or any player for `None`.
-    Player(Option<PlayerRef>),
 }
 
 /// What it becomes the target of: "a spell or ability", "a spell", "an Aura
@@ -433,24 +425,6 @@ impl EventRole {
         EventRole::Target,
         EventRole::SpellOrAbility,
     ];
-}
-
-/// What damage is dealt to (CR 120.1), or what is attacked (CR 506.3): an
-/// object, or a player.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ObjectOrPlayer {
-    Object(ObjectRef),
-    Player(PlayerId),
-}
-
-impl ObjectOrPlayer {
-    /// The object; `None` for a player.
-    pub fn object(self) -> Option<ObjectRef> {
-        match self {
-            ObjectOrPlayer::Object(object) => Some(object),
-            ObjectOrPlayer::Player(_) => None,
-        }
-    }
 }
 
 /// The objects a triggering event is about, each by the part it played, as the
@@ -872,7 +846,7 @@ pub enum TriggerEvent {
     /// (Frost Titan's ruling). `controller` is whose spell or ability it is.
     /// "For the first time each turn" (valiant) is the def's limit, read off
     /// the turn's targeting rows.
-    BecomesTarget { target: TargetSubject, by: TargetedBy, controller: Option<PlayerRef>, multiplicity: Multiplicity },
+    BecomesTarget { target: ObjectOrPlayerSubject, by: TargetedBy, controller: Option<PlayerRef>, multiplicity: Multiplicity },
     /// "Whenever [a player] activates an ability of [a permanent] [that isn't
     /// a mana ability]" (CR 602.2), off the record its costs announce: a
     /// mana ability's included (CR 605.3a), which Harsh Mentor's intervening
@@ -912,7 +886,7 @@ pub enum TriggerEvent {
     /// intervening "if", `Condition::CounterCountReached`, as CR 714.2b
     /// words a Saga's chapter.
     CountersPutOn {
-        subject: CountersOn,
+        subject: ObjectOrPlayerSubject,
         counter_type: Option<CounterType>,
         by: Option<PlayerRef>,
         multiplicity: Multiplicity,
@@ -922,7 +896,7 @@ pub enum TriggerEvent {
     /// included (its fifth). `by` is who removed them, where a player did:
     /// a rule's removal matches no `by`.
     CountersRemovedFrom {
-        subject: CountersOn,
+        subject: ObjectOrPlayerSubject,
         counter_type: Option<CounterType>,
         by: Option<PlayerRef>,
         multiplicity: Multiplicity,
@@ -1196,16 +1170,16 @@ impl TriggerEvent {
             | TriggerEvent::Attacks { attacker: subject, .. }
             | TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocked | BlockOccurrence::Unblocked, attacker: subject, .. }
             | TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocker | BlockOccurrence::Block, blocker: subject, .. }
-            | TriggerEvent::BecomesTarget { target: TargetSubject::Object(subject), .. }
+            | TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Object(subject), .. }
             | TriggerEvent::ActivatesAbility { source: subject, .. }
             | TriggerEvent::BecomesAttached { host: subject, .. }
             | TriggerEvent::BecomesUnattached { former_host: subject, .. }
             | TriggerEvent::ControlChanges { subject, .. }
-            | TriggerEvent::CountersPutOn { subject: CountersOn::Object(subject), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(subject), .. } => Some(subject),
-            TriggerEvent::CountersPutOn { subject: CountersOn::Player(_), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Player(_), .. }
-            | TriggerEvent::BecomesTarget { target: TargetSubject::Player(_), .. }
+            | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Object(subject), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(subject), .. } => Some(subject),
+            TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Player(_), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Player(_), .. }
+            | TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Player(_), .. }
             | TriggerEvent::DamageIsPrevented { .. }
             | TriggerEvent::DrawsCard { .. }
             | TriggerEvent::PhaseBegins { .. }
@@ -1281,7 +1255,7 @@ impl TriggerEvent {
             (OccurrenceSubject::CountersOn, GameEvent::CountersPutOn { subject, .. } | GameEvent::CountersRemovedFrom { subject, .. }) => {
                 Some(*subject)
             }
-            (OccurrenceSubject::DamageRecipient, GameEvent::DamageDealt { target, .. }) => Some(*target),
+            (OccurrenceSubject::DamageRecipient, GameEvent::DamageDealt { recipient, .. }) => Some(*recipient),
             (OccurrenceSubject::CountersOn | OccurrenceSubject::DamageRecipient, _) => None,
         }
     }
@@ -1304,18 +1278,18 @@ impl TriggerEvent {
             | TriggerEvent::DamageDealt { source: subject, .. }
             | TriggerEvent::EntersBattlefield { subject, .. }
             | TriggerEvent::Attacks { attacker: subject, .. }
-            | TriggerEvent::BecomesTarget { target: TargetSubject::Object(subject), .. }
+            | TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Object(subject), .. }
             | TriggerEvent::ActivatesAbility { source: subject, .. }
             | TriggerEvent::ControlChanges { subject, .. }
-            | TriggerEvent::CountersPutOn { subject: CountersOn::Object(subject), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(subject), .. } => [Some(subject), None],
+            | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Object(subject), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(subject), .. } => [Some(subject), None],
             TriggerEvent::Blocks { blocker: one, attacker: other, .. }
             | TriggerEvent::BecomesAttached { attachment: one, host: other }
             | TriggerEvent::BecomesUnattached { attachment: one, former_host: other } => [Some(one), Some(other)],
             TriggerEvent::AbilityTriggers { caused_by, .. } => return caused_by.as_deref().is_some_and(TriggerEvent::names_referred_object),
-            TriggerEvent::BecomesTarget { target: TargetSubject::Player(_), .. }
-            | TriggerEvent::CountersPutOn { subject: CountersOn::Player(_), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Player(_), .. }
+            TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Player(_), .. }
+            | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Player(_), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Player(_), .. }
             | TriggerEvent::DrawsCard { .. }
             | TriggerEvent::DamageIsPrevented { .. }
             | TriggerEvent::PhaseBegins { .. }
@@ -1470,8 +1444,8 @@ impl TriggerEvent {
             | TriggerEvent::IsCountered { .. }
             | TriggerEvent::ControlChanges { .. }
             | TriggerEvent::ActivatesAbility { .. }
-            | TriggerEvent::CountersPutOn { subject: CountersOn::Object(_), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(_), .. }
+            | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Object(_), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(_), .. }
             | TriggerEvent::CreatesToken { .. } => &[EventRole::Object],
             TriggerEvent::DamageDealt { .. } => &[EventRole::DamageSource, EventRole::DamageRecipient],
             TriggerEvent::DamageIsPrevented { .. } => &[EventRole::DamageRecipient],
@@ -1481,8 +1455,8 @@ impl TriggerEvent {
                 &[EventRole::Blocker, EventRole::Attacker, EventRole::OtherCombatant]
             }
             TriggerEvent::Blocks { .. } => &[EventRole::Blocker, EventRole::Attacker],
-            TriggerEvent::BecomesTarget { target: TargetSubject::Object(_), .. } => &[EventRole::Target, EventRole::SpellOrAbility],
-            TriggerEvent::BecomesTarget { target: TargetSubject::Player(_), .. } => &[EventRole::SpellOrAbility],
+            TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Object(_), .. } => &[EventRole::Target, EventRole::SpellOrAbility],
+            TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Player(_), .. } => &[EventRole::SpellOrAbility],
             TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
                 &[EventRole::Attachment, EventRole::Host]
             }
@@ -1493,8 +1467,8 @@ impl TriggerEvent {
             | TriggerEvent::LosesLife { .. }
             | TriggerEvent::PlayerLoses { .. }
             | TriggerEvent::ShufflesLibrary { .. }
-            | TriggerEvent::CountersPutOn { subject: CountersOn::Player(_), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Player(_), .. }
+            | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Player(_), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Player(_), .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. }
             | TriggerEvent::Scries { .. } => &[],
@@ -1509,8 +1483,8 @@ impl TriggerEvent {
             }
             (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { lki, .. }) => Some(lki.owner()),
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { player_id, .. }) => Some(*player_id),
-            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. })
-            | (TriggerEvent::DamageIsPrevented { .. }, GameEvent::DamagePrevented { target, .. }) => match target {
+            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { recipient, .. })
+            | (TriggerEvent::DamageIsPrevented { .. }, GameEvent::DamagePrevented { recipient, .. }) => match recipient {
                 ObjectOrPlayer::Player(pid) => Some(*pid),
                 ObjectOrPlayer::Object(_) => None,
             },
@@ -1736,6 +1710,12 @@ pub struct TriggerBinding {
     /// by itself, and so would a copy of the ability (CR 707.10); on the
     /// entries, every one of those hand-offs would have to carry it.
     pub source_found_in_graveyard: Option<ObjectRef>,
+    /// CR 113.6b's statement of where the ability functions, handed over
+    /// from its `Effect::FunctionsIn` as it triggers, as the def is (CR
+    /// 113.7a): Bridge from Below's "if this card is in your graveyard",
+    /// printed as an intervening "if" and so asked again as it resolves (CR
+    /// 603.4). `None` for an ability whose text states no zone.
+    pub stated_zones: Option<ZoneSet>,
 }
 
 impl TriggerBinding {
@@ -2278,7 +2258,7 @@ pub(crate) mod samples {
             ("ManaAdded", GameEvent::ManaAdded { player_id: 0, source: identity.source, mana: Vec::new(), tapped_for_mana: false, source_lki: None }),
             ("DamageDealt", GameEvent::DamageDealt {
                 source: identity.source,
-                target: ObjectOrPlayer::Player(0),
+                recipient: ObjectOrPlayer::Player(0),
                 amount: 1,
                 excess: 0,
                 is_combat: false,
@@ -2311,7 +2291,7 @@ pub(crate) mod samples {
                 former_host_left: false,
             }),
             ("DamagePrevented", GameEvent::DamagePrevented {
-                target: ObjectOrPlayer::Player(0),
+                recipient: ObjectOrPlayer::Player(0),
                 amount: 1,
                 by: crate::engine::replacement::ReplacementInstanceId::StaticAbility(identity.source, identity.ability),
             }),
@@ -2323,7 +2303,7 @@ pub(crate) mod samples {
                 definition: Arc::new(crate::cards::phase_re_cards::goblin_token()),
             }),
             ("Targeted", GameEvent::Targeted {
-                target: crate::engine::targeting::TargetRef::Object(identity.source),
+                target: crate::types::ids::ObjectOrPlayer::Object(identity.source),
                 by: identity.source,
                 ability_source: None,
                 controller: 0,
@@ -2409,7 +2389,7 @@ pub(crate) mod samples {
             ),
             (
                 TriggerEvent::BecomesTarget {
-                    target: TargetSubject::Object(this.clone()),
+                    target: ObjectOrPlayerSubject::Object(this.clone()),
                     by: TargetedBy::SpellOrAbility,
                     controller: None,
                     multiplicity: each,
@@ -2422,11 +2402,11 @@ pub(crate) mod samples {
             (TriggerEvent::PlayerLoses { player: None }, &["PlayerLost"]),
             (TriggerEvent::ShufflesLibrary { player: None }, &["LibraryShuffled"]),
             (
-                TriggerEvent::CountersPutOn { subject: CountersOn::Object(this.clone()), counter_type: None, by: None, multiplicity: each },
+                TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Object(this.clone()), counter_type: None, by: None, multiplicity: each },
                 &["CountersPutOn"],
             ),
             (
-                TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(this.clone()), counter_type: None, by: None, multiplicity: each },
+                TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(this.clone()), counter_type: None, by: None, multiplicity: each },
                 &["CountersRemovedFrom"],
             ),
             (TriggerEvent::BecomesAttached { attachment: TriggerSubject::Any, host: TriggerSubject::Any }, &["Attached"]),

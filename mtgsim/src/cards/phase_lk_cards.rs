@@ -64,15 +64,15 @@ fn creatures_you_control() -> ObjectFilter {
 ///
 /// # The ability, clause by clause
 ///
-/// The condition is written in the order the card prints it, and each clause
-/// does a different job:
+/// The card prints two clauses, and each does a different job:
 ///
-/// - `SourceInZone(GRAVEYARD)` is CR 113.6b's statement. Read *syntactically*
-///   by `zone_function::functioning_zones`, which is what puts the row in the
-///   registry when the card reaches a graveyard and keeps it out when the card
-///   is on the battlefield — where Wonder is a 2/2 flier that grants nothing.
-///   Read *again* at every layer by the existence check, which is what retires
-///   the row when the card is exiled (§13d decision 3).
+/// - "This card is in your graveyard" is CR 113.6b's statement, the
+///   `Effect::FunctionsIn` around the body. `zone_function::functioning_zones`
+///   reads it, which is what puts the row in the registry when the card
+///   reaches a graveyard and keeps it out when the card is on the battlefield
+///   — where Wonder is a 2/2 flier that grants nothing. The existence check
+///   asks it *again* at every layer, which is what retires the row when the
+///   card is exiled (§13d decision 3).
 /// - "You control an Island" is an ordinary "as long as", the shape LI-3
 ///   landed for Kird Ape. It names no zone and does not place the ability.
 ///
@@ -98,21 +98,21 @@ pub fn wonder() -> Arc<CardData> {
             "Flying\nAs long as this card is in your graveyard and you control an Island, \
              creatures you control have flying.",
         )
-        .ability(static_ability("As long as this card is in your graveyard and you control an Island, creatures you control have flying.", Effect::Conditional(
-            Condition::All(vec![
-                // CR 113.6b — the clause that says where this ability functions.
-                Condition::SourceInZone(ZoneSet::GRAVEYARD),
+        .ability(static_ability("As long as this card is in your graveyard and you control an Island, creatures you control have flying.", Effect::FunctionsIn(
+            // CR 113.6b — the clause that says where this ability functions.
+            ZoneSet::GRAVEYARD,
+            Box::new(Effect::Conditional(
                 Condition::Player {
                     players: PlayerSet::You,
                     fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
                 },
-            ]),
-            Box::new(Effect::Atom(
-                Primitive::GrantKeywordFlag(
-                    KeywordFlag::Flying,
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::FilteredPermanents(creatures_you_control()),
+                Box::new(Effect::Atom(
+                    Primitive::GrantKeywordFlag(
+                        KeywordFlag::Flying,
+                        Duration::WhileSourceOnBattlefield,
+                    ),
+                    EffectRecipient::FilteredPermanents(creatures_you_control()),
+                )),
             )),
         )))
         .build()
@@ -161,8 +161,8 @@ pub fn exiled_ancestor() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Spirit))
         .power_toughness(1, 1)
         .rules_text("As long as this card isn't on the battlefield, creatures you control get +1/+1.")
-        .ability(static_ability("As long as this card isn't on the battlefield, creatures you control get +1/+1.", Effect::Conditional(
-            Condition::SourceInZone(ZoneSet::EVERYWHERE_BUT_BATTLEFIELD),
+        .ability(static_ability("As long as this card isn't on the battlefield, creatures you control get +1/+1.", Effect::FunctionsIn(
+            ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
             Box::new(Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     crate::types::effects::AmountExpr::Fixed(1),

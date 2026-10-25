@@ -182,7 +182,7 @@ pub fn candidate_priority_actions(game: &GameState, player_id: PlayerId) -> Vec<
 
 /// Enumerate all legal selections for an `EffectRecipient`.
 ///
-/// Returns every `ResolvedTarget` that passes `validate_selection` for the
+/// Returns every `ObjectOrPlayerId` that passes `validate_selection` for the
 /// given filter. Used by `ask_select_recipients` to build the options list.
 ///
 /// `exclude_id`: CR 115.5's "a spell or ability on the stack is an illegal
@@ -195,7 +195,7 @@ pub fn enumerate_legal_selections(
     filter: &crate::types::effects::SelectionFilter,
     exclude_id: Option<ObjectId>,
     you: PlayerId,
-) -> Vec<crate::engine::resolve::ResolvedTarget> {
+) -> Vec<crate::types::ids::ObjectOrPlayerId> {
     enumerate_legal_selections_excluding(
         game,
         filter,
@@ -219,7 +219,7 @@ pub fn enumerate_legal_selections_excluding(
     exclude_id: Option<ObjectId>,
     you: PlayerId,
     identity: crate::engine::targeting::FilterIdentity<'_>,
-) -> Vec<crate::engine::resolve::ResolvedTarget> {
+) -> Vec<crate::types::ids::ObjectOrPlayerId> {
     enumerate_legal_selections_upto(game, filter, exclude_id, you, identity, usize::MAX)
 }
 
@@ -242,15 +242,15 @@ pub fn enumerate_legal_selections_upto(
     you: PlayerId,
     identity: crate::engine::targeting::FilterIdentity<'_>,
     limit: usize,
-) -> Vec<crate::engine::resolve::ResolvedTarget> {
-    use crate::engine::resolve::ResolvedTarget as RT;
+) -> Vec<crate::types::ids::ObjectOrPlayerId> {
+    use crate::types::ids::ObjectOrPlayerId;
     use crate::types::effects::SelectionFilter;
 
     // **Each arm is an iterator and the cap is `take`**: arms yield in their
     // documented order, so `take` keeps the *first* `limit`, process-independent,
     // and laziness stops the layer walks there. CR 800.4a: a departed player is
     // no candidate.
-    let players = || game.players_in_game().map(RT::Player);
+    let players = || game.players_in_game().map(ObjectOrPlayerId::Player);
     let battlefield = || {
         game.battlefield_ids_ordered()
             .into_iter()
@@ -266,7 +266,7 @@ pub fn enumerate_legal_selections_upto(
             .filter(move |&id| Some(id) != exclude_id && game.is_spell_on_stack(id))
     };
     let passes = |id: ObjectId| {
-        let candidate = RT::Object(id);
+        let candidate = ObjectOrPlayerId::Object(id);
         game.validate_selection(filter, &candidate, you, identity)
             .is_ok()
             .then_some(candidate)
@@ -281,7 +281,7 @@ pub fn enumerate_legal_selections_upto(
             .take(limit)
             .collect(),
 
-        SelectionFilter::Spell => spells_on_stack().map(RT::Object).take(limit).collect(),
+        SelectionFilter::Spell => spells_on_stack().map(ObjectOrPlayerId::Object).take(limit).collect(),
 
         // CR 609.7a, as an id names each: the source choice itself reads
         // `damage_sources`, whose existences an id cannot tell apart.
@@ -292,7 +292,7 @@ pub fn enumerate_legal_selections_upto(
                     ids.push(source.id);
                 }
             }
-            ids.into_iter().map(RT::Object).take(limit).collect()
+            ids.into_iter().map(ObjectOrPlayerId::Object).take(limit).collect()
         }
 
         // Creature, Permanent(_), or other battlefield-based filters
@@ -356,13 +356,13 @@ fn left_since_read<'a>(game: &'a GameState, identity: Option<AbilityIdentity>, t
 /// that left (CR 603.10a), the one that deals its damage, and not the one it
 /// became. Not a CR 610.3 return, which is no triggered ability.
 fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
-    use crate::engine::targeting::TargetRef;
-    let objects_of = |targets: &[TargetRef]| -> Vec<ObjectRef> {
+    use crate::types::ids::ObjectOrPlayer;
+    let objects_of = |targets: &[ObjectOrPlayer]| -> Vec<ObjectRef> {
         targets
             .iter()
             .filter_map(|t| match t {
-                TargetRef::Object(object) => Some(*object),
-                TargetRef::Player(_) => None,
+                ObjectOrPlayer::Object(object) => Some(*object),
+                ObjectOrPlayer::Player(_) => None,
             })
             .collect()
     };
@@ -384,7 +384,7 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
     for row in game.replacement_effects.iter() {
         referred.extend(row.def.pattern.chosen_damage_source());
         referred.extend(objects_of(&row.targets));
-        if let crate::types::effects::ObjectSet::Fixed(ids) = &row.def.affected_objects {
+        if let crate::types::effects::ObjectSet::Fixed(ids) = &row.def.affected.objects {
             referred.extend(ids.iter().filter_map(|&id| game.object_ref(id)));
         }
     }
@@ -631,7 +631,7 @@ mod tests {
     // middle, an object that left and *is* referred to, is TR-3c's test.
     #[test]
     fn a_damage_source_is_a_permanent_or_a_spell_on_the_stack() {
-        use crate::engine::resolve::ResolvedTarget;
+        use crate::types::ids::ObjectOrPlayerId;
         use crate::test_support::{
             place_vanilla_creature, put_in_hand, put_land_on_battlefield, put_spell_on_stack,
             setup_two_player_game,
@@ -645,13 +645,13 @@ mod tests {
         let in_hand = put_in_hand(&mut game, crate::test_support::lightning_bolt(), 0);
 
         let legal = enumerate_legal_selections(&game, &SelectionFilter::DamageSource, None, 0);
-        assert!(legal.contains(&ResolvedTarget::Object(creature)), "a permanent");
+        assert!(legal.contains(&ObjectOrPlayerId::Object(creature)), "a permanent");
         assert!(
-            legal.contains(&ResolvedTarget::Object(land)),
+            legal.contains(&ObjectOrPlayerId::Object(land)),
             "a land: 609.7a's source need not be capable of dealing damage"
         );
-        assert!(legal.contains(&ResolvedTarget::Object(spell)), "a spell on the stack");
-        assert!(!legal.contains(&ResolvedTarget::Object(in_hand)), "a card in hand is not");
+        assert!(legal.contains(&ObjectOrPlayerId::Object(spell)), "a spell on the stack");
+        assert!(!legal.contains(&ObjectOrPlayerId::Object(in_hand)), "a card in hand is not");
         assert_eq!(legal.len(), 3, "and nothing else");
 
         // Enumeration and enforcement agree in both directions, the rule
@@ -663,13 +663,13 @@ mod tests {
         assert!(game
             .validate_selection(
                 &SelectionFilter::DamageSource,
-                &ResolvedTarget::Object(in_hand),
+                &ObjectOrPlayerId::Object(in_hand),
                 0,
                 FilterIdentity::NONE,
             )
             .is_err());
         assert!(game
-            .validate_selection(&SelectionFilter::DamageSource, &ResolvedTarget::Player(0), 0, FilterIdentity::NONE)
+            .validate_selection(&SelectionFilter::DamageSource, &ObjectOrPlayerId::Player(0), 0, FilterIdentity::NONE)
             .is_err());
         assert_eq!(enumerate_legal_selections_upto(&game, &SelectionFilter::DamageSource, None, 0, FilterIdentity::NONE, 1).len(), 1);
     }
@@ -679,7 +679,7 @@ mod tests {
     // Expertise spell on the stack", whose entry was taken as it began.
     #[test]
     fn the_spell_resolving_now_is_a_spell_on_the_stack() {
-        use crate::engine::resolve::ResolvedTarget;
+        use crate::types::ids::ObjectOrPlayerId;
         use crate::test_support::{card_of_type, put_spell_on_stack, setup_two_player_game};
         use crate::types::effects::SelectionFilter;
 
@@ -701,7 +701,7 @@ mod tests {
 
         assert_eq!(
             enumerate_legal_selections(&game, &SelectionFilter::Spell, None, 1),
-            vec![ResolvedTarget::Object(expertise)],
+            vec![ObjectOrPlayerId::Object(expertise)],
         );
     }
 
@@ -729,7 +729,7 @@ mod tests {
     // and this one asks only what the selection arms do with the answer.
     #[test]
     fn a_seat_that_left_the_game_is_neither_offered_nor_counted() {
-        use crate::engine::resolve::ResolvedTarget;
+        use crate::types::ids::ObjectOrPlayerId;
         use crate::test_support::setup_game;
         use crate::types::effects::SelectionFilter;
 
@@ -748,9 +748,9 @@ mod tests {
         game.player_lost[3] = true;
 
         let in_game = vec![
-            ResolvedTarget::Player(0),
-            ResolvedTarget::Player(1),
-            ResolvedTarget::Player(2),
+            ObjectOrPlayerId::Player(0),
+            ObjectOrPlayerId::Player(1),
+            ObjectOrPlayerId::Player(2),
         ];
         for filter in [SelectionFilter::Player, SelectionFilter::Any] {
             // The battlefield is empty, so `Any` offers the seats and nothing
@@ -759,7 +759,7 @@ mod tests {
             // Enumeration and enforcement agree in both directions, `cant-be-targeted`'s
             // rule, asked here of the seat that left.
             assert!(game
-                .validate_selection(&filter, &ResolvedTarget::Player(3), 0, FilterIdentity::NONE)
+                .validate_selection(&filter, &ObjectOrPlayerId::Player(3), 0, FilterIdentity::NONE)
                 .is_err());
         }
     }

@@ -496,6 +496,12 @@ pub fn render_debug(value: &impl fmt::Debug) -> String {
     tidy_ids(&format!("{:?}", value))
 }
 
+/// What a proposed event is about (`replacement::subject_of`), as a record
+/// writes it: the object or player, or `Game` for an event about neither.
+pub fn render_subject(subject: Option<crate::types::ids::ObjectOrPlayerId>) -> String {
+    subject.map_or_else(|| "Game".to_string(), |subject| render_debug(&subject))
+}
+
 /// `ObjectId(17)` → `#17`, everywhere in `s`. Whether `#17` is the right
 /// spelling at all is `backlog.md` §2.36's question; this follows the log's
 /// convention until it is answered.

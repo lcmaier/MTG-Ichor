@@ -16,12 +16,12 @@ pub enum AmountExpr {
     Fixed(u64),
     /// X, chosen when the spell/ability is cast/activated (rule 107.3)
     X,
-    /// "equal to the number of [things matching selector]"
-    CountOf(Selector),
-    /// "equal to the number of card **types** among [things matching selector]"
+    /// "equal to the number of [objects in the set]"
+    CountOf(ObjectSet),
+    /// "equal to the number of card **types** among [objects in the set]"
     /// — the Lhurgoyf family. Distinct from `CountOf`, which counts objects:
     /// ten artifact creatures in a graveyard are ten cards but two card types.
-    CardTypesAmong(Selector),
+    CardTypesAmong(ObjectSet),
     /// "equal to that number plus N" — Tarmogoyf's toughness.
     Plus(Box<AmountExpr>, u64),
     /// "Equal to the amount of life you gained this turn" (Betor, Ancestor's
@@ -147,24 +147,6 @@ pub enum AmountExpr {
     /// `Fixed(20)` because v1 is Commander, where it is 40, and the number is
     /// the game's (`GameState::starting_life`) and not the card's.
     StartingLifeTotal,
-}
-
-/// Which objects an effect queries or iterates over
-#[derive(Debug, Clone, PartialEq)]
-pub enum Selector {
-    ControlledCreatures,
-    CreaturesInGraveyard(PlayerRef),
-    PermanentsMatching(ObjectFilter),
-    CardsInHand(PlayerRef),
-    /// Cards in graveyards. `None` means **all** graveyards — Tarmogoyf's "cards
-    /// in all graveyards", which includes a Tarmogoyf sitting in one of them.
-    ///
-    /// One variant rather than a separate `CardsInAllGraveyards`: "whose
-    /// graveyard" is a parameter of the same concept, and a second variant made
-    /// the two look like different questions. Only `None` has an evaluator today
-    /// — every `Some` form is unused by any card, and `compute::evaluate_amount`
-    /// asserts rather than guessing at `PlayerRef` resolution nothing needs yet.
-    CardsInGraveyard(Option<PlayerRef>),
 }
 
 /// Reference to a player in an effect context
@@ -415,6 +397,20 @@ impl ObjectSet {
         ObjectSet::Filter { filter, zones }
     }
 
+    /// The cards in `whose` hand, every one its owner's (CR 400.3).
+    pub fn hand(whose: PlayerRef) -> ObjectSet {
+        ObjectSet::Filter { filter: ObjectFilter::ByOwner(whose), zones: ZoneSet::HAND }
+    }
+
+    /// Whose whole hand this is, when it is [`Self::hand`]'s set: a hand any
+    /// player may count, by its size and reading no card (CR 402.3).
+    pub fn whose_hand(&self) -> Option<&PlayerRef> {
+        match self {
+            ObjectSet::Filter { filter: ObjectFilter::ByOwner(whose), zones } if *zones == ZoneSet::HAND => Some(whose),
+            ObjectSet::Filter { .. } | ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => None,
+        }
+    }
+
     /// Which zones this set can name an object in — the union `Board::seed`
     /// and `RegistryScopeSummary` read.
     ///
@@ -515,6 +511,60 @@ impl PlayerSet {
     }
 }
 
+/// What an effect is affecting — CR 614.1's "whatever they're affecting":
+/// its objects and its players, unioned, neither half primary. A replacement
+/// or prevention effect holds one and so does a "can't" (CR 614.17), and both
+/// are asked the one membership question, `set_affects`.
+///
+/// Built from objects ([`Self::objects`]), players ([`Self::players`]) or
+/// both: Furnace of Rath's "a permanent or player" is both, Angel of
+/// Suffering's "you" players and no object.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AffectedSet {
+    pub objects: ObjectSet,
+    pub players: PlayerSet,
+}
+
+impl AffectedSet {
+    /// No object and no player: an effect a resolution creates, authored for
+    /// the resolution's targets to fill in.
+    pub const NOTHING: AffectedSet = AffectedSet { objects: ObjectSet::NO_OBJECTS, players: PlayerSet::Nobody };
+
+    /// These objects and no player.
+    pub fn objects(objects: ObjectSet) -> Self {
+        AffectedSet { objects, players: PlayerSet::Nobody }
+    }
+
+    /// These players and no object.
+    pub fn players(players: PlayerSet) -> Self {
+        AffectedSet { objects: ObjectSet::NO_OBJECTS, players }
+    }
+
+    /// CR 400.7 — does it refer to `object` by identity? Only its object
+    /// half can ([`ObjectSet::refers_to`]).
+    pub fn refers_to(&self, object: ObjectId) -> bool {
+        self.objects.refers_to(object)
+    }
+
+    /// CR 400.7 — stop referring to `object`, which has become a new object.
+    /// Returns whether it still affects anything: an object, or a player.
+    pub fn remove_reference_to(&mut self, object: ObjectId) -> bool {
+        self.objects.remove_reference_to(object) || self.players.can_contain_a_player()
+    }
+}
+
+impl From<ObjectSet> for AffectedSet {
+    fn from(objects: ObjectSet) -> Self {
+        AffectedSet::objects(objects)
+    }
+}
+
+impl From<PlayerSet> for AffectedSet {
+    fn from(players: PlayerSet) -> Self {
+        AffectedSet::players(players)
+    }
+}
+
 /// The players an instruction to several players names: those standing in
 /// `relation` to "you", together with those the effect's context names. A
 /// new printed phrase is a new `NamedPlayers` arm, not a new recipient:
@@ -603,22 +653,6 @@ pub enum Condition {
     DefendingPlayer { of: Antecedent, fact: PlayerFact },
     SpellWasKicked,
     ModeChosen(usize),
-    /// CR 113.6b's clause — "as long as this card is in your graveyard"
-    /// (Wonder), "if this card is in your graveyard" (Bridge from Below).
-    ///
-    /// **Two jobs, and the CR is what makes them one.** Evaluated at every
-    /// layer like any other leaf, so the effect stops existing the moment the
-    /// source leaves; and read *syntactically* by
-    /// `engine::zone_function::functioning_zones`, because CR 113.6b says an
-    /// ability that states which zones it functions in functions only from
-    /// those zones — so the clause that gates the effect is the same sentence
-    /// that places the ability. A condition about some *other* object's zone
-    /// is [`PlayerFact::CardInGraveyard`], which is why this one says `Source`.
-    ///
-    /// Replaced `SourceOnBattlefield`, which was this question narrowed to one
-    /// zone: the battlefield is `SourceInZone(ZoneSet::BATTLEFIELD)` and reads
-    /// the same gate it always did.
-    SourceInZone(ZoneSet),
     /// Every clause holds — Wonder's "in your graveyard **and** you control an
     /// Island".
     ///
@@ -735,14 +769,12 @@ impl Condition {
             Condition::CounterCount { object, .. } => *object == Antecedent::ThisObject,
             Condition::All(clauses) => clauses.iter().any(Condition::reads_entry_state),
             Condition::Not(clause) => clause.reads_entry_state(),
-            // The entering object is asked as on the battlefield already, so
-            // no entry moves the zone `SourceInZone` reads; the rest read
-            // players, histories, the host, a trigger, or a resolution.
+            // The rest read players, histories, the host, a trigger, or a
+            // resolution.
             Condition::Player { .. }
             | Condition::DefendingPlayer { .. }
             | Condition::SpellWasKicked
             | Condition::ModeChosen(_)
-            | Condition::SourceInZone(_)
             | Condition::HostMatches(_)
             | Condition::ThisTurn(..)
             | Condition::LastTurn(..)
@@ -2303,6 +2335,19 @@ pub enum Effect {
     /// "If [condition], [effect]" — intervening if (rule 603.4)
     Conditional(Condition, Box<Effect>),
 
+    /// CR 113.6b's statement around an ability's whole effect: a static
+    /// ability's "as long as this card is in your graveyard" (Wonder) or 113.6c's
+    /// complement, "as long as this card isn't on the battlefield"
+    /// (`ZoneSet::EVERYWHERE_BUT_BATTLEFIELD`); a triggered ability's "if this
+    /// card is in your graveyard" (Bridge from Below). A fact about the
+    /// ability, where it functions, and not a predicate about the game, so it
+    /// is no `Condition`. At an ability's root only: `functioning_zones`
+    /// places the ability by it, CR 604.2's existence check asks it of a
+    /// static ability's source at every layer, and a trigger's binding takes
+    /// it as the ability triggers, for the dispatch and the resolution to ask
+    /// beside the intervening "if" (CR 603.4).
+    FunctionsIn(ZoneSet, Box<Effect>),
+
     /// "[Chooser] may [effect]" (CR 603.5): asked as the effect resolves,
     /// never as the ability triggers. The chooser is `You` unless the text
     /// names another player. The answer it leaves (CR 118.12) is the choice:
@@ -2328,7 +2373,7 @@ pub enum Effect {
     },
 
     /// "For each [thing], [effect]"
-    ForEach(Selector, Box<Effect>),
+    ForEach(ObjectSet, Box<Effect>),
 
     /// "Do this N times"
     Repeat(AmountExpr, Box<Effect>),
@@ -2463,6 +2508,7 @@ impl Effect {
                 }
             }
             Effect::Conditional(_, effect)
+            | Effect::FunctionsIn(_, effect)
             | Effect::Optional { effect, .. }
             | Effect::Remember(effect)
             | Effect::ForEach(_, effect)
@@ -2564,6 +2610,8 @@ impl Effect {
             // CR 603.3d — a trigger's targets are its effect's, announced at
             // placement; item 153's note said this walk would want the arm.
             Effect::Triggered(def) => def.effect.for_each_instance(f),
+            // A statement of where it functions changes nothing it targets.
+            Effect::FunctionsIn(_, inner) => inner.for_each_instance(f),
             // A "may" changes nothing about what is targeted: the target is
             // chosen as the ability is put on the stack and the choice made as
             // it resolves (CR 603.3d, 603.5; Cryptoplasm's first ruling).
@@ -2579,9 +2627,22 @@ impl Effect {
     /// there is one: the one peel every `as_*` below reads through, and every
     /// reader of the clause.
     pub(crate) fn with_its_condition(&self) -> (Option<&Condition>, &Effect) {
-        match self {
+        let body = match self {
+            Effect::FunctionsIn(_, inner) => inner,
+            body => body,
+        };
+        match body {
             Effect::Conditional(condition, inner) => (Some(condition), inner),
             body => (None, body),
+        }
+    }
+
+    /// The zones an ability's text states it functions in (CR 113.6b,
+    /// 113.6c), when its effect says so: [`Effect::FunctionsIn`].
+    pub(crate) fn stated_zones(&self) -> Option<ZoneSet> {
+        match self {
+            Effect::FunctionsIn(zones, _) => Some(*zones),
+            _ => None,
         }
     }
 
@@ -2638,6 +2699,11 @@ impl Effect {
     pub fn as_trigger(&self) -> Option<&std::sync::Arc<crate::types::triggers::TriggerDef>> {
         match self {
             Effect::Triggered(def) => Some(def),
+            // CR 113.6b's statement wraps the whole ability.
+            Effect::FunctionsIn(_, inner) => match &**inner {
+                Effect::Triggered(def) => Some(def),
+                _ => None,
+            },
             _ => None,
         }
     }

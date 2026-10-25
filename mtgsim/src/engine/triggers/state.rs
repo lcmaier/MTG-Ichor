@@ -28,6 +28,7 @@ use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::zones::ZoneSet;
 use crate::types::triggers::{
     EventIndex, EventKind, EventKindMask, PendingTrigger, Referred, TriggerBinding, TriggerCondition, TriggerDef, TriggerLimit,
     TriggerOrigin,
@@ -38,6 +39,7 @@ pub(super) struct StateTriggerMatch {
     identity: AbilityIdentity,
     controller: PlayerId,
     def: Arc<TriggerDef>,
+    stated_zones: Option<ZoneSet>,
     source_card: Arc<CardData>,
     instances: Vec<EffectRecipient>,
 }
@@ -76,6 +78,7 @@ impl GameState {
                     triggered_by: None,
                     referred: Referred::default(),
                     source_found_in_graveyard: None,
+                    stated_zones: m.stated_zones,
                 },
                 x_value: None,
             };
@@ -137,6 +140,7 @@ impl GameState {
                     identity,
                     controller,
                     def: Arc::clone(def),
+                    stated_zones: ability.effect.stated_zones(),
                     source_card: Arc::clone(&object.card_data),
                     instances: ability.instances.clone(),
                 });

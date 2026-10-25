@@ -2292,6 +2292,18 @@ interface. 113.6e is deferred by decision 4 and the parameter arrives with it.
 **1b. The zone statement is a `Condition` leaf — `SourceInZone(ZoneSet)` — read
 off the top of the ability's condition. Not a field on `AbilityDef`.**
 
+*Superseded by item 296 (`one-fact-one-type`, #291, the owner's choice at its
+review, 2026-10-25):* a statement is a fact about the ability and a predicate
+one about the game, and the leaf held both. Every ability's statement is
+`Effect::FunctionsIn(ZoneSet, effect)` at its effect's root, static or
+triggered, found by the peels every reader already takes
+(`with_its_condition`, `as_trigger`), loud anywhere else (the static
+lowering, the resolver, and a registry test). A trigger's binding takes it as
+the ability triggers, as it takes the def (CR 113.7a), and the dispatch and
+the resolution ask it beside the intervening "if" (CR 603.4). Option B's two
+nesting orders are the risk the peels and the registry test answer. The
+reasoning below is the LK decision as made.
+
 **The first cut of this decision was a field, and the owner's review rejected
 it on the right grounds (2026-09-14):** 139 of 140 construction sites would
 carry the same value, which is a code smell rather than a sweep. Re-derived,

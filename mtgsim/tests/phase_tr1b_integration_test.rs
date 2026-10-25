@@ -26,7 +26,6 @@ use mtgsim::cards::phase_tr1_cards::{blood_artist, soul_warden, wild_growth};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
-use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
@@ -40,7 +39,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId};
 use mtgsim::types::triggers::{
     DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
@@ -184,7 +183,7 @@ fn assert_audited(game: &GameState, triggers: u64) {
     assert_eq!(agreed, triggers, "the triggers both answers held");
 }
 
-fn deal(game: &mut GameState, source: ObjectId, target: DamageTarget, amount: u64) {
+fn deal(game: &mut GameState, source: ObjectId, target: ObjectOrPlayerId, amount: u64) {
     game.execute_action(
         GameAction::DealDamage { source, target, amount, is_combat: true, unpreventable: false, source_lki: None },
         &test_ctx(),
@@ -257,7 +256,7 @@ fn the_audit_agrees_over_a_zone_map_card() {
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
 
     destroy_all(&mut game, &[dread], source);
-    deal(&mut game, attacker, DamageTarget::Player(0), 2);
+    deal(&mut game, attacker, ObjectOrPlayerId::Player(0), 2);
 
     assert_eq!(game.get_object(dread).unwrap().zone, Zone::Graveyard);
     assert_eq!(pending(&game), 1, "the from-anywhere trigger, and not the damage one");

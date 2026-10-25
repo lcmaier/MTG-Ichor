@@ -4,11 +4,10 @@
 
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::scenario::{BuiltScenario, Scenario, ScenarioError, ScenarioErrorKind, SetupDriver};
 use mtgsim::state::game::{Halt, RandomStreams};
 use mtgsim::state::game_state::GameState;
-use mtgsim::types::ids::ObjectId;
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{ScriptedDecisionProvider, SeatMode, Stop};
@@ -72,7 +71,7 @@ fn permanent(state: &GameState, name: &str) -> ObjectId {
 }
 
 /// Each stack object's targets, bottom first, an instance of "target" each.
-fn targets_on_the_stack(state: &GameState) -> Vec<Vec<Vec<ResolvedTarget>>> {
+fn targets_on_the_stack(state: &GameState) -> Vec<Vec<Vec<ObjectOrPlayerId>>> {
     let entry = |id: &ObjectId| state.stack_entries[id].chosen_targets.iter().map(|instance| instance.as_resolved_targets().collect()).collect();
     state.stack.iter().map(entry).collect()
 }
@@ -94,7 +93,7 @@ fn each_verb_builds_the_stack_its_lines_describe() {
         assert_eq!(game.state.run_priority_round(&driver), Ok(PriorityResult::ActionTaken));
     }
     let state = &game.state;
-    let bears = ResolvedTarget::Object(permanent(state, "Grizzly Bears"));
+    let bears = ObjectOrPlayerId::Object(permanent(state, "Grizzly Bears"));
     assert_eq!(state.stack.iter().take(2).copied().collect::<Vec<_>>(), [object(state, Zone::Stack, "Lightning Bolt"), object(state, Zone::Stack, "Giant Growth")]);
     let ability = state.stack_entries[&state.stack[2]].ability_identity.expect("an activated ability");
     assert_eq!(ability.source.id, permanent(state, "Merfolk Thaumaturgist"));
@@ -121,7 +120,7 @@ fn each_target_takes_the_next_segment_it_offers() {
          battlefield: Grizzly Bears | controller 0\nbattlefield: Savannah Lions | controller 0\n\
          then: player 0 casts Seeds of Strength | targeting Grizzly Bears | targeting Grizzly Bears | targeting Savannah Lions",
     );
-    let [bears, lions] = ["Grizzly Bears", "Savannah Lions"].map(|name| ResolvedTarget::Object(permanent(&state, name)));
+    let [bears, lions] = ["Grizzly Bears", "Savannah Lions"].map(|name| ObjectOrPlayerId::Object(permanent(&state, name)));
     assert_eq!(targets_on_the_stack(&state), [[[bears], [bears], [lions]]]);
 }
 
@@ -131,7 +130,7 @@ fn a_target_can_be_a_player() {
         "hand 0: Lightning Bolt\nbattlefield: Mountain | controller 0\nbattlefield: Grizzly Bears | controller 1\n\
          then: player 0 casts Lightning Bolt | targeting player 1",
     );
-    assert_eq!(targets_on_the_stack(&state), [[[ResolvedTarget::Player(1)]]]);
+    assert_eq!(targets_on_the_stack(&state), [[[ObjectOrPlayerId::Player(1)]]]);
 }
 
 /// `ability N` is the ability's place among the permanent's abilities: Mind

@@ -33,7 +33,7 @@ use mtgsim::cards::phase_rb_cards::{leyline_of_the_void, rest_in_peace};
 use mtgsim::cards::phase_re8_cards::mind_rot;
 use mtgsim::cards::phase_tr4c_cards::{angelic_destiny, bridge_from_below, guerrilla_tactics, rancor};
 use mtgsim::engine::actions::{ActionContext, GameAction};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::{EventCause, GeneratedBy};
 use mtgsim::events::event::GameEvent;
@@ -46,7 +46,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -484,7 +484,7 @@ fn a_creature_returned_to_its_owners_hand_triggers_its_leaves_the_battlefield_ab
 fn resolve_spell_at_player(game: &mut GameState, effect: &Effect, caster: PlayerId, target: PlayerId, dp: &dyn DecisionProvider) {
     let source = put_in_graveyard(game, mind_rot(), caster);
     let mut ctx = ResolutionContext::untargeted(source, caster, GeneratedBy::Spell);
-    ctx.targets = ChosenTargets::one(vec![ResolvedTarget::Player(target)]);
+    ctx.targets = ChosenTargets::one(vec![ObjectOrPlayerId::Player(target)]);
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }
 
@@ -799,7 +799,7 @@ fn rancor_returns_to_its_owners_hand_when_its_creature_dies() {
 fn aura_spell_targeting(game: &mut GameState, aura: Arc<CardData>, controller: PlayerId, target: ObjectId) -> ObjectId {
     let enchant = aura.spell_instances.last().cloned().expect("an Aura announces its enchant clause");
     let id = put_spell_on_stack(game, aura, controller);
-    let chosen = TargetInstance::from_announcement(game, enchant, &[ResolvedTarget::Object(target)]).unwrap();
+    let chosen = TargetInstance::from_announcement(game, enchant, &[ObjectOrPlayerId::Object(target)]).unwrap();
     game.stack_entries.get_mut(&id).unwrap().chosen_targets = vec![chosen];
     id
 }
@@ -807,19 +807,19 @@ fn aura_spell_targeting(game: &mut GameState, aura: Arc<CardData>, controller: P
 /// **Fixture.** Bridge from Below's first ability with "from the
 /// battlefield" printed "from anywhere".
 fn from_anywhere_twin() -> Arc<CardData> {
-    use mtgsim::cards::authoring::{triggered_ability, whenever};
+    use mtgsim::cards::authoring::{functioning_in, triggered_ability, whenever};
     use mtgsim::objects::card_data::CardDataBuilder;
     use mtgsim::types::card_types::CardType;
-    use mtgsim::types::effects::{AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
-    use mtgsim::types::triggers::{Multiplicity, TriggerDef, TriggerEvent, TriggerSubject};
+    use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
+    use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
     use mtgsim::types::zones::{ZoneChangePattern, ZoneSet};
     CardDataBuilder::new("Fixture Bridge from Anywhere")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability(
-            "",
-            TriggerDef {
-                intervening_if: Some(Condition::SourceInZone(ZoneSet::GRAVEYARD)),
-                ..whenever(
+        .ability(functioning_in(
+            ZoneSet::GRAVEYARD,
+            triggered_ability(
+                "",
+                whenever(
                     TriggerEvent::ZoneChange {
                         subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
                         change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
@@ -828,8 +828,8 @@ fn from_anywhere_twin() -> Arc<CardData> {
                         multiplicity: Multiplicity::PerOccurrence,
                     },
                     Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
-                )
-            },
+                ),
+            ),
         ))
         .build()
 }

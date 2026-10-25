@@ -12,7 +12,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, PlaneswalkerType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, TypeChange,
+    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, TypeChange,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -76,9 +76,9 @@ pub fn grist_insect_clause() -> Arc<CardData> {
         .subtype(Subtype::Planeswalker(PlaneswalkerType::Grist))
         .loyalty(3)
         .rules_text("As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.")
-        .ability(static_ability("As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.", Effect::Conditional(
+        .ability(static_ability("As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.", Effect::FunctionsIn(
             // CR 113.6c — the ability says where it does not function.
-            Condition::SourceInZone(ZoneSet::EVERYWHERE_BUT_BATTLEFIELD),
+            ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
             Box::new(Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::ChangeType(
@@ -160,8 +160,8 @@ pub fn pocket_griffin() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Griffin))
         .power_toughness(2, 2)
         .rules_text("As long as this card is in your hand, creatures you control have flying.")
-        .ability(static_ability("As long as this card is in your hand, creatures you control have flying.", Effect::Conditional(
-            Condition::SourceInZone(ZoneSet::HAND),
+        .ability(static_ability("As long as this card is in your hand, creatures you control have flying.", Effect::FunctionsIn(
+            ZoneSet::HAND,
             Box::new(Effect::Atom(
                 Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
                 EffectRecipient::FilteredPermanents(ObjectFilter::And(

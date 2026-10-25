@@ -9,7 +9,7 @@ use mtgsim::cards::phase_tr1_cards::{felidar_sovereign, soul_warden};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::events::event::{DamageTarget, EventId};
+use mtgsim::events::event::EventId;
 use mtgsim::scenario::{BuiltScenario, Scenario, SetupDriver};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
@@ -20,7 +20,7 @@ use mtgsim::test_support::{
     test_ctx, vanilla_creature, RecordingDecisionProvider,
     test_dp,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
@@ -137,7 +137,7 @@ fn a_destruction_a_cant_stopped_is_told_after_the_damage() {
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Indestructible]), 0);
     let source = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
     let trace = install_trace(&mut game, "a can't, told");
-    let damage = GameAction::DealDamage { source, target: DamageTarget::Object(creature), amount: 3, is_combat: false, unpreventable: false, source_lki: None };
+    let damage = GameAction::DealDamage { source, target: ObjectOrPlayerId::Object(creature), amount: 3, is_combat: false, unpreventable: false, source_lki: None };
     game.execute_action(damage, &test_ctx()).unwrap();
     game.perform_sba_and_triggers(&ScriptedDecisionProvider::new()).unwrap();
 
@@ -205,7 +205,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::DeclareAttackers,
         ChoiceKind::DeclareBlockers,
         ChoiceKind::AssignCombatDamage { attacker_id: object },
-        ChoiceKind::AssignTrampleDamage { attacker_id: object, defending_target: DamageTarget::Player(1) },
+        ChoiceKind::AssignTrampleDamage { attacker_id: object, defending_target: ObjectOrPlayerId::Player(1) },
         ChoiceKind::ChooseXValue { spell_id: object, values: Box::new(LegalXValues::zero_through(1)) },
         ChoiceKind::ChooseAlternativeCost { spell_id: object },
         ChoiceKind::ChooseAdditionalCosts { spell_id: object },

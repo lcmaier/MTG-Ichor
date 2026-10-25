@@ -1,11 +1,10 @@
 use crate::engine::combat::validation::CombatError;
 use crate::oracle::x_values::LegalXValues;
-use crate::events::event::DamageTarget;
 use crate::state::battlefield::AttackTarget;
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, EffectRecipient};
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::state::game_state::GameState;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::zones::Zone;
@@ -45,7 +44,7 @@ pub enum ChoiceKind {
     DeclareAttackers,
     DeclareBlockers,
     AssignCombatDamage { attacker_id: ObjectId },
-    AssignTrampleDamage { attacker_id: ObjectId, defending_target: DamageTarget },
+    AssignTrampleDamage { attacker_id: ObjectId, defending_target: ObjectOrPlayerId },
 
     // --- Casting Pipeline (601.2) ---
     /// CR 601.2b — the value of X for `spell_id`. `values` is what the

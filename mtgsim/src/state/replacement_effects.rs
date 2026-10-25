@@ -52,11 +52,10 @@
 //!   (`replacement-architecture.md` §3.3 source 2; CR 113.6 first).
 
 use crate::engine::replacement::ReplacementInstanceId;
-use crate::engine::targeting::TargetRef;
 use crate::events::cause::GeneratedBy;
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::Duration;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::replacement::{ReplacementDef, Uses};
 
 /// Unique identifier for a registered replacement effect.
@@ -102,7 +101,7 @@ pub struct RegisteredReplacementEffect {
     /// effect targeted at resolution" arrives with the first rider that needs
     /// it, and threads this onto `ReplacementInstance` and `Rider` then
     /// (`codebase-state.md`, Deferred Migrations).
-    pub targets: Vec<TargetRef>,
+    pub targets: Vec<ObjectOrPlayer>,
     /// What it watches for and what it does.
     pub def: ReplacementDef,
 }
@@ -137,10 +136,10 @@ impl DurationRow for RegisteredReplacementEffect {
     /// that has left still deals damage as it last existed (CR 608.2h), and a
     /// player may choose one that already has (CR 609.7a).
     fn refers_to(&self, object: ObjectId) -> bool {
-        self.def.affected_objects.refers_to(object)
+        self.def.affected.refers_to(object)
     }
     fn remove_reference_to(&mut self, object: ObjectId) -> bool {
-        self.def.affected_objects.remove_reference_to(object) || self.def.affected_players.can_contain_a_player()
+        self.def.affected.remove_reference_to(object)
     }
 }
 

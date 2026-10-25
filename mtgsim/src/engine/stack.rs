@@ -1,13 +1,13 @@
 use crate::oracle::characteristics::{has_permanent_type, has_subtype};
 use crate::engine::actions::{ActionContext, ZoneChangeAct};
-use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::GameEvent;
 use crate::state::battlefield::CastFacts;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::replacement::EnterMods;
 use crate::types::card_types::{EnchantmentType, Subtype};
-use crate::types::ids::ObjectId;
+use crate::types::ids::{ObjectId, ObjectOrPlayerId};
 use crate::types::zones::Zone;
 use crate::ui::decision::DecisionProvider;
 
@@ -71,7 +71,7 @@ impl GameState {
                 from,
                 mana_spent: entry.mana_spent,
             }),
-            cost_choices: entry.cost_choices(),
+            cost_choices: entry.cost_choices.clone(),
             x_value: entry.x_value,
             identity: entry.ability_identity,
             trigger: entry.trigger.clone(),
@@ -108,12 +108,18 @@ impl GameState {
         // controlled the source as it triggered (CR 109.5, 603.3a), whatever
         // has become of the source since, and the source and "it" are read as
         // they last existed once they have left (CR 113.7a, 608.2h).
-        if let Some(binding) = &entry.trigger
-            && let Some(condition) = &binding.def.intervening_if
-        {
+        // CR 113.6b's statement is printed as the intervening "if" (Bridge from
+        // Below's "if this card is in your graveyard"), so it is asked with it.
+        if let Some(binding) = &entry.trigger {
             let source = entry.this_object();
-            let objects = self.condition_objects(entry.ability_identity.map(|identity| identity.source), Some(binding));
-            if !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller), objects) {
+            let left_its_stated_zone = binding
+                .stated_zones
+                .is_some_and(|zones| !self.objects.get(&source).is_some_and(|object| zones.contains(object.zone)));
+            let condition_is_false = binding.def.intervening_if.as_ref().is_some_and(|condition| {
+                let objects = self.condition_objects(entry.ability_identity.map(|identity| identity.source), Some(binding));
+                !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller), objects)
+            });
+            if left_its_stated_zone || condition_is_false {
                 self.ability_leaves_the_stack(object_id);
                 return Ok(());
             }
@@ -203,7 +209,7 @@ impl GameState {
                 // is the first and only entry of `chosen_targets`.
                 let attached_to = if has_subtype(self, object_id, &Subtype::Enchantment(EnchantmentType::Aura)) {
                     match entry.chosen_targets.first().and_then(|inst| inst.as_resolved_targets().next()) {
-                        Some(ResolvedTarget::Object(host)) => Some(host),
+                        Some(ObjectOrPlayerId::Object(host)) => Some(host),
                         _ => return Err(format!(
                             "Aura {object_id} resolved from stack with no Object target: the fizzle check should have caught it"
                         )),
@@ -339,7 +345,7 @@ mod tests {
     use crate::test_support::place_on_battlefield;
     use crate::engine::targeting::TargetInstance;
     use crate::types::replacement::EnterMods;
-    use crate::engine::resolve::ResolvedTarget;
+    use crate::types::ids::ObjectOrPlayerId;
     use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
     use crate::objects::object::GameObject;
     use crate::state::game_state::{GameState, StackEntry};
@@ -375,7 +381,7 @@ mod tests {
         game: &mut GameState,
         card_data: std::sync::Arc<crate::objects::card_data::CardData>,
         controller: usize,
-        targets: Vec<ResolvedTarget>,
+        targets: Vec<ObjectOrPlayerId>,
     ) -> crate::types::ids::ObjectId {
         // PRE-LAYER ZONE: printed abilities, on the card being put on the stack --
         // the same exemption engine/cast.rs runs under.
@@ -398,8 +404,7 @@ mod tests {
             x_value: None,
             effect: std::sync::Arc::new(effect),
             is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
@@ -415,7 +420,7 @@ mod tests {
             &mut game,
             make_bolt(),
             0,
-            vec![ResolvedTarget::Player(1)],
+            vec![ObjectOrPlayerId::Player(1)],
         );
 
         game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -445,7 +450,7 @@ mod tests {
             &mut game,
             make_recall(),
             0,
-            vec![ResolvedTarget::Player(0)],
+            vec![ObjectOrPlayerId::Player(0)],
         );
 
         game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -479,7 +484,7 @@ mod tests {
             &mut game,
             make_recall(),
             0,
-            vec![ResolvedTarget::Player(1)],
+            vec![ObjectOrPlayerId::Player(1)],
         );
 
         // Second on stack (top): Bolt targeting player 1
@@ -487,7 +492,7 @@ mod tests {
             &mut game,
             make_bolt(),
             0,
-            vec![ResolvedTarget::Player(1)],
+            vec![ObjectOrPlayerId::Player(1)],
         );
 
         // Resolve top — should be Bolt (LIFO)
@@ -526,8 +531,7 @@ mod tests {
             x_value: None,
             effect: std::sync::Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
@@ -604,8 +608,7 @@ mod tests {
             x_value,
             effect: std::sync::Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
@@ -645,7 +648,7 @@ mod tests {
         game: &mut GameState,
         card_data: std::sync::Arc<crate::objects::card_data::CardData>,
         controller: usize,
-        targets: Vec<ResolvedTarget>,
+        targets: Vec<ObjectOrPlayerId>,
     ) -> crate::types::ids::ObjectId {
         let recipient = card_data
             .spell_instances
@@ -664,8 +667,7 @@ mod tests {
             x_value: None,
             effect: std::sync::Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
@@ -689,7 +691,7 @@ mod tests {
             &mut game,
             make_pacifism(),
             0,
-            vec![ResolvedTarget::Object(creature_id)],
+            vec![ObjectOrPlayerId::Object(creature_id)],
         );
 
         game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -716,7 +718,7 @@ mod tests {
             &mut game,
             make_pacifism(),
             0,
-            vec![ResolvedTarget::Object(creature_id)],
+            vec![ObjectOrPlayerId::Object(creature_id)],
         );
 
         game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -736,7 +738,7 @@ mod tests {
     fn test_the_resolving_marker_does_not_outlive_the_resolution() {
         // (a) an ordinary resolution
         let mut game = GameState::new(2, 20);
-        let bolt = put_spell_on_stack(&mut game, make_bolt(), 0, vec![ResolvedTarget::Player(1)]);
+        let bolt = put_spell_on_stack(&mut game, make_bolt(), 0, vec![ObjectOrPlayerId::Player(1)]);
         game.resolve_top_of_stack(&test_dp()).unwrap();
         assert_eq!(game.resolving, None, "cleared after the spell resolved");
         assert_eq!(game.get_object(bolt).unwrap().zone, Zone::Graveyard);
@@ -754,7 +756,7 @@ mod tests {
             gone_id,
             crate::state::battlefield::PermanentState::new(gone_id, 1, 1),
         );
-        put_spell_on_stack(&mut game, make_bolt(), 0, vec![ResolvedTarget::Object(gone_id)]);
+        put_spell_on_stack(&mut game, make_bolt(), 0, vec![ObjectOrPlayerId::Object(gone_id)]);
         game.move_object(gone_id, Zone::Graveyard).unwrap();
         game.resolve_top_of_stack(&test_dp()).unwrap();
         assert_eq!(game.resolving, None, "cleared after the spell fizzled");
@@ -774,8 +776,7 @@ mod tests {
             x_value: None,
             effect: std::sync::Arc::new(Effect::Sequence(Vec::new())),
             is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
             cast_from: Some(Zone::Hand),
             ability_identity: None,
@@ -802,7 +803,7 @@ mod tests {
             &mut game,
             make_bolt(),
             0,
-            vec![ResolvedTarget::Object(creature_id)],
+            vec![ObjectOrPlayerId::Object(creature_id)],
         );
 
         // Remove the creature from the battlefield before resolution (simulating it being destroyed)

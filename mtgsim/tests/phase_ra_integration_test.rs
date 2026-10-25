@@ -794,9 +794,9 @@ fn test_a_multi_target_destroy_is_one_event() {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![
-            mtgsim::engine::resolve::ResolvedTarget::Object(a),
-            mtgsim::engine::resolve::ResolvedTarget::Object(b),
-            mtgsim::engine::resolve::ResolvedTarget::Object(c),
+            mtgsim::types::ids::ObjectOrPlayerId::Object(a),
+            mtgsim::types::ids::ObjectOrPlayerId::Object(b),
+            mtgsim::types::ids::ObjectOrPlayerId::Object(c),
         ]),
         replaced_event: None,
         trigger: None,

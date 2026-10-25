@@ -23,7 +23,6 @@
 
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::GameAction;
-use mtgsim::events::event::CounterSubject;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
@@ -32,7 +31,7 @@ use mtgsim::test_support::{
     setup_two_player_game, test_ctx, TraceBuffer,
 };
 use mtgsim::types::effects::CounterType;
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -50,7 +49,7 @@ fn shield_board() -> (GameState, ObjectId, ObjectId, ObjectId) {
     let attacker = place_vanilla_creature(&mut game, 0, 3, 3, &[]);
     game.execute_action(
         GameAction::AddCounters {
-            subject: CounterSubject::Object(attacker),
+            subject: ObjectOrPlayerId::Object(attacker),
             counter: CounterType::Shield,
             n: 2,
             by: 0,

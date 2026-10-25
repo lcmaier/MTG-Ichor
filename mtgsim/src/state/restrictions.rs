@@ -33,7 +33,7 @@
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::restriction::{Restriction, RestrictionDef};
+use crate::types::restriction::RestrictionDef;
 
 /// Unique identifier for a registered restriction.
 pub type RestrictionId = u64;
@@ -83,23 +83,13 @@ impl DurationRow for RegisteredRestriction {
         self.created_on_turn
     }
     fn sort_key(&self) -> Self::SortKey {}
+    /// Not a chosen source of damage, named by identity: no move ends it
+    /// (`RegisteredReplacementEffect::refers_to`).
     fn refers_to(&self, object: ObjectId) -> bool {
-        match &self.def.what {
-            // Not a chosen source of damage, named by identity: no move ends
-            // it (`RegisteredReplacementEffect::refers_to`).
-            Restriction::Event { affected_objects, .. } => affected_objects.refers_to(object),
-            Restriction::ApplyReplacement { to_objects, .. } => to_objects.refers_to(object),
-        }
+        self.def.restriction.affected().refers_to(object)
     }
     fn remove_reference_to(&mut self, object: ObjectId) -> bool {
-        match &mut self.def.what {
-            Restriction::Event { affected_objects, affected_players, .. } => {
-                affected_objects.remove_reference_to(object) || affected_players.can_contain_a_player()
-            }
-            Restriction::ApplyReplacement { to_objects, to_players, .. } => {
-                to_objects.remove_reference_to(object) || to_players.can_contain_a_player()
-            }
-        }
+        self.def.restriction.affected_mut().remove_reference_to(object)
     }
 }
 
@@ -109,7 +99,7 @@ pub type RestrictionRegistry = DurationRegistry<RegisteredRestriction>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::effects::{ObjectSet, PlayerSet};
+    use crate::types::effects::{AffectedSet, ObjectSet};
     use crate::types::replacement::EventPattern;
     use crate::types::restriction::{Restriction, RestrictionDef};
     use crate::types::ids::new_object_id;
@@ -123,8 +113,7 @@ mod tests {
             created_on_turn: 1,
             def: RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::Destroy { source: None },
-                affected_objects: ObjectSet::Fixed(vec![source]),
-                affected_players: PlayerSet::Nobody,
+                affected: AffectedSet::objects(ObjectSet::Fixed(vec![source])),
                 by: None,
             }),
         }

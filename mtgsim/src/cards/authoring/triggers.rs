@@ -20,12 +20,20 @@ use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
 use crate::types::card_types::CardType;
 use crate::types::triggers::{
-    AttackOccurrence, BlockOccurrence, CountersOn, DamageRecipient, TargetSubject, TargetedBy, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
+    AttackOccurrence, BlockOccurrence, ObjectOrPlayerSubject, DamageRecipient, TargetedBy, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
     ReflexiveForm, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
-use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
+use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 
 /// A triggered ability: no cost, the def as its effect.
+/// `ability`, functioning only in `zones` (CR 113.6b): Bridge from Below's
+/// "if this card is in your graveyard", printed as its intervening "if", which
+/// the dispatch and the resolution ask beside the def's own (CR 603.4).
+pub fn functioning_in(zones: ZoneSet, mut ability: AbilityDef) -> AbilityDef {
+    ability.effect = Effect::FunctionsIn(zones, Box::new(ability.effect));
+    ability
+}
+
 pub fn triggered_ability(rules_text: &'static str, def: TriggerDef) -> AbilityDef {
     AbilityDef {
         rules_text: rules_text.into(),
@@ -102,7 +110,7 @@ impl Whose {
 /// triggers an event makes are its methods' and no other arm's.
 pub struct CounterEvent {
     direction: CounterDirection,
-    subject: CountersOn,
+    subject: ObjectOrPlayerSubject,
     counter_type: Option<CounterType>,
     by: Option<PlayerRef>,
 }
@@ -151,7 +159,7 @@ impl From<CounterEvent> for TriggerEvent {
 pub fn counters_put_on(subject: impl Into<TriggerSubject>, counter_type: impl Into<Option<CounterType>>) -> CounterEvent {
     CounterEvent {
         direction: CounterDirection::PutOn,
-        subject: CountersOn::Object(subject.into()),
+        subject: ObjectOrPlayerSubject::Object(subject.into()),
         counter_type: counter_type.into(),
         by: None,
     }
@@ -164,7 +172,7 @@ pub fn counters_removed_from(
 ) -> CounterEvent {
     CounterEvent {
         direction: CounterDirection::RemovedFrom,
-        subject: CountersOn::Object(subject.into()),
+        subject: ObjectOrPlayerSubject::Object(subject.into()),
         counter_type: counter_type.into(),
         by: None,
     }
@@ -477,7 +485,7 @@ pub fn becomes_the_target_of(
     controlled_by: Option<PlayerRef>,
 ) -> CountableEvent {
     CountableEvent(TriggerEvent::BecomesTarget {
-        target: TargetSubject::Object(subject.into()),
+        target: ObjectOrPlayerSubject::Object(subject.into()),
         by,
         controller: controlled_by,
         multiplicity: Multiplicity::PerOccurrence,
@@ -493,7 +501,7 @@ pub fn activates_an_ability_of(whose: Whose, source: impl Into<TriggerSubject>, 
 /// "Whenever [whose player] become[s] the target of [by] [controlled by]".
 pub fn player_becomes_the_target_of(whose: Whose, by: TargetedBy, controlled_by: Option<PlayerRef>) -> CountableEvent {
     CountableEvent(TriggerEvent::BecomesTarget {
-        target: TargetSubject::Player(whose.player_ref()),
+        target: ObjectOrPlayerSubject::Player(whose.player_ref()),
         by,
         controller: controlled_by,
         multiplicity: Multiplicity::PerOccurrence,

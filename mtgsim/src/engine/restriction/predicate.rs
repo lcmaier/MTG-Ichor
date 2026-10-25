@@ -12,12 +12,12 @@ use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::object_filter::TextReferents;
 use crate::events::cause::EventCause;
-use crate::engine::replacement::{pattern_watches, set_affects, subject_of, EntryFrame, EventSubject};
+use crate::engine::replacement::{pattern_watches, set_affects, subject_of, EntryFrame};
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
-use crate::types::effects::{ObjectSet, PlayerSet};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::effects::{AffectedSet, ObjectSet};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{
@@ -48,7 +48,7 @@ pub(crate) enum Query<'a> {
     /// CR 701.19c / 615.12 — may this replacement effect be applied?
     ApplyReplacement {
         kind: ReplacementKindFilter,
-        subject: EventSubject,
+        subject: Option<ObjectOrPlayerId>,
     },
 }
 
@@ -120,7 +120,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
     // Ahead of the gate, because `get_effective_abilities` is not how a keyword
     // is found and the gate would skip it (§3.5 commitment 2).
     if let Query::Event { action, cause, .. } = query
-        && let EventSubject::Object(id) = subject_of(action)
+        && let Some(ObjectOrPlayerId::Object(id)) = subject_of(action)
         && let Some(keyword) = keyword_prohibits(game, id, action, *cause) {
         return Some(Prohibition { source: id, by: ProhibitedBy::Keyword(keyword) });
     }
@@ -200,7 +200,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 /// def  = Restriction::Event {
 ///            pattern:  ZoneChange { from: Battlefield, to: Graveyard,
 ///                                   act: Sacrificed, object: None },
-///            affected_objects: Filter { ByController(You) },
+///            affected: objects(Filter { ByController(You) }),
 ///            by:       Some(ControlledBy(Opponent)),
 ///        }
 /// source     = <Sigarda>          controller = P0   (CR 109.5: hers, now)
@@ -234,7 +234,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 /// # And the other axis
 ///
 /// "Destroy target creature. It can't be regenerated" registers a
-/// `Restriction::ApplyReplacement { kind: Regeneration, to_objects: Fixed([creature]) }`.
+/// `Restriction::ApplyReplacement { kind: Regeneration, affected: objects(Fixed([creature])) }`.
 /// When `gather` later finds a regeneration shield around that creature it asks
 /// `Query::ApplyReplacement { kind: Regeneration, subject: <creature> }`, and
 /// the second arm answers with the *same* `set_affects` call — the kinds agree
@@ -248,36 +248,23 @@ fn matches(
     query: &Query,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
-    match (&def.what, query) {
+    match (&def.restriction, query) {
         (
-            Restriction::Event { pattern, affected_objects, affected_players, by },
+            Restriction::Event { pattern, affected, by },
             Query::Event { action, cause, .. },
         ) => {
             pattern_watches(game, pattern, action, cause, source, controller)
-                // The union `ReplacementDef` already makes, and it is a union rather than
-                // a replacement because the two sets answer about different kinds of
-                // subject: `set_affects` asks one or the other by what the event is
-                // *about*, never both. So Skullcrack ("players can't gain life") carries
-                // `NO_OBJECTS` beside `Everyone`, and an object-scoped restriction carries
-                // its object set beside a `Nobody`.
-                && set_affects(
-                    game,
-                    affected_objects,
-                    affected_players,
-                    source,
-                    controller,
-                    subject_of(action),
-                    frame,
-                )
+                // The test `ReplacementDef` is asked: `set_affects` asks the object half
+                // or the player half by what the event is *about*, never both.
+                && set_affects(game, affected, source, controller, subject_of(action), frame)
                 && cause_matches(by.as_ref(), cause, &mut TextReferents::for_effect(game, controller, source))
         }
 
         (
-            Restriction::ApplyReplacement { kind, to_objects, to_players },
+            Restriction::ApplyReplacement { kind, affected },
             Query::ApplyReplacement { kind: asked, subject },
         ) => {
-            kind == asked
-                && set_affects(game, to_objects, to_players, source, controller, *subject, None)
+            kind == asked && set_affects(game, affected, source, controller, *subject, None)
         }
 
         (Restriction::Event { .. }, Query::ApplyReplacement { .. })
@@ -322,8 +309,8 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause:
     for (keyword, def) in defs {
         debug_assert!(
             matches!(
-                def.what,
-                Restriction::Event { affected_objects: ObjectSet::SourceOnly, .. }
+                def.restriction,
+                Restriction::Event { affected: AffectedSet { objects: ObjectSet::SourceOnly, .. }, .. }
             ),
             "a keyword-derived restriction that is not `ObjectSet::SourceOnly` \
              cannot be found by asking the event's subject about its own \
@@ -369,8 +356,7 @@ fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<(KeywordFlag, Res
             KeywordFlag::Indestructible,
             RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::Destroy { source: None },
-                affected_objects: ObjectSet::SourceOnly,
-                affected_players: PlayerSet::Nobody,
+                affected: AffectedSet::objects(ObjectSet::SourceOnly),
                 by: None,
             }),
         ));

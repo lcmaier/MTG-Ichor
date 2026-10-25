@@ -5,11 +5,11 @@ use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_da
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, DepartedObject, EventId, GameEvent, UnattachRoute};
+use crate::events::event::{AppliedReplacement, DepartedObject, EventId, GameEvent, UnattachRoute};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
-use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates};
@@ -139,7 +139,7 @@ pub enum GameAction {
     /// Deal damage from a source to a target.
     DealDamage {
         source: ObjectId,
-        target: DamageTarget,
+        target: ObjectOrPlayerId,
         amount: u64,
         is_combat: bool,
         /// CR 615.12 — "the damage can't be prevented", as a fact about **this
@@ -312,7 +312,7 @@ pub enum GameAction {
     /// counters is not an effect and must not be matched by CR 614.16's
     /// watchers; no cost produces this yet (`codebase-state.md`, "Found by RE-5").
     AddCounters {
-        subject: CounterSubject,
+        subject: ObjectOrPlayerId,
         counter: CounterType,
         n: u32,
         by: PlayerId,
@@ -339,7 +339,7 @@ pub enum GameAction {
     /// controller's), and `None` where a rule does and names no player: CR
     /// 704.5q, and damage to a planeswalker (CR 120.3c).
     RemoveCounters {
-        subject: CounterSubject,
+        subject: ObjectOrPlayerId,
         counter: CounterType,
         n: u32,
         by: Option<PlayerId>,
@@ -481,7 +481,7 @@ pub enum GameAction {
     ///
     /// `turn` is the number this turn *would* be — `turn_number + 1` — and a
     /// dropped proposal never advances it: `begin_turn` is the only writer of
-    /// `last_turn_began`, so a turn that does not begin expires no "until your
+    /// a player's turns, so a turn that does not begin expires no "until your
     /// next turn" effect and starts no CR 302.6 clock (CR 614.10a).
     ///
     /// CR 500.7's extra turns and the natural rotation are the *schedule* the
@@ -724,7 +724,7 @@ impl GameState {
     fn lethal_damage_to_recipients<'a>(&self, decided: impl Iterator<Item = &'a GameAction>) -> Vec<(ObjectId, u64)> {
         let mut recipients: Vec<(ObjectId, bool)> = Vec::new();
         for action in decided {
-            let GameAction::DealDamage { source, source_lki, target: DamageTarget::Object(id), amount, .. } = action else {
+            let GameAction::DealDamage { source, source_lki, target: ObjectOrPlayerId::Object(id), amount, .. } = action else {
                 continue;
             };
             let deathtouch = *amount > 0 && deals_damage_with_keyword(self, *source, source_lki.as_ref(), KeywordFlag::Deathtouch);
@@ -739,7 +739,7 @@ impl GameState {
                 let results = DamageResults::for_object(self, id);
                 let as_creature = results.mark_damage.then(|| lethal_damage_owed(self, id, &[], deathtouch));
                 let as_planeswalker =
-                    results.remove_loyalty.then(|| u64::from(self.counter_count_of(CounterSubject::Object(id), CounterType::Loyalty)));
+                    results.remove_loyalty.then(|| u64::from(self.counter_count_of(ObjectOrPlayerId::Object(id), CounterType::Loyalty)));
                 let lethal = match (as_creature, as_planeswalker) {
                     (Some(creature), Some(planeswalker)) => creature.min(planeswalker),
                     (Some(lethal), None) | (None, Some(lethal)) => lethal,
@@ -1386,7 +1386,7 @@ impl GameState {
     /// (`Rider::lineage`, CR 614.5): they are the rest of the replacement's
     /// effect. Events nested inside them are contained and start fresh.
     ///
-    /// A player subject becomes a `ResolvedTarget::Player` rather than being
+    /// A player subject becomes an `ObjectOrPlayerId::Player` rather than being
     /// flattened away: Angel of Suffering's "prevent that damage and mill twice
     /// that many cards" mills the player the damage was aimed at.
     fn resolve_riders(&mut self, riders: Vec<crate::engine::replacement::Rider>, ctx: &ActionContext) -> Result<(), String> {
@@ -1402,8 +1402,7 @@ impl GameState {
         rider: crate::engine::replacement::Rider,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        use crate::engine::replacement::EventSubject;
-        use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+        use crate::engine::resolve::ResolutionContext;
 
         let rctx = ResolutionContext {
             source: rider.source,
@@ -1413,11 +1412,7 @@ impl GameState {
             // CR 615.5's rider acts on the replaced event's subject, which is
             // one thing and therefore one instance. A draw is replaced by
             // nothing, so no rider has the game for its subject.
-            targets: crate::engine::targeting::ChosenTargets::one(match rider.subject {
-                EventSubject::Object(id) => vec![ResolvedTarget::Object(id)],
-                EventSubject::Player(pid) => vec![ResolvedTarget::Player(pid)],
-                EventSubject::Game => Vec::new(),
-            }),
+            targets: crate::engine::targeting::ChosenTargets::one(rider.subject.into_iter().collect()),
             replaced_event: Some(rider.replaced_event),
             trigger: None,
         };
@@ -1487,7 +1482,7 @@ impl GameState {
                 // so a creature planeswalker gets 120.3c *and* 120.3e; 120.3b/d/g are
                 // `backlog.md` §2.6's and 120.3h §2.23's.
                 let results = match &target {
-                    DamageTarget::Object(id) => {
+                    ObjectOrPlayerId::Object(id) => {
                         if !self.battlefield.contains_key(id) {
                             return Err(format!(
                                 "Target object {} not on battlefield", id
@@ -1495,7 +1490,7 @@ impl GameState {
                         }
                         DamageResults::for_object(self, *id)
                     }
-                    DamageTarget::Player(_) => DamageResults::PLAYER,
+                    ObjectOrPlayerId::Player(_) => DamageResults::PLAYER,
                 };
 
                 // > 120.3e Damage dealt to a creature ... causes that much
@@ -1504,26 +1499,26 @@ impl GameState {
                 // Gated on the type: an object that is neither a creature nor a
                 // planeswalker takes no result at all.
                 if results.mark_damage
-                    && let DamageTarget::Object(id) = &target {
+                    && let ObjectOrPlayerId::Object(id) = &target {
                     self.battlefield.get_mut(id).expect("membership checked")
                         .damage_marked += amount as u32;
                 }
 
                 apply_deathtouch_flag(self, source, source_lki.as_ref(), &target);
                 let excess = match target {
-                    DamageTarget::Object(id) => {
+                    ObjectOrPlayerId::Object(id) => {
                         let excess = self.calculate_excess_damage(id, amount);
                         self.reduce_lethal_damage_left(id, amount);
                         excess
                     }
-                    DamageTarget::Player(_) => 0,
+                    ObjectOrPlayerId::Player(_) => 0,
                 };
 
                 // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
                 // The 21-damage loss check is the SBA at CR 704.6c.
                 if is_combat
-                    && let DamageTarget::Player(pid) = &target {
+                    && let ObjectOrPlayerId::Player(pid) = &target {
                     let is_cmdr = self.objects.get(&source)
                         .map(|o| o.is_commander)
                         .unwrap_or(false);
@@ -1543,7 +1538,7 @@ impl GameState {
                 self.emit_event(GameEvent::DamageDealt {
                     source: dealt_by,
                     source_lki,
-                    target: target.for_record(self)?,
+                    recipient: target.for_record(self)?,
                     amount,
                     excess,
                     is_combat,
@@ -1554,7 +1549,7 @@ impl GameState {
                 // doubles it, a shield spent on the damage does not apply again. Its
                 // performer emits `LifeChanged`, naming the damage's source.
                 if results.lose_life
-                    && let DamageTarget::Player(pid) = &target {
+                    && let ObjectOrPlayerId::Player(pid) = &target {
                     self.execute_action(
                         GameAction::LoseLife { player: *pid, amount, damage_source: Some(source) },
                         ctx,
@@ -1564,10 +1559,10 @@ impl GameState {
                 // CR 120.3c, a proposal as any counter change is. `n` is a ceiling
                 // (`remove_counters` reports what it took); CR 704.5i does the killing.
                 if results.remove_loyalty
-                    && let DamageTarget::Object(id) = &target {
+                    && let ObjectOrPlayerId::Object(id) = &target {
                     self.execute_action(
                         GameAction::RemoveCounters {
-                            subject: CounterSubject::Object(*id),
+                            subject: ObjectOrPlayerId::Object(*id),
                             counter: CounterType::Loyalty,
                             n: amount as u32,
                             by: None,
@@ -1758,7 +1753,7 @@ impl GameState {
                     return Ok(());
                 }
                 match subject {
-                    CounterSubject::Object(object) => {
+                    ObjectOrPlayerId::Object(object) => {
                         if !self.battlefield.contains_key(&object) {
                             return Err(format!(
                                 "Cannot put counters on {}: not on the battlefield", object
@@ -1769,7 +1764,7 @@ impl GameState {
                         // replacement source now, and nothing has to be recorded: counters are
                         // scanned, not cached (`gather::any_replacement_counter`).
                     }
-                    CounterSubject::Player(player) => {
+                    ObjectOrPlayerId::Player(player) => {
                         self.get_player_mut(player)?.add_counters(counter, n);
                     }
                 }
@@ -1788,7 +1783,7 @@ impl GameState {
                 // event: CR 603.2e's transition rule is the same shape the
                 // `Tap`/`Untap` arms follow.
                 let removed = match subject {
-                    CounterSubject::Object(object) => {
+                    ObjectOrPlayerId::Object(object) => {
                         if !self.battlefield.contains_key(&object) {
                             return Err(format!(
                                 "Cannot remove counters from {}: not on the battlefield", object
@@ -1796,7 +1791,7 @@ impl GameState {
                         }
                         self.remove_counters(object, counter, n)
                     }
-                    CounterSubject::Player(player) => {
+                    ObjectOrPlayerId::Player(player) => {
                         self.get_player_mut(player)?.remove_counters(counter, n)
                     }
                 };
@@ -1904,7 +1899,7 @@ impl GameState {
             // Turn-based actions and expiries are separate events (CR 703.4, 500.4)
             // the drainer runs after the proposal survives (`engine::turns`).
             GameAction::BeginTurn { player, turn, extra_turn } => {
-                // `begin_turn` is the one writer of `last_turn_began`, so a
+                // `begin_turn` is the one writer of a player's turns, so a
                 // turn that is skipped starts no CR 302.6 clock and expires no
                 // "until your next turn" effect (CR 614.10a).
                 self.begin_turn(turn, player);
@@ -2386,7 +2381,7 @@ mod tests {
     use crate::test_support::place_on_battlefield;
     use super::*;
     use crate::test_support::test_ctx;
-    use crate::events::event::DamageTarget;
+    use crate::types::ids::ObjectOrPlayerId;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::types::card_types::*;
@@ -2470,7 +2465,7 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: bears_id,
-            target: DamageTarget::Object(bears_id),
+            target: ObjectOrPlayerId::Object(bears_id),
             amount: 3,
             is_combat: false,
             unpreventable: false,
@@ -2488,7 +2483,7 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: bears_id,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 3,
             is_combat: false,
             unpreventable: false,
@@ -2506,7 +2501,7 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: bears_id,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 0,
             is_combat: false,
             unpreventable: false,
@@ -2584,7 +2579,7 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: lifelinker,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 2,
             is_combat: true,
             unpreventable: false,
@@ -2603,7 +2598,7 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: lifelinker,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 3,
             is_combat: false,
             unpreventable: false,
@@ -2620,7 +2615,7 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: bears_id,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 2,
             is_combat: true,
             unpreventable: false,
@@ -2642,7 +2637,7 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: lifelinker,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 2,
             is_combat: true,
             unpreventable: false,
@@ -2703,7 +2698,7 @@ mod tests {
         // Both deal combat damage to opponent
         game.execute_action(GameAction::DealDamage {
             source: creature_a,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 2,
             is_combat: true,
             unpreventable: false,
@@ -2711,7 +2706,7 @@ mod tests {
         }, &test_ctx()).unwrap();
         game.execute_action(GameAction::DealDamage {
             source: creature_b,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 2,
             is_combat: true,
             unpreventable: false,
@@ -2764,7 +2759,7 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: cmdr,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 4,
             is_combat: true,
             unpreventable: false,
@@ -2782,7 +2777,7 @@ mod tests {
         for _ in 0..3 {
             game.execute_action(GameAction::DealDamage {
                 source: cmdr,
-                target: DamageTarget::Player(1),
+                target: ObjectOrPlayerId::Player(1),
                 amount: 7,
                 is_combat: true,
                 unpreventable: false,
@@ -2801,7 +2796,7 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: cmdr,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 4,
             is_combat: false,
             unpreventable: false,
@@ -2819,7 +2814,7 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: bears_id,
-            target: DamageTarget::Player(1),
+            target: ObjectOrPlayerId::Player(1),
             amount: 2,
             is_combat: true,
             unpreventable: false,
@@ -2851,11 +2846,11 @@ mod tests {
         let cmdr_b = build_cmdr(&mut game, "General B");
 
         game.execute_action(GameAction::DealDamage {
-            source: cmdr_a, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false,
+            source: cmdr_a, target: ObjectOrPlayerId::Player(1), amount: 3, is_combat: true, unpreventable: false,
             source_lki: None,
         }, &test_ctx()).unwrap();
         game.execute_action(GameAction::DealDamage {
-            source: cmdr_b, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false,
+            source: cmdr_b, target: ObjectOrPlayerId::Player(1), amount: 3, is_combat: true, unpreventable: false,
             source_lki: None,
         }, &test_ctx()).unwrap();
 

@@ -88,7 +88,7 @@ it is, rename it. Every name a PR adds is read against this list:
    Phase 10 owns "agent", and "Vehicle" is a subtype.
 5. **Don't name a thing by what it isn't, or by a state it can't have**:
    `EachOther`, not `Other`; `NONE`, not `EMPTY`.
-6. **Name a type by its contents**: `ObjectSet`, not `AffectedSet`.
+6. **Name a type by its contents**: a set of objects alone is `ObjectSet`, not `AffectedSet`, which names the objects and players an effect affects.
 7. **Where the card's text has a phrase, use it**: `DoThisOnlyOnceEachTurn`.
 8. **Name the players**: a condition about a player says which ones.
 9. **A constructor says what it builds**: `IdMap::default()`, not
@@ -207,6 +207,10 @@ is designed:
 - **Read the intake at the first ticket**: `check_state_of_play.py --slotted
   <name>` lists every open item slotted to the phase; take each or re-slot it.
 - **Every PR in a split carries at least one consumer of what it builds.**
+- **A brief opens with five plain lines the owner approves**: what changes in a
+  game, why now, what done means, the size, and a detour's budget. → `/next-brief`.
+- **A detour states its PR budget when it starts.** An audit, cleanup or rename
+  off the route names how many PRs it may take; going past needs the owner's yes.
 - **Review findings go to `plans/handoffs/<phase>-review.md`**, captured before
   anything is fixed, triaged, and closed one theme per session.
 - **`git log main..HEAD` lies after a squash merge**; check content with

@@ -40,9 +40,9 @@ use mtgsim::cards::phase_rd_cards::{circle_of_protection_red, mending_hands};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
@@ -61,10 +61,10 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
@@ -90,7 +90,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         ability_source: None,
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
+        targets: ChosenTargets::one(targets.iter().copied().map(ObjectOrPlayerId::Object).collect()),
         replaced_event: None,
         trigger: None,
     };
@@ -114,7 +114,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
     game.players[player].life_total
 }
 
-fn deal_damage(game: &mut GameState, source: ObjectId, target: DamageTarget, amount: u64) {
+fn deal_damage(game: &mut GameState, source: ObjectId, target: ObjectOrPlayerId, amount: u64) {
     game.execute_action(
         GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_lki: None },
         &test_ctx(),
@@ -176,8 +176,7 @@ fn cant_be_destroyed(game: &mut GameState, object: ObjectId) {
         created_on_turn: turn,
         def: RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::Destroy { source: None },
-            affected_objects: ObjectSet::Fixed(vec![object]),
-            affected_players: PlayerSet::Nobody,
+            affected: AffectedSet::objects(ObjectSet::Fixed(vec![object])),
             by: None,
         }),
     });
@@ -231,7 +230,7 @@ fn a_creature_exiled_and_returned_is_a_new_object() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     resolve_spell(&mut game, giant_growth(), 0, &[bears]);
     game.execute_action(
-        GameAction::AddCounters { subject: CounterSubject::Object(bears), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
+        GameAction::AddCounters { subject: ObjectOrPlayerId::Object(bears), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
         &test_ctx(),
     )
     .unwrap();
@@ -311,7 +310,7 @@ fn a_shield_against_a_chosen_source_does_not_watch_the_object_it_returns_as() {
     leave_and_return(&mut game, red, Zone::Graveyard, ZoneChangeAct::Destroyed);
     assert_eq!(game.replacement_effects.len(), 1, "it watches the existence it chose, by identity");
 
-    deal_damage(&mut game, red, DamageTarget::Player(0), 4);
+    deal_damage(&mut game, red, ObjectOrPlayerId::Player(0), 4);
     assert_eq!(life(&game, 0), 16, "the returned creature is not the chosen source");
 }
 
@@ -327,7 +326,7 @@ fn a_shield_on_a_creature_ends_when_it_moves() {
     leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeAct::Put);
     assert!(game.replacement_effects.is_empty());
 
-    deal_damage(&mut game, red, DamageTarget::Object(bears), 3);
+    deal_damage(&mut game, red, ObjectOrPlayerId::Object(bears), 3);
     assert_eq!(game.battlefield[&bears].damage_marked, 3, "nothing prevented it");
 }
 
@@ -342,18 +341,17 @@ fn a_shield_for_you_and_a_creature_keeps_protecting_you() {
         &mut game,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::Fixed(vec![bears]),
+            AffectedSet { objects: ObjectSet::Fixed(vec![bears]), players: PlayerSet::You },
             Rewrite::Prevent,
-        )
-        .affecting_players(PlayerSet::You),
+        ),
     );
 
     leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeAct::Destroyed);
     let row = game.replacement_effects.iter().next().expect("the player half keeps the row");
-    assert_eq!(row.def.affected_objects, ObjectSet::Fixed(Vec::new()));
+    assert_eq!(row.def.affected.objects, ObjectSet::Fixed(Vec::new()));
 
-    deal_damage(&mut game, red, DamageTarget::Object(bears), 3);
-    deal_damage(&mut game, red, DamageTarget::Player(0), 3);
+    deal_damage(&mut game, red, ObjectOrPlayerId::Object(bears), 3);
+    deal_damage(&mut game, red, ObjectOrPlayerId::Player(0), 3);
     assert_eq!(game.battlefield[&bears].damage_marked, 3, "the new creature is not protected");
     assert_eq!(life(&game, 0), 20, "you still are");
 }
@@ -404,8 +402,8 @@ fn a_spell_whose_target_left_and_came_back_does_not_resolve() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::picking(2));
-    let announced: Vec<ResolvedTarget> = game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect();
-    assert_eq!(announced, vec![ResolvedTarget::Object(bears)], "players first, then the Bears");
+    let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect();
+    assert_eq!(announced, vec![ObjectOrPlayerId::Object(bears)], "players first, then the Bears");
 
     leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeAct::Destroyed);
     game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -490,20 +488,20 @@ fn a_stolen_creature_destroyed_goes_home_as_a_new_object() {
     resolve_spell(&mut game, mtgsim::cards::phase_lg_cards::act_of_treason(), 0, &[bears]);
     assert_eq!(mtgsim::oracle::characteristics::get_effective_controller(&game, bears), Some(0));
     game.execute_action(
-        GameAction::AddCounters { subject: CounterSubject::Object(bears), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
+        GameAction::AddCounters { subject: ObjectOrPlayerId::Object(bears), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
         &test_ctx(),
     )
     .unwrap();
     let red = put_on_battlefield(&mut game, red_creature(1), 0);
-    deal_damage(&mut game, red, DamageTarget::Object(bears), 1);
+    deal_damage(&mut game, red, ObjectOrPlayerId::Object(bears), 1);
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
         ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: bears },
         vec![ChoiceOption::Object(bears)],
     );
     let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], aim);
-    let announced: Vec<ResolvedTarget> = game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect();
-    assert_eq!(announced, vec![ResolvedTarget::Object(bears)]);
+    let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect();
+    assert_eq!(announced, vec![ObjectOrPlayerId::Object(bears)]);
 
     destroy(&mut game, bears);
     assert!(game.players[1].graveyard.contains(&bears), "its owner's graveyard (CR 400.3)");
@@ -537,9 +535,9 @@ fn a_blocker_that_dies_before_damage_is_out_of_the_division() {
     assert_eq!(blocked_by, Some(vec![stays]), "removed from combat as it left");
 
     let assignments = assign_combat_damage(&game, &ScriptedDecisionProvider::new(), 0, false);
-    let from_attacker: Vec<(DamageTarget, u64)> =
+    let from_attacker: Vec<(ObjectOrPlayerId, u64)> =
         assignments.iter().filter(|a| a.source == attacker).map(|a| (a.target, a.amount)).collect();
-    assert_eq!(from_attacker, vec![(DamageTarget::Object(stays), 3)]);
+    assert_eq!(from_attacker, vec![(ObjectOrPlayerId::Object(stays), 3)]);
 }
 
 // ---------------------------------------------------------------------------
@@ -580,7 +578,7 @@ fn resolve_spell_with(
         ability_source: None,
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
+        targets: ChosenTargets::one(targets.iter().copied().map(ObjectOrPlayerId::Object).collect()),
         replaced_event: None,
         trigger: None,
     };
@@ -942,8 +940,8 @@ fn another_target_is_other_than_the_abilitys_own_source() {
     let dp = RecordingDecisionProvider::picking(0);
     game.activate_ability(0, pumper, 0, &dp).unwrap();
     let ability = *game.stack.last().unwrap();
-    let announced: Vec<ResolvedTarget> = game.stack_entries[&ability].chosen_targets[0].as_resolved_targets().collect();
-    assert_eq!(announced, vec![ResolvedTarget::Object(bears)]);
+    let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&ability].chosen_targets[0].as_resolved_targets().collect();
+    assert_eq!(announced, vec![ObjectOrPlayerId::Object(bears)]);
     assert_eq!(dp.prompts(), 0, "one legal choice is no choice");
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -972,7 +970,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
 }
 
 /// The trigger on top of the stack, and what it targets.
-fn top_targets(game: &GameState) -> (ObjectId, Vec<ResolvedTarget>) {
+fn top_targets(game: &GameState) -> (ObjectId, Vec<ObjectOrPlayerId>) {
     let top = *game.stack.last().expect("a trigger on the stack");
     (top, game.stack_entries[&top].chosen_targets[0].as_resolved_targets().collect())
 }
@@ -987,7 +985,7 @@ fn place_targeting(game: &mut GameState, target: ObjectId) -> ObjectId {
     game.perform_sba_and_triggers(&dp).unwrap();
     assert!(dp.is_empty(), "the target was asked for as the trigger was put on the stack");
     let (trigger, targets) = top_targets(game);
-    assert_eq!(targets, vec![ResolvedTarget::Object(target)]);
+    assert_eq!(targets, vec![ObjectOrPlayerId::Object(target)]);
     trigger
 }
 
@@ -1219,8 +1217,8 @@ fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
 
     let source = game.add_object(GameObject::new(grizzly_bears(), 0, Zone::Stack));
     let mut targets = ChosenTargets::NONE;
-    targets.push(vec![ResolvedTarget::Object(first)]);
-    targets.push(vec![ResolvedTarget::Object(second)]);
+    targets.push(vec![ObjectOrPlayerId::Object(first)]);
+    targets.push(vec![ObjectOrPlayerId::Object(second)]);
     let ctx = ResolutionContext {
         source,
         ability_source: None,

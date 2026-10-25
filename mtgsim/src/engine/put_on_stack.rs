@@ -20,9 +20,9 @@ use crate::events::event::GameEvent;
 use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
-use crate::engine::targeting::{TargetInstance, TargetRef};
+use crate::engine::targeting::TargetInstance;
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayer, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
@@ -153,7 +153,7 @@ impl GameState {
         }
 
         // Printed order, mandatory costs included whether or not anything was
-        // offered — `additional_costs_paid` is what was paid, not what was
+        // offered — `cost_choices.additional` is what was paid, not what was
         // announced.
         let announced: std::collections::HashSet<usize> = chosen_offered_indices
             .iter()
@@ -211,8 +211,10 @@ impl GameState {
             x_value: has_x.then_some(x_value),
             effect: Arc::new(effect),
             is_spell: true,
-            chosen_alternative_cost: chosen_alt.cloned(),
-            additional_costs_paid: chosen_additional.iter().map(|&cost| cost.clone()).collect(),
+            cost_choices: crate::state::battlefield::CostChoices {
+                additional: chosen_additional.iter().map(|&cost| cost.clone()).collect(),
+                alternative: chosen_alt.cloned(),
+            },
             mana_spent: ManaSpent::NONE,
             cast_from: Some(cast_from),
             ability_identity: None,
@@ -387,7 +389,7 @@ impl GameState {
     /// is once for the spell, and the dispatch may ask with `dp`.
     pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause, dp: &dyn DecisionProvider) -> Result<(), String> {
         let Some(entry) = self.stack_entries.get(&by) else { return Ok(()) };
-        let mut targeted: Vec<(TargetRef, u32)> = Vec::new();
+        let mut targeted: Vec<(ObjectOrPlayer, u32)> = Vec::new();
         for target in entry.chosen_targets.iter().filter(|instance| instance.is_targeted()).flat_map(|instance| &instance.chosen) {
             match targeted.iter_mut().find(|(seen, _)| seen == target) {
                 Some((_, instances)) => *instances += 1,
@@ -522,8 +524,7 @@ impl GameState {
             x_value: None,
             effect: Arc::new(effect),
             is_spell: false,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
             // An activated ability is not cast from anywhere (CR 602.2a gives
             // it a source, which is a different fact). See `cast_from`.
@@ -744,7 +745,7 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::resolve::ResolvedTarget;
+    use crate::types::ids::ObjectOrPlayerId;
     use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
     use crate::types::card_types::*;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
@@ -909,7 +910,7 @@ mod tests {
         assert_eq!(entry.chosen_targets.len(), 1, "one instance of \"target\"");
         assert_eq!(
             entry.chosen_targets[0].as_resolved_targets().collect::<Vec<_>>(),
-            vec![ResolvedTarget::Player(1)]
+            vec![ObjectOrPlayerId::Player(1)]
         );
         assert!(entry.is_spell);
     }
@@ -1140,7 +1141,7 @@ mod tests {
         // Card on stack
         assert!(game.stack.contains(&card_id));
         let entry = game.stack_entries.get(&card_id).unwrap();
-        assert!(entry.chosen_alternative_cost.is_some());
+        assert!(entry.cost_choices.alternative.is_some());
         // Life paid
         assert_eq!(game.players[0].life_total, 17);
     }
@@ -1180,8 +1181,8 @@ mod tests {
 
         assert!(game.stack.contains(&card_id));
         let entry = game.stack_entries.get(&card_id).unwrap();
-        assert_eq!(entry.additional_costs_paid.len(), 1);
-        assert!(matches!(&entry.additional_costs_paid[0], AdditionalCost::Kicker(_)));
+        assert_eq!(entry.cost_choices.additional.len(), 1);
+        assert!(matches!(&entry.cost_choices.additional[0], AdditionalCost::Kicker(_)));
         // All 3 red mana spent
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
     }
@@ -1194,7 +1195,7 @@ mod tests {
 
         let entry = game.stack_entries.get(&card_id).unwrap();
         assert_eq!(entry.x_value, None);
-        assert!(entry.chosen_alternative_cost.is_none());
-        assert!(entry.additional_costs_paid.is_empty());
+        assert!(entry.cost_choices.alternative.is_none());
+        assert!(entry.cost_choices.additional.is_empty());
     }
 }

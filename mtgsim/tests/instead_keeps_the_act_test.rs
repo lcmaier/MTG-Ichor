@@ -23,7 +23,7 @@ use mtgsim::cards::phase_rc_cards::{containment_priest, dryad_arbor};
 use mtgsim::cards::phase_re8_cards::{mind_rot, nephalia_academy};
 use mtgsim::cards::phase_rs_cards::diabolic_edict;
 use mtgsim::engine::actions::ZoneChangeAct;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GeneratedBy, SpecialAction, StateBasedAction};
 use mtgsim::events::event::GameEvent;
@@ -39,7 +39,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangePattern, ZoneSet};
@@ -114,7 +114,7 @@ fn resolve_at_player(
         ability_source: None,
         controller: caster,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Player(target_player)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Player(target_player)]),
         replaced_event: None,
         trigger: None,
     };

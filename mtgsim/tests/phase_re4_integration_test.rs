@@ -41,7 +41,7 @@ use mtgsim::types::card_types::{
 };
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef,
+    AffectedSet, ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     PlayerSet, Primitive, SelectionFilter, TokenDef,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -636,8 +636,7 @@ fn a_token_that_cannot_enter_is_not_created() {
                 change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None },
                 object: None,
             },
-            affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
-            affected_players: PlayerSet::Nobody,
+            affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature))),
             by: None,
         },
     ))));
@@ -725,10 +724,9 @@ fn amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest() {
     let plus_one = static_ability(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::CreateTokens { kind: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::Plus(1)),
-        )
-        .affecting_players(PlayerSet::You),
+        ),
     )));
     put_on_battlefield(&mut game, enchantment_with("That Many Plus One", plus_one), 0);
     let source = put_in_hand(&mut game, fixture_object(), 0);
@@ -1072,14 +1070,13 @@ fn an_append_template_keeps_the_creation_and_joins_its_own_def() {
     let one_more = static_ability(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Artifact)) },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Instead(GameActionTemplate::CreateTokens {
                 def: trinket(),
                 count: TemplateAmount::Fixed(1),
                 mode: TokenSubstitution::Append,
             }),
-        )
-        .affecting_players(PlayerSet::You),
+        ),
     )));
     put_on_battlefield(&mut game, enchantment_with("One More Trinket", one_more), 0);
 
@@ -1151,10 +1148,9 @@ fn a_multiplier_on_a_kind_repeats_only_that_kind() {
     let creatures_twice = static_ability(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Creature)) },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
-        )
-        .affecting_players(PlayerSet::You),
+        ),
     )));
     put_on_battlefield(&mut game, enchantment_with("Creatures Twice", creatures_twice), 0);
 

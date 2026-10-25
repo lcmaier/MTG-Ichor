@@ -25,7 +25,7 @@ use std::sync::Arc;
 use mtgsim::cards::phase_re10_cards::aggravated_assault;
 use mtgsim::cards::phase_re_cards::moment_of_silence;
 use mtgsim::engine::actions::ActionContext;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
@@ -33,7 +33,7 @@ use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_in_hand, put_on_battlefield, set_attacking,
     setup_game, setup_two_player_game, test_dp,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -75,7 +75,7 @@ fn resolve_spell(
     game: &mut GameState,
     card: Arc<CardData>,
     controller: PlayerId,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
 ) {
     let id = put_in_hand(game, card.clone(), controller);
     let ctx = ResolutionContext {
@@ -409,7 +409,7 @@ fn untap_all_creatures_you_control_is_one_batch_and_spares_the_opponents() {
 fn moment_of_silence_skips_only_the_next_of_two_combat_phases() {
     let mut game = in_precombat_main(2);
     activate_assault(&mut game, 0);
-    resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
+    resolve_spell(&mut game, moment_of_silence(), 0, vec![ObjectOrPlayerId::Player(0)]);
 
     // Asserted before the walk: `on_turn_begin` rebuilds the plan, so after
     // the turn boundary this reads the *next* turn's five phases.
@@ -467,7 +467,7 @@ fn a_skip_cast_during_a_combat_phase_is_spent_on_the_next_one() {
 
     // Cast inside it. CR 614.10's last sentence: the phase has started, so
     // this row watches nothing here.
-    resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
+    resolve_spell(&mut game, moment_of_silence(), 0, vec![ObjectOrPlayerId::Player(0)]);
     let mark = game.recorded_events().len();
     while game.phase.phase_type == PhaseType::Combat {
         game.advance_turn(ctx.dp).expect("advancing");

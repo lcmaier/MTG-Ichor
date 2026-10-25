@@ -9,13 +9,13 @@ use std::sync::Arc;
 
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+use crate::engine::resolve::ResolutionContext;
 use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::events::event::{EventRecord, GameEvent};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::state::game_state::GameState;
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::triggers::{EventRole, Lki, TriggerBinding, TriggerEvent, TriggeringEventObjects};
 
 /// The frame `record` carries for its object `id`, as `arm` reads it: a
@@ -230,7 +230,7 @@ impl GameState {
         &self,
         recipient: &EffectRecipient,
         ctx: &ResolutionContext,
-    ) -> Result<Vec<ResolvedTarget>, String> {
+    ) -> Result<Vec<ObjectOrPlayerId>, String> {
         let binding = ctx.trigger.as_ref().ok_or_else(|| {
             format!(
                 "{:?} on {:?} refers to a trigger's event, and this resolution is not a triggered ability's",
@@ -240,16 +240,16 @@ impl GameState {
         Ok(match recipient {
             EffectRecipient::Triggering(role) => {
                 self.note_binding_read(ctx, TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*role));
-                self.bound_objects(binding, *role).into_iter().map(ResolvedTarget::Object).collect()
+                self.bound_objects(binding, *role).into_iter().map(ObjectOrPlayerId::Object).collect()
             }
             EffectRecipient::TriggeringPlayer => {
                 self.note_binding_read(ctx, TriggerBindingReads::PLAYER);
-                self.bound_player(binding).map(ResolvedTarget::Player).into_iter().collect()
+                self.bound_player(binding).map(ObjectOrPlayerId::Player).into_iter().collect()
             }
             EffectRecipient::Referred => {
                 self.note_binding_read(ctx, TriggerBindingReads::REFERRED);
-                let objects = binding.referred.objects.iter().filter_map(|r| r.found(self)).map(ResolvedTarget::Object);
-                objects.chain(binding.referred.players.iter().map(|&p| ResolvedTarget::Player(p))).collect()
+                let objects = binding.referred.objects.iter().filter_map(|r| r.found(self)).map(ObjectOrPlayerId::Object);
+                objects.chain(binding.referred.players.iter().map(|&p| ObjectOrPlayerId::Player(p))).collect()
             }
             other => {
                 return Err(format!("{:?} is not a bound fact of a trigger", other));
@@ -264,7 +264,8 @@ mod tests {
     use crate::events::event::GameEvent;
     use crate::oracle::characteristics::get_effective_power;
     use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_dp, vanilla_creature};
-    use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+    use crate::engine::resolve::ResolutionContext;
+    use crate::types::ids::ObjectOrPlayerId;
     use crate::engine::targeting::ChosenTargets;
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::card_types::CardType;
@@ -299,7 +300,7 @@ mod tests {
             ability_source: None,
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,
-            targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
+            targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(creature)]),
             replaced_event: None,
             trigger: None,
         };

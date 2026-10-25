@@ -21,7 +21,7 @@ use mtgsim::cards::phase_re_cards::{
 };
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::cause::{EventCause, GameRule, StateBasedAction};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -34,11 +34,10 @@ use mtgsim::test_support::{
     fill_library, put_in_hand, put_on_battlefield, setup_game, test_ctx, test_dp,
     vanilla_creature, RecordingDecisionProvider,
 };
-use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PlayerSet, Primitive,
+use mtgsim::types::effects::{AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
@@ -62,7 +61,7 @@ fn resolve_with(
     game: &mut GameState,
     controller: PlayerId,
     effect: &Effect,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
     dp: &dyn DecisionProvider,
 ) {
     let source = put_in_hand(game, fixture_object(), controller);
@@ -99,7 +98,7 @@ fn stage_spell_with(
     game: &mut GameState,
     card: Arc<CardData>,
     controller: PlayerId,
-    chosen_targets: Vec<ResolvedTarget>,
+    chosen_targets: Vec<ObjectOrPlayerId>,
     recipient: EffectRecipient,
 ) -> ObjectId {
     let effect = mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell");
@@ -115,8 +114,7 @@ fn stage_spell_with(
         x_value: None,
         effect: Arc::new(effect),
         is_spell: true,
-        chosen_alternative_cost: None,
-        additional_costs_paid: Vec::new(),
+        cost_choices: mtgsim::state::battlefield::CostChoices::NONE,
         mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
         ability_identity: None,
@@ -428,7 +426,7 @@ fn a_departed_player_is_not_a_legal_target_and_the_spell_fizzles() {
         &mut game,
         draw_for_target,
         0,
-        vec![ResolvedTarget::Player(2)],
+        vec![ObjectOrPlayerId::Player(2)],
         EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
     );
     game.players[2].life_total = 0;
@@ -453,7 +451,7 @@ fn exile_reaches_a_card_in_a_graveyard() {
         EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
     );
 
-    resolve_with(&mut game, 0, &exile, vec![ResolvedTarget::Object(card)], &test_dp());
+    resolve_with(&mut game, 0, &exile, vec![ObjectOrPlayerId::Object(card)], &test_dp());
 
     assert_eq!(zone_of(&game, card), Zone::Exile);
     assert!(game.players[1].graveyard.is_empty());
@@ -476,10 +474,9 @@ fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
         effect: Effect::Replacement(Box::new(
             mtgsim::types::replacement::ReplacementDef::new(
                 EventPattern::PlayerLoses,
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 mtgsim::types::replacement::Rewrite::Prevent,
             )
-            .affecting_players(PlayerSet::You)
             .with_then(Effect::Atom(
                 Primitive::GainLife(AmountExpr::Fixed(1)),
                 EffectRecipient::Controller,
@@ -527,8 +524,7 @@ fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
             },
             Box::new(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::PlayerLoses,
-                affected_objects: ObjectSet::NO_OBJECTS,
-                affected_players: PlayerSet::You,
+                affected: AffectedSet::players(PlayerSet::You),
                 by: None,
             })))),
         ),
@@ -634,7 +630,7 @@ fn an_effect_may_state_that_a_player_loses_the_game() {
         Primitive::LoseGame,
         EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
     );
-    resolve_with(&mut game, 0, &effect, vec![ResolvedTarget::Player(1)], &test_dp());
+    resolve_with(&mut game, 0, &effect, vec![ObjectOrPlayerId::Player(1)], &test_dp());
 
     assert!(game.player_lost[1]);
     let losses = losses(&game);
@@ -722,8 +718,7 @@ fn setting_a_life_total_higher_under_a_cant_gain_does_nothing() {
         Primitive::Restrict(
             RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::GainLife,
-                affected_objects: ObjectSet::NO_OBJECTS,
-                affected_players: PlayerSet::Everyone,
+                affected: AffectedSet::players(PlayerSet::Everyone),
                 by: None,
             }),
             Duration::UntilEndOfTurn,

@@ -1328,18 +1328,19 @@ mod tests {
 
     /// `AbilityType::Triggered` and `Effect::Triggered` are one fact written
     /// twice: the tag is what priority and display key on, the effect is what
-    /// the trigger dispatcher reads. `authoring::triggered_ability` writes both
-    /// and is the only constructor of either, so the dispatcher asks only the
-    /// effect. This is what makes that safe for every card, printed or nested.
+    /// the trigger dispatcher reads, through `Effect::as_trigger`, which sees
+    /// past a statement of where it functions. `authoring::triggered_ability`
+    /// writes both and is the only constructor of either, so the dispatcher
+    /// asks only the effect. This is what makes that safe for every card,
+    /// printed or nested.
     #[test]
     fn a_triggered_tag_and_a_triggered_effect_always_come_together() {
         use crate::objects::card_data::{AbilityDef, AbilityType};
-        use crate::types::effects::Effect;
 
         fn check(what: &str, def: &AbilityDef) {
             assert_eq!(
                 def.ability_type == AbilityType::Triggered,
-                matches!(def.effect, Effect::Triggered(_)),
+                def.effect.as_trigger().is_some(),
                 "{what}: the ability's tag and its effect disagree"
             );
         }
@@ -1384,6 +1385,65 @@ mod tests {
         }
     }
 
+    /// CR 113.6b's statement of where a static ability functions wraps the
+    /// ability's whole effect, so every reader finds it by one peel
+    /// (`Effect::with_its_condition`): an `Effect::FunctionsIn` anywhere but
+    /// the root of an ability's effect would be read by none of them.
+    #[test]
+    fn every_zone_statement_is_at_its_abilitys_root() {
+        use crate::objects::card_data::AbilityDef;
+        use crate::types::effects::Effect;
+
+        fn inner_statements(effect: &Effect) -> usize {
+            let mut found = 0;
+            let mut stack: Vec<&Effect> = vec![effect];
+            while let Some(effect) = stack.pop() {
+                match effect {
+                    Effect::FunctionsIn(_, inner) => {
+                        found += 1;
+                        stack.push(inner);
+                    }
+                    Effect::Sequence(subs) | Effect::Modal { modes: subs, .. } => stack.extend(subs.iter()),
+                    Effect::Conditional(_, inner)
+                    | Effect::Optional { effect: inner, .. }
+                    | Effect::Remember(inner)
+                    | Effect::ForEach(_, inner)
+                    | Effect::Repeat(_, inner) => stack.push(inner),
+                    Effect::Triggered(def) => stack.push(&def.effect),
+                    Effect::Atom(..)
+                    | Effect::Replacement(_)
+                    | Effect::Restriction(_)
+                    | Effect::CostModification(_)
+                    | Effect::TriggerMultiplier(_) => {}
+                }
+            }
+            found
+        }
+        fn check(what: &str, def: &AbilityDef) {
+            let below_the_root = match &def.effect {
+                Effect::FunctionsIn(_, body) => inner_statements(body),
+                effect => inner_statements(effect),
+            };
+            assert_eq!(below_the_root, 0, "{what}: a zone statement below its ability's root");
+        }
+
+        let registry = CardRegistry::default_registry();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            let mut copy = (*card).clone();
+            for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
+                check(&format!("{name} ability #{i}"), ability);
+                let mut nested = 0usize;
+                ability.effect.for_each_ability_def_mut(&mut |def: &mut AbilityDef| {
+                    check(&format!("{name} ability #{i}, nested def #{nested}"), def);
+                    nested += 1;
+                });
+            }
+        }
+    }
+
     /// Every event role a registered trigger names is one every arm of its
     /// condition has (TR-5a's decision 2): "that creature" after a dies
     /// trigger is the card that moved, and no dies record has a recipient. A
@@ -1421,6 +1481,7 @@ mod tests {
                     effects.iter().for_each(|e| walk(what, e));
                 }
                 Effect::Conditional(_, inner)
+                | Effect::FunctionsIn(_, inner)
                 | Effect::Optional { effect: inner, .. }
                 | Effect::Remember(inner)
                 | Effect::ForEach(_, inner)
@@ -1543,6 +1604,7 @@ mod instance_references {
                         stack.extend(subs.iter())
                     }
                     Effect::Conditional(_, inner)
+                    | Effect::FunctionsIn(_, inner)
                     | Effect::Optional { effect: inner, .. }
                     | Effect::Remember(inner)
                     | Effect::ForEach(_, inner)

@@ -11,7 +11,6 @@
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
-use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
@@ -25,7 +24,7 @@ use mtgsim::test_support::{
     effect_ctx,
 };
 use mtgsim::types::effects::{Effect, EffectRecipient, SelectionFilter, TargetCount};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaSpent, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -51,7 +50,7 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
     let id = game.add_object(obj);
     game.stack.push(id);
     let enchant = holy_strength().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
-    let chosen_targets = vec![TargetInstance::from_announcement(game, enchant, &[ResolvedTarget::Object(target)]).unwrap()];
+    let chosen_targets = vec![TargetInstance::from_announcement(game, enchant, &[ObjectOrPlayerId::Object(target)]).unwrap()];
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
@@ -60,8 +59,7 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
         x_value: None,
         effect: std::sync::Arc::new(Effect::Sequence(Vec::new())),
         is_spell: true,
-        chosen_alternative_cost: None,
-        additional_costs_paid: Vec::new(),
+        cost_choices: mtgsim::state::battlefield::CostChoices::NONE,
         mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
         ability_identity: None,

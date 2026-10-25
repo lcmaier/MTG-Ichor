@@ -29,8 +29,6 @@
 
 use std::collections::HashMap;
 
-use crate::engine::resolve::ResolvedTarget;
-use crate::events::event::DamageTarget;
 use crate::state::battlefield::AttackTarget;
 use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::diagnostics::Diagnostics;
@@ -39,7 +37,7 @@ use crate::engine::trace_records;
 use crate::events::unasked::{Unasked, UnaskedAnswer};
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
 
@@ -599,7 +597,7 @@ pub fn ask_choose_trample_damage_assignment(
     player: PlayerId,
     attacker_id: ObjectId,
     blockers: &[ObjectId],
-    defending_target: DamageTarget,
+    defending_target: ObjectOrPlayerId,
     power: u64,
     per_blocker_mins: &[u64],
     per_bucket_maxs: Option<&[u64]>,
@@ -610,8 +608,8 @@ pub fn ask_choose_trample_damage_assignment(
         .map(|id| ChoiceOption::Object(*id))
         .collect();
     match &defending_target {
-        DamageTarget::Player(pid) => buckets.push(ChoiceOption::Player(*pid)),
-        DamageTarget::Object(oid) => buckets.push(ChoiceOption::Object(*oid)),
+        ObjectOrPlayerId::Player(pid) => buckets.push(ChoiceOption::Player(*pid)),
+        ObjectOrPlayerId::Object(oid) => buckets.push(ChoiceOption::Object(*oid)),
     }
 
     // Build per-bucket minimums: blocker mins + 0 for the defending target
@@ -732,17 +730,17 @@ pub fn ask_choose_additional_costs(
 /// Select recipients for an effect (covers both MTG "target" and non-targeting "choose").
 ///
 /// `legal_selections` contains every legal recipient (objects AND players).
-/// Returns the chosen `ResolvedTarget`s.
+/// Returns the chosen `ObjectOrPlayerId`s.
 pub fn ask_select_recipients(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     recipient: &EffectRecipient,
     spell_id: ObjectId,
-    legal_selections: &[ResolvedTarget],
+    legal_selections: &[ObjectOrPlayerId],
     min_selections: usize,
     max_selections: usize,
-) -> Vec<ResolvedTarget> {
+) -> Vec<ObjectOrPlayerId> {
     // Nothing to choose from, or a count of zero, is no question.
     if legal_selections.is_empty() || (min_selections == 0 && max_selections == 0) {
         return Vec::new();
@@ -750,8 +748,8 @@ pub fn ask_select_recipients(
     let options: Vec<ChoiceOption> = legal_selections
         .iter()
         .map(|t| match t {
-            ResolvedTarget::Object(id) => ChoiceOption::Object(*id),
-            ResolvedTarget::Player(id) => ChoiceOption::Player(*id),
+            ObjectOrPlayerId::Object(id) => ChoiceOption::Object(*id),
+            ObjectOrPlayerId::Player(id) => ChoiceOption::Player(*id),
         })
         .collect();
     let ctx = ChoiceContext::new(ChoiceKind::SelectRecipients {
@@ -1450,14 +1448,14 @@ mod tests {
         dp.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: attacker,
-                defending_target: DamageTarget::Player(1),
+                defending_target: ObjectOrPlayerId::Player(1),
             },
             vec![2, 1, 2],
         );
         let (blockers, overflow) = ask_choose_trample_damage_assignment(
             &dp, &game, 0, attacker,
             &[blocker_a, blocker_b],
-            DamageTarget::Player(1),
+            ObjectOrPlayerId::Player(1),
             5,
             &[2, 1], // per-blocker lethal minimums
             None,
@@ -1477,14 +1475,14 @@ mod tests {
         dp.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: attacker,
-                defending_target: DamageTarget::Player(1),
+                defending_target: ObjectOrPlayerId::Player(1),
             },
             vec![1, 4],
         );
         let _ = ask_choose_trample_damage_assignment(
             &dp, &game, 0, attacker,
             &[blocker],
-            DamageTarget::Player(1),
+            ObjectOrPlayerId::Player(1),
             5,
             &[2], // blocker needs at least 2
             None,
@@ -1889,7 +1887,7 @@ mod tests {
 
         let ctx = ChoiceContext::new(ChoiceKind::AssignTrampleDamage {
             attacker_id: crate::types::ids::new_object_id(),
-            defending_target: crate::events::event::DamageTarget::Player(1),
+            defending_target: crate::types::ids::ObjectOrPlayerId::Player(1),
         });
         let buckets = vec![
             ChoiceOption::Object(crate::types::ids::new_object_id()),

@@ -70,7 +70,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter, ObjectSet,
+    AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
     PatternFill, PlayerRef, PlayerSet, Primitive,
 };
 use crate::types::ids::AbilityId;
@@ -150,10 +150,9 @@ pub fn mana_reflection() -> Arc<CardData> {
         .ability(static_replacement("If you tap a permanent for mana, it produces twice as much of that mana instead.",
             ReplacementDef::new(
                 tapped_for_mana(None),
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -195,10 +194,9 @@ pub fn nyxbloom_ancient() -> Arc<CardData> {
         .ability(static_replacement("If you tap a permanent for mana, it produces three times as much of that mana instead.",
             ReplacementDef::new(
                 tapped_for_mana(None),
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::Multiplier(3)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -257,13 +255,12 @@ pub fn deep_water() -> Arc<CardData> {
                                 Box::new(ObjectFilter::ByType(CardType::Land)),
                                 Box::new(ObjectFilter::ByController(PlayerRef::You)),
                             ))),
-                            ObjectSet::NO_OBJECTS,
+                            PlayerSet::You,
                             Rewrite::Instead(GameActionTemplate::ProduceMana {
                                 mana_type: ManaType::Blue,
                                 amount: TemplateAmount::ReplacedAmount,
                             }),
-                        )
-                        .affecting_players(PlayerSet::You),
+                        ),
                     ),
                     Duration::UntilEndOfTurn,
                     PatternFill::Authored,
@@ -320,13 +317,12 @@ pub fn pale_moon() -> Arc<CardData> {
                                     Supertype::Basic,
                                 )))),
                             ))),
-                            ObjectSet::NO_OBJECTS,
+                            PlayerSet::Everyone,
                             Rewrite::Instead(GameActionTemplate::ProduceMana {
                                 mana_type: ManaType::Colorless,
                                 amount: TemplateAmount::ReplacedAmount,
                             }),
-                        )
-                        .affecting_players(PlayerSet::Everyone),
+                        ),
                     ),
                     Duration::UntilEndOfTurn,
                     PatternFill::Authored,

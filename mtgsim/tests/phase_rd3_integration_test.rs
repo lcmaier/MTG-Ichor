@@ -21,7 +21,7 @@ use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
-use mtgsim::events::event::{BatchId, DamageTarget, GameEvent};
+use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
@@ -32,8 +32,8 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{ObjectSet, Duration, ObjectFilter, PlayerSet};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::effects::{Duration, ObjectFilter, PlayerSet};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{
@@ -256,10 +256,9 @@ fn a_partly_spent_count_keeps_its_remainder_when_the_source_stops_matching() {
                 source: Some(SourcePattern::matching(ObjectFilter::ByColor(Color::Red))),
                 combat: None,
             },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
-        .affecting_players(PlayerSet::You)
         .next_damage(3),
     );
 
@@ -267,7 +266,7 @@ fn a_partly_spent_count_keeps_its_remainder_when_the_source_stops_matching() {
         game.execute_action(
             GameAction::DealDamage {
                 source,
-                target: DamageTarget::Player(0),
+                target: ObjectOrPlayerId::Player(0),
                 amount,
                 is_combat: false,
                 unpreventable: false,
@@ -309,10 +308,9 @@ fn a_count_over_one_applicable_source_of_two_asks_nobody() {
                 source: Some(SourcePattern::matching(ObjectFilter::ByColor(Color::Red))),
                 combat: None,
             },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
-        .affecting_players(PlayerSet::You)
         .next_damage(3),
     );
 
@@ -321,7 +319,7 @@ fn a_count_over_one_applicable_source_of_two_asks_nobody() {
         vec![
             GameAction::DealDamage {
                 source: red,
-                target: DamageTarget::Player(0),
+                target: ObjectOrPlayerId::Player(0),
                 amount: 2,
                 is_combat: false,
                 unpreventable: false,
@@ -329,7 +327,7 @@ fn a_count_over_one_applicable_source_of_two_asks_nobody() {
             },
             GameAction::DealDamage {
                 source: colorless,
-                target: DamageTarget::Player(0),
+                target: ObjectOrPlayerId::Player(0),
                 amount: 4,
                 is_combat: false,
                 unpreventable: false,
@@ -405,7 +403,7 @@ fn torbran_divides_before_adding_two() {
     dp.expect_allocation(
         ChoiceKind::AssignTrampleDamage {
             attacker_id: trampler,
-            defending_target: DamageTarget::Player(1),
+            defending_target: ObjectOrPlayerId::Player(1),
         },
         vec![2, 3],
     );
@@ -459,7 +457,7 @@ fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
     game.execute_action(
         GameAction::DealDamage {
             source: spell,
-            target: DamageTarget::Player(0),
+            target: ObjectOrPlayerId::Player(0),
             amount: 6,
             is_combat: false,
             unpreventable: false,

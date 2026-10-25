@@ -34,9 +34,8 @@ use mtgsim::cards::phase_tr1_cards::soul_warden;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::engine::layers::types::{EffectModification, Layer, PtValue};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
@@ -51,10 +50,10 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, PlayerSet,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef,
     Primitive, TokenDef,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{
@@ -232,7 +231,7 @@ fn resolve_spell(
     game: &mut GameState,
     card: Arc<CardData>,
     controller: PlayerId,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
     dp: &dyn DecisionProvider,
 ) {
     let source = game.add_object(GameObject::new(card.clone(), controller, Zone::Stack));
@@ -341,8 +340,7 @@ fn worms_of_the_earth() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black, ManaType::Black], 2))
         .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::ZoneChange { change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None }, object: None },
-            affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land)),
-            affected_players: PlayerSet::Nobody,
+            affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land))),
             by: None,
         })))))
         .build()
@@ -524,7 +522,7 @@ fn a_clone_is_unchanged_when_its_donor_becomes_a_copy_of_something_else() {
     let clone = clone_of(&mut game, 0, bears);
 
     let dp = ById::new().then(0, "ChooseCopySource", &[big]);
-    resolve_spell(&mut game, cytoshape(), 0, vec![ResolvedTarget::Object(bears)], &dp);
+    resolve_spell(&mut game, cytoshape(), 0, vec![ObjectOrPlayerId::Object(bears)], &dp);
     assert_eq!(get_effective_name(&game, bears), "Colossus");
 
     assert_eq!(get_effective_name(&game, clone), "Grizzly Bears");
@@ -900,7 +898,7 @@ fn a_clone_of_sigarda_keeps_its_controller_from_sacrificing() {
     let clone = clone_of(&mut game, 0, sigarda);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
 
-    resolve_spell(&mut game, diabolic_edict(), 1, vec![ResolvedTarget::Player(0)], &ById::new());
+    resolve_spell(&mut game, diabolic_edict(), 1, vec![ObjectOrPlayerId::Player(0)], &ById::new());
     assert_eq!(zone_of(&game, clone), Zone::Battlefield);
     assert_eq!(zone_of(&game, bears), Zone::Battlefield);
 }
@@ -986,7 +984,7 @@ fn a_copy_effect_over_a_clone_expires_back_to_the_entry_copy() {
     let clone = clone_of(&mut game, 0, big);
 
     let dp = ById::new().then(0, "ChooseCopySource", &[bears]);
-    resolve_spell(&mut game, cytoshape(), 0, vec![ResolvedTarget::Object(clone)], &dp);
+    resolve_spell(&mut game, cytoshape(), 0, vec![ObjectOrPlayerId::Object(clone)], &dp);
     assert_eq!(get_effective_name(&game, clone), "Grizzly Bears");
 
     game.continuous_effects.remove_expired_at_cleanup(0, game.turn_number);
@@ -1031,7 +1029,7 @@ fn a_clone_of_a_commander_is_not_a_commander() {
     let ctx = ActionContext::new(&dp);
     let hit = |source| GameAction::DealDamage {
         source,
-        target: DamageTarget::Player(0),
+        target: ObjectOrPlayerId::Player(0),
         amount: 2,
         is_combat: true,
         unpreventable: false,

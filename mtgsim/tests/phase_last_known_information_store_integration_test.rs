@@ -8,7 +8,7 @@ use mtgsim::cards::alpha::counterspell;
 use mtgsim::cards::authoring::{at_beginning_of, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::engine::actions::{ActionContext, GameAction};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GeneratedBy};
 use mtgsim::events::event::GameEvent;
@@ -19,7 +19,7 @@ use mtgsim::test_support::{
     put_spell_on_stack, setup_game, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
-use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, Referred, TriggerTurn};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
@@ -34,7 +34,7 @@ fn counter(game: &mut GameState, spell: ObjectId, player: PlayerId) {
         ability_source: None,
         controller: player,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(spell)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(spell)]),
         replaced_event: None,
         trigger: None,
     };

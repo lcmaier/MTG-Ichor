@@ -22,7 +22,6 @@
 
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::types::card_types::{CardType, CardTypes};
-use crate::types::effects::{Condition, Effect};
 use crate::types::triggers::{TriggerDef, TriggerEvent, TriggerSubject};
 use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
@@ -63,12 +62,13 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
 
     // CR 113.6b — "An ability that states which zones it functions in
     // functions only from those zones" — and 113.6c, which is the same field
-    // holding a complement (`ZoneSet::ALL.without(..)`). The statement is a
-    // clause of the card's text and the clause is a `Condition`: a static
-    // ability's "as long as" (Wonder) or a triggered ability's intervening
-    // "if" (Bridge from Below). See [`stated_zones`] for why that is the CR's
-    // shape rather than a convenience.
-    if let Some(zones) = zones_its_text_states(&ability.effect) {
+    // holding a complement (`ZoneSet::ALL.without(..)`): the
+    // `Effect::FunctionsIn` at the ability's root, a static ability's (Wonder)
+    // or a triggered ability's (Bridge from Below). A keyword's own rule
+    // (flashback in a graveyard, CR 702.34a) and CR 113.6m's inference from a
+    // cost or effect place an ability without its text stating a zone, and
+    // are arms of their own when they land.
+    if let Some(zones) = ability.effect.stated_zones() {
         return zones;
     }
 
@@ -81,32 +81,11 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
     // on the battlefield. The ability's zones are its conditions' together,
     // and the dispatcher asks each again ([`condition_functions_in`]). What an
     // *effect* says about a zone is CR 113.6m's, not derived.
-    if let Effect::Triggered(def) = &ability.effect {
+    if let Some(def) = ability.effect.as_trigger() {
         return trigger_zones(def, types);
     }
 
     default_zones(types)
-}
-
-/// The zones an ability's text states it functions in (CR 113.6b, 113.6c):
-/// the clause of a static ability's "as long as", or of a triggered ability's
-/// intervening "if". `None` when the text states none.
-fn zones_its_text_states(effect: &Effect) -> Option<ZoneSet> {
-    match effect {
-        Effect::Conditional(condition, _) => stated_zones(condition),
-        Effect::Triggered(def) => intervening_if_zones(def),
-        Effect::Atom(..)
-        | Effect::Sequence(_)
-        | Effect::Modal { .. }
-        | Effect::Optional { .. }
-        | Effect::Remember(_)
-        | Effect::ForEach(..)
-        | Effect::Repeat(..)
-        | Effect::Replacement(_)
-        | Effect::Restriction(_)
-        | Effect::CostModification(_)
-        | Effect::TriggerMultiplier(_) => None,
-    }
 }
 
 /// CR 113.6k's derivation for a triggered ability — see the arm above.
@@ -120,14 +99,6 @@ fn trigger_zones(def: &TriggerDef, types: &CardTypes) -> ZoneSet {
         zones |= condition_zones(arm, types);
     }
     zones
-}
-
-/// The zones a triggered ability's intervening "if" states, Bridge from
-/// Below's "if this card is in your graveyard": CR 113.6b's "only", so every
-/// one of its conditions works there and nowhere else, whatever CR 113.6k
-/// would derive.
-fn intervening_if_zones(def: &TriggerDef) -> Option<ZoneSet> {
-    def.intervening_if.as_ref().and_then(stated_zones)
 }
 
 /// CR 113.6k for one trigger condition.
@@ -167,10 +138,10 @@ fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
 /// conditions does, so [`functions_in`] can say yes for the ability while
 /// this says no for one condition of it — Absolver Thrull's "enters" in the
 /// exile its haunt condition functions in, which is the CR's own example.
-/// `contains` for [`functions_in`]'s reason. A stated zone answers for every
-/// condition of the ability (CR 113.6b).
-pub fn condition_functions_in(def: &TriggerDef, arm: &TriggerEvent, types: &CardTypes, zone: Zone) -> bool {
-    intervening_if_zones(def).unwrap_or_else(|| condition_zones(arm, types)).contains(zone)
+/// `contains` for [`functions_in`]'s reason. A zone the ability's text
+/// states, `stated`, answers for every condition of it (CR 113.6b).
+pub fn condition_functions_in(stated: Option<ZoneSet>, arm: &TriggerEvent, types: &CardTypes, zone: Zone) -> bool {
+    stated.unwrap_or_else(|| condition_zones(arm, types)).contains(zone)
 }
 
 /// CR 113.6 as a caller asks it: does `ability` function *here*?
@@ -218,109 +189,6 @@ fn default_zones(types: &CardTypes) -> ZoneSet {
     }
 }
 
-/// The zones a condition *states* the ability functions in (CR 113.6b/c), or
-/// `None` if it states none.
-///
-/// # Why the statement lives in the condition
-///
-/// CR 113.6b is about an ability "that **states** which zones it functions
-/// in", and on every card that has one the statement is already a clause with
-/// nowhere else to live: Wonder's "as long as this card is in your graveyard"
-/// sits beside "and you control an Island", Bridge from Below's is CR 603.4's
-/// intervening "if", Leyline of the Void's is the pre-game check
-/// `codebase-state.md` item 119 owns. A field on `AbilityDef` would record the
-/// conclusion *beside* the clause that states it and the two could disagree
-/// (§13d decision 1b, which is where the field was rejected).
-///
-/// # What this does *not* see: a zone the CR states and the card does not
-///
-/// CR 113.6b is about the **card's** text, and two other things place an
-/// ability without the card saying so:
-///
-/// - **A keyword's own rule.** Flashback functions in a graveyard because
-///   CR 702.34a says so, not because the card prints "from your graveyard".
-///   Madness is the same in hand. When those land, the statement is a property
-///   of the *keyword* and belongs in an arm above this one, keyed on the
-///   keyword rather than on the condition — not in `stated_zones`, which
-///   would have nothing to read. (Both are §13d decision 4's deferrals for a
-///   different reason: `backlog.md` §2.3 blocks casting from a non-hand zone
-///   at all.)
-/// - **CR 113.6m's inference**, which reads an ability's *cost or effect* —
-///   "exile this card from your graveyard" functions only in a graveyard — and
-///   is a fourth thing again. Also deferred, with Reassembling Skeleton.
-///
-/// So this function answers 113.6b and 113.6c and nothing else, and the arms
-/// above it answer the subrules that key on something other than text.
-///
-/// # The invariant that keeps this bounded
-///
-/// **A `SourceInZone` leaf is a zone statement only at the top of the
-/// condition, or as a direct member of a top-level `All`. Anywhere else it is
-/// an ordinary predicate.** Concretely: `Conditional(SourceInZone(GY), body)`
-/// and `Conditional(All([SourceInZone(GY), you control an Island]), body)`
-/// both state the graveyard; `Conditional(All([All([SourceInZone(GY)])]), body)`
-/// states nothing, and neither would a clause under a future `Or` or `Not`.
-/// **A card cannot reach the nested form by accident** — there is no card text
-/// that wraps a conjunction in a conjunction — so the rule costs nothing to
-/// honor and buys the bound.
-///
-/// That bound is what makes the read syntactic, which is §13c decision 3's
-/// requirement for any reach: one level, no search.
-///
-/// **`Not` states no zone, by the same rule**: a `SourceInZone` under it is an
-/// ordinary predicate. `Not` is there for facts like Emperor Crocodile's "you
-/// control no other creatures", which say nothing about zones. A card that
-/// functions everywhere but one zone, CR 113.6c's case, says so positively, as
-/// `SourceInZone(ZoneSet::ALL.without(zone))`, so this reader never has to
-/// work out what a negated clause leaves.
-///
-/// The match below is exhaustive with no wildcard, so the day `Or` lands the
-/// compiler stops the build until it answers here.
-fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
-    match condition {
-        Condition::SourceInZone(zones) => Some(*zones),
-        // At most one clause of a conjunction: a limit of one *statement*, not one
-        // zone. Squee's "graveyard or exile" is one `SourceInZone(GRAVEYARD |
-        // EXILE)`; two clauses would read "graveyard **and** exile", an authoring
-        // slip that taking the first would half-honor, so it is caught.
-        Condition::All(clauses) => {
-            let mut found: Option<ZoneSet> = None;
-            for clause in clauses {
-                if let Condition::SourceInZone(zones) = clause {
-                    debug_assert!(
-                        found.is_none(),
-                        "two zone statements on one ability: CR 113.6b names \
-                         the zones an ability functions in once, and a second \
-                         clause would silently pick one"
-                    );
-                    found = Some(*zones);
-                }
-            }
-            found
-        }
-        // Everything else is an ordinary predicate. `PlayerFact::CardInGraveyard`
-        // looks like `SourceInZone` and is not: "as long as a red card is in
-        // your graveyard" is about some *other* card's zone, so it says nothing
-        // about where this ability functions.
-        Condition::Player { .. }
-        | Condition::DefendingPlayer { .. }
-        | Condition::HostMatches(_)
-        | Condition::SourceUntapped
-        | Condition::SourceTapped
-        | Condition::CounterCount { .. }
-        | Condition::SpellWasKicked
-        | Condition::ModeChosen(_)
-        | Condition::CostAnswer(_)
-        | Condition::ThisTurn(..)
-        | Condition::LastTurn(..)
-        | Condition::SinceYourLastTurn(..)
-        | Condition::ThisGame(..)
-        | Condition::ResolvedThisTurn(_)
-        | Condition::CounterCountReached { .. }
-        | Condition::Not(_) => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -328,7 +196,7 @@ mod tests {
     use crate::types::card_types::{LandType, Subtype};
     use crate::types::cost_modification::{CostChange, CostModificationDef};
     use crate::types::effects::{
-        AmountExpr, Duration, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive,
+        AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive,
     };
     use crate::types::ids::new_ability_id;
     use crate::types::mana::ManaCost;
@@ -403,15 +271,15 @@ mod tests {
     /// rule rather than a default.
     #[test]
     fn a_stated_zone_replaces_the_default() {
-        let wonder = ability(Effect::Conditional(
-            Condition::All(vec![
-                Condition::SourceInZone(ZoneSet::GRAVEYARD),
+        let wonder = ability(Effect::FunctionsIn(
+            ZoneSet::GRAVEYARD,
+            Box::new(Effect::Conditional(
                 Condition::Player {
                     players: PlayerSet::You,
                     fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
                 },
-            ]),
-            Box::new(anthem()),
+                Box::new(anthem()),
+            )),
         ));
         let creature = types_of(&[CardType::Creature]);
         assert_eq!(functioning_zones(&wonder, &creature), ZoneSet::GRAVEYARD);
@@ -422,8 +290,8 @@ mod tests {
         );
     }
 
-    /// A condition that states no zone leaves the default alone: Kird Ape's
-    /// shape is a battlefield static with an "as long as".
+    /// An "as long as" states no zone, so it leaves the default alone: Kird
+    /// Ape's shape is a battlefield static with one.
     #[test]
     fn a_condition_that_names_no_zone_leaves_the_default() {
         let kird_ape = ability(Effect::Conditional(
@@ -443,10 +311,7 @@ mod tests {
     /// wrapper rather than a re-spelling. Squee, the Immortal's shape.
     #[test]
     fn a_statement_may_name_more_than_one_zone() {
-        let squee_shaped = ability(Effect::Conditional(
-            Condition::SourceInZone(ZoneSet::GRAVEYARD | ZoneSet::EXILE),
-            Box::new(anthem()),
-        ));
+        let squee_shaped = ability(Effect::FunctionsIn(ZoneSet::GRAVEYARD | ZoneSet::EXILE, Box::new(anthem())));
         let creature = types_of(&[CardType::Creature]);
         assert!(functions_in(&squee_shaped, &creature, Zone::Graveyard));
         assert!(functions_in(&squee_shaped, &creature, Zone::Exile));
@@ -463,10 +328,7 @@ mod tests {
     /// holding the complement `ZoneSet` already spells.
     #[test]
     fn a_stated_complement_is_the_same_field() {
-        let grist_shaped = ability(Effect::Conditional(
-            Condition::SourceInZone(ZoneSet::EVERYWHERE_BUT_BATTLEFIELD),
-            Box::new(anthem()),
-        ));
+        let grist_shaped = ability(Effect::FunctionsIn(ZoneSet::EVERYWHERE_BUT_BATTLEFIELD, Box::new(anthem())));
         let creature = types_of(&[CardType::Creature]);
         assert_eq!(functioning_zones(&grist_shaped, &creature), ZoneSet::EVERYWHERE_BUT_BATTLEFIELD);
         assert!(!functions_in(&grist_shaped, &creature, Zone::Battlefield));
@@ -513,32 +375,6 @@ mod tests {
         );
     }
 
-    /// The read is **one level deep**, and a clause nested below that states
-    /// nothing — the invariant `stated_zones` documents, asserted rather than
-    /// left to the comment.
-    ///
-    /// The board here is `All([All([SourceInZone(GRAVEYARD)])])`, which no
-    /// card text produces: a conjunction inside a conjunction is a thing an
-    /// author writes by accident or a future transformation produces, never a
-    /// thing a card says. The point of pinning it is the *other* direction —
-    /// the day `Condition` grows `Not` or `Or`, the rule for where a zone
-    /// clause counts is already written down and tested, rather than being
-    /// re-derived by whoever adds the combinator.
-    #[test]
-    fn a_zone_clause_below_the_top_level_states_nothing() {
-        let nested = ability(Effect::Conditional(
-            Condition::All(vec![Condition::All(vec![Condition::SourceInZone(
-                ZoneSet::GRAVEYARD,
-            )])]),
-            Box::new(anthem()),
-        ));
-        assert_eq!(
-            functioning_zones(&nested, &types_of(&[CardType::Creature])),
-            ZoneSet::BATTLEFIELD,
-            "one level, by design: a deeper walk is the search §13c decision 3 refuses"
-        );
-    }
-
     /// A triggered ability on this card itself changing zones
     /// (`TriggerSubject::ThisObject`), "when this card is put into `to` from
     /// `from`", gaining 1 life.
@@ -580,19 +416,5 @@ mod tests {
         let wound_up = functioning_zones(&discard, &instant);
         assert!(wound_up.contains(Zone::Graveyard) && wound_up.contains(Zone::Exile) && wound_up.contains(Zone::Library));
         assert!(!wound_up.contains(Zone::Hand), "not the zone it left");
-    }
-
-    #[cfg(debug_assertions)]
-    #[test]
-    #[should_panic(expected = "two zone statements on one ability")]
-    fn two_zone_statements_on_one_ability_are_loud() {
-        let confused = ability(Effect::Conditional(
-            Condition::All(vec![
-                Condition::SourceInZone(ZoneSet::GRAVEYARD),
-                Condition::SourceInZone(ZoneSet::HAND),
-            ]),
-            Box::new(anthem()),
-        ));
-        let _ = functioning_zones(&confused, &types_of(&[CardType::Creature]));
     }
 }

@@ -3,7 +3,6 @@
 //! chooses as it enters the battlefield (CR 303.4f/g).
 
 use crate::engine::actions::{ActionContext, GameAction};
-use crate::engine::resolve::ResolvedTarget;
 use crate::events::cause::EventCause;
 use crate::events::event::{CreatedAt, EventId, GameEvent, ResolutionStamp};
 use crate::oracle::characteristics::has_subtype;
@@ -11,7 +10,7 @@ use crate::state::game_state::GameState;
 use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::effects::{EffectRecipient, ReturnUnder, SelectionFilter, TargetCount};
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates, EntryCounters};
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId, UntilReturnId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
 use crate::types::zones::{UntilReturn, Zone, ZoneChangeAct, ZoneChangePattern};
 use crate::ui::decision::DecisionProvider;
@@ -113,17 +112,17 @@ impl GameState {
         if matches!(filter, SelectionFilter::Player) {
             return Err(format!("the Aura {aura} enchants a player, and an attachment holds only objects"));
         }
-        let candidates: Vec<ResolvedTarget> = self
+        let candidates: Vec<ObjectOrPlayerId> = self
             .battlefield_ids_ordered()
             .into_iter()
             .filter(|&host| host != aura && self.can_enchant(&filter, aura, host, chooser))
-            .map(ResolvedTarget::Object)
+            .map(ObjectOrPlayerId::Object)
             .collect();
         let question = EffectRecipient::Choose(filter, TargetCount::Exactly(1));
         let chosen = crate::ui::ask::ask_select_recipients(dp, self, chooser, &question, aura, &candidates, 1, 1);
         Ok(chosen.into_iter().find_map(|t| match t {
-            ResolvedTarget::Object(host) => Some(host),
-            ResolvedTarget::Player(_) => None,
+            ObjectOrPlayerId::Object(host) => Some(host),
+            ObjectOrPlayerId::Player(_) => None,
         }))
     }
 

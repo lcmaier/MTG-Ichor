@@ -147,7 +147,7 @@ use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::ids::AbilityId;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
+    AffectedSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
     PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::keywords::KeywordFlag;
@@ -237,10 +237,9 @@ pub fn furnace_of_rath() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to a permanent or player, it deals double that damage to that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                affected,
+                AffectedSet { objects: affected, players },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(players),
+            ),
         ))
         .build()
 }
@@ -292,10 +291,9 @@ pub fn ghosts_of_the_innocent() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to a permanent or player, it deals half that damage, rounded down, to that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                affected,
+                AffectedSet { objects: affected, players },
                 Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
-            )
-            .affecting_players(players),
+            ),
         ))
         .build()
 }
@@ -356,18 +354,16 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to an opponent or a permanent an opponent controls, that source deals double that damage to that player or permanent instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)),
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)), players: PlayerSet::Opponents },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(PlayerSet::Opponents),
+            ),
         ))
         .ability(static_replacement("If a source would deal damage to you or a permanent you control, prevent half that damage, rounded up.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)), players: PlayerSet::You },
                 Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Up)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -381,7 +377,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
 ///
 /// The phase's only prevention consumer, and the only effect in it that is
 /// about **no object at all**: `ObjectSet::Fixed(vec![])` beside
-/// `PlayerSet::You`. Its rider is what makes `Rider.subject` an `EventSubject`
+/// `PlayerSet::You`. Its rider is what makes `Rider.subject` an object or a player
 /// rather than an `Option<ObjectId>` — "mill" needs to name the player the
 /// damage was aimed at (`codebase-state.md` item 27) — and "twice that many"
 /// is `AmountExpr::Multiply(ReplacedAmount, 2)`, read off the event as the
@@ -413,15 +409,14 @@ pub fn angel_of_suffering() -> Arc<CardData> {
              that many cards.",
         )
         .ability(static_replacement("If damage would be dealt to you, prevent that damage and mill twice that many cards.",
-            // About a player and no object at all: `NO_OBJECTS` names that,
-            // where a `Filter` would have to describe an empty set and
+            // About a player and no object at all: a `PlayerSet` alone says
+            // that, where a `Filter` would have to describe an empty set and
             // `SourceOnly` would make the Angel shield *itself*.
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Prevent,
             )
-            .affecting_players(PlayerSet::You)
             .with_then(Effect::Atom(
                 Primitive::Mill(AmountExpr::Multiply(Box::new(AmountExpr::ReplacedAmount), 2)),
                 // The rider's single resolved target is the event's subject —
@@ -617,10 +612,9 @@ pub fn safe_passage() -> Arc<CardData> {
                     Box::new(
                         ReplacementDef::new(
                             EventPattern::DealDamage { source: None, combat: None },
-                            ObjectSet::battlefield_filter(creatures_you_control()),
+                            AffectedSet { objects: ObjectSet::battlefield_filter(creatures_you_control()), players: PlayerSet::You },
                             Rewrite::Prevent,
-                        )
-                        .affecting_players(PlayerSet::You),
+                        ),
                     ),
                     Duration::UntilEndOfTurn,
                     PatternFill::Authored,
@@ -695,10 +689,9 @@ fn the_next_damage_from_a_chosen_source(
     };
     ReplacementDef::new(
         EventPattern::DealDamage { source: Some(source), combat: None },
-        ObjectSet::NO_OBJECTS,
+        PlayerSet::You,
         rewrite,
     )
-    .affecting_players(PlayerSet::You)
     .once()
 }
 
@@ -925,10 +918,9 @@ pub fn guardian_seraph() -> Arc<CardData> {
                     ))),
                     combat: None,
                 },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::PreventUpTo(1)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -1032,10 +1024,9 @@ pub fn fog() -> Arc<CardData> {
                     Box::new(
                         ReplacementDef::new(
                             EventPattern::DealDamage { source: None, combat: Some(true) },
-                            affected,
+                            AffectedSet { objects: affected, players },
                             Rewrite::Prevent,
-                        )
-                        .affecting_players(players),
+                        ),
                     ),
                     Duration::UntilEndOfTurn,
                     PatternFill::Authored,
@@ -1097,10 +1088,9 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
                     ))),
                     combat: None,
                 },
-                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)),
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)), players: PlayerSet::Opponents },
                 Rewrite::Amount(AmountRewrite::Plus(2)),
-            )
-            .affecting_players(PlayerSet::Opponents),
+            ),
         ))
         .build()
 }
@@ -1119,10 +1109,9 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
 fn all_damage_to_you(objects: ObjectSet, spec: RetargetSpec) -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::DealDamage { source: None, combat: None },
-        objects,
+        AffectedSet { objects, players: PlayerSet::You },
         Rewrite::Retarget(spec),
     )
-    .affecting_players(PlayerSet::You)
 }
 
 /// Pariah — {2}{W}
@@ -1138,7 +1127,7 @@ fn all_damage_to_you(objects: ObjectSet, spec: RetargetSpec) -> ReplacementDef {
 /// damage event rather than captured, so the redirect follows the Aura if it
 /// moves.
 ///
-/// Its affected set is `NO_OBJECTS` plus `PlayerSet::You`: the card is about
+/// It affects no object and `PlayerSet::You`: the card is about
 /// damage to a **player**, and the creature it names is the destination rather
 /// than a member of the set. Mixing the two up would make it redirect damage
 /// dealt *to the enchanted creature*, which is the opposite of the card.
@@ -1306,10 +1295,9 @@ pub fn reflect_damage() -> Arc<CardData> {
                                 source: Some(SourcePattern::chosen()),
                                 combat: None,
                             },
-                            affected,
+                            AffectedSet { objects: affected, players },
                             Rewrite::Retarget(RetargetSpec::ToDamageSourceController),
                         )
-                        .affecting_players(players)
                         .once(),
                     ),
                     Duration::UntilEndOfTurn,
@@ -1326,7 +1314,7 @@ mod tests {
     use crate::engine::targeting::ChosenTargets;
     use super::*;
     use crate::engine::actions::{ActionContext, GameAction};
-    use crate::events::event::DamageTarget;
+    use crate::types::ids::ObjectOrPlayerId;
     use crate::state::game_state::GameState;
     use crate::engine::combat::resolution::assign_combat_damage;
     use crate::test_support::{
@@ -1355,7 +1343,7 @@ mod tests {
         game.execute_action(
             GameAction::DealDamage {
                 source: ids.source,
-                target: DamageTarget::Object(ids.victim),
+                target: ObjectOrPlayerId::Object(ids.victim),
                 amount,
                 is_combat: false,
                 unpreventable: false,
@@ -1451,7 +1439,7 @@ mod tests {
         game.execute_action(
             GameAction::DealDamage {
                 source: ids.source,
-                target: DamageTarget::Object(ids.victim),
+                target: ObjectOrPlayerId::Object(ids.victim),
                 amount: 14,
                 is_combat: false,
                 unpreventable: false,
@@ -1479,7 +1467,7 @@ mod tests {
             game.execute_action(
                 GameAction::DealDamage {
                     source,
-                    target: DamageTarget::Object(victim),
+                    target: ObjectOrPlayerId::Object(victim),
                     amount: 3,
                     is_combat: false,
                     unpreventable: false,
@@ -1506,7 +1494,7 @@ mod tests {
         game.execute_action(
             GameAction::DealDamage {
                 source: their_source,
-                target: DamageTarget::Object(their_victim),
+                target: ObjectOrPlayerId::Object(their_victim),
                 amount: 2,
                 is_combat: false,
                 unpreventable: false,
@@ -1529,7 +1517,7 @@ mod tests {
         game.execute_action(
             GameAction::DealDamage {
                 source,
-                target: DamageTarget::Object(mine),
+                target: ObjectOrPlayerId::Object(mine),
                 amount: 5,
                 is_combat: false,
                 unpreventable: false,
@@ -1557,7 +1545,7 @@ mod tests {
     // RD-2
     // -----------------------------------------------------------------------
 
-    use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+    use crate::engine::resolve::ResolutionContext;
     use crate::events::event::GameEvent;
     use crate::state::replacement_effects::RegisteredReplacementEffect;
     use crate::test_support::put_in_hand;
@@ -1569,7 +1557,7 @@ mod tests {
         game: &mut GameState,
         card: Arc<CardData>,
         controller: crate::types::ids::PlayerId,
-        targets: Vec<ResolvedTarget>,
+        targets: Vec<ObjectOrPlayerId>,
     ) -> crate::types::ids::ObjectId {
         let id = put_in_hand(game, card.clone(), controller);
         let ctx = ResolutionContext {
@@ -1590,7 +1578,7 @@ mod tests {
         game.replacement_effects.iter().collect()
     }
 
-    fn bolt(game: &mut GameState, source: crate::types::ids::ObjectId, target: DamageTarget, amount: u64) {
+    fn bolt(game: &mut GameState, source: crate::types::ids::ObjectId, target: ObjectOrPlayerId, amount: u64) {
         game.execute_action(
             GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_lki: None },
             &test_ctx(),
@@ -1607,17 +1595,17 @@ mod tests {
     #[test]
     fn mending_hands_makes_one_row_counting_four_on_its_target() {
         let mut game = setup_two_player_game();
-        let spell = resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Player(1)]);
+        let spell = resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Player(1)]);
         let rows = rows(&game);
         assert_eq!(rows.len(), 1);
         let row = rows[0];
         assert_eq!(row.def.uses, Uses::NextDamage(4));
-        assert_eq!(row.def.affected_objects, ObjectSet::NO_OBJECTS);
-        assert_eq!(row.def.affected_players, PlayerSet::Fixed(vec![1]));
+        assert_eq!(row.def.affected.objects, ObjectSet::NO_OBJECTS);
+        assert_eq!(row.def.affected.players, PlayerSet::Fixed(vec![1]));
         assert_eq!(row.duration, Duration::UntilEndOfTurn);
         assert_eq!(row.source, spell);
         assert_eq!(row.controller, 0);
-        assert_eq!(row.targets, vec![crate::engine::targeting::TargetRef::Player(1)]);
+        assert_eq!(row.targets, vec![crate::types::ids::ObjectOrPlayer::Player(1)]);
         assert!(row.def.is_prevention());
     }
 
@@ -1627,10 +1615,10 @@ mod tests {
     fn mending_hands_on_a_creature_fills_the_object_set() {
         let mut game = setup_two_player_game();
         let bear = place_vanilla_creature(&mut game, 1, 2, 2, &[]);
-        resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bear)]);
+        resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Object(bear)]);
         let row = rows(&game)[0];
-        assert_eq!(row.def.affected_objects, ObjectSet::Fixed(vec![bear]));
-        assert_eq!(row.def.affected_players, PlayerSet::Nobody);
+        assert_eq!(row.def.affected.objects, ObjectSet::Fixed(vec![bear]));
+        assert_eq!(row.def.affected.players, PlayerSet::Nobody);
     }
 
     // "Safe Passage prevents all damage, not just combat damage, that would be
@@ -1640,7 +1628,7 @@ mod tests {
         let mut game = setup_two_player_game();
         let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
         resolve_spell(&mut game, safe_passage(), 0, Vec::new());
-        bolt(&mut game, source, DamageTarget::Player(0), 3);
+        bolt(&mut game, source, ObjectOrPlayerId::Player(0), 3);
         assert_eq!(game.players[0].life_total, 20);
         assert_eq!(damage_dealt(&game), 0, "CR 615.6 — the damage never happened");
     }
@@ -1655,8 +1643,8 @@ mod tests {
         resolve_spell(&mut game, safe_passage(), 0, Vec::new());
         let latecomer = place_vanilla_creature(&mut game, 0, 4, 4, &[]);
         let theirs = place_vanilla_creature(&mut game, 1, 4, 4, &[]);
-        bolt(&mut game, source, DamageTarget::Object(latecomer), 3);
-        bolt(&mut game, source, DamageTarget::Object(theirs), 3);
+        bolt(&mut game, source, ObjectOrPlayerId::Object(latecomer), 3);
+        bolt(&mut game, source, ObjectOrPlayerId::Object(theirs), 3);
         assert_eq!(game.battlefield[&latecomer].damage_marked, 0);
         assert_eq!(game.battlefield[&theirs].damage_marked, 3, "an opponent's creature is not covered");
     }
@@ -1669,7 +1657,7 @@ mod tests {
         let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
         let probe = put_on_battlefield(&mut game, loyalty_probe(), 0);
         resolve_spell(&mut game, safe_passage(), 0, Vec::new());
-        bolt(&mut game, source, DamageTarget::Object(probe), 2);
+        bolt(&mut game, source, ObjectOrPlayerId::Object(probe), 2);
         assert_eq!(game.battlefield[&probe].counter_count(CounterType::Loyalty), 1);
     }
 
@@ -1679,10 +1667,10 @@ mod tests {
         let mut game = setup_two_player_game();
         let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
         let mine = place_vanilla_creature(&mut game, 0, 4, 4, &[]);
-        bolt(&mut game, source, DamageTarget::Object(mine), 2);
+        bolt(&mut game, source, ObjectOrPlayerId::Object(mine), 2);
         resolve_spell(&mut game, safe_passage(), 0, Vec::new());
         assert_eq!(game.battlefield[&mine].damage_marked, 2, "still marked");
-        bolt(&mut game, source, DamageTarget::Object(mine), 2);
+        bolt(&mut game, source, ObjectOrPlayerId::Object(mine), 2);
         assert_eq!(game.battlefield[&mine].damage_marked, 2, "and the next 2 are prevented");
     }
 
@@ -1712,7 +1700,7 @@ mod tests {
         assert_eq!(rows[0].source, healer);
         assert!(game.objects.contains_key(&rows[0].source), "and it still exists");
         assert_eq!(rows[0].def.uses, Uses::NextDamage(1));
-        assert_eq!(rows[0].def.affected_players, PlayerSet::Fixed(vec![1]));
+        assert_eq!(rows[0].def.affected.players, PlayerSet::Fixed(vec![1]));
     }
 
     // The cost is the card's: {W} and itself, in that order.
@@ -1795,11 +1783,11 @@ mod tests {
         activate(&mut game, circle_of_protection_red(), 0, &first());
         assert_eq!(chosen_source(&game), Some(red_source), "CR 609.7a, at creation");
 
-        bolt(&mut game, red_source, DamageTarget::Player(0), 7);
+        bolt(&mut game, red_source, ObjectOrPlayerId::Player(0), 7);
         assert_eq!(life(&game, 0), 20, "the whole instance, whatever its size");
         assert!(rows(&game).is_empty(), "and the row is spent (CR 615.8)");
 
-        bolt(&mut game, red_source, DamageTarget::Player(0), 3);
+        bolt(&mut game, red_source, ObjectOrPlayerId::Player(0), 3);
         assert_eq!(life(&game, 0), 17, "a later instance is dealt normally");
     }
 
@@ -1829,7 +1817,7 @@ mod tests {
             EffectModification::SetColors(blue),
         ));
 
-        bolt(&mut game, source, DamageTarget::Player(0), 3);
+        bolt(&mut game, source, ObjectOrPlayerId::Player(0), 3);
         assert_eq!(life(&game, 0), 17, "no longer red, so nothing is prevented");
         assert_eq!(rows(&game).len(), 1, "and the shield is not used up");
     }
@@ -1860,10 +1848,10 @@ mod tests {
         resolve_spell(&mut game, reverse_damage(), 0, Vec::new());
         assert_eq!(chosen_source(&game), Some(source));
 
-        bolt(&mut game, source, DamageTarget::Player(0), 4);
+        bolt(&mut game, source, ObjectOrPlayerId::Player(0), 4);
         assert_eq!(life(&game, 0), 24, "prevented, and gained that much");
 
-        bolt(&mut game, source, DamageTarget::Player(0), 4);
+        bolt(&mut game, source, ObjectOrPlayerId::Player(0), 4);
         assert_eq!(life(&game, 0), 20, "the second instance is not reversed");
     }
 
@@ -1886,7 +1874,7 @@ mod tests {
         game.execute_action(
             GameAction::DealDamage {
                 source,
-                target: DamageTarget::Player(0),
+                target: ObjectOrPlayerId::Player(0),
                 amount: 5,
                 is_combat: false,
                 unpreventable: false,
@@ -1909,8 +1897,8 @@ mod tests {
         let first = place_vanilla_creature(&mut game, 1, 3, 3, &[]);
         let second = place_vanilla_creature(&mut game, 1, 3, 3, &[]);
 
-        bolt(&mut game, first, DamageTarget::Player(0), 3);
-        bolt(&mut game, second, DamageTarget::Player(0), 3);
+        bolt(&mut game, first, ObjectOrPlayerId::Player(0), 3);
+        bolt(&mut game, second, ObjectOrPlayerId::Player(0), 3);
         assert_eq!(life(&game, 0), 20 - 2 - 2, "1 off each event, not 1 in total");
     }
 
@@ -1921,7 +1909,7 @@ mod tests {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, guardian_seraph(), 0);
         let yours = place_vanilla_creature(&mut game, 0, 3, 3, &[]);
-        bolt(&mut game, yours, DamageTarget::Player(0), 3);
+        bolt(&mut game, yours, ObjectOrPlayerId::Player(0), 3);
         assert_eq!(life(&game, 0), 17);
     }
 
@@ -1939,7 +1927,7 @@ mod tests {
         game.execute_action(
             GameAction::DealDamage {
                 source,
-                target: DamageTarget::Player(0),
+                target: ObjectOrPlayerId::Player(0),
                 amount: 3,
                 is_combat: false,
                 unpreventable: false,
@@ -1963,7 +1951,7 @@ mod tests {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, guardian_seraph(), 0);
         let spell = put_spell_on_stack(&mut game, lightning_bolt(), 1);
-        bolt(&mut game, spell, DamageTarget::Player(0), 3);
+        bolt(&mut game, spell, ObjectOrPlayerId::Player(0), 3);
         assert_eq!(life(&game, 0), 18, "a non-battlefield source, 3 - 1");
     }
 
@@ -1977,8 +1965,8 @@ mod tests {
         let not_a_cleric = place_vanilla_creature(&mut game, 0, 3, 3, &[]);
         let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
 
-        bolt(&mut game, source, DamageTarget::Object(defender), 2);
-        bolt(&mut game, source, DamageTarget::Object(not_a_cleric), 2);
+        bolt(&mut game, source, ObjectOrPlayerId::Object(defender), 2);
+        bolt(&mut game, source, ObjectOrPlayerId::Object(not_a_cleric), 2);
         assert_eq!(game.battlefield[&defender].damage_marked, 1, "it is its own Cleric");
         assert_eq!(game.battlefield[&not_a_cleric].damage_marked, 2);
     }
@@ -1994,7 +1982,7 @@ mod tests {
         game.execute_action(
             GameAction::DealDamage {
                 source,
-                target: DamageTarget::Player(0),
+                target: ObjectOrPlayerId::Player(0),
                 amount: 3,
                 is_combat: true,
                 unpreventable: false,
@@ -2005,7 +1993,7 @@ mod tests {
         .unwrap();
         assert_eq!(life(&game, 0), 20, "combat damage");
 
-        bolt(&mut game, source, DamageTarget::Player(0), 3);
+        bolt(&mut game, source, ObjectOrPlayerId::Player(0), 3);
         assert_eq!(life(&game, 0), 17, "and non-combat damage goes through");
     }
 
@@ -2022,7 +2010,7 @@ mod tests {
             game.execute_action(
                 GameAction::DealDamage {
                     source,
-                    target: DamageTarget::Object(target),
+                    target: ObjectOrPlayerId::Object(target),
                     amount: 2,
                     is_combat: true,
                     unpreventable: false,
@@ -2045,7 +2033,7 @@ mod tests {
         let torbran = put_on_battlefield(&mut game, torbran_thane_of_red_fell(), 0);
         let red_source = put_on_battlefield(&mut game, lightning_bolt_creature(), 0);
 
-        bolt(&mut game, red_source, DamageTarget::Player(1), 3);
+        bolt(&mut game, red_source, ObjectOrPlayerId::Player(1), 3);
         assert_eq!(life(&game, 1), 15, "3 + 2");
         let dealt: Vec<_> = game
             .recorded_events()
@@ -2068,9 +2056,9 @@ mod tests {
         let yours_not_red = place_vanilla_creature(&mut game, 0, 1, 1, &[]);
         let red_not_yours = put_on_battlefield(&mut game, lightning_bolt_creature(), 1);
 
-        bolt(&mut game, yours_not_red, DamageTarget::Player(1), 3);
+        bolt(&mut game, yours_not_red, ObjectOrPlayerId::Player(1), 3);
         assert_eq!(life(&game, 1), 17, "colorless: not a red source");
-        bolt(&mut game, red_not_yours, DamageTarget::Player(1), 3);
+        bolt(&mut game, red_not_yours, ObjectOrPlayerId::Player(1), 3);
         assert_eq!(life(&game, 1), 14, "red, but not yours");
     }
 
@@ -2095,7 +2083,7 @@ mod tests {
         game.execute_action(
             GameAction::DealDamage {
                 source: red_source,
-                target: DamageTarget::Player(1),
+                target: ObjectOrPlayerId::Player(1),
                 amount: 3,
                 is_combat: true,
                 unpreventable: false,
@@ -2150,7 +2138,7 @@ mod tests {
     fn bolt_with(
         game: &mut GameState,
         source: crate::types::ids::ObjectId,
-        target: DamageTarget,
+        target: ObjectOrPlayerId,
         amount: u64,
         ctx: &ActionContext,
     ) {
@@ -2204,12 +2192,12 @@ mod tests {
         let assignments = assign_combat_damage(&game, &dp, 1, false);
         game.apply_combat_damage(assignments, &ActionContext::new(&dp)).unwrap();
 
-        let dealt: Vec<crate::types::triggers::ObjectOrPlayer> = game
+        let dealt: Vec<crate::types::ids::ObjectOrPlayer> = game
             .recorded_events()
             .records_from(from)
             .iter()
             .filter_map(|r| match &r.event {
-                GameEvent::DamageDealt { target, .. } => Some(*target),
+                GameEvent::DamageDealt { recipient, .. } => Some(*recipient),
                 _ => None,
             })
             .collect();
@@ -2239,7 +2227,7 @@ mod tests {
         );
         let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
         
-        bolt(&mut game, source, DamageTarget::Player(0), 3);
+        bolt(&mut game, source, ObjectOrPlayerId::Player(0), 3);
 
         assert_eq!(life(&game, 0), 20);
         assert_eq!(marked_on(&game, host), 3);
@@ -2266,7 +2254,7 @@ mod tests {
 
         let dp = RecordingDecisionProvider::picking(1);
         let ctx = ActionContext::new(&dp);
-        bolt_with(&mut game, source, DamageTarget::Player(0), 6, &ctx);
+        bolt_with(&mut game, source, ObjectOrPlayerId::Player(0), 6, &ctx);
 
         assert_eq!(dp.prompts(), 1, "CR 616.1 asks once, and only once");
         assert!(dp.kinds()[0] == "ChooseReplacementEffect", "{:?}", dp.kinds());
@@ -2295,7 +2283,7 @@ mod tests {
 
         let dp = RecordingDecisionProvider::picking(1);
         let ctx = ActionContext::new(&dp);
-        bolt_with(&mut game, source, DamageTarget::Player(0), 8, &ctx);
+        bolt_with(&mut game, source, ObjectOrPlayerId::Player(0), 8, &ctx);
 
         assert_eq!(dp.prompts(), 1);
         assert_eq!(life(&game, 0), 20, "and never dealt to you");
@@ -2321,7 +2309,7 @@ mod tests {
         let dp = RecordingDecisionProvider::picking(0);
         let ctx = ActionContext::new(&dp);
 
-        bolt_with(&mut game, source, DamageTarget::Object(giant), 4, &ctx);
+        bolt_with(&mut game, source, ObjectOrPlayerId::Object(giant), 4, &ctx);
 
         assert_eq!(marked_on(&game, giant), 4, "dealt as proposed");
         assert_eq!(dp.prompts(), 0, "and nothing was offered to replace it");

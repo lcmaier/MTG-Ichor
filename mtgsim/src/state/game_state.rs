@@ -16,7 +16,6 @@ use crate::state::replacement_effects::{
 use crate::state::restrictions::RestrictionRegistry;
 use crate::state::shared_stores::{ObjectTable, SharedList};
 use crate::state::player::PlayerState;
-use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
 use crate::types::mana::ManaSpent;
 use crate::types::ids::{
@@ -90,12 +89,10 @@ pub struct StackEntry {
     /// Whether this is a spell (true) or an ability (false).
     /// Spells go to graveyard after resolution; abilities cease to exist.
     pub is_spell: bool,
-    /// The alternative cost chosen for this spell, if any (rule 118.9).
-    /// At most one alternative cost may be chosen per cast.
-    pub chosen_alternative_cost: Option<AlternativeCost>,
-    /// Additional costs that were paid for this spell (rule 118.8).
-    /// Multiple additional costs can be paid (e.g. kicker + buyback).
-    pub additional_costs_paid: Vec<AdditionalCost>,
+    /// The alternative cost chosen (CR 118.9, at most one) and the additional
+    /// costs paid (CR 118.8), which a copy and the permanent the spell
+    /// becomes keep (CR 707.10).
+    pub cost_choices: crate::state::battlefield::CostChoices,
     /// The mana spent on this spell's total cost, written once CR 601.2h's
     /// payment succeeds. Zero for an ability, and zero for a copy of a spell
     /// that was not itself cast: mana is not an object, so CR 707.10 gives a
@@ -156,15 +153,6 @@ impl StackEntry {
     pub fn caster(&self) -> Option<PlayerId> {
         self.cast_from.map(|_| self.controller)
     }
-
-    /// CR 707.10's decisions about its costs, which a copy and the permanent
-    /// it becomes keep.
-    pub fn cost_choices(&self) -> crate::state::battlefield::CostChoices {
-        crate::state::battlefield::CostChoices {
-            additional: self.additional_costs_paid.clone(),
-            alternative: self.chosen_alternative_cost.clone(),
-        }
-    }
 }
 
 impl GameState {
@@ -177,7 +165,7 @@ impl GameState {
             return Some(entry.cost_choices.clone());
         }
         if let Some(spell) = self.stack_entries.get(&id) {
-            return Some(spell.cost_choices());
+            return Some(spell.cost_choices.clone());
         }
         self.resolving.as_ref().filter(|r| r.id == id).map(|r| r.cost_choices.clone())
     }
@@ -391,13 +379,6 @@ pub struct GameState {
 
     // --- Turn tracking ---
     pub turn_number: u32,
-    /// The turn number on which each player's most recent turn began, indexed
-    /// by `PlayerId`. `0` means that player has not had a turn yet.
-    ///
-    /// This is what CR 302.6 measures against, and it cannot be derived from
-    /// `turn_number` once there are more than two players — or once extra turns
-    /// exist — so it is recorded. Written only by [`GameState::begin_turn`].
-    pub last_turn_began: Vec<u32>,
     pub active_player: PlayerId,
     pub priority_player: PlayerId,
     pub phase: Phase,
@@ -1016,9 +997,9 @@ impl GameState {
             .map(|id| PlayerState::new(id, starting_life))
             .collect();
         let mut history = crate::state::history::GameHistory::new(num_players);
-        // Turn 1 has begun for the starting player, as `last_turn_began` says.
+        // Turn 1 has begun for the starting player; nobody else has had one.
         if let Some(first) = history.players.first_mut() {
-            first.record_own_turn(1);
+            first.record_turn_began(1);
         }
 
         GameState {
@@ -1034,12 +1015,6 @@ impl GameState {
             exile: Vec::new(),
             command: Vec::new(),
             turn_number: 1,
-            // Turn 1 has begun for the starting player; nobody else has had one.
-            last_turn_began: {
-                let mut v = vec![0; num_players];
-                v[0] = 1;
-                v
-            },
             active_player: 0,
             priority_player: 0,
             phase: Phase::new(PhaseType::Beginning),
@@ -1138,16 +1113,15 @@ impl GameState {
     /// Begin turn `turn` with `player` as the active player, recording the turn
     /// start that CR 302.6 measures against.
     ///
-    /// The one writer of `last_turn_began`. A caller that assigns `turn_number`
-    /// on its own leaves the clock stale and every summoning-sickness question
-    /// answers against the wrong turn.
+    /// The one writer of a player's turns (`PlayerHistory::record_turn_began`). A
+    /// caller that assigns `turn_number` on its own leaves the clock stale and
+    /// every summoning-sickness question answers against the wrong turn.
     pub fn begin_turn(&mut self, turn: u32, player: PlayerId) {
         self.turn_number = turn;
         self.active_player = player;
-        self.last_turn_began[player] = turn;
         self.history.turn_began();
         if let Some(history) = self.history.players.get_mut(player) {
-            history.record_own_turn(turn);
+            history.record_turn_began(turn);
         }
         self.bump_layer_epoch_if_read(GatedWalkInput::TurnNumber);
     }
@@ -1274,12 +1248,11 @@ impl GameState {
     }
 
     /// The turn on which `player`'s most recent turn began, or `None` if they
-    /// have not had one yet.
+    /// have not had one yet: what CR 302.6 measures against, which cannot be
+    /// derived from `turn_number` once there are more than two players, or
+    /// once extra turns exist.
     pub fn most_recent_turn_began(&self, player: PlayerId) -> Option<u32> {
-        match self.last_turn_began.get(player) {
-            Some(0) | None => None,
-            Some(turn) => Some(*turn),
-        }
+        self.history.players.get(player).and_then(crate::state::history::PlayerHistory::most_recent_turn)
     }
 
     /// Skip the layer memo's debug audits until [`Self::resume_layer_audit`]:
@@ -1648,7 +1621,7 @@ impl GameState {
             };
             self.emit_event(
                 crate::events::event::GameEvent::CountersPutOn {
-                    subject: crate::types::triggers::ObjectOrPlayer::Object(self.existence_for_record(id)?),
+                    subject: crate::types::ids::ObjectOrPlayer::Object(self.existence_for_record(id)?),
                     counter_type: row.counter,
                     n: row.n,
                     by: row.by.unwrap_or(controller),
@@ -1762,12 +1735,12 @@ impl GameState {
     /// How many counters of `counter_type` `subject` has: a permanent's, or a
     /// player's. 0 for an object off the battlefield, whose counters ceased
     /// to exist as it left (CR 122.2).
-    pub fn counter_count_of(&self, subject: crate::events::event::CounterSubject, counter_type: CounterType) -> u32 {
+    pub fn counter_count_of(&self, subject: crate::types::ids::ObjectOrPlayerId, counter_type: CounterType) -> u32 {
         match subject {
-            crate::events::event::CounterSubject::Object(id) => {
+            crate::types::ids::ObjectOrPlayerId::Object(id) => {
                 self.battlefield.get(&id).map_or(0, |entry| entry.counter_count(counter_type))
             }
-            crate::events::event::CounterSubject::Player(player) => {
+            crate::types::ids::ObjectOrPlayerId::Player(player) => {
                 self.players.get(player).map_or(0, |state| state.counter_count(counter_type))
             }
         }
@@ -2353,7 +2326,14 @@ impl GameState {
         ability: &'a crate::objects::card_data::AbilityDef,
         label: &str,
     ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
-        Self::atoms_of_static_body(&ability.effect, label)
+        // CR 113.6b's statement wraps the whole body, the rows are the body's,
+        // and CR 604.2's existence check asks the statement at each layer. Only
+        // at the root: one anywhere else is loud below.
+        let body = match &ability.effect {
+            Effect::FunctionsIn(_, body) => body,
+            body => body,
+        };
+        Self::atoms_of_static_body(body, label)
     }
 
     /// [`static_ability_atoms`](Self::static_ability_atoms) over an effect
@@ -2755,7 +2735,7 @@ mod tests {
         #[test]
         fn test_conditional_static_body_lowers_to_the_inner_atoms() {
             let ability = static_ability(Effect::Conditional(
-                Condition::SourceInZone(crate::types::zones::ZoneSet::BATTLEFIELD),
+                Condition::SourceUntapped,
                 Box::new(anthem_atom()),
             ));
             let atoms = GameState::static_ability_atoms(&ability, "Test Card");
@@ -2775,7 +2755,7 @@ mod tests {
         #[should_panic(expected = "cannot express")]
         fn test_a_conditional_wrapping_an_unlowerable_body_is_loud() {
             let ability = static_ability(Effect::Conditional(
-                Condition::SourceInZone(crate::types::zones::ZoneSet::BATTLEFIELD),
+                Condition::SourceUntapped,
                 Box::new(Effect::Optional { chooser: crate::types::effects::PlayerRef::You, effect: Box::new(anthem_atom()) }),
             ));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
@@ -2912,14 +2892,13 @@ mod tests {
             x_value: None,
             effect: Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
 };
-        assert!(entry.chosen_alternative_cost.is_none());
-        assert!(entry.additional_costs_paid.is_empty());
+        assert!(entry.cost_choices.alternative.is_none());
+        assert!(entry.cost_choices.additional.is_empty());
     }
 }
