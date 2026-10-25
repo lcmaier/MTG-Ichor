@@ -96,6 +96,37 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-10-24 for 1d** (#287, `concept-census-and-register`: the
+census of the fields the game holds, its register and gate, and
+`ObjectInformation::Characteristics` naming its moment; A6e's cleanup PR 1d).
+No card moves, so no table is re-recorded. Three `close_out.py` sittings
+against **main** `e4779a0` (#286's merge); **leaves** `3fd18d1` is the
+branch's last engine commit.
+
+**Predictions, before any arm ran:**
+- every game identical on both pools at two seats and four, and the
+  engine-work rows identical, since no registered card reaches a leaf whose
+  answer the moment changes and no prompt changes;
+- instructions per decision within ±0.3%;
+- the clone floors and held memory as #285 left them.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, leaves vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, leaves, dispatches agreed, performance / stress | 175,509 / 173,877 | 337,915 / 353,342 |
+| instructions / decision, callgrind, the Commander board | | 0.7428 M → 0.7437 M, **+0.13%** |
+| clone, worst decision (`clone_bound_test`) | | 40 allocations, 6.5 KB, as #285 |
+| held, log and store together (`history_held_test`) | | 4,265 B a turn, as #285 |
+
+**The first sitting missed, and callgrind's self cost per function said
+where.** It read +1.18%, all of it in `object_filter::answer_or_refuse` on
+the layer walk's path. The arm's moment tag grew `ObjectInformation` from 24
+bytes to 40, the evaluator passed it by value through every `And`, `Or` and
+`Not`, and every call matched `lki()` and built the environments of two
+closures that only a few leaves read. Passed by reference: +0.61%. The leaf
+helpers as functions, called only by the leaves that ask: +0.13%, the
+reading above.
+
 **Measured 2026-10-24 for item 318** (#285, `last-known-information-store`:
 one LKI store keyed by existence, the keepers' lists and the second captures
 gone, the four view types folded into `ObjectInformation`; A6e's cleanup PR

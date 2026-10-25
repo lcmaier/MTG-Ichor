@@ -236,7 +236,7 @@ impl GameState {
             drafts.push((seq, RowDraft { player, object, frame, fact }));
         };
         let departed = |lki: &Lki| (Some(lki.object()), RowFrame::LastKnown(lki.clone()));
-        let as_left = |frame: Option<Arc<EffectiveCharacteristics>>| frame.map_or(RowFrame::None, RowFrame::AsTheEventLeftIt);
+        let as_left = |frame: Option<Arc<EffectiveCharacteristics>>| frame.map_or(RowFrame::None, RowFrame::Characteristics);
         // `object`'s characteristics as this window left it. Read now if it is
         // still the object the record named. If it moved again later in this
         // window it became a new object (CR 400.7), and the record of that
@@ -303,7 +303,7 @@ impl GameState {
             }
             GameEvent::SameZoneMove { owner, zone, act, lki, .. } => {
                 let fact = RowFact::LeftZone { from: *zone, to: *zone, act: *act, became: lki.object() };
-                draft_history_row(Some(*owner), Some(lki.object()), RowFrame::AsTheEventLeftIt(Arc::clone(lki.frame())), fact);
+                draft_history_row(Some(*owner), Some(lki.object()), RowFrame::LastKnown(lki.clone()), fact);
             }
             GameEvent::LeftTheGame { owner, from, lki: Some(lki), .. } => {
                 let (object, frame) = departed(lki);

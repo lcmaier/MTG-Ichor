@@ -339,10 +339,8 @@ pub(super) fn history_total(
     // A row read live is read off the board at the walk's own ceiling, never
     // through the top-level entry (`Board::frame_of`).
     let mut filter_matches = |filter: &ObjectFilter, object: ObjectInformation<'_>| match object {
-        ObjectInformation::Characteristics(id, frame) => object_matches_filter(filter, id, frame, players),
-        ObjectInformation::LastKnown(lki) => {
-            object_filter::evaluate(game, filter, lki.object().id, &|| Some(lki.characteristics()), Some(lki), players)
-        }
+        ObjectInformation::Characteristics(_, frame, _) => object_filter::evaluate(game, filter, object, &|| Some(frame), players),
+        ObjectInformation::LastKnown(lki) => object_filter::evaluate(game, filter, object, &|| Some(lki.characteristics()), players),
         ObjectInformation::Current(id) => {
             board.frame_of(game, id, layer_index).is_some_and(|frame| object_matches_filter(filter, id, &frame, players))
         }

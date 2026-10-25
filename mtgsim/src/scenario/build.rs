@@ -463,7 +463,7 @@ impl<'s> Loader<'s> {
             // A named cast is its printed card as cast from a hand, an object
             // in no store.
             for cast in casts.iter().filter(|cast| cast.turn == t) {
-                let frame = RowFrame::AsTheEventLeftIt(Arc::new(seed_frame(&cast.card, cast.player, t)));
+                let frame = RowFrame::Characteristics(Arc::new(seed_frame(&cast.card, cast.player, t)));
                 let seq = self.state.events.next_seq();
                 let fact = RowFact::Cast { from: Zone::Hand };
                 self.state.history.push_row(HistoryRow { seq, turn: t, combat: 0, player: Some(cast.player), object: None, frame, fact });

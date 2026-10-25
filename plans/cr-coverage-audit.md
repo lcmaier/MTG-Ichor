@@ -637,6 +637,328 @@ is derivable; where each name was read is not, and the gate needs the names.
 
 ---
 
+## 4c. Concepts and their owners
+
+§2's question asks what a type cannot say. This section asks a second one of
+every type the game holds: **which CR concept does each field hold, what does
+the CR key that concept by, and which one holder owns it?** Last known
+information sat in about twenty fields, each kept by the reader that needed
+it, before #285 gave it one store keyed by existence; nobody had asked the
+question of data, only of functions
+(`engineering-practices.md#key-a-concept-before-storing-it`). The census ran
+once, at `concept-census-and-register` (2026-10-24); this register is its
+result, and `check_type_surface.py` keeps it true.
+
+**Where it reads.** The types `GameState` holds, transitively, and
+`GameAction`'s proposals, which carry values through the replacement
+pipeline. It stops at what a card's text says, since a field there is a
+word on a card and not a fact about a game, and at a borrow, which views a
+value held elsewhere:
+
+**Stops at:** `CardData`, `AbilityDef`, `TriggerDef`, `ReplacementDef`,
+`RestrictionDef`, `CostModificationDef`, `TokenDef`, `DelayedTriggerTemplate`,
+`TriggerMultiplierDef`, `Effect`, `ObjectFilter`, `Condition`, `Cost`,
+`AmountExpr`, `TriggerEvent`, `TriggerSubject`, `EffectRecipient`,
+`Primitive`, `EventPattern`, `Rewrite`, `ObjectSet`, `PlayerSet`, `PlayerRef`,
+`GameActionTemplate`, `EnterModsTemplate`, `EntryCopyTemplate`,
+`EntryCountersTemplate`, `TemplateAmount`, `SelectionFilter`, `Selector`,
+`SourcePattern`, `ZoneChangePattern`, `HistoryCount`, `TriggerCondition`,
+`CostSubject`, `ManaCost`; and at an observer's handle, which nothing in a
+game branches on: `TraceHandle`, `RecorderHandle`, `DecisionLogHandle`,
+`Diagnostics`, `DispatchAudit`.
+
+**The rule** (decided at the census's review, 2026-10-24): one holder per
+key, with no exception. A record's values are keyed by its event, so a
+record keeping "who controlled it when it was countered" is that event's
+holder, not a copy of the controller now. A handle to the owner's own
+immutable value (an `Arc` clone of it) is a key. A key must be the CR's
+key: an `ObjectId` where the concept is keyed by existence is a **narrow
+key**, a finding of its own.
+
+**How an entry reads, and what the gate checks.** Each concept below is a
+heading, its CR rule, its key, and a **Query:** the rule that finds its
+holders, either a type of its own (`type \`Lki\``) or a shared type and a
+word in the field's name (`type \`PlayerId\` named \`owner\``). Each holding
+type is a bullet, with a count where it holds more than one, and its role.
+The gate runs every query over the types above and fails a type that holds
+a concept its entry does not list, or a count that differs, in either
+direction. It never reads a field's name for the count, so a renamed field
+passes; a type renamed, or a holder added or removed, is a line to change
+here.
+
+### The concepts
+
+Roles, as §4c's rule names them: *owner*; *moment*, a frame of the concept
+at a moment the CR names, keyed by that moment (a record's event, a batch);
+*hand-over*, a holder that has the value only until it passes it on, so one
+holder has it at a time; *key*; and *copy*, a second holder for the same key,
+each copy pointing at the item that owns its fix. The census's findings are
+§5.5.
+
+#### An object's existence
+CR 109.1, 400.7. **Key:** the object and the zone change that made it, an
+`ObjectRef`. **Query:** type `ZoneChangeEpoch`
+- `GameObject` — owner: the existence the object is now.
+- `ObjectRef` — key: the key itself.
+- `GameEvent` — moment: `ZoneChange.new_epoch`, the existence a move made
+  (CR 400.7e). The existence that left has no key on the record without its
+  frame: a narrow key, item 320.
+- `GameState` ×2 — none: the epoch allocator, and a debug build's window
+  for the state-based check's old walk.
+
+#### Owner
+CR 108.3. **Key:** the object, for its whole life. **Owner:** `GameObject`.
+**Query:** type `PlayerId` named `owner`
+- `GameObject` — owner.
+- `LkiBody` — moment: the owner of an ended existence, which the object store
+  loses at CR 704.5d and 800.4a.
+- `GameEvent` ×4 — moment: each record's own; `ZoneChange`, `LeftTheGame` and
+  `SameZoneMove` also carry it in their frame, one key twice: item 319.
+- `DelayedTrigger` — copy: its source's owner, item 247's T12.
+- `UntilReturn` — copy: its source's owner, item 247's T12.
+
+#### Controller
+CR 108.4, 110.2, 113.8, 603.3a, 613.1b. Several concepts share the word,
+each with its own key: an object's controller, the layer walk's Layer 2
+output; who put a permanent onto the battlefield (CR 110.2); a stack
+object's; a triggered ability's while it waits; an effect's, as its source's
+controller when it was created. **Query:** type `PlayerId` named `controller`
+- `EffectiveCharacteristics` — owner: an object's controller now (Layer 2).
+- `PermanentState` ×2 — owner of who put it onto the battlefield (CR 110.2),
+  Layer 2's input; and a copy of the controller the last control sweep
+  announced, which its `frame_before_control_change` holds too: item 324.
+- `StackEntry` — owner: a spell's or ability's controller on the stack.
+- `ResolvingObject` — owner: CR 110.2b's default controller, the player who
+  put the resolving spell onto the stack.
+- `PendingTrigger` — owner: a waiting trigger's controller (CR 603.3a).
+- `DelayedTrigger` — owner: CR 603.7d–g's controller, fixed as it is created.
+- `ContinuousEffect` — owner: the effect's controller, locked at its creation.
+- `RegisteredReplacementEffect` — owner: as `ContinuousEffect`'s.
+- `RegisteredRestriction` — owner: as `ContinuousEffect`'s.
+- `UntilReturn` — owner: the exile's controller (CR 610.3c).
+- `GameAction` ×2 — hand-over: the controller an entering permanent or token
+  enters under, until the entry writes it.
+- `ResolutionStamp` — moment: the resolving object's controller, as the event
+  it caused happened.
+- `RowFact` — moment: the controller of what targeted, as it targeted.
+- `GameEvent` ×11 — moment: each record's own; `SpellCountered`'s also in its
+  frame, item 319.
+
+#### Characteristics at a moment
+CR 109.3, 613.1. **Key:** an existence and a moment. **Owner:** the layer
+walk, which computes an object's characteristics now and keeps no history.
+**Query:** type `EffectiveCharacteristics`
+- `StoredFrame` — none: the layer memo's cache of a frame now, keyed by the
+  epoch it was computed at and never read past it.
+- `LkiBody` — moment: an ended existence's, or a survivor's before an event.
+- `RowFrame` — moment: a history row's object as the event left it.
+- `PermanentState` — hand-over: `frame_before_control_change`, the frame as
+  the last control sweep read it, until a change's record takes it; its
+  controller is item 324.
+
+#### Last known information and frames before an event
+CR 113.7a, 603.10a, 608.2h. **Key:** an ended existence, or (event,
+existence) for a survivor's frame from just before an event, or (batch,
+existence) for a survivor's list before a batch. **Owner:** the LKI store for
+an ended existence; the record, or the snapshot, for the other two.
+**Query:** type `Lki`
+- `EndedExistences` — owner: the LKI store's entries, by existence.
+- `GameEvent` ×8 — key for a departure, a handle to the store's own `Lki`;
+  owner for a survivor's frame (`ControlChanged`, `SameZoneMove`).
+- `ObjectSnapshot` — owner: a survivor's frame before a batch.
+- `RowFrame` — key: a handle to the store's or a record's `Lki`.
+- `LkiCapture` — hand-over: the CR 603.10a frame taken before a batch
+  performs, until the move files it in the store.
+- `GameAction` ×2 — key: a proposal's handle to its source's frame.
+
+#### Copiable values
+CR 707.2, 707.5. **Key:** the copy effect, or the entering existence.
+**Query:** type `CopiableValues`
+- `EffectModification` — owner: a copy effect's captured values.
+- `EnteredAs` — owner: what a permanent entered as a copy of.
+- `EntryCopy` — hand-over: an entry's values until the permanent enters.
+
+#### Timestamp
+CR 613.7. **Key:** an object, for each zone it enters (CR 613.7d); an effect;
+a kind of counter on a permanent (CR 613.7c). **Query:** type `Timestamp`
+- `GameObject` — owner.
+- `ContinuousEffect` — owner: the effect's.
+- `CounterStack` — owner: the counters' of one kind.
+- `PermanentState` — copy of `GameObject`'s, the battlefield order key the
+  ordered sweeps read: item 77.
+- `GameState` — none: the allocator.
+
+#### Zone
+CR 400.1. **Key:** the object. **Owner:** `GameObject`; each zone's list
+(`PlayerState`'s library, hand and graveyard, `GameState`'s stack, exile and
+command zone) owns that zone's order (CR 401.4, 404.2, 405.2), and one
+performer, `move_object`, writes both. **Query:** type `Zone`
+- `GameObject` — owner.
+- `StackEntry` — owner: the zone a spell was cast from (CR 601.2a).
+- `CastFacts` — hand-over of `StackEntry`'s, kept by the permanent the spell
+  became (CR 400.7d).
+- `ObjectSnapshot` — moment: where a survivor was, before a batch.
+- `UntilReturn` — owner: each exiled object's previous zone (CR 610.3).
+- `GameAction` ×4 — owner: a proposal's zones.
+- `GameEvent` ×6 — moment: each record's.
+- `RowFact` ×5 — moment: each history row's.
+
+#### Status
+CR 110.5. **Key:** a permanent's existence. **Query:** type `TapStatus`;
+type `bool` named `tapped`; type `bool` named `flipped`; type `bool` named
+`face_down`; type `bool` named `phased_out`
+- `PermanentState` ×4 — owner.
+- `PermanentFacts` — moment: tapped, in an `Lki`.
+- `EnterMods` — hand-over: the status an entering permanent will have (CR
+  110.5b), until the entry writes it.
+- `CopyAdditions` — hand-over: the status a copy exception replaced, which a
+  later copy effect takes back (CR 707.9e).
+- `GameAction` — owner: `ProduceMana.tapped_for_mana`, whether the mana came
+  from tapping for mana (CR 106.12), the proposal's.
+- `GameEvent` — moment: `ManaAdded.tapped_for_mana`, the record's.
+
+#### Counters
+CR 122.1, 122.2. **Key:** an existence or a player, and a kind. **Query:**
+type `CounterType`
+- `PermanentState` — owner, a permanent's.
+- `PlayerState` — owner, a player's.
+- `PermanentFacts` — moment: in an `Lki`.
+- `EntryCounters` — hand-over: the counters a permanent enters with (CR
+  122.6a).
+- `GameAction` ×2 — owner: a proposal's kind.
+- `GameEvent` ×2 — moment: each record's.
+- `GeneratedBy` — key: which counter's effect caused an event.
+- `ReplacementInstanceId` — key: a counter's replacement effect (CR 122.1c).
+
+#### Attachment
+CR 301.5, 303.4, 701.3a. **Key:** the attachment's existence: it is attached
+to one object. **Query:** type `ObjectId` named `attached_to`; type
+`ObjectId` named `attached_by`; type `ObjectId` named `host`; type
+`ObjectRef` named `host`
+- `PermanentState` ×2 — owner, `attached_to`, and the host's end,
+  `attached_by`, which "each Aura attached to it" reads; `GameState::attach`
+  and `detach` write both, and item 322 checks that they agree.
+- `PermanentFacts` ×2 — moment: both ends, in an `Lki`.
+- `EnterMods` — hand-over: what an entering permanent will be attached to.
+- `GameAction` — owner: a proposal's host.
+- `GameEvent` ×3 — moment: each record's.
+- `TriggeringEventObjects` — moment: a waiting trigger's event's.
+
+#### Combat
+CR 506.3–506.5, 508.1, 509.1. **Key:** a creature's existence, in the
+combat. **Query:** type `AttackTarget`; type `AttackingInfo`; type
+`BlockingInfo`; type `ObjectId` named `blocking`; type `ObjectId` named
+`blocked_by`; type `bool` named `is_blocked`
+- `PermanentState` ×2 — owner: what it attacks and what it blocks.
+- `AttackingInfo` ×3 — owner of what it attacks and whether it is blocked
+  (CR 509.1h), and the attacker's end of the blocks, `blocked_by`, written
+  with the blocker's end by the declaration and each removal from combat:
+  item 323 checks that they agree.
+- `BlockingInfo` — owner of the blocks, from the blocker's end.
+- `PermanentFacts` — moment: what it was attacking, in an `Lki`.
+- `CombatExit` ×2 — moment: what it attacked or blocked as it left combat.
+- `EntersAttackingCandidates` — owner: what an entering creature may attack
+  (CR 508.4), the proposal's.
+- `GameEvent` — moment: the declaration's.
+- `RowFact` ×2 — moment: each history row's.
+
+#### Marked damage
+CR 120.6, 704.5h. **Key:** a permanent's existence. **Query:** type `u32`
+named `damage_marked`; type `bool` named `damaged_by_deathtouch`
+- `PermanentState` ×2 — owner: the damage marked, and whether a deathtouch
+  source dealt any since the last state-based check.
+
+#### Targets
+CR 115.1, 601.2c. **Key:** a spell or ability on the stack and its instance
+of "target". **Query:** type `TargetRef`; type `TargetInstance`
+- `StackEntry` — owner.
+- `TargetInstance` — owner: the targets one instance chose.
+- `RegisteredReplacementEffect` — hand-over: the targets of the resolution
+  that made the row, which its rider reads once the stack object is gone.
+- `GameEvent` — moment: the record's.
+
+#### A spell's or ability's choices
+CR 107.3, 601.2b, 700.2. **Key:** the stack object, and through CR 400.7d the
+permanent it became. **Query:** type `u64` named `x_value`; type `usize`
+named `chosen_modes`
+- `StackEntry` ×2 — owner of X; and `chosen_modes`, which has no writer and
+  no reader, item 31.
+- `ResolvingObject` — hand-over of X, to the permanent.
+- `PermanentState` — owner: the X of the spell it was (CR 400.7d).
+- `PendingTrigger` — owner: a delayed trigger's X, its creator's (CR 107.3n).
+- `DelayedTrigger` — owner: as `PendingTrigger`'s.
+
+#### Costs paid
+CR 118.8, 118.9, 601.2h, 400.7d, 707.10. **Key:** the stack object, and
+through CR 400.7d the permanent it became. **Query:** type `ManaSpent`; type
+`CostChoices`; type `AlternativeCost`; type `AdditionalCost`; type `CastFacts`
+- `StackEntry` ×3 — owner: the mana spent, and the cost decisions as two
+  fields where every later holder has one `CostChoices`: item 327.
+- `CostChoices` ×2 — owner: the type itself.
+- `ResolvingObject` ×2 — hand-over, to the permanent.
+- `PermanentState` ×2 — owner: the spell it was (CR 400.7d).
+- `CastFacts` — owner: the mana the spell it was spent.
+- `LkiBody` — moment: an ended existence's.
+- The objects that paid (CR 601.2h, 707.10) have no holder: item 30, slotted
+  at `resolution-recipients-and-amounts`, makes `StackEntry`'s the owner.
+
+#### Mana
+CR 106.4. **Key:** a player. **Query:** type `ManaType`
+- `ManaPool` — owner.
+- `ManaAtom` — owner: a unit's type, in the pool's slow path.
+- `GameAction` — owner: a proposal's.
+- `GameEvent` — moment: the record's.
+
+#### Life
+CR 119.1, 103.4. **Key:** a player. **Query:** type `i64` named `life`;
+type `i64` named `life_total`
+- `PlayerState` — owner.
+- `GameState` — owner of the starting life total, a concept of its own.
+
+#### The turn a player's turn began
+CR 302.6, 500.1. **Key:** a player. **Query:** type `u32` named
+`last_turn_began`; type `u32` named `own_turn`
+- `GameState` — owner: what CR 302.6 measures against.
+- `PlayerHistory` ×2 — a copy of it, `own_turn`, written beside it, and the
+  turn before it: item 326.
+
+#### The turn a permanent entered, and control since
+CR 302.6, 603.6. **Key:** a permanent's existence. **Query:** type `u32`
+named `entered_battlefield_turn`; type `u32` named `entered_turn`; type `u32`
+named `controller_since_turn`; type `u32` named `control_since_turn`
+- `PermanentState` ×2 — owner of the turn it entered, and
+  `controller_since_turn`, which is that turn by construction: item 325.
+- `EffectiveCharacteristics` — owner: control since, computed through Layer 2.
+- `PermanentFacts` — moment: in an `Lki`.
+
+#### Which record ended an existence
+CR 400.7. **Key:** the existence. **Query:** type `EventId` named `left_at`
+- `DelayedTrigger` — copy: its source's, held by the keeper that reads it.
+- `RememberedObject` — copy: as `DelayedTrigger`'s; both are item 321.
+
+### What no entry claims
+
+Every holder in scope was read once at the census, and those no entry claims
+hold no value another holder owns. `plans/references/concept-census.py
+--unclaimed` lists them; they fall in five classes:
+
+- **Keys**: ids, existences, events, batches and abilities' identities, each
+  pointing at an owner. Each `ObjectId` was checked for a narrow key
+  (`--narrow-keys`): the records' are item 320, and a registry row's source
+  is item 17's.
+- **What an effect or a cost does**, held by its own row or entry:
+  `EffectModification`, `CharacteristicEdit`, `TypeChange`, `PtValue`,
+  `AdditionalCost`'s and `AlternativeCost`'s costs, a duration, a mana
+  atom's restrictions and grants.
+- **An event's own content**, which its record owns (decision 6): an amount,
+  whether damage was combat damage, an act, the replacements that applied.
+- **A count**: a history row's turn and combat, a tally, a stated count.
+- **The engine's bookkeeping**: allocators, lengths and chunks of the shared
+  stores, nesting guards, the layer memo's stamps, registry summaries and the
+  fast-path gates' indices, which are derived from the board and say so.
+
+---
+
 ## 5. Findings register
 
 One line per finding, with a pointer to where it actually lives.
@@ -799,6 +1121,42 @@ was travelling under another mechanic's section number. → backlog §2.2, §3.
 - **The player a payment chose** (pass 4): gift's opponent, which a copy of
   the spell keeps. → item 30, sharpened.
 
+### 5.5 The concept census's findings (2026-10-24, §4c)
+
+Each is a concept held twice for one key, or a holder keyed more narrowly
+than the CR keys it. None answers wrongly today: each pair is written from
+one value, and the narrow keys are read inside their window.
+
+- **A record restates a fact its own frame holds**: the owner on three
+  zone-change records, the controller on `SpellCountered` and the "from" on
+  `ControlChanged`. → item 319, `trigger-matcher-merges`.
+- **Records name an object by its id**, where the CR keys it by existence,
+  and a zone change keeps no key for the existence that left. → item 320,
+  `trigger-matcher-merges`.
+- **Which record ended an existence**, held by each keeper that reads it,
+  which exists for the narrow key. → item 321, after item 320.
+- **A source's owner, copied by each keeper**: `DelayedTrigger.owner`,
+  `UntilReturn.owner`. → item 247's T12, `trigger-matcher-merges`.
+- **An attachment held from both ends**, and **a block held from both
+  ends**: both ends are read and stay, and nothing checks that they agree.
+  → items 322 and 323, `layers-combat-and-counters`.
+- **The last control sweep's view held twice**, and **"controlled since"
+  equal to the entry turn by construction**. → items 324 and 325,
+  `batches-durations-and-control`.
+- **A player's most recent turn held twice**, and **a spell's cost decisions
+  as two fields on its stack entry and one type everywhere else**. → items
+  326 and 327, `one-fact-one-type`.
+- **The objects that paid for a cost have no holder**, which the brief's
+  candidate confirmed: a concept keyed and unowned. → item 30, re-slotted to
+  `resolution-recipients-and-amounts`.
+
+Cleared, of the candidates #285's review named: **survivor frames** are one
+concept, an object as it was just before an event, owned by the record or
+the snapshot the moment belongs to, with two hand-overs (a batch's capture,
+the control sweep's frame) that hold the value before its owner exists; and
+**`ObjectInformation::Characteristics`** now names its moment, built at the
+census (`FrameContext`).
+
 ---
 
 ## 6. Confirmations, not instruments
@@ -879,6 +1237,9 @@ into a darkness one.
   back-stop is **CV**, not RC (`77bda5e`). §5.3's three are `backlog.md` §2.
 - **Settled 2026-09-24: the re-sweep.** Pass 4 (§4a) closed it, and
   `check_type_surface.py` holds §4's promise from here on (§4b).
+- **Settled 2026-10-24: the concept census.** §4c is its register and §5.5
+  its findings, and `check_type_surface.py`'s second half keeps the register
+  true.
 - **Open — the second vocabulary, now three rules.** `DUPLICATE` (305.9) was
   the fourth and is **settled**: `1f2c8da` restated it as `ALREADY-IMPLEMENTED`
   with the duplication explained in prose, which is the worked example for the

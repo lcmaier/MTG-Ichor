@@ -135,8 +135,10 @@ it is, rename it. Every name a PR adds is read against this list:
   lives or how long.** TR-2b chose where last known information lived by how
   long each keeper needed it, and twenty fields followed; the key CR 400.7 gives
   it, the existence, came only with #285's store.
-- **A concept with two owners is a finding.** The concept register and its gate
-  are `concept-census-and-register`'s (`handoffs/item-6-audit.md`, row 1d).
+- **A concept with two owners is a finding, and so is a key narrower than the
+  CR's.** Each concept's key, owner and holders are the register,
+  `cr-coverage-audit.md#4c-concepts-and-their-owners`; `check_type_surface.py`
+  fails a new holder of a registered concept until the register has its line.
 
 ## Counts in docs
 

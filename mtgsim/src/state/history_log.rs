@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::oracle::characteristics::ObjectInformation;
+use crate::oracle::characteristics::{FrameContext, ObjectInformation};
 use crate::events::event::EventId;
 use crate::state::battlefield::AttackTarget;
 use crate::state::layer_memo::GatedWalkInput;
@@ -67,11 +67,12 @@ pub enum RowFrame {
     /// Nothing: a row about no object, or a count a scenario states.
     None,
     /// The object's characteristics as the event left it.
-    AsTheEventLeftIt(Arc<EffectiveCharacteristics>),
+    Characteristics(Arc<EffectiveCharacteristics>),
     /// An object that had left by the event, a departure or damage from a
     /// source gone before it: the LKI store's last known information of it,
     /// its frame with what the object store no longer answers, whether it was
-    /// a token, its counters, its owner (CR 113.7a).
+    /// a token, its counters, its owner (CR 113.7a). A move a replacement kept
+    /// in its zone keeps its record's frame from just before it the same way.
     LastKnown(Lki),
 }
 
@@ -86,7 +87,7 @@ impl RowFrame {
     pub fn frame(&self) -> Option<&Arc<EffectiveCharacteristics>> {
         match self {
             RowFrame::None => None,
-            RowFrame::AsTheEventLeftIt(frame) => Some(frame),
+            RowFrame::Characteristics(frame) => Some(frame),
             RowFrame::LastKnown(lki) => Some(lki.frame()),
         }
     }
@@ -170,7 +171,9 @@ impl HistoryRow {
         let id = self.object.map_or(ObjectId::UNASSIGNED, |object| object.id);
         match &self.frame {
             RowFrame::LastKnown(lki) => matches(ObjectInformation::LastKnown(lki)),
-            RowFrame::AsTheEventLeftIt(frame) => matches(ObjectInformation::Characteristics(id, frame)),
+            RowFrame::Characteristics(frame) => {
+                matches(ObjectInformation::Characteristics(id, frame, FrameContext::HistoryRow(self.object)))
+            }
             RowFrame::None => {
                 debug_assert!(
                     !matches!(self.fact, RowFact::Stated { .. }),
@@ -557,7 +560,7 @@ impl HistoryLog {
             .rows_newest_first()
             .filter_map(|row| match &row.frame {
                 RowFrame::LastKnown(lki) => Some(lki.bytes_beside_its_frame()),
-                RowFrame::None | RowFrame::AsTheEventLeftIt(_) => None,
+                RowFrame::None | RowFrame::Characteristics(_) => None,
             })
             .sum();
         let rows: usize = std::iter::successors(self.newest.as_deref(), |chunk| chunk.older.as_deref())
@@ -623,11 +626,51 @@ mod tests {
             log.push(drew(seq, 1));
         }
         let fork = log.clone();
-        let framed = || frame.clone().map_or(RowFrame::None, RowFrame::AsTheEventLeftIt);
+        let framed = || frame.clone().map_or(RowFrame::None, RowFrame::Characteristics);
         log.reframe_newest(vec![framed(), framed(), framed(), RowFrame::None]);
         let framed: Vec<bool> = log.rows_newest_first().take(5).map(|row| row.frame.characteristics().is_some()).collect();
         assert_eq!(framed, [false, true, true, true, false], "oldest first: the newest row took the last frame");
         assert!(fork.rows_newest_first().all(|row| row.frame.characteristics().is_none()), "the fork's chunks were copied, not written");
+    }
+
+    /// A row's frame answers for the existence the row names (CR 400.7),
+    /// whatever has its id now: a creature that attacked, then left and came
+    /// back, is a new object that did not attack, and a row about the one that
+    /// did still reads "attacked this turn" of it.
+    #[test]
+    fn a_rows_frame_answers_for_the_existence_the_row_names() {
+        use crate::engine::layers::compute::compute_characteristics;
+        use crate::state::game_state::GameState;
+        use crate::test_support::{put_on_battlefield, vanilla_creature};
+        use crate::types::effects::ObjectFilter;
+        use crate::types::history::ObjectFact;
+
+        let mut game = GameState::new(2, 20);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let (Some(attacker), Some(frame)) = (game.object_ref(bears), compute_characteristics(&game, bears)) else {
+            panic!("the bears are on the battlefield");
+        };
+        let turn = game.turn_number;
+        let attacked_row = RowFact::Attacked(AttackTarget::Player(1));
+        game.history.push_row(HistoryRow { seq: EventId(0), turn, combat: 0, player: Some(0), object: Some(attacker), frame: RowFrame::None, fact: attacked_row });
+        let cast = HistoryRow {
+            seq: EventId(1),
+            turn,
+            combat: 0,
+            player: Some(0),
+            object: Some(attacker),
+            frame: RowFrame::Characteristics(frame),
+            fact: RowFact::Cast { from: Zone::Hand },
+        };
+        if let Some(object) = game.objects.get_mut(&bears) {
+            object.zone_change_epoch += 1;
+        }
+
+        let attacked_this_turn = ObjectFilter::ThisTurn(ObjectFact::Attacked);
+        assert!(
+            cast.frame_matches(|object| game.object_matches_filter_of_source(object, &attacked_this_turn, 0, bears)),
+            "the row's object attacked this turn, though the object with its id now did not"
+        );
     }
 
     #[test]
