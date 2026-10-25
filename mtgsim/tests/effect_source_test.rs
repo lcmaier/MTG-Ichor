@@ -279,6 +279,24 @@ fn an_ability_of_a_creature_equipped_as_it_resolves_has_lifelink() {
     assert_eq!(life(&game, 0), 22);
 }
 
+/// Equipped when the trigger was created, and the Warhammer moved to
+/// another creature before it resolved: lifelink is read as the damage is
+/// dealt (CR 702.15b), so the damage gains nothing (the judges, at the
+/// owner's question).
+#[test]
+fn an_ability_of_a_creature_unequipped_before_it_resolves_has_no_lifelink() {
+    let mut game = setup_two_player_game();
+    let (_, warhammer) = dragonhawk_board(&mut game);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    equip(&mut game, warhammer, bears);
+
+    to_the_end_step(&mut game);
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+
+    assert_eq!(life(&game, 1), 18, "the creature still deals it");
+    assert_eq!(life(&game, 0), 20, "and has no lifelink as it does");
+}
+
 /// Died equipped before its delayed trigger triggered: it deals the damage
 /// from the graveyard as it last existed on the battlefield, Warhammer and
 /// all (CR 608.2h, 702.15c, 113.7a's "the source can still perform the

@@ -1993,10 +1993,11 @@ impl GameState {
                 TriggerEvent::DamageDealt { source, recipient, combat, excess, .. },
                 GameEvent::DamageDealt { source: dealt_by, target, is_combat, excess: dealt_excess, .. },
             ) => {
-                // A source that left before dealing damage deals it as it last
-                // existed (CR 608.2h); one still there is read now, as the
-                // existence that dealt it.
-                let source_read = ObjectInformation::of(dealt_by.id, record.event.source_lki());
+                // The source as it dealt the damage (CR 608.2h): as it last
+                // existed once the existence that dealt it has ended, before
+                // the damage or later in this event, and else as it is now.
+                let as_it_dealt = record.event.source_lki().or_else(|| self.lki(*dealt_by));
+                let source_read = ObjectInformation::of(dealt_by.id, as_it_dealt);
                 triggering_event_if(
                     self.damage_recipient_matches(recipient, *target, referents, seq)
                         && combat.is_none_or(|c| c == *is_combat)

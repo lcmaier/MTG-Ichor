@@ -7,14 +7,16 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::triggers::{counters_removed_from, triggered_ability, whenever};
 use mtgsim::engine::actions::GameAction;
-use mtgsim::events::event::CounterSubject;
+use mtgsim::engine::layers::types::{EffectModification, Layer};
+use mtgsim::events::event::{CounterSubject, DamageTarget};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_on_battlefield, setup_two_player_game, test_ctx, test_dp, vanilla_creature};
+use mtgsim::test_support::{put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp, vanilla_creature};
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{CounterType, Effect, EffectRecipient, ObjectFilter, Primitive};
+use mtgsim::types::colors::Color;
+use mtgsim::types::effects::{AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, Primitive};
 use mtgsim::types::ids::ObjectId;
-use mtgsim::types::triggers::{EventRole, TriggerSubject};
+use mtgsim::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
 
 /// "Whenever a +1/+1 counter is removed from a creature, exile that
@@ -54,4 +56,45 @@ fn a_trigger_on_a_removal_remembers_the_creature_its_death_ended() {
     }
 
     assert_eq!(game.get_object(bears).expect("its card").zone, Zone::Graveyard, "a new object, which the trigger never names");
+}
+
+/// "Whenever a red creature deals damage, you gain 1 life."
+fn gains_when_red_deals_damage() -> Arc<CardData> {
+    let arm = TriggerEvent::DamageDealt {
+        source: TriggerSubject::Filter(ObjectFilter::ByColor(Color::Red)),
+        recipient: DamageRecipient::Any,
+        combat: None,
+        excess: false,
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    CardDataBuilder::new("Fixture Red Tithe").card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, gain))).build()
+}
+
+/// A 2/2, red only while a row about it lasts, deals 1 damage and is
+/// destroyed in the same event. What dealt the damage is read as it dealt it
+/// (CR 608.2h), as it last existed once its existence has ended: a red
+/// creature, though the row ended as it left (CR 400.7) and the card in the
+/// graveyard is not red. The judges' Dragonhawk ruling reads lifelink the
+/// same way, as the damage is dealt (`effect_source_test.rs`).
+#[test]
+fn a_damage_trigger_reads_a_source_that_left_in_its_event_as_it_dealt_the_damage() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, gains_when_red_deals_damage(), 0);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let timestamp = game.allocate_timestamp();
+    game.continuous_effects.add(registered(bears, Layer::Layer5Color, timestamp, EffectModification::SetColors([Color::Red].into_iter().collect())));
+    let deals = GameAction::DealDamage {
+        source: bears,
+        target: DamageTarget::Player(1),
+        amount: 1,
+        is_combat: false,
+        unpreventable: false,
+        source_lki: None,
+    };
+
+    game.execute_actions(vec![deals, GameAction::Destroy { object: bears }], &test_ctx()).expect("one event");
+
+    assert_eq!(game.get_object(bears).expect("its card").zone, Zone::Graveyard);
+    assert_eq!(game.pending_triggers.len(), 1, "a red creature dealt the damage");
 }
