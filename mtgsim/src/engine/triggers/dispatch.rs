@@ -1807,6 +1807,11 @@ impl GameState {
         triggering_events: Vec<TriggeringEventObjects>,
         source: TriggerSource<'_>,
     ) -> Result<Vec<TriggeringEventObjects>, Refusal> {
+        // CR 113.6b's statement is printed as the intervening "if" and asked
+        // with it, of the source where it is now, as the resolution asks it.
+        if def.functions_in.is_some_and(|zones| !self.objects.get(&source.object).is_some_and(|object| zones.contains(object.zone))) {
+            return Err(Refusal::InterveningIf);
+        }
         let Some(condition) = &def.intervening_if else { return Ok(triggering_events) };
         let holding: Vec<TriggeringEventObjects> = triggering_events
             .into_iter()
