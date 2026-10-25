@@ -215,6 +215,60 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
     !game.battlefield.get(&id).is_some_and(|entry| entry.face_down)
 }
 
+/// The objects that may carry a triggered ability reading some kinds of
+/// record, as the dispatch gate's legs find them (§4.2): the permanents whose
+/// printed triggers read one, the objects a row naming them puts one on, the
+/// window's newcomers, the zones a `Filter` row reaches, and the cards off
+/// the battlefield on the zone map. Built by one constructor
+/// (`GameState::trigger_gate`) for the dispatch, the look-back snapshot and
+/// the state check.
+pub(super) struct TriggerGate<'a> {
+    game: &'a GameState,
+    kinds: EventKindMask,
+    off_the_battlefield: OffTheBattlefield,
+    readers: Vec<ObjectId>,
+    named: Vec<ObjectId>,
+    newcomers: Vec<ObjectId>,
+    unattributed: ZoneSet,
+}
+
+/// Whether the legs off the battlefield ask the kinds. The zone map files
+/// each object's kinds and the summary a `Filter` row's, but the dispatch
+/// and the look-back snapshot walk both whole; which filtering the dispatch
+/// could afford is readiness's to price, on this constructor.
+#[derive(Clone, Copy)]
+pub(super) enum OffTheBattlefield {
+    Whole,
+    OfTheKinds,
+}
+
+impl<'a> TriggerGate<'a> {
+    /// Whether no leg holds anything, so the candidates are none.
+    pub(super) fn is_empty(&self) -> bool {
+        let no_zone_sources = match self.off_the_battlefield {
+            OffTheBattlefield::Whole => self.game.zone_trigger_sources.is_empty(),
+            OffTheBattlefield::OfTheKinds => zone_sources(self.game, self.kinds, self.off_the_battlefield).next().is_none(),
+        };
+        self.readers.is_empty() && self.named.is_empty() && self.newcomers.is_empty() && self.unattributed.is_empty() && no_zone_sources
+    }
+
+    /// The candidates its legs reach, in CR 613.7 order (`candidates_now`).
+    pub(super) fn candidates(self) -> Vec<ObjectId> {
+        let TriggerGate { game, kinds, off_the_battlefield, readers, named, newcomers, unattributed } = self;
+        game.candidates_now(readers, named, newcomers, unattributed, zone_sources(game, kinds, off_the_battlefield))
+    }
+}
+
+/// The zone map's objects, only those filed under `kinds` where the legs off
+/// the battlefield ask them.
+fn zone_sources(game: &GameState, kinds: EventKindMask, off_the_battlefield: OffTheBattlefield) -> impl Iterator<Item = ObjectId> + '_ {
+    // ORDER-FREE: `candidates_now` sorts the zone map's objects by timestamp.
+    game.zone_trigger_sources
+        .iter()
+        .filter(move |(_, filed)| matches!(off_the_battlefield, OffTheBattlefield::Whole) || filed.intersects(kinds))
+        .map(|(&id, _)| id)
+}
+
 /// One ability list of one object the matcher asks: a live object's list
 /// now, the CR 603.10a frame of an object that left, or a survivor's list from
 /// before a batch. An object with lists from before the event is several
@@ -766,30 +820,38 @@ impl GameState {
         if window_kinds.is_empty() {
             return Vec::new();
         }
-        let unattributed = self.continuous_effects.summary().unattributed_trigger_zones;
-        let readers = self.battlefield_readers(window_kinds);
-        let named = self.named_trigger_carriers(window_kinds);
-        let newcomers = self.newcomer_trigger_carriers(window);
+        let gate = self.trigger_gate(window_kinds, self.newcomer_trigger_carriers(window), OffTheBattlefield::Whole);
+        // The departed leg reads lists no registration saw, so it keeps its
+        // whole walk.
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
                 r.event.lki().is_some_and(|(lki, ..)| lki.characteristics().abilities.iter().any(|ability| ability.effect.as_trigger().is_some()))
             })
         });
-        // The battlefield probe and the named rows read the mask. The zone
-        // map files each object's kinds, but the gate asks only whether it is
-        // empty, and a `Filter` row's zones and the departed leg read lists no
-        // registration saw, so all three keep their whole walk.
-        if readers.is_empty()
-            && named.is_empty()
-            && self.zone_trigger_sources.is_empty()
-            && newcomers.is_empty()
-            && unattributed.is_empty()
-            && !any_frame_source
-            && snapshots.is_empty()
-        {
+        if gate.is_empty() && !any_frame_source && snapshots.is_empty() {
             return Vec::new();
         }
-        self.find_matches(window, readers, named, newcomers, unattributed, snapshots)
+        self.find_matches(window, gate, snapshots)
+    }
+
+    /// The dispatch gate's legs for `kinds` (§4.2), with `newcomers`, the
+    /// window's, and the legs off the battlefield whole or of the kinds.
+    pub(super) fn trigger_gate(&self, kinds: EventKindMask, newcomers: Vec<ObjectId>, off_the_battlefield: OffTheBattlefield) -> TriggerGate<'_> {
+        let summary = self.continuous_effects.summary();
+        let unattributed = match off_the_battlefield {
+            OffTheBattlefield::Whole => summary.unattributed_trigger_zones,
+            OffTheBattlefield::OfTheKinds if summary.unattributed_trigger_kinds.intersects(kinds) => summary.unattributed_trigger_zones,
+            OffTheBattlefield::OfTheKinds => ZoneSet::EMPTY,
+        };
+        TriggerGate {
+            game: self,
+            kinds,
+            off_the_battlefield,
+            readers: self.battlefield_readers(kinds),
+            named: self.named_trigger_carriers(kinds),
+            newcomers,
+            unattributed,
+        }
     }
 
     /// Steps 4 and 5, for the matches the two legs found: the objects', then
@@ -1248,15 +1310,11 @@ impl GameState {
     /// effect. The frames are memo hits: nothing has changed since the batch
     /// began deciding.
     pub(crate) fn look_back_frames(&self) -> Vec<ObjectSnapshot> {
-        let unattributed = self.continuous_effects.summary().unattributed_trigger_zones;
         // Every printed source, not the ones whose kinds a look-back arm
         // reads: which arms look back is `TriggerEvent::looks_back`'s to say,
-        // and a kind filter here would be a second table of it.
-        let named = self.named_trigger_carriers(EventKindMask::ALL);
-        // No newcomer's trigger looks back but off its own move's frame.
-        // ORDER-FREE: `candidates_now` sorts the zone map's objects by timestamp.
-        let zone_sources = self.zone_trigger_sources.keys().copied();
-        let mut ids = self.candidates_now(self.battlefield_readers(EventKindMask::ALL), named, Vec::new(), unattributed, zone_sources);
+        // and a kind filter here would be a second table of it. No newcomer's
+        // trigger looks back but off its own move's frame.
+        let mut ids = self.trigger_gate(EventKindMask::ALL, Vec::new(), OffTheBattlefield::Whole).candidates();
         // And the multipliers, which CR 603.2d's count reads on the same board.
         for id in self.trigger_multiplier_sources_now() {
             if !ids.contains(&id) {
@@ -1330,18 +1388,8 @@ impl GameState {
     /// The matcher's read-only half: the dispatcher's candidates for the
     /// window — its four legs and the survivors' lists from before — asked
     /// by [`Self::match_candidates`].
-    fn find_matches(
-        &self,
-        window: &[EventId],
-        readers: Vec<ObjectId>,
-        named: Vec<ObjectId>,
-        newcomers: Vec<ObjectId>,
-        unattributed: ZoneSet,
-        snapshots: &[LookBackSnapshot],
-    ) -> Vec<MatchedTrigger> {
-        // ORDER-FREE: `candidates_now` sorts the zone map's objects by timestamp.
-        let zone_sources = self.zone_trigger_sources.keys().copied();
-        let mut live = self.candidates_now(readers, named, newcomers, unattributed, zone_sources);
+    fn find_matches(&self, window: &[EventId], gate: TriggerGate<'_>, snapshots: &[LookBackSnapshot]) -> Vec<MatchedTrigger> {
+        let mut live = gate.candidates();
 
         // Each survivor's lists from before the window's snapshotting batches.
         // A survivor no live set reaches now, like a grant's carrier after

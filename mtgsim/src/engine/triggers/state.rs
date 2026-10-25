@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use super::dispatch::visible_to_all;
+use super::dispatch::{visible_to_all, OffTheBattlefield};
 use super::audit::assert_agree;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -32,7 +32,6 @@ use crate::types::triggers::{
     EventIndex, EventKind, EventKindMask, PendingTrigger, Referred, TriggerBinding, TriggerCondition, TriggerDef, TriggerLimit,
     TriggerOrigin,
 };
-use crate::types::zones::ZoneSet;
 
 /// A state trigger the check found true, before it is queued.
 pub(super) struct StateTriggerMatch {
@@ -90,20 +89,11 @@ impl GameState {
     /// off it, the objects a row naming them puts one on, and the zones a
     /// `Filter` row does. In CR 613.7 order, as the dispatcher's candidates.
     fn state_trigger_candidates(&self) -> Vec<ObjectId> {
-        let board_state = EventKindMask::of(EventKind::BoardState);
-        let summary = self.continuous_effects.summary();
-        let readers = self.battlefield_readers(board_state);
-        let named = self.named_trigger_carriers(board_state);
-        let zones = match summary.unattributed_trigger_kinds.contains(EventKind::BoardState) {
-            true => summary.unattributed_trigger_zones,
-            false => ZoneSet::EMPTY,
-        };
-        // ORDER-FREE: `candidates_now` sorts the zone map's objects by timestamp.
-        let mut elsewhere = self.zone_trigger_sources.iter().filter(|(_, kinds)| kinds.contains(EventKind::BoardState)).map(|(&id, _)| id).peekable();
-        if readers.is_empty() && named.is_empty() && zones.is_empty() && elsewhere.peek().is_none() {
+        let gate = self.trigger_gate(EventKindMask::of(EventKind::BoardState), Vec::new(), OffTheBattlefield::OfTheKinds);
+        if gate.is_empty() {
             return Vec::new();
         }
-        self.candidates_now(readers, named, Vec::new(), zones, elsewhere)
+        gate.candidates()
     }
 
     /// Each of `id`'s state triggers that triggers now: one that functions
