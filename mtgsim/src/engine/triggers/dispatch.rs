@@ -1987,20 +1987,21 @@ impl GameState {
             ) => {
                 let added = |m: ManaType| added.iter().any(|(t, n)| *t == m && *n > 0);
                 let producer = ManaProducer { id: source.id, tapped_for_mana: *tapped, lki: event.source_lki() };
-                triggering_event_if(self.mana_added_arm_matches(arm, producer, added, referents, seq))
+                triggering_event_if(self.mana_added_arm_matches(arm, producer, Some(*source), added, referents, seq))
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, excess, .. },
                 GameEvent::DamageDealt { source: dealt_by, target, is_combat, excess: dealt_excess, .. },
             ) => {
                 // A source that left before dealing damage deals it as it last
-                // existed (CR 608.2h); one still there is read now.
+                // existed (CR 608.2h); one still there is read now, as the
+                // existence that dealt it.
                 let source_read = ObjectInformation::of(dealt_by.id, record.event.source_lki());
                 triggering_event_if(
                     self.damage_recipient_matches(recipient, *target, referents, seq)
                         && combat.is_none_or(|c| c == *is_combat)
                         && (!*excess || *dealt_excess > 0)
-                        && self.subject_matches(source, source_read, referents, seq),
+                        && self.subject_matches_existence(source, source_read, Some(*dealt_by), referents, seq),
                 )
             }
             // Announced as the batch decided, and read at its close, so the
@@ -2412,11 +2413,13 @@ impl GameState {
     /// "whenever [something] is tapped for mana" or "adds mana" (CR 106.12a) —
     /// that the mana `producer` just made sets off: tapped for mana or not,
     /// with the types `added` admits, and made by the object the arm names
-    /// for `referents`' ability (Wild Growth's enchanted land).
+    /// for `referents`' ability (Wild Growth's enchanted land). `made_by` is
+    /// the existence the record names, and `None` before any record.
     fn mana_added_arm_matches(
         &self,
         arm: &TriggerEvent,
         producer: ManaProducer<'_>,
+        made_by: Option<ObjectRef>,
         added: impl Fn(ManaType) -> bool,
         referents: &TriggerReferents<'_>,
         seq: EventId,
@@ -2426,7 +2429,7 @@ impl GameState {
         let read = ObjectInformation::of(producer.id, producer.lki);
         tapped_for_mana.is_none_or(|t| t == producer.tapped_for_mana)
             && mana.is_none_or(added)
-            && self.subject_matches(source, read, referents, seq)
+            && self.subject_matches_existence(source, read, made_by, referents, seq)
     }
 
     /// [`Self::mana_added_arm_matches`], asked before the mana is made.
@@ -2452,7 +2455,7 @@ impl GameState {
         let Some(object) = self.objects.get(&permanent) else { return false };
         let referents = TriggerReferents::of_object(permanent, controller, object.owner, crate::oracle::board::host_of(self, permanent), None);
         let producer = ManaProducer { id: producer, tapped_for_mana: tapped, lki: None };
-        self.mana_added_arm_matches(arm, producer, added, &referents, self.events.next_seq())
+        self.mana_added_arm_matches(arm, producer, None, added, &referents, self.events.next_seq())
     }
 
     /// Whether damage dealt, or prevented, to `target` is to the player or
