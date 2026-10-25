@@ -27,7 +27,7 @@ use crate::types::triggers::{TriggerCondition, TriggerDef};
 /// "When [state], [effect]": a state trigger (CR 603.8). It has no
 /// intervening "if", since it checks its state as it triggers and never again.
 fn when_state(condition: Condition, effect: Effect) -> TriggerDef {
-    TriggerDef { condition: TriggerCondition::State(condition), intervening_if: None, limit: None, effect }
+    TriggerDef { condition: TriggerCondition::State(condition), intervening_if: None, functions_in: None, limit: None, effect }
 }
 
 /// "You [fact]": the fact of the ability's controller, now.

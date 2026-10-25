@@ -653,22 +653,6 @@ pub enum Condition {
     DefendingPlayer { of: Antecedent, fact: PlayerFact },
     SpellWasKicked,
     ModeChosen(usize),
-    /// CR 113.6b's clause — "as long as this card is in your graveyard"
-    /// (Wonder), "if this card is in your graveyard" (Bridge from Below).
-    ///
-    /// **Two jobs, and the CR is what makes them one.** Evaluated at every
-    /// layer like any other leaf, so the effect stops existing the moment the
-    /// source leaves; and read *syntactically* by
-    /// `engine::zone_function::functioning_zones`, because CR 113.6b says an
-    /// ability that states which zones it functions in functions only from
-    /// those zones — so the clause that gates the effect is the same sentence
-    /// that places the ability. A condition about some *other* object's zone
-    /// is [`PlayerFact::CardInGraveyard`], which is why this one says `Source`.
-    ///
-    /// Replaced `SourceOnBattlefield`, which was this question narrowed to one
-    /// zone: the battlefield is `SourceInZone(ZoneSet::BATTLEFIELD)` and reads
-    /// the same gate it always did.
-    SourceInZone(ZoneSet),
     /// Every clause holds — Wonder's "in your graveyard **and** you control an
     /// Island".
     ///
@@ -785,14 +769,12 @@ impl Condition {
             Condition::CounterCount { object, .. } => *object == Antecedent::ThisObject,
             Condition::All(clauses) => clauses.iter().any(Condition::reads_entry_state),
             Condition::Not(clause) => clause.reads_entry_state(),
-            // The entering object is asked as on the battlefield already, so
-            // no entry moves the zone `SourceInZone` reads; the rest read
-            // players, histories, the host, a trigger, or a resolution.
+            // The rest read players, histories, the host, a trigger, or a
+            // resolution.
             Condition::Player { .. }
             | Condition::DefendingPlayer { .. }
             | Condition::SpellWasKicked
             | Condition::ModeChosen(_)
-            | Condition::SourceInZone(_)
             | Condition::HostMatches(_)
             | Condition::ThisTurn(..)
             | Condition::LastTurn(..)
@@ -2353,6 +2335,17 @@ pub enum Effect {
     /// "If [condition], [effect]" — intervening if (rule 603.4)
     Conditional(Condition, Box<Effect>),
 
+    /// CR 113.6b's statement around a static ability's body: "as long as this
+    /// card is in your graveyard" (Wonder), or 113.6c's complement, "as long
+    /// as this card isn't on the battlefield" (`ZoneSet::EVERYWHERE_BUT_BATTLEFIELD`).
+    /// A fact about the ability, where the ability functions, and not a
+    /// predicate about the game, so it is no `Condition`: `functioning_zones`
+    /// places the ability by it, and CR 604.2's existence check asks whether
+    /// the source is still there at every layer. Outside any "as long as"
+    /// clause the text adds. A triggered ability's is
+    /// `TriggerDef::functions_in`.
+    FunctionsIn(ZoneSet, Box<Effect>),
+
     /// "[Chooser] may [effect]" (CR 603.5): asked as the effect resolves,
     /// never as the ability triggers. The chooser is `You` unless the text
     /// names another player. The answer it leaves (CR 118.12) is the choice:
@@ -2513,6 +2506,7 @@ impl Effect {
                 }
             }
             Effect::Conditional(_, effect)
+            | Effect::FunctionsIn(_, effect)
             | Effect::Optional { effect, .. }
             | Effect::Remember(effect)
             | Effect::ForEach(_, effect)
@@ -2629,9 +2623,23 @@ impl Effect {
     /// there is one: the one peel every `as_*` below reads through, and every
     /// reader of the clause.
     pub(crate) fn with_its_condition(&self) -> (Option<&Condition>, &Effect) {
-        match self {
+        let body = match self {
+            Effect::FunctionsIn(_, inner) => inner,
+            body => body,
+        };
+        match body {
             Effect::Conditional(condition, inner) => (Some(condition), inner),
             body => (None, body),
+        }
+    }
+
+    /// The zones a static ability's text states it functions in (CR 113.6b,
+    /// 113.6c), when its body says so: [`Effect::FunctionsIn`]. A triggered
+    /// ability's is `TriggerDef::functions_in`.
+    pub(crate) fn stated_zones(&self) -> Option<ZoneSet> {
+        match self {
+            Effect::FunctionsIn(zones, _) => Some(*zones),
+            _ => None,
         }
     }
 

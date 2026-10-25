@@ -189,6 +189,7 @@ fn could_add_mana(effect: &Effect) -> bool {
             effects.iter().any(could_add_mana)
         }
         Effect::Conditional(_, inner)
+        | Effect::FunctionsIn(_, inner)
         | Effect::Optional { effect: inner, .. }
         | Effect::Remember(inner)
         | Effect::ForEach(_, inner)

@@ -332,7 +332,7 @@ fn gather_sweeping(
     if sweep == Sweep::Everything {
         // The audit's: every object off the battlefield that could carry one,
         // asked with no printed precheck.
-        for id in game.objects_that_may_carry(|effect| matches!(effect, Effect::Replacement(_) | Effect::Conditional(..))) {
+        for id in game.objects_that_may_carry(|effect| matches!(effect, Effect::Replacement(_) | Effect::Conditional(..) | Effect::FunctionsIn(..))) {
             if game.objects.get(&id).is_some_and(|obj| obj.zone != Zone::Battlefield) {
                 elsewhere.push((game.object_timestamp(id), id));
             }
@@ -1186,7 +1186,6 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::test_support::{put_spell_on_stack, setup_two_player_game, static_ability, test_dp};
     use crate::types::card_types::CardType;
-    use crate::types::effects::Condition;
     use crate::types::replacement::{EnterMods, EnterModsTemplate};
     use crate::types::zones::ZoneSet;
 
@@ -1205,8 +1204,8 @@ mod tests {
         let mut game = setup_two_player_game();
         let card = CardDataBuilder::new("Orb From Anywhere")
             .card_type(CardType::Artifact)
-            .ability(static_ability(Effect::Conditional(
-                Condition::SourceInZone(ZoneSet::ALL),
+            .ability(static_ability(Effect::FunctionsIn(
+                ZoneSet::ALL,
                 Box::new(Effect::Replacement(Box::new(ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },
                     ObjectSet::battlefield_filter(ObjectFilter::All),

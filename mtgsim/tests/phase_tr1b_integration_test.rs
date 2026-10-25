@@ -145,6 +145,7 @@ fn one_ability_triggers_once_per_death_across_a_survivors_two_lists() {
             },
         ]),
         intervening_if: None,
+        functions_in: None,
         limit: None,
         effect: gain_one(),
     };

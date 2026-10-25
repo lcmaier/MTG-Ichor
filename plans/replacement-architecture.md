@@ -2292,7 +2292,7 @@ instead — a 2/2 whose own "creatures you control get +1/+1" makes it 3/3 to a
 "creatures with power 2 or less enter tapped" — and the count boundary with
 Keldon Warlord, above. When 7f lands, `test_grist_entering_is_not_a_creature`
 is still the right first test of it. (Grist's clause became expressible at LK,
-as CR 113.6c's complement in `Condition::SourceInZone`, and was built at LL as a
+as CR 113.6c's complement in a zone statement, and was built at LL as a
 fixture, `phase_ll_cards::grist_insect_clause`, whose tests are in
 `tests/phase_ll_integration_test.rs`; that named test was never written.
 Thassa still waits on a devotion count.)

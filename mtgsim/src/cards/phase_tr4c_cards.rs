@@ -20,7 +20,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
@@ -269,7 +269,6 @@ pub fn rancor() -> Arc<CardData> {
 pub fn bridge_from_below() -> Arc<CardData> {
     let zombie = "Whenever a nontoken creature is put into your graveyard from the battlefield, if this card is in your graveyard, create a 2/2 black Zombie creature token.";
     let exile = "When a creature is put into an opponent's graveyard from the battlefield, if this card is in your graveyard, exile this card.";
-    let in_your_graveyard = || Some(Condition::SourceInZone(ZoneSet::GRAVEYARD));
     let nontoken_creature =
         ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))));
     CardDataBuilder::new("Bridge from Below")
@@ -280,7 +279,8 @@ pub fn bridge_from_below() -> Arc<CardData> {
         .ability(triggered_ability(
             zombie,
             TriggerDef {
-                intervening_if: in_your_graveyard(),
+                // CR 113.6b's statement, printed as the intervening "if" (CR 603.4).
+                functions_in: Some(ZoneSet::GRAVEYARD),
                 ..whenever(
                     put_into_a_graveyard_from_the_battlefield(nontoken_creature, PlayerRef::You),
                     Effect::Atom(Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)), EffectRecipient::Controller),
@@ -290,7 +290,8 @@ pub fn bridge_from_below() -> Arc<CardData> {
         .ability(triggered_ability(
             exile,
             TriggerDef {
-                intervening_if: in_your_graveyard(),
+                // CR 113.6b's statement, printed as the intervening "if" (CR 603.4).
+                functions_in: Some(ZoneSet::GRAVEYARD),
                 ..whenever(
                     put_into_a_graveyard_from_the_battlefield(ObjectFilter::ByType(CardType::Creature), PlayerRef::Opponent),
                     Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),

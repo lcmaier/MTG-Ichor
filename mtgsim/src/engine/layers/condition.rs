@@ -133,17 +133,7 @@ pub(super) fn holds(
             }
         }
 
-        // CR 113.6b's clause, **the leg that retires Wonder's row**: asked at every
-        // layer, so an exiled Wonder stops granting on the next walk with nothing
-        // reconciling the registry (§13d decision 3). `in_zones_or_entering`, since
-        // a CR 614.12 look-ahead's object is still in its source zone. A battlefield
-        // source never reads `false` here (its rows go as it leaves); the duration
-        // decides the row is registered, this whether its effect exists.
-        Condition::SourceInZone(zones) => board.in_zones_or_entering(game, source, *zones),
-
-        // Every clause. Short-circuits, so a `SourceInZone` written first —
-        // which is how a card's text reads — costs nothing on the boards
-        // where it is false.
+        // Every clause, short-circuiting.
         Condition::All(clauses) => clauses
             .iter()
             .all(|c| holds(c, game, board, source, layer_index, locked_you, referents)),
@@ -470,7 +460,6 @@ mod tests {
     use crate::types::card_types::CardType;
     use crate::types::colors::Color;
     use crate::types::effects::AmountExpr;
-    use crate::types::zones::ZoneSet;
 
     /// A status leaf reads the entity, not a frame: tapping the source flips
     /// it with no zone change and no registry write.
@@ -602,28 +591,6 @@ mod tests {
         assert!(settled_holds(&an_opponent_controls, &game, bears, None, ConditionReferents::NONE));
     }
 
-    /// CR 113.6b's leaf, both directions: the battlefield spelling answers
-    /// what `SourceOnBattlefield` answered, and the graveyard spelling is the
-    /// one Wonder needs.
-    #[test]
-    fn source_in_zone_is_the_zone_gate_in_both_directions() {
-        let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        let dead = put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
-        let on_bf = Condition::SourceInZone(ZoneSet::BATTLEFIELD);
-        let in_gy = Condition::SourceInZone(ZoneSet::GRAVEYARD);
-        assert!(settled_holds(&on_bf, &game, bears, None, ConditionReferents::NONE));
-        assert!(!settled_holds(&on_bf, &game, dead, None, ConditionReferents::NONE));
-        assert!(settled_holds(&in_gy, &game, dead, None, ConditionReferents::NONE));
-        assert!(!settled_holds(&in_gy, &game, bears, None, ConditionReferents::NONE));
-
-        // A set, so one clause can name several zones — Mycosynth Lattice's
-        // shape on the source side.
-        let anywhere_else = Condition::SourceInZone(ZoneSet::EVERYWHERE_BUT_BATTLEFIELD);
-        assert!(settled_holds(&anywhere_else, &game, dead, None, ConditionReferents::NONE));
-        assert!(!settled_holds(&anywhere_else, &game, bears, None, ConditionReferents::NONE));
-    }
-
     /// Every clause, and an empty conjunction is vacuously true.
     #[test]
     fn all_holds_only_when_every_clause_does() {
@@ -632,14 +599,13 @@ mod tests {
         let island = ObjectFilter::BySubtype(crate::types::card_types::Subtype::Land(
             crate::types::card_types::LandType::Island,
         ));
-        // Wonder's own condition, clause for clause.
-        let wonder = Condition::All(vec![
-            Condition::SourceInZone(ZoneSet::GRAVEYARD),
+        let island_at_twenty = Condition::All(vec![
+            yours(PlayerFact::LifeAtLeast(AmountExpr::Fixed(20))),
             yours(PlayerFact::ControlsPermanent(island)),
         ]);
-        assert!(!settled_holds(&wonder, &game, dead, None, ConditionReferents::NONE), "in the graveyard, no Island");
+        assert!(!settled_holds(&island_at_twenty, &game, dead, None, ConditionReferents::NONE), "at 20, no Island");
         put_on_battlefield(&mut game, basic_lands::island(), 0);
-        assert!(settled_holds(&wonder, &game, dead, None, ConditionReferents::NONE), "in the graveyard, an Island");
+        assert!(settled_holds(&island_at_twenty, &game, dead, None, ConditionReferents::NONE), "at 20, an Island");
 
         assert!(settled_holds(&Condition::All(Vec::new()), &game, dead, None, ConditionReferents::NONE));
     }
@@ -673,8 +639,7 @@ mod tests {
     #[test]
     fn a_condition_on_a_missing_source_is_false() {
         let game = setup_two_player_game();
-        let anywhere = Condition::SourceInZone(ZoneSet::ALL);
-        assert!(!settled_holds(&anywhere, &game, ObjectId::UNASSIGNED, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&Condition::SourceUntapped, &game, ObjectId::UNASSIGNED, None, ConditionReferents::NONE));
     }
 
     /// "If you put a permanent with a kicker ability onto the battlefield

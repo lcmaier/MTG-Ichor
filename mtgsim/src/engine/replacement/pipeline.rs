@@ -1708,7 +1708,7 @@ impl EntryWrites {
 fn characteristics_hang_on_entry_state(chars: &EffectiveCharacteristics) -> bool {
     chars.abilities.iter().any(|ability| {
         ability.ability_type == AbilityType::Static
-            && matches!(&ability.effect, Effect::Conditional(condition, _) if condition.reads_entry_state())
+            && ability.effect.with_its_condition().0.is_some_and(crate::types::effects::Condition::reads_entry_state)
             && !GameState::static_ability_atoms(ability, &chars.name).is_empty()
     })
 }

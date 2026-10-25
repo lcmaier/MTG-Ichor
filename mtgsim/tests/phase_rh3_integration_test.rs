@@ -284,10 +284,7 @@ fn discards_into_exile() -> Arc<CardData> {
         ObjectSet::SourceOnly,
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
     );
-    let mut ability = static_ability(Effect::Conditional(
-        Condition::SourceInZone(ZoneSet::HAND),
-        Box::new(Effect::Replacement(Box::new(replacement))),
-    ));
+    let mut ability = static_ability(Effect::FunctionsIn(ZoneSet::HAND, Box::new(Effect::Replacement(Box::new(replacement)))));
     ability.id = new_ability_id();
     creature_with_ability("Fixture: madness", 2, 2, ability)
 }

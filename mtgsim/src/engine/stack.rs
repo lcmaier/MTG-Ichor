@@ -108,12 +108,19 @@ impl GameState {
         // controlled the source as it triggered (CR 109.5, 603.3a), whatever
         // has become of the source since, and the source and "it" are read as
         // they last existed once they have left (CR 113.7a, 608.2h).
-        if let Some(binding) = &entry.trigger
-            && let Some(condition) = &binding.def.intervening_if
-        {
+        // CR 113.6b's statement is printed as the intervening "if" (Bridge from
+        // Below's "if this card is in your graveyard"), so it is asked with it.
+        if let Some(binding) = &entry.trigger {
             let source = entry.this_object();
-            let objects = self.condition_objects(entry.ability_identity.map(|identity| identity.source), Some(binding));
-            if !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller), objects) {
+            let left_its_stated_zone = binding
+                .def
+                .functions_in
+                .is_some_and(|zones| !self.objects.get(&source).is_some_and(|object| zones.contains(object.zone)));
+            let condition_is_false = binding.def.intervening_if.as_ref().is_some_and(|condition| {
+                let objects = self.condition_objects(entry.ability_identity.map(|identity| identity.source), Some(binding));
+                !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller), objects)
+            });
+            if left_its_stated_zone || condition_is_false {
                 self.ability_leaves_the_stack(object_id);
                 return Ok(());
             }

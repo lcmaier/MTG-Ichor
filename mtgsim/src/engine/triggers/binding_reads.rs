@@ -103,13 +103,15 @@ impl BitOr for TriggerBindingReads {
 
 impl TriggerDef {
     /// Every fact of its entry this def reads: its effect's, its intervening
-    /// "if"'s, and CR 603.2h's gate's.
+    /// "if"'s and stated zone's, and CR 603.2h's gate's.
     pub fn trigger_binding_reads(&self) -> TriggerBindingReads {
         let gate = match self.limit {
             Some(TriggerLimit::DoThisOnlyOnceEachTurn) => TriggerBindingReads::ABILITY,
             Some(TriggerLimit::TriggersOnlyOnceEachTurn | TriggerLimit::FirstTimeEachTurn) | None => TriggerBindingReads::NONE,
         };
-        effect_reads(&self.effect) | self.intervening_if.as_ref().map_or(TriggerBindingReads::NONE, condition_reads) | gate
+        // Its stated zone is asked of the source as it resolves (CR 603.4).
+        let stated = if self.functions_in.is_some() { TriggerBindingReads::SOURCE } else { TriggerBindingReads::NONE };
+        effect_reads(&self.effect) | self.intervening_if.as_ref().map_or(TriggerBindingReads::NONE, condition_reads) | stated | gate
     }
 
     /// Each event role the def names that some arm of its condition does not
@@ -246,7 +248,8 @@ fn effect_reads(e: &Effect) -> TriggerBindingReads {
         | Effect::Restriction(_)
         | Effect::CostModification(_)
         | Effect::TriggerMultiplier(_)
-        | Effect::Triggered(_) => TriggerBindingReads::EVERYTHING,
+        | Effect::Triggered(_)
+        | Effect::FunctionsIn(..) => TriggerBindingReads::EVERYTHING,
     }
 }
 
@@ -358,7 +361,6 @@ fn condition_reads(c: &Condition) -> TriggerBindingReads {
         Condition::Player { fact, .. } => player_fact_reads(fact),
         Condition::DefendingPlayer { of, fact } => creature_reads(*of) | player_fact_reads(fact),
         Condition::SpellWasKicked
-        | Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SourceTapped
         | Condition::CounterCount { object: Antecedent::ThisObject, .. } => TriggerBindingReads::SOURCE,

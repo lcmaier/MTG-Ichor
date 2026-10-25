@@ -864,11 +864,10 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         // The host is read through the filter; *which* object is the host is
         // `attached_to`, which no layer writes.
         Condition::HostMatches(filter) => filter_reads(filter, out, you_channel),
-        // The source's zone, its tapped status, its counters and how it was
+        // The source's tapped status, its counters and how it was
         // cast are off `GameState`, and the resolution's leaves never
         // evaluate in a walk at all.
-        Condition::SourceInZone(_)
-        | Condition::SourceUntapped
+        Condition::SourceUntapped
         | Condition::SourceTapped
         | Condition::CounterCount { .. }
         | Condition::SpellWasKicked
@@ -1204,6 +1203,13 @@ fn static_ability_still_exists(
     // Source is gone from the object store entirely.
     let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return false };
     let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return false };
+    // CR 113.6b's statement, **the leg that retires Wonder's row**: asked at every
+    // layer, so an exiled Wonder stops granting on the next walk with nothing
+    // reconciling the registry (§13d decision 3). `in_zones_or_entering`, since a
+    // CR 614.12 look-ahead's object is still in its source zone.
+    if ability.effect.stated_zones().is_some_and(|zones| !board.in_zones_or_entering(game, effect.source, zones)) {
+        return false;
+    }
     let (as_long_as, _) = ability.effect.with_its_condition();
     as_long_as.is_none_or(|cond| condition::holds(cond, game, board, effect.source, layer_index, None, condition::ConditionReferents::NONE))
 }

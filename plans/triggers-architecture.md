@@ -128,6 +128,9 @@ pub struct TriggerDef {
     /// resolves (608.2a). `None` is an ability with no "if" clause; an
     /// `if` anywhere else in the text is ordinary `Effect::Conditional`.
     pub intervening_if: Option<Condition>,
+    /// CR 113.6b's statement, Bridge from Below's "if this card is in your
+    /// graveyard": asked with the intervening "if" at both times (item 296).
+    pub functions_in: Option<ZoneSet>,
     /// The two once-per-turn gates and "for the first time each turn" (§3.5).
     pub limit: Option<TriggerLimit>,
     /// What it does. Its targets are `Effect::instances` of this tree,

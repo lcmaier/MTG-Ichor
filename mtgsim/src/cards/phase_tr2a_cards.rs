@@ -76,12 +76,14 @@ pub fn paladin_of_atonement() -> Arc<CardData> {
         .ability(triggered_ability("At the beginning of each upkeep, if you lost life last turn, put a +1/+1 counter on this creature.", TriggerDef {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Each)),
             intervening_if: Some(lost_life_last_turn),
+            functions_in: None,
             limit: None,
             effect: counter_on_this(),
         }))
         .ability(triggered_ability("When this creature dies, you gain life equal to its toughness.", TriggerDef {
             condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
             intervening_if: None,
+            functions_in: None,
             limit: None,
             effect: Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringToughness(EventRole::Object)), EffectRecipient::Controller),
         }))
@@ -126,6 +128,7 @@ pub fn vengeful_warchief() -> Arc<CardData> {
                 multiplicity: Multiplicity::PerOccurrence,
             }),
             intervening_if: None,
+            functions_in: None,
             limit: Some(TriggerLimit::FirstTimeEachTurn),
             effect: counter_on_this(),
         }))
@@ -222,6 +225,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
         .ability(triggered_ability("Whenever one or more other Elves you control enter, create a 1/1 green Elf Warrior creature token. This ability triggers only once each turn.", TriggerDef {
             condition: TriggerCondition::Event(other_elves_you_control),
             intervening_if: None,
+            functions_in: None,
             limit: Some(TriggerLimit::TriggersOnlyOnceEachTurn),
             effect: Effect::Atom(
                 Primitive::CreateToken(elf_warrior_token(), AmountExpr::Fixed(1)),

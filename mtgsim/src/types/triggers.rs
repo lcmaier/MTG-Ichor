@@ -26,7 +26,7 @@ use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, Obj
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::history::TurnFact;
 use crate::types::mana::ManaType;
-use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
+use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 
 /// CR 603.1 — "[When/Whenever/At] [trigger condition or event], [effect]".
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +36,13 @@ pub struct TriggerDef {
     /// resolves (608.2a). `None` is an ability with no "if" clause; an `if`
     /// anywhere else in the text is ordinary `Effect::Conditional`.
     pub intervening_if: Option<Condition>,
+    /// CR 113.6b's statement of where the ability functions: Bridge from
+    /// Below's "if this card is in your graveyard". Printed as an intervening
+    /// "if", so it is asked with [`Self::intervening_if`] as the event
+    /// happens and again as the ability resolves (CR 603.4); a fact about the
+    /// ability rather than the game, so it is no `Condition`. A static
+    /// ability's is `Effect::FunctionsIn`.
+    pub functions_in: Option<ZoneSet>,
     /// The two once-per-turn gates and "for the first time each turn" (§3.5).
     pub limit: Option<TriggerLimit>,
     /// Its targets are `Effect::instances` of this tree, announced at
@@ -2540,6 +2547,7 @@ mod tests {
                 TriggerEvent::BecomesUntapped { subject: TriggerSubject::ThisObject },
             ]),
             intervening_if: None,
+            functions_in: None,
             limit: None,
             effect: Effect::Sequence(Vec::new()),
         };

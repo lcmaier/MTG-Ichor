@@ -46,6 +46,7 @@ pub fn whenever(event: impl Into<TriggerEvent>, effect: Effect) -> TriggerDef {
     TriggerDef {
         condition: TriggerCondition::Event(event.into()),
         intervening_if: None,
+        functions_in: None,
         limit: None,
         effect,
     }
@@ -268,6 +269,7 @@ fn returns_unless_it_had(keyword: &'static str, counter: CounterType) -> Ability
     triggered_ability(keyword, TriggerDef {
         condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
         intervening_if: Some(Condition::CounterCount { object: Antecedent::Triggering(EventRole::Object), kind: Some(counter), count: CountIs::AtMost(0) }),
+        functions_in: None,
         limit: None,
         effect: Effect::Atom(returns, EffectRecipient::Triggering(EventRole::Object)),
     })

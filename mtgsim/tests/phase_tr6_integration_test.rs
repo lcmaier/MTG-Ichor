@@ -188,6 +188,7 @@ fn a_resolving_state_trigger_has_not_left_the_stack() {
     let gains = TriggerDef {
         condition: TriggerCondition::State(Condition::Player { players: PlayerSet::You, fact: PlayerFact::HandEmpty }),
         intervening_if: None,
+        functions_in: None,
         limit: None,
         effect: gain_one(),
     };

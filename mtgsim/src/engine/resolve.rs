@@ -251,6 +251,7 @@ impl GameState {
             | Effect::CostModification(_)
             | Effect::TriggerMultiplier(_)
             | Effect::Conditional(..)
+            | Effect::FunctionsIn(..)
             | Effect::Triggered(_)
             | Effect::Remember(_)
             | Effect::Modal { .. }
@@ -442,6 +443,15 @@ impl GameState {
                  effective ability list as the dispatch queues what a window \
                  triggered; it does not resolve. Put it on an `AbilityType::Static` \
                  ability."
+                    .to_string(),
+            ),
+
+            // CR 113.6b's statement is a static ability's, and a static ability
+            // does not resolve; a triggered ability's is its def's field.
+            Effect::FunctionsIn(..) => Err(
+                "`Effect::FunctionsIn` states where a static ability functions and \
+                 does not resolve; a triggered ability states its zones in \
+                 `TriggerDef::functions_in`."
                     .to_string(),
             ),
 

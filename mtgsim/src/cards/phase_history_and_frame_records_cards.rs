@@ -127,6 +127,7 @@ pub fn fixture_first_creature_tithe() -> Arc<CardData> {
             spell: Some(ObjectFilter::ByType(CardType::Creature)),
         }),
         intervening_if: None,
+        functions_in: None,
         limit: Some(TriggerLimit::FirstTimeEachTurn),
         effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
     };

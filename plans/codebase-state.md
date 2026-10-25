@@ -3852,7 +3852,7 @@ named RE PR.
      **Re-derived (2026-09-14, LK) — the prerequisite is in and this is now
      ordinary unbuilt work.** LK landed CR 113.6, and the hand-zone lookup this
      item was waiting for exists: an ability may state
-     `Condition::SourceInZone(ZoneSet::HAND)` and `zone_function::functions_in`
+     `Effect::FunctionsIn(ZoneSet::HAND, ..)` and `zone_function::functions_in`
      answers for it. **The clause deliberately did not ride** (§13d decision
      5): what is missing is not a zone question but CR 103.6's *moment* — a
      step between `Game::setup`'s opening hands and `start_first_turn`, a

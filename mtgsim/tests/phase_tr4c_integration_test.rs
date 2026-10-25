@@ -810,7 +810,7 @@ fn from_anywhere_twin() -> Arc<CardData> {
     use mtgsim::cards::authoring::{triggered_ability, whenever};
     use mtgsim::objects::card_data::CardDataBuilder;
     use mtgsim::types::card_types::CardType;
-    use mtgsim::types::effects::{AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
+    use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
     use mtgsim::types::triggers::{Multiplicity, TriggerDef, TriggerEvent, TriggerSubject};
     use mtgsim::types::zones::{ZoneChangePattern, ZoneSet};
     CardDataBuilder::new("Fixture Bridge from Anywhere")
@@ -818,7 +818,7 @@ fn from_anywhere_twin() -> Arc<CardData> {
         .ability(triggered_ability(
             "",
             TriggerDef {
-                intervening_if: Some(Condition::SourceInZone(ZoneSet::GRAVEYARD)),
+                functions_in: Some(ZoneSet::GRAVEYARD),
                 ..whenever(
                     TriggerEvent::ZoneChange {
                         subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),

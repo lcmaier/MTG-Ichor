@@ -601,6 +601,7 @@ fn third_charge_counter() -> Arc<CardData> {
             TriggerDef {
                 condition: TriggerCondition::Event(arm),
                 intervening_if: Some(Condition::CounterCountReached { counter_type: CounterType::Charge, n: 3 }),
+                functions_in: None,
                 limit: None,
                 effect: Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
             },
@@ -657,6 +658,7 @@ fn a_trigger_asking_a_reading_its_arm_cannot_give_is_refused() {
             multiplicity: Multiplicity::OncePerSubject,
         }),
         intervening_if: None,
+        functions_in: None,
         limit: None,
         effect: gain(AmountExpr::Fixed(1)),
     };
@@ -665,6 +667,7 @@ fn a_trigger_asking_a_reading_its_arm_cannot_give_is_refused() {
     let per_counter_threshold = TriggerDef {
         condition: TriggerCondition::Event(counters_put_on(TriggerSubject::ThisObject, CounterType::Charge).into()),
         intervening_if: Some(Condition::CounterCountReached { counter_type: CounterType::Charge, n: 3 }),
+        functions_in: None,
         limit: None,
         effect: gain(AmountExpr::Fixed(1)),
     };

@@ -2353,7 +2353,14 @@ impl GameState {
         ability: &'a crate::objects::card_data::AbilityDef,
         label: &str,
     ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
-        Self::atoms_of_static_body(&ability.effect, label)
+        // CR 113.6b's statement wraps the whole body, the rows are the body's,
+        // and CR 604.2's existence check asks the statement at each layer. Only
+        // at the root: one anywhere else is loud below.
+        let body = match &ability.effect {
+            Effect::FunctionsIn(_, body) => body,
+            body => body,
+        };
+        Self::atoms_of_static_body(body, label)
     }
 
     /// [`static_ability_atoms`](Self::static_ability_atoms) over an effect
@@ -2755,7 +2762,7 @@ mod tests {
         #[test]
         fn test_conditional_static_body_lowers_to_the_inner_atoms() {
             let ability = static_ability(Effect::Conditional(
-                Condition::SourceInZone(crate::types::zones::ZoneSet::BATTLEFIELD),
+                Condition::SourceUntapped,
                 Box::new(anthem_atom()),
             ));
             let atoms = GameState::static_ability_atoms(&ability, "Test Card");
@@ -2775,7 +2782,7 @@ mod tests {
         #[should_panic(expected = "cannot express")]
         fn test_a_conditional_wrapping_an_unlowerable_body_is_loud() {
             let ability = static_ability(Effect::Conditional(
-                Condition::SourceInZone(crate::types::zones::ZoneSet::BATTLEFIELD),
+                Condition::SourceUntapped,
                 Box::new(Effect::Optional { chooser: crate::types::effects::PlayerRef::You, effect: Box::new(anthem_atom()) }),
             ));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");

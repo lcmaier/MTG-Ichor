@@ -1244,6 +1244,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
                     players: PlayerSet::You,
                     fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(20)),
                 }),
+                functions_in: None,
                 limit: None,
                 effect: Effect::Atom(
                     Primitive::Destroy,
@@ -1855,6 +1856,7 @@ fn one_ability_two_zones() -> Arc<CardData> {
                 },
             ]),
             intervening_if: None,
+            functions_in: None,
             limit: None,
             effect: gain_one(),
         }),
@@ -2075,6 +2077,7 @@ fn kicked_herald() -> Arc<CardData> {
         .ability(triggered_ability("", TriggerDef {
             condition: TriggerCondition::Event(enters(TriggerSubject::ThisObject).into()),
             intervening_if: Some(Condition::SpellWasKicked),
+            functions_in: None,
             limit: None,
             effect: gain_one(),
         }))
