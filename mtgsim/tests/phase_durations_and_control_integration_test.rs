@@ -189,6 +189,7 @@ fn a_steal_for_as_long_as_you_control_its_source_ends_when_another_player_takes_
 /// The Dragonlord changes hands with its trigger on the stack: its
 /// controller when it triggered is no longer its controller, so the duration
 /// never starts (CR 611.2b, 603.3a).
+// COVERS: ATOM-611.2b-001
 #[test]
 fn a_steal_for_as_long_as_you_control_its_source_never_starts_once_it_changed_hands() {
     let mut game = setup_two_player_game();
@@ -224,6 +225,7 @@ fn trojan_horse() -> Arc<CardData> {
 // RULING: Akroan Horse #1 - "Akroan Horse's enters-the-battlefield ability doesn't target any opponent. In a multiplayer game, you choose the opponent as the ability resolves."
 /// CR 608.2d: with two opponents, the Horse's controller chooses which gains
 /// control of it as the ability resolves.
+// COVERS-PARTIAL: ATOM-608.2d-001
 #[test]
 fn an_opponent_gains_control_is_chosen_as_it_resolves_among_two_opponents() {
     let mut game = setup_game(3);

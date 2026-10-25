@@ -212,7 +212,7 @@ stated scope, but the population is not small (Scryfall, 2026-08-30):
 | Phrasing | Cards | Where it would land |
 |---|---:|---|
 | "doesn't untap during …" | **248** | Tier 2 — the CR 502.1 untap step's turn-based action |
-| "damage isn't removed …" | 7 | Tier 2 — CR 514.2's cleanup wipe (`codebase-state.md` item 20) |
+| "damage isn't removed …" | 7 | axis 4, `RuleDoesNotApply` at CR 514.2's cleanup wipe (built 2026-10-25, #293) |
 | "no more than N creature can attack" | 2 | Tier 1a's global cap — Silent Arbiter, Dueling Grounds |
 
 The last row is why `--decompose` prints the global caps *outside* its sum:
@@ -480,11 +480,20 @@ pub enum Restriction {
         // Its player half is RD-4's, CR 615.12 over damage dealt to a player.
         affected: Affected,
     },
+
+    // ---- Axis 4: a rule's own action (CR 101.1) --------------------------
+    /// Added by `durations-and-control` (#293): "damage isn't removed during
+    /// cleanup steps" (CR 514.2), "you don't lose the game for having 0 or
+    /// less life" (704.5a), "the legend rule doesn't apply" (704.5j). A
+    /// turn-based or state-based action proposes no event an axis-1 arm can
+    /// watch, or proposes one only after a choice (the legend rule's), so the
+    /// rule asks before it acts.
+    RuleDoesNotApply { rule: RuleAction, affected: Affected },
 }
 ```
 
 **The growth contract, meant to be enforced in review.** `Restriction` grows on
-three axes and no other, and each axis is an enumeration the engine already
+four axes and no other, and each axis is an enumeration the engine already
 owns:
 
 | Axis | What a "can't" attaches to | The enumeration that bounds it | Open? |
@@ -492,6 +501,7 @@ owns:
 | 1 | an event the engine proposes | `GameAction` variants, via `EventPattern` | grows with the engine |
 | 2 | a choice a player makes | `ChoiceKind` (`ui/choice_types.rs`) | grows with the engine |
 | 3 | the application of an effect | `gather`'s one application site | **closed at one arm** |
+| 4 | a rule's own action | `RuleAction`: the check's `StateBasedAction`, and each turn-based action a card can switch off | grows with its first card (CR 500.4's mana emptying is next) |
 
 - **`Event` never grows.** New replaceable event kinds arrive as `GameAction`
   variants and reach this arm through `EventPattern` for free. A change that
@@ -502,6 +512,11 @@ owns:
   missing item is a `ChoiceKind`.
 - **Axis 3 is closed** for the reason its own doc comment gives: one application
   site, two things the CR permits withholding.
+- **Axis 4 is asked where the rule acts.** The state-based check asks it of
+  every member it gathers, ahead of CR 704.7's collapse, so every 704.5 subrule
+  is covered by one site; a subrule that asks a player first (the legend rule,
+  704.6d's commander) asks it before the prompt. A turn-based action joins
+  `RuleAction` with its first card and asks at its own site.
 - **Per-card variety goes in the filters**, which are `ObjectFilter`,
   `CardFilter` and `PlayerRef` — vocabulary that already exists and that §2.4
   measured as sufficient for 60 of 62 observed shapes.

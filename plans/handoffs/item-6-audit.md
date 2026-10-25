@@ -1033,6 +1033,12 @@ item 124's precedent that a sweep does not ride inside a rules change.
    - Item 148: re-slotted to `ironworks-loop` at #293's review (the owner,
      2026-10-25). Its card targets an exiled card, a surface built with the
      graveyard targets that row already builds.
+   - Done (#293): the six items closed in six commits, the control sweep's
+     two records first, so item 17's control leg reads the reshaped one. Two
+     calls the plan did not make: a resolution whose watched object has
+     left, become a new object or changed hands registers nothing (CR
+     611.2b's "never starts"), and the wide announcement settles once per
+     effect, not per row, since a type change's sibling rows are one effect.
 5b. `batch-legality-and-entry-choices`.
    - Item 26: batch phase 2 skips a member that is no longer legal (CR
      608.2b). Its check: a member that passed performs without `Err`.

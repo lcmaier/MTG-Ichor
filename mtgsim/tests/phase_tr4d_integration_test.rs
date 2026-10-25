@@ -1012,6 +1012,7 @@ fn gives_the_betrayers_trigger() -> Arc<CardData> {
 /// happens (CR 603.2), so the creature had lost the ability before it
 /// changed hands, and its owner draws nothing (CR 608.2c, 603.10d). Merged
 /// into one event, both changes looked back to the board before the first.
+// COVERS-PARTIAL: ATOM-603.10d-001
 #[test]
 fn a_second_steal_looks_back_to_the_board_the_first_left() {
     let mut game = stocked(2);
