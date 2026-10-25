@@ -1574,7 +1574,7 @@ impl GameState {
         // Announced under that controller too: the stolen spell's permanent
         // arrives the thief's, and no control changed (CR 603.10d).
         if let Some(entry) = self.battlefield.get_mut(&id) {
-            entry.announced_controller = effective;
+            entry.announced_control = crate::state::battlefield::AnnouncedControl::Controller(effective);
         }
         // CR 508.4: put onto the battlefield attacking, when CR 506.3 lets it
         // be an attacking creature at all.

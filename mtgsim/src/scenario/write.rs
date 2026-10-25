@@ -520,8 +520,7 @@ impl<'g> Writer<'g> {
             cast: _,
             cost_choices,
             entered_as,
-            announced_controller: _, // every change is announced at a prompt; settled at load
-            frame_before_control_change: _,
+            announced_control: _, // every change is announced at a prompt; settled at load
         } = entry;
         let obj = &state.objects[&id];
         let card = line.card.to_string();

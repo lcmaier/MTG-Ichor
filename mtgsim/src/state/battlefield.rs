@@ -127,15 +127,40 @@ pub struct PermanentState {
     /// `register_static_effects` files the copy's abilities as the ones the
     /// permanent has.
     pub entered_as: EnteredAs,
-    /// The controller the event stream last announced for it: the one it
-    /// entered under, until `announce_control_changes` announces a change
+    /// What the event stream last announced of its control: the controller
+    /// it entered under, until `announce_control_changes` announces a change
     /// (CR 603.10d). Control is the layer walk's output, so this is what a
     /// change is a change from.
-    pub announced_controller: PlayerId,
-    /// Its characteristics as the last control sweep read them, kept while a
-    /// control-changing effect exists: what a change of its controller looks
-    /// back to (CR 603.10d). `None` while no such effect exists.
-    pub frame_before_control_change: Option<Arc<EffectiveCharacteristics>>,
+    pub announced_control: AnnouncedControl,
+}
+
+/// A permanent's control as the last control sweep left it, one value
+/// whichever way it was read: a change of its controller is a change from
+/// this controller, and looks back to this frame when there is one.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AnnouncedControl {
+    /// Read with no control-changing effect in the game, so no frame was kept.
+    Controller(PlayerId),
+    /// Its characteristics as last read while a control-changing effect
+    /// existed, whose controller is the one announced: what a change of its
+    /// controller looks back to (CR 603.10d).
+    Frame(Arc<EffectiveCharacteristics>),
+}
+
+impl AnnouncedControl {
+    pub fn controller(&self) -> PlayerId {
+        match self {
+            AnnouncedControl::Controller(player) => *player,
+            AnnouncedControl::Frame(frame) => frame.controller,
+        }
+    }
+
+    pub fn frame(&self) -> Option<&Arc<EffectiveCharacteristics>> {
+        match self {
+            AnnouncedControl::Controller(_) => None,
+            AnnouncedControl::Frame(frame) => Some(frame),
+        }
+    }
 }
 
 /// What a permanent entered as (CR 614.1c), once it has entered: the proposal
@@ -239,8 +264,7 @@ impl PermanentState {
             cast: None,
             cost_choices: CostChoices::NONE,
             entered_as: EnteredAs::default(),
-            announced_controller: controller,
-            frame_before_control_change: None,
+            announced_control: AnnouncedControl::Controller(controller),
         }
     }
 

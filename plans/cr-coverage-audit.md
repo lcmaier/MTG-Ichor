@@ -579,7 +579,7 @@ is derivable; where each name was read is not, and the gate needs the names.
     registry's `any_control_changing`, so control going back as the last
     such effect ends is still announced. A fact about the sweep, not the
     game: what changed hands is per permanent, on
-    `PermanentState.announced_controller` (CR 603.10d's "from")
+    `PermanentState.announced_control` (CR 603.10d's "from")
     (`triggers-architecture.md` §12, TR-4d).
 - **Changed by TR-5f (2026-10-17)**:
   - `history`, the game's own: TR-2a's three "this turn" sets,
@@ -729,9 +729,9 @@ output; who put a permanent onto the battlefield (CR 110.2); a stack
 object's; a triggered ability's while it waits; an effect's, as its source's
 controller when it was created. **Query:** type `PlayerId` named `controller`
 - `EffectiveCharacteristics` — owner: an object's controller now (Layer 2).
-- `PermanentState` ×2 — owner of who put it onto the battlefield (CR 110.2),
-  Layer 2's input; and a copy of the controller the last control sweep
-  announced, which its `frame_before_control_change` holds too: item 324.
+- `PermanentState` — owner of who put it onto the battlefield (CR 110.2),
+  Layer 2's input. The controller the last control sweep announced is its
+  `AnnouncedControl`, held once, in its frame when it kept one (item 324).
 - `StackEntry` — owner: a spell's or ability's controller on the stack.
 - `ResolvingObject` — owner: CR 110.2b's default controller, the player who
   put the resolving spell onto the stack.
@@ -757,9 +757,9 @@ walk, which computes an object's characteristics now and keeps no history.
   epoch it was computed at and never read past it.
 - `LkiBody` — moment: an ended existence's, or a survivor's before an event.
 - `RowFrame` — moment: a history row's object as the event left it.
-- `PermanentState` — hand-over: `frame_before_control_change`, the frame as
-  the last control sweep read it, until a change's record takes it; its
-  controller is item 324.
+- `AnnouncedControl` — hand-over: `Frame`, the frame as the last control
+  sweep read it, until a change's record takes it; its controller is the one
+  announced (item 324).
 
 #### Last known information and frames before an event
 CR 113.7a, 603.10a, 608.2h. **Key:** an ended existence, or (event,
@@ -944,9 +944,10 @@ CR 302.6, 500.1. **Key:** a player. **Owner:** `PlayerHistory`, which
 #### The turn a permanent entered, and control since
 CR 302.6, 603.6. **Key:** a permanent's existence. **Query:** type `u32`
 named `entered_battlefield_turn`; type `u32` named `entered_turn`; type `u32`
-named `controller_since_turn`; type `u32` named `control_since_turn`
-- `PermanentState` ×2 — owner of the turn it entered, and
-  `controller_since_turn`, which is that turn by construction: item 325.
+named `control_since_turn`
+- `PermanentState` — owner of the turn it entered, which seeds CR 302.6's
+  clock (item 325 removed `controller_since_turn`, that turn by
+  construction).
 - `EffectiveCharacteristics` — owner: control since, computed through Layer 2.
 - `PermanentFacts` — moment: in an `Lki`.
 
