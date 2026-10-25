@@ -1885,14 +1885,10 @@ pub struct DelayedTrigger {
     pub def: Arc<TriggerDef>,
     /// CR 603.7d–g's source, by identity (CR 400.7): the spell as it
     /// resolved, the source of the ability that created it, or the object
-    /// with the static ability. "This creature" in its text is this object.
+    /// with the static ability. "This creature" in its text is this object,
+    /// and "when this creature leaves the battlefield" its own departure,
+    /// which names it, and no later move of a new object with the same id.
     pub source: ObjectRef,
-    /// The record of the move that ended `source` as that object, once one
-    /// has (CR 400.7). A departure record names the object's id and not
-    /// which existence of it moved, so this is how "when this creature
-    /// leaves the battlefield" knows its own departure and no later move of
-    /// a new object with the same id.
-    pub source_left_at: Option<EventId>,
     /// What its stack object is built from (CR 603.3's "the text of the
     /// ability that created it"), held because the source may be gone by
     /// then.
@@ -1960,31 +1956,18 @@ pub struct Referred {
     pub players: Vec<PlayerId>,
 }
 
-/// An object remembered by identity (CR 400.7), with the record of the move
-/// that ended it as that object once one has. A departure record names the
-/// object's id and not which existence of it moved, so this is how "when this
-/// creature leaves the battlefield" and "when that token dies" know their own
-/// object's move and no later object's.
+/// An object remembered by identity (CR 400.7): a record is about it when
+/// the existence the record names is this one, so "when this creature leaves
+/// the battlefield" and "when that token dies" read their own object's move,
+/// which names the existence that left, and no later object's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RememberedObject {
     pub object: ObjectRef,
-    pub left_at: Option<EventId>,
 }
 
 impl RememberedObject {
-    /// An existence that has not moved yet.
     pub fn now(object: ObjectRef) -> Self {
-        RememberedObject { object, left_at: None }
-    }
-
-    /// Whether record `seq`'s object `id` is this existence: its own
-    /// departure, or, while it has not moved, the object as it is.
-    pub fn is(self, game: &GameState, id: ObjectId, seq: EventId) -> bool {
-        id == self.object.id
-            && match self.left_at {
-                Some(at) => at == seq,
-                None => game.find(self.object).is_some(),
-            }
+        RememberedObject { object }
     }
 
     /// The object, while it is still this existence (CR 603.7c), in a zone

@@ -410,7 +410,7 @@ pub(super) enum ThisObject {
     /// frame, so its id is the whole question.
     Candidate(ObjectId),
     /// A delayed trigger's source (CR 603.7d–g), remembered by identity (CR
-    /// 400.7) with the record of the move that ended it, if one has.
+    /// 400.7).
     Remembered(RememberedObject),
 }
 
@@ -422,12 +422,12 @@ impl ThisObject {
         }
     }
 
-    /// Whether record `seq`'s object `id` is this object: the candidate, or
-    /// the remembered existence (CR 400.7).
-    fn is(self, game: &GameState, id: ObjectId, seq: EventId) -> bool {
+    /// Whether a record's object `id`, the existence `named`, is this
+    /// object: the candidate, or the remembered existence (CR 400.7).
+    fn is(self, id: ObjectId, named: Option<ObjectRef>) -> bool {
         match self {
             ThisObject::Candidate(this) => id == this,
-            ThisObject::Remembered(remembered) => remembered.is(game, id, seq),
+            ThisObject::Remembered(remembered) => named == Some(remembered.object),
         }
     }
 }
@@ -1914,12 +1914,13 @@ impl GameState {
                 // The resolving spell or ability caused the move, also where a
                 // replacement redirected it (`replacement-architecture.md` §2b.4).
                 let caused = || by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }));
-                let (moved, moved_owner, moved_as_named) = match event {
+                let (moved, existence, moved_owner, moved_as_named) = match event {
                     // The subject is read as the record framed it only for an
                     // arm that looks back (CR 603.10a); "from anywhere" reads the
                     // object after the move (CR 603.6c's last sentence, 603.10).
                     GameEvent::ZoneChange { departed, from, to, act, .. } => {
-                        (departure_read(arm, departed), departed.owner(), change.matches(Some(*from), *to, Some(*act)) && caused())
+                        let named = change.matches(Some(*from), *to, Some(*act)) && caused();
+                        (departure_read(arm, departed), departed.object(), departed.owner(), named)
                     }
                     // CR 603.6c names this event for a leaves-the-battlefield
                     // ability, and for nothing else: a card leaving the game
@@ -1931,21 +1932,22 @@ impl GameState {
                         let leaves_the_battlefield =
                             change.from == Some(Zone::Battlefield) && change.to.is_none() && change.act.is_none() && by.is_none();
                         let framed = departed.lki().is_some();
-                        (departure_read(arm, departed), departed.owner(), *from == Zone::Battlefield && framed && leaves_the_battlefield)
+                        let named = *from == Zone::Battlefield && framed && leaves_the_battlefield;
+                        (departure_read(arm, departed), departed.object(), departed.owner(), named)
                     }
                     // The act a replacement kept in its zone (CR 614.6), which
                     // only an arm that names an act reads: a mill, not "leaves
                     // your library". The object is asked as it was, which is
                     // how it still is.
                     GameEvent::SameZoneMove { zone, act, lki, .. } => {
-                        (ObjectInformation::LastKnown(lki), lki.owner(), change.matches(Some(*zone), *zone, Some(*act)) && caused())
+                        (ObjectInformation::LastKnown(lki), lki.object(), lki.owner(), change.matches(Some(*zone), *zone, Some(*act)) && caused())
                     }
                     _ => return Vec::new(),
                 };
                 triggering_event_if(
                     moved_as_named
                         && owner.as_ref().is_none_or(|p| self.player_ref_is(p, moved_owner, referents))
-                        && self.subject_matches(subject, moved, referents, seq),
+                        && self.subject_matches_existence(subject, moved, Some(existence), referents, seq),
                 )
             }
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
@@ -2467,13 +2469,33 @@ impl GameState {
 
     /// "Which object" (§3.3): `This` is the source itself, `Host` what it is
     /// attached to, a filter is read against the subject — as `read` says.
-    /// `event_id` names the matched record, which a remembered source's own
-    /// departure can be.
+    /// `event_id` names the matched record.
     fn subject_matches(&self, subject: &TriggerSubject, object: ObjectInformation<'_>, referents: &TriggerReferents<'_>, event_id: EventId) -> bool {
+        self.subject_matches_existence(subject, object, None, referents, event_id)
+    }
+
+    /// [`Self::subject_matches`] where the record names the existence it is
+    /// about, `existence`, which a remembered object is asked against (CR
+    /// 400.7): a departure's, the existence that left. Without one it is the
+    /// existence `object`'s frame keeps, or the object as it is now.
+    fn subject_matches_existence(
+        &self,
+        subject: &TriggerSubject,
+        object: ObjectInformation<'_>,
+        existence: Option<ObjectRef>,
+        referents: &TriggerReferents<'_>,
+        event_id: EventId,
+    ) -> bool {
         let id = object.id();
+        let named = || {
+            existence.or_else(|| match &object {
+                ObjectInformation::LastKnown(lki) => Some(lki.object()),
+                ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, ..) => self.object_ref(*id),
+            })
+        };
         match subject {
             TriggerSubject::Any => true,
-            TriggerSubject::ThisObject => referents.this.is(self, id, event_id),
+            TriggerSubject::ThisObject => referents.this.is(id, named()),
             // Only a permanent has anything attached to it (CR 301.5, 303.4).
             // One read as it was just before this event is asked as that frame
             // has it (CR 603.10a), since the Aura or Equipment that stays has
@@ -2488,7 +2510,10 @@ impl GameState {
                 ObjectInformation::LastKnown(lki) => !self.gone_before(event_id, lki) && lki.had_attached(referents.this.id()),
                 ObjectInformation::Characteristics(_, _, FrameContext::Entering | FrameContext::HistoryRow(_)) => false,
             },
-            TriggerSubject::Referred => referents.referred.iter().any(|r| r.is(self, id, event_id)),
+            TriggerSubject::Referred => {
+                let named = named();
+                referents.referred.iter().any(|r| named == Some(r.object))
+            }
             TriggerSubject::Filter(filter) => self.object_matches_filter(object, filter, &mut { *referents }),
         }
     }

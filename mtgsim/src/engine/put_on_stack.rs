@@ -289,7 +289,6 @@ impl GameState {
         // the battlefield. The mana abilities activated at 601.2g are already
         // in the log, where CR 732.1 leaves them even when a cast rewinds.
         let card_before_cast = card_before_cast.ok_or_else(|| format!("{card_id} was cast from no zone"))?;
-        self.note_delayed_source_left(card_before_cast);
         let casting = EventCause::Casting(player_id);
         self.announce_zone_change(card_before_cast, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, None, casting)?;
         self.announce_targeted_records(card_id, casting, decisions)?;

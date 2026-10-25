@@ -130,7 +130,6 @@ impl GameState {
         if let Some(lki) = &captured {
             self.lki_store.write(lki.clone());
         }
-        self.note_delayed_source_moving(id);
         Departure { frame: captured.filter(|_| looks_back), unattached: self.unattached_by_leaving(id) }
     }
 

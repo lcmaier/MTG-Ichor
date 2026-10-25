@@ -92,7 +92,6 @@ impl GameState {
             id,
             def: Arc::clone(&template.def),
             source: provenance.source,
-            source_left_at: None,
             source_card: provenance.source_card,
             controller: provenance.controller,
             owner,
@@ -160,46 +159,6 @@ impl GameState {
         self.owner_of(source.id).ok_or_else(|| format!("{} is gone, and nothing kept its last known information to say who owned it", source.id))
     }
 
-
-    /// CR 400.7: object `id` is about to move, and the next record is that
-    /// move. A delayed trigger whose source it is, or that refers to it,
-    /// keeps that record's number, which is how "when this creature leaves
-    /// the battlefield" and "when that token dies" know their own object's
-    /// move. The callers are the movers whose record follows the move at
-    /// once: `perform_zone_change` and a player leaving (CR 800.4a).
-    pub(crate) fn note_delayed_source_moving(&mut self, id: ObjectId) {
-        if self.delayed_triggers.is_empty() && self.until_returns.is_empty() {
-            return;
-        }
-        if let Some(object) = self.object_ref(id) {
-            self.note_delayed_source_left(object);
-        }
-    }
-
-    /// [`Self::note_delayed_source_moving`] for an existence that has
-    /// already moved silently: CR 601.2a's cast, which is announced as the
-    /// next record only once the spell becomes cast (601.2i).
-    pub(crate) fn note_delayed_source_left(&mut self, object: ObjectRef) {
-        let at = self.events.next_seq();
-        for delayed in self.delayed_triggers.iter_mut() {
-            if delayed.source == object && delayed.source_left_at.is_none() {
-                delayed.source_left_at = Some(at);
-            }
-            for referred in delayed.referred.objects.iter_mut() {
-                if referred.object == object && referred.left_at.is_none() {
-                    referred.left_at = Some(at);
-                }
-            }
-        }
-        // And the objects CR 610.3's "until" events name.
-        for until in self.until_returns.iter_mut() {
-            for remembered in std::iter::once(&mut until.source).chain(until.referred.iter_mut()) {
-                if remembered.object == object && remembered.left_at.is_none() {
-                    remembered.left_at = Some(at);
-                }
-            }
-        }
-    }
 
     /// CR 610.3 — take off `until_returns` every return whose event happened
     /// in `window`, oldest first.
@@ -337,7 +296,7 @@ impl GameState {
     /// (CR 603.7h), and "that token" what it refers to.
     fn delayed_referents<'a>(&self, delayed: &'a DelayedTrigger) -> TriggerReferents<'a> {
         TriggerReferents {
-            this: ThisObject::Remembered(RememberedObject { object: delayed.source, left_at: delayed.source_left_at }),
+            this: ThisObject::Remembered(RememberedObject::now(delayed.source)),
             controller: delayed.controller,
             owner: delayed.owner,
             host: None,
