@@ -120,8 +120,8 @@ verdicts. Both readings found these:
   are four, so a fifth is a question.
 - **The owner is copied onto records.** `ZoneChange`, `LeftTheGame`,
   `SameZoneMove` and `TokenCreated` each carry `owner`, which never changes
-  (CR 108.3), and a departure's `lki` holds it too. Whether a copy of a fact
-  that cannot change is a finding is decision 6's rule.
+  (CR 108.3), and a departure's `lki` holds it too. Decision 6 says which of
+  these the census flags.
 - **CR 400.7d's facts about how a permanent was cast** are on
   `PermanentState` (`cast`, `cost_choices`, `x_value`), on the `StackEntry`
   they came from, and in a departed spell's last known information
@@ -255,7 +255,8 @@ workflows spent 99.4M tokens against a 3–6M estimate (#271), because
 refuters scaled with findings. Each option below was piloted on the same
 191-holder slice.
 
-- **(a) A script and one reader, by concept.** *(Recommended.)* The script
+- **(a) A script and one reader, by concept.** **Taken at review (the owner,
+  2026-10-24).** The script
   classes the mechanical holders itself: id allocators, indices, and every
   holder whose type is a key, which the agent found was about three quarters
   of the slice (140 of 191). It lists each key whose type is an `ObjectId`
@@ -289,7 +290,8 @@ refuters scaled with findings. Each option below was piloted on the same
 read by a gate and by anyone adding a field; the census's one-time record
 (the method, the calibration) needs a home beside it.
 
-- **(a) A section of `cr-coverage-audit.md`.** *(Recommended.)* A new
+- **(a) A section of `cr-coverage-audit.md`.** **Taken at review (the
+  owner, 2026-10-24).** A new
   `## 4c. Concepts and their owners` after §4b, which is the same shape for
   `GameState`'s fields: the type-surface method's third application. The doc
   already owns the method, its calibration bar and the findings register, so
@@ -334,7 +336,8 @@ shared type, that type and a word in the field's name (`PlayerId` named
   which is the objection.
 - **(d) A review checklist, no gate.** No upkeep, and the lapse above.
 - **(e) (a) and (b) as one query per concept, checked per holding type, never
-  per field.** *(Recommended.)* The register says, for each concept, which
+  per field.** **Taken at review (the owner, 2026-10-24), in
+  `check_type_surface.py`.** The register says, for each concept, which
   types hold it, in which role, and how many fields of each type do; it may
   name the fields for a reader, but the gate does not read the names. The
   gate runs each query over the state types and `GameAction` (decision 1's
@@ -389,27 +392,42 @@ two of the three callers had an `Lki` in hand and dropped it.
 **The shared problem.** 124 of the slice's 191 holders are `GameEvent`
 payloads, and many name an owner, a controller or a frame that some other
 holder also answers. The agent had to choose a rule before it could class
-them, and its rule made 24 of them copies. The rule decides whether the
-census's findings on records are a handful or a few dozen per hundred
-payloads, so it is yours to set before the reading starts.
+them, and its rule made 24 of them copies.
 
-- **(a) A record owns what happened, as of its event.** Everything it carries
-  is that event's moment, never a copy; findings come only from state outside
-  the records. Fewest findings, and it misses a record that restates a value
-  it already holds, as `SpellCountered` does.
-- **(b) A record holds keys.** A value another holder answers for the same
-  key is a copy, and the record should name the key and read the owner, as
-  `Unattached` does with the store. The most findings, and each one is a
-  change to a `GameEvent` payload, which every arm of the trigger matcher
-  reads.
-- **(c) A copy only where it can disagree.** *(Recommended.)* A record's
-  value is a finding when another holder answers it for the same key at the
-  same moment and the two could differ. An unchangeable fact (the owner, CR
-  108.3) and a shared `Arc` handle cannot differ, so each is kept, with the
-  reason in the register. A controller frozen as the event happened is that
-  event's moment, since a stack object's controller can change later. What is
-  left is a short list: a record restating its own frame, and every narrow
-  key, which is a key finding and not a copy.
+**Revised at review (2026-10-24).** The first recommendation counted a
+record's value as a copy only where it could disagree with another holder.
+That keeps a duplicate wherever someone judges it harmless, which is how
+last known information's copies began, and saves only the work of not
+reshaping a payload. A "cannot disagree" premise is also a list of cases,
+which breaks when the list grows
+(`engineering-practices.md#the-standing-review-question`).
+
+**Recommended: one holder per key, with no exception, and a record's values
+keyed by its event.** A record's `owner`, `controller` or frame says what was
+true as the event happened, which is what CR 603.10 and 608.2h read: a
+trigger reads the event, not the board after it. The object's own owner is
+keyed by the object. Most of a record's facts can be read nowhere else
+afterwards: a stack object's controller can change, the object can leave,
+a token ceases to exist (CR 704.5d). The owner is the exception, since it
+never changes (CR 108.3): a record's `owner` is the object's owner under the
+event's key. The census keeps it only if some reader of the record cannot
+reach the object's existence, which is the narrow-key finding below. What
+the census flags on records:
+
+- **a fact held twice in one record**, which is one key held twice:
+  `ZoneChange.owner` beside its own frame's owner, and `SpellCountered.controller`
+  and `ControlChanged.from` beside their frames' controllers. The fix keeps
+  one, and the reader reads it there;
+- **a narrow key**: a record naming an object by `ObjectId` where the CR keys
+  it by existence;
+- and nothing else: a handle to the LKI store's own `Lki` is one value, so it
+  is a key, as §0 says.
+
+The alternative, records holding only keys and reading every value from
+another owner, works where another owner is keyed by the same moment, as
+the LKI store is for a departure (`Unattached` does this). Everywhere else,
+a control change or a token's creation, it would need a new store of the
+object as of each event, which is the record again.
 
 ## 4. Sizing
 
