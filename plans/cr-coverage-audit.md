@@ -1163,7 +1163,7 @@ one value, and the narrow keys are read inside their window.
   → items 322 and 323, `layers-combat-and-counters`.
 - **The last control sweep's view held twice**, and **"controlled since"
   equal to the entry turn by construction**. → items 324 and 325,
-  `batches-durations-and-control`.
+  `durations-and-control`.
 - **A player's most recent turn held twice**, and **a spell's cost decisions
   as two fields on its stack entry and one type everywhere else**. → items
   326 and 327, `one-fact-one-type`.

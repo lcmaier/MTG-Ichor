@@ -2,8 +2,10 @@
 
 **Opened 2026-10-25**, A6e's cleanup PR 5 (`item-6-audit.md`'s cleanup plan,
 row 5, and its entry under "What each PR takes"). This file is the design
-note, reviewed before the build; the build runs on the same branch and the PR
-that lands it deletes this file. Every size below was read against the tree at
+note, reviewed before the build. **The PR is two since #293's review**
+(decision 1): `durations-and-control` builds first on this branch, and
+`batch-legality-and-entry-choices` follows on its own; the second deletes
+this file as it lands. Every size below was read against the tree at
 `5b578606` (#292's merge).
 
 ## Where the work sits
@@ -70,7 +72,15 @@ Carried at the plan's 1.5–2× on code, that's **1,720–2,940**, against the p
 
 ## Decisions
 
-1. **The size.** Carried, the re-count's top passes 2,500, so by the brief I
+1. **The size.** **Settled: two PRs, split by concept** (the owner, at
+   #293's review, 2026-10-25), one past the cleanup's planned four.
+   `durations-and-control` takes items 17, 20, 300, 324, 325 and "Before
+   Layers" 13 with decisions 5, 6 and 7: ~670–965 sized, ~810–1,390 carried.
+   `batch-legality-and-entry-choices` takes items 26, 61, 62, 134 and 330
+   with decisions 2 and 3: ~730–1,030 sized, ~910–1,550 carried. Neither
+   needs the other. Both sit at or under the band's floor; the owner chose
+   a shorter review over the floor. The options as they were put:
+   Carried, the re-count's top passes 2,500, so by the brief I
    stop and ask before building. Sized, it's in the band.
    - (a) Build all ten items as one PR, as planned, and flag a crossing at the
      commit that makes it.
@@ -178,7 +188,26 @@ Carried at the plan's 1.5–2× on code, that's **1,720–2,940**, against the p
    `SetController(PlayerRef::Player(chosen))`, settled as the effect begins,
    as the item's own table says every non-`You` identity is.
 
-6. **Item 20: the restriction CR 514.2's wipe asks.** "Damage isn't removed
+6. **Item 20: the restriction CR 514.2's wipe asks.** **Settled:
+   `Restriction::RuleDoesNotApply { rule, affected }`** (the owner, at #293's
+   review, 2026-10-25), an axis for every rule whose own action a card can
+   switch off. `rule` is `StateBased(StateBasedAction)`, reusing the
+   existing one-variant-per-CR-704.5-subrule enum, or `CleanupDamageRemoval`
+   (CR 514.2); `ManaEmptying` (CR 500.4) joins with its first card. Printed
+   families: 7 cards keep damage through cleanup, 31 keep mana between steps,
+   11 switch off the legend rule (CR 704.5j) and 8 say "you don't lose the
+   game for having 0 or less life" (704.5a; Scryfall, 2026-10-25). The wipe
+   asks it per permanent, and the state-based check asks it once per subrule
+   candidate, gated on a registry flag so a board with no such effect pays
+   nothing: every 704.5 subrule is switchable at once, printed or custom,
+   with fixtures for 704.5a and 704.5j beside the wipe's (+40–60 lines and
+   their fixtures). 704.5a needs this axis and not the event axis's "can't
+   lose": the check's one `PlayerLoses` names its first reason, so vetoing
+   it would also save a player with ten poison counters. Not a CR 609.4 "as
+   though" effect, which feeds a rule a pretended fact
+   (`cant-effects-architecture.md#37-the-mirror-this-document-must-not-block--cr-6094s-as-though`,
+   `as-though-effects`); this removes the rule's action. The options as they
+   were put: "Damage isn't removed
    from creatures you control during cleanup steps" forbids part of a
    turn-based action, which proposes no `GameAction`. `Restriction`'s axes
    are an event, a choice and applying a replacement, and none of them is
@@ -194,7 +223,16 @@ Carried at the plan's 1.5–2× on code, that's **1,720–2,940**, against the p
 
    **Recommended: (a).**
 
-7. **Item 300: where the narrow announcement goes.** Two `GainControl`
+7. **Item 300: where the narrow announcement goes.** **Settled: the wide
+   form** (the owner, at #293's review, 2026-10-25): every continuous effect
+   a resolution writes settles the layers' consequences first, so each
+   change of control, and each combatant a type change removes (CR 506.4),
+   is an event at the instant it happens (CR 603.2). No printed card was
+   found that needs it over the narrow form; a custom card can, and the
+   engine keeps the general form. Its cost: the resolver's row writers take
+   an `ActionContext`, and both pools move where Ray of Command resolves,
+   its steal announced before its delayed trigger is created, attributed
+   game by game at the close-out. The options as they were put: Two `GainControl`
    instructions in one resolution with no batch between them are announced
    as one change today, both looking back to the board before the first.
    `GainControl`'s arm is the resolver's one Layer 2 writer.
@@ -217,8 +255,14 @@ Each item's own check, from its entry: item 17's "no row whose duration ends
 with its source names an object that has left the battlefield" after each
 performed batch; item 26's "a member that passed performs without `Err`";
 item 61's "one entry event's auxiliary moves write one batch". All are in
-debug builds. The close-out runs the A/B on both pools, predicted identical
-(no registered card reaches a new path, and decision 7 keeps Ray of Command's
-order), and reads the CPU budget on item 26's check (per batch member) and
-item 17's sweep (per departure), plus the floors and
-`specdb owed --phase "Phase 7"`.
+debug builds. Each PR's close-out runs the A/B on both pools, the floors
+and `specdb owed --phase "Phase 7"`.
+
+- `durations-and-control`: both pools predicted to differ only where Ray of
+  Command resolves (decision 7's wide form), attributed game by game; the
+  CPU budget on item 17's sweep (per departure) and the settlement per row
+  a resolution writes. The dev GUI gate runs: decision 5 adds a
+  `ChoiceKind` arm.
+- `batch-legality-and-entry-choices`: both pools predicted identical, since
+  no registered card reaches a new path; the CPU budget on item 26's check
+  (per batch member).

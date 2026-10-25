@@ -1238,8 +1238,8 @@ registered card returns an object.
     `Primitive::Restrict` (a duration the card writes), and no registered card
     uses either; static replacement and restriction abilities never register a
     row.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-    (the card-homed triage, 2026-10-23): the replacement and restriction
+    **Slotted:** A6e's cleanup builds it in `durations-and-control`
+    (the card-homed triage, 2026-10-23; the PR split at #293's review): the replacement and restriction
     registries' sweep on `Duration::ends_with_its_source`, the watched object
     as an `ObjectRef` so a flicker ends it (CR 400.7), and the control leg on
     TR-4d's `ControlChanged`, with the three fixtures above. Its check, in
@@ -1303,8 +1303,8 @@ registered card returns an object.
     **Reachability (2026-10-23):** unreachable — RS-1's registry exists and
     `turns.rs`'s cleanup still zeroes `damage_marked` unconditionally; none of
     the seven cards is registered.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-    (the card-homed triage, 2026-10-23): CR 514.2's wipe asks the restriction
+    **Slotted:** A6e's cleanup builds it in `durations-and-control`
+    (the card-homed triage, 2026-10-23; the PR split at #293's review): CR 514.2's wipe asks the restriction
     registry before it removes a permanent's damage, with a fixture static
     "damage isn't removed from creatures you control during cleanup steps" and
     a creature that keeps its damage into the next turn.
@@ -1458,8 +1458,8 @@ registered card returns an object.
     dedupes per object, combat and untap batches are per-object unique, RC-5's
     auxiliary batch names each object once by CR 614.13b, and no registered
     spell proposes one object twice.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-    (the card-homed triage, 2026-10-23): phase 2's `still_legal`, one arm per
+    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
+    (the card-homed triage, 2026-10-23; the PR split at #293's review): phase 2's `still_legal`, one arm per
     `GameAction` variant with no wildcard, skipping a stale member rather than
     failing the batch (CR 608.2b), with a fixture whose one instruction names
     one creature twice ("exile target creature and target creature", CR
@@ -2574,8 +2574,8 @@ measurement; what follows is what a later phase has to know.
     entry as one batch), but no registered card creates two creatures with
     devour at once or grants devour; `grants_devour` in
     `phase_rc5_integration_test.rs` is the only board.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-    (the card-homed triage, 2026-10-23): one entry event's auxiliary moves
+    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
+    (the card-homed triage, 2026-10-23; the PR split at #293's review): one entry event's auxiliary moves
     performed as one batch and counted by what was performed (CR 701.21a; the
     card's "for each creature sacrificed this way"), with a fixture that
     creates two creature tokens with devour at once, the plural entry RE-4
@@ -2601,8 +2601,8 @@ measurement; what follows is what a later phase has to know.
 
     **Reachability (2026-10-23):** unreachable — no registered card takes the
     granted-devour road; `grants_devour` is the only board.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-    (the card-homed triage, 2026-10-23): a granted devour is the entering
+    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
+    (the card-homed triage, 2026-10-23; the PR split at #293's review): a granted devour is the entering
     creature's own ability, so that creature's controller chooses and
     sacrifices (CR 614.13a's "you", CR 109.5), and `grants_devour` asserts it;
     the chooser field only if the gather cannot give the instance that
@@ -4656,8 +4656,8 @@ The layer system's designated single-point change site is `oracle/characteristic
     **Sized:** `Primitive::GainControl` takes a recipient and the
     resolution arm asks the `DecisionProvider` when more than one opponent
     exists, ~80–120 lines with the first of the nine cards.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-(the card-homed triage, 2026-10-23): `Primitive::GainControl` names its new
+    **Slotted:** A6e's cleanup builds it in `durations-and-control`
+(the card-homed triage, 2026-10-23; the PR split at #293's review): `Primitive::GainControl` names its new
 controller, and "an opponent" is chosen as the ability resolves (CR 608.2d;
 the Akroan Horse ruling), asked only above two players, with a three-seat
 fixture.
@@ -6076,8 +6076,8 @@ self-replacement producer is `replacement-architecture.md` §11 item 3's,
 with its reachability line there; and the eviction of that document's
 pre-build reasoning is planned section by section in the handoff and opens
 as its own PR after this one merges.
-     **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-     (the card-homed triage, 2026-10-23): an entry choice's cost on
+     **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
+     (the card-homed triage, 2026-10-23; the PR split at #293's review): an entry choice's cost on
      `EnterModsTemplate`, paid as the replacement applies (CR 614.12, a
      shockland as the fixture), and CR 614.12b's payability sweep over a
      batch's chosen costs, with a fixture plural entry, two such tokens
@@ -6898,7 +6898,7 @@ owner decided it the same day.
 
      **Sized:** the card, its `Primitive` arm, and one test: a Colossus in exile under
      Pull from Eternity is shuffled into its owner's library instead. Phase 8.
-     **Re-sized (2026-10-25, `batches-durations-and-control`'s intake):**
+     **Re-sized (2026-10-25, #293's intake):**
      "target face-up exiled card" is a target outside the battlefield and
      the stack, which no `SelectionFilter` arm selects and no registered card
      asks for; its surface is ~260–400 lines for exile alone, in targeting,
@@ -9639,8 +9639,8 @@ scan of the history log, and the place in a turn that reads a tally since
      Command's announcement ahead of its delayed trigger's creation record,
      a pooled stream, so that wider form carries a re-record.
      **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `batches-durations-and-control` (`plans/handoffs/item-6-audit.md`, pass
-     3's cleanup).
+     `durations-and-control` (`plans/handoffs/item-6-audit.md`, pass
+     3's cleanup; the PR split at #293's review).
 
 ### Found by the item 6 audit, pass 3 — hygiene and CI (2026-10-22)
 
@@ -9896,7 +9896,7 @@ keyed by its event.
      **Reachability (2026-10-24):** reachable — not wrong today.
      **Sized:** ~30–50 lines: one record of what the last sweep announced,
      its frame optional.
-     **Slotted:** A6e's cleanup, in `batches-durations-and-control`, beside
+     **Slotted:** A6e's cleanup, in `durations-and-control`, beside
      item 300's control announcements.
 
 325. **`PermanentState.controller_since_turn` is the entry turn by
@@ -9908,7 +9908,7 @@ keyed by its event.
      **Reachability (2026-10-24):** reachable — not wrong today.
      **Sized:** ~20–40 lines and the staging tests: the frame seeds from the
      entry turn, and a test stages that.
-     **Slotted:** A6e's cleanup, in `batches-durations-and-control`.
+     **Slotted:** A6e's cleanup, in `durations-and-control`.
 
 326. **~~A player's most recent turn is held twice.~~ — ✅ CLOSED 2026-10-25 (PR #291, `one-fact-one-type`).** — archived.
      `PlayerHistory` keeps a player's most recent turn and the one before it,
@@ -9993,8 +9993,8 @@ keyed by its event.
      self.lki(named))`, as the damage arm does; ~40–60 of fixtures, the
      counter removal above shown failing first. If the answer is the object
      after the event, the damage arm's read goes back instead.
-     **Slotted:** A6e's cleanup, in `batches-durations-and-control`, once the
-     judges answer.
+     **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`, once
+     the judges answer: a state-based check's one event is that PR's batch.
 
 ### Found by `one-fact-one-type` (2026-10-25)
 

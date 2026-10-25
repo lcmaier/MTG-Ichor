@@ -193,7 +193,10 @@ pass re-reads what it touches: a number here is a starting point.
   `Condition` for `Effect::FunctionsIn` at every ability's root, which a
   trigger's binding carries for the dispatch and the resolution to ask (the
   owner, at the build and its review, superseding `layers-architecture.md`
-  §13d decision 1b). The next PR is `batches-durations-and-control` (5).
+  §13d decision 1b). The next PR is `durations-and-control` (5), then
+  `batch-legality-and-entry-choices` (5b): row 5 split in two at #293's
+  review, which takes the cleanup one PR past its planned four (the owner,
+  2026-10-25).
 
 ## 1. Why this audit is bigger than the last
 
@@ -782,7 +785,8 @@ about.
 | 3 | `trigger-matcher-merges` | The trigger matcher's facts, each written once | 247, 301, 302, 304, 309, 315, 319, 320, 321, and 317 (decision 2) | 2, 3, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 30, 53, 54, 55, 59, 67, 68; and 5 | ~910 | ~1,250–1,600; ~1,350–1,800 with 317 | identical for the merges; with 317 both pools differ, since Blood Artist's order prompts go: a three-arm A/B | the dispatch, and the close-out's audited smoke (`engineering-practices.md#the-close-out`) |
 | 3b | `record-existences` | Every record names its object by existence (split from 4 at #289's review) | 328 | — | ~300 | ~450–600 | both differ: a trigger names the existence its event was about, which is another where an object moved again in its own window; an A/B attributed to those windows | the dispatch's subject reads |
 | 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296, 326, 327 | 46 | ~1,550–1,800 | ~1,550–1,850 | identical | the replacement gather's membership test |
-| 5 | `batches-durations-and-control` | The triage's batches, durations and control builds, two record checks among them | 17, 20, 26, 61, 62, 134, 300, 324, 325, 330, "Before Layers" 13 (148 to `ironworks-loop` at #293) | — | ~1,390 | ~1,750–2,100 | identical: 300's narrow form keeps Ray of Command's order | phase 2's check per member, the duration sweep per batch |
+| 5 | `durations-and-control` | "For as long as" ended with its object, the control sweep's announcements and record, a recipient for `GainControl`, and CR 514.2's wipe asking a restriction (split from `batches-durations-and-control` at #293's review; item 148 to `ironworks-loop` there) | 17, 20, 300, 324, 325, "Before Layers" 13 | — | ~670–965 | ~810–1,390 | both differ: 300's wide form announces Ray of Command's steal before its delayed trigger is created, attributed game by game | the duration sweep per departure, and the settlement per row a resolution writes |
+| 5b | `batch-legality-and-entry-choices` | Phase 2 skips a stale member; an entry event's auxiliary moves and costs decided as they apply and performed as one batch (split from 5 at #293's review) | 26, 61, 62, 134, 330 | — | ~730–1,030 | ~910–1,550 | identical | phase 2's check per member |
 | 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329 | 38 | ~1,230 | ~1,500–1,800 | identical | castability's assignment (155) |
 | 7 | `layers-combat-and-counters` | The triage's layer, combat and counter builds, one record check among them | 86, 117, 184, 190, 205, 206, 308, 322, 323, "Before Layers" 16, "Before card breadth" 1, 3, 5 and 6 | 41, 44, 50 | ~1,330 | ~1,650–2,000 | identical | the layer walk |
 | 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 284, 285; the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
@@ -1009,30 +1013,39 @@ item 124's precedent that a sweep does not ride inside a rules change.
      `recipient`, since one type for every role leaves the field's name to
      say which. Item 326's holder is `PlayerHistory`, so a clone allocates
      once fewer.
-5. `batches-durations-and-control`.
+5. `durations-and-control` (split from `batches-durations-and-control` at
+   #293's review, whose design note,
+   `plans/handoffs/batches-durations-and-control.md`, holds both halves'
+   decisions).
    - Item 17: "for as long as" ends with the object it names. The
      replacement and restriction registries are swept, the watched object is
      read by existence, and the control leg is built. **Check:** no such row
      outlives that object.
-   - Item 26: batch phase 2 skips a member that is no longer legal (CR
-     608.2b). Its check: a member that passed performs without `Err`.
-   - Items 61 and 62: devour's sacrifices are one batch, counted by what was
-     performed (CR 701.21a), and chosen by the entering creature's controller
-     (CR 109.5). **Check:** one entry event's auxiliary moves write one
-     batch.
-   - Item 134: an entry choice's cost, and CR 614.12b's payability over a
-     batch.
-   - Item 20: CR 514.2's wipe asks the restriction registry.
+   - Item 20: CR 514.2's wipe asks `Restriction::RuleDoesNotApply`, an axis
+     keyed by the rule whose action stops, with the state-based check asking
+     it for every CR 704.5 subrule.
+   - "Before Layers" 13: "an opponent gains control", chosen at resolution
+     above two players, through one function every instruction asks.
+   - Item 300: a change of control waiting to be announced is announced
+     before each continuous effect a resolution writes (the wide form).
+   - Items 324 and 325: one record of what the last control sweep announced,
+     and `controller_since_turn` gone.
    - Item 148: re-slotted to `ironworks-loop` at #293's review (the owner,
      2026-10-25). Its card targets an exiled card, a surface built with the
      graveyard targets that row already builds.
-   - "Before Layers" 13: "an opponent gains control", chosen at resolution
-     above two players.
-   - Item 300: two control changes one resolution writes are announced one
-     each, in the narrow form.
+5b. `batch-legality-and-entry-choices`.
+   - Item 26: batch phase 2 skips a member that is no longer legal (CR
+     608.2b). Its check: a member that passed performs without `Err`.
+   - Items 61 and 62: devour's sacrifices are decided as each applies and
+     performed as one batch when phase 1 ends, counted by what will be
+     performed (CR 701.21a), and chosen by the entering creature's
+     controller (CR 109.5). **Check:** one entry event's auxiliary moves
+     write one batch.
+   - Item 134: an entry choice's cost, chosen under CR 614.12b's combined
+     payability and paid with those moves.
    - Item 330 (added after #290, the owner): how a trigger's filter reads an
-     object its own event moved, a tap and a sacrifice the owner's case.
-     Two questions go to the judges first, and the answer decides the build
+     object its own event moved. Its first question was answered at #293's
+     review; the second goes to the judges, and the answer decides the build
      (the item's **Sized:** line).
 6. `resolution-recipients-and-amounts`.
    - Items 90 and 106: a resolution-created row keeps its targets for its
