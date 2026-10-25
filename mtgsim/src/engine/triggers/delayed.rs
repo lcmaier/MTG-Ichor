@@ -30,14 +30,13 @@ use crate::engine::actions::ActionContext;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use super::binding::TriggeringEventView;
 use crate::engine::trace_records;
-use crate::events::cause::{EventCause, GameRule};
 use crate::events::event::{EventRecord, EventId, GameEvent};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, EventIndex, EventKindMask, Lki,
-    Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerLimit, TriggerOrigin, TriggerSeq,
+    Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerOrigin, TriggerSeq,
     TriggeringEvent, TriggeringEventObjects,
     TriggerTurn,
 };
@@ -134,17 +133,11 @@ impl GameState {
             ReflexiveForm::Does => occurrences.into_iter().map(|m| pending_of(m, reflexive)).collect(),
             ReflexiveForm::Doesnt => self.when_not_done(reflexive, occurrences.is_empty()).into_iter().collect(),
         };
-        let mut queued = Vec::new();
+        let mut announce = Vec::new();
         for pending in triggered {
-            self.queue_pending(pending, &mut queued);
+            self.queue_pending(pending, &mut announce);
         }
-        for (seq, origin, controller, caused_by) in queued {
-            self.emit_event_unbatched(
-                GameEvent::AbilityTriggered { seq, origin, controller, caused_by: Some(caused_by) },
-                EventCause::GameRule(GameRule::AbilityTriggers),
-            )?;
-        }
-        Ok(())
+        self.announce_triggered(announce)
     }
 
     /// "When you don't": the one trigger, bound to no record, when the action
@@ -461,12 +454,7 @@ impl GameState {
     /// entry triggers on every occurrence and stays. A `Once` entry triggers
     /// once and leaves as it queues (CR 603.7b), its controller choosing
     /// among simultaneous occurrences.
-    pub(super) fn queue_delayed(
-        &mut self,
-        matched: Vec<DelayedMatch>,
-        ctx: Option<&ActionContext>,
-        queued: &mut Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventId)>,
-    ) {
+    pub(super) fn queue_delayed(&mut self, matched: Vec<DelayedMatch>, ctx: Option<&ActionContext>, announce: &mut Vec<GameEvent>) {
         for DelayedMatch { id, occurrences } in matched {
             let Some(at) = self.delayed_triggers.iter().position(|d| d.id == id) else { continue };
             let delayed = &self.delayed_triggers[at];
@@ -482,31 +470,20 @@ impl GameState {
                 DelayedDuration::Reflexive(_) => Vec::new(),
             };
             for pending in triggered {
-                self.queue_pending(pending, queued);
+                self.queue_pending(pending, announce);
             }
         }
     }
 
-    /// One delayed trigger onto the queue, its sequence number given, and
-    /// its `AbilityTriggered` to announce added to `queued` — unless "triggers
-    /// only once each turn" has already had its turn.
-    fn queue_pending(
-        &mut self,
-        mut pending: PendingTrigger,
-        queued: &mut Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventId)>,
-    ) {
-        let identity = pending.origin.identity();
-        if pending.binding.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn)
-            && !self.history.triggered_this_turn.insert(identity)
-        {
+    /// One delayed trigger onto the queue, numbered, unless "triggers only
+    /// once each turn" has already had its turn.
+    fn queue_pending(&mut self, pending: PendingTrigger, announce: &mut Vec<GameEvent>) {
+        if !self.may_trigger_this_turn(&pending.binding.def, pending.origin.identity()) {
             return;
         }
-        pending.seq = TriggerSeq(self.next_trigger_seq);
-        self.next_trigger_seq += 1;
-        // "When you don't" is caused by no record.
-        let caused_by = pending.binding.first_record().map_or(EventId(0), |r| r.seq);
-        queued.push((pending.seq, pending.origin, pending.controller, caused_by));
-        self.pending_triggers.push(pending);
+        let caused_by = pending.binding.first_record().map(|r| r.seq);
+        let pending = PendingTrigger { seq: self.take_next_trigger_seq(), ..pending };
+        self.queue_trigger(pending, caused_by, announce);
     }
 
     /// CR 603.7b: "if its trigger event occurs more than once simultaneously

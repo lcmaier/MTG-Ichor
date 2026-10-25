@@ -718,19 +718,16 @@ impl GameState {
         ctx: Option<&ActionContext>,
     ) -> Result<(), String> {
         // --- Queue, or resolve a mana trigger at once (CR 605.4a) ----------
-        let mut queued: Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventId)> = Vec::new();
+        let mut announce: Vec<GameEvent> = Vec::new();
         for m in matches {
             let caused_by = m.triggering_events[0].record.seq;
-            // "Triggers only once each turn" is written as the ability
-            // queues, so a second match in this same window finds it taken,
-            // and is read before CR 603.2d's count: once, whatever the count.
-            let times = if m.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn) {
-                if !self.history.triggered_this_turn.insert(m.identity) {
-                    continue;
-                }
-                1
-            } else {
-                1 + m.additional
+            // Read before CR 603.2d's count: once, whatever the count.
+            if !self.may_trigger_this_turn(&m.def, m.identity) {
+                continue;
+            }
+            let times = match m.def.limit {
+                Some(TriggerLimit::TriggersOnlyOnceEachTurn) => 1,
+                _ => 1 + m.additional,
             };
             let source_found_in_graveyard = self.aura_put_into_graveyard_beside_its_host(&m);
             let binding = TriggerBinding {
@@ -746,10 +743,8 @@ impl GameState {
             // and targets (Panharmonicon's fifth ruling). The last time takes
             // the binding, so a trigger counted once copies nothing.
             for binding in std::iter::repeat_n(binding, times as usize) {
-                let seq = TriggerSeq(self.next_trigger_seq);
-                self.next_trigger_seq += 1;
                 let pending = PendingTrigger {
-                    seq,
+                    seq: self.take_next_trigger_seq(),
                     origin,
                     controller: m.controller,
                     source_card: Arc::clone(&m.source_card),
@@ -771,20 +766,42 @@ impl GameState {
                     }
                     continue;
                 }
-                self.pending_triggers.push(pending);
-                queued.push((seq, origin, m.controller, caused_by));
+                self.queue_trigger(pending, Some(caused_by), &mut announce);
             }
         }
-        self.queue_delayed(delayed, ctx, &mut queued);
+        self.queue_delayed(delayed, ctx, &mut announce);
+        self.announce_triggered(announce)
+    }
 
-        // --- CR 603.3b's second tier watches this record (§4.8) -------------
-        // Emitted after the window has closed, unstamped, each dispatched as
-        // it is emitted like any unbatched record.
-        for (seq, origin, controller, caused_by) in queued {
-            self.emit_event_unbatched(
-                GameEvent::AbilityTriggered { seq, origin, controller, caused_by: Some(caused_by) },
-                EventCause::GameRule(GameRule::AbilityTriggers),
-            )?;
+    /// "This ability triggers only once each turn" (§3.5), taken as the
+    /// ability queues, so a second match in the same window finds it taken.
+    /// False once this turn's has been taken.
+    pub(super) fn may_trigger_this_turn(&mut self, def: &TriggerDef, identity: AbilityIdentity) -> bool {
+        def.limit != Some(TriggerLimit::TriggersOnlyOnceEachTurn) || self.history.triggered_this_turn.insert(identity)
+    }
+
+    /// The next trigger's number, in the order triggers are queued.
+    pub(super) fn take_next_trigger_seq(&mut self) -> TriggerSeq {
+        let seq = TriggerSeq(self.next_trigger_seq);
+        self.next_trigger_seq += 1;
+        seq
+    }
+
+    /// `pending` onto the queue, and its `AbilityTriggered` onto `announce`:
+    /// caused by the record that matched (the first, for a "one or more"
+    /// trigger), or by none for a state trigger (CR 603.8) and a "when you
+    /// don't" (CR 603.12).
+    pub(super) fn queue_trigger(&mut self, pending: PendingTrigger, caused_by: Option<EventId>, announce: &mut Vec<GameEvent>) {
+        announce.push(GameEvent::AbilityTriggered { seq: pending.seq, origin: pending.origin, controller: pending.controller, caused_by });
+        self.pending_triggers.push(pending);
+    }
+
+    /// CR 603.3b's second tier watches these records (§4.8): emitted after
+    /// the window has closed, unstamped, each dispatched as it is emitted
+    /// like any unbatched record.
+    pub(super) fn announce_triggered(&mut self, announce: Vec<GameEvent>) -> Result<(), String> {
+        for triggered in announce {
+            self.emit_event_unbatched(triggered, EventCause::GameRule(GameRule::AbilityTriggers))?;
         }
         Ok(())
     }

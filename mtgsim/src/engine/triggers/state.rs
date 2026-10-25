@@ -60,19 +60,14 @@ impl GameState {
         if self.dispatch_audit.is_some() {
             self.audit_state_check(&found);
         }
-        let mut queued: Vec<(TriggerSeq, TriggerOrigin, PlayerId)> = Vec::new();
+        let mut announce = Vec::new();
         for m in found {
-            // "Triggers only once each turn", written as it queues, as the
-            // dispatcher writes it.
-            if m.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn) && !self.history.triggered_this_turn.insert(m.identity) {
+            if !self.may_trigger_this_turn(&m.def, m.identity) {
                 continue;
             }
-            let seq = TriggerSeq(self.next_trigger_seq);
-            self.next_trigger_seq += 1;
-            let origin = TriggerOrigin::Object(m.identity);
-            self.pending_triggers.push(PendingTrigger {
-                seq,
-                origin,
+            let pending = PendingTrigger {
+                seq: self.take_next_trigger_seq(),
+                origin: TriggerOrigin::Object(m.identity),
                 controller: m.controller,
                 source_card: m.source_card,
                 instances: m.instances,
@@ -86,16 +81,10 @@ impl GameState {
                     source_found_in_graveyard: None,
                 },
                 x_value: None,
-            });
-            queued.push((seq, origin, m.controller));
+            };
+            self.queue_trigger(pending, None, &mut announce);
         }
-        for (seq, origin, controller) in queued {
-            self.emit_event_unbatched(
-                GameEvent::AbilityTriggered { seq, origin, controller, caused_by: None },
-                EventCause::GameRule(GameRule::AbilityTriggers),
-            )?;
-        }
-        Ok(())
+        self.announce_triggered(announce)
     }
 
     /// The objects that may carry a state trigger, off the dispatcher's gate:
