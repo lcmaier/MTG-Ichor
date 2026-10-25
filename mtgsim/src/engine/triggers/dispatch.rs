@@ -43,15 +43,10 @@ use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::state::history_log::RowFact;
 use crate::types::effects::{Condition, Effect, EffectRecipient, PlayerRef, Primitive};
-use crate::engine::targeting::TargetRef;
 use crate::types::history::CountIs;
-use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::triggers::{
-    zone_change_looks_back, AttackOccurrence, BlockOccurrence, CountersOn, TargetSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
-    ObjectOrPlayer, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
-    TriggerLimit, TriggerOrigin, TriggerId, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
-};
+use crate::types::triggers::{zone_change_looks_back, AttackOccurrence, BlockOccurrence, ObjectOrPlayerSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerId, TriggerSubject, TriggeringEvent, TriggeringEventObjects};
 use super::binding::TriggeringEventView;
 
 use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
@@ -194,6 +189,7 @@ fn could_add_mana(effect: &Effect) -> bool {
             effects.iter().any(could_add_mana)
         }
         Effect::Conditional(_, inner)
+        | Effect::FunctionsIn(_, inner)
         | Effect::Optional { effect: inner, .. }
         | Effect::Remember(inner)
         | Effect::ForEach(_, inner)
@@ -540,6 +536,8 @@ struct TriggerCandidateDef<'a> {
     candidate: usize,
     identity: AbilityIdentity,
     def: &'a Arc<TriggerDef>,
+    /// The zones its text states it functions in (CR 113.6b).
+    stated_zones: Option<ZoneSet>,
     instances: &'a [EffectRecipient],
 }
 
@@ -599,6 +597,9 @@ pub(super) struct MatchedTrigger {
     pub(super) identity: AbilityIdentity,
     pub(super) controller: PlayerId,
     pub(super) def: Arc<TriggerDef>,
+    /// The zones its text states it functions in, which its binding takes
+    /// (CR 113.6b).
+    pub(super) stated_zones: Option<ZoneSet>,
     pub(super) source_card: Arc<CardData>,
     pub(super) instances: Vec<EffectRecipient>,
     pub(super) event: EventIndex,
@@ -891,6 +892,7 @@ impl GameState {
                 triggered_by: None,
                 referred: Referred::default(),
                 source_found_in_graveyard,
+                stated_zones: m.stated_zones,
             };
             let origin = TriggerOrigin::Object(m.identity);
             // Each time it triggers is its own trigger, with its own choices
@@ -1646,6 +1648,7 @@ impl GameState {
                     candidate: index,
                     identity: AbilityIdentity { source: candidate.object, ability: ability.id },
                     def,
+                    stated_zones: ability.effect.stated_zones(),
                     instances: &ability.instances,
                 });
             }
@@ -1662,7 +1665,7 @@ impl GameState {
                 let Some(answered) = candidate.frame.answered_arms(looks_back_through, is_newcomer[row.candidate]) else { continue };
                 let identity = row.identity;
                 let def = row.def;
-                let outcome = self.match_def(def, candidate, answered, record, identity);
+                let outcome = self.match_def(def, row.stated_zones, candidate, answered, record, identity);
                 let (matched, triggering_events, refusal) = match outcome {
                     Ok((event, triggering_events)) => (Some(event), triggering_events, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
@@ -1698,6 +1701,7 @@ impl GameState {
                         identity: row.identity,
                         controller: candidate.controller,
                         def: Arc::clone(row.def),
+                        stated_zones: row.stated_zones,
                         source_card: Arc::clone(&candidate.card),
                         instances: row.instances.to_vec(),
                         event: matched,
@@ -1718,6 +1722,7 @@ impl GameState {
     fn match_def(
         &self,
         def: &TriggerDef,
+        stated_zones: Option<ZoneSet>,
         candidate: &TriggerCandidate<'_>,
         answered: AnsweredArms,
         record: &EventRecord,
@@ -1734,10 +1739,10 @@ impl GameState {
         // 109.5): the source's now, or its frame's for a look-back candidate,
         // and "this" is read as it left for one.
         let source = TriggerSource { object: candidate.object.id, controller: candidate.controller, lki: candidate.frame.lki() };
-        self.first_arm_that_triggers(def, identity, &referents, record, source, |arm| {
+        self.first_arm_that_triggers(def, stated_zones, identity, &referents, record, source, |arm| {
             // CR 113.6k asks each trigger condition where it functions; the
             // pre-pass asked the ability, which is their union.
-            answered.admits(arm) && condition_functions_in(def, arm, &candidate.frame.characteristics().types, candidate.zone)
+            answered.admits(arm) && condition_functions_in(stated_zones, arm, &candidate.frame.characteristics().types, candidate.zone)
         })
     }
 
@@ -1757,6 +1762,7 @@ impl GameState {
     pub(super) fn first_arm_that_triggers(
         &self,
         def: &TriggerDef,
+        stated_zones: Option<ZoneSet>,
         identity: AbilityIdentity,
         referents: &TriggerReferents<'_>,
         record: &EventRecord,
@@ -1778,7 +1784,7 @@ impl GameState {
         if !self.within_once_per_turn_limit(def, identity, source.controller, arm, record, referents) {
             return Err(Refusal::Limit);
         }
-        let triggering_events = self.triggers_whose_intervening_if_holds(def, arm, record, triggering_events, source)?;
+        let triggering_events = self.triggers_whose_intervening_if_holds(def, stated_zones, arm, record, triggering_events, source)?;
         Ok((event_index, triggering_events))
     }
 
@@ -1806,11 +1812,17 @@ impl GameState {
     pub(super) fn triggers_whose_intervening_if_holds(
         &self,
         def: &TriggerDef,
+        stated_zones: Option<ZoneSet>,
         arm: &TriggerEvent,
         record: &EventRecord,
         triggering_events: Vec<TriggeringEventObjects>,
         source: TriggerSource<'_>,
     ) -> Result<Vec<TriggeringEventObjects>, Refusal> {
+        // CR 113.6b's statement is printed as the intervening "if" and asked
+        // with it, of the source where it is now, as the resolution asks it.
+        if stated_zones.is_some_and(|zones| !self.objects.get(&source.object).is_some_and(|object| zones.contains(object.zone))) {
+            return Err(Refusal::InterveningIf);
+        }
         let Some(condition) = &def.intervening_if else { return Ok(triggering_events) };
         let holding: Vec<TriggeringEventObjects> = triggering_events
             .into_iter()
@@ -1991,7 +2003,7 @@ impl GameState {
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, excess, .. },
-                GameEvent::DamageDealt { source: dealt_by, target, is_combat, excess: dealt_excess, .. },
+                GameEvent::DamageDealt { source: dealt_by, recipient: dealt_to, is_combat, excess: dealt_excess, .. },
             ) => {
                 // The source as it dealt the damage (CR 608.2h): as it last
                 // existed once the existence that dealt it has ended, before
@@ -1999,7 +2011,7 @@ impl GameState {
                 let as_it_dealt = record.event.source_lki().or_else(|| self.lki(*dealt_by));
                 let source_read = ObjectInformation::of(dealt_by.id, as_it_dealt);
                 triggering_event_if(
-                    self.damage_recipient_matches(recipient, *target, referents, seq)
+                    self.damage_recipient_matches(recipient, *dealt_to, referents, seq)
                         && combat.is_none_or(|c| c == *is_combat)
                         && (!*excess || *dealt_excess > 0)
                         && self.subject_matches_existence(source, source_read, Some(*dealt_by), referents, seq),
@@ -2007,8 +2019,8 @@ impl GameState {
             }
             // Announced as the batch decided, and read at its close, so the
             // recipient is asked as the damage left it (CR 603.10).
-            (TriggerEvent::DamageIsPrevented { recipient, .. }, GameEvent::DamagePrevented { target, .. }) => {
-                triggering_event_if(self.damage_recipient_matches(recipient, *target, referents, seq))
+            (TriggerEvent::DamageIsPrevented { recipient, .. }, GameEvent::DamagePrevented { recipient: prevented_to, .. }) => {
+                triggering_event_if(self.damage_recipient_matches(recipient, *prevented_to, referents, seq))
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
                 triggering_event_if(phase == rp && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
@@ -2136,15 +2148,7 @@ impl GameState {
                 TriggerEvent::BecomesTarget { target: watched, by: kind, controller: whose, .. },
                 GameEvent::Targeted { target, by, ability_source, controller, .. },
             ) => {
-                let target_ok = match (watched, target) {
-                    (TargetSubject::Object(subject), TargetRef::Object(object)) => {
-                        self.named_subject_matches(subject, *object, referents, seq)
-                    }
-                    (TargetSubject::Player(who), TargetRef::Player(player)) => {
-                        who.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents))
-                    }
-                    (TargetSubject::Object(_), TargetRef::Player(_)) | (TargetSubject::Player(_), TargetRef::Object(_)) => false,
-                };
+                let target_ok = self.object_or_player_matches(watched, *target, referents, seq);
                 let kind_ok = kind.admits(ability_source.is_none())
                     && match kind {
                         TargetedBy::Spell(Some(filter)) => {
@@ -2153,14 +2157,11 @@ impl GameState {
                         TargetedBy::Spell(None) | TargetedBy::SpellOrAbility | TargetedBy::Ability => true,
                     };
                 let whose_ok = whose.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents));
-                let objects = || {
-                    let target = match target {
-                        TargetRef::Object(object) => ObjectOrPlayer::Object(*object),
-                        TargetRef::Player(player) => ObjectOrPlayer::Player(*player),
-                    };
-                    Some(TriggeringEventObjects::Target { target, by: *by })
-                };
-                if target_ok && kind_ok && whose_ok { objects().into_iter().collect() } else { Vec::new() }
+                if target_ok && kind_ok && whose_ok {
+                    vec![TriggeringEventObjects::Target { target: *target, by: *by }]
+                } else {
+                    Vec::new()
+                }
             }
             (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
                 let source_ok = match source {
@@ -2386,27 +2387,37 @@ impl GameState {
         };
         let matched = counter_type.is_none_or(|k| k == kind)
             && by.as_ref().is_none_or(|p| who.is_some_and(|who| self.player_ref_is(p, who, referents)))
-            && self.counters_on_matches(watched, on, referents, record.seq);
+            && self.object_or_player_matches(watched, on, referents, record.seq);
         if !matched {
             return Vec::new();
         }
         vec![self.triggering_event_objects(arm, record); multiplicity.counter_occurrences(n).0]
     }
 
-    /// Whether the counters a record put or removed are where the arm watches.
-    /// `watched` is the card's words, `on` the record's fact. "On this
-    /// creature" or "on a creature you control" (`CountersOn::Object`) asks
-    /// the object `on` names the question every object arm asks, of the object
-    /// as it is after the event (CR 603.10). "On you" or "on a player"
-    /// (`CountersOn::Player`) asks the player `on` names, any player for
-    /// `None`. Counters on a player never match an object arm, nor the reverse.
-    fn counters_on_matches(&self, watched: &CountersOn, on: ObjectOrPlayer, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
-        match (watched, on) {
-            (CountersOn::Object(which), ObjectOrPlayer::Object(object)) => self.named_subject_matches(which, object, referents, seq),
-            (CountersOn::Player(who), ObjectOrPlayer::Player(player)) => {
+    /// Whether the object or player a record names is the one an arm's
+    /// [`ObjectOrPlayerSubject`] watches, for both arms that have one: a
+    /// counter arm's (what the counters went on or came off) and a targeting
+    /// arm's (what became the target). `watched` is the card's words, `it`
+    /// the record's fact. "This creature"
+    /// or "a creature you control" (`ObjectOrPlayerSubject::Object`) asks the
+    /// object `it` names the question every object arm asks, of the object as
+    /// it is after the event (CR 603.10). "You" or "a player"
+    /// (`ObjectOrPlayerSubject::Player`) asks the player `it` names, any
+    /// player for `None`. A player never matches an object arm, nor the
+    /// reverse.
+    fn object_or_player_matches(
+        &self,
+        watched: &ObjectOrPlayerSubject,
+        it: ObjectOrPlayer,
+        referents: &TriggerReferents<'_>,
+        seq: EventId,
+    ) -> bool {
+        match (watched, it) {
+            (ObjectOrPlayerSubject::Object(which), ObjectOrPlayer::Object(object)) => self.named_subject_matches(which, object, referents, seq),
+            (ObjectOrPlayerSubject::Player(who), ObjectOrPlayer::Player(player)) => {
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, player, referents))
             }
-            (CountersOn::Object(_), ObjectOrPlayer::Player(_)) | (CountersOn::Player(_), ObjectOrPlayer::Object(_)) => false,
+            (ObjectOrPlayerSubject::Object(_), ObjectOrPlayer::Player(_)) | (ObjectOrPlayerSubject::Player(_), ObjectOrPlayer::Object(_)) => false,
         }
     }
 
@@ -2710,7 +2721,7 @@ impl GameState {
     /// dealing the damage is the existence that dealt it (CR 608.2h).
     fn damage_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
         match event {
-            GameEvent::DamageDealt { source, target, .. } => TriggeringEventObjects::Damage { source: *source, recipient: *target },
+            GameEvent::DamageDealt { source, recipient, .. } => TriggeringEventObjects::Damage { source: *source, recipient: *recipient },
             _ => TriggeringEventObjects::NoObject,
         }
     }
@@ -2719,7 +2730,7 @@ impl GameState {
     /// none.
     fn prevention_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
         match event {
-            GameEvent::DamagePrevented { target: ObjectOrPlayer::Object(recipient), .. } => {
+            GameEvent::DamagePrevented { recipient: ObjectOrPlayer::Object(recipient), .. } => {
                 TriggeringEventObjects::Prevention { recipient: *recipient }
             }
             _ => TriggeringEventObjects::NoObject,

@@ -934,7 +934,7 @@ value of none of them. The copy resets three fields:
 
 The copy keeps:
 - the decisions: `chosen_targets` until 707.10c's prompt, `chosen_modes`,
-  `x_value`, `chosen_alternative_cost` and `additional_costs_paid`;
+  `x_value` and `cost_choices`;
 - for an ability copy (707.10b), `ability_identity` and `trigger`;
 - the objects that paid the original's costs, once item 30 records them.
 

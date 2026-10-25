@@ -10,7 +10,7 @@ use mtgsim::cards::phase_tr6_cards::{
     immortal_coils_state_trigger,
 };
 use mtgsim::engine::actions::ZoneChangeAct;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy};
 use mtgsim::events::event::{EventId, GameEvent};
@@ -24,7 +24,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
@@ -342,7 +342,7 @@ fn counter(game: &mut GameState, ability: ObjectId) {
         ability_source: None,
         controller: 1,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(ability)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(ability)]),
         replaced_event: None,
         trigger: None,
     };

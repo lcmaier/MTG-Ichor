@@ -227,7 +227,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `PlayerWon` | **no arm** — no printed trigger; recorded so the projection stays one-to-one | — | — |
 | `Scried` | `Scries { player }` — "that many" is the record's `looked_at`, the cards a scry looked at, which a short library makes fewer than its number (Elrond, Master of Healing's first ruling); a scry 0 writes no record (CR 701.22b) | no | built in TR-5g (fixture) |
 | `LibraryShuffled` | `ShufflesLibrary { player }` — two printed watchers, Cosi's Trickster and Psychic Surgery ("whenever an opponent shuffles their library"; the survey's 168 on this row is the substring over-count); one record per shuffle, an empty or one-card library included, and never for cascade's random bottom (Cosi's Trickster's rulings) | no | TR-2b |
-| `CountersPutOn` / `CountersRemovedFrom` | `CountersPutOn { subject: CountersOn, counter_type, by, multiplicity }` / `CountersRemovedFrom { .. }`, over two records since TR-5b split `CountersChanged` by direction: a put always has a putter (CR 122.6a, 120.3d), a removal has a remover only where a player removed them. An occurrence is a counter by default (Protean Hydra's fourth ruling), `OncePerSubject` is "one or more ... on a creature" (Enduring Scalelord's second), `OncePerEvent` "on one or more". Counters a permanent enters with are put on it (CR 122.6). CR 122.7's "the Nth counter" is no field: it is the ability's intervening "if", `Condition::CounterCountReached`, reading the count each record left (`now`), as CR 714.2b words a Saga's chapter | no | TR-5b |
+| `CountersPutOn` / `CountersRemovedFrom` | `CountersPutOn { subject: ObjectOrPlayerSubject, counter_type, by, multiplicity }` / `CountersRemovedFrom { .. }`, over two records since TR-5b split `CountersChanged` by direction: a put always has a putter (CR 122.6a, 120.3d), a removal has a remover only where a player removed them. An occurrence is a counter by default (Protean Hydra's fourth ruling), `OncePerSubject` is "one or more ... on a creature" (Enduring Scalelord's second), `OncePerEvent` "on one or more". Counters a permanent enters with are put on it (CR 122.6). CR 122.7's "the Nth counter" is no field: it is the ability's intervening "if", `Condition::CounterCountReached`, reading the count each record left (`now`), as CR 714.2b words a Saga's chapter | no | TR-5b |
 | `CountersAnnihilated` | **deleted in TR-5b**: CR 704.5q is two `RemoveCounters` members of the state-based batch, so its removals are `CountersRemovedFrom` records the removal arm reads (Protean Hydra's fifth ruling) | — | TR-5b |
 | `Attached` | `BecomesAttached { attachment, host }`, each a `TriggerSubject`, read after the event (Siona, Captain of the Pyleas' fourth ruling) — transition-only (701.3b), so re-equipping the same creature announces nothing (603.2e-002), and an Aura entering attached is one (CR 303.4f; item 228). "That creature" is the host | no | TR-4b |
 | `Unattached` (was `EquipmentDetached`) | `BecomesUnattached { attachment, former_host }` — one record for CR 701.3d's four routes (question 5), named by `UnattachRoute`, the cause on the stamp (§3.12a). Both ends are `ObjectRef`s, and "that permanent" is the existence the record names (CR 400.7) | yes (603.10c): each end as it was, off its departure's frame when it left in the window; an attached ability-list source's move snapshots the lists before it (§4.3) | TR-4b |
@@ -239,7 +239,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `GameEndedInADraw` | **no arm** — the game is over (CR 104.4) | — | — |
 | `TokenCeasedToExist` | **no arm** — CR 704.5d names no trigger event, and what cards observe is the *absence*: Flickerwisp's ruling has an exiled token "cease to exist and won't return", which is a delayed trigger's `ObjectRef` finding nothing (§3.9), not an event to match | — | — |
 | `StateBasedActionPerformed` | **no arm** | — | — |
-| `Targeted` (item 12; the record since #231) | `BecomesTarget { target: TargetSubject (an object or a player), by: TargetedBy (a spell, an ability, either; "an Aura spell"), controller: Option<PlayerRef>, multiplicity }` — once per spell or ability, however many instances (question 11), one window per spell or ability (CR 601.2c). "For the first time each turn" is `TriggerDef::limit`'s, read off the turn's targeting rows | no | TR-5c |
+| `Targeted` (item 12; the record since #231) | `BecomesTarget { target: ObjectOrPlayerSubject (an object or a player), by: TargetedBy (a spell, an ability, either; "an Aura spell"), controller: Option<PlayerRef>, multiplicity }` — once per spell or ability, however many instances (question 11), one window per spell or ability (CR 601.2c). "For the first time each turn" is `TriggerDef::limit`'s, read off the turn's targeting rows | no | TR-5c |
 | *new* `ControlChanged` (item 13) | `ControlChanges { subject, from: Option<PlayerRef>, to: Option<PlayerRef> }` — "you lose control of" is `from: You`; "an opponent gains control of a permanent from you" adds `to: Opponent` (Zidane, Tantalus Thief); "a permanent you own" is the subject's filter. Losing control includes leaving the battlefield (Khârn the Betrayer's first ruling), so an arm with `to: None` also reads a battlefield departure whose frame's controller is `from` | yes (603.10d), off the frame the sweep kept (§12, TR-4d) | TR-4d |
 | *new* `DamagePrevented` (item 16) | `DamageIsPrevented { recipient: DamageRecipient, multiplicity }` — one record per prevention applied per subject group (CR 615.13), read at the batch's close; an object recipient is `EventRole::DamageRecipient` | no | TR-5d |
 | `AbilityTriggered` (new, §4.8) | `AbilityTriggers { caused_by: Option<TriggerEvent> (Strict Proctor's "a permanent entering causes"), source: Option<ObjectFilter> }` — **the arm that is CR 603.3b's second tier**: `TriggerCondition::tier()` reads it | no | TR-1 (the event and the tier), TR-5 (the arm's card) |
@@ -308,6 +308,10 @@ pub struct TriggerBinding {
     /// owner's graveyard, which "this card" finds: the one field written
     /// after the ability triggered.
     pub source_found_in_graveyard: Option<ObjectRef>,
+    /// CR 113.6b's statement, Bridge from Below's "if this card is in your
+    /// graveyard", handed over from the ability's `Effect::FunctionsIn` as it
+    /// triggers and asked with the intervening "if" at both times (item 296).
+    pub stated_zones: Option<ZoneSet>,
 }
 ```
 
@@ -750,7 +754,7 @@ pub struct HistoryCount { pub players: PlayerSet, pub fact: TurnFact, pub of: Op
 // AttackersDeclared (raid is at least one)
 
 /// Beside the log, per player: "your last turn" and the draw step's count.
-pub struct PlayerHistory { own_turn: Option<u32>, previous_own_turn: Option<u32>, this_draw_step: u64 }
+pub struct PlayerHistory { most_recent_turn: Option<u32>, previous_turn: Option<u32>, this_draw_step: u64 }
 ```
 
 **One store, written once.** Every count a card reads and every "what did
@@ -1875,10 +1879,9 @@ For each record, the candidates are the union of:
    where the Jailer stops it. "When this card is put into a graveyard from
    anywhere" functions everywhere it can be, and Guerrilla Tactics' discard
    in the graveyard, in Rest in Peace's exile and in Library of Leng's
-   library. And an intervening "if" that states a zone replaces the
-   derivation for every condition of its ability (CR 113.6b; Bridge from
-   Below, item 173), in `functioning_zones` and `condition_functions_in`
-   alike.
+   library. And a zone the ability's text states replaces the derivation
+   for every condition of it (CR 113.6b; Bridge from Below, item 173), in
+   `functioning_zones` and `condition_functions_in` alike.
 4. **The record's own subject**, wherever it is now — CR 603.10's default
    is "objects that exist immediately after an event", and a card
    discarded into a graveyard exists there with its printed abilities.

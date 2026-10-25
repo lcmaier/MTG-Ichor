@@ -22,7 +22,6 @@
 
 use mtgsim::cards::alpha::{counterspell, giant_growth};
 use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
-use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::objects::card_data::AbilityType;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_toughness,
@@ -30,7 +29,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::oracle::mana_helpers::castable_spells;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, test_dp};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
@@ -187,7 +186,7 @@ fn counterspell_takes_the_spell_beside_the_ability_without_a_prompt() {
     assert_eq!(chosen.len(), 1, "one instance of \"target\" (CR 601.2c)");
     assert_eq!(
         chosen[0].as_resolved_targets().collect::<Vec<_>>(),
-        vec![ResolvedTarget::Object(growth)],
+        vec![ObjectOrPlayerId::Object(growth)],
         "the spell, not the ability",
     );
 

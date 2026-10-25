@@ -21,7 +21,7 @@ use mtgsim::cards::phase_re_cards::soldier_token;
 use mtgsim::cards::phase_tr4b_cards::grafted_wargear;
 use mtgsim::cards::phase_tr4d_cards::ray_of_command;
 use mtgsim::cards::phase_tr5a_cards::sphere_grid;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
@@ -37,7 +37,7 @@ use mtgsim::types::effects::{
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::CountIs;
-use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
@@ -103,7 +103,7 @@ fn steal(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         ability_source: None,
         controller: thief,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(victim)]),
         replaced_event: None,
         trigger: None,
     };
@@ -122,7 +122,7 @@ fn resolve_all(game: &mut GameState, dp: &dyn DecisionProvider) {
 }
 
 /// `effect` resolving as `player`'s sorcery aimed at `targets`.
-fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, targets: Vec<ResolvedTarget>) {
+fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, targets: Vec<ObjectOrPlayerId>) {
     let source = put_in_graveyard(game, act_of_treason(), player);
     let ctx = ResolutionContext {
         source,
@@ -138,7 +138,7 @@ fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, targets: 
 
 fn destroy(game: &mut GameState, id: ObjectId) {
     let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
-    resolve_as(game, 0, &destroy, vec![ResolvedTarget::Object(id)]);
+    resolve_as(game, 0, &destroy, vec![ObjectOrPlayerId::Object(id)]);
 }
 
 fn plus_ones(game: &GameState, id: ObjectId) -> u32 {
@@ -539,7 +539,7 @@ fn a_sphere_grid_blocker_keeps_blocking_once_the_grid_leaves() {
     let (flier, blocker) = a_reach_block(&mut game);
 
     let destroy_grid = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)));
-    resolve_as(&mut game, 1, &destroy_grid, vec![ResolvedTarget::Object(grid)]);
+    resolve_as(&mut game, 1, &destroy_grid, vec![ObjectOrPlayerId::Object(grid)]);
     assert!(!has_keyword(&game, blocker, KeywordFlag::Reach));
     assert!(game.battlefield[&blocker].blocking.is_some(), "CR 506.4a: still blocking");
     game.process_combat_damage(&test_dp(), false).unwrap();

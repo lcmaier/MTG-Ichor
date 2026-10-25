@@ -14,7 +14,7 @@ use mtgsim::cards::phase_lf_cards;
 use mtgsim::cards::phase_rs_cards::{diabolic_edict, sigarda_host_of_herons};
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{EffectModification, Layer};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::restrictions::RegisteredRestriction;
 use mtgsim::test_support::{
@@ -23,10 +23,10 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick,
-    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AffectedSet, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick,
+    PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::restriction::{
@@ -136,7 +136,7 @@ fn resolve_edict(
         ability_source: None,
         controller: caster,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Player(victim)]),
         replaced_event: None,
         trigger: None,
     };
@@ -181,7 +181,7 @@ fn resolve_edict_effect(
         ability_source: None,
         controller: caster,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Player(victim)]),
         replaced_event: None,
         trigger: None,
     };
@@ -609,8 +609,7 @@ fn test_a_resolution_created_restriction_expires_with_its_stated_duration() {
             created_on_turn: 1,
             def: RestrictionDef::new(Restriction::ApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,
-                to_objects: ObjectSet::Fixed(vec![bear]),
-                to_players: PlayerSet::Nobody,
+                affected: AffectedSet::objects(ObjectSet::Fixed(vec![bear])),
             }),
         });
     }
@@ -637,8 +636,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         Primitive::Restrict(
             RestrictionDef::new(Restriction::ApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,
-                to_objects: ObjectSet::Fixed(Vec::new()),
-                to_players: PlayerSet::Nobody,
+                affected: AffectedSet::objects(ObjectSet::Fixed(Vec::new())),
             }),
             Duration::UntilEndOfTurn,
         ),
@@ -652,7 +650,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(a), ResolvedTarget::Object(b)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(a), ObjectOrPlayerId::Object(b)]),
         replaced_event: None,
         trigger: None,
     };
@@ -661,10 +659,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
     let sets: Vec<ObjectSet> = game
         .restrictions
         .iter()
-        .map(|r| match &r.def.what {
-            Restriction::ApplyReplacement { to_objects, .. } => to_objects.clone(),
-            Restriction::Event { affected_objects, .. } => affected_objects.clone(),
-        })
+        .map(|r| r.def.restriction.affected().objects.clone())
         .collect();
     assert_eq!(
         sets,
@@ -685,8 +680,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
 
     let effect = Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
         pattern: EventPattern::Destroy { source: None },
-        affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
-        affected_players: PlayerSet::Nobody,
+        affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));
     let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);

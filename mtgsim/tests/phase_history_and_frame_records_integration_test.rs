@@ -7,7 +7,7 @@ use mtgsim::cards::phase_history_and_frame_records_cards::{fixture_first_creatur
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::phase_rd_cards::dark_sphere;
 use mtgsim::engine::actions::{ActionContext, GameAction};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{GameEvent, UnattachRoute};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
@@ -23,7 +23,7 @@ use mtgsim::types::effects::{
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
-use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
@@ -426,7 +426,7 @@ fn becomes_blocked_by_an_effect(game: &mut GameState, attacker: ObjectId) {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(attacker)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(attacker)]),
         replaced_event: None,
         trigger: None,
     };

@@ -27,9 +27,9 @@ use mtgsim::cards::phase_tr2a_cards::{
 };
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
@@ -47,7 +47,7 @@ use mtgsim::types::effects::{
     TargetCount, TypeChange,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
@@ -165,7 +165,7 @@ fn steal(game: &mut GameState, victim: ObjectId, player: PlayerId) {
         ability_source: None,
         controller: player,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(victim)]),
         replaced_event: None,
         trigger: None,
     };
@@ -189,7 +189,7 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
     game.execute_action(GameAction::LoseLife { player: 0, amount: 2, damage_source: None }, &ctx).unwrap();
     let damage = GameAction::DealDamage {
         source: theirs,
-        target: DamageTarget::Player(0),
+        target: ObjectOrPlayerId::Player(0),
         amount: 3,
         is_combat: false,
         unpreventable: false,
@@ -246,7 +246,7 @@ fn damage_to_a_permanent_is_not_damage_to_its_controller() {
     let source = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let damage = GameAction::DealDamage {
         source,
-        target: DamageTarget::Object(bear),
+        target: ObjectOrPlayerId::Object(bear),
         amount: 1,
         is_combat: false,
         unpreventable: false,
@@ -342,7 +342,7 @@ fn loses_life_triggers_once_per_loss_and_never_on_a_gain() {
     let b = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let hit = |source| GameAction::DealDamage {
         source,
-        target: DamageTarget::Player(0),
+        target: ObjectOrPlayerId::Player(0),
         amount: 1,
         is_combat: true,
         unpreventable: false,
@@ -541,7 +541,7 @@ fn the_first_time_each_turn_is_the_records_place_in_its_turn() {
     let b = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let hit = |source| GameAction::DealDamage {
         source,
-        target: DamageTarget::Player(0),
+        target: ObjectOrPlayerId::Player(0),
         amount: 1,
         is_combat: false,
         unpreventable: false,
@@ -650,7 +650,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(id)]),
         replaced_event: None,
         trigger: None,
     };
@@ -862,7 +862,7 @@ fn gain_counter() -> Arc<CardData> {
     watcher("Mercy Keeper", gains, that_many)
 }
 
-fn damage(source: ObjectId, target: DamageTarget, amount: u64) -> GameAction {
+fn damage(source: ObjectId, target: ObjectOrPlayerId, amount: u64) -> GameAction {
     GameAction::DealDamage { source, target, amount, is_combat: true, unpreventable: false, source_lki: None }
 }
 
@@ -875,7 +875,7 @@ fn one_lifelink_source_dealing_damage_to_two_recipients_at_once_gains_life_once(
     let keeper = put_on_battlefield(&mut game, gain_counter(), 0);
     let linker = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[KeywordFlag::Lifelink]), 0);
     let blocker = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let batch = vec![damage(linker, DamageTarget::Object(blocker), 2), damage(linker, DamageTarget::Player(1), 3)];
+    let batch = vec![damage(linker, ObjectOrPlayerId::Object(blocker), 2), damage(linker, ObjectOrPlayerId::Player(1), 3)];
     game.execute_actions(batch, &test_ctx()).unwrap();
 
     assert_eq!(life_total(&game, 0), 25);
@@ -894,7 +894,7 @@ fn two_lifelink_sources_dealing_damage_at_once_are_two_gains() {
     put_on_battlefield(&mut game, gain_counter(), 0);
     let first = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Lifelink]), 0);
     let second = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[KeywordFlag::Lifelink]), 0);
-    let batch = vec![damage(first, DamageTarget::Player(1), 2), damage(second, DamageTarget::Player(1), 3)];
+    let batch = vec![damage(first, ObjectOrPlayerId::Player(1), 2), damage(second, ObjectOrPlayerId::Player(1), 3)];
     game.execute_actions(batch, &test_ctx()).unwrap();
 
     assert_eq!(life_total(&game, 0), 25);
@@ -1164,7 +1164,7 @@ fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
     let mut game = setup_two_player_game();
     let paladin = put_on_battlefield(&mut game, paladin_of_atonement(), 0);
     let counters = |kind, n| GameAction::AddCounters {
-        subject: CounterSubject::Object(paladin),
+        subject: ObjectOrPlayerId::Object(paladin),
         counter: kind,
         n,
         by: 0,
@@ -1178,7 +1178,7 @@ fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
     let mut game = setup_two_player_game();
     let paladin = put_on_battlefield(&mut game, paladin_of_atonement(), 0);
     let minus = GameAction::AddCounters {
-        subject: CounterSubject::Object(paladin),
+        subject: ObjectOrPlayerId::Object(paladin),
         counter: CounterType::MinusOneMinusOne,
         n: 2,
         by: 0,
@@ -1305,7 +1305,7 @@ fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(trigger)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(trigger)]),
         replaced_event: None,
         trigger: None,
     };
@@ -1379,7 +1379,7 @@ fn retype(game: &mut GameState, id: ObjectId, add: Vec<Subtype>, remove: Vec<Sub
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(id)]),
         replaced_event: None,
         trigger: None,
     };

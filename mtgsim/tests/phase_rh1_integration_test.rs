@@ -12,7 +12,7 @@ use mtgsim::cards::authoring::{triggered_ability, whenever};
 use mtgsim::cards::phase_rb_cards::rest_in_peace;
 use mtgsim::cards::phase_re8_cards::mind_rot;
 use mtgsim::cards::phase_rs_cards::diabolic_edict;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy, SpecialAction, StateBasedAction, TurnBasedAction};
 use mtgsim::events::event::GameEvent;
@@ -26,8 +26,8 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::Cost;
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, PlayerSet, Primitive};
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::effects::{AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
@@ -85,8 +85,7 @@ fn watcher(shape: Shape, change: ZoneChangePattern) -> Arc<CardData> {
             Vec::new(),
             Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern,
-                affected_objects: yours,
-                affected_players: PlayerSet::Nobody,
+                affected: AffectedSet::objects(yours),
                 by: Some(by),
             }))),
         ),
@@ -143,7 +142,7 @@ fn outcome(game: &GameState, moved: ObjectId) -> Outcome {
 fn resolve_at_player(game: &mut GameState, card: Arc<CardData>, caster: PlayerId, target: PlayerId) {
     let source = put_in_graveyard(game, card.clone(), caster);
     let mut ctx = ResolutionContext::untargeted(source, caster, GeneratedBy::Spell);
-    ctx.targets = ChosenTargets::one(vec![ResolvedTarget::Player(target)]);
+    ctx.targets = ChosenTargets::one(vec![ObjectOrPlayerId::Player(target)]);
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).expect("resolving");
 }
 

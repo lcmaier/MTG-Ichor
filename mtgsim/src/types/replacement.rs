@@ -32,7 +32,7 @@
 //! `Effect` tree — no new vocabulary at all.
 
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef,
+    AffectedSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef,
     PlayerSet, TokenDef,
 };
 use crate::state::game_state::{PhaseType, StepType};
@@ -46,38 +46,27 @@ use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
 ///
 /// CR 614.1: replacement effects "watch for a particular event that would
 /// happen" around "whatever they're affecting". [`Self::pattern`] is what it
-/// watches for and [`Self::affected_objects`] is what it is affecting.
+/// watches for and [`Self::affected`] is what it is affecting.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReplacementDef {
     /// Which proposed events this watches (CR 614.1, 615.1).
     pub pattern: EventPattern,
 
-    /// Which objects it applies to.
+    /// Which objects and players it applies to.
     ///
     /// Not "which objects it shields": CR 614.1's shield is a metaphor for
     /// every replacement effect, but in *this* codebase "shield" is taken —
     /// CR 701.19a's regeneration shield and CR 122.1c's shield counter — and
-    /// Kalitas protects nothing it applies to. Same name as
-    /// `ContinuousEffect::affected_objects` because it is the same question.
+    /// Kalitas protects nothing it applies to.
     ///
-    /// Reuses the layer system's `ObjectSet`, and the reuse is load-bearing:
-    /// `SourceOnly` vs. `Filter` is exactly CR 614.12's "affects only that
-    /// permanent (as opposed to a general subset of permanents that includes
-    /// it)". If a future refactor collapses those variants, 614.12 breaks
-    /// silently (`replacement-architecture.md` §11 item 2).
-    pub affected_objects: ObjectSet,
-
-    /// Which **players** it applies to — the other half of CR 614.1's
-    /// "whatever they're affecting", unioned with [`Self::affected_objects`].
-    ///
-    /// A second field rather than an `ObjectSet` variant, for the reason
-    /// [`PlayerSet`]'s own docs give. Furnace of Rath is `Filter { All }` plus
-    /// `Everyone`, because "a permanent **or player**" is genuinely both
-    /// questions; Angel of Suffering is `Fixed(vec![])` plus `You`, an effect
-    /// about no object at all.
-    ///
-    /// [`PlayerSet::Nobody`] is what [`ReplacementDef::new`] gives it.
-    pub affected_players: PlayerSet,
+    /// The object half reuses the layer system's `ObjectSet`, and the reuse is
+    /// load-bearing: `SourceOnly` vs. `Filter` is exactly CR 614.12's "affects
+    /// only that permanent (as opposed to a general subset of permanents that
+    /// includes it)". If a future refactor collapses those variants, 614.12
+    /// breaks silently (`replacement-architecture.md` §11 item 2). The player
+    /// half is a [`PlayerSet`] rather than an `ObjectSet` variant, for the
+    /// reason that type's own docs give.
+    pub affected: AffectedSet,
 
     /// What must have *caused* the event for this effect to apply — the
     /// clause "a spell or ability an opponent controls causes you to …"
@@ -197,7 +186,7 @@ pub struct ReplacementDef {
 /// falls through to `false`, so a `GameAction` variant with no arm there is
 /// silently unwatchable, which is `Attach`'s intended state and the trap for
 /// everything else. An arm scoped to a player is
-/// [`ReplacementDef::affected_players`]'s (§11 item 21); the ones missing
+/// [`ReplacementDef::affected`]'s (§11 item 21); the ones missing
 /// wait for a card, the ordinary "an arm the pipeline cannot apply is worse
 /// than a missing one".
 #[derive(Debug, Clone, PartialEq)]
@@ -301,7 +290,7 @@ pub enum EventPattern {
     /// **No fields, and the census is why.** CR 119.10 restates every printed
     /// one as "if a source would cause [a player] to gain life", and the
     /// twenty-one printed "would gain life" replacements scope themselves by
-    /// *which* player — [`ReplacementDef::affected_players`]'s question, which
+    /// *which* player — [`ReplacementDef::affected`]'s question, which
     /// is why Rhox Faithmender (`You`) and Tainted Remedy (`Opponents`) differ
     /// in nothing else. Nothing prints a constraint on the source or on the
     /// amount, and an arm the pipeline cannot apply is worse than a missing
@@ -449,7 +438,7 @@ pub enum EventPattern {
     /// **No fields, and that is the census talking.** The twenty-two printed
     /// turn skips say "skip your next turn", "that player skips their next
     /// turn" or "players skip their turns" — every one of them scoped by
-    /// *which player*, which is [`ReplacementDef::affected_players`]'s question
+    /// *which player*, which is [`ReplacementDef::affected`]'s question
     /// and not this one's. Nothing prints a constraint on the turn itself, and
     /// an arm the pipeline cannot apply is worse than a missing one (§3.2a).
     /// The field a later card could want is CR 500.7's "is this an extra
@@ -521,7 +510,7 @@ pub enum EventPattern {
     /// CR 106.12b — "a replacement effect that applies if a permanent 'is
     /// tapped for mana' … modifies the mana production event". The event's
     /// subject is the player whose pool the mana enters, and which player
-    /// the effect is around is [`ReplacementDef::affected_players`]'s
+    /// the effect is around is [`ReplacementDef::affected`]'s
     /// question: Mana Reflection's "if *you* tap" is `You`.
     ///
     /// `tapped_for_mana` is CR 106.12's definition asked of the proposal.
@@ -543,7 +532,7 @@ pub enum EventPattern {
     /// Gnomes' "target Plains", whose row also needs a fill arm and an
     /// indefinite duration, so the `object` half waits with that card
     /// (`codebase-state.md` item 133). On the pattern and not in
-    /// `affected_objects` because the subject is the player and the set
+    /// `affected` because the subject is the player and the object set
     /// cannot see the permanent.
     ///
     /// **The axes this arm does not grow along yet are CR 106.12b's other
@@ -565,7 +554,7 @@ pub enum EventPattern {
 
     /// CR 614.16 — "if an effect would create one or more tokens". The
     /// event's subject is the player the tokens are created under, and which
-    /// player the effect is around is [`ReplacementDef::affected_players`]'s
+    /// player the effect is around is [`ReplacementDef::affected`]'s
     /// question: Parallel Lives is `You`.
     ///
     /// `kind` is the printed constraint on *which* tokens — "creature tokens"
@@ -1334,7 +1323,7 @@ pub struct EntryCountersTemplate {
     /// those counters on it". `None` is the rule's default, the object's
     /// controller, and is what every printed "enters with" writes; a
     /// `Some` is resolved against the effect when it is applied
-    /// (`pipeline::putter_of`): `You` is the effect's controller, `Owner`
+    /// (`pipeline::player_putting_counters`): `You` is the effect's controller, `Owner`
     /// the entering object's owner, `Player` itself, and `Opponent` the only
     /// one there is. No printed card names one (Scryfall, 2026-09-14), and
     /// that is why the field exists rather than why it does not: the rule
@@ -1931,7 +1920,7 @@ pub enum Uses {
     /// uses** — 615.7's last sentence is "such effects count only the amount of
     /// damage; the number of events or sources dealing it doesn't matter", and
     /// a first name, `DamagePoints`, could be read as either. The word "shield"
-    /// is deliberately not in the name: [`ReplacementDef::affected_objects`]'s docs
+    /// is deliberately not in the name: [`ReplacementDef::affected`]'s docs
     /// reserve it for CR 122.1c's counter and CR 701.19a's regeneration, and
     /// §9's glossary says why this is a third thing.
     ///
@@ -1950,12 +1939,14 @@ impl ReplacementDef {
     /// Named constructors rather than a `Default`, because `class` and
     /// `exempt_from_614_5` are the two fields where a wrong default is a rules
     /// bug rather than a style choice.
-    pub fn new(pattern: EventPattern, affected_objects: ObjectSet, rewrite: Rewrite) -> Self {
+    ///
+    /// `affected` is its objects (an `ObjectSet`), its players (a
+    /// `PlayerSet`), or both (an [`AffectedSet`]).
+    pub fn new(pattern: EventPattern, affected: impl Into<AffectedSet>, rewrite: Rewrite) -> Self {
         let class = ReplacementClass::from_rewrite(&rewrite);
         ReplacementDef {
             pattern,
-            affected_objects,
-            affected_players: PlayerSet::Nobody,
+            affected: affected.into(),
             by: None,
             rewrite,
             then: None,
@@ -1967,28 +1958,12 @@ impl ReplacementDef {
         }
     }
 
-    /// Builder: also apply to these players (CR 614.1's other half).
-    ///
-    /// A builder rather than a fourth argument to [`Self::new`]: most effects name
-    /// no player, so `PlayerSet::Nobody` is the default and a card that wants one
-    /// says so. Furnace of Rath's "a permanent **or** player" is [`Self::new`]
-    /// plus this.
-    ///
-    /// **One mechanism, not two**: a constructor beside this builder, names
-    /// differing by an inflection, would be a coin flip at every call site. An
-    /// effect about players and no object writes `ObjectSet::NO_OBJECTS` for its
-    /// object half, which names the empty set where the call site can see it.
-    pub fn affecting_players(mut self, players: PlayerSet) -> Self {
-        self.affected_players = players;
-        self
-    }
-
     /// Builder: apply only to an event a matching source caused
     /// ([`Self::by`]).
     ///
-    /// A builder for [`Self::affecting_players`]'s reason: most effects ask
-    /// nothing about the cause, so `None` is the default and a card that asks
-    /// says so.
+    /// A builder rather than a fourth argument to [`Self::new`]: most effects
+    /// ask nothing about the cause, so `None` is the default and a card that
+    /// asks says so.
     pub fn caused_by(mut self, by: SourceFilter) -> Self {
         self.by = Some(by);
         self
@@ -2106,7 +2081,7 @@ pub fn regeneration_rider() -> Effect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::effects::PlayerSet;
+    use crate::types::effects::{ObjectSet, PlayerSet};
 
     // CR 107.1a puts the direction on the card, so the two directions are two
     // answers to one question and the odd amounts are the whole test.
@@ -2316,8 +2291,8 @@ mod tests {
         );
     }
 
-    // A `ReplacementDef` built by `new` names no player, so a def that never
-    // sets `affected_players` answers as if the field did not exist.
+    // A `ReplacementDef` built by `new` from an object set names no player,
+    // so it answers as if the player half did not exist.
     #[test]
     fn new_defs_name_no_player() {
         let def = ReplacementDef::new(
@@ -2325,6 +2300,6 @@ mod tests {
             ObjectSet::SourceOnly,
             Rewrite::Prevent,
         );
-        assert_eq!(def.affected_players, PlayerSet::Nobody);
+        assert_eq!(def.affected.players, PlayerSet::Nobody);
     }
 }

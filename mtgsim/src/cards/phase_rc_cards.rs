@@ -42,7 +42,7 @@
 //!   RC-3 removes, and Blood Moon / Humility / Dress Down are the effects
 //!   behind it.
 //! - `gather::set_affects` → `GameState::object_matches_filter_of_source` governs
-//!   **`ReplacementDef.affected_objects`**, and it has **no gate at all**.
+//!   **`ReplacementDef.affected`**'s objects, and it has **no gate at all**.
 //!
 //! So a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`,
 //! `EnterWith(tapped)`) already taps an entering land, and with
@@ -68,7 +68,7 @@ use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Duration, Effect, EffectRecipient,
-    ObjectFilter, PlayerRef, Primitive, SelectionFilter, Selector, TargetCount, TypeChange,
+    ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -129,7 +129,7 @@ use crate::types::zones::{Zone, ZoneChangeAct};
 /// moves the strip is real everywhere except at the instant it matters here.
 ///
 /// **The gate is not "no filter reaches an entry", which is what RC-2 wrote
-/// (corrected 2026-09-02).** `ReplacementDef.affected_objects` is matched by
+/// (corrected 2026-09-02).** `ReplacementDef.affected`'s object half is matched by
 /// `gather::set_affects` through a different and ungated function, so
 /// `root_maze` taps this land on the way in without any help from RC-3. The
 /// two paths are separated in this module's doc comment.
@@ -548,7 +548,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
     // its two amounts by value, and this runs at registry construction, not
     // in a game.
     let non_wall_creatures_you_control =
-        AmountExpr::CountOf(Selector::PermanentsMatching(ObjectFilter::And(
+        AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(
             Box::new(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerRef::You)),

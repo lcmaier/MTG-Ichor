@@ -5,12 +5,12 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, GameEvent, ResolutionStamp};
+use crate::events::event::{AppliedReplacement, GameEvent, ResolutionStamp};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
-use crate::state::trace::{render_debug, Record, RecordKind};
+use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
 use crate::types::effects::{
     ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
 };
@@ -18,7 +18,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ReplacedEvent;
 use crate::objects::card_data::AbilityType;
 use crate::types::replacement::{TokenKind, TokenSubstitution};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{
     AmountRewrite, AuxiliaryMove, CopyDonor, EnterMods, EnterModsTemplate, EntryCounters,
@@ -39,7 +39,7 @@ use crate::ui::ask::ask_choose_replacement;
 use super::entry_copy::enter_as_copy;
 use super::gather::{applies_to, must_choose_among};
 use super::{
-    chooser_for, gather, subject_of, AppliedReplacements, EntryFrame, EventSubject, ReplacementInstance,
+    chooser_for, gather, subject_of, AppliedReplacements, EntryFrame, ReplacementInstance,
     ReplacementInstanceId,
 };
 
@@ -86,10 +86,10 @@ pub(crate) struct Rider {
     /// `EffectRecipient::Target` in a `then` names the object or the player the
     /// replacement was about.
     ///
-    /// An [`EventSubject`] rather than an object id: a rider on a *player* event
+    /// An object or a player rather than an object id: a rider on a *player* event
     /// (Reverse Damage's gain, Angel of Suffering's mill) has to name the player
     /// (`replacement-architecture.md` §11 item 16).
-    pub subject: EventSubject,
+    pub subject: Option<ObjectOrPlayerId>,
     /// Becomes the rider's `ResolutionContext::replaced_event`.
     pub replaced_event: ReplacedEvent,
     pub effect: Effect,
@@ -156,7 +156,7 @@ impl BatchMember {
 /// the order CR 616.1 decides them.
 #[derive(Debug)]
 pub(crate) struct SubjectGroup {
-    pub subject: EventSubject,
+    pub subject: Option<ObjectOrPlayerId>,
     pub members: Vec<BatchMember>,
 }
 
@@ -333,7 +333,7 @@ fn never_happens(action: &GameAction) -> bool {
 ///
 /// **Decisions are per `(batch, subject)`; rewrites are per member**
 /// (`replacement-architecture.md` §9, RD decision 3; §11 items 15 and 24).
-/// `group` is every batch member sharing one [`EventSubject`] — the two
+/// `group` is every batch member sharing one [`subject_of`] — the two
 /// blockers' damage to one attacker, two attackers' damage to one player —
 /// and it gets **one** applied set, one chooser and one loop: a chosen
 /// instance is applied to each member it applies to, its rider queued once
@@ -598,13 +598,16 @@ pub(crate) fn apply_replacements(
         // what the whole application did (decision 7).
         let mut replaced_amount: Option<u64> = None;
         let mut replaced_damage = false;
-        let mut rider_subject: Option<EventSubject> = None;
+        // The first member's subject, read before its rewrite: CR 615.5's "that much"
+        // is about the event the effect replaced, so a later redirect in the same loop
+        // does not rename Reverse Damage's player.
+        let rider_subject = applicable.first().and_then(|&pos| group[pos].event.as_ref()).map_or(subject, subject_of);
         let mut outcome = Applied::default();
         let mut redirected = false;
         // Whom it prevented damage to, and how much, in member order: a
         // redirect earlier in the loop can leave two members of one group
         // dealing damage to two recipients.
-        let mut prevented_to: Vec<(DamageTarget, u64)> = Vec::new();
+        let mut prevented_to: Vec<(ObjectOrPlayerId, u64)> = Vec::new();
         for (k, &pos) in applicable.iter().enumerate() {
             let event = group[pos].event.take().expect("gathered this iteration, so live");
             let went_to = destination(&event);
@@ -620,7 +623,6 @@ pub(crate) fn apply_replacements(
             // members of one group can have different subjects once a redirect
             // has moved one of them.
             let member_subject = subject_of(&event);
-            rider_subject.get_or_insert(member_subject);
             let share = shares.as_ref().map(|s| s[k]);
             // Kept for `check_order_invariance`'s fourth shape, which asks what
             // a *different* member would have substituted for this same event.
@@ -661,7 +663,7 @@ pub(crate) fn apply_replacements(
         // CR 615.13 — the application is the event, so it is announced as the
         // batch decides; unpreventable damage (CR 615.12) prevented none.
         for (target, amount) in prevented_to {
-            let event = GameEvent::DamagePrevented { target: target.for_record(game)?, amount, by: chosen.id };
+            let event = GameEvent::DamagePrevented { recipient: target.for_record(game)?, amount, by: chosen.id };
             game.emit_event(event, caused_by_replacement(game, &chosen)?)?;
         }
         // Into the set once applied, before the next iteration gathers (CR
@@ -683,10 +685,7 @@ pub(crate) fn apply_replacements(
                 // The group's final applied set, once the loop has it.
                 lineage: AppliedReplacements::EMPTY,
                 controller: chosen.controller,
-                // The first member's subject, read before its rewrite: CR 615.5's "that much"
-                // is about the event the effect replaced, so a later redirect in the same loop
-                // does not rename Reverse Damage's player.
-                subject: rider_subject.unwrap_or(subject),
+                subject: rider_subject,
                 // One kind of event per group, since a pattern matches one
                 // `GameAction` arm, and damage always carries its amount.
                 replaced_event: match (replaced_damage, replaced_amount) {
@@ -806,11 +805,11 @@ impl OptionalAnswer {
 }
 
 impl IterationTrace {
-    fn new(iteration: u64, first: &GameAction, subject: &EventSubject) -> Self {
+    fn new(iteration: u64, first: &GameAction, subject: &Option<ObjectOrPlayerId>) -> Self {
         IterationTrace {
             iteration,
             event: render_debug(first),
-            subject: render_debug(subject),
+            subject: render_subject(*subject),
             frame_computed: false,
             candidates: Vec::new(),
             prohibited: Vec::new(),
@@ -1156,7 +1155,7 @@ fn counters_invite_a_multiplier(
     for (instance, _) in &writers {
         let Rewrite::EnterWith(template) = &instance.def.rewrite else { continue };
         for row in &template.counters {
-            let by = row.by.as_ref().and_then(|named| putter_of(game, instance, *object, named).ok());
+            let by = row.by.as_ref().and_then(|named| player_putting_counters(game, instance, *object, named).ok());
             written.merge(&EnterMods { counters: vec![EntryCounters { counter: row.counter, n: 1, by }], ..EnterMods::NONE });
         }
     }
@@ -1275,7 +1274,7 @@ fn classify<'a>(
     // what the bucket writes feeds; over a finished permanent it reads the
     // board, which no count in the proposal touches.
     let arithmetic_ok = !def.pattern.reads_the_amount()
-        && (!on_entry || !writes.can_unmatch(&def.affected_objects));
+        && (!on_entry || !writes.can_unmatch(&def.affected.objects));
     match &def.rewrite {
         Rewrite::Amount(AmountRewrite::Multiplier(n)) => {
             (*n >= 1 && arithmetic_ok).then(|| Commuting::Multiplier(kinds_of(&def.pattern)))
@@ -1298,7 +1297,7 @@ fn classify<'a>(
         // removes is an order, as two copies are: the later one wins.
         Rewrite::EnterWith(t) => ((t.is_fixed() || Some(instance.source) != entering)
             && t.edits.iter().all(CharacteristicEdit::adds)
-            && !writes.can_unmatch(&def.affected_objects))
+            && !writes.can_unmatch(&def.affected.objects))
         .then(|| Commuting::ModsAdding {
             kinds: Kinds::These(t.counters.iter().map(|c| c.counter).collect()),
             status: t.status,
@@ -1599,7 +1598,7 @@ impl EntryWrites {
                 | Rewrite::Retarget(_) => {}
             }
         }
-        if writes_state && entering.is_some_and(characteristics_hang_on_entry_state) {
+        if writes_state && entering.is_some_and(characteristics_depend_on_entry_state) {
             writes.feeds_all = true;
         }
         writes
@@ -1706,10 +1705,10 @@ impl EntryWrites {
 /// Does the entering object have a static ability that changes its own
 /// characteristics under a condition on its status or counters? The feeds
 /// table's last row.
-fn characteristics_hang_on_entry_state(chars: &EffectiveCharacteristics) -> bool {
+fn characteristics_depend_on_entry_state(chars: &EffectiveCharacteristics) -> bool {
     chars.abilities.iter().any(|ability| {
         ability.ability_type == AbilityType::Static
-            && matches!(&ability.effect, Effect::Conditional(condition, _) if condition.reads_entry_state())
+            && ability.effect.with_its_condition().0.is_some_and(crate::types::effects::Condition::reads_entry_state)
             && !GameState::static_ability_atoms(ability, &chars.name).is_empty()
     })
 }
@@ -1747,7 +1746,7 @@ fn check_order_invariance(
     chosen: &ReplacementInstance,
     before: &GameAction,
     next: &GameAction,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
     member: usize,
     unsuppressed: &[(ReplacementInstance, Vec<usize>)],
 ) {
@@ -1936,10 +1935,10 @@ fn check_exempt_terminates(
     Ok(())
 }
 
-fn subject_object(subject: EventSubject) -> Option<ObjectId> {
+fn subject_object(subject: Option<ObjectOrPlayerId>) -> Option<ObjectId> {
     match subject {
-        EventSubject::Object(id) => Some(id),
-        EventSubject::Player(_) | EventSubject::Game => None,
+        Some(ObjectOrPlayerId::Object(id)) => Some(id),
+        Some(ObjectOrPlayerId::Player(_)) | None => None,
     }
 }
 
@@ -2023,7 +2022,7 @@ fn consume_use(game: &mut GameState, chosen: &ReplacementInstance, outcome: Appl
 /// took effect (decision 7). The rider is queued regardless, by the caller —
 /// that is the middle sentence, and `AmountExpr::DamagePrevented` reading 0 is
 /// what makes "if damage is prevented this way" need no `Effect::Conditional`.
-fn is_unpreventable(game: &GameState, unpreventable: bool, subject: EventSubject) -> bool {
+fn is_unpreventable(game: &GameState, unpreventable: bool, subject: Option<ObjectOrPlayerId>) -> bool {
     unpreventable
         || is_prohibited(
             game,
@@ -2059,7 +2058,7 @@ fn apply_rewrite(
     ctx: &ActionContext,
     chosen: &ReplacementInstance,
     event: GameAction,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
     share: Option<u64>,
 ) -> Result<(Option<GameAction>, Applied), String> {
     // Every arm but `Amount` changes the event whenever it is chosen, and
@@ -2502,8 +2501,7 @@ fn counter_arithmetic(
 /// wrap on a number a card could author, with a counter's error message.
 ///
 /// The names stay two words apart on purpose: `count_arithmetic` beside
-/// `counter_arithmetic` would be the coin flip at every call site that
-/// `ReplacementDef::affecting_players` already refused once.
+/// `counter_arithmetic` would be a coin flip at every call site.
 ///
 /// **The refused arms are refused here, once.** A prevention arm (CR 615) is
 /// about damage and a [`AmountRewrite::LifeFloor`] is about a life total; over
@@ -2617,7 +2615,7 @@ fn substitute(
     chosen: &ReplacementInstance,
     template: &GameActionTemplate,
     event: GameAction,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
 ) -> Result<GameAction, String> {
     match (template, event) {
         // CR 614.6: the modified event is the one that happens, and a new
@@ -2652,7 +2650,7 @@ fn substitute(
                 // rider does: for a shield or stun counter's own effect (CR
                 // 122.1c, 122.1d), the protected permanent's controller.
                 Some(object) => Ok(GameAction::RemoveCounters {
-                    subject: CounterSubject::Object(object),
+                    subject: ObjectOrPlayerId::Object(object),
                     counter: *counter,
                     n: *n,
                     by: Some(chosen.controller),
@@ -2736,19 +2734,19 @@ fn substitute(
 
         // CR 614.1a's kind changes: a draw becomes a gain (Words of Worship), a gain
         // a loss (Tainted Remedy). The subject does not move, so neither carries a
-        // `player`; an `EventSubject::Object` is the authoring error. A substituted
+        // `player`; an object subject is the authoring error. A substituted
         // loss is no damage's — calling it damage would hand it to Ali from Cairo's
         // clamp, which watches CR 120.3a's loss only — and keeps the replaced
         // event's cause, as every substitute does (CR 614.6).
         (GameActionTemplate::GainLife { amount }, event) => match subject_of(&event) {
-            EventSubject::Player(player) => Ok(GameAction::GainLife {
+            Some(ObjectOrPlayerId::Player(player)) => Ok(GameAction::GainLife {
                     player,
                     amount: template_amount(chosen, *amount, &event)?,
                     // CR 609.6: the replacement effect's own source is the
                     // source of what it substitutes.
                     source: chosen.source,
                 }),
-            EventSubject::Object(_) | EventSubject::Game => Err(format!(
+            Some(ObjectOrPlayerId::Object(_)) | None => Err(format!(
                 "replacement {:?} rewrites to a life gain but matched {:?}, whose subject \
                  is not a player. Its `EventPattern` and its `Rewrite` \
                  describe different events.",
@@ -2756,12 +2754,12 @@ fn substitute(
             )),
         },
         (GameActionTemplate::LoseLife { amount }, event) => match subject_of(&event) {
-            EventSubject::Player(player) => Ok(GameAction::LoseLife {
+            Some(ObjectOrPlayerId::Player(player)) => Ok(GameAction::LoseLife {
                     player,
                     amount: template_amount(chosen, *amount, &event)?,
                     damage_source: None,
                 }),
-            EventSubject::Object(_) | EventSubject::Game => Err(format!(
+            Some(ObjectOrPlayerId::Object(_)) | None => Err(format!(
                 "replacement {:?} rewrites to a life loss but matched {:?}, whose subject \
                  is not a player. Its `EventPattern` and its `Rewrite` \
                  describe different events.",
@@ -2824,8 +2822,8 @@ fn substitute(
         // player wins: nothing printed hands a substituted win elsewhere, so there
         // is no `player` field until a card prints one.
         (GameActionTemplate::PlayerWins, event) => match subject_of(&event) {
-            EventSubject::Player(player) => Ok(GameAction::PlayerWins { player }),
-            EventSubject::Object(_) | EventSubject::Game => Err(format!(
+            Some(ObjectOrPlayerId::Player(player)) => Ok(GameAction::PlayerWins { player }),
+            Some(ObjectOrPlayerId::Object(_)) | None => Err(format!(
                 "replacement {:?} rewrites to a win but matched {:?}, whose subject is \
                  not a player. Its `EventPattern` and its `Rewrite` describe \
                  different events.",
@@ -2896,21 +2894,21 @@ fn retarget_destination(
     spec: RetargetSpec,
     damage_source: ObjectId,
     damage_source_lki: Option<&crate::types::triggers::Lki>,
-) -> Option<DamageTarget> {
+) -> Option<ObjectOrPlayerId> {
     match spec {
-        RetargetSpec::ToEffectSource => Some(DamageTarget::Object(chosen.source)),
+        RetargetSpec::ToEffectSource => Some(ObjectOrPlayerId::Object(chosen.source)),
         // CR 303.4m, read now rather than captured — the same `attached_to`
         // read `ObjectSet::Host` makes, because an Aura registered its effect
         // before it was attached to anything.
         RetargetSpec::ToHost => crate::oracle::board::host_of(game, chosen.source)
-            .map(DamageTarget::Object),
+            .map(ObjectOrPlayerId::Object),
         // CR 109.5 asked of the *damage's* source, wherever it is: a spell on
         // the stack has no battlefield entry, so this falls through to its
         // owner, which is its controller for every card cast from its owner's
         // own hand. A source that left before dealing it is asked as it last
         // existed (CR 608.2h).
         RetargetSpec::ToDamageSourceController => {
-            ObjectInformation::of(damage_source, damage_source_lki).controller(game).map(DamageTarget::Player)
+            ObjectInformation::of(damage_source, damage_source_lki).controller(game).map(ObjectOrPlayerId::Player)
         }
     }
 }
@@ -2932,10 +2930,10 @@ fn retarget_destination(
 /// and a legality re-check here would get shroud and protection wrong: a
 /// redirect is not targeting (CR 115.1), so a hexproof creature is a perfectly
 /// good destination.
-fn redirection_is_legal(game: &GameState, to: DamageTarget, from: DamageTarget) -> bool {
+fn redirection_is_legal(game: &GameState, to: ObjectOrPlayerId, from: ObjectOrPlayerId) -> bool {
     let destination_ok = match to {
-        DamageTarget::Player(pid) => game.in_game(pid),
-        DamageTarget::Object(id) => {
+        ObjectOrPlayerId::Player(pid) => game.in_game(pid),
+        ObjectOrPlayerId::Object(id) => {
             game.battlefield.contains_key(&id) && {
                 let types = get_effective_types(game, id);
                 types.contains(&CardType::Creature)
@@ -2945,8 +2943,8 @@ fn redirection_is_legal(game: &GameState, to: DamageTarget, from: DamageTarget) 
         }
     };
     let origin_ok = match from {
-        DamageTarget::Player(pid) => game.in_game(pid),
-        DamageTarget::Object(_) => true,
+        ObjectOrPlayerId::Player(pid) => game.in_game(pid),
+        ObjectOrPlayerId::Object(_) => true,
     };
     destination_ok && origin_ok
 }
@@ -2956,9 +2954,7 @@ fn redirection_is_legal(game: &GameState, to: DamageTarget, from: DamageTarget) 
 ///
 /// `Opponent` with several opponents is a choice the effect's controller makes
 /// — Xantcha's "an opponent of your choice" — and CR 614.12a says it is made
-/// before the permanent enters, which this is. Players who have lost are not
-/// opponents to choose (CR 800.4a: a player who leaves the game leaves it), so
-/// a three-player game down to two asks nothing.
+/// before the permanent enters, which this is.
 fn entering_controller(
     game: &GameState,
     ctx: &ActionContext,
@@ -2966,35 +2962,8 @@ fn entering_controller(
     object: ObjectId,
     player_ref: &PlayerRef,
 ) -> Result<PlayerId, String> {
-    let you = chosen.controller;
-    Ok(match player_ref {
-        PlayerRef::You => you,
-        PlayerRef::Player(pid) => *pid,
-        PlayerRef::Owner => game
-            .objects
-            .get(&object)
-            .map(|obj| obj.owner)
-            .ok_or_else(|| format!("entering object {} is not in the object store", object))?,
-        PlayerRef::Opponent => {
-            let opponents = game.opponents_of(you);
-            match opponents.as_slice() {
-                [] => {
-                    return Err(format!(
-                        "replacement {:?} puts {} under an opponent's control, and player \
-                         {} has no opponent left in the game",
-                        chosen.id, object, you
-                    ))
-                }
-                some => ask_choose_entering_controller(ctx.dp, game, you, object, some),
-            }
-        }
-        PlayerRef::DefendingPlayer(_) | PlayerRef::AnyDefendingPlayer => {
-            return Err(format!(
-                "replacement {:?} puts {} under \"defending player\"'s control, which an entering \
-                 object's replacement has no attacking creature to name",
-                chosen.id, object
-            ))
-        }
+    named_for_an_entry(game, chosen, object, player_ref, "as the controller of", |opponents| {
+        Ok(ask_choose_entering_controller(ctx.dp, game, chosen.controller, object, opponents))
     })
 }
 
@@ -3024,8 +2993,8 @@ fn entry_copy_donor(
                 crate::oracle::legality::enumerate_legal_selections(game, selection, None, controller)
                     .into_iter()
                     .filter_map(|t| match t {
-                        crate::engine::resolve::ResolvedTarget::Object(id) => Some(id),
-                        crate::engine::resolve::ResolvedTarget::Player(_) => None,
+                        crate::types::ids::ObjectOrPlayerId::Object(id) => Some(id),
+                        crate::types::ids::ObjectOrPlayerId::Player(_) => None,
                     })
                     .collect();
             match (candidates.as_slice(), chosen.def.optional) {
@@ -3081,7 +3050,7 @@ pub(super) fn strip_prohibited_counters(
     };
     for row in &extra.counters {
         let action = GameAction::AddCounters {
-            subject: CounterSubject::Object(object),
+            subject: ObjectOrPlayerId::Object(object),
             counter: row.counter,
             n: row.n,
             by: row.putter(controller),
@@ -3167,7 +3136,7 @@ pub(super) fn evaluate_enter_template(
         // against the entry's controller where it is read, never here.
         let by = match &row.by {
             None => None,
-            Some(player_ref) => Some(putter_of(game, chosen, entering, player_ref)?),
+            Some(player_ref) => Some(player_putting_counters(game, chosen, entering, player_ref)?),
         };
         if n > 0 {
             out.counters.push(EntryCounters { counter: row.counter, n: n as u32, by });
@@ -3176,19 +3145,43 @@ pub(super) fn evaluate_enter_template(
     Ok(out)
 }
 
-/// CR 122.6a's named putter, resolved against the effect applying it.
+/// The player who puts an entering object's counters on it, where the effect
+/// names one (CR 122.6a), resolved against the effect applying it.
 ///
-/// `entering_controller`'s answers with one difference: an `Opponent` among
-/// several is not asked for. CR 616.1b's control choice is the entering
-/// permanent's controller's to make and the rule says so; "an opponent puts
-/// those counters on it" with three opponents is an authoring error on a
-/// static effect, and a resolution that means a particular one names it as
-/// `PlayerRef::Player`, the way `PatternFill` fills a chosen source.
-fn putter_of(
+/// "An opponent" names the one opponent there is. Among several it is a
+/// choice, tribute's "choose an opponent. That player may put …" (CR
+/// 702.104a), which is not built: it is refused with an `Err`, which the CR
+/// 616.1b look-ahead reads as no putter.
+fn player_putting_counters(
     game: &GameState,
     chosen: &ReplacementInstance,
     entering: ObjectId,
     player_ref: &PlayerRef,
+) -> Result<PlayerId, String> {
+    named_for_an_entry(game, chosen, entering, player_ref, "as the player putting counters on", |opponents| match opponents {
+        [only] => Ok(*only),
+        several => Err(format!(
+            "replacement {:?} names \"an opponent\" as the player putting counters on {}, and player {} has {} opponents in the game; name one as `PlayerRef::Player`",
+            chosen.id,
+            entering,
+            chosen.controller,
+            several.len()
+        )),
+    })
+}
+
+/// The player `player_ref` names for an entering object, relative to the
+/// effect's controller: the controller it enters under, or the player putting
+/// its counters on (CR 122.6a). The two differ only at an `Opponent` among
+/// several, which `among_opponents` answers. Players who have lost are not
+/// opponents (CR 800.4a), so a three-player game down to two names one.
+fn named_for_an_entry(
+    game: &GameState,
+    chosen: &ReplacementInstance,
+    entering: ObjectId,
+    player_ref: &PlayerRef,
+    role: &str,
+    among_opponents: impl FnOnce(&[PlayerId]) -> Result<PlayerId, String>,
 ) -> Result<PlayerId, String> {
     let you = chosen.controller;
     Ok(match player_ref {
@@ -3200,21 +3193,18 @@ fn putter_of(
             .map(|obj| obj.owner)
             .ok_or_else(|| format!("entering object {} is not in the object store", entering))?,
         PlayerRef::Opponent => match game.opponents_of(you).as_slice() {
-            [only] => *only,
-            others => {
+            [] => {
                 return Err(format!(
-                    "replacement {:?} names \"an opponent\" as the player putting counters on \
-                     {}, and player {} has {} opponents in the game; name one as \
-                     `PlayerRef::Player`",
-                    chosen.id, entering, you, others.len()
+                    "replacement {:?} names \"an opponent\" {role} {entering}, and player {you} has no opponent left in the game",
+                    chosen.id
                 ))
             }
+            opponents => among_opponents(opponents)?,
         },
         PlayerRef::DefendingPlayer(_) | PlayerRef::AnyDefendingPlayer => {
             return Err(format!(
-                "replacement {:?} names \"defending player\" as the player putting counters on {}, \
-                 which an entering object's replacement has no attacking creature to name",
-                chosen.id, entering
+                "replacement {:?} names \"defending player\" {role} {entering}, which an entering object's replacement has no attacking creature to name",
+                chosen.id
             ))
         }
     })

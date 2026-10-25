@@ -35,16 +35,16 @@ use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::zone_function::functions_as_static;
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
+use crate::events::event::ResolutionStamp;
 use crate::objects::card_data::AbilityDef;
 use crate::oracle::characteristics::{controller_or_owner, FrameContext, ObjectInformation};
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    AffectedSet, ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter,
     Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
@@ -77,82 +77,57 @@ pub enum CounterEffectKind {
 }
 
 /// What a proposed event is *about* — CR 614.1's "whatever they're affecting"
-/// and CR 616.1's "the affected object ... or the affected player".
+/// and CR 616.1's "the affected object ... or the affected player". `None` for
+/// an event about the game itself, a draw (CR 104.4): no player is affected
+/// rather than another, so CR 616.1 has no chooser, and no effect's affected
+/// set names it.
 ///
-/// Named for the *event*, not for the effect, because `ObjectSet` already
-/// answers the other question — which objects an effect applies to — and the
-/// two are asked one line apart in [`applies_to`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum EventSubject {
-    Object(ObjectId),
-    Player(PlayerId),
-    /// An event about the game itself, a draw (CR 104.4): no player is
-    /// affected rather than another, so CR 616.1 has no chooser, and no
-    /// effect's affected set names it.
-    Game,
-}
-
-impl From<DamageTarget> for EventSubject {
-    fn from(target: DamageTarget) -> Self {
-        match target {
-            DamageTarget::Object(id) => EventSubject::Object(id),
-            DamageTarget::Player(player) => EventSubject::Player(player),
-        }
-    }
-}
-
-impl From<CounterSubject> for EventSubject {
-    fn from(subject: CounterSubject) -> Self {
-        match subject {
-            CounterSubject::Object(id) => EventSubject::Object(id),
-            CounterSubject::Player(player) => EventSubject::Player(player),
-        }
-    }
-}
-
-/// The object or player a proposed action is about.
-pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
+/// The *event's* subject, not the effect's: which objects an effect applies to
+/// is `ObjectSet`'s question, and the two are asked one line apart in
+/// [`applies_to`].
+pub(crate) fn subject_of(action: &GameAction) -> Option<ObjectOrPlayerId> {
+    use ObjectOrPlayerId::{Object, Player};
     match action {
-        GameAction::DealDamage { target, .. } => EventSubject::from(*target),
-        GameAction::DrawCards { player, .. } => EventSubject::Player(*player),
-        GameAction::DrawCard { player, .. } => EventSubject::Player(*player),
-        GameAction::GainLife { player, .. } => EventSubject::Player(*player),
-        GameAction::LoseLife { player, .. } => EventSubject::Player(*player),
-        GameAction::ZoneChange { object, .. } => EventSubject::Object(*object),
-        GameAction::Untap { object } => EventSubject::Object(*object),
-        GameAction::Tap { object } => EventSubject::Object(*object),
-        GameAction::BecomeBlocked { attacker } => EventSubject::Object(*attacker),
-        GameAction::Destroy { object, .. } => EventSubject::Object(*object),
-        GameAction::EnterBattlefield { object, .. } => EventSubject::Object(*object),
+        GameAction::DealDamage { target, .. } => Some(*target),
+        GameAction::DrawCards { player, .. } => Some(Player(*player)),
+        GameAction::DrawCard { player, .. } => Some(Player(*player)),
+        GameAction::GainLife { player, .. } => Some(Player(*player)),
+        GameAction::LoseLife { player, .. } => Some(Player(*player)),
+        GameAction::ZoneChange { object, .. } => Some(Object(*object)),
+        GameAction::Untap { object } => Some(Object(*object)),
+        GameAction::Tap { object } => Some(Object(*object)),
+        GameAction::BecomeBlocked { attacker } => Some(Object(*attacker)),
+        GameAction::Destroy { object, .. } => Some(Object(*object)),
+        GameAction::EnterBattlefield { object, .. } => Some(Object(*object)),
         // CR 614.16's "under your control": the tokens are created for a
         // player, and CR 616.1's chooser is that player.
-        GameAction::CreateTokens { controller, .. } => EventSubject::Player(*controller),
-        GameAction::CreateTokenIn { object, .. } => EventSubject::Object(*object),
+        GameAction::CreateTokens { controller, .. } => Some(Player(*controller)),
+        GameAction::CreateTokenIn { object, .. } => Some(Object(*object)),
         // CR 122.1's "on an object or player": CR 616.1's chooser is the
         // permanent's controller or the player getting them.
-        GameAction::AddCounters { subject, .. } | GameAction::RemoveCounters { subject, .. } => EventSubject::from(*subject),
-        GameAction::Attach { attachment, .. } | GameAction::Unattach { attachment } => EventSubject::Object(*attachment),
+        GameAction::AddCounters { subject, .. } | GameAction::RemoveCounters { subject, .. } => Some(*subject),
+        GameAction::Attach { attachment, .. } | GameAction::Unattach { attachment } => Some(Object(*attachment)),
         // CR 616.1's "affected object": the token, whose owner chooses.
-        GameAction::TokenCeasesToExist { object } => EventSubject::Object(*object),
+        GameAction::TokenCeasesToExist { object } => Some(Object(*object)),
         // CR 614.10's three units are all about a *player* — "skip **your**
         // next turn", "**players** skip their upkeep steps" — so CR 616.1's
         // chooser is the player whose turn it is and Eon Hub on a four-player
         // table asks nobody.
-        GameAction::BeginTurn { player, .. } => EventSubject::Player(*player),
-        GameAction::BeginPhase { player, .. } => EventSubject::Player(*player),
-        GameAction::BeginStep { player, .. } => EventSubject::Player(*player),
+        GameAction::BeginTurn { player, .. } => Some(Player(*player)),
+        GameAction::BeginPhase { player, .. } => Some(Player(*player)),
+        GameAction::BeginStep { player, .. } => Some(Player(*player)),
         // CR 701.22a's "look at the top N cards of **your** library": the
         // scrying player, who is CR 616.1's chooser for Eligeth.
-        GameAction::Scry { player, .. } => EventSubject::Player(*player),
+        GameAction::Scry { player, .. } => Some(Player(*player)),
         // CR 616.1's "the affected player": the one who would lose or win.
-        GameAction::PlayerLoses { player, .. } => EventSubject::Player(*player),
-        GameAction::PlayerWins { player } => EventSubject::Player(*player),
-        GameAction::GameEndsInADraw => EventSubject::Game,
+        GameAction::PlayerLoses { player, .. } => Some(Player(*player)),
+        GameAction::PlayerWins { player } => Some(Player(*player)),
+        GameAction::GameEndsInADraw => None,
         // CR 106.6a's mana enters a *player's* pool, and CR 616.1's chooser
         // is that player; a spell's production has no permanent to be about.
-        GameAction::ProduceMana { player, .. } => EventSubject::Player(*player),
+        GameAction::ProduceMana { player, .. } => Some(Player(*player)),
         // CR 701.24a — "a player shuffles their library".
-        GameAction::ShuffleLibrary { player } => EventSubject::Player(*player),
+        GameAction::ShuffleLibrary { player } => Some(Player(*player)),
     }
 }
 
@@ -161,7 +136,7 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
 ///
 /// A lookup, and therefore already N-player-safe — no `bool`, no "the other
 /// player".
-/// Takes the whole proposal rather than its [`EventSubject`], because **an
+/// Takes the whole proposal rather than its [`subject_of`], because **an
 /// entry's chooser is not a property of the board**. A permanent that has not
 /// entered yet has no controller, so `controller_or_owner` falls through to its
 /// owner — the wrong player the moment someone casts a permanent spell they do
@@ -178,9 +153,9 @@ pub(crate) fn chooser_for(game: &GameState, action: &GameAction) -> Option<Playe
     match action {
         GameAction::EnterBattlefield { controller, .. } => Some(*controller),
         other => match subject_of(other) {
-            EventSubject::Player(pid) => Some(pid),
-            EventSubject::Object(id) => controller_or_owner(game, id),
-            EventSubject::Game => None,
+            Some(ObjectOrPlayerId::Player(pid)) => Some(pid),
+            Some(ObjectOrPlayerId::Object(id)) => controller_or_owner(game, id),
+            None => None,
         },
     }
 }
@@ -357,7 +332,7 @@ fn gather_sweeping(
     if sweep == Sweep::Everything {
         // The audit's: every object off the battlefield that could carry one,
         // asked with no printed precheck.
-        for id in game.objects_that_may_carry(|effect| matches!(effect, Effect::Replacement(_) | Effect::Conditional(..))) {
+        for id in game.objects_that_may_carry(|effect| matches!(effect, Effect::Replacement(_) | Effect::Conditional(..) | Effect::FunctionsIn(..))) {
             if game.objects.get(&id).is_some_and(|obj| obj.zone != Zone::Battlefield) {
                 elsewhere.push((game.object_timestamp(id), id));
             }
@@ -458,7 +433,7 @@ fn gather_sweeping(
 /// different event from its neighbor's.
 struct EventProposal<'a, 'g> {
     action: &'a GameAction,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
     /// Who or what caused it, for [`ReplacementDef::by`].
     cause: EventCause,
     /// CR 614.12's look-ahead for the subject, when the caller holds one; the
@@ -580,7 +555,7 @@ fn push_static_ability_replacements(
         if !replacement_exists(condition, game, id) {
             continue;
         }
-        if scope == SelfScope::EnteringSelf && !matches!(def.affected_objects, ObjectSet::SourceOnly) {
+        if scope == SelfScope::EnteringSelf && !matches!(def.affected.objects, ObjectSet::SourceOnly) {
             continue;
         }
         let Some(object) = game.object_ref(id) else { continue };
@@ -656,7 +631,7 @@ pub(crate) fn applies_to_mana_production(
     let action =
         GameAction::ProduceMana { player, source: producer, mana: Vec::new(), special: Vec::new(), tapped_for_mana, source_lki: None };
     let cause = EventCause::Effect { resolution: ResolutionStamp { source: producer, controller: player }, generated_by };
-    let proposal = EventProposal { action: &action, subject: EventSubject::Player(player), cause, frame: None };
+    let proposal = EventProposal { action: &action, subject: Some(ObjectOrPlayerId::Player(player)), cause, frame: None };
     def_applies(game, def, source, controller, &proposal)
 }
 
@@ -702,7 +677,7 @@ pub(super) fn applies_to(
     game: &GameState,
     instance: &ReplacementInstance,
     action: &GameAction,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
     cause: EventCause,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
@@ -726,28 +701,18 @@ fn def_applies(
     // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
     def.by.as_ref().is_none_or(|by| by.matches(game, &p.cause, &mut TextReferents::for_effect(game, controller, source)))
         && pattern_watches(game, &def.pattern, p.action, &p.cause, source, controller)
-        && set_affects(
-            game,
-            &def.affected_objects,
-            &def.affected_players,
-            source,
-            controller,
-            p.subject,
-            p.frame,
-        )
+        && set_affects(game, &def.affected, source, controller, p.subject, p.frame)
 }
 
-/// Is the event's subject inside this effect's two affected sets — CR 614.1's
+/// Is the event's subject among what this effect is affecting — CR 614.1's
 /// "whatever they're affecting"?
 ///
-/// **Two sets, unioned, because the CR names two kinds of subject.** An event
-/// about an object asks `ObjectSet`; an event about a player asks
-/// [`PlayerSet`]. Furnace of Rath's "a permanent or player" is `Filter { All }`
-/// plus `Everyone` and is one effect either way — which is why this is one
-/// function with two parameters rather than two functions
-/// (`replacement-architecture.md` §9, RD decision 0).
+/// **One membership test of the merged subject.** An event about an object
+/// asks the object half; an event about a player asks the player half.
+/// Furnace of Rath's "a permanent or player" is both halves and one effect
+/// either way (`replacement-architecture.md` §9, RD decision 0).
 ///
-/// Takes the sets and their owner's two ids rather than a
+/// Takes what it affects and its owner's two ids rather than a
 /// `ReplacementInstance`, because a "can't" asks the identical question of
 /// identical sets and has no instance to offer
 /// (`cant-effects-architecture.md` §3.1: a restriction is discovered exactly
@@ -760,22 +725,21 @@ fn def_applies(
 /// player is not an object and no layer computes one.
 pub(crate) fn set_affects(
     game: &GameState,
-    affected: &ObjectSet,
-    affected_players: &PlayerSet,
+    affected: &AffectedSet,
     source: ObjectId,
     controller: PlayerId,
-    subject: EventSubject,
+    subject: Option<ObjectOrPlayerId>,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
     let id = match subject {
-        EventSubject::Object(id) => id,
+        Some(ObjectOrPlayerId::Object(id)) => id,
         // CR 109.5 resolves "you" against the effect's *current* controller,
         // which is exactly what `controller` is here — the sweep reads it off
         // the board on every gather rather than snapshotting it at ETB.
-        EventSubject::Player(pid) => return affected_players.contains(controller, pid),
-        EventSubject::Game => return false,
+        Some(ObjectOrPlayerId::Player(pid)) => return affected.players.contains(controller, pid),
+        None => return false,
     };
-    match affected {
+    match &affected.objects {
         // CR 303.4m's host by id like the other two: an entering permanent is
         // attached to by nothing, so the frame has nothing to say.
         named @ (ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host) => {
@@ -1222,7 +1186,6 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::test_support::{put_spell_on_stack, setup_two_player_game, static_ability, test_dp};
     use crate::types::card_types::CardType;
-    use crate::types::effects::Condition;
     use crate::types::replacement::{EnterMods, EnterModsTemplate};
     use crate::types::zones::ZoneSet;
 
@@ -1241,8 +1204,8 @@ mod tests {
         let mut game = setup_two_player_game();
         let card = CardDataBuilder::new("Orb From Anywhere")
             .card_type(CardType::Artifact)
-            .ability(static_ability(Effect::Conditional(
-                Condition::SourceInZone(ZoneSet::ALL),
+            .ability(static_ability(Effect::FunctionsIn(
+                ZoneSet::ALL,
                 Box::new(Effect::Replacement(Box::new(ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },
                     ObjectSet::battlefield_filter(ObjectFilter::All),

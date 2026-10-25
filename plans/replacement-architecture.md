@@ -161,7 +161,7 @@ the enforcement.
 | `GameAction` | `engine/actions.rs` | The proposal vocabulary — what a caller asks for, before CR 614 sees it | **grows**, one variant per replaceable event kind (§8a) |
 | `ActionContext` | `engine/actions.rs` | `{ dp, cause }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt; `cause` is the proposal's `EventCause` (§2b.3), one constructor per kind, and what the performer's records name | grows only if a new input every mutation needs appears |
 | `ZoneChangeAct` | `types/zones.rs` | What a move did, in the CR's word (§2b.2), kept through a redirect. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per keyword action that moves an object |
-| `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, its fields in declaration order: `pattern` + `affected_objects` + `affected_players` + `by` (the cause, §2b.7) + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
+| `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, its fields in declaration order: `pattern` + `affected` (an `AffectedSet`: CR 614.1's objects and players, one membership test, `set_affects`) + `by` (the cause, §2b.7) + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
 | `EventPattern` | `types/replacement.rs` | Which events an effect watches: an arm per replaceable `GameAction` variant, from `DealDamage` and `ZoneChange` to `ProduceMana` and `CreateTokens`. RB shipped six — `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy` and `CounterChange`, which RE-5 split into `AddCounters` and `RemoveCounters` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
 | `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over the destruction's cause, CR 701.8b's two ways | closed by CR 701.8b |
 | `Rewrite` | `types/replacement.rs` | What the effect does to the event: `Prevent`, `Instead(GameActionTemplate)`, `Amount`, `Retarget` (CR 614.9), `EnterWith`, `EnterAfterMoving` (CR 614.13), `EnterUnderControlOf` (CR 616.1b), `EnterAsCopy` (CR 616.1c). RB shipped the first two | **closed** — a new arm needs the CR rule that permits it (§3.2b) |
@@ -172,7 +172,7 @@ the enforcement.
 | `GameRuleReplacement` | `engine/replacement/instance.rs` | A replacement belonging to no object's text. CR 903.9b is the only member | grows with the rules that behave as effects |
 | `ReplacementInstance` | `engine/replacement/instance.rs` | One applicable effect, gathered as a snapshot — the loop mutates state between iterations, so a borrow could not survive a pass | — |
 | `CounterEffectKind` | `engine/replacement/gather.rs` | Which of CR 122.1c's *two* effects a shield counter is. Two effects, one counter, two CR 614.5 identities | grows with CR 122.1's replacement-shaped counters |
-| `EventSubject` | `engine/replacement/gather.rs` | What a proposed event is *about* — an object or a player. Named for the event because `ObjectSet` already answers the other question, which objects an *effect* applies to | closed by what an event can be about |
+| `subject_of` | `engine/replacement/gather.rs` | What a proposed event is *about*: an `ObjectOrPlayerId`, or `None` for an event about the game itself (CR 104.4). The event's subject, not the effect's: which objects an *effect* applies to is `ObjectSet`'s question | closed by what an event can be about |
 | `Rider` | `engine/replacement/pipeline.rs` | A queued `then`, resolved by the caller after the event is performed. CR 615.5 when a *prevention* effect queued it; CR 614.1a/614.6 otherwise — the rest of an "instead" is part of the modified event | — |
 | `ReplacementEffectId` / `RegisteredReplacementEffect` / `ReplacementEffectRegistry` | `state/replacement_effects.rs` | The registry for replacements a *resolution* created, with CR 614.3 durations. Static abilities are **not** here — they are read off the effective ability list | — |
 
@@ -1058,7 +1058,7 @@ CR 704.3's one board, and nothing printed replaces it.
 | `Destroy { object }` | 701.8b, 614.8 | RB | **outer** event; its inner `ZoneChange { to: Graveyard, act: Destroyed }` is decided with it and performed right after (`BatchMember::inner_move`), which of 701.8b's ways being the cause |
 | `Untap` / `Tap` | 122.1d, 603.2e | RA (events) → RB | each announces its transition only (CR 603.2e); stun counters replace `Untap` |
 | `Attach { attachment, host }` / `Unattach { attachment }` | 701.3, 704.5n/p | LH-2 / TR-4b | no `EventPattern` arm; `GameState::attach` and `detach` are the one writer of both sides of the link |
-| `AddCounters { subject, counter, n, by }` / `RemoveCounters { subject, counter, n, by }` | 122.1, 122.6, 614.16 | RB → RE-5 | `subject` is a permanent or a player (`CounterSubject`); `by` is who puts or removes them |
+| `AddCounters { subject, counter, n, by }` / `RemoveCounters { subject, counter, n, by }` | 122.1, 122.6, 614.16 | RB → RE-5 | `subject` is a permanent or a player (`ObjectOrPlayerId`); `by` is who puts or removes them |
 | `EnterBattlefield { object, from, controller, mods, act }` | 614.1c/d, 614.12, 110.5b | RC | **not** `ZoneChange{to: Battlefield}` — carries the *how*; `from` is `None` for a token, and `act` is the move's |
 | `DrawCards { player, n }` (outer) / `DrawCard { player }` | 121.2a, 616.1g | RE-2 | the outer event contains N inner draws |
 | `GainLife` / `LoseLife` | 119.10 | exists → RE-3 | |
@@ -2292,7 +2292,7 @@ instead — a 2/2 whose own "creatures you control get +1/+1" makes it 3/3 to a
 "creatures with power 2 or less enter tapped" — and the count boundary with
 Keldon Warlord, above. When 7f lands, `test_grist_entering_is_not_a_creature`
 is still the right first test of it. (Grist's clause became expressible at LK,
-as CR 113.6c's complement in `Condition::SourceInZone`, and was built at LL as a
+as CR 113.6c's complement in a zone statement, and was built at LL as a
 fixture, `phase_ll_cards::grist_insect_clause`, whose tests are in
 `tests/phase_ll_integration_test.rs`; that named test was never written.
 Thassa still waits on a devotion count.)

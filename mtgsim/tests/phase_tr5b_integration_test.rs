@@ -15,10 +15,10 @@ use mtgsim::cards::phase_rc_cards::{chainbreaker, master_biomancer};
 use mtgsim::cards::phase_tr5b_cards::{protean_hydra, simic_ascendancy};
 use mtgsim::cards::phase_tr4a_cards::strangleroot_geist;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, StateBasedAction};
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameResult, GameState, StepType};
 use mtgsim::test_support::{
@@ -30,10 +30,10 @@ use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
-use mtgsim::types::triggers::{CountersOn, Multiplicity, ObjectOrPlayer, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{Multiplicity, ObjectOrPlayerSubject, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::oracle::x_values::LegalXValues;
@@ -54,7 +54,7 @@ fn fixture_object() -> Arc<CardData> {
 fn resolve_targeting(
     game: &mut GameState,
     player: PlayerId,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
     effect: &Effect,
     dp: &dyn DecisionProvider,
 ) {
@@ -78,7 +78,7 @@ fn counters_on_target(game: &mut GameState, player: PlayerId, target: ObjectId, 
         primitive,
         EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
     );
-    resolve_targeting(game, player, vec![ResolvedTarget::Object(target)], &effect, &test_dp());
+    resolve_targeting(game, player, vec![ObjectOrPlayerId::Object(target)], &effect, &test_dp());
 }
 
 fn put(kind: CounterType, n: u64) -> Primitive {
@@ -188,7 +188,7 @@ fn damage_to_a_planeswalker_removes_loyalty_that_no_player_removed() {
     game.execute_action(
         GameAction::DealDamage {
             source: bears,
-            target: DamageTarget::Object(walker),
+            target: ObjectOrPlayerId::Object(walker),
             amount: 2,
             is_combat: false,
             unpreventable: false,
@@ -525,13 +525,13 @@ fn a_put_arms_by_reads_who_put_the_counters_on() {
 fn a_put_arm_reads_counters_a_player_gets() {
     let mut game = setup_two_player_game();
     let arm = TriggerEvent::CountersPutOn {
-        subject: CountersOn::Player(Some(PlayerRef::You)),
+        subject: ObjectOrPlayerSubject::Player(Some(PlayerRef::You)),
         counter_type: Some(CounterType::Energy),
         by: None,
         multiplicity: Multiplicity::OncePerSubject,
     };
     let gorger = put_on_battlefield(&mut game, enchantment_that_gains("Fixture Gorger", arm, AmountExpr::TriggeringAmount), 0);
-    let energy = |player| GameAction::AddCounters { subject: CounterSubject::Player(player), counter: CounterType::Energy, n: 2, by: player };
+    let energy = |player| GameAction::AddCounters { subject: ObjectOrPlayerId::Player(player), counter: CounterType::Energy, n: 2, by: player };
 
     game.execute_action(energy(1), &test_ctx()).expect("an opponent gets energy");
     assert_eq!(waiting_from(&game, gorger), 0);
@@ -988,7 +988,7 @@ fn hydra_with(game: &mut GameState, n: u64) -> ObjectId {
 
 fn damage(game: &mut GameState, source: ObjectId, target: ObjectId, amount: u64, unpreventable: bool) {
     game.execute_action(
-        GameAction::DealDamage { source, target: DamageTarget::Object(target), amount, is_combat: false, unpreventable, source_lki: None },
+        GameAction::DealDamage { source, target: ObjectOrPlayerId::Object(target), amount, is_combat: false, unpreventable, source_lki: None },
         &test_ctx(),
     )
     .expect("the damage event");

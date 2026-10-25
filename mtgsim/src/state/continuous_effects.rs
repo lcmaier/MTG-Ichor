@@ -361,10 +361,10 @@ impl RegistryScopeSummary {
 /// one of those kinds.
 pub fn triggered_ability_kinds(effect: &ContinuousEffect) -> EventKindMask {
     use crate::engine::layers::types::EffectModification;
-    use crate::types::effects::Effect;
-    let kinds = |def: &crate::objects::card_data::AbilityDef| match &def.effect {
-        Effect::Triggered(trigger) => trigger.record_kinds(),
-        _ => EventKindMask::EMPTY,
+    
+    let kinds = |def: &crate::objects::card_data::AbilityDef| match def.effect.as_trigger() {
+        Some(trigger) => trigger.record_kinds(),
+        None => EventKindMask::EMPTY,
     };
     match &effect.modification {
         EffectModification::GrantAbility(def) => kinds(def),

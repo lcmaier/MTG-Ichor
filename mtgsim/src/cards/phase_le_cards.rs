@@ -12,11 +12,11 @@ use std::sync::Arc;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{
-    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, Primitive, Selector,
-};
+use crate::types::effects::{ObjectFilter, ObjectSet, 
+    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, Primitive, };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
+use crate::types::zones::ZoneSet;
 
 /// Tarmogoyf — {1}{G}
 /// Creature — Lhurgoyf
@@ -42,11 +42,11 @@ use crate::types::mana::{ManaCost, ManaType};
 /// **Card types, not cards.** Ten artifact creatures in a graveyard are still
 /// two card types — hence `CardTypesAmong` rather than `CountOf`.
 ///
-/// **All graveyards, including its own.** `Selector::CardsInGraveyard(None)`
+/// **All graveyards, including its own.** `ObjectSet::filter_in(All, GRAVEYARD)`
 /// spans every player, and a Tarmogoyf in a graveyard counts itself.
 pub fn tarmogoyf() -> Arc<CardData> {
     let card_types_in_graveyards =
-        || AmountExpr::CardTypesAmong(Selector::CardsInGraveyard(None));
+        || AmountExpr::CardTypesAmong(ObjectSet::filter_in(ObjectFilter::All, ZoneSet::GRAVEYARD));
 
     CardDataBuilder::new("Tarmogoyf")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))

@@ -12,7 +12,6 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::targeting::TargetRef;
 use crate::oracle::characteristics::{FrameContext, ObjectInformation};
 use crate::events::event::EventId;
 use crate::state::battlefield::AttackTarget;
@@ -20,8 +19,8 @@ use crate::state::layer_memo::GatedWalkInput;
 use crate::types::card_types::CardType;
 use crate::types::counted_enum;
 use crate::types::history::TurnFact;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{Lki, ObjectOrPlayer};
+use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
+use crate::types::triggers::Lki;
 use crate::types::zones::{Zone, ZoneChangeAct};
 
 /// The game's first turn. Turn 0 is the game before it, when the opening
@@ -251,7 +250,7 @@ pub fn kind_counted(fact: TurnFact) -> RowKind {
 /// log's row says it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Targeting {
-    pub target: TargetRef,
+    pub target: ObjectOrPlayer,
     /// By a spell rather than an ability.
     pub by_spell: bool,
     /// Who controlled the spell or ability.
@@ -511,8 +510,8 @@ impl HistoryLog {
         self.rows_of_turn(turn).filter_map(|row| match row.fact {
             RowFact::BecameTarget { by_spell, controller } => {
                 let target = match row.object {
-                    Some(object) => TargetRef::Object(object),
-                    None => TargetRef::Player(row.player?),
+                    Some(object) => ObjectOrPlayer::Object(object),
+                    None => ObjectOrPlayer::Player(row.player?),
                 };
                 Some(Targeting { target, by_spell, controller, seq: row.seq })
             }

@@ -142,7 +142,12 @@ From the census's rules pass (`cast-census.md` §2):
   every player's activations.
 - **From which zone** (113.6b, j, m): an ability that names its zone, or
   whose cost or effect moves its own object out of one: cycling from a hand,
-  unearth from a graveyard.
+  unearth from a graveyard, Balustrade Wurm's "return this card from your
+  graveyard". A zone the text states is `Effect::FunctionsIn` at the
+  ability's root, which `functioning_zones` already reads for any kind of
+  ability (item 296); 113.6m's inference from the effect is
+  `functioning_zones`' to derive, beside its 113.6k arm. What is missing is
+  the offer: `activatable_abilities` reads permanents only.
 - **The land count** (305.2): additional land drops, which `lands_per_turn`
   holds and nothing sets. It is the first consumer of `backlog.md` §2.15's
   effective-value query, which its PR builds; max hand size and player

@@ -398,6 +398,73 @@ pub struct ObjectRef {
     pub zone_change_epoch: ZoneChangeEpoch,
 }
 
+/// An object or a player, by id: what a proposal acts on, and a target as a
+/// resolution reads it once CR 608.2b has kept it. The role is the field's
+/// name — a target, a damage recipient (CR 120.1), a counter's subject (CR
+/// 122.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ObjectOrPlayerId {
+    Object(ObjectId),
+    Player(PlayerId),
+}
+
+impl ObjectOrPlayerId {
+    /// The object or player as a record names it: a player as it is, an
+    /// object as `GameState::existence_for_record` names it (CR 400.7).
+    pub(crate) fn for_record(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
+        Ok(match self {
+            ObjectOrPlayerId::Player(player) => ObjectOrPlayer::Player(player),
+            ObjectOrPlayerId::Object(id) => ObjectOrPlayer::Object(game.existence_for_record(id)?),
+        })
+    }
+}
+
+/// An object or a player, by reference: an object by its id **and** the
+/// zone-change epoch of the existence meant (CR 400.7), so a creature that
+/// left and came back is not the one named. What a record names (what damage
+/// was dealt to, CR 120.1; what became a target, CR 115.1) and what an
+/// instance of "target" chose (CR 601.2c).
+///
+/// CR 608.2b's "a target that's no longer in the zone it was in when it was
+/// targeted is illegal" is the comparison: a bare id finds the new object
+/// and calls it legal. The survivors CR 608.2b keeps are plain
+/// [`ObjectOrPlayerId`]s, legal as the resolution begins, which is all a
+/// primitive reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectOrPlayer {
+    Object(ObjectRef),
+    Player(PlayerId),
+}
+
+impl ObjectOrPlayer {
+    /// The object; `None` for a player.
+    pub fn object(self) -> Option<ObjectRef> {
+        match self {
+            ObjectOrPlayer::Object(object) => Some(object),
+            ObjectOrPlayer::Player(_) => None,
+        }
+    }
+
+    /// What the object or player is now, which is all a reader past the
+    /// existence check needs.
+    pub fn id(self) -> ObjectOrPlayerId {
+        match self {
+            ObjectOrPlayer::Object(object) => ObjectOrPlayerId::Object(object.id),
+            ObjectOrPlayer::Player(player) => ObjectOrPlayerId::Player(player),
+        }
+    }
+
+    /// Is this still the object meant: in the store, at its epoch (CR
+    /// 400.7)? A player is always that player; CR 800.4a's departure is the
+    /// target check's question, not this one's.
+    pub fn still_exists(self, game: &crate::state::game_state::GameState) -> bool {
+        match self {
+            ObjectOrPlayer::Object(object) => game.find(object).is_some(),
+            ObjectOrPlayer::Player(_) => true,
+        }
+    }
+}
+
 /// One CR 500.7 extra turn, from the effect that creates it until it begins
 /// or is skipped: which entry of the turn queue a turn came from. "That turn"
 /// (Final Fortune) names one turn by it, and a skipped extra turn (CR

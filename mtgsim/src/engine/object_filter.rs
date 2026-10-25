@@ -14,13 +14,12 @@
 
 use crate::types::effects::Antecedent;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::resolve::ResolvedTarget;
 use crate::engine::targeting::{ChosenTargets, FilterIdentity, TargetInstance};
 use crate::state::game_state::GameState;
 use crate::state::history_log::CombatSpan;
 use crate::types::effects::{CounterType, ObjectFilter, PlayerRef};
 use crate::types::history::ObjectFact;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::objects::object::GameObject;
 use crate::oracle::characteristics::{FrameContext, ObjectInformation};
 use crate::state::battlefield::PermanentState;
@@ -144,7 +143,7 @@ impl EarlierTargets<'_> {
     /// Was `target` chosen for instance `ix`? By id: "another target" asks
     /// whether the announcement named this object, and an announcement names
     /// objects as they were at one moment.
-    fn instance_names(&self, ix: usize, target: ResolvedTarget) -> bool {
+    fn instance_names(&self, ix: usize, target: ObjectOrPlayerId) -> bool {
         match self {
             EarlierTargets::None => false,
             EarlierTargets::Chosen(c) => c.instance(ix).contains(&target),
@@ -352,7 +351,7 @@ fn answer_or_refuse<'f>(
             if *ix >= earlier.len() {
                 return Err(FilterRefusal::InstanceNotAnnounced { object: id, instance: *ix });
             }
-            Ok(!earlier.instance_names(*ix, ResolvedTarget::Object(id)))
+            Ok(!earlier.instance_names(*ix, ObjectOrPlayerId::Object(id)))
         }
         ObjectFilter::And(a, b) => {
             let left = answer_or_refuse(game, a, id, object, frame, referents);

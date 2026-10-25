@@ -13,8 +13,7 @@ use mtgsim::cards::phase_rb_cards::{
     kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
 };
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
-use mtgsim::types::triggers::ObjectOrPlayer;
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
@@ -28,12 +27,11 @@ use mtgsim::test_support::{
     state_based_ctx,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::types::effects::{
-    ObjectSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
-    PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AffectedSet, ObjectSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::replacement::{
     regeneration_rider, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
@@ -348,7 +346,7 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
 
 /// Counters placed the way the engine places them, through the chokepoint.
 fn add_counters(game: &mut GameState, id: ObjectId, counter: CounterType, n: u32) {
-    game.execute_action(GameAction::AddCounters { subject: CounterSubject::Object(id), counter, n, by: 0 }, &test_ctx())
+    game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(id), counter, n, by: 0 }, &test_ctx())
         .unwrap();
 }
 
@@ -482,7 +480,7 @@ fn test_a_shield_counter_prevents_damage_and_the_rider_removes_a_counter() {
     game.execute_action(
         GameAction::DealDamage {
             source: bolt,
-            target: DamageTarget::Object(bear),
+            target: ObjectOrPlayerId::Object(bear),
             amount: 3,
             is_combat: false,
             unpreventable: false,
@@ -529,7 +527,7 @@ fn test_zero_damage_is_not_an_event_a_prevention_effect_can_see() {
     game.execute_action(
         GameAction::DealDamage {
             source: bolt,
-            target: DamageTarget::Object(bear),
+            target: ObjectOrPlayerId::Object(bear),
             amount: 0,
             is_combat: false,
             unpreventable: false,
@@ -572,7 +570,7 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
     game.execute_action(
         GameAction::DealDamage {
             source: bolt,
-            target: DamageTarget::Object(bear),
+            target: ObjectOrPlayerId::Object(bear),
             amount: 3,
             is_combat: false,
             unpreventable: false,
@@ -1095,7 +1093,7 @@ fn regenerate(game: &mut GameState, source: ObjectId, target: ObjectId) {
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(target)]),
         replaced_event: None,
         trigger: None,
     };
@@ -1269,8 +1267,7 @@ fn cant_be_regenerated() -> Primitive {
     Primitive::Restrict(
         RestrictionDef::new(Restriction::ApplyReplacement {
             kind: ReplacementKindFilter::Regeneration,
-            to_objects: ObjectSet::Fixed(Vec::new()),
-            to_players: PlayerSet::Nobody,
+            affected: AffectedSet::objects(ObjectSet::Fixed(Vec::new())),
         }),
         Duration::UntilEndOfTurn,
     )
@@ -1300,7 +1297,7 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(bear)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(bear)]),
         replaced_event: None,
         trigger: None,
     };
@@ -1341,7 +1338,7 @@ fn test_cant_be_regenerated_does_not_withhold_other_replacements() {
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(bear)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(bear)]),
         replaced_event: None,
         trigger: None,
     };

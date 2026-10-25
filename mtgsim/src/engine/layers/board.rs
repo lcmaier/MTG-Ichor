@@ -59,9 +59,8 @@ use crate::state::battlefield::{EnteredAs, PermanentState};
 use crate::state::game_state::GameState;
 use crate::types::card_types::Subtype;
 use crate::types::effects::{
-    AmountExpr, CharacteristicEdit, Condition, CounterType, ObjectFilter, PlayerFact, PlayerRef,
-    Selector,
-};
+    ObjectSet, AmountExpr, CharacteristicEdit, Condition, CounterType, ObjectFilter, PlayerFact, PlayerRef,
+    };
 use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::zones::{Zone, ZoneSet};
@@ -157,13 +156,14 @@ impl EnteredAsNote {
 pub(crate) struct RowNote {
     pub(super) layer_index: usize,
     pub(super) row: Arc<ContinuousEffect>,
-    pub(super) affected: AffectedSet,
+    pub(super) membership: EffectMembershipTest,
 }
 
-/// How the pass found the set a noted row affects: `Affected` without its
-/// members, since a card the pass leaves out was never among them.
+/// How a card the pass left out is tested for a noted row's membership,
+/// walked alone later: `Affected` without its members, since such a card was
+/// never among them.
 #[derive(Debug, Clone, Copy)]
-pub(super) enum AffectedSet {
+pub(super) enum EffectMembershipTest {
     /// CR 613.6 — the effect started in an earlier layer or row, so the row
     /// applies to a card exactly when the card matched where it started.
     Locked,
@@ -470,7 +470,7 @@ impl<'l> Board<'l> {
     ///
     /// The row is found in its registry slice by id, for the `Arc` the note
     /// keeps. A look-ahead's own rows are in no registry, and never come here.
-    fn note(&mut self, game: &GameState, layer_index: usize, row: &ContinuousEffect, affected: AffectedSet) {
+    fn note(&mut self, game: &GameState, layer_index: usize, row: &ContinuousEffect, membership: EffectMembershipTest) {
         let stored = game
             .continuous_effects
             .effects_in_layer(LAYER_ORDER[layer_index])
@@ -478,7 +478,7 @@ impl<'l> Board<'l> {
             .find(|stored| stored.id == row.id);
         debug_assert!(stored.is_some(), "a row reaching a left-out zone is a registry row");
         if let Some(stored) = stored {
-            self.notes.push(RowNote { layer_index, row: Arc::clone(stored), affected });
+            self.notes.push(RowNote { layer_index, row: Arc::clone(stored), membership });
         }
     }
 
@@ -491,7 +491,7 @@ impl<'l> Board<'l> {
     fn start_noted(&self, group: EffectGroup) -> bool {
         self.notes
             .iter()
-            .any(|note| matches!(note.affected, AffectedSet::Fresh { .. }) && note.row.group() == group)
+            .any(|note| matches!(note.membership, EffectMembershipTest::Fresh { .. }) && note.row.group() == group)
     }
 
     /// One member's frame, consuming the pass.
@@ -797,13 +797,17 @@ pub(crate) fn filter_reads_mana_value(filter: &ObjectFilter) -> bool {
 /// exact rather than clever); mana value is the affected object's own.
 fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
     match expr {
-        AmountExpr::CountOf(Selector::PermanentsMatching(filter)) => filter_reads(filter, out, you_channel),
-        AmountExpr::CountOf(Selector::ControlledCreatures) => {
-            out.members |= Channels::TYPES | Channels::CONTROLLER;
-            out.source |= you_channel;
+        // A hand's size is off `GameState`; whose hand is "you". Any set but
+        // a hand and a battlefield filter is one `evaluate_amount` refuses.
+        AmountExpr::CountOf(set) => {
+            if set.whose_hand().is_some() {
+                out.source |= you_channel;
+            } else if let ObjectSet::Filter { filter, zones } = set
+                && *zones == ZoneSet::BATTLEFIELD
+            {
+                filter_reads(filter, out, you_channel);
+            }
         }
-        // A hand's size is off `GameState`; whose hand is "you".
-        AmountExpr::CountOf(Selector::CardsInHand(_)) => out.source |= you_channel,
         AmountExpr::CardTypesAmong(_) => out.members |= Channels::TYPES,
         AmountExpr::AffectedManaValue => out.members |= Channels::MANA_COST,
         AmountExpr::Plus(inner, _) => amount_reads(inner, out, you_channel),
@@ -813,7 +817,6 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
         // each is listed so a new leaf is a compile error here, as a new
         // `Condition` is in `condition_reads`.
         AmountExpr::Fixed(_)
-        | AmountExpr::CountOf(Selector::CreaturesInGraveyard(_) | Selector::CardsInGraveyard(_))
         | AmountExpr::X
         | AmountExpr::SourcePower
         | AmountExpr::SourceCounters(_)
@@ -862,11 +865,10 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         // The host is read through the filter; *which* object is the host is
         // `attached_to`, which no layer writes.
         Condition::HostMatches(filter) => filter_reads(filter, out, you_channel),
-        // The source's zone, its tapped status, its counters and how it was
+        // The source's tapped status, its counters and how it was
         // cast are off `GameState`, and the resolution's leaves never
         // evaluate in a walk at all.
-        Condition::SourceInZone(_)
-        | Condition::SourceUntapped
+        Condition::SourceUntapped
         | Condition::SourceTapped
         | Condition::CounterCount { .. }
         | Condition::SpellWasKicked
@@ -1202,6 +1204,13 @@ fn static_ability_still_exists(
     // Source is gone from the object store entirely.
     let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return false };
     let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return false };
+    // CR 113.6b's statement, **the leg that retires Wonder's row**: asked at every
+    // layer, so an exiled Wonder stops granting on the next walk with nothing
+    // reconciling the registry (§13d decision 3). `in_zones_or_entering`, since a
+    // CR 614.12 look-ahead's object is still in its source zone.
+    if ability.effect.stated_zones().is_some_and(|zones| !board.in_zones_or_entering(game, effect.source, zones)) {
+        return false;
+    }
     let (as_long_as, _) = ability.effect.with_its_condition();
     as_long_as.is_none_or(|cond| condition::holds(cond, game, board, effect.source, layer_index, None, condition::ConditionReferents::NONE))
 }
@@ -1392,9 +1401,9 @@ fn perform(
                     && (board.reaches_left_out(row) || (!fresh && board.start_noted(row.group())));
                 if noted {
                     let set = if fresh {
-                        AffectedSet::Fresh { you: FilterPlayers::for_row(row, game, board, layer_index).you() }
+                        EffectMembershipTest::Fresh { you: FilterPlayers::for_row(row, game, board, layer_index).you() }
                     } else {
-                        AffectedSet::Locked
+                        EffectMembershipTest::Locked
                     };
                     board.note(game, layer_index, row, set);
                 }

@@ -13,9 +13,8 @@ use std::ops::BitOr;
 
 use crate::types::history::{HistoryCount, ObjectFact};
 use crate::types::effects::{
-    AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
-    Primitive, Selector,
-};
+    ObjectSet, AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
+    Primitive, };
 use crate::types::triggers::{
     BlockOccurrence, DamageRecipient, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
@@ -237,7 +236,7 @@ fn effect_reads(e: &Effect) -> TriggerBindingReads {
         Effect::Conditional(test, inner) => condition_reads(test) | effect_reads(inner),
         Effect::Optional { chooser, effect: inner } => player_ref_reads(chooser) | effect_reads(inner),
         Effect::Remember(inner) => effect_reads(inner),
-        Effect::ForEach(over, inner) => selector_reads(over) | effect_reads(inner),
+        Effect::ForEach(over, inner) => object_set_reads(over) | effect_reads(inner),
         Effect::Repeat(times, inner) => amount_reads(times) | effect_reads(inner),
         // CR 603.3c's modes are chosen at placement, so a modal def is never
         // elided, and each mode's event roles are the def's. The other four
@@ -247,7 +246,8 @@ fn effect_reads(e: &Effect) -> TriggerBindingReads {
         | Effect::Restriction(_)
         | Effect::CostModification(_)
         | Effect::TriggerMultiplier(_)
-        | Effect::Triggered(_) => TriggerBindingReads::EVERYTHING,
+        | Effect::Triggered(_)
+        | Effect::FunctionsIn(..) => TriggerBindingReads::EVERYTHING,
     }
 }
 
@@ -306,7 +306,7 @@ fn amount_reads(a: &AmountExpr) -> TriggerBindingReads {
         | AmountExpr::UnspentMana(_)
         | AmountExpr::DamagePrevented
         | AmountExpr::StartingLifeTotal => TriggerBindingReads::NONE,
-        AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => selector_reads(over),
+        AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => object_set_reads(over),
         AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount_reads(inner),
         AmountExpr::History(_, history) => history_count_reads(history),
         AmountExpr::SourcePower | AmountExpr::SourceCounters(_) => TriggerBindingReads::SOURCE,
@@ -317,12 +317,13 @@ fn amount_reads(a: &AmountExpr) -> TriggerBindingReads {
     }
 }
 
-fn selector_reads(s: &Selector) -> TriggerBindingReads {
-    match s {
-        Selector::ControlledCreatures => TriggerBindingReads::NONE,
-        Selector::CreaturesInGraveyard(whose) | Selector::CardsInHand(whose) => player_ref_reads(whose),
-        Selector::CardsInGraveyard(whose) => whose.as_ref().map_or(TriggerBindingReads::NONE, player_ref_reads),
-        Selector::PermanentsMatching(among) => filter_reads(among),
+/// A set's filter reads what its leaves read; "this object" and its host are
+/// the source.
+fn object_set_reads(set: &ObjectSet) -> TriggerBindingReads {
+    match set {
+        ObjectSet::Filter { filter, .. } => filter_reads(filter),
+        ObjectSet::SourceOnly | ObjectSet::Host => TriggerBindingReads::SOURCE,
+        ObjectSet::Fixed(_) => TriggerBindingReads::NONE,
     }
 }
 
@@ -358,7 +359,6 @@ fn condition_reads(c: &Condition) -> TriggerBindingReads {
         Condition::Player { fact, .. } => player_fact_reads(fact),
         Condition::DefendingPlayer { of, fact } => creature_reads(*of) | player_fact_reads(fact),
         Condition::SpellWasKicked
-        | Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SourceTapped
         | Condition::CounterCount { object: Antecedent::ThisObject, .. } => TriggerBindingReads::SOURCE,

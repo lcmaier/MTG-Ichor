@@ -284,7 +284,7 @@ pub fn controller_or_owner(game: &GameState, id: ObjectId) -> Option<PlayerId> {
 /// `game.turn_number` freed it one turn early, which a creature holding a
 /// granted `{T}` ability could observe at instant speed (Citanul Hierophants).
 /// `turn_number - 1` would be the two-player shortcut for the same thing and is
-/// equally wrong at four; `last_turn_began` is per player for that reason.
+/// equally wrong at four; `most_recent_turn_began` is per player for that reason.
 ///
 /// Two boundary answers, both carried by the `None` arm:
 /// `control_since_turn = 0` is the pregame sentinel (CR 103.6), and a player

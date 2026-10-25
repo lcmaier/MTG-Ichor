@@ -229,7 +229,7 @@ holds it: a pull request that adds a field this document does not name fails
 |---|---|---|
 | `PermanentState` *(re-read: `cast`, `cost_choices`)* | an "as it enters" choice (CR 614.12a, 707.6) | feature — `backlog.md` §2.2 |
 | `ResolvingObject` *(for the entry)* | — | **no gap** — carries CR 400.7d's facts and the cost decisions to an "enters with" before the permanent exists |
-| `ReplacementEffectRegistry` | a chosen source (CR 609.7a); targets held across a move (CR 400.7) | **built** — `targets: Vec<TargetRef>`, each carrying its epoch, and a chosen source is `SourcePattern.object`, an `ObjectRef` (main item 10, closed by CV-1b, #230) |
+| `ReplacementEffectRegistry` | a chosen source (CR 609.7a); targets held across a move (CR 400.7) | **built** — `targets: Vec<ObjectOrPlayer>`, each carrying its epoch, and a chosen source is `SourcePattern.object`, an `ObjectRef` (main item 10, closed by CV-1b, #230) |
 | the applied set (`rider_lineage`, the loop's `lineage`) | which replacement redirected an event, once it has been performed (CR 702.35a) | **FACT** — §5.4 |
 | `EntrySelectionScope` | what an entry's zone change chose, after the batch (CR 614.14, 702.82b) | feature — `backlog.md` §2.2 |
 | `PreventionAllocationScope` | — | **no gap** — CR 615.7, scoped to the batch |
@@ -241,7 +241,7 @@ holds it: a pull request that adds a field this document does not name fails
 | `StackEntry` *(pass 3: `trigger`, `mana_spent`)* | the objects that paid (CR 707.10, 400.7d); what a copy of it may keep (CR 707.10) | item 30's open half, sharpened; `copy-effects-architecture.md` §4.4 amended |
 | `CastFacts`, `CostChoices`, `ManaSpent` *(pass 3)* | a count of payments (multikicker, replicate, squad) | feature: the record can repeat, and the CR 601.2b announcement cannot ask for a number |
 | `ManaPool` *(pass 3, re-read)* | a unit's source; restrictions (CR 106.6, 107.4h) | item 33, as corrected above |
-| `TargetInstance` *(pass 3)* | a target that left and came back (CR 400.7) | **built** — `TargetRef` carries the epoch, compared at CR 608.2b (main item 10, closed by CV-1b, #230) |
+| `TargetInstance` *(pass 3)* | a target that left and came back (CR 400.7) | **built** — `ObjectOrPlayer` carries the epoch, compared at CR 608.2b (main item 10, closed by CV-1b, #230) |
 | `ResolvingObject` *(pass 3)* | — | **no gap** — CR 110.2b's default controller and CR 400.7d's facts, carried past the entry's removal |
 | `GameObject` *(pass 4: `timestamp`)* | — | **no gap** — CR 613.7d–e built; 613.7m is "Before card breadth" item 4 |
 | `PlayerState` *(pass 4: `counters`)* | a team's shared poison (CR 701.34b) | feature, Phase 9's Two-Headed Giant |
@@ -302,7 +302,7 @@ triggers, then cost, then the rest**. **All four ran on 2026-09-24.**
 | Which replacement redirected an event ("when this card is exiled this way", 702.35a) | nowhere, once the event has been performed | no | — | item 176's third facet. 61 cards (`kw:madness`). CR 615.13's version already has a shape: `DamagePrevented.by` ("Before Triggered abilities" item 16) |
 | The damage a prevention effect prevented (615.5, 615.13) | `Rider.prevented`, read by `AmountExpr::DamagePrevented`; `PreventionAllocationScope` for the batch | yes | CR 615.13's unit is one application, which the rider's number already is | no gap. 35 cards read it through a rider (`o:"prevented this way"`); the trigger is "Before Triggered abilities" item 16 (TR-5) |
 | A chosen source, "a source of your choice" (609.7a) | nowhere: `SourceFilter` is `ControlledBy` only | — | 400.7c | feature: an additive `SourceFilter` arm that holds the source's identity. 65 cards (`o:"source of your choice"`) |
-| A resolution-created row's targets (Divine Deflection) | `RegisteredReplacementEffect.targets` | yes | **400.7**: a bare `ObjectId` finds a target that left and came back | **built** — `targets: Vec<TargetRef>` (main item 10, sharpened with a fourth kind of reference, closed by CV-1b, #230) |
+| A resolution-created row's targets (Divine Deflection) | `RegisteredReplacementEffect.targets` | yes | **400.7**: a bare `ObjectId` finds a target that left and came back | **built** — `targets: Vec<ObjectOrPlayer>` (main item 10, sharpened with a fourth kind of reference, closed by CV-1b, #230) |
 | The entering spell's cost decisions, read by an "enters with" before the permanent exists (kicked, sunburst) | `ResolvingObject.cost_choices` and `.cast` | yes: `cost_choices()` checks the resolving object first | a copy of a kicked spell enters kicked (707.10) | no gap since #181. §3's run raised it, reading the tree from before #181 |
 
 **One fact, and it is §5.1's shape again:** the event keeps the fact's
@@ -344,7 +344,7 @@ where each lands, and what CR 707.10 lets a copy keep.
 | The mana spent, by type (601.2h, 400.7d) | `StackEntry.mana_spent` → `CastFacts.mana_spent` | yes, from `ManaPool::pay`'s return, on the plain pool production uses | a unit's source is item 33's; expend (700.14) is a `TurnSummary` field authored with its card, and the payment is on the entry when `SpellCast` dispatches | no gap |
 | The cost decisions (601.2b, 118.8–9) | `StackEntry` → `CostChoices` | yes | a copy keeps them (707.10). Multikicker (19 cards), replicate (19) and squad (15) count payments: the `Vec` can repeat an entry, but the announcement cannot ask for a number. 702.152b and 702.157b's per-instance identity goes with the printed position | feature; no gap in the record |
 | X (107.3m, 107.3h) | `x_value`, `StackEntry` → `PermanentState` | yes | a copy keeps it (707.10) | no gap |
-| Targets, one entry per instance (601.2c, 115.3) | `TargetInstance` | yes | a target that left and came back (400.7) | **built** — `TargetRef` carries the epoch (main item 10, closed by CV-1b, #230) |
+| Targets, one entry per instance (601.2c, 115.3) | `TargetInstance` | yes | a target that left and came back (400.7) | **built** — `ObjectOrPlayer` carries the epoch (main item 10, closed by CV-1b, #230) |
 | Modes (601.2b, 700.2) | `chosen_modes`, never written | — (nothing is modal) | a copy keeps them | owned: item 31, `backlog.md` §2.7 |
 | **The objects that paid** (601.2h, 400.7d) | `PaymentPlan.sacrifices`, until the cast completes | **no** | a copy uses the original's (707.10); Fling reads one object's power from its LKI; convoke's objects never move | item 30's open half, sharpened: beside the cost decisions, a list of identities. 34 + 6 readers |
 | **What a copy of the spell gets** (707.10) | planned: `spell-copies`'s "`StackEntry` clone plus a new `ObjectId`" | planned | a clone keeps `cast_from`, `mana_spent` and `controller`, and 707.10 gives the copy none of the original's | `copy-effects-architecture.md` §4.4 amended |
@@ -488,10 +488,10 @@ the owner's call. A field is named here once §2's question has been asked of
 it, beside the pass that asked or the reason it holds nothing. The list itself
 is derivable; where each name was read is not, and the gate needs the names.
 
-- **The 27 fields `GameState` had at `3c322e5` and still has**, under §4's
+- **The 26 fields `GameState` had at `3c322e5` and still has**, under §4's
   first table and the remainder it dispositioned: `objects`, `players`,
   `stack`, `stack_entries`, `resolving`, `battlefield`, `exile`, `command`,
-  `turn_number`, `last_turn_began`, `active_player`, `priority_player`,
+  `turn_number`, `active_player`, `priority_player`,
   `phase`, `combat_had_attackers`, `blockers_declared`,
   `blocker_damage_divisions`, `dealt_first_strike_damage`, `next_timestamp`,
   `player_lost`, `skip_first_draw`, `continuous_effects`,
@@ -661,7 +661,7 @@ value held elsewhere:
 `AmountExpr`, `TriggerEvent`, `TriggerSubject`, `EffectRecipient`,
 `Primitive`, `EventPattern`, `Rewrite`, `ObjectSet`, `PlayerSet`, `PlayerRef`,
 `GameActionTemplate`, `EnterModsTemplate`, `EntryCopyTemplate`,
-`EntryCountersTemplate`, `TemplateAmount`, `SelectionFilter`, `Selector`,
+`EntryCountersTemplate`, `TemplateAmount`, `SelectionFilter`,
 `SourcePattern`, `ZoneChangePattern`, `HistoryCount`, `TriggerCondition`,
 `CostSubject`, `ManaCost`; and at an observer's handle, which nothing in a
 game branches on: `TraceHandle`, `RecorderHandle`, `DecisionLogHandle`,
@@ -880,12 +880,18 @@ named `damage_marked`; type `bool` named `damaged_by_deathtouch`
 
 #### Targets
 CR 115.1, 601.2c. **Key:** a spell or ability on the stack and its instance
-of "target". **Query:** type `TargetRef`; type `TargetInstance`
+of "target". **Query:** type `TargetInstance`; type `ObjectOrPlayer` named
+`target`; type `ObjectOrPlayer` named `targets`; type `ObjectOrPlayer` named
+`chosen`. An object or a player by reference is one type for every role
+(item 291), so the field's name says which; a damage record's is
+`recipient`.
 - `StackEntry` — owner.
 - `TargetInstance` — owner: the targets one instance chose.
 - `RegisteredReplacementEffect` — hand-over: the targets of the resolution
   that made the row, which its rider reads once the stack object is gone.
 - `GameEvent` — moment: the record's.
+- `TriggeringEventObjects` — moment: a waiting trigger's event's, which
+  the merge brought under the query.
 
 #### A spell's or ability's choices
 CR 107.3, 601.2b, 700.2. **Key:** the stack object, and through CR 400.7d the
@@ -902,8 +908,8 @@ named `chosen_modes`
 CR 118.8, 118.9, 601.2h, 400.7d, 707.10. **Key:** the stack object, and
 through CR 400.7d the permanent it became. **Query:** type `ManaSpent`; type
 `CostChoices`; type `AlternativeCost`; type `AdditionalCost`; type `CastFacts`
-- `StackEntry` ×3 — owner: the mana spent, and the cost decisions as two
-  fields where every later holder has one `CostChoices`: item 327.
+- `StackEntry` ×2 — owner: the mana spent, and the cost decisions, one
+  `CostChoices` as every later holder has (item 327).
 - `CostChoices` ×2 — owner: the type itself.
 - `ResolvingObject` ×2 — hand-over, to the permanent.
 - `PermanentState` ×2 — owner: the spell it was (CR 400.7d).
@@ -926,11 +932,14 @@ type `i64` named `life_total`
 - `GameState` — owner of the starting life total, a concept of its own.
 
 #### The turn a player's turn began
-CR 302.6, 500.1. **Key:** a player. **Query:** type `u32` named
-`last_turn_began`; type `u32` named `own_turn`
-- `GameState` — owner: what CR 302.6 measures against.
-- `PlayerHistory` ×2 — a copy of it, `own_turn`, written beside it, and the
-  turn before it: item 326.
+CR 302.6, 500.1. **Key:** a player. **Owner:** `PlayerHistory`, which
+`GameState::begin_turn` alone writes. **Query:** type `u32` named
+`last_turn_began`; type `u32` named `most_recent_turn`; type `u32` named
+`previous_turn`
+- `PlayerHistory` ×2 — owner of the turn a player's most recent turn began,
+  which CR 302.6 measures against, and of the one before it, which "your
+  last turn" reads on that player's own turn (item 326 removed
+  `GameState`'s copy).
 
 #### The turn a permanent entered, and control since
 CR 302.6, 603.6. **Key:** a permanent's existence. **Query:** type `u32`

@@ -423,10 +423,10 @@ pub enum Restriction {
     /// `ActionContext`, so it is a field rather than a mechanism.
     Event {
         pattern: EventPattern,
-        affected_objects: ObjectSet,
-        // RE-3: the player half, for "players can't gain life"; `set_affects`
-        // unions it with `affected_objects`.
-        affected_players: PlayerSet,
+        // CR 614.1's objects and players, one `AffectedSet` (item 291); its player
+        // half is RE-3's "players can't gain life", and `set_affects` asks the
+        // half the event's subject is.
+        affected: Affected,
         by: Option<SourceFilter>,
     },
 
@@ -477,9 +477,8 @@ pub enum Restriction {
     /// would be a claim that the engine applies effects somewhere else.
     ApplyReplacement {
         kind: ReplacementKindFilter,
-        to_objects: ObjectSet,
-        // RD-4: the player half, for CR 615.12 over damage dealt to a player.
-        to_players: PlayerSet,
+        // Its player half is RD-4's, CR 615.12 over damage dealt to a player.
+        affected: Affected,
     },
 }
 ```

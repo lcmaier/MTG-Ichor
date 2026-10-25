@@ -12,7 +12,7 @@ use mtgsim::cards::{artifacts, phase_ld_cards, phase_le_cards, phase_lf_cards, p
 use mtgsim::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
 };
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::oracle::characteristics::{
     get_effective_power, get_effective_toughness, has_keyword, is_creature,
 };
@@ -26,7 +26,7 @@ use mtgsim::types::effects::{
     CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
     TargetCount,
 };
-use mtgsim::types::ids::ObjectId;
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -56,7 +56,7 @@ fn grant(game: &mut GameState, source: ObjectId, target: ObjectId, ability: mtgs
         ability_source: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(target)]),
         replaced_event: None,
         trigger: None,
     };

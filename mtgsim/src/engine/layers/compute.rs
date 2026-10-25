@@ -11,14 +11,13 @@
 //! evaluators the pass calls — filters, amounts, and a modification's
 //! resolution against the board before it is written to a frame.
 
-use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::oracle::characteristics::{FrameContext, ObjectInformation};
-use crate::types::effects::Antecedent;
+use crate::types::effects::{Antecedent, ObjectSet};
 use crate::engine::layers::board::{
     compute_board, compute_board_to, is_dynamic, pass_membership, record_intrinsic, Board, PassMembership, RowNote,
-    AffectedSet,
+    EffectMembershipTest,
 };
 use crate::engine::layers::explain::{AppliedBy, RecordedStep, Recorder, StepResult};
 use crate::engine::layers::lookahead::Lookahead;
@@ -32,6 +31,7 @@ use crate::state::layer_memo::AuditOwed;
 use crate::types::effects::CounterType;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::state::layer_memo::GatedWalkInput;
+use crate::types::zones::ZoneSet;
 
 /// The layers, in application order (CR 613.1). Index into this array is the
 /// "layer ceiling" a non-member walk stops at: ceiling `n` means layers
@@ -393,7 +393,7 @@ pub(super) fn compute_non_member_recorded(
         matches!(&note.row.affected_objects, ObjectSet::Filter { zones, .. } if zones.contains(obj.zone))
     };
     let starts_here = |note: &RowNote| {
-        note.layer_index < ceiling && matches!(note.affected, AffectedSet::Fresh { .. }) && reaches(note)
+        note.layer_index < ceiling && matches!(note.membership, EffectMembershipTest::Fresh { .. }) && reaches(note)
     };
     if !crate::engine::layers::cda::has_any_cda(&chars) && !notes.iter().any(starts_here) {
         if LAYER_ORDER.iter().take(ceiling).any(|l| *l == Layer::Layer4Type) {
@@ -428,11 +428,11 @@ pub(super) fn compute_non_member_recorded(
         }
         for note in notes.iter().filter(|note| note.layer_index == layer_index) {
             let row = &*note.row;
-            let applies = match note.affected {
+            let applies = match note.membership {
                 // Wherever the locked row itself points: CR 613.6 applies it to
                 // the set its effect started with.
-                AffectedSet::Locked => matched.contains(&row.group()),
-                AffectedSet::Fresh { you } => {
+                EffectMembershipTest::Locked => matched.contains(&row.group()),
+                EffectMembershipTest::Fresh { you } => {
                     let ObjectSet::Filter { filter, .. } = &row.affected_objects else { continue };
                     if !reaches(note) {
                         continue;
@@ -452,10 +452,10 @@ pub(super) fn compute_non_member_recorded(
             if let Some(recorder) = recorder.as_deref_mut()
                 && let Some(before) = before
             {
-                let watched = match (applies, note.affected) {
+                let watched = match (applies, note.membership) {
                     (true, _) => StepResult::Applied { before, after: chars.clone() },
-                    (false, AffectedSet::Locked) => StepResult::LockedOut,
-                    (false, AffectedSet::Fresh { .. }) => StepResult::NotMatched,
+                    (false, EffectMembershipTest::Locked) => StepResult::LockedOut,
+                    (false, EffectMembershipTest::Fresh { .. }) => StepResult::NotMatched,
                 };
                 recorder.push(RecordedStep {
                     layer,
@@ -880,7 +880,7 @@ pub(super) fn evaluate_amount(
     board: &Board<'_>,
     origin: Option<&ContinuousEffect>,
 ) -> Option<i32> {
-    use crate::types::effects::{AmountExpr, ObjectFilter, PlayerRef, Selector};
+    use crate::types::effects::{AmountExpr, ObjectFilter, PlayerRef};
 
     match expr {
         AmountExpr::Fixed(n) => Some(*n as i32),
@@ -911,23 +911,18 @@ pub(super) fn evaluate_amount(
         // is `layers-architecture.md` §12's quadratic by design. "You" is a CDA's
         // object's controller (CR 109.5) or the row's, as a filter leaf resolves
         // it. A hand's size any player may count (CR 402.3; Psychosis Crawler).
-        AmountExpr::CountOf(Selector::CardsInHand(whose)) => {
-            debug_assert!(
-                *whose == PlayerRef::You,
-                "CountOf(CardsInHand({:?})) has no static-context evaluator yet (on '{}')",
-                whose, chars.name
-            );
-            let you = amount_players(origin, object_id, chars, game, board, layer_index).you();
-            game.players.get(you).map(|player| player.hand.len() as i32)
-        }
-
-        AmountExpr::CountOf(selector) => {
-            let filter: Cow<'_, ObjectFilter> = match selector {
-                Selector::PermanentsMatching(filter) => Cow::Borrowed(filter),
-                Selector::ControlledCreatures => Cow::Owned(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(crate::types::card_types::CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                )),
+        AmountExpr::CountOf(set) => {
+            if let Some(whose) = set.whose_hand() {
+                debug_assert!(
+                    *whose == PlayerRef::You,
+                    "CountOf({:?}'s hand) has no static-context evaluator yet (on '{}')",
+                    whose, chars.name
+                );
+                let you = amount_players(origin, object_id, chars, game, board, layer_index).you();
+                return game.players.get(you).map(|player| player.hand.len() as i32);
+            }
+            let filter = match set {
+                ObjectSet::Filter { filter, zones } if *zones == ZoneSet::BATTLEFIELD => filter,
                 other => {
                     debug_assert!(
                         false,
@@ -943,7 +938,7 @@ pub(super) fn evaluate_amount(
                 let Some(other_chars) = board.frame_of(game, other, layer_index) else {
                     continue;
                 };
-                if object_matches_filter(&filter, other, &other_chars, &mut players) {
+                if object_matches_filter(filter, other, &other_chars, &mut players) {
                     count += 1;
                 }
             }
@@ -952,8 +947,8 @@ pub(super) fn evaluate_amount(
 
         // Card *types*, not cards: ten artifact creatures in a graveyard are
         // still two types.
-        AmountExpr::CardTypesAmong(selector) => match selector {
-            Selector::CardsInGraveyard(None) => {
+        AmountExpr::CardTypesAmong(set) => match set {
+            ObjectSet::Filter { filter: ObjectFilter::All, zones } if *zones == ZoneSet::GRAVEYARD => {
                 let mut types = crate::types::card_types::CardTypes::new();
                 for player in &game.players {
                     for card_id in &player.graveyard {
@@ -2225,10 +2220,10 @@ mod tests {
     #[test]
     fn settled_amount_counts_the_real_battlefield_with_you_the_objects_controller() {
         use crate::test_support::{card_of_type, put_in_hand, setup_two_player_game, vanilla_creature};
-        use crate::types::effects::{AmountExpr, ObjectFilter, Selector};
+        use crate::types::effects::{AmountExpr, ObjectFilter};
 
         let mut game = setup_two_player_game();
-        let expr = AmountExpr::CountOf(Selector::PermanentsMatching(ObjectFilter::And(
+        let expr = AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Artifact)),
             Box::new(ObjectFilter::ByController(PlayerRef::You)),
         )));

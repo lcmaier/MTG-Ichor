@@ -90,7 +90,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// `GameState::add_counters`, which is a direct write inside the entry
 /// performer and deliberately not a proposal (CR 122.6a). So
 /// `GameAction::AddCounters` reached `perform_action` from nothing, and
-/// `gather`'s `EventSubject::Object` arm for it was dead. This card is the
+/// `subject_of`'s arm for it was dead. This card is the
 /// first thing in the crate to propose one, which is a new engine path and so
 /// carries the deliberate `PERFORMANCE_POOL` addition §3 asks for.
 ///

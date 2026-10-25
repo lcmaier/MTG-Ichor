@@ -18,7 +18,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PatternFill, PlayerRef, PlayerSet, Primitive,
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, PatternFill, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
@@ -39,7 +39,7 @@ use crate::types::triggers::{DamageRecipient, TriggerSubject};
 /// > +1/+1 counters on this creature.
 ///
 /// The first ability is RD-2's prevention with one subject and no object,
-/// Angel of Suffering's `NO_OBJECTS` beside `PlayerSet::You`, created for
+/// Angel of Suffering's `PlayerSet::You` and no object, created for
 /// the turn. The second reads CR 615.13's event, one record for each time a
 /// prevention effect is applied to the damage dealt to you.
 ///
@@ -53,8 +53,7 @@ use crate::types::triggers::{DamageRecipient, TriggerSubject};
 pub fn selfless_squire() -> Arc<CardData> {
     let shield_text = "When this creature enters, prevent all damage that would be dealt to you this turn.";
     let growth_text = "Whenever damage that would be dealt to you is prevented, put that many +1/+1 counters on this creature.";
-    let prevent_all_to_you = ReplacementDef::new(EventPattern::DealDamage { source: None, combat: None }, ObjectSet::NO_OBJECTS, Rewrite::Prevent)
-        .affecting_players(PlayerSet::You);
+    let prevent_all_to_you = ReplacementDef::new(EventPattern::DealDamage { source: None, combat: None }, PlayerSet::You, Rewrite::Prevent);
     let shield = Effect::Atom(
         Primitive::CreateReplacement(Box::new(prevent_all_to_you), Duration::UntilEndOfTurn, PatternFill::Authored),
         EffectRecipient::Implicit,

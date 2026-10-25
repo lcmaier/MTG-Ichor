@@ -15,13 +15,12 @@ use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::combat::validation::{
     validate_attackers, validate_blockers, AttackConstraints, BlockConstraints, CombatError,
 };
-use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo};
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -177,7 +176,7 @@ fn test_first_strike_kills_before_normal_damage() {
     let assignments = assign_combat_damage(&game, &dp, 0, true);
     assert_eq!(assignments.len(), 1);
     assert_eq!(assignments[0].source, archers);
-    assert_eq!(assignments[0].target, DamageTarget::Object(bears));
+    assert_eq!(assignments[0].target, ObjectOrPlayerId::Object(bears));
     assert_eq!(assignments[0].amount, 2);
 
     // Apply first strike damage
@@ -246,7 +245,7 @@ fn test_trample_overflow_to_player() {
     scripted.expect_allocation(
         ChoiceKind::AssignTrampleDamage {
             attacker_id: mammoth,
-            defending_target: DamageTarget::Player(1),
+            defending_target: ObjectOrPlayerId::Player(1),
         },
         vec![1, 2],
     );
@@ -254,10 +253,10 @@ fn test_trample_overflow_to_player() {
 
     // Mammoth (3 power, trample) vs Lions (2/1): 1 to lions (lethal), 2 tramples
     let to_lions: Vec<_> = assignments.iter()
-        .filter(|a| a.source == mammoth && a.target == DamageTarget::Object(lions))
+        .filter(|a| a.source == mammoth && a.target == ObjectOrPlayerId::Object(lions))
         .collect();
     let to_player: Vec<_> = assignments.iter()
-        .filter(|a| a.source == mammoth && a.target == DamageTarget::Player(1))
+        .filter(|a| a.source == mammoth && a.target == ObjectOrPlayerId::Player(1))
         .collect();
     assert_eq!(to_lions.len(), 1);
     assert_eq!(to_lions[0].amount, 1);
@@ -380,7 +379,7 @@ fn test_trample_with_deathtouch_maximum_overflow() {
     scripted.expect_allocation(
         ChoiceKind::AssignTrampleDamage {
             attacker_id: trampler,
-            defending_target: DamageTarget::Player(1),
+            defending_target: ObjectOrPlayerId::Player(1),
         },
         vec![1, 3],
     );
@@ -388,10 +387,10 @@ fn test_trample_with_deathtouch_maximum_overflow() {
 
     // Deathtouch: 1 damage is lethal. 4 power → 1 to blocker, 3 tramples to player
     let to_blocker: Vec<_> = assignments.iter()
-        .filter(|a| a.source == trampler && a.target == DamageTarget::Object(blocker))
+        .filter(|a| a.source == trampler && a.target == ObjectOrPlayerId::Object(blocker))
         .collect();
     let to_player: Vec<_> = assignments.iter()
-        .filter(|a| a.source == trampler && a.target == DamageTarget::Player(1))
+        .filter(|a| a.source == trampler && a.target == ObjectOrPlayerId::Player(1))
         .collect();
     assert_eq!(to_blocker.len(), 1);
     assert_eq!(to_blocker[0].amount, 1);

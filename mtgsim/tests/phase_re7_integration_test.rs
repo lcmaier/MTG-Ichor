@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::events::cause::{EventCause, GameRule, StateBasedAction};
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState, Phase, PhaseType, StackEntry, StepType};
@@ -33,12 +33,12 @@ use mtgsim::types::effects::{
     TokenDef,
 };
 use mtgsim::types::colors::Color;
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::oracle::characteristics::get_effective_controller;
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 
 // ---------------------------------------------------------------------------
@@ -78,7 +78,7 @@ fn resolve_with(
     game: &mut GameState,
     controller: PlayerId,
     effect: &Effect,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
     dp: &dyn DecisionProvider,
 ) -> ObjectId {
     let source = put_in_hand(game, CardDataBuilder::new("Fixture").build(), controller);
@@ -104,7 +104,7 @@ fn steal(game: &mut GameState, creature: ObjectId, thief: PlayerId) -> ObjectId 
         Primitive::GainControl(Duration::UntilEndOfTurn),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
-    resolve_with(game, thief, &effect, vec![ResolvedTarget::Object(creature)], &test_dp())
+    resolve_with(game, thief, &effect, vec![ObjectOrPlayerId::Object(creature)], &test_dp())
 }
 
 /// Aethersnatch's shape: a control-change effect with **no duration**, so
@@ -115,7 +115,7 @@ fn steal_indefinitely(game: &mut GameState, creature: ObjectId, thief: PlayerId)
         Primitive::GainControl(Duration::Indefinite),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
-    resolve_with(game, thief, &effect, vec![ResolvedTarget::Object(creature)], &test_dp())
+    resolve_with(game, thief, &effect, vec![ObjectOrPlayerId::Object(creature)], &test_dp())
 }
 
 /// Mind Control, in the shape CR 800.4a's first example needs: an Aura whose
@@ -181,7 +181,7 @@ fn stack_object_with(
     controller: PlayerId,
     is_spell: bool,
     effect: Effect,
-    chosen_targets: Vec<ResolvedTarget>,
+    chosen_targets: Vec<ObjectOrPlayerId>,
 ) -> ObjectId {
     let recipient = if chosen_targets.is_empty() {
         EffectRecipient::Implicit
@@ -200,8 +200,7 @@ fn stack_object_with(
         x_value: None,
         effect: Arc::new(effect),
         is_spell,
-        chosen_alternative_cost: None,
-        additional_costs_paid: Vec::new(),
+        cost_choices: mtgsim::state::battlefield::CostChoices::NONE,
         mana_spent: ManaSpent::NONE,
         cast_from: if is_spell { Some(Zone::Hand) } else { None },
         ability_identity: None,
@@ -332,7 +331,7 @@ fn the_frame_a_permanent_leaves_the_game_with_is_the_one_the_board_made() {
         ),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
-    resolve_with(&mut game, 0, &pump, vec![ResolvedTarget::Object(bears)], &test_dp());
+    resolve_with(&mut game, 0, &pump, vec![ObjectOrPlayerId::Object(bears)], &test_dp());
 
     departs(&mut game, 1, &test_dp());
 
@@ -714,18 +713,18 @@ fn a_tramplers_blocker_still_takes_damage_when_the_defending_player_has_left() {
     let assignments =
         mtgsim::engine::combat::resolution::assign_combat_damage(&game, &dp, 0, false);
 
-    let from_attacker: Vec<&DamageTarget> = assignments
+    let from_attacker: Vec<&ObjectOrPlayerId> = assignments
         .iter()
         .filter(|a| a.source == attacker)
         .map(|a| &a.target)
         .collect();
     assert_eq!(
         from_attacker,
-        vec![&DamageTarget::Object(blocker)],
+        vec![&ObjectOrPlayerId::Object(blocker)],
         "the blocker's share stands and the player's is not assigned"
     );
     assert!(
-        assignments.iter().all(|a| !matches!(a.target, DamageTarget::Player(_))),
+        assignments.iter().all(|a| !matches!(a.target, ObjectOrPlayerId::Player(_))),
         "CR 800.4e: nothing is assigned to a player who has left"
     );
 }
@@ -767,7 +766,7 @@ fn combat_damage_is_assigned_to_a_player_still_in_the_game() {
         mtgsim::engine::combat::resolution::assign_combat_damage(&game, &test_dp(), 0, false);
 
     assert_eq!(assignments.len(), 1);
-    assert_eq!(assignments[0].target, DamageTarget::Player(1));
+    assert_eq!(assignments[0].target, ObjectOrPlayerId::Player(1));
     assert_eq!(assignments[0].amount, 3);
 }
 
@@ -789,7 +788,7 @@ fn an_until_your_next_turn_effect_lasts_until_the_departed_players_turn_would_ha
         ),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
-    resolve_with(&mut game, 1, &effect, vec![ResolvedTarget::Object(bears)], &test_dp());
+    resolve_with(&mut game, 1, &effect, vec![ObjectOrPlayerId::Object(bears)], &test_dp());
     assert_eq!(game.continuous_effects.len(), 1);
 
     departs(&mut game, 1, &test_dp());
@@ -827,9 +826,9 @@ fn a_departed_seat_expires_only_its_own_until_your_next_turn_rows() {
         ),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
-    resolve_with(&mut game, 1, &pump, vec![ResolvedTarget::Object(bears)], &test_dp());
+    resolve_with(&mut game, 1, &pump, vec![ObjectOrPlayerId::Object(bears)], &test_dp());
     // P3's, whose own turn is two seats further on.
-    resolve_with(&mut game, 3, &pump, vec![ResolvedTarget::Object(bears)], &test_dp());
+    resolve_with(&mut game, 3, &pump, vec![ObjectOrPlayerId::Object(bears)], &test_dp());
 
     departs(&mut game, 1, &test_dp());
     game.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::Cleanup) });
@@ -910,7 +909,7 @@ fn a_spell_whose_owner_leaves_during_its_own_resolution_makes_no_graveyard_trip(
             Primitive::LoseGame,
             EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
         ),
-        vec![ResolvedTarget::Player(1)],
+        vec![ObjectOrPlayerId::Player(1)],
     );
 
     game.resolve_top_of_stack(&test_dp()).expect("the resolution completes");

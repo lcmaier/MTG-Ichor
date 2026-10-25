@@ -10,14 +10,13 @@ use std::sync::Arc;
 
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
-use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::events::event::EventId;
 use mtgsim::oracle::characteristics::has_summoning_sickness;
 use mtgsim::scenario::Scenario;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::CounterType;
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaSymbol, ManaType};
 use mtgsim::ui::waiting::{Waiting, what_is_waiting};
 use mtgsim::ui::display::{
@@ -292,10 +291,10 @@ fn wubrgc_rank(mana: ManaType) -> u8 {
     }
 }
 
-fn target_name(game: &GameState, target: &ResolvedTarget) -> String {
+fn target_name(game: &GameState, target: &ObjectOrPlayerId) -> String {
     match target {
-        ResolvedTarget::Object(id) => named(game, *id),
-        ResolvedTarget::Player(player) => player_name(*player),
+        ObjectOrPlayerId::Object(id) => named(game, *id),
+        ObjectOrPlayerId::Player(player) => player_name(*player),
     }
 }
 

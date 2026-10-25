@@ -28,7 +28,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    AffectedSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter,
     Primitive, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
@@ -124,8 +124,7 @@ fn lands_cant_enter() -> Restriction {
             change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None },
             object: None,
         },
-        affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land)),
-        affected_players: PlayerSet::Nobody,
+        affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land))),
         by: None,
     }
 }
@@ -136,8 +135,7 @@ fn lands_cant_enter() -> Restriction {
 fn creatures_cant_enter() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::EnterBattlefield { cast: None },
-        affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
-        affected_players: PlayerSet::Nobody,
+        affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature))),
         by: None,
     }
 }

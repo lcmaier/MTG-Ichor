@@ -481,7 +481,7 @@ mod tests {
         let cause = EventCause::GameRule(GameRule::StepBegins);
         let damage = GameEvent::DamageDealt {
             source: game.object_ref(bears).unwrap(),
-            target: crate::types::triggers::ObjectOrPlayer::Object(game.object_ref(wall).unwrap()),
+            recipient: crate::types::ids::ObjectOrPlayer::Object(game.object_ref(wall).unwrap()),
             amount: 1,
             excess: 0,
             is_combat: false,
@@ -661,8 +661,7 @@ mod tests {
             x_value: None,
             effect: Arc::new(Effect::Sequence(Vec::new())),
             is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
             cast_from: Some(Zone::Hand),
             ability_identity: None,

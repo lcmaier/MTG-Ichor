@@ -330,8 +330,8 @@ of `GameEvent::ZoneChange`, and each of its callers performed the move it
 announces. Performers are loud about failure; callers check legality.
 
 **subject** — the one object or player an event is *about*, read by `subject_of`
-and carried as `EventSubject`. A damage event has a subject and a source, and
-they are not the same field.
+as an `ObjectOrPlayerId`, and none for an event about the game itself. A damage
+event has a subject and a source, and they are not the same field.
 
 **cell** — one pair of commutation classes in `pipeline::commutes`, the table
 `ordering_cannot_change_outcome` reads: two members whose applications reach

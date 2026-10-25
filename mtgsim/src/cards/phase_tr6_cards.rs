@@ -19,8 +19,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive, Selector,
-};
+    ObjectSet, AmountExpr, Condition, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive, };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{TriggerCondition, TriggerDef};
@@ -114,7 +113,7 @@ pub fn discard_your_hand_then_draw_that_many() -> Arc<CardData> {
         "Fixture: discard your hand, then draw that many cards",
         "Discard your hand, then draw that many cards.",
         Effect::Sequence(vec![
-            Effect::Atom(Primitive::Discard(AmountExpr::CountOf(Selector::CardsInHand(PlayerRef::You)), DiscardChooser::Affected), EffectRecipient::Controller),
+            Effect::Atom(Primitive::Discard(AmountExpr::CountOf(ObjectSet::hand(PlayerRef::You)), DiscardChooser::Affected), EffectRecipient::Controller),
             Effect::Atom(Primitive::DrawCards(AmountExpr::DiscardedThisWay), EffectRecipient::Controller),
         ]),
     )

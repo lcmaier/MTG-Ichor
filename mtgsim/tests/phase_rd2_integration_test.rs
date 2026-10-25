@@ -25,8 +25,8 @@ use mtgsim::cards::phase_rd_cards::{
 };
 use mtgsim::cards::basic_lands::plains;
 use mtgsim::engine::actions::{ActionContext, GameAction};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::events::event::{BatchId, CounterSubject, DamageTarget, GameEvent};
+use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
@@ -36,10 +36,10 @@ use mtgsim::test_support::{
     test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding, Uses,
 };
@@ -59,7 +59,7 @@ fn resolve_spell(
     game: &mut GameState,
     card: Arc<CardData>,
     controller: PlayerId,
-    targets: Vec<ResolvedTarget>,
+    targets: Vec<ObjectOrPlayerId>,
 ) -> ObjectId {
     let id = put_in_hand(game, card.clone(), controller);
     let ctx = ResolutionContext {
@@ -76,7 +76,7 @@ fn resolve_spell(
 }
 
 /// Mending Hands cast by `caster` on `target`.
-fn mending_hands_on(game: &mut GameState, caster: PlayerId, target: ResolvedTarget) -> ObjectId {
+fn mending_hands_on(game: &mut GameState, caster: PlayerId, target: ObjectOrPlayerId) -> ObjectId {
     resolve_spell(game, mending_hands(), caster, vec![target])
 }
 
@@ -89,7 +89,7 @@ fn bolt_with(
     game: &mut GameState,
     dp: &dyn mtgsim::ui::decision::DecisionProvider,
     source: ObjectId,
-    target: DamageTarget,
+    target: ObjectOrPlayerId,
     amount: u64,
 ) {
     let ctx = ActionContext::new(dp);
@@ -100,7 +100,7 @@ fn bolt_with(
     .unwrap();
 }
 
-fn bolt(game: &mut GameState, source: ObjectId, target: DamageTarget, amount: u64) {
+fn bolt(game: &mut GameState, source: ObjectId, target: ObjectOrPlayerId, amount: u64) {
     bolt_with(game, &test_dp(), source, target, amount);
 }
 
@@ -129,7 +129,7 @@ fn counts(game: &GameState) -> Vec<u64> {
 
 /// Counters placed the way the engine places them, through the chokepoint.
 fn add_counters(game: &mut GameState, id: ObjectId, counter: CounterType, n: u32) {
-    game.execute_action(GameAction::AddCounters { subject: CounterSubject::Object(id), counter, n, by: 0 }, &test_ctx())
+    game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(id), counter, n, by: 0 }, &test_ctx())
         .unwrap();
 }
 
@@ -303,10 +303,9 @@ fn a_static_prevent_one_reduces_each_simultaneous_source_separately_guardian_ser
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventUpTo(1)),
-        )
-        .affecting_players(PlayerSet::You),
+        ),
     );
     let attackers = attackers_into(&mut game, &[2, 4]);
     let before = game.recorded_events().len();
@@ -333,9 +332,9 @@ fn a_static_prevent_one_reduces_each_simultaneous_source_separately_guardian_ser
 fn a_next_damage_count_depletes_per_point_and_the_rest_is_dealt() {
     let mut game = setup_two_player_game();
     let source = source_for(&mut game, 0);
-    mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+    mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
 
-    bolt(&mut game, source, DamageTarget::Player(1), 5);
+    bolt(&mut game, source, ObjectOrPlayerId::Player(1), 5);
 
     assert_eq!(life(&game, 1), 19);
     assert!(game.replacement_effects.is_empty(), "used up");
@@ -348,13 +347,13 @@ fn a_next_damage_count_depletes_per_point_and_the_rest_is_dealt() {
 fn a_next_damage_count_depletes_across_events() {
     let mut game = setup_two_player_game();
     let source = source_for(&mut game, 0);
-    mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+    mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
 
-    bolt(&mut game, source, DamageTarget::Player(1), 3);
+    bolt(&mut game, source, ObjectOrPlayerId::Player(1), 3);
     assert_eq!(life(&game, 1), 20);
     assert_eq!(counts(&game), vec![1], "spent by exactly what it prevented");
 
-    bolt(&mut game, source, DamageTarget::Player(1), 3);
+    bolt(&mut game, source, ObjectOrPlayerId::Player(1), 3);
     assert_eq!(life(&game, 1), 18);
     assert!(game.replacement_effects.is_empty());
 }
@@ -364,7 +363,7 @@ fn a_next_damage_count_depletes_across_events() {
 #[test]
 fn an_unspent_count_expires_at_cleanup() {
     let mut game = setup_two_player_game();
-    mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+    mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
     assert_eq!(counts(&game), vec![4]);
     mtgsim::test_support::pass_turn(&mut game);
     assert!(game.replacement_effects.is_empty(), "this turn is over");
@@ -384,8 +383,8 @@ fn two_attackers_into_a_shielded_player_prompt_one_allocation_and_any_answer_pre
     for (allocation, expected) in [(vec![2, 1], vec![3]), (vec![0, 3], vec![2, 1])] {
         let mut game = setup_two_player_game();
         let pinger = source_for(&mut game, 0);
-        let spell = mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
-        bolt(&mut game, pinger, DamageTarget::Player(1), 1);
+        let spell = mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
+        bolt(&mut game, pinger, ObjectOrPlayerId::Player(1), 1);
         assert_eq!(counts(&game), vec![3]);
         let attackers = attackers_into(&mut game, &[2, 4]);
         let before = game.recorded_events().len();
@@ -416,7 +415,7 @@ fn two_attackers_into_a_shielded_player_prompt_one_allocation_and_any_answer_pre
 #[test]
 fn a_single_source_is_prevented_without_an_allocation_prompt() {
     let mut game = setup_two_player_game();
-    mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+    mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
     attackers_into(&mut game, &[3]);
     game.process_combat_damage(&ScriptedDecisionProvider::new(), false).unwrap();
     assert_eq!(life(&game, 1), 20);
@@ -440,10 +439,9 @@ fn a_count_spanning_you_and_your_permanents_is_allocated_once_divine_deflection_
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+            AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)), players: PlayerSet::You },
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
-        .affecting_players(PlayerSet::You)
         .next_damage(3),
     );
     // Attacker A (2) unblocked into player 1; attacker B (4) blocked by
@@ -486,13 +484,13 @@ fn a_shield_made_after_the_damage_prevents_none_of_it() {
     let mut game = setup_two_player_game();
     let source = source_for(&mut game, 0);
 
-    bolt(&mut game, source, DamageTarget::Player(1), 3);
+    bolt(&mut game, source, ObjectOrPlayerId::Player(1), 3);
     assert_eq!(life(&game, 1), 17);
-    mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+    mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
     assert_eq!(life(&game, 1), 17, "nothing to prevent retroactively");
     assert_eq!(counts(&game), vec![4], "and nothing spent");
 
-    bolt(&mut game, source, DamageTarget::Player(1), 2);
+    bolt(&mut game, source, ObjectOrPlayerId::Player(1), 2);
     assert_eq!(life(&game, 1), 17, "the shield was there for this one");
     assert_eq!(counts(&game), vec![2]);
 }
@@ -537,14 +535,14 @@ fn a_fixture_rider_reads_the_prevented_amount_until_reverse_damage_lands_in_rd_3
         ability_source: None,
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Player(1)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Player(1)]),
         replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
     let before = game.recorded_events().len();
 
-    bolt(&mut game, source, DamageTarget::Player(1), 5);
+    bolt(&mut game, source, ObjectOrPlayerId::Player(1), 5);
 
     assert_eq!(life(&game, 1), 21, "20 − 2 + 3");
     assert!(game.replacement_effects.is_empty(), "the count is at 0");
@@ -582,10 +580,9 @@ fn a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s()
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Down)),
         )
-        .affecting_players(PlayerSet::You)
         .once()
         .with_then(Effect::Atom(
             Primitive::GainLife(AmountExpr::DamagePrevented),
@@ -594,7 +591,7 @@ fn a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s()
     );
     let before = game.recorded_events().len();
 
-    bolt(&mut game, source, DamageTarget::Player(1), 1);
+    bolt(&mut game, source, ObjectOrPlayerId::Player(1), 1);
     assert_eq!(life(&game, 1), 19, "half of 1 rounded down is 0");
     assert_eq!(game.replacement_effects.len(), 1, "chosen, did nothing, not used up");
     let gains = game
@@ -605,7 +602,7 @@ fn a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s()
         .count();
     assert_eq!(gains, 0, "a rider that gains 0 life is a non-event (CR 119.10)");
 
-    bolt(&mut game, source, DamageTarget::Player(1), 5);
+    bolt(&mut game, source, ObjectOrPlayerId::Player(1), 5);
     assert_eq!(life(&game, 1), 19 - 3 + 2, "prevents 2 of 5, gains 2");
     assert!(game.replacement_effects.is_empty(), "and now it is used up");
 }
@@ -624,7 +621,7 @@ fn prevented_damage_never_happens_and_the_trigger_half_is_item_6s() {
     resolve_spell(&mut game, safe_passage(), 0, Vec::new());
     let before = game.recorded_events().len();
 
-    bolt(&mut game, source, DamageTarget::Player(0), 3);
+    bolt(&mut game, source, ObjectOrPlayerId::Player(0), 3);
 
     assert_eq!(life(&game, 0), 20);
     let recorded = game.recorded_events();
@@ -660,14 +657,14 @@ fn samite_censer_bearer_makes_a_separate_count_on_each_creature_at_resolution() 
     let rows: Vec<&RegisteredReplacementEffect> = game.replacement_effects.iter().collect();
     assert_eq!(rows.len(), 3, "one per creature, and none for the Censer-Bearer");
     for (row, creature) in rows.iter().zip(&originals) {
-        assert_eq!(row.def.affected_objects, ObjectSet::Fixed(vec![*creature]));
+        assert_eq!(row.def.affected.objects, ObjectSet::Fixed(vec![*creature]));
         assert_eq!(row.def.uses, Uses::NextDamage(1));
         assert_eq!(row.source, bearer, "CR 113.7a");
     }
 
     let latecomer = place_vanilla_creature(&mut game, 0, 3, 3, &[]);
     for &creature in originals.iter().chain(std::iter::once(&latecomer)) {
-        bolt(&mut game, source, DamageTarget::Object(creature), 2);
+        bolt(&mut game, source, ObjectOrPlayerId::Object(creature), 2);
     }
     assert_eq!(originals.iter().map(|&c| marked(&game, c)).collect::<Vec<_>>(), vec![1, 1, 1]);
     assert_eq!(marked(&game, latecomer), 2, "entered after resolution — no shield");
@@ -691,11 +688,11 @@ fn mending_hands_beside_furnace_prevents_then_doubles_or_doubles_then_prevents()
         let mut game = setup_two_player_game();
         let source = source_for(&mut game, 0);
         put_on_battlefield(&mut game, furnace_of_rath(), 0);
-        mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+        mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
 
         let dp = ScriptedDecisionProvider::new();
         dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![pick]);
-        bolt_with(&mut game, &dp, source, DamageTarget::Player(1), 5);
+        bolt_with(&mut game, &dp, source, ObjectOrPlayerId::Player(1), 5);
 
         assert_eq!(life(&game, 1), expected_life, "picking index {pick} first");
         assert!(game.replacement_effects.is_empty(), "4 spent either way");
@@ -715,11 +712,11 @@ fn safe_passage_beside_mending_hands_spends_the_count_only_when_it_prevented() {
         let mut game = setup_two_player_game();
         let source = source_for(&mut game, 0);
         resolve_spell(&mut game, safe_passage(), 1, Vec::new());
-        mending_hands_on(&mut game, 1, ResolvedTarget::Player(1));
+        mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
 
         let dp = ScriptedDecisionProvider::new();
         dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![pick]);
-        bolt_with(&mut game, &dp, source, DamageTarget::Player(1), 3);
+        bolt_with(&mut game, &dp, source, ObjectOrPlayerId::Player(1), 3);
 
         assert_eq!(life(&game, 1), 20, "picking index {pick} first");
         assert_eq!(counts(&game), expected_counts, "picking index {pick} first");

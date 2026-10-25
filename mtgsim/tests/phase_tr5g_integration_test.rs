@@ -22,7 +22,7 @@ use mtgsim::cards::phase_tr1_cards::{soul_warden, wild_growth};
 use mtgsim::cards::phase_tr5g_cards::panharmonicon;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
@@ -32,15 +32,15 @@ use mtgsim::test_support::{
     creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_two_player_game, static_ability,
     test_dp, vanilla_creature,
 };
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive,
-    SelectionFilter, Selector, TargetCount, TokenDef,
+    SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::history::CountIs;
-use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::triggers::{
@@ -432,7 +432,7 @@ fn a_copied_multiplier_is_found_through_the_registry_summary() {
         ability_source: None,
         controller: 0,
         generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ResolvedTarget::Object(copyist)]),
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(copyist)]),
         replaced_event: None,
         trigger: None,
     };
@@ -534,7 +534,7 @@ fn cat_warrior() -> TokenDef {
 /// equal to the number of creatures you control to any target."
 fn ajanis_zero() -> Effect {
     let damage = Effect::Atom(
-        Primitive::DealDamage { amount: AmountExpr::CountOf(Selector::ControlledCreatures), unpreventable: false },
+        Primitive::DealDamage { amount: AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You))))), unpreventable: false },
         EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
     );
     let mut when_you_do = when_you_do(creates_a_token(Whose::Yours, Some(cat_warrior())), damage, "");
@@ -826,7 +826,7 @@ fn two_of_elronds_creatures_targeted_by_one_ability_trigger_it_twice() {
 #[test]
 fn a_count_of_other_creatures_leaves_out_the_abilitys_own_permanent() {
     let mut game = audited_game();
-    let others = AmountExpr::CountOf(Selector::PermanentsMatching(another(ObjectFilter::And(
+    let others = AmountExpr::CountOf(ObjectSet::battlefield_filter(another(ObjectFilter::And(
         Box::new(a_creature()),
         Box::new(ObjectFilter::ByController(PlayerRef::You)),
     ))));
@@ -901,7 +901,7 @@ fn a_game_that_ends_drops_the_triggers_still_waiting() {
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     resolve_all(&mut game, &test_dp());
     game.players[1].life_total = 2;
-    let hit = GameAction::DealDamage { source: bear, target: DamageTarget::Player(1), amount: 2, is_combat: false, unpreventable: false, source_lki: None };
+    let hit = GameAction::DealDamage { source: bear, target: ObjectOrPlayerId::Player(1), amount: 2, is_combat: false, unpreventable: false, source_lki: None };
     game.execute_action(hit, &ActionContext::new(&test_dp())).unwrap();
     assert_eq!(waiting_from(&game, grid), 1, "the damage triggered it");
 

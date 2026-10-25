@@ -30,7 +30,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Condition, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive,
+    Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -70,12 +70,10 @@ fn spell_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
 /// its phrases is a different rule:
 ///
 /// - **"from anywhere"** is CR 113.6b's statement of where the ability
-///   functions, written as the condition `SourceInZone(ZoneSet::ALL)` the way
-///   Wonder writes its graveyard (`layers-architecture.md` §13d decision 1b).
-///   `zone_function::functioning_zones` reads it syntactically to file the
-///   card as a gather candidate in every zone it enters, and the gather reads
-///   it again at each proposal, where it always holds. It is also the
-///   pattern's `from: None`.
+///   functions, `Effect::FunctionsIn(ZoneSet::ALL, ..)` as Wonder states its
+///   graveyard. `zone_function::functioning_zones` reads it to file the card
+///   as a gather candidate in every zone it enters. It is also the pattern's
+///   `from: None`.
 /// - **"would be put into a graveyard"** is any zone change into a graveyard,
 ///   whatever the cause: destroyed, sacrificed, discarded, milled, countered,
 ///   resolved.
@@ -95,9 +93,9 @@ fn spell_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
 /// at most one candidate per event and CR 616.1 never asks; the ability is
 /// mandatory besides.
 fn shuffles_into_library_from_anywhere(rules_text: &'static str) -> AbilityDef {
-    static_ability(rules_text, Effect::Conditional(
+    static_ability(rules_text, Effect::FunctionsIn(
         // CR 113.6b — the clause that says where this ability functions.
-        Condition::SourceInZone(ZoneSet::ALL),
+        ZoneSet::ALL,
         Box::new(Effect::Replacement(Box::new(
             ReplacementDef::new(
                 EventPattern::ZoneChange {

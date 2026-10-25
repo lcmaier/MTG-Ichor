@@ -85,7 +85,6 @@ impl<'g> Writer<'g> {
             exile: _,               // in `cards`
             command: _,
             turn_number,
-            last_turn_began,
             active_player,
             priority_player,
             phase,
@@ -177,13 +176,13 @@ impl<'g> Writer<'g> {
         // The loader begins the natural rotation's turns over the players in
         // the game, ending with the active player's (`build.rs`).
         let in_game: Vec<PlayerId> = self.state.players_in_game().collect();
-        let mut natural = vec![0; players.len()];
+        let mut natural = vec![None; players.len()];
         if let Some(place) = in_game.iter().position(|&p| p == active) {
             for back in 0..(turn as usize).min(in_game.len()) {
-                natural[in_game[(place + in_game.len() - back) % in_game.len()]] = turn - back as u32;
+                natural[in_game[(place + in_game.len() - back) % in_game.len()]] = Some(turn - back as u32);
             }
         }
-        if *last_turn_began != natural {
+        if (0..players.len()).any(|p| self.state.most_recent_turn_began(p) != natural[p]) {
             self.report("turns that left the natural rotation (an extra or a skipped turn), which CR 302.6 reads");
         }
         let attacked = attackers_were_declared(self.state, active, turn);
@@ -339,7 +338,7 @@ impl<'g> Writer<'g> {
         let state = self.state;
         let turn = state.turn_number;
         let in_game = state.players_in_game().count();
-        let ended = match state.last_turn_began[player] {
+        let ended = match state.most_recent_turn_began(player).unwrap_or(0) {
             began if player == state.active_player => (began as usize).saturating_sub(in_game) as u32,
             began => began,
         };

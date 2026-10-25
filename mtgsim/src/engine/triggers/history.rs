@@ -11,12 +11,11 @@ use std::sync::Arc;
 
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::targeting::TargetRef;
 use crate::events::event::{DepartedObject, EventId, GameEvent, LifeChange};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history_log::{HistoryRow, RowFact, RowFrame, RowKind, FIRST_TURN};
 use crate::types::history::TurnFact;
-use crate::types::ids::{ObjectRef, PlayerId};
+use crate::types::ids::{ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::zones::{Zone, ZoneChangeAct};
 use crate::state::layer_memo::GatedWalkInput;
@@ -301,12 +300,12 @@ impl GameState {
             }
             // A source that left before dealing it deals it as it last existed
             // (CR 608.2h).
-            GameEvent::DamageDealt { source, target, amount, excess, is_combat, source_lki } => {
+            GameEvent::DamageDealt { source, recipient, amount, excess, is_combat, source_lki } => {
                 let (object, frame) = match source_lki {
                     Some(lki) => departed(lki),
                     None => (Some(*source), as_left(frame_as_left(*source))),
                 };
-                let fact = RowFact::DealtDamage { to: *target, amount: *amount, excess: *excess, combat: *is_combat };
+                let fact = RowFact::DealtDamage { to: *recipient, amount: *amount, excess: *excess, combat: *is_combat };
                 draft_history_row(controller(&frame), object, frame, fact);
             }
             GameEvent::AttackersDeclared { attackers } => {
@@ -333,11 +332,11 @@ impl GameState {
             GameEvent::Targeted { target, ability_source, controller: targeting, .. } => {
                 let fact = RowFact::BecameTarget { by_spell: ability_source.is_none(), controller: *targeting };
                 match target {
-                    TargetRef::Object(object) => {
+                    ObjectOrPlayer::Object(object) => {
                         let frame = as_left(frame_as_left(*object));
                         draft_history_row(controller(&frame), Some(*object), frame, fact);
                     }
-                    TargetRef::Player(player) => draft_history_row(Some(*player), None, RowFrame::None, fact),
+                    ObjectOrPlayer::Player(player) => draft_history_row(Some(*player), None, RowFrame::None, fact),
                 }
             }
             _ => {}

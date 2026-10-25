@@ -4,10 +4,9 @@
 // resolution (lifelink, deathtouch) rather than during combat damage
 // assignment. Called from perform_action in actions.rs.
 
-use crate::events::event::DamageTarget;
 use crate::oracle::characteristics::ObjectInformation;
 use crate::state::game_state::GameState;
-use crate::types::ids::ObjectId;
+use crate::types::ids::{ObjectId, ObjectOrPlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::Lki;
 
@@ -36,7 +35,7 @@ pub fn apply_deathtouch_flag(
     game: &mut GameState,
     source: ObjectId,
     lki: Option<&Lki>,
-    target: &DamageTarget,
+    target: &ObjectOrPlayerId,
 ) {
     // Pre-check before mutable borrow (borrow checker: the read borrows objects)
     if !deals_damage_with_keyword(game, source, lki, KeywordFlag::Deathtouch) {
@@ -44,7 +43,7 @@ pub fn apply_deathtouch_flag(
     }
     // NOT REPLACEABLE: CR 704.5h's memory of the damage, which `DealDamage`
     // announced.
-    if let DamageTarget::Object(id) = target
+    if let ObjectOrPlayerId::Object(id) = target
         && let Some(entry) = game.battlefield.get_mut(id) {
         entry.damaged_by_deathtouch = true;
     }
@@ -127,7 +126,7 @@ mod tests {
         let source = setup_creature(&mut game, &[KeywordFlag::Deathtouch]);
         let target = setup_creature(&mut game, &[]);
 
-        apply_deathtouch_flag(&mut game, source, None, &DamageTarget::Object(target));
+        apply_deathtouch_flag(&mut game, source, None, &ObjectOrPlayerId::Object(target));
         assert!(game.battlefield.get(&target).unwrap().damaged_by_deathtouch);
     }
 
@@ -137,7 +136,7 @@ mod tests {
         let source = setup_creature(&mut game, &[]); // no deathtouch
         let target = setup_creature(&mut game, &[]);
 
-        apply_deathtouch_flag(&mut game, source, None, &DamageTarget::Object(target));
+        apply_deathtouch_flag(&mut game, source, None, &ObjectOrPlayerId::Object(target));
         assert!(!game.battlefield.get(&target).unwrap().damaged_by_deathtouch);
     }
 
@@ -147,7 +146,7 @@ mod tests {
         let source = setup_creature(&mut game, &[KeywordFlag::Deathtouch]);
 
         // Should not panic or error — just does nothing for player targets
-        apply_deathtouch_flag(&mut game, source, None, &DamageTarget::Player(1));
+        apply_deathtouch_flag(&mut game, source, None, &ObjectOrPlayerId::Player(1));
     }
 
     // --- Lifelink tests ---
@@ -157,7 +156,7 @@ mod tests {
         game.execute_action(
             GameAction::DealDamage {
                 source,
-                target: DamageTarget::Player(1),
+                target: ObjectOrPlayerId::Player(1),
                 amount,
                 is_combat: false,
                 unpreventable: false,
@@ -225,7 +224,7 @@ mod tests {
         game.execute_action(
             crate::engine::actions::GameAction::DealDamage {
                 source,
-                target: crate::events::event::DamageTarget::Player(1),
+                target: crate::types::ids::ObjectOrPlayerId::Player(1),
                 amount: 2,
                 is_combat: false,
                 unpreventable: false,

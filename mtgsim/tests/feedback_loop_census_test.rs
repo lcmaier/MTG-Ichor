@@ -16,7 +16,7 @@ use mtgsim::cards::phase_tr2b_cards::nykthos_paragon;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::test_support::{
@@ -25,7 +25,7 @@ use mtgsim::test_support::{
     effect_ctx,
 };
 use mtgsim::types::effects::{CounterType, EffectRecipient, SelectionFilter, TargetCount};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
@@ -83,7 +83,7 @@ fn palisade_giant_beside_guardian_seraph_is_an_order_the_redirect_can_end() {
         let dp = RecordingDecisionProvider::picking(pick);
         let damage = GameAction::DealDamage {
             source,
-            target: DamageTarget::Player(0),
+            target: ObjectOrPlayerId::Player(0),
             amount: 5,
             is_combat: false,
             unpreventable: false,

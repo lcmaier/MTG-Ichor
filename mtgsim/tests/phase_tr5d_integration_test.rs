@@ -21,11 +21,10 @@ use mtgsim::cards::authoring::{at_beginning_of, damage_to_is_prevented, triggere
 use mtgsim::cards::phase_rd_cards::{mending_hands, safe_passage};
 use mtgsim::cards::phase_tr5d_cards::{goblin_negotiation, selfless_squire};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GeneratedBy};
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
-use mtgsim::types::triggers::ObjectOrPlayer;
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, StepType};
@@ -36,12 +35,12 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, PlayerSet, Primitive, SelectionFilter,
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::history::ObjectFact;
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::types::keywords::KeywordFlag;
@@ -59,7 +58,7 @@ use mtgsim::ui::display::format_record;
 // ---------------------------------------------------------------------------
 
 /// Resolve `card`'s first ability for `controller`, the way the spell would.
-fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId, targets: Vec<ResolvedTarget>) {
+fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId, targets: Vec<ObjectOrPlayerId>) {
     let id = put_in_hand(game, card.clone(), controller);
     let ctx = ResolutionContext {
         source: id,
@@ -81,7 +80,7 @@ fn reanimate(game: &mut GameState, card: Arc<CardData>, player: PlayerId) -> Obj
     id
 }
 
-fn damage(source: ObjectId, target: DamageTarget, amount: u64) -> GameAction {
+fn damage(source: ObjectId, target: ObjectOrPlayerId, amount: u64) -> GameAction {
     GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_lki: None }
 }
 
@@ -118,13 +117,12 @@ fn plus_one_counters(game: &GameState, id: ObjectId) -> u32 {
 }
 
 /// The amounts of the preventions announced since `from`, in order.
-fn prevented_since(game: &GameState, from: usize) -> Vec<(DamageTarget, u64)> {
+fn prevented_since(game: &GameState, from: usize) -> Vec<(ObjectOrPlayerId, u64)> {
     game.recorded_events()
         .events()
         .skip(from)
         .filter_map(|e| match e {
-            GameEvent::DamagePrevented { target: ObjectOrPlayer::Object(object), amount, .. } => Some((DamageTarget::Object(object.id), *amount)),
-            GameEvent::DamagePrevented { target: ObjectOrPlayer::Player(player), amount, .. } => Some((DamageTarget::Player(*player), *amount)),
+            GameEvent::DamagePrevented { recipient, amount, .. } => Some((recipient.id(), *amount)),
             _ => None,
         })
         .collect()
@@ -146,10 +144,10 @@ fn selfless_squires_prevention_lasts_after_it_leaves() {
 
     game.change_zone(squire, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&test_dp())).expect("it dies");
     let before = game.recorded_events().len();
-    deal_together(&mut game, vec![damage(source, DamageTarget::Player(0), 3)], &test_dp());
+    deal_together(&mut game, vec![damage(source, ObjectOrPlayerId::Player(0), 3)], &test_dp());
 
     assert_eq!(game.players[0].life_total, 20, "prevented with the Squire gone");
-    assert_eq!(prevented_since(&game, before), vec![(DamageTarget::Player(0), 3)]);
+    assert_eq!(prevented_since(&game, before), vec![(ObjectOrPlayerId::Player(0), 3)]);
 }
 
 // RULING: Selfless Squire #2 - any prevention effect triggers its second
@@ -159,9 +157,9 @@ fn selfless_squire_grows_from_any_prevention_of_damage_to_you() {
     let mut game = setup_two_player_game();
     let source = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
     let squire = squire_from_last_turn(&mut game, 0);
-    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Player(0)]);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Player(0)]);
 
-    deal_together(&mut game, vec![damage(source, DamageTarget::Player(0), 3)], &test_dp());
+    deal_together(&mut game, vec![damage(source, ObjectOrPlayerId::Player(0), 3)], &test_dp());
     assert_eq!(waiting_from(&game, squire), 1);
     resolve_all(&mut game, &test_dp());
 
@@ -178,13 +176,13 @@ fn two_prevention_effects_on_one_damage_are_two_triggers() {
     let mut game = setup_two_player_game();
     let source = put_on_battlefield(&mut game, vanilla_creature(6, 6, &[]), 1);
     let squire = squire_from_last_turn(&mut game, 0);
-    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Player(0)]);
-    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Player(0)]);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Player(0)]);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Player(0)]);
     let before = game.recorded_events().len();
 
     let dp = RecordingDecisionProvider::picking(0);
-    deal_together(&mut game, vec![damage(source, DamageTarget::Player(0), 6)], &dp);
-    assert_eq!(prevented_since(&game, before), vec![(DamageTarget::Player(0), 4), (DamageTarget::Player(0), 2)]);
+    deal_together(&mut game, vec![damage(source, ObjectOrPlayerId::Player(0), 6)], &dp);
+    assert_eq!(prevented_since(&game, before), vec![(ObjectOrPlayerId::Player(0), 4), (ObjectOrPlayerId::Player(0), 2)]);
     assert_eq!(waiting_from(&game, squire), 2);
     resolve_all(&mut game, &dp);
 
@@ -204,7 +202,7 @@ fn one_prevention_over_two_sources_is_one_trigger() {
 
     deal_together(
         &mut game,
-        vec![damage(first, DamageTarget::Player(0), 2), damage(second, DamageTarget::Player(0), 3)],
+        vec![damage(first, ObjectOrPlayerId::Player(0), 2), damage(second, ObjectOrPlayerId::Player(0), 3)],
         &test_dp(),
     );
     assert_eq!(waiting_from(&game, squire), 1);
@@ -227,7 +225,7 @@ fn a_prevention_for_your_creature_is_not_damage_to_you() {
 
     deal_together(
         &mut game,
-        vec![damage(source, DamageTarget::Player(0), 3), damage(source, DamageTarget::Object(bears), 2)],
+        vec![damage(source, ObjectOrPlayerId::Player(0), 3), damage(source, ObjectOrPlayerId::Object(bears), 2)],
         &test_dp(),
     );
     assert_eq!(prevented_since(&game, before).len(), 2);
@@ -256,7 +254,7 @@ fn a_prevented_creatures_event_role_is_the_damage_recipient() {
     put_on_battlefield(&mut game, watcher, 1);
     resolve_spell(&mut game, safe_passage(), 0, Vec::new());
 
-    deal_together(&mut game, vec![damage(source, DamageTarget::Object(bears), 2)], &test_dp());
+    deal_together(&mut game, vec![damage(source, ObjectOrPlayerId::Object(bears), 2)], &test_dp());
     resolve_all(&mut game, &test_dp());
 
     assert!(game.battlefield[&bears].tapped, "that creature");
@@ -293,10 +291,10 @@ fn prevent_makes_a_prevention_effect_and_a_trigger_on_damage_is_not_one() {
     let elves = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[]), 0);
     put_on_battlefield(&mut game, watcher, 1);
     put_on_battlefield(&mut game, gains_that_much(dealt), 0);
-    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bears)]);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Object(bears)]);
     let before = life(&game, 0);
 
-    let three_each = vec![damage(source, DamageTarget::Object(bears), 3), damage(source, DamageTarget::Object(elves), 3)];
+    let three_each = vec![damage(source, ObjectOrPlayerId::Object(bears), 3), damage(source, ObjectOrPlayerId::Object(elves), 3)];
     deal_together(&mut game, three_each, &test_dp());
     resolve_all(&mut game, &test_dp());
 
@@ -362,7 +360,7 @@ fn a_two_two_dealt_five_is_dealt_three_excess() {
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let before = game.recorded_events().len();
 
-    deal_together(&mut game, vec![damage(source, DamageTarget::Object(bears), 5)], &test_dp());
+    deal_together(&mut game, vec![damage(source, ObjectOrPlayerId::Object(bears), 5)], &test_dp());
     assert_eq!(excess_since(&game, before), vec![3]);
     resolve_all(&mut game, &test_dp());
 
@@ -376,11 +374,11 @@ fn damage_already_marked_counts_toward_lethal() {
     let mut game = setup_two_player_game();
     let source = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
     let wall = put_on_battlefield(&mut game, vanilla_creature(0, 4, &[]), 0);
-    deal_together(&mut game, vec![damage(source, DamageTarget::Object(wall), 2)], &test_dp());
+    deal_together(&mut game, vec![damage(source, ObjectOrPlayerId::Object(wall), 2)], &test_dp());
     let before = game.recorded_events().len();
 
-    deal_together(&mut game, vec![damage(source, DamageTarget::Object(wall), 1)], &test_dp());
-    deal_together(&mut game, vec![damage(source, DamageTarget::Object(wall), 3)], &test_dp());
+    deal_together(&mut game, vec![damage(source, ObjectOrPlayerId::Object(wall), 1)], &test_dp());
+    deal_together(&mut game, vec![damage(source, ObjectOrPlayerId::Object(wall), 3)], &test_dp());
 
     assert_eq!(excess_since(&game, before), vec![0, 2], "4 toughness, 3 marked, then 3 more past the 1 left");
 }
@@ -397,7 +395,7 @@ fn deathtouch_makes_one_damage_lethal_to_a_creature_and_not_to_a_planeswalker() 
 
     deal_together(
         &mut game,
-        vec![damage(viper, DamageTarget::Object(giant), 3), damage(viper, DamageTarget::Object(walker), 3)],
+        vec![damage(viper, ObjectOrPlayerId::Object(giant), 3), damage(viper, ObjectOrPlayerId::Object(walker), 3)],
         &test_dp(),
     );
 
@@ -418,7 +416,7 @@ fn two_sources_into_one_creature_make_one_excess_read_once() {
 
     deal_together(
         &mut game,
-        vec![damage(first, DamageTarget::Object(centaur), 2), damage(second, DamageTarget::Object(centaur), 2)],
+        vec![damage(first, ObjectOrPlayerId::Object(centaur), 2), damage(second, ObjectOrPlayerId::Object(centaur), 2)],
         &test_dp(),
     );
     assert_eq!(excess_since(&game, before), vec![0, 1]);
@@ -439,7 +437,7 @@ fn two_creatures_dealt_excess_are_two_triggers() {
 
     deal_together(
         &mut game,
-        vec![damage(source, DamageTarget::Object(bears), 3), damage(source, DamageTarget::Object(elves), 4)],
+        vec![damage(source, ObjectOrPlayerId::Object(bears), 3), damage(source, ObjectOrPlayerId::Object(elves), 4)],
         &test_dp(),
     );
     assert_eq!(waiting_from(&game, gauge), 2);
@@ -469,7 +467,7 @@ fn a_creature_planeswalker_takes_the_smaller_lethal_amount() {
 
     deal_together(
         &mut game,
-        vec![damage(source, DamageTarget::Object(walker), 5), damage(source, DamageTarget::Object(both), 4)],
+        vec![damage(source, ObjectOrPlayerId::Object(walker), 5), damage(source, ObjectOrPlayerId::Object(both), 4)],
         &test_dp(),
     );
 
@@ -483,10 +481,10 @@ fn prevented_damage_is_no_excess() {
     let mut game = setup_two_player_game();
     let source = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bears)]);
+    resolve_spell(&mut game, mending_hands(), 0, vec![ObjectOrPlayerId::Object(bears)]);
     let before = game.recorded_events().len();
 
-    deal_together(&mut game, vec![damage(source, DamageTarget::Object(bears), 5)], &test_dp());
+    deal_together(&mut game, vec![damage(source, ObjectOrPlayerId::Object(bears), 5)], &test_dp());
 
     assert_eq!(excess_since(&game, before), vec![0]);
     assert_eq!(game.battlefield[&bears].damage_marked, 1);
@@ -503,14 +501,14 @@ fn excess_noncombat_damage_reads_only_noncombat_damage() {
     let elves = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let in_combat = GameAction::DealDamage {
         source,
-        target: DamageTarget::Object(bears),
+        target: ObjectOrPlayerId::Object(bears),
         amount: 5,
         is_combat: true,
         unpreventable: false,
         source_lki: None,
     };
 
-    deal_together(&mut game, vec![in_combat, damage(source, DamageTarget::Object(elves), 3)], &test_dp());
+    deal_together(&mut game, vec![in_combat, damage(source, ObjectOrPlayerId::Object(elves), 3)], &test_dp());
     resolve_all(&mut game, &test_dp());
 
     assert_eq!(life(&game, 0), 22, "the elves' 2, not the bears' 3");
@@ -535,7 +533,7 @@ fn was_dealt_excess_damage_this_turn_reads_the_rows_excess() {
 
     deal_together(
         &mut game,
-        vec![damage(source, DamageTarget::Object(exact), 3), damage(source, DamageTarget::Object(past), 3)],
+        vec![damage(source, ObjectOrPlayerId::Object(exact), 3), damage(source, ObjectOrPlayerId::Object(past), 3)],
         &test_dp(),
     );
 
@@ -571,7 +569,7 @@ fn the_damage_log_line_names_its_excess() {
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let before = game.recorded_events().len();
 
-    deal_together(&mut game, vec![damage(source, DamageTarget::Object(bears), 5)], &test_dp());
+    deal_together(&mut game, vec![damage(source, ObjectOrPlayerId::Object(bears), 5)], &test_dp());
 
     let recorded = game.recorded_events();
     let lines: Vec<String> = recorded.records()[before..].iter().map(|record| format_record(&game, record)).collect();
@@ -674,7 +672,7 @@ fn a_delayed_trigger_made_after_its_source_left_reads_it_as_it_left() {
     let card = vanilla_creature(1, 1, &[]);
     let id = put_on_battlefield(&mut game, Arc::clone(&card), 0);
     let source = game.object_ref(id).expect("it is there");
-    let counters = GameAction::AddCounters { subject: CounterSubject::Object(id), counter: CounterType::PlusOnePlusOne, n: 2, by: 0 };
+    let counters = GameAction::AddCounters { subject: ObjectOrPlayerId::Object(id), counter: CounterType::PlusOnePlusOne, n: 2, by: 0 };
     game.execute_action(counters, &ActionContext::new(&test_dp())).expect("the counters go on");
     game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&test_dp())).expect("it dies");
     let gain = at_the_next_end_step(Effect::Atom(
@@ -746,7 +744,7 @@ fn goblin_negotiation_counts_the_damage_already_marked() {
     let mut game = setup_two_player_game();
     let pinger = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
     let wall = put_on_battlefield(&mut game, vanilla_creature(0, 4, &[]), 1);
-    deal_together(&mut game, vec![damage(pinger, DamageTarget::Object(wall), 3)], &test_dp());
+    deal_together(&mut game, vec![damage(pinger, ObjectOrPlayerId::Object(wall), 3)], &test_dp());
 
     // The pinger is a second creature, so the target is asked: the wall.
     let id = put_in_hand(&mut game, goblin_negotiation(), 0);
@@ -791,7 +789,7 @@ fn the_damage_dealt_this_way_is_what_prevention_left() {
     let fixture = fixture_sorcery(siphon);
     let mut game = setup_two_player_game();
     let giant = put_on_battlefield(&mut game, vanilla_creature(7, 7, &[]), 1);
-    resolve_spell(&mut game, mending_hands(), 1, vec![ResolvedTarget::Object(giant)]);
+    resolve_spell(&mut game, mending_hands(), 1, vec![ObjectOrPlayerId::Object(giant)]);
 
     let id = put_in_hand(&mut game, fixture, 0);
     let dp = ScriptedDecisionProvider::new();
@@ -843,10 +841,9 @@ fn a_riders_damage_during_the_resolution_is_not_dealt_this_way() {
         targets: Vec::new(),
         def: ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
-        .affecting_players(PlayerSet::You)
         .next_damage(3)
         .with_then(Effect::Atom(
             Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },

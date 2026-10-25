@@ -2,7 +2,7 @@
 //!
 //! A "can't" is discovered exactly the way a replacement effect is and differs
 //! from one only in what it is asked at (`cant-effects-architecture.md` §3.1).
-//! So this module borrows [`EventPattern`], [`ObjectSet`] and [`PlayerSet`]
+//! So this module borrows [`EventPattern`] and [`AffectedSet`]
 //! verbatim and adds one field of its own; the vocabulary that would have been
 //! new is vocabulary the replacement pipeline already owns.
 //!
@@ -34,7 +34,7 @@
 use crate::state::game_state::GameState;
 use crate::engine::object_filter::{player_ref_names, FilterReferents};
 use crate::events::cause::EventCause;
-use crate::types::effects::{ObjectSet, PlayerRef, PlayerSet};
+use crate::types::effects::{AffectedSet, PlayerRef};
 use crate::types::replacement::EventPattern;
 
 /// One CR 101.2 "can't" — a prohibition on an action or an event.
@@ -57,12 +57,12 @@ use crate::types::replacement::EventPattern;
 /// to become a struct at that point across every reader.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RestrictionDef {
-    pub what: Restriction,
+    pub restriction: Restriction,
 }
 
 impl RestrictionDef {
-    pub fn new(what: Restriction) -> Self {
-        RestrictionDef { what }
+    pub fn new(restriction: Restriction) -> Self {
+        RestrictionDef { restriction }
     }
 }
 
@@ -85,23 +85,15 @@ pub enum Restriction {
     /// wins; see [`SourceFilter`].
     Event {
         pattern: EventPattern,
-        /// The objects this forbids the event about. **Half a pair**, like
-        /// [`Self::ApplyReplacement::to_objects`] and for the same reason: the
-        /// two sets are unioned and neither is primary.
-        affected_objects: ObjectSet,
-        /// The other half — CR 101.2 about an event whose subject is a
-        /// *player*. "Players can't gain life" (Skullcrack, Leyline of
-        /// Punishment, 25 cards) is the family, and CR 119.7 spells out what it
-        /// costs the pipeline: *"a replacement effect that would replace a life
-        /// gain event affecting that player won't do anything"*, which falls
-        /// out of `is_prohibited` being asked ahead of `gather`.
-        ///
-        /// Unioned with `affected` by the same `set_affects` that unions a
-        /// `ReplacementDef`'s two sets — so an event about an object asks
-        /// `affected` and one about a player asks this, and neither set has any
-        /// say about the other's kind of subject. [`PlayerSet::Nobody`] is what an
-        /// object-scoped restriction means: "this is not about players".
-        affected_players: PlayerSet,
+        /// The objects and players this forbids the event about, asked by the
+        /// same `set_affects` a `ReplacementDef`'s are. Its player half is CR
+        /// 101.2 about an event whose subject is a *player*: "players can't
+        /// gain life" (Skullcrack, Leyline of Punishment, 25 cards) is the
+        /// family, and CR 119.7 spells out what it costs the pipeline: *"a
+        /// replacement effect that would replace a life gain event affecting
+        /// that player won't do anything"*, which falls out of `is_prohibited`
+        /// being asked ahead of `gather`.
+        affected: AffectedSet,
         by: Option<SourceFilter>,
     },
 
@@ -123,25 +115,34 @@ pub enum Restriction {
     /// claim that the engine applies effects somewhere else.
     ApplyReplacement {
         kind: ReplacementKindFilter,
-        /// The objects this withholds an effect from. **Named as half a pair**,
-        /// which `ReplacementDef`'s `affected`/`affected_players` is not: a
-        /// bare `to` beside a `to_players` reads as the whole set with a
-        /// modifier hung off it, and it is not — the two are unioned and
-        /// neither is primary.
-        to_objects: ObjectSet,
-        /// The other half of "whatever they're affecting" — CR 615.12's
+        /// The objects and players this withholds an effect from: CR 615.12's
         /// "damage can't be prevented" is about damage dealt to *players* as
         /// much as to permanents, and a prevention effect's subject is a
-        /// player whenever the damage is.
-        ///
-        /// Unioned with [`Self::ApplyReplacement::to`] by the same
-        /// `set_affects` that unions a `ReplacementDef`'s two sets, which is
-        /// what makes a "can't" the same predicate as the effect it withholds
-        /// (`cant-effects-architecture.md` §3.1). Skullcrack's is `Everyone`
-        /// plus `Filter { All }`; a hypothetical "damage to you can't be
-        /// prevented" would be `You` plus `NO_OBJECTS`.
-        to_players: PlayerSet,
+        /// player whenever the damage is. Asked by the same `set_affects` a
+        /// `ReplacementDef`'s are, which is what makes a "can't" the same
+        /// predicate as the effect it withholds
+        /// (`cant-effects-architecture.md` §3.1). Skullcrack's is every
+        /// permanent and every player.
+        affected: AffectedSet,
     },
+}
+
+impl Restriction {
+    /// What it is affecting, whichever arm it is. Every arm names one, and
+    /// `Primitive::Restrict` fills an authored [`AffectedSet::NOTHING`] with the
+    /// resolution's targets without caring which arm it is.
+    pub fn affected(&self) -> &AffectedSet {
+        match self {
+            Restriction::Event { affected, .. } | Restriction::ApplyReplacement { affected, .. } => affected,
+        }
+    }
+
+    /// [`Self::affected`], to fill in.
+    pub fn affected_mut(&mut self) -> &mut AffectedSet {
+        match self {
+            Restriction::Event { affected, .. } | Restriction::ApplyReplacement { affected, .. } => affected,
+        }
+    }
 }
 
 /// What *caused* an event, as a predicate — §2.6's Sigarda family.

@@ -18,9 +18,8 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
-    Primitive, Selector,
-};
+    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
+    Primitive, };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit};
@@ -115,7 +114,7 @@ pub fn nykthos_paragon() -> Arc<CardData> {
 ///   trigger that many times."* (#1)
 ///   → `phase_tr2b_integration_test::psychosis_crawler_cast_from_hand_drains_once_per_card_drawn`.
 pub fn psychosis_crawler() -> Arc<CardData> {
-    let cards_in_your_hand = || AmountExpr::CountOf(Selector::CardsInHand(PlayerRef::You));
+    let cards_in_your_hand = || AmountExpr::CountOf(ObjectSet::hand(PlayerRef::You));
     CardDataBuilder::new("Psychosis Crawler")
         .mana_cost(ManaCost::build(&[], 5))
         .card_type(CardType::Artifact)

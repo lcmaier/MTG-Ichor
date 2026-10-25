@@ -128,10 +128,9 @@ fn test_the_island_clause_is_an_ordinary_condition_not_a_zone_statement() {
 /// Leaving the named zone retires the effect, and **not because anything
 /// reconciled the registry**.
 ///
-/// This is §13d decision 3's whole argument in one assertion. The zone clause
-/// is a `Condition::SourceInZone`, so CR 604.2's existence check — which runs
-/// at every layer and already evaluates conditions — is what turns the grant
-/// off. Exiling Wonder does remove its row as hygiene, but the answer would be
+/// This is §13d decision 3's whole argument in one assertion. CR 604.2's
+/// existence check runs at every layer and asks the ability's zone statement
+/// (`Effect::FunctionsIn`), which is what turns the grant off. Exiling Wonder does remove its row as hygiene, but the answer would be
 /// the same without that, which is what "registry membership is not effect
 /// existence" buys.
 #[test]
@@ -224,7 +223,7 @@ fn test_a_cda_still_functions_in_a_graveyard() {
 /// functions everywhere except for the specified zones".
 ///
 /// The fixture exists to show this needs no second mechanism: it is the same
-/// `SourceInZone` clause holding the complement `ZoneSet` already spells.
+/// `Effect::FunctionsIn` holding the complement `ZoneSet` already spells.
 #[test]
 fn test_a_stated_complement_functions_everywhere_else() {
     let mut game = setup_two_player_game();

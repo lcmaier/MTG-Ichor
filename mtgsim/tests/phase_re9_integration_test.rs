@@ -43,7 +43,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CardTypes, Subtypes};
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
-    AmountExpr, Effect, EffectRecipient, ManaOutput, ObjectFilter, ObjectSet, PlayerSet,
+    AmountExpr, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerSet,
     Primitive,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -191,13 +191,12 @@ fn blackened_earth() -> Arc<CardData> {
                 tapped_for_mana: Some(true),
                 source: Some(ObjectFilter::ByType(CardType::Land)),
             },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::Everyone,
             Rewrite::Instead(GameActionTemplate::ProduceMana {
                 mana_type: ManaType::Black,
                 amount: TemplateAmount::Fixed(1),
             }),
-        )
-        .affecting_players(PlayerSet::Everyone),
+        ),
     )
 }
 
@@ -211,13 +210,12 @@ fn darkened_lands() -> Arc<CardData> {
                 tapped_for_mana: Some(true),
                 source: Some(ObjectFilter::ByType(CardType::Land)),
             },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::Everyone,
             Rewrite::Instead(GameActionTemplate::ProduceMana {
                 mana_type: ManaType::Black,
                 amount: TemplateAmount::ReplacedAmount,
             }),
-        )
-        .affecting_players(PlayerSet::Everyone),
+        ),
     )
 }
 

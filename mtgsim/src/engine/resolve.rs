@@ -7,24 +7,24 @@ use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, PtValue, Timestamp,
 };
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, DamageTarget, EventId, GameEvent, ResolutionStamp};
+use crate::events::event::{EventId, GameEvent, ResolutionStamp};
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::objects::card_data::AbilityDef;
-use crate::types::zones::Zone;
+use crate::types::zones::{ZoneSet, Zone};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Antecedent, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
-    SelectionFilter, Selector, TargetCount,
+    SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
-use crate::types::restriction::{Restriction, RestrictionDef};
-use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
-use crate::types::effects::{EntersAttacking, ExtraPhasesAfter};
+use crate::types::restriction::RestrictionDef;
+use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use crate::types::effects::{AffectedSet, EntersAttacking, ExtraPhasesAfter};
 use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
 use crate::engine::triggers::binding_reads::TriggerBindingReads;
@@ -164,7 +164,7 @@ struct ResolutionWalk {
     extra_turn: Option<ExtraTurnId>,
     /// While `Effect::Remember`'s instruction runs, the objects and players
     /// its atom was handed.
-    remembering: Option<Vec<ResolvedTarget>>,
+    remembering: Option<Vec<ObjectOrPlayerId>>,
     /// CR 603.7c — what `Effect::Remember`'s instruction acted on, which a
     /// delayed trigger created after it refers to.
     remembered: Option<Referred>,
@@ -186,14 +186,6 @@ impl ResolutionWalk {
             last_action: None,
         }
     }
-}
-
-/// A resolved target — validated as legal when the spell/ability was put on the
-/// stack. Legality is re-checked at resolution time (rule 608.2b).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResolvedTarget {
-    Object(ObjectId),
-    Player(PlayerId),
 }
 
 impl GameState {
@@ -259,6 +251,7 @@ impl GameState {
             | Effect::CostModification(_)
             | Effect::TriggerMultiplier(_)
             | Effect::Conditional(..)
+            | Effect::FunctionsIn(..)
             | Effect::Triggered(_)
             | Effect::Remember(_)
             | Effect::Modal { .. }
@@ -318,7 +311,7 @@ impl GameState {
             }
             Effect::Atom(primitive, recipient @ EffectRecipient::DefendingPlayer(creature)) => {
                 let Some(defending) = self.defending_player_of(*creature, ctx) else { return Ok(()) };
-                self.resolve_primitive(primitive, recipient, &[ResolvedTarget::Player(defending)], ctx, dp, walk)
+                self.resolve_primitive(primitive, recipient, &[ObjectOrPlayerId::Player(defending)], ctx, dp, walk)
             }
             // "Each player", "you and that player": every player the group names,
             // in APNAP order (CR 101.4), handed to the primitive as its players.
@@ -335,15 +328,15 @@ impl GameState {
                         recipient, ctx.source, primitive
                     ));
                 }
-                let players: Vec<ResolvedTarget> =
-                    self.players_in(group, ctx).into_iter().map(ResolvedTarget::Player).collect();
+                let players: Vec<ObjectOrPlayerId> =
+                    self.players_in(group, ctx).into_iter().map(ObjectOrPlayerId::Player).collect();
                 self.resolve_primitive(primitive, recipient, &players, ctx, dp, walk)
             }
             // "That creature and this creature": each member found as it would
             // be alone, and every object they find handed to the primitive at
             // once, so it acts on them in one instruction (CR 608.2f).
             Effect::Atom(primitive, recipient @ EffectRecipient::Group(members)) => {
-                let mut found: Vec<ResolvedTarget> = Vec::new();
+                let mut found: Vec<ObjectOrPlayerId> = Vec::new();
                 for member in members {
                     for target in self.resolve_group_member(member, ctx)? {
                         if !found.contains(&target) {
@@ -356,8 +349,8 @@ impl GameState {
             // "This creature": no instance of "target" either (CR 113.7a), and
             // empty when the source is no longer the object the ability is of.
             Effect::Atom(primitive, recipient @ EffectRecipient::ThisObject) => {
-                let this: Vec<ResolvedTarget> =
-                    self.this_object(ctx).map(ResolvedTarget::Object).into_iter().collect();
+                let this: Vec<ObjectOrPlayerId> =
+                    self.this_object(ctx).map(ObjectOrPlayerId::Object).into_iter().collect();
                 self.resolve_primitive(primitive, recipient, &this, ctx, dp, walk)
             }
             // "Each [permanent]": every permanent the filter matches as the
@@ -365,8 +358,8 @@ impl GameState {
             // the objects it acts on in one instruction (CR 608.2f), so a
             // primitive that reads only its objects reaches them too.
             Effect::Atom(primitive, recipient @ EffectRecipient::FilteredPermanents(_)) => {
-                let each: Vec<ResolvedTarget> =
-                    self.affected_permanents(recipient, &[], ctx).into_iter().map(ResolvedTarget::Object).collect();
+                let each: Vec<ObjectOrPlayerId> =
+                    self.affected_permanents(recipient, &[], ctx).into_iter().map(ObjectOrPlayerId::Object).collect();
                 self.resolve_primitive(primitive, recipient, &each, ctx, dp, walk)
             }
             // CR 608.2d — objects a player chooses as the effect applies,
@@ -450,6 +443,13 @@ impl GameState {
                  effective ability list as the dispatch queues what a window \
                  triggered; it does not resolve. Put it on an `AbilityType::Static` \
                  ability."
+                    .to_string(),
+            ),
+
+            // CR 113.6b's statement wraps an ability's whole effect and never
+            // resolves; a trigger's binding carries it for the re-check before.
+            Effect::FunctionsIn(..) => Err(
+                "`Effect::FunctionsIn` states where an ability functions, at its effect's root; it does not resolve, and a triggered ability's binding carries it for the resolution's check before its effect."
                     .to_string(),
             ),
 
@@ -544,7 +544,7 @@ impl GameState {
         &mut self,
         primitive: &Primitive,
         recipient: &EffectRecipient,
-        targets: &[ResolvedTarget],
+        targets: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
         walk: &mut ResolutionWalk,
@@ -564,7 +564,7 @@ impl GameState {
             // **now**", resolved here and ordered for the CR 616.1 prompt and the log.
             Primitive::DealDamage { amount: amount_expr, unpreventable } => {
                 let amount = self.evaluate_amount(amount_expr, ctx, None)?;
-                let targets: Vec<DamageTarget> = match recipient {
+                let targets: Vec<ObjectOrPlayerId> = match recipient {
                     // CR 120.1 — damage is dealt to permanents and players, so
                     // a zone-reaching recipient has nothing to be dealt to.
                     EffectRecipient::FilteredObjectsIn(..) => {
@@ -577,10 +577,10 @@ impl GameState {
                         .battlefield_ids_ordered()
                         .into_iter()
                         .filter(|&id| self.matches_for_effect(id, filter, ctx))
-                        .map(DamageTarget::Object)
+                        .map(ObjectOrPlayerId::Object)
                         .collect(),
                     // "Deals 2 damage to you": Char, a painland.
-                    EffectRecipient::Controller => vec![DamageTarget::Player(ctx.controller)],
+                    EffectRecipient::Controller => vec![ObjectOrPlayerId::Player(ctx.controller)],
                     EffectRecipient::Implicit => {
                         return Err(format!(
                             "a `Primitive::DealDamage` on {:?} names no recipient; damage is dealt to \
@@ -607,13 +607,7 @@ impl GameState {
                     | EffectRecipient::DefendingPlayer(_)
                     | EffectRecipient::EachOf(_)
                     | EffectRecipient::Group(_)
-                    | EffectRecipient::ChosenBy(_) => targets
-                        .iter()
-                        .map(|t| match t {
-                            ResolvedTarget::Object(id) => DamageTarget::Object(*id),
-                            ResolvedTarget::Player(pid) => DamageTarget::Player(*pid),
-                        })
-                        .collect(),
+                    | EffectRecipient::ChosenBy(_) => targets.to_vec(),
                 };
                 if targets.is_empty() {
                     return Ok(());
@@ -843,8 +837,8 @@ impl GameState {
                             .instance(ix)
                             .iter()
                             .filter_map(|t| match t {
-                                ResolvedTarget::Object(id) => self.object_ref(*id),
-                                ResolvedTarget::Player(_) => None,
+                                ObjectOrPlayerId::Object(id) => self.object_ref(*id),
+                                ObjectOrPlayerId::Player(_) => None,
                             })
                             .collect()
                     }
@@ -964,7 +958,7 @@ impl GameState {
 
             Primitive::CounterSpell => {
                 for target in targets {
-                    if let ResolvedTarget::Object(id) = target {
+                    if let ObjectOrPlayerId::Object(id) = target {
                         self.counter_spell(*id, ctx, &actx)?;
                     }
                 }
@@ -973,7 +967,7 @@ impl GameState {
 
             Primitive::CounterAbility => {
                 for target in targets {
-                    if let ResolvedTarget::Object(id) = target {
+                    if let ObjectOrPlayerId::Object(id) = target {
                         self.counter_ability(*id, ctx, &actx)?;
                     }
                 }
@@ -983,7 +977,7 @@ impl GameState {
             // CR 701.6a — "counter that spell or ability", by what it is.
             Primitive::Counter => {
                 for target in targets {
-                    if let ResolvedTarget::Object(id) = target {
+                    if let ObjectOrPlayerId::Object(id) = target {
                         if self.is_spell_on_stack(*id) {
                             self.counter_spell(*id, ctx, &actx)?;
                         } else {
@@ -1023,7 +1017,7 @@ impl GameState {
                     return Ok(());
                 };
                 for target in targets {
-                    if let ResolvedTarget::Object(host) = target {
+                    if let ObjectOrPlayerId::Object(host) = target {
                         if !self.battlefield.contains_key(host) {
                             continue;
                         }
@@ -1053,7 +1047,7 @@ impl GameState {
                     _ => targets
                         .iter()
                         .filter_map(|t| match t {
-                            ResolvedTarget::Object(id) if self.battlefield.contains_key(id) => {
+                            ObjectOrPlayerId::Object(id) if self.battlefield.contains_key(id) => {
                                 Some(*id)
                             }
                             _ => None,
@@ -1067,7 +1061,7 @@ impl GameState {
                 // and CR 603.2c's "whenever one or more permanents untap"
                 // reads the batch rather than its members — the same argument
                 // the untap step's own sweep makes.
-                let objects: Vec<ResolvedTarget> = ids.into_iter().map(ResolvedTarget::Object).collect();
+                let objects: Vec<ObjectOrPlayerId> = ids.into_iter().map(ObjectOrPlayerId::Object).collect();
                 let batch = self.events_for(primitive, &objects, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())
@@ -1313,16 +1307,15 @@ impl GameState {
                 };
                 let def = &def;
 
-                let authored_empty = matches!(def.affected_objects, ObjectSet::Fixed(ref ids) if ids.is_empty())
-                    && def.affected_players == PlayerSet::Nobody;
+                let authored_empty = def.affected == AffectedSet::NOTHING;
                 let fill_object = |id: ObjectId| {
                     let mut row = (*def).clone();
-                    row.affected_objects = ObjectSet::Fixed(vec![id]);
+                    row.affected.objects = ObjectSet::Fixed(vec![id]);
                     row
                 };
                 let fill_player = |pid: PlayerId| {
                     let mut row = (*def).clone();
-                    row.affected_players = PlayerSet::Fixed(vec![pid]);
+                    row.affected.players = PlayerSet::Fixed(vec![pid]);
                     row
                 };
                 let rows: Vec<ReplacementDef> = match recipient {
@@ -1340,7 +1333,7 @@ impl GameState {
                             "a `Primitive::CreateReplacement` on {:?} with a targeting \
                              recipient authored a non-empty affected set, which the \
                              resolution then overwrote with its own targets. Write \
-                             `ObjectSet::NO_OBJECTS` and `PlayerSet::Nobody`.",
+                             `AffectedSet::NOTHING`.",
                             ctx.source
                         );
                         targets
@@ -1349,11 +1342,11 @@ impl GameState {
                                 // A target that left the battlefield since it
                                 // was chosen is CR 608.2b's illegal one: the
                                 // rest resolve, it gets nothing.
-                                ResolvedTarget::Object(id) if self.battlefield.contains_key(id) => {
+                                ObjectOrPlayerId::Object(id) if self.battlefield.contains_key(id) => {
                                     Some(fill_object(*id))
                                 }
-                                ResolvedTarget::Object(_) => None,
-                                ResolvedTarget::Player(pid) => Some(fill_player(*pid)),
+                                ObjectOrPlayerId::Object(_) => None,
+                                ObjectOrPlayerId::Player(pid) => Some(fill_player(*pid)),
                             })
                             .collect()
                     }
@@ -1447,15 +1440,13 @@ impl GameState {
                 // row naming both would make a second copy a no-op under CR 614.5.
                 // Anything else is complete as authored (Skullcrack's `Everyone`).
                 let mut rows: Vec<RestrictionDef> = Vec::new();
-                let (objects, players) = restriction_scope(def);
                 let fill = |set: ObjectSet| {
                     let mut filled = def.clone();
-                    *restriction_object_set_mut(&mut filled) = set;
+                    let affected = filled.restriction.affected_mut();
+                    affected.objects = set;
                     filled
                 };
-                if matches!(objects, ObjectSet::Fixed(ids) if ids.is_empty())
-                    && matches!(players, PlayerSet::Nobody)
-                {
+                if *def.restriction.affected() == AffectedSet::NOTHING {
                     match recipient {
                         // CR 611.2c's second sentence: a "can't" modifies no
                         // characteristic, so its set is not fixed, and a creature
@@ -1499,7 +1490,7 @@ impl GameState {
                 let named = !matches!(recipient, EffectRecipient::ChosenBy(_));
                 let mut batch = Vec::new();
                 for target in targets {
-                    let ResolvedTarget::Object(id) = *target else { continue };
+                    let ObjectOrPlayerId::Object(id) = *target else { continue };
                     if named && (!controls(self, id, ctx.controller) || !self.admits(primitive, id, targets, ctx)?) {
                         continue;
                     }
@@ -1565,10 +1556,10 @@ impl GameState {
             // "Each creature you control" is the permanents the filter matches
             // as the effect resolves (CR 611.2c's set, fixed then).
             Primitive::AddCounters { .. } | Primitive::RemoveCounters(..) => {
-                let objects: Vec<ResolvedTarget> = self
+                let objects: Vec<ObjectOrPlayerId> = self
                     .affected_permanents(recipient, targets, ctx)
                     .into_iter()
-                    .map(ResolvedTarget::Object)
+                    .map(ObjectOrPlayerId::Object)
                     .collect();
                 let batch = self.events_for(primitive, &objects, ctx)?;
                 self.execute_actions(batch, &actx)?;
@@ -1584,7 +1575,7 @@ impl GameState {
                 let by = self.resolve_player_ref(by, targets, ctx)?;
                 self.execute_action(
                     GameAction::AddCounters {
-                        subject: CounterSubject::Player(player),
+                        subject: ObjectOrPlayerId::Player(player),
                         counter: *counter,
                         n,
                         by,
@@ -1642,8 +1633,8 @@ impl GameState {
                     | EffectRecipient::DefendingPlayer(_) => targets
                         .iter()
                         .filter_map(|t| match t {
-                            ResolvedTarget::Player(pid) => Some(*pid),
-                            ResolvedTarget::Object(id) => {
+                            ObjectOrPlayerId::Player(pid) => Some(*pid),
+                            ObjectOrPlayerId::Object(id) => {
                                 self.objects.get(id).map(|obj| obj.owner)
                             }
                         })
@@ -1684,7 +1675,7 @@ impl GameState {
                 let attacking = attacking.as_ref().map(|word| self.enters_attacking_candidates(word, ctx)).transpose()?;
                 let mut returns = Vec::new();
                 for target in targets {
-                    let ResolvedTarget::Object(object) = *target else { continue };
+                    let ObjectOrPlayerId::Object(object) = *target else { continue };
                     let controller = self.return_controller(object, *under, ctx.controller)?;
                     returns.push(ReturningObject {
                         object,
@@ -1909,7 +1900,7 @@ impl GameState {
         roles: &CopyRoles,
         except: &[CopyException],
         duration: Duration,
-        targets: &[ResolvedTarget],
+        targets: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
@@ -1928,8 +1919,8 @@ impl GameState {
                     enumerate_legal_selections(self, filter, None, ctx.controller)
                     .into_iter()
                     .filter_map(|t| match t {
-                        ResolvedTarget::Object(id) => Some(id),
-                        ResolvedTarget::Player(_) => None,
+                        ObjectOrPlayerId::Object(id) => Some(id),
+                        ObjectOrPlayerId::Player(_) => None,
                     })
                     .collect();
                 // None is CR 101.3's impossible instruction, and the whole
@@ -2189,7 +2180,7 @@ impl GameState {
         walk: &mut ResolutionWalk,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
-    ) -> Result<Vec<ResolvedTarget>, String> {
+    ) -> Result<Vec<ObjectOrPlayerId>, String> {
         let choosers: Vec<PlayerId> = match &choice.chooser {
             chooser @ (EffectRecipient::Target(..) | EffectRecipient::Choose(..) | EffectRecipient::SameInstanceAs(_)) => {
                 match instance_of(chooser, declared, &mut walk.instance_cursor) {
@@ -2198,8 +2189,8 @@ impl GameState {
                         .instance(ix)
                         .iter()
                         .filter_map(|t| match t {
-                            ResolvedTarget::Player(pid) => Some(*pid),
-                            ResolvedTarget::Object(_) => None,
+                            ObjectOrPlayerId::Player(pid) => Some(*pid),
+                            ObjectOrPlayerId::Object(_) => None,
                         })
                         .collect(),
                     None => Vec::new(),
@@ -2219,7 +2210,7 @@ impl GameState {
                             if self.matches_for_effect(id, &pick.filter, ctx)
                                 && self.admits(primitive, id, &[], ctx)?
                             {
-                                candidates.push(ResolvedTarget::Object(id));
+                                candidates.push(ObjectOrPlayerId::Object(id));
                             }
                         }
                     }
@@ -2249,7 +2240,7 @@ impl GameState {
         &self,
         primitive: &Primitive,
         object: ObjectId,
-        targets: &[ResolvedTarget],
+        targets: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
     ) -> Result<Option<GameAction>, String> {
         let is_permanent = self.battlefield.contains_key(&object);
@@ -2281,7 +2272,7 @@ impl GameState {
             Primitive::AddCounters { counter, amount, by } => match is_permanent {
                 false => None,
                 true => Some(GameAction::AddCounters {
-                    subject: CounterSubject::Object(object),
+                    subject: ObjectOrPlayerId::Object(object),
                     counter: *counter,
                     n: self.evaluate_amount(amount, ctx, None)? as u32,
                     by: self.resolve_player_ref(by, targets, ctx)?,
@@ -2291,7 +2282,7 @@ impl GameState {
             Primitive::RemoveCounters(counter, amount) => match is_permanent {
                 false => None,
                 true => Some(GameAction::RemoveCounters {
-                    subject: CounterSubject::Object(object),
+                    subject: ObjectOrPlayerId::Object(object),
                     counter: *counter,
                     n: self.evaluate_amount(amount, ctx, None)? as u32,
                     by: Some(ctx.controller),
@@ -2305,12 +2296,12 @@ impl GameState {
     fn events_for(
         &self,
         primitive: &Primitive,
-        targets: &[ResolvedTarget],
+        targets: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
     ) -> Result<Vec<GameAction>, String> {
         let mut batch = Vec::new();
         for target in targets {
-            if let ResolvedTarget::Object(id) = *target {
+            if let ObjectOrPlayerId::Object(id) = *target {
                 batch.extend(self.event_for(primitive, id, targets, ctx)?);
             }
         }
@@ -2324,7 +2315,7 @@ impl GameState {
         &self,
         primitive: &Primitive,
         object: ObjectId,
-        targets: &[ResolvedTarget],
+        targets: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
     ) -> Result<bool, String> {
         Ok(match self.event_for(primitive, object, targets, ctx)? {
@@ -2390,14 +2381,14 @@ impl GameState {
     /// refers to, or each permanent a filter matches now. A member that
     /// targets or chooses is refused loudly: its instance would need a place
     /// in the announcement, which a group does not give it yet.
-    fn resolve_group_member(&self, member: &EffectRecipient, ctx: &ResolutionContext) -> Result<Vec<ResolvedTarget>, String> {
+    fn resolve_group_member(&self, member: &EffectRecipient, ctx: &ResolutionContext) -> Result<Vec<ObjectOrPlayerId>, String> {
         Ok(match member {
-            EffectRecipient::ThisObject => self.this_object(ctx).map(ResolvedTarget::Object).into_iter().collect(),
+            EffectRecipient::ThisObject => self.this_object(ctx).map(ObjectOrPlayerId::Object).into_iter().collect(),
             EffectRecipient::Triggering(_) | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => {
                 self.bound_targets(member, ctx)?
             }
             EffectRecipient::FilteredPermanents(_) => {
-                self.affected_permanents(member, &[], ctx).into_iter().map(ResolvedTarget::Object).collect()
+                self.affected_permanents(member, &[], ctx).into_iter().map(ObjectOrPlayerId::Object).collect()
             }
             other => {
                 return Err(format!(
@@ -2416,7 +2407,7 @@ impl GameState {
     fn affected_permanents(
         &self,
         recipient: &EffectRecipient,
-        targets: &[ResolvedTarget],
+        targets: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
     ) -> Vec<ObjectId> {
         match recipient {
@@ -2432,15 +2423,15 @@ impl GameState {
     /// `targets` as a row keeps them: each object by identity, at the epoch
     /// it has now. An object an earlier part of this effect moved is the one
     /// it moved, which CR 400.7j lets the rest of the effect find.
-    fn target_refs(&self, targets: &[ResolvedTarget]) -> Vec<crate::engine::targeting::TargetRef> {
+    fn target_refs(&self, targets: &[ObjectOrPlayerId]) -> Vec<crate::types::ids::ObjectOrPlayer> {
         targets.iter().filter_map(|&target| self.target_ref(target)).collect()
     }
 
     /// The resolved targets that are on the battlefield now.
-    fn collect_battlefield_targets(&self, targets: &[ResolvedTarget]) -> Vec<ObjectId> {
+    fn collect_battlefield_targets(&self, targets: &[ObjectOrPlayerId]) -> Vec<ObjectId> {
         targets.iter()
             .filter_map(|t| {
-                if let ResolvedTarget::Object(id) = t
+                if let ObjectOrPlayerId::Object(id) = t
                     && self.battlefield.contains_key(id) {
                     return Some(*id);
                 }
@@ -2456,11 +2447,11 @@ impl GameState {
     /// The wider sibling of `collect_battlefield_targets`, and only Layer 2
     /// wants it: every other continuous effect describes a characteristic a
     /// permanent has, while control is the one thing a spell also has.
-    fn collect_permanent_or_spell_targets(&self, targets: &[ResolvedTarget]) -> Vec<ObjectId> {
+    fn collect_permanent_or_spell_targets(&self, targets: &[ObjectOrPlayerId]) -> Vec<ObjectId> {
         targets
             .iter()
             .filter_map(|t| match t {
-                ResolvedTarget::Object(id)
+                ObjectOrPlayerId::Object(id)
                     if self.battlefield.contains_key(id)
                         || self.stack_entries.contains_key(id) =>
                 {
@@ -2510,23 +2501,19 @@ impl GameState {
             // number of creatures you control".
             // A hand's size, which any player may count (CR 402.3): "discard
             // your hand" is a discard of this many.
-            AmountExpr::CountOf(Selector::CardsInHand(whose)) => {
-                let player = self.resolve_player_ref(whose, _ctx.targets.all(), _ctx)?;
-                Ok(self.get_player(player)?.hand.len() as u64)
-            }
-            AmountExpr::CountOf(selector) => {
-                let filter = match selector {
-                    Selector::PermanentsMatching(filter) => std::borrow::Cow::Borrowed(filter),
-                    Selector::ControlledCreatures => std::borrow::Cow::Owned(ObjectFilter::And(
-                        Box::new(ObjectFilter::ByType(crate::types::card_types::CardType::Creature)),
-                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                    )),
+            AmountExpr::CountOf(set) => {
+                if let Some(whose) = set.whose_hand() {
+                    let player = self.resolve_player_ref(whose, _ctx.targets.all(), _ctx)?;
+                    return Ok(self.get_player(player)?.hand.len() as u64);
+                }
+                let filter = match set {
+                    ObjectSet::Filter { filter, zones } if *zones == ZoneSet::BATTLEFIELD => filter,
                     other => return Err(format!("CountOf({other:?}) resolution not yet implemented")),
                 };
-                let counted = self.battlefield_ids_ordered().into_iter().filter(|&id| self.matches_for_effect(id, &filter, _ctx));
+                let counted = self.battlefield_ids_ordered().into_iter().filter(|&id| self.matches_for_effect(id, filter, _ctx));
                 Ok(counted.count() as u64)
             }
-            AmountExpr::CardTypesAmong(_selector) => {
+            AmountExpr::CardTypesAmong(_set) => {
                 Err("CardTypesAmong amount resolution not yet implemented".to_string())
             }
             AmountExpr::Plus(inner, n) => Ok(self.evaluate_amount(inner, _ctx, announced_x)? + n),
@@ -2690,7 +2677,7 @@ impl GameState {
     fn resolve_player_ref(
         &self,
         by: &PlayerRef,
-        targets: &[ResolvedTarget],
+        targets: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
     ) -> Result<PlayerId, String> {
         Ok(match by {
@@ -2699,7 +2686,7 @@ impl GameState {
             PlayerRef::Owner => self.source_owner_of(ctx)?,
             PlayerRef::Opponent => {
                 let targeted = targets.iter().find_map(|t| match t {
-                    ResolvedTarget::Player(pid) if *pid != ctx.controller => Some(*pid),
+                    ObjectOrPlayerId::Player(pid) if *pid != ctx.controller => Some(*pid),
                     _ => None,
                 });
                 match targeted {
@@ -2751,8 +2738,8 @@ impl GameState {
         let named = match group.named {
             NamedPlayers::Nobody => None,
             NamedPlayers::FirstInstance => ctx.targets.instance(0).iter().find_map(|t| match t {
-                ResolvedTarget::Player(pid) => Some(*pid),
-                ResolvedTarget::Object(_) => None,
+                ObjectOrPlayerId::Player(pid) => Some(*pid),
+                ObjectOrPlayerId::Object(_) => None,
             }),
         };
         let in_group = |player: PlayerId| group.relation.contains(ctx.controller, player) || named == Some(player);
@@ -2787,12 +2774,12 @@ impl GameState {
     /// on the battlefield answers with its attack now, and nothing once it has
     /// left combat; one that left the battlefield answers with the attack it
     /// left with (Fathom Fleet Swordjack's ruling).
-    fn attacked_by(&self, creature: Antecedent, ctx: &ResolutionContext) -> Vec<ResolvedTarget> {
+    fn attacked_by(&self, creature: Antecedent, ctx: &ResolutionContext) -> Vec<ObjectOrPlayerId> {
         let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
         let attack = objects.object_for(creature, ctx.effect_source()).and_then(|it| it.attacking(self));
         match attack {
-            Some(AttackTarget::Player(player)) => vec![ResolvedTarget::Player(player)],
-            Some(AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => vec![ResolvedTarget::Object(id)],
+            Some(AttackTarget::Player(player)) => vec![ObjectOrPlayerId::Player(player)],
+            Some(AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => vec![ObjectOrPlayerId::Object(id)],
             None => Vec::new(),
         }
     }
@@ -2859,8 +2846,8 @@ impl GameState {
                 .bound_targets(recipient, ctx)?
                 .into_iter()
                 .filter_map(|target| match target {
-                    ResolvedTarget::Player(player) => Some(player),
-                    ResolvedTarget::Object(_) => None,
+                    ObjectOrPlayerId::Player(player) => Some(player),
+                    ObjectOrPlayerId::Object(_) => None,
                 })
                 .collect(),
             EffectRecipient::ThisObject
@@ -2902,15 +2889,15 @@ impl GameState {
     fn remembered_since(
         &self,
         primitive: &Primitive,
-        acted_on: &[ResolvedTarget],
+        acted_on: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
         mark: crate::events::event::EventId,
     ) -> Referred {
         let players = acted_on
             .iter()
             .filter_map(|t| match t {
-                ResolvedTarget::Player(pid) => Some(*pid),
-                ResolvedTarget::Object(_) => None,
+                ObjectOrPlayerId::Player(pid) => Some(*pid),
+                ObjectOrPlayerId::Object(_) => None,
             })
             .collect();
         let objects = match primitive.moves_into() {
@@ -2922,7 +2909,7 @@ impl GameState {
             None => {
                 let mut objects: Vec<RememberedObject> = Vec::new();
                 for t in acted_on {
-                    if let ResolvedTarget::Object(id) = t
+                    if let ObjectOrPlayerId::Object(id) = t
                         && let Some(object) = self.object_ref(*id)
                         && !objects.iter().any(|r| r.object == object)
                     {
@@ -3008,13 +2995,13 @@ impl GameState {
     /// The players a player verb acts on: each of an `EachOf` group, which
     /// `players_in` put in the targets in APNAP order, or else the one the
     /// recipient names.
-    fn each_player_acted_on(&self, recipient: &EffectRecipient, targets: &[ResolvedTarget], ctx: &ResolutionContext) -> Vec<PlayerId> {
+    fn each_player_acted_on(&self, recipient: &EffectRecipient, targets: &[ObjectOrPlayerId], ctx: &ResolutionContext) -> Vec<PlayerId> {
         match recipient {
             EffectRecipient::EachOf(_) => targets
                 .iter()
                 .filter_map(|t| match t {
-                    ResolvedTarget::Player(pid) => Some(*pid),
-                    ResolvedTarget::Object(_) => None,
+                    ObjectOrPlayerId::Player(pid) => Some(*pid),
+                    ObjectOrPlayerId::Object(_) => None,
                 })
                 .collect(),
             _ => vec![self.resolve_player_for_self(recipient, targets, ctx)],
@@ -3024,7 +3011,7 @@ impl GameState {
     fn resolve_player_for_self(
         &self,
         recipient: &EffectRecipient,
-        targets: &[ResolvedTarget],
+        targets: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
     ) -> PlayerId {
         match recipient {
@@ -3034,7 +3021,7 @@ impl GameState {
             | EffectRecipient::Referred
             | EffectRecipient::DefendingPlayer(_) => {
                 for t in targets {
-                    if let ResolvedTarget::Player(pid) = t {
+                    if let ObjectOrPlayerId::Player(pid) = t {
                         return *pid;
                     }
                 }
@@ -3054,34 +3041,6 @@ fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> Strin
         "a primitive on {:?} was handed {:?}, a back-reference to an instance of \"target\" rather than the clause that declared it (CR 115.3). Resolve it through `targeting::instance_of`.",
         ctx.source, recipient
     )
-}
-
-/// The affected set inside a [`RestrictionDef`], whichever arm it is.
-///
-/// One accessor rather than a match at each caller: every `Restriction` arm
-/// names the objects it applies to, and `Primitive::Restrict` overwrites that
-/// set with the resolution's targets without caring which arm it is. Matched
-/// exhaustively, so a new arm has to say where its objects live rather than
-/// silently keeping whatever the card wrote.
-fn restriction_object_set_mut(def: &mut RestrictionDef) -> &mut ObjectSet {
-    match &mut def.what {
-        Restriction::Event { affected_objects, .. } => affected_objects,
-        Restriction::ApplyReplacement { to_objects, .. } => to_objects,
-    }
-}
-
-/// Both halves of a [`RestrictionDef`]'s scope, whichever arm it is.
-///
-/// The read-only sibling of [`restriction_object_set_mut`], and it returns
-/// the *pair* because that is the question `Primitive::Restrict` asks: a
-/// restriction naming no objects and no players is the one whose subject the
-/// resolution supplies. Either half alone would answer it wrongly — Skullcrack
-/// names no object and every player.
-fn restriction_scope(def: &RestrictionDef) -> (&ObjectSet, &PlayerSet) {
-    match &def.what {
-        Restriction::Event { affected_objects, affected_players, .. } => (affected_objects, affected_players),
-        Restriction::ApplyReplacement { to_objects, to_players, .. } => (to_objects, to_players),
-    }
 }
 
 #[cfg(test)]
@@ -3150,7 +3109,7 @@ mod tests {
         (game, id)
     }
 
-    fn bolt_ctx(source: ObjectId, targets: Vec<ResolvedTarget>) -> ResolutionContext {
+    fn bolt_ctx(source: ObjectId, targets: Vec<ObjectOrPlayerId>) -> ResolutionContext {
         ResolutionContext {
             source,
             ability_source: None,
@@ -3171,7 +3130,7 @@ mod tests {
             EffectRecipient::Target(SelectionFilter::Any, crate::types::effects::TargetCount::Exactly(1)),
         );
 
-        let ctx = bolt_ctx(bears_id, vec![ResolvedTarget::Object(bears_id)]);
+        let ctx = bolt_ctx(bears_id, vec![ObjectOrPlayerId::Object(bears_id)]);
         game.resolve_effect(&bolt, &ctx, &test_dp()).unwrap();
 
         assert_eq!(game.battlefield.get(&bears_id).unwrap().damage_marked, 3);
@@ -3186,7 +3145,7 @@ mod tests {
             EffectRecipient::Target(SelectionFilter::Any, crate::types::effects::TargetCount::Exactly(1)),
         );
 
-        let ctx = bolt_ctx(bears_id, vec![ResolvedTarget::Player(1)]);
+        let ctx = bolt_ctx(bears_id, vec![ObjectOrPlayerId::Player(1)]);
         game.resolve_effect(&bolt, &ctx, &test_dp()).unwrap();
 
         assert_eq!(game.players[1].life_total, 17);
@@ -3256,7 +3215,7 @@ mod tests {
             ),
         ]);
 
-        let ctx = bolt_ctx(bears_id, vec![ResolvedTarget::Player(1)]);
+        let ctx = bolt_ctx(bears_id, vec![ObjectOrPlayerId::Player(1)]);
         game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
 
         assert_eq!(game.players[1].life_total, 18);
@@ -3292,7 +3251,7 @@ mod tests {
             Primitive::Destroy,
             EffectRecipient::Target(SelectionFilter::Creature, crate::types::effects::TargetCount::Exactly(1)),
         );
-        let ctx = bolt_ctx(source_id, vec![ResolvedTarget::Object(target_id)]);
+        let ctx = bolt_ctx(source_id, vec![ObjectOrPlayerId::Object(target_id)]);
         game.resolve_effect(&destroy, &ctx, &test_dp()).unwrap();
 
         // Creature should still be on the battlefield
