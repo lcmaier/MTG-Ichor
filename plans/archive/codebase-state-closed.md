@@ -8510,3 +8510,129 @@ Every record names each object it is about by an `ObjectRef`, the existence the 
      `one-fact-one-type` at #289's review so that it has its own PR and A/B,
      and ahead of it, since item 291 makes object-or-player one type by
      reference over the result.
+
+### Item 291 — closed 2026-10-25 by PR #291 (`one-fact-one-type`)
+
+`Selector` is an `ObjectSet`, which `AmountExpr::CountOf`, `CardTypesAmong` and `Effect::ForEach` take: a hand is `ObjectSet::hand`, still counted by its size and reading no card (CR 402.3), and every evaluator refuses a set it refused as a selector. An object or a player is `ObjectOrPlayerId` by id (`ResolvedTarget`, `DamageTarget` and `CounterSubject` merged, and `EventSubject` an `Option` of it, `None` for an event about the game) and `ObjectOrPlayer` by reference (`TargetRef` merged), both in `types::ids`, the role in the field's name: `DamageDealt` and `DamagePrevented` name their `recipient` where they said `target`. Row 64's `CountersOn` and `TargetSubject` are one `ObjectOrPlayerSubject` with one matcher; `DamageRecipient` and `DefenderFilter` keep theirs. What an effect is affecting is one `Affected` on `ReplacementDef` and both `Restriction` arms, objects, players or both, asked by one `set_affects` of the merged subject. Its A/B read every gameplay row identical on both pools at two seats and four, so the verdict stood: reachable — not wrong.
+
+*Original entry:*
+
+291. **Three things are each written as several types.** Found at TR-5d's
+     review (the owner, 2026-10-20).
+     - **`Selector`** (35 references) is which objects an amount counts, and
+       each of its five variants is an `ObjectSet::Filter { filter, zones }`:
+       `PermanentsMatching(f)` is `f` on the battlefield, `CardsInHand(p)` the
+       cards in `p`'s hand, `CardsInGraveyard(None)` every graveyard's.
+       `AmountExpr::CountOf` and `CardTypesAmong` take an `ObjectSet`, and
+       `Selector` goes. TR-5g gave the resolution a `CountOf` (Ajani,
+       Nacatl Avenger's damage), a fourth reader that matches the two
+       permanent selectors as the layer pass does (the owner, at #264's
+       review: no helper on `Selector` while it is going). The layer pass
+       counts a hand by its size and reads no card's frame (CR 402.3), which
+       an `ObjectSet` over the hand must keep.
+     - **An object or a player, by id,** is four enums, each `Object(ObjectId)
+       | Player(PlayerId)`: `ResolvedTarget` (391 references), `DamageTarget`
+       (359), `CounterSubject` (89) and `EventSubject` (78), which TR-5d's
+       `From` impls convert into the last. `TargetRef` (40) and
+       `ObjectOrPlayer` (25) are the same over an `ObjectRef`. One type for
+       each, the role in the field's name; item 247's three matchers of one
+       shape (`CountersOn`, `TargetSubject`, `DamageRecipient`) fold with it.
+     - **The affected pair.** `ReplacementDef`, `Restriction::Event` and
+       `Restriction::ApplyReplacement` each keep an `ObjectSet` and a
+       `PlayerSet` that union with neither primary, so a player-only effect
+       is written `ObjectSet::NO_OBJECTS` (64 sites) and then
+       `.affecting_players(..)` (61). `PlayerSet`'s reason for being a second
+       set stands: the layer walk reads `ObjectSet` and would reject a player
+       arm. The fix is one type for the pair, CR 614.1's "whatever they're
+       affecting", built from its objects, its players or both, whose one
+       membership test takes the merged id above where `set_affects` takes
+       both halves today.
+     **Row 64 (2026-10-22, the item 6 audit's pass 3):** an "object or
+     player" slot is matched by four hand-written matchers,
+     `counters_on_matches`, `damage_recipient_matches` and the targeting arm
+     of `triggering_events_in` (`engine/triggers/dispatch.rs`) and `admits`
+     (`types/triggers.rs`). This item's pair merges `CountersOn` and
+     `TargetSubject`; `DefenderFilter` keeps its own, CR 506.2's defenders.
+     ~25 lines, ~40 with tests.
+     **Reachability (2026-10-22):** reachable — not wrong: a reader's cost.
+     **Sized:** mechanical: `Selector` ~40 lines; the id ~920 references,
+     most a path's rename, and the `From` impls deleted; the pair ~250
+     constructor sites (175 `ReplacementDef::new`, 35 `Restriction::Event`)
+     and `set_affects`' 3 call sites. Counted again at A6e's first ticket, and
+     split along these three seams if the PR would pass 2,500.
+     **Slotted:** A6e's cleanup, in `one-fact-one-type`, beside item 296.
+
+### Item 296 — closed 2026-10-25 by PR #291 (`one-fact-one-type`)
+
+The `SourceInZone` leaf is gone. A static ability's statement is `Effect::FunctionsIn(zones, body)` at its effect's root, found by the one peel every reader of a static body takes, refused anywhere else by the static lowering and the resolver, and checked at the root of every registered card by a registry test; a triggered ability's is `TriggerDef::functions_in`, beside the intervening "if" it is printed as, asked with it as a window is dispatched and as the ability resolves (CR 603.4) (the owner's choice at the build, superseding `layers-architecture.md` §13d decision 1b). `functioning_zones`, CR 604.2's existence check at every layer and the dispatcher's zone gate read the statement.
+
+*Original entry:*
+
+296. **`Condition` holds both CR 113.6b/c's zone statements and game
+     predicates, so `Not(SourceInZone(Z))` silently states no zone.** A static
+     ability's "as long as this card is in your graveyard" and a triggered
+     ability's "if this card is in your graveyard" are `SourceInZone` leaves,
+     and `stated_zones` (`engine/zone_function.rs`) reads one as the
+     ability's zones only at the top of the condition or as a direct clause of
+     a top-level `All`. Anywhere else the same leaf is an ordinary predicate.
+     So "functions everywhere but the battlefield" written as
+     `Not(SourceInZone(BATTLEFIELD))` functions where the card's type puts it
+     by default and reads false there, and nothing refuses it. A statement is
+     a fact about the ability and a predicate a fact about the game; the type
+     holds both, and a doc comment holds the line between them. Found at
+     TR-6's review (the owner, 2026-10-21), where that comment read as
+     confusing.
+     The census of `main` (2026-10-21):
+     - **6 card uses, all in statement positions**: Wonder (a clause of a
+       top-level `All`), Exiled Ancestor, Grist's Insect Clause, Pocket
+       Griffin, the shuffle-from-anywhere helper Darksteel Colossus and Nexus
+       of Fate share, and Bridge from Below's intervening "if", one closure
+       for its two abilities. None is under `Not`, nested, or a predicate.
+     - **16 test constructions**: 14 in-file (condition, zone function,
+       game state, gather) and 2 in `tests/` (RH-3, TR-4c).
+     - **5 readers** that match the leaf by name: the evaluator
+       (`layers/condition.rs`), the layer pass's reads (`layers/board.rs`),
+       the binding's reads (`triggers/binding_reads.rs`),
+       `Condition::reads_entry_state` and `stated_zones`. A sixth,
+       `reads_a_counter_threshold`, walks `All` and `Not` past it under a
+       wildcard.
+     **Reachability (2026-10-22):** unreachable — no card writes
+     `SourceInZone` under `Not` or below a top-level `All`; one zone-function
+     test builds the nested form on purpose, to show it states nothing.
+     **Sized:** ~100 lines: the statement moves to a home of its own beside
+     the condition, which `functioning_zones` and the resolution's CR 603.4
+     re-check both read (Bridge from Below's "gone from the graveyard makes
+     no token"), so `Condition` holds predicates only. The 22 constructions
+     are rewritten, the evaluator's arm moves to the new home, and the other
+     four readers lose theirs.
+     **Slotted:** A6e's cleanup, in `one-fact-one-type`, beside item 291.
+
+### Item 326 — closed 2026-10-25 by PR #291 (`one-fact-one-type`)
+
+`PlayerHistory` keeps a player's most recent turn and the one before it, `begin_turn` alone writes them, and `GameState::most_recent_turn_began` reads them for CR 302.6; `GameState.last_turn_began` is gone, one allocation fewer a clone (the worst decision 40 → 39).
+
+*Original entry:*
+
+326. **A player's most recent turn is held twice.**
+     `GameState.last_turn_began[player]` and `PlayerHistory.own_turn` are
+     written together by `GameState::begin_turn`; CR 302.6 reads the first,
+     and "your last turn" the second with `previous_own_turn`.
+     **Reachability (2026-10-24):** reachable — not wrong today.
+     **Sized:** ~20–40 lines: one holder, read by both.
+     **Slotted:** A6e's cleanup, in `one-fact-one-type`.
+
+### Item 327 — closed 2026-10-25 by PR #291 (`one-fact-one-type`)
+
+`StackEntry` holds a `CostChoices` as `ResolvingObject`, `PermanentState` and an `Lki` do, and its builder is the field.
+
+*Original entry:*
+
+327. **A spell's cost decisions are two fields on its stack entry and one
+     type everywhere else.** `StackEntry.chosen_alternative_cost` and
+     `additional_costs_paid`, where `ResolvingObject`, `PermanentState` and an
+     `Lki` hold one `CostChoices` (CR 118.8, 118.9, 707.10), so carrying them
+     is a conversion.
+     **Reachability (2026-10-24):** reachable — not wrong today.
+     **Sized:** ~30–60 lines: `StackEntry` holds a `CostChoices`, and the
+     sites that write the two fields write it.
+     **Slotted:** A6e's cleanup, in `one-fact-one-type`.

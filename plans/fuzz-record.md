@@ -96,6 +96,52 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-10-25 for items 291, 296, 326 and 327** (#291,
+`one-fact-one-type`: one type each for an object or a player, what an
+effect is affecting and which objects an amount counts, a zone statement
+out of `Condition`, a player's turns and a spell's cost decisions held
+once; A6e's cleanup PR 4). No card moves and neither pool moved, so no
+table is re-recorded. Two `close_out.py` sittings against **main**
+`655874d` (#290's merge): **engine** `b825d68`, every item's commit, and
+then `99c2c96`, with the fix the audited smoke asked for.
+
+**Predictions, before any arm ran** (#291's body):
+- the engine arm identical to `main` on both pools at two seats and four,
+  every engine-work row and the audit's counts too;
+- instructions per decision within ±0.3%;
+- the clone floor one allocation under #290's 40, item 326 having removed
+  a `Vec` from `GameState`, and held memory 4,234 B a turn;
+- `GameEvent` under its 80-byte ceiling.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress (both sittings) | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,027 |
+| instructions / decision, `99c2c96` vs `main`, callgrind, the Commander board | | 0.7411 M → 0.7438 M, **+0.37%** (`b825d68`: +0.38%) |
+| the same, item 291's commits alone (`fd28908`) vs `main` | | 0.7409 M → 0.7435 M, **+0.35%** |
+| clone, worst decision (`clone_bound_test`), `main` → `99c2c96` | | 40 → 39 allocations, 6.0 KB, `stress` 777; one fewer in every game |
+| held, log and store together (`history_held_test`), `99c2c96` | | 4,234 B a turn, as `main` |
+| audited smoke, `99c2c96`, 1,000 games at seed 777, performance / stress: errors, panics, turn limits | 0 / 0 | 0 / 0 |
+
+**The miss: the audited smoke, at the first engine arm.** `stress` at four
+seats, seed 1476: Blood Artist dies in the window where Bridge from
+Below's owner loses, so the card has left the game when the window is
+dispatched. The dispatcher finds no candidate; the audit, asking every
+object with its shortcuts off, found Bridge by its frame and triggered its
+exile ability. On `main` the zone statement was the intervening "if", asked
+where the card is now; item 296's zone gate read the candidate's zone,
+which the audit takes from the look-back frame. `99c2c96` asks the
+statement beside the intervening "if" again, and the replay agrees with
+`main`. The gameplay rows could not see it: the dispatcher never had the
+candidate.
+
+**The cost: +0.37%, where the prediction was ±0.3%.** Two sittings read it
+within 0.01 point, and a probe arm of item 291's commits alone reads
++0.35%, so the rest of the branch is about +0.02 point. It was not
+bisected inside item 291; the budget is 2.5 points. The floor moved as
+predicted, the one `Vec` item 326 removed from `GameState`; the byte figure
+rounds the same.
+
 **Measured 2026-10-25 for item 328** (#290, `record-existences`: every
 record names each object it is about by existence, and a trigger remembers
 that existence; A6e's cleanup PR 3b). No card moves and neither pool moved,
