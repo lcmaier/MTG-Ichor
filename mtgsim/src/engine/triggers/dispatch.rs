@@ -2149,9 +2149,13 @@ impl GameState {
                         seq,
                     ),
                 };
+                // The arm it names, read in full of the record that caused the
+                // trigger, as a multiplier's "caused by" is (`is_caused_by`).
                 let cause_ok = match caused_by {
                     None => true,
-                    Some(inner) => cause.and_then(|cause| self.events.record(cause)).is_some_and(|r| inner.reads(&r.event)),
+                    Some(inner) => cause
+                        .and_then(|cause| self.events.record(cause))
+                        .is_some_and(|caused| !self.triggering_events_in(inner, referents, caused).is_empty()),
                 };
                 triggering_event_if(source_ok && cause_ok)
             }

@@ -1,7 +1,8 @@
 //! TR-6 — state triggers (CR 603.8), the draw (CR 104.4) and the rule-owned
 //! arm (`triggers-architecture.md` §4.5, §4.8, §4.9 and §12).
 
-use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
+use mtgsim::cards::authoring::{dies, enters, triggered_ability, whenever};
+use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_re_cards::platinum_angel;
 use mtgsim::cards::phase_tr6_cards::{
@@ -25,8 +26,8 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
-use mtgsim::types::triggers::{TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -113,6 +114,36 @@ fn a_trigger_chain_at_the_nesting_bound_is_a_draw_beside_platinum_angel() {
     assert_eq!(game.result, Some(GameResult::Draw));
     assert_eq!(draws(&game), vec![EventCause::GameRule(GameRule::MandatoryLoop)]);
     assert!(game.pending_triggers.is_empty(), "a finished game keeps no waiting trigger (CR 104.1)");
+}
+
+/// CR 603.3b's second tier asked what caused a trigger: "the event that
+/// caused it was a creature dying" is the arm's full reading of the cause's
+/// record, so an artifact put into a graveyard, the same kind of record,
+/// is not one.
+#[test]
+fn a_tier_two_trigger_reads_its_cause_as_the_arm_it_names() {
+    let mut game = setup_two_player_game();
+    let to_a_graveyard = TriggerEvent::ZoneChange {
+        subject: TriggerSubject::Any,
+        change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
+        by: None,
+        owner: None,
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    let mut gains = triggered_ability("", whenever(to_a_graveyard, gain_one()));
+    gains.id = new_ability_id();
+    put_on_battlefield(&mut game, creature_with_ability("Fixture: a permanent to a graveyard", 1, 1, gains), 0);
+    let a_creature_dying = Box::new(dies(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))).into());
+    let mut watches = triggered_ability("", whenever(TriggerEvent::AbilityTriggers { caused_by: Some(a_creature_dying), source: None }, gain_one()));
+    watches.id = new_ability_id();
+    let watcher = put_on_battlefield(&mut game, creature_with_ability("Fixture: caused by a creature dying", 1, 1, watches), 0);
+    let trinket = put_on_battlefield(&mut game, CardDataBuilder::new("Fixture: trinket").card_type(CardType::Artifact).build(), 1);
+    let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
+
+    game.change_zone(trinket, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
+    assert_eq!(triggered(&game, watcher), 0, "an artifact put into a graveyard is no creature dying");
+    game.change_zone(bear, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
+    assert_eq!(triggered(&game, watcher), 1);
 }
 
 // ---------------------------------------------------------------------------
