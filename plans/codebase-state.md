@@ -1658,9 +1658,8 @@ section never asked.
     **Reachability (2026-09-24):** unreachable — no registered card reads an
     object spent on a cost, and convoke, delve and improvise are not built.
 
-    **Sized:** ~40–60 lines, landing with `spell-copies` (the first reader through CR
-    707.10) or the first Fling-shaped card, whichever comes first. The list
-    goes on `StackEntry` beside the cost decisions and is carried to
+    **Sized:** ~40–60 lines, and ~10–15 for the players a payment chose. The
+    list goes on `StackEntry` beside the cost decisions and is carried to
     `ResolvingObject` and the permanent the same way; the frames come from
     TR-4.
 
@@ -1670,9 +1669,15 @@ section never asked.
 
     **Reachability (2026-09-03):** unreachable — nothing reads it: no sunburst,
     no spell copy (`spell-copies`) and no CR 700.14 card is registered.
-    **Slotted:** `spell-copies`, the first reader through CR 707.10, or a Fling-shaped
-    card if one comes first: the payment's chosen objects and players beside
-    `CostChoices`.
+    **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`
+    (re-slotted 2026-10-24 by the concept census, which found the concept
+    keyed and unowned, `cr-coverage-audit.md#4c-concepts-and-their-owners`):
+    the payment's chosen objects and players beside `CostChoices`, with
+    "the sacrificed creature's power" (Fling; CR 601.2h, 608.2h) as one more
+    object word for item 269's `AmountExpr::ValueOf` and its fixture as the
+    consumer. `spell-copies` reads the same list through CR 707.10. The slot
+    it replaces, "`spell-copies` or the first Fling-shaped card", waited on a
+    card.
 
 31. **`StackEntry.chosen_modes` is dead scaffolding — no writer, no reader
     (found 2026-08-31 by the D3b slice-1 triage).** Declared at
@@ -8846,6 +8851,11 @@ ones on the last-known-information and zone-change surface are items 176 and
      `owner_of_source`), T14 (the objects a waiting entry names), T15 (which
      object a non-filter `ObjectSet` names) and T16 (the "as long as" peel).
      #251 fixed T10, T11 and T12's first site, each shown failing first.
+     **Confirmed by the concept census (2026-10-24,
+     `cr-coverage-audit.md#4c-concepts-and-their-owners`):** T12's remaining
+     holders are `DelayedTrigger.owner` and `UntilReturn.owner`, each a copy
+     of its source's owner (CR 108.3), which `GameObject` owns and the LKI
+     store keeps for a framed departure.
      **Widened by TR-5c's model pass (2026-10-18):** the inventory §3.7's
      T19 (the mana part of a cost list), T20 (which role holds several
      objects) and T21's three small ones, and T17's log half, which PR
@@ -9972,3 +9982,117 @@ row 57 is item 297.
      types folded into `ObjectInformation` (`triggers-architecture.md` §3.11).
      **Reachability (2026-10-24):** closed — PR #285.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 318".
+
+### Found by the concept census (2026-10-24)
+
+`concept-census-and-register` asked of every field the game holds which CR
+concept it holds, the key the CR gives that concept, and which one holder
+owns it (`cr-coverage-audit.md#4c-concepts-and-their-owners`). Each item
+below is a concept held twice for one key, or keyed more narrowly than the
+CR keys it; the census's rule is one holder per key, with a record's values
+keyed by its event.
+
+319. **A record restates a fact its own frame holds.** `ZoneChange.owner`
+     and `LeftTheGame.owner` beside their frame's owner when they carry one,
+     `SameZoneMove.owner` beside its frame's always, and
+     `SpellCountered.controller` and `ControlChanged.from` beside their
+     frames' controllers (`events/event.rs`): the record's event is one key,
+     held twice, and a reader may take either.
+     **Reachability (2026-10-24):** reachable — not wrong today: each pair is
+     written from one value as the record is emitted.
+     **Sized:** ~30–50 lines: a record reads the fact off its frame where it
+     has one and keeps the field where it has none; the matcher arms and log
+     lines that read the field are re-pointed.
+     **Slotted:** A6e's cleanup, in `trigger-matcher-merges`.
+
+320. **Records name an object by its id where the CR keys it by existence.**
+     Most `GameEvent` payloads carry a bare `ObjectId`, and `ZoneChange`
+     carries the epoch of the existence its move made but none for the one
+     that left unless its frame is present (CR 400.7). A reader that needs
+     the existence takes it off the board at dispatch, and
+     `DelayedTrigger.source_left_at`'s doc says the field exists because "a
+     departure record names the object's id and not which existence of it
+     moved".
+     **Reachability (2026-10-24):** reachable — not wrong today: dispatch
+     reads a record inside its window, before a later move can give the id
+     another existence, and the history log keys its rows by existence.
+     **Sized:** ~150–300 lines: each payload that names an existence carries
+     an `ObjectRef`, the zone change both, with its emitters and the matcher
+     arms that read them. Item 291 then makes object-or-player one type by
+     reference over the result.
+     **Slotted:** A6e's cleanup, in `trigger-matcher-merges`, which lands
+     before item 291's merge of the object-or-player types.
+
+321. **Which record ended an existence is held by each keeper that reads
+     it.** `DelayedTrigger.source_left_at`, `RememberedObject.left_at` and
+     each `Referred` entry's are written by one loop in
+     `engine/triggers/delayed.rs` as their objects move, a copy per keeper of
+     a fact keyed by the existence: the shape the LKI store replaced, one
+     level down.
+     **Reachability (2026-10-24):** reachable — not wrong today: the loop
+     writes every keeper of the moving object.
+     **Sized:** ~40–60 lines after item 320: the record that ended an
+     existence is found by the existence, from the records its departure
+     wrote, and the fields go. Whether the LKI store's entry or the log
+     answers is that PR's first question.
+     **Slotted:** A6e's cleanup, in `trigger-matcher-merges`, after item 320.
+
+322. **An attachment is held from both ends.** `PermanentState.attached_to`
+     and `attached_by`, and an `Lki`'s copies of both, are one relation (CR
+     701.3a: an attachment is attached to one object), kept in step by every
+     attach and unattach (`engineering-practices.md#one-record-never-two-kept-in-step`).
+     **Reachability (2026-10-24):** reachable — not wrong today: one
+     performer writes both ends.
+     **Sized:** ~40–80 lines: `attached_to` the owner, and `attached_by`
+     either derived by one function or kept as an index that function alone
+     writes, with a debug check that it is the inverse.
+     **Slotted:** A6e's cleanup, in `layers-combat-and-counters`, beside merge
+     row 41's attachments.
+
+323. **A block is held from both ends.** `AttackingInfo.blocked_by` and
+     `BlockingInfo.blocking` (CR 509.1) are kept in step by the declaration
+     and by each removal from combat, the shape item 322 names.
+     **Reachability (2026-10-24):** reachable — not wrong today.
+     **Sized:** ~40–80 lines, item 322's shape.
+     **Slotted:** A6e's cleanup, in `layers-combat-and-counters`, beside
+     "Before card breadth" 6's multi-block damage, which reads both ends.
+
+324. **The last control sweep's view is held twice.**
+     `PermanentState.announced_controller` and `frame_before_control_change`,
+     whose characteristics carry the same controller whenever a
+     control-changing effect exists, are compared and written together by
+     `engine/triggers/control.rs` (CR 603.10d).
+     **Reachability (2026-10-24):** reachable — not wrong today.
+     **Sized:** ~30–50 lines: one record of what the last sweep announced,
+     its frame optional.
+     **Slotted:** A6e's cleanup, in `batches-durations-and-control`, beside
+     item 300's control announcements.
+
+325. **`PermanentState.controller_since_turn` is the entry turn by
+     construction.** Its one production writer sets it as the permanent
+     enters, beside `entered_battlefield_turn`; a change of control is Layer
+     2's, computed into `EffectiveCharacteristics.control_since_turn` (CR
+     302.6) and never written back. Tests set it apart to stage a board
+     production cannot reach.
+     **Reachability (2026-10-24):** reachable — not wrong today.
+     **Sized:** ~20–40 lines and the staging tests: the frame seeds from the
+     entry turn, and a test stages that.
+     **Slotted:** A6e's cleanup, in `batches-durations-and-control`.
+
+326. **A player's most recent turn is held twice.**
+     `GameState.last_turn_began[player]` and `PlayerHistory.own_turn` are
+     written together by `GameState::begin_turn`; CR 302.6 reads the first,
+     and "your last turn" the second with `previous_own_turn`.
+     **Reachability (2026-10-24):** reachable — not wrong today.
+     **Sized:** ~20–40 lines: one holder, read by both.
+     **Slotted:** A6e's cleanup, in `one-fact-one-type`.
+
+327. **A spell's cost decisions are two fields on its stack entry and one
+     type everywhere else.** `StackEntry.chosen_alternative_cost` and
+     `additional_costs_paid`, where `ResolvingObject`, `PermanentState` and an
+     `Lki` hold one `CostChoices` (CR 118.8, 118.9, 707.10), so carrying them
+     is a conversion.
+     **Reachability (2026-10-24):** reachable — not wrong today.
+     **Sized:** ~30–60 lines: `StackEntry` holds a `CostChoices`, and the
+     sites that write the two fields write it.
+     **Slotted:** A6e's cleanup, in `one-fact-one-type`.
