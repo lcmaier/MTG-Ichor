@@ -509,7 +509,6 @@ impl<'g> Writer<'g> {
             face_down,
             phased_out,
             entered_battlefield_turn,
-            controller_since_turn,
             damage_marked,
             damaged_by_deathtouch,
             attacking,
@@ -594,7 +593,6 @@ impl<'g> Writer<'g> {
         for (reported, what) in [
             (*flipped || *face_down || *phased_out, "flipped, face down or phased out"),
             (*damaged_by_deathtouch, "dealt deathtouch damage"),
-            (*controller_since_turn != *entered_battlefield_turn, "controlled since a turn other than its arrival"),
             (*cost_choices != CostChoices::NONE, "kicked, evoked or otherwise paid for (CR 707.10)"),
             (!entered_as.is_empty(), "entered as a copy, or with its characteristics fixed (CR 614.1c)"),
         ] {

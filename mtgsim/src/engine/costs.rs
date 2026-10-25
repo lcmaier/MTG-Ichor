@@ -680,8 +680,9 @@ mod tests {
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
         // Advance to turn 3 — P0's next turn, so the creature is no longer sick
         game.begin_turn(3, 0);
-        // Simulate control change on turn 3
-        game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
+        // A change of control on turn 3, staged as the arrival CR 302.6's
+        // clock seeds from
+        game.battlefield.get_mut(&creature_id).unwrap().entered_battlefield_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
         let result = plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx());
@@ -694,7 +695,7 @@ mod tests {
         // Creature with haste, control changes on turn 3 → haste bypasses
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordFlag::Haste]);
         game.begin_turn(3, 0);
-        game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
+        game.battlefield.get_mut(&creature_id).unwrap().entered_battlefield_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
         plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx()).unwrap();

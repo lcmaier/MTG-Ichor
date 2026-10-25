@@ -723,7 +723,6 @@ fn test_an_ability_resolving_is_not_a_spell_resolving() {
         mtgsim::cards::utility_creatures::merfolk_thaumaturgist(),
         0,
     );
-    game.battlefield.get_mut(&thaum).unwrap().controller_since_turn = 0;
 
     let decisions = ScriptedDecisionProvider::new();
     // Nothing to script: the only legal target, so the choice is forced

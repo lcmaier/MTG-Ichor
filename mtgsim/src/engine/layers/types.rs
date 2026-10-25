@@ -345,8 +345,8 @@ pub struct EffectiveCharacteristics {
     /// mutates nothing and fires no event, so there is no moment at which a
     /// stored field could be put back.
     ///
-    /// Seeded from `PermanentState.controller_since_turn`, which still owns
-    /// every control change that is not a Layer 2 effect. The Layer 2 arm
+    /// Seeded from `PermanentState.entered_battlefield_turn`: entering is the
+    /// one change of control that is not a Layer 2 effect. The Layer 2 arm
     /// overwrites it only when the controller actually changes — gaining control
     /// of your own permanent must not restart the clock.
     pub control_since_turn: u32,

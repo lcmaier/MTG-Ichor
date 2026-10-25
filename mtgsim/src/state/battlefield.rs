@@ -67,14 +67,11 @@ pub struct PermanentState {
     pub flipped: bool,
     pub face_down: bool,
     pub phased_out: bool,
-    /// The turn number when this permanent entered the battlefield.
+    /// The turn number when this permanent entered the battlefield, and so
+    /// the turn its controller took control as it entered: CR 302.6's clock,
+    /// seeded into `EffectiveCharacteristics::control_since_turn`, which a
+    /// Layer 2 change advances. Convention: 0 = pregame (rule 103.6 Leylines).
     pub entered_battlefield_turn: u32,
-    /// The turn number when the current controller gained control.
-    /// Used for summoning sickness (CR 302.6): sick if control was gained on or
-    /// after the turn the controller's most recent turn began — see
-    /// `oracle::characteristics::has_summoning_sickness`, which owns the
-    /// comparison. Convention: 0 = pregame (rule 103.6 Leylines).
-    pub controller_since_turn: u32,
 
     // Creature-specific (only meaningful if the permanent is a creature)
     pub damage_marked: u32,
@@ -231,7 +228,6 @@ impl PermanentState {
             face_down: false,
             phased_out: false,
             entered_battlefield_turn: current_turn,
-            controller_since_turn: current_turn,
             damage_marked: 0,
             damaged_by_deathtouch: false,
             attacking: None,
