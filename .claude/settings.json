@@ -1,0 +1,23 @@
+{
+  "env": {
+    "PYTHONIOENCODING": "utf-8"
+  },
+  "permissions": {
+    "ask": [
+      "Bash(gh pr merge *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push --force-with-lease *)",
+      "Bash(git branch -m *)",
+      "Bash(git branch -M *)"
+    ]
+  },
+  "autoMode": {
+    "soft_deny": [
+      "$defaults",
+      "Merging a pull request (`gh pr merge`, or merging into main by any route) unless the user asked for that merge in this session: merging is the owner's call",
+      "Force-pushing (`--force`, `-f`, `--force-with-lease`) or renaming a branch (`git branch -m`/`-M`) unless the user asked for it in this session",
+      "Squash-merging anything: the project keeps every commit"
+    ]
+  }
+}

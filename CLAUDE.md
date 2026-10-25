@@ -124,9 +124,7 @@ reassigns from the same process-independent counter — never `ObjectId`; same f
 refuses it; draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and `reseed_from_entropy`
 for interactive play, and an unseeded `fuzz_games` run's seed, are the deliberate opt-outs, each under `#[expect]`.
 
-The regression is `tests/determinism_test.rs`, but the id hasher (`types::ids::IdHash`) is seeded once
-per process, so the end-to-end check is three shell `fuzz_games` runs at one seed under three
-`MTGSIM_HASH_SEED`s, matching line for line but the timing lines. → `codebase-state.md`.
+The regression is `tests/determinism_test.rs`; CI's three runs under three `MTGSIM_HASH_SEED`s are the end-to-end check.
 
 ## Critical path to v1
 
@@ -134,17 +132,10 @@ per process, so the end-to-end check is three shell `fuzz_games` runs at one see
 `state-of-play.md` from the architecture docs' ✅ headings, and a second copy here would go stale between
 merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same route with the *why*.
 
-1–4, 6b, 7, 7a — the layer system, in place. → `layers-architecture.md` §13a, §13b
-5. Replacement effects (CR 614–616), RA–RE. **RD then RE**, before 6 and commuting with 6b–7:
-   triggers read the performed stream, which must be post-replacement truth first
-5b. "Can't" effects (CR 101.2/614.17/613.11), RS-0 and RS-1, then the phases its doc names, beside the spine; `cant-be-targeted` any time, `combat-requirements` needs 7
-5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1 to CV-2b, then the phases its doc names, beside the spine; CV-2, then CV-1b with item 10
-   (CR 400.7), both before TR-3, whose returns make new objects; `merging-and-meld` back-stopped before Phase 8
-6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
-   zone-reaching `ObjectSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
-6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
-   TR-1–TR-7 in `triggers-architecture.md` §12, MA-2 between TR-5b and TR-5c, B10's design and its build CL-1 after TR-5g, the route in `roadmap-v2.md` §3a's A rows; the bounded-state PR
-   (`codebase-state.md` items 42 and 179) before TR-2b; then `information-model-design`, reviewed before any build
+1–5, 6a, 6b, 7, 7a — the layer system, replacement effects (CR 614–616) and CR 113.6's zones, in place. → `layers-architecture.md`, `replacement-architecture.md`
+5b. "Can't" effects (CR 101.2/614.17/613.11): the phases its doc names, beside the spine; `cant-be-targeted` any time
+5c. Copy effects (CR 707/712/708/729 + Layer 1): the phases its doc names, beside the spine; `merging-and-meld` back-stopped before Phase 8
+6. Triggered abilities (CR 603): the rest of `roadmap-v2.md` §3a's A rows, then `information-model-design`, reviewed before any build
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
 `route-review`; four-player Commander end to end — `cant-be-targeted`; `cant-cast-play-or-activate`; `permission-design` with a card's characteristic sets designed beside it;
 `command-zone-casting`; `game-formats`; `multiplayer-rules`; `information-model` — then what Phase 8 is gated on: `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half;
@@ -170,6 +161,7 @@ squash** — the project leans on its per-commit record. **Size a phase before w
 it in the doc, not in the moment** → `engineering-practices.md#sizing-a-phase` owns the 1,500–2,500 band, the
 one-consumer-per-PR rule and where review findings go. `gh` is installed; opening a PR is fine, but
 **merging to main is the user's call** — hand over the URL unless they say otherwise that session.
+A build closes with `/pr-handover`, a review round runs as `/review-round`, and the next PR's brief is `/next-brief`.
 
 ## Conventions
 
@@ -180,6 +172,7 @@ one-consumer-per-PR rule and where review findings go. `gh` is installed; openin
 - **A count or `file:line` in a doc is generated, or it drives a decision**; otherwise describe
   it. → `engineering-practices.md#counts-in-docs`.
 - Don't refactor speculatively. American spelling, gated by `check_glossary.py`.
+- **Edit files with the Edit tool.** A counted sweep goes through `plans/replace_exact.py`, never a heredoc'd splice script.
 - **Name for the call site:** the use alone must say what a name means, since its doc comment is
   not there. → `engineering-practices.md#names`.
 - **Before deferring a rules question, read the rule that *watches* the one you are
