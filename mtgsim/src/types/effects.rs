@@ -2231,8 +2231,10 @@ pub enum Primitive {
     ChangeColor(ColorChange, Duration),
     /// Change types (layer 4)
     ChangeType(TypeChange, Duration),
-    /// Gain control (layer 2)
-    GainControl(Duration),
+    /// Layer 2: `to` gains control. "You" for every card that takes a
+    /// permanent; "an opponent" (Akroan Horse) is chosen as the instruction
+    /// applies (CR 608.2d), and on a static ability it is read each walk.
+    GainControl { to: PlayerRef, duration: Duration },
 
     // === Copy effects (CR 707, layer 1a) ===
     /// One or more permanents become a copy of another (CR 707.4).
@@ -2324,7 +2326,7 @@ impl Primitive {
             | Primitive::LoseAllAbilities(_)
             | Primitive::ChangeColor(..)
             | Primitive::ChangeType(..)
-            | Primitive::GainControl(_)
+            | Primitive::GainControl { .. }
             | Primitive::Copy { .. }
             | Primitive::CounterAbility => None,
         }

@@ -720,7 +720,7 @@ fn a_trigger_is_controlled_by_its_sources_controller_when_it_triggered() {
         creature_with_ability("Fixture: a creature dies", 1, 1, triggered_ability("", whenever(dies(a_creature()), gain_one()))),
         0,
     );
-    put_on_battlefield(&mut game, prevents_then(Primitive::GainControl(Duration::UntilEndOfTurn)), 1);
+    put_on_battlefield(&mut game, prevents_then(Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn }), 1);
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 

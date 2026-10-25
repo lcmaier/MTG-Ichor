@@ -73,7 +73,7 @@ fn gain_control(
     let source_id = game.add_object(source);
 
     let effect = Effect::Atom(
-        Primitive::GainControl(duration),
+        Primitive::GainControl { to: PlayerRef::You, duration },
         EffectRecipient::Target(
             SelectionFilter::Permanent(ObjectFilter::All),
             TargetCount::Exactly(1),

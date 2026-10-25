@@ -469,8 +469,8 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         | Primitive::LoseAbility(_, lasts)
         | Primitive::LoseAllAbilities(lasts)
         | Primitive::ChangeColor(_, lasts)
-        | Primitive::ChangeType(_, lasts)
-        | Primitive::GainControl(lasts) => duration_reads(lasts),
+        | Primitive::ChangeType(_, lasts) => duration_reads(lasts),
+        Primitive::GainControl { to, duration } => player_ref_reads(to) | duration_reads(duration),
         Primitive::CreateReplacement(..)
         | Primitive::Restrict(..)
         | Primitive::Copy { .. }

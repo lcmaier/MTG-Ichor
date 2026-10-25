@@ -245,7 +245,7 @@ fn a_stolen_spell_still_counts_as_the_one_you_cast() {
     let yours = put_on_battlefield(&mut game, multanis_presence(), 0);
     let theirs = put_on_battlefield(&mut game, multanis_presence(), 1);
     let spell = put_spell_on_stack(&mut game, grizzly_bears(), 0);
-    resolve_at(&mut game, 1, Primitive::GainControl(Duration::Indefinite), spell);
+    resolve_at(&mut game, 1, Primitive::GainControl { to: PlayerRef::You, duration: Duration::Indefinite }, spell);
     assert_eq!(mtgsim::oracle::characteristics::get_effective_controller(&game, spell), Some(1), "player 1 controls it");
 
     counter(&mut game, spell, 1);
@@ -701,7 +701,7 @@ fn a_watcher_stolen_with_another_permanent_triggers_for_each() {
     let zidane = put_on_battlefield(&mut game, zidane, 0);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
     let mob_rule = Effect::Atom(
-        Primitive::GainControl(Duration::UntilEndOfTurn),
+        Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
         EffectRecipient::FilteredPermanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
             Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
@@ -752,7 +752,7 @@ fn the_first_steal_on_a_board_reads_the_frame_from_before() {
 fn a_permanent_that_arrives_stolen_announces_no_change() {
     let mut game = stocked(2);
     let spell = put_spell_on_stack(&mut game, grizzly_bears(), 0);
-    resolve_at(&mut game, 1, Primitive::GainControl(Duration::Indefinite), spell);
+    resolve_at(&mut game, 1, Primitive::GainControl { to: PlayerRef::You, duration: Duration::Indefinite }, spell);
     let before = game.recorded_events().len();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -939,7 +939,7 @@ fn steal_aura(name: &str) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .ability(static_ability(Effect::Atom(Primitive::GainControl(Duration::WhileSourceOnBattlefield), EffectRecipient::Host)))
+        .ability(static_ability(Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield }, EffectRecipient::Host)))
         .build()
 }
 
@@ -1027,8 +1027,8 @@ fn a_second_steal_looks_back_to_the_board_the_first_left() {
         ))
     };
     let thefts = Effect::Sequence(vec![
-        Effect::Atom(Primitive::GainControl(Duration::UntilEndOfTurn), an_opponents(CardType::Enchantment)),
-        Effect::Atom(Primitive::GainControl(Duration::UntilEndOfTurn), an_opponents(CardType::Creature)),
+        Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn }, an_opponents(CardType::Enchantment)),
+        Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn }, an_opponents(CardType::Creature)),
     ]);
     let source = put_in_graveyard(&mut game, card_of_type("Fixture Double Theft", CardType::Sorcery), 0);
     let ctx = ResolutionContext {

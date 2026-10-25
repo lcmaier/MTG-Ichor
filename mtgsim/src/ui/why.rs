@@ -300,7 +300,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
         {
             generic_split_refusals(game, question.player, mana_cost)
         }
-        (ChoiceKind::ChooseEnteringController { .. }, WhyAbout::Player(player)) => {
+        (ChoiceKind::ChooseEnteringController { .. } | ChoiceKind::ChooseOpponent { .. }, WhyAbout::Player(player)) => {
             let reason = game.not_an_opponent(question.player, player).map(|reason| match reason {
                 NotAnOpponent::Yourself => (format!("{} is choosing, and an opponent is another player", player_name(player)), Some("102.2")),
                 NotAnOpponent::LeftTheGame => (format!("{} has left the game", player_name(player)), Some("800.4a")),
@@ -339,6 +339,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::ChooseDamageSource { .. }
             | ChoiceKind::ChooseDelayedTriggerEvent { .. }
             | ChoiceKind::ChooseEnteringController { .. }
+            | ChoiceKind::ChooseOpponent { .. }
             | ChoiceKind::ChooseEnteringDefender { .. }
             | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
             | ChoiceKind::ChooseCopySource { .. }
@@ -472,6 +473,9 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         }
         ChoiceKind::ChooseEnteringController { object } => {
             (format!("the opponents still in the game, one of whom controls {} as it enters", n(object)), Some("614.12a"))
+        }
+        ChoiceKind::ChooseOpponent { source } => {
+            (format!("the opponents still in the game, one of whom {}'s instruction names", n(source)), Some("608.2d"))
         }
         ChoiceKind::ChooseEnteringDefender { object } => {
             (format!("what can be attacked that its effect allows, which {} attacks as it enters", n(object)), Some("508.4"))

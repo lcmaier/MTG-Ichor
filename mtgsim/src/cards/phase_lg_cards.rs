@@ -6,7 +6,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount,
+    Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -50,7 +50,7 @@ pub fn act_of_treason() -> Arc<CardData> {
                 // card says "target creature" once, and "that creature" and
                 // "it" are back-references to it, not new clauses.
                 Effect::Atom(
-                    Primitive::GainControl(Duration::UntilEndOfTurn),
+                    Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
                     EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(Primitive::Untap, EffectRecipient::SameInstanceAs(0)),

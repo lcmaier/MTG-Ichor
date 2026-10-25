@@ -29,7 +29,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount,
     TokenDef,
 };
 use mtgsim::types::colors::Color;
@@ -101,7 +101,7 @@ fn resolve_with(
 /// it early.
 fn steal(game: &mut GameState, creature: ObjectId, thief: PlayerId) -> ObjectId {
     let effect = Effect::Atom(
-        Primitive::GainControl(Duration::UntilEndOfTurn),
+        Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     resolve_with(game, thief, &effect, vec![ObjectOrPlayerId::Object(creature)], &test_dp())
@@ -112,7 +112,7 @@ fn steal(game: &mut GameState, creature: ObjectId, thief: PlayerId) -> ObjectId 
 /// only thing that can.
 fn steal_indefinitely(game: &mut GameState, creature: ObjectId, thief: PlayerId) -> ObjectId {
     let effect = Effect::Atom(
-        Primitive::GainControl(Duration::Indefinite),
+        Primitive::GainControl { to: PlayerRef::You, duration: Duration::Indefinite },
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     resolve_with(game, thief, &effect, vec![ObjectOrPlayerId::Object(creature)], &test_dp())
@@ -134,7 +134,7 @@ fn mind_control() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
-                Primitive::GainControl(Duration::WhileSourceOnBattlefield),
+                Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
                 EffectRecipient::Host,
             ),
         })

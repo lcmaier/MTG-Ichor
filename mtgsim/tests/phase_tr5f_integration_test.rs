@@ -441,7 +441,7 @@ fn a_change_of_control_a_batch_causes_is_announced_in_its_window() {
         replaced_event: None,
         trigger: None,
     };
-    let take = at_target_creature(Primitive::GainControl(Duration::WhileSourceOnBattlefield));
+    let take = at_target_creature(Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield });
     game.resolve_effect(&take, &ctx, &test_dp()).unwrap();
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert_eq!(get_effective_controller(&game, bears), Some(0));

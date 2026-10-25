@@ -478,7 +478,7 @@ impl GameState {
             // own, with a `Cant` becoming `Doesnt`, since CR 118.3 lets no
             // player pay a cost they can't.
             Effect::Optional { chooser, effect: inner } => {
-                let chooser = self.resolve_player_ref(chooser, &[], ctx)?;
+                let chooser = self.player_the_instruction_names(chooser, &[], ctx, dp)?;
                 let kind = ChoiceKind::ApplyOptionalEffect { source: ctx.source };
                 if !crate::ui::ask::ask_take_or_leave(dp, self, chooser, ctx.source, kind, "apply_optional_effect") {
                     // Its targets were announced all the same, so the instances
@@ -1588,7 +1588,7 @@ impl GameState {
             Primitive::GetCounters { counter, amount, by } => {
                 let n = self.evaluate_amount(amount, ctx, None)? as u32;
                 let player = self.resolve_player_for_self(recipient, targets, ctx);
-                let by = self.resolve_player_ref(by, targets, ctx)?;
+                let by = self.player_the_instruction_names(by, targets, ctx, dp)?;
                 self.execute_action(
                     GameAction::AddCounters {
                         subject: ObjectOrPlayerId::Player(player),
@@ -1603,24 +1603,32 @@ impl GameState {
 
             // === Layer 2 — control-changing effects (CR 613.1b) ===
 
-            Primitive::GainControl(duration) => {
+            Primitive::GainControl { to, duration } => {
                 // A filter names permanents (Mob Rule); a target may also be a
                 // spell, which has a controller too (CR 108.4).
                 let affected = match recipient {
                     EffectRecipient::FilteredPermanents(_) => self.affected_permanents(recipient, targets, ctx),
                     _ => self.collect_permanent_or_spell_targets(targets),
                 };
+                // Nothing to take is no choice of who takes it.
+                if affected.is_empty() {
+                    return Ok(());
+                }
                 // `You` rather than `ctx.controller`, though they name the
                 // same player: on a `Resolution` row, `FilterPlayers::you()`
                 // reads `ContinuousEffect.controller`, which CR 611.2c
-                // locked at resolution.
+                // locked at resolution. Anyone else is settled now.
+                let to = match to {
+                    PlayerRef::You => PlayerRef::You,
+                    other => PlayerRef::Player(self.player_the_instruction_names(other, targets, ctx, dp)?),
+                };
                 self.add_resolution_effect(
                     ctx,
                     &actx,
                     Layer::Layer2Control,
                     *duration,
                     affected,
-                    EffectModification::SetController(PlayerRef::You),
+                    EffectModification::SetController(to),
                 )?;
                 Ok(())
             }
@@ -2722,10 +2730,33 @@ impl GameState {
     /// for `Primitive::AddCounters` and `GetCounters` (CR 122.6a's shape on a
     /// proposal), and who chooses for `Effect::Optional`.
     ///
+    /// The player an instruction names as it is applied (CR 608.2d): "an
+    /// opponent" it does not target is its controller's choice among the
+    /// opponents still in the game, asked only when there are two or more
+    /// (Akroan Horse's ruling). Every other reference, and a target, reads as
+    /// [`Self::resolve_player_ref`] reads it.
+    fn player_the_instruction_names(
+        &self,
+        who: &PlayerRef,
+        targets: &[ObjectOrPlayerId],
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<PlayerId, String> {
+        let targeted = targets.iter().any(|t| matches!(t, ObjectOrPlayerId::Player(pid) if *pid != ctx.controller));
+        if matches!(who, PlayerRef::Opponent) && !targeted {
+            let opponents = self.opponents_of(ctx.controller);
+            if opponents.len() > 1 {
+                return Ok(crate::ui::ask::ask_choose_opponent(dp, self, ctx.controller, ctx.effect_source(), &opponents));
+            }
+        }
+        self.resolve_player_ref(who, targets, ctx)
+    }
+
     /// `You` is the effect's controller — every printed one-shot, and the
     /// card writes it. `Opponent` is the resolution's player target when it
     /// has one, else the only opponent still in the game; with several and
-    /// no target it is an authoring error and loud. Bold Plagiarist's
+    /// no target an instruction asks ([`Self::player_the_instruction_names`]),
+    /// and a read, which cannot ask, is loud. Bold Plagiarist's
     /// "*they* put" is the printed customer, a trigger whose effect names the
     /// player who triggered it — `Player(id)` once CR 603 fills it.
     fn resolve_player_ref(
@@ -2751,9 +2782,9 @@ impl GameState {
                             [only] => *only,
                             others => {
                                 return Err(format!(
-                                    "an effect names \"an opponent\" as the player putting \
-                                     counters on, targets none, and player {} has {} \
-                                     opponents in the game",
+                                    "a read names \"an opponent\" it does not target, and player {} has {} \
+                                     opponents in the game: the choice is the instruction's (CR 608.2d), \
+                                     which a read cannot ask",
                                     ctx.controller,
                                     others.len()
                                 ))

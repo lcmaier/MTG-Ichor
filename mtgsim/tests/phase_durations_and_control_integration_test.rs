@@ -13,7 +13,7 @@ use mtgsim::events::cause::GeneratedBy;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_in_graveyard, put_on_battlefield, setup_two_player_game, test_ctx, test_dp};
+use mtgsim::test_support::{put_in_graveyard, put_on_battlefield, setup_game, setup_two_player_game, test_ctx, test_dp};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AffectedSet, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PatternFill, PlayerRef, Primitive,
@@ -24,6 +24,8 @@ use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
+use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 fn an_opponents_creature() -> EffectRecipient {
     EffectRecipient::Target(
@@ -52,7 +54,7 @@ fn tempter() -> Arc<CardData> {
     on_entry(
         "Fixture Tempter",
         "When this creature enters, gain control of target creature an opponent controls for as long as this creature remains on the battlefield.",
-        Primitive::GainControl(Duration::WhileSourceOnBattlefield),
+        Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
     )
 }
 
@@ -61,7 +63,7 @@ fn dragonlord() -> Arc<CardData> {
     on_entry(
         "Fixture Dragonlord",
         "When this creature enters, gain control of target creature an opponent controls for as long as you control this creature.",
-        Primitive::GainControl(Duration::WhileYouControlSource),
+        Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileYouControlSource },
     )
 }
 
@@ -193,4 +195,52 @@ fn a_steal_for_as_long_as_you_control_its_source_never_starts_once_it_changed_ha
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(controller(&game, bears), Some(1));
     assert_eq!(control_rows(&game), 1, "the one row is the thief's");
+}
+
+/// **Fixture**, Akroan Horse's entry: "When this creature enters, an
+/// opponent gains control of it."
+fn trojan_horse() -> Arc<CardData> {
+    CardDataBuilder::new("Fixture Trojan Horse")
+        .card_type(CardType::Creature)
+        .power_toughness(0, 4)
+        .ability(triggered_ability(
+            "When this creature enters, an opponent gains control of it.",
+            whenever(
+                enters(TriggerSubject::ThisObject),
+                Effect::Atom(
+                    Primitive::GainControl { to: PlayerRef::Opponent, duration: Duration::Indefinite },
+                    EffectRecipient::ThisObject,
+                ),
+            ),
+        ))
+        .build()
+}
+
+// RULING: Akroan Horse #1 - "Akroan Horse's enters-the-battlefield ability doesn't target any opponent. In a multiplayer game, you choose the opponent as the ability resolves."
+/// CR 608.2d: with two opponents, the Horse's controller chooses which gains
+/// control of it as the ability resolves.
+#[test]
+fn an_opponent_gains_control_is_chosen_as_it_resolves_among_two_opponents() {
+    let mut game = setup_game(3);
+    let horse = put_on_battlefield(&mut game, trojan_horse(), 0);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(ChoiceKind::ChooseOpponent { source: horse }, vec![1]);
+
+    game.resolve_top_of_stack(&dp).unwrap();
+    assert_eq!(controller(&game, horse), Some(2), "the second of its two opponents, as chosen");
+}
+
+/// CR 102.2: with one opponent there is nothing to choose, and nothing is
+/// asked.
+#[test]
+fn an_opponent_gains_control_asks_nothing_with_one_opponent() {
+    let mut game = setup_two_player_game();
+    let horse = put_on_battlefield(&mut game, trojan_horse(), 0);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+
+    game.resolve_top_of_stack(&dp).unwrap();
+    assert_eq!(controller(&game, horse), Some(1));
+    assert!(dp.asked().is_empty(), "asked {:?}", dp.asked());
 }

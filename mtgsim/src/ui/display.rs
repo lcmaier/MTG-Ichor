@@ -457,6 +457,7 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         ChoiceKind::ChooseDelayedTriggerEvent { source } => {
             format!("Choose which event triggers {}'s delayed ability", n(source))
         }
+        ChoiceKind::ChooseOpponent { source } => format!("Choose the opponent {} names", n(source)),
         ChoiceKind::ChooseEnteringController { object } => {
             format!("Choose the opponent who controls {} as it enters", n(object))
         }

@@ -305,7 +305,7 @@ mod tests {
             trigger: None,
         };
         let threaten = Effect::Atom(
-            Primitive::GainControl(Duration::UntilEndOfTurn),
+            Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
             EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
         );
         game.resolve_effect(&threaten, &ctx, &test_dp()).expect("it resolves");

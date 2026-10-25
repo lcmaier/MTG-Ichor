@@ -1150,6 +1150,22 @@ pub fn ask_choose_entering_controller(
     candidates[index[0]]
 }
 
+/// CR 608.2d — choose which of `candidates`, the opponents still in the game,
+/// is the "an opponent" `source`'s resolving instruction names. With one the
+/// choice is forced, and answered unasked.
+pub fn ask_choose_opponent(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    source: ObjectId,
+    candidates: &[PlayerId],
+) -> PlayerId {
+    let options: Vec<ChoiceOption> = candidates.iter().map(|p| ChoiceOption::Player(*p)).collect();
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseOpponent { source });
+    let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_opponent");
+    candidates[index[0]]
+}
+
 /// CR 508.4 — choose what a permanent put onto the battlefield attacking
 /// attacks, as it enters, among `candidates`.
 ///
