@@ -156,14 +156,14 @@ impl EnteredAsNote {
 pub(crate) struct RowNote {
     pub(super) layer_index: usize,
     pub(super) row: Arc<ContinuousEffect>,
-    pub(super) membership: MembershipTest,
+    pub(super) membership: EffectMembershipTest,
 }
 
 /// How a card the pass left out is tested for a noted row's membership,
 /// walked alone later: `Affected` without its members, since such a card was
 /// never among them.
 #[derive(Debug, Clone, Copy)]
-pub(super) enum MembershipTest {
+pub(super) enum EffectMembershipTest {
     /// CR 613.6 — the effect started in an earlier layer or row, so the row
     /// applies to a card exactly when the card matched where it started.
     Locked,
@@ -470,7 +470,7 @@ impl<'l> Board<'l> {
     ///
     /// The row is found in its registry slice by id, for the `Arc` the note
     /// keeps. A look-ahead's own rows are in no registry, and never come here.
-    fn note(&mut self, game: &GameState, layer_index: usize, row: &ContinuousEffect, membership: MembershipTest) {
+    fn note(&mut self, game: &GameState, layer_index: usize, row: &ContinuousEffect, membership: EffectMembershipTest) {
         let stored = game
             .continuous_effects
             .effects_in_layer(LAYER_ORDER[layer_index])
@@ -491,7 +491,7 @@ impl<'l> Board<'l> {
     fn start_noted(&self, group: EffectGroup) -> bool {
         self.notes
             .iter()
-            .any(|note| matches!(note.membership, MembershipTest::Fresh { .. }) && note.row.group() == group)
+            .any(|note| matches!(note.membership, EffectMembershipTest::Fresh { .. }) && note.row.group() == group)
     }
 
     /// One member's frame, consuming the pass.
@@ -1401,9 +1401,9 @@ fn perform(
                     && (board.reaches_left_out(row) || (!fresh && board.start_noted(row.group())));
                 if noted {
                     let set = if fresh {
-                        MembershipTest::Fresh { you: FilterPlayers::for_row(row, game, board, layer_index).you() }
+                        EffectMembershipTest::Fresh { you: FilterPlayers::for_row(row, game, board, layer_index).you() }
                     } else {
-                        MembershipTest::Locked
+                        EffectMembershipTest::Locked
                     };
                     board.note(game, layer_index, row, set);
                 }
