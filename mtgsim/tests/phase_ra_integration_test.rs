@@ -342,7 +342,7 @@ fn test_the_only_payable_split_is_taken_and_never_offered() {
     assert!(
         game.recorded_events().events().any(|e| matches!(
             e,
-            GameEvent::SpellCast { spell_id, .. } if *spell_id == bear
+            GameEvent::SpellCast { spell, .. } if spell.id == bear
         )),
         "announced as cast at 601.2i",
     );

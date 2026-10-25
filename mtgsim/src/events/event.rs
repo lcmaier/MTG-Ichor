@@ -254,7 +254,8 @@ pub enum GameEvent {
     RemovedFromCombat { removed: Vec<CombatExit> },
 
     // --- Spells ---
-    SpellCast { spell_id: ObjectId, caster: PlayerId },
+    /// `spell` is the existence the cast made (CR 400.7).
+    SpellCast { spell: ObjectRef, caster: PlayerId },
 
     // There is no `SpellResolved`/`StackObjectResolved`: a spell finishing
     // resolution is a `ZoneChange` out of the stack caused by CR 608.2n's or
@@ -290,10 +291,11 @@ pub enum GameEvent {
     /// goes on the stack (603.3d). A choice that does not target announces
     /// nothing (CR 115.10a).
     ///
-    /// `ability_source` is an ability's source, which a reader names it by:
-    /// `by` is the stack object, which CR 608.2n removes. `None` for a spell.
-    /// Not the whole `AbilityIdentity`, which would grow every event by half.
-    Targeted { target: TargetRef, by: ObjectId, ability_source: Option<ObjectId>, controller: PlayerId, instances: u32 },
+    /// `ability_source` is an ability's source, as the existence the ability
+    /// is of, which a reader names it by: `by` is the stack object, which CR
+    /// 608.2n removes. `None` for a spell. Not the whole `AbilityIdentity`,
+    /// which would grow every event by half.
+    Targeted { target: TargetRef, by: ObjectRef, ability_source: Option<ObjectRef>, controller: PlayerId, instances: u32 },
     /// An ability triggered (CR 603.2) — the record CR 603.3b's second tier
     /// watches, emitted by the dispatcher once per queued trigger after the
     /// window it belongs to has closed (`triggers-architecture.md` §4.8).
@@ -330,16 +332,17 @@ pub enum GameEvent {
     /// back at (CR 603.10e): the existence it was, who cast it, its
     /// controller as it left the stack (in its owner's graveyard it has none,
     /// CR 108.4a), and what it was before it became a card in a graveyard.
-    SpellCountered { countered_by: ObjectId, lki: Lki },
+    SpellCountered { countered_by: ObjectRef, lki: Lki },
     /// An activated or triggered ability was countered (CR 701.6b), named by
     /// what it is: the stack object ceased to exist as it was countered.
-    AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectId },
+    AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectRef },
     /// A spell doesn't resolve (CR 608.2b): every target of every instance of
     /// "target" is illegal. Its move to the graveyard, the `ZoneChange` caused
     /// by `GameRule::TargetsIllegal`, comes first. Not a countering: CR 701.6a's
     /// counter is an effect's, and "whenever a spell is countered" does not
-    /// read this. `controller` as [`Self::SpellCountered`]'s.
-    SpellFizzled { spell_id: ObjectId, controller: PlayerId },
+    /// read this. `controller` as [`Self::SpellCountered`]'s, and `spell` the
+    /// existence that was on the stack, named before its move.
+    SpellFizzled { spell: ObjectRef, controller: PlayerId },
     /// An ability doesn't resolve (CR 608.2b), named by what it is, as
     /// [`Self::AbilityResolved`] is: CR 608.2b removes the stack object, so
     /// its id names nothing once this is read.
@@ -701,26 +704,26 @@ impl GameEvent {
             | TokenCreated { token: object, .. }
             | TokenCeasedToExist { token: object }
             | CardDrawn { card: object, .. }
-            | ManaAdded { source: object, .. } => each(object.id),
+            | ManaAdded { source: object, .. }
+            | SpellCast { spell: object, .. }
+            | SpellFizzled { spell: object, .. } => each(object.id),
             CountersPutOn { subject: CounterSubject::Object(id), .. }
             | CountersRemovedFrom { subject: CounterSubject::Object(id), .. }
             | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
             | DamagePrevented { target: DamageTarget::Object(id), .. }
-            | SpellCast { spell_id: id, .. }
-            | SpellFizzled { spell_id: id, .. }
             | BecameBlocked { attacker: id } => each(*id),
             AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
                 each(identity.source.id)
             }
             AbilityCountered { identity, countered_by, .. } => {
                 each(identity.source.id);
-                each(*countered_by);
+                each(countered_by.id);
             }
             Targeted { target, by, ability_source, .. } => {
                 if let TargetRef::Object(object) = target {
                     each(object.id);
                 }
-                each(ability_source.unwrap_or(*by));
+                each(ability_source.unwrap_or(*by).id);
             }
             AbilityTriggered { origin, .. } => each(origin.source()),
             DelayedTriggerCreated { source, .. } => each(*source),
@@ -741,7 +744,7 @@ impl GameEvent {
             }
             SpellCountered { countered_by, lki } => {
                 each(lki.object().id);
-                each(*countered_by);
+                each(countered_by.id);
             }
             SameZoneMove { lki, .. } | ControlChanged { lki, .. } => each(lki.object().id),
             Unattached { attachment, former_host, .. } => {

@@ -1017,8 +1017,8 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 TargetRef::Player(player) => player_in_log(*player),
             };
             let by = match ability_source {
-                Some(source) => format!("{}'s ability", named(*source)),
-                None => named(*by),
+                Some(source) => format!("{}'s ability", named(source.id)),
+                None => named(by.id),
             };
             let instances = if *instances > 1 { format!(", chosen for {instances} instances") } else { String::new() };
             format!("Targeted: {target} by {by} [{}]{instances}", player_in_log(*controller))
@@ -1111,19 +1111,19 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             format!("BlockersDeclared: [{}]", pairs.join(", "))
         }
         BecameBlocked { attacker } => format!("BecameBlocked: {}", named(*attacker)),
-        SpellCast { spell_id, caster } => {
-            format!("SpellCast: {} casts {}", player_in_log(*caster), named(*spell_id))
+        SpellCast { spell, caster } => {
+            format!("SpellCast: {} casts {}", player_in_log(*caster), named(spell.id))
         }
         SpellCountered { countered_by, lki } => format!(
             "SpellCountered: {} [{}] countered by {}",
             named(lki.object().id),
             player_in_log(lki.characteristics().controller),
-            named(*countered_by)
+            named(countered_by.id)
         ),
         AbilityCountered { identity, controller, countered_by } => format!(
             "AbilityCountered: {} [{}] countered by {}",
-            ability_in_log(named(identity.source.id), *identity), player_in_log(*controller), named(*countered_by)),
-        SpellFizzled { spell_id, controller } => format!("SpellFizzled: {} [{}] {DOES_NOT_RESOLVE}", named(*spell_id), player_in_log(*controller)),
+            ability_in_log(named(identity.source.id), *identity), player_in_log(*controller), named(countered_by.id)),
+        SpellFizzled { spell, controller } => format!("SpellFizzled: {} [{}] {DOES_NOT_RESOLVE}", named(spell.id), player_in_log(*controller)),
         AbilityFizzled { identity, controller } => format!(
             "AbilityFizzled: {} [{}] {DOES_NOT_RESOLVE}", ability_in_log(named(identity.source.id), *identity), player_in_log(*controller)),
         PlayerLost { player_id } => format!("PlayerLost: {} by {}", player_in_log(*player_id), cause_words(cause, named)),
@@ -1712,10 +1712,16 @@ mod tests {
             GameEvent::RemovedFromCombat {
                 removed: vec![CombatExit { object: reference(game, exit), attacking: None, blocking: vec![exit_blocked] }],
             },
-            GameEvent::SpellCast { spell_id: id(), caster: 0 },
+            GameEvent::SpellCast { spell: reference(game, id()), caster: 0 },
             GameEvent::AbilityResolved { identity: identity(game, id()), controller: 0 },
             GameEvent::AbilityActivated { identity: identity(game, id()), controller: 0, mana_ability: false, from: Zone::Battlefield, source_lki: None },
-            GameEvent::Targeted { target: TargetRef::Object(reference(game, id())), by: id(), ability_source: Some(id()), controller: 0, instances: 1 },
+            GameEvent::Targeted {
+                target: TargetRef::Object(reference(game, id())),
+                by: reference(game, id()),
+                ability_source: Some(reference(game, id())),
+                controller: 0,
+                instances: 1,
+            },
             GameEvent::AbilityTriggered { trigger: TriggerId(0), origin: TriggerOrigin::Object(identity(game, id())), controller: 0, caused_by: Some(EventId(0)) },
             GameEvent::DelayedTriggerCreated {
                 id: crate::types::ids::DelayedTriggerId(1),
@@ -1725,9 +1731,9 @@ mod tests {
                 duration: DelayedDuration::Once,
             },
             GameEvent::UntilReturnMade { id: UntilReturnId(1), source: id(), controller: 0, returns: vec![id()] },
-            GameEvent::SpellCountered { countered_by: id(), lki: lki(game, counted) },
-            GameEvent::AbilityCountered { identity: identity(game, id()), controller: 0, countered_by: countered },
-            GameEvent::SpellFizzled { spell_id: id(), controller: 0 },
+            GameEvent::SpellCountered { countered_by: reference(game, id()), lki: lki(game, counted) },
+            GameEvent::AbilityCountered { identity: identity(game, id()), controller: 0, countered_by: reference(game, countered) },
+            GameEvent::SpellFizzled { spell: reference(game, id()), controller: 0 },
             GameEvent::AbilityFizzled { identity: identity(game, id()), controller: 0 },
             GameEvent::PlayerLost { player_id: 1 },
             GameEvent::PlayerWon { player_id: 0 },

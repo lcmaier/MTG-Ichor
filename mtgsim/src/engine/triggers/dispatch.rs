@@ -2026,12 +2026,12 @@ impl GameState {
                 matches!(event.life_change(), Some(LifeChange::Lost(_)))
                     && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)),
             ),
-            (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell_id, caster: who }) => {
+            (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell: cast, caster: who }) => {
                 let spell_ok = match spell {
                     None => true,
                     Some(filter) => self.subject_matches(
                         &TriggerSubject::Filter(filter.clone()),
-                        ObjectInformation::Current(*spell_id),
+                        ObjectInformation::Current(cast.id),
                         referents,
                         seq,
                     ),
@@ -2146,7 +2146,7 @@ impl GameState {
                 let kind_ok = kind.admits(ability_source.is_none())
                     && match kind {
                         TargetedBy::Spell(Some(filter)) => {
-                            self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(*by), referents, seq)
+                            self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(by.id), referents, seq)
                         }
                         TargetedBy::Spell(None) | TargetedBy::SpellOrAbility | TargetedBy::Ability => true,
                     };
@@ -2156,7 +2156,7 @@ impl GameState {
                         TargetRef::Object(object) => ObjectOrPlayer::Object(*object),
                         TargetRef::Player(player) => ObjectOrPlayer::Player(*player),
                     };
-                    Some(TriggeringEventObjects::Target { target, by: self.object_ref(*by)? })
+                    Some(TriggeringEventObjects::Target { target, by: self.object_ref(by.id)? })
                 };
                 if target_ok && kind_ok && whose_ok { objects().into_iter().collect() } else { Vec::new() }
             }
@@ -2689,7 +2689,7 @@ impl GameState {
             GameEvent::ManaAdded { source_lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
             GameEvent::ManaAdded { source, .. } => source.id,
             GameEvent::CardDrawn { card, .. } => card.id,
-            GameEvent::SpellCast { spell_id, .. } => *spell_id,
+            GameEvent::SpellCast { spell, .. } => spell.id,
             _ => return TriggeringEventObjects::NoObject,
         };
         self.subject_after(event, id).map_or(TriggeringEventObjects::NoObject, TriggeringEventObjects::Object)

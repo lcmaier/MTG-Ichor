@@ -364,9 +364,9 @@ fn a_destination_pattern_catches_a_sacrifice_rest_in_peace_exiled() {
 // ---------------------------------------------------------------------------
 
 /// The cause fits where the resolution stamp was (§2b.10): no record copies
-/// more bytes for carrying it.
+/// more bytes for carrying it. The record is its event's size and the stamp's.
 #[test]
 fn the_stamp_and_the_record_keep_their_sizes() {
     assert_eq!(std::mem::size_of::<EventStamp>(), 40);
-    assert_eq!(std::mem::size_of::<EventRecord>(), 144);
+    assert_eq!(std::mem::size_of::<EventRecord>(), 152);
 }

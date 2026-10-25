@@ -286,6 +286,7 @@ impl GameState {
         controller: crate::types::ids::PlayerId,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
+        let spell = self.existence_of(object_id)?;
         if entry.is_spell {
             // CR 608.2b — it doesn't resolve, and this is a real zone change,
             // the rule's and no resolution's: the spell never resolved.
@@ -305,7 +306,7 @@ impl GameState {
         // object just removed names nothing to a reader of the record.
         let fizzled = match entry.ability_identity {
             Some(identity) => GameEvent::AbilityFizzled { identity, controller },
-            None => GameEvent::SpellFizzled { spell_id: object_id, controller },
+            None => GameEvent::SpellFizzled { spell, controller },
         };
         self.emit_event(fizzled, EventCause::GameRule(GameRule::TargetsIllegal))?;
 

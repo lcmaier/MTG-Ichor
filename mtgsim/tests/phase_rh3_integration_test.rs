@@ -383,9 +383,11 @@ fn who_exiled_a_redirected_move_is_the_resolving_spells_controller() {
 }
 
 /// The record grew by what it holds and not by a byte (§2b.10's pricing).
+/// Its widest payload is a targeting's, which names its spell or ability
+/// and that ability's source each by existence.
 #[test]
 fn the_event_keeps_its_size() {
-    assert_eq!(std::mem::size_of::<GameEvent>(), 72);
+    assert_eq!(std::mem::size_of::<GameEvent>(), 80);
 }
 
 // ---------------------------------------------------------------------------

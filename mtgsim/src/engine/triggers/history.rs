@@ -254,9 +254,9 @@ impl GameState {
         let current = |id: ObjectId| self.object_ref(id).map(|object| (object, as_left(compute_characteristics(self, id))));
         let controller = |frame: &RowFrame| frame.characteristics().map(|chars| chars.controller);
         match &record.event {
-            GameEvent::SpellCast { spell_id, caster } => {
+            GameEvent::SpellCast { spell, caster } => {
                 if let (Some((object, frame)), Some(from)) =
-                    (current(*spell_id), self.stack_entries.get(spell_id).and_then(|entry| entry.cast_from))
+                    (current(spell.id), self.stack_entries.get(&spell.id).and_then(|entry| entry.cast_from))
                 {
                     draft_history_row(Some(*caster), Some(object), frame, RowFact::Cast { from });
                 }
