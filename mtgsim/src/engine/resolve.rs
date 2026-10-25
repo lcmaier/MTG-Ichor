@@ -1577,6 +1577,17 @@ impl GameState {
                     .into_iter()
                     .map(ObjectOrPlayerId::Object)
                     .collect();
+                // Who puts them on is the instruction's to name, asked once as
+                // it applies (CR 608.2d), and `event_for` reads it per object.
+                let named;
+                let primitive = match primitive {
+                    Primitive::AddCounters { counter, amount, by } if !objects.is_empty() => {
+                        let by = PlayerRef::Player(self.player_the_instruction_names(by, targets, ctx, dp)?);
+                        named = Primitive::AddCounters { counter: *counter, amount: amount.clone(), by };
+                        &named
+                    }
+                    _ => primitive,
+                };
                 let batch = self.events_for(primitive, &objects, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())

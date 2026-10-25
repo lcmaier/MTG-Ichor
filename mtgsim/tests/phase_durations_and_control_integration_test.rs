@@ -21,7 +21,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::effects::{
-    AffectedSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PatternFill, PlayerRef, PlayerSet,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PatternFill, PlayerRef, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -29,7 +29,7 @@ use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef, RuleAction};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 fn an_opponents_creature() -> EffectRecipient {
@@ -377,4 +377,34 @@ fn each_player_gains_control_of_what_they_own_object_by_object() {
     game.resolve_effect(&homecoming, &ctx, &test_dp()).unwrap();
 
     assert_eq!((controller(&game, mine_with_them), controller(&game, theirs_with_me)), (Some(0), Some(1)));
+}
+
+/// "Put a +1/+1 counter on target creature you control; an opponent puts
+/// it": the player putting counters on is the instruction's to name, so with
+/// two opponents its controller chooses which as it applies (CR 608.2d,
+/// 122.6a's "which player puts those counters").
+#[test]
+fn an_opponent_putting_counters_on_is_chosen_among_two_opponents() {
+    let mut game = setup_game(3);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let source = put_in_graveyard(&mut game, card_of_type("Fixture Gift of Growth", CardType::Sorcery), 0);
+    let gift = Effect::Atom(
+        Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::Opponent },
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+    );
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 0,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(bears)]),
+        replaced_event: None,
+        trigger: None,
+    };
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::ChooseOpponent { source }, vec![ChoiceOption::Player(2)]);
+
+    game.resolve_effect(&gift, &ctx, &dp).unwrap();
+    assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 1);
+    assert!(matches!(dp.asked().as_slice(), [ChoiceKind::ChooseOpponent { source: asked }] if *asked == source));
 }
