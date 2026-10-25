@@ -1077,11 +1077,12 @@ impl GameState {
                 // said "X". Static abilities are the ones that stay live.
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer7cModifyPT,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::ModifyPowerToughness { power: PtValue::Fixed(power), toughness: PtValue::Fixed(toughness) },
-                );
+                )?;
                 Ok(())
             }
 
@@ -1090,11 +1091,12 @@ impl GameState {
                 let toughness = self.evaluate_amount(toughness_expr, ctx, None)? as i32;
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer7bSetPT,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::SetPowerToughness { power: PtValue::Fixed(power), toughness: PtValue::Fixed(toughness) },
-                );
+                )?;
                 Ok(())
             }
 
@@ -1106,11 +1108,12 @@ impl GameState {
             Primitive::SwitchPowerToughness(duration) => {
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer7dSwitchPT,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::SwitchPowerToughness,
-                );
+                )?;
                 Ok(())
             }
 
@@ -1125,11 +1128,12 @@ impl GameState {
                 };
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer5Color,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     modification,
-                );
+                )?;
                 Ok(())
             }
 
@@ -1144,6 +1148,7 @@ impl GameState {
                 // siblings ("the parts of the effect each apply in their appropriate
                 // layers") and CR 613.7b makes them share a timestamp — one resolution,
                 // one moment of creation.
+                self.settle_before_a_resolution_effect(&actx)?;
                 let timestamp = self.allocate_timestamp();
                 for modification in type_change.modifications() {
                     self.add_resolution_row(ctx, Layer::Layer4Type, *duration, timestamp, affected.clone(), modification);
@@ -1159,44 +1164,48 @@ impl GameState {
             Primitive::GrantKeywordFlag(keyword, duration) => {
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer6Ability,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::GrantKeywordFlag(*keyword),
-                );
+                )?;
                 Ok(())
             }
 
             Primitive::RemoveKeywordFlag(keyword, duration) => {
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer6Ability,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::RemoveKeywordFlag(*keyword),
-                );
+                )?;
                 Ok(())
             }
 
             Primitive::LoseAbility(ability_id, duration) => {
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer6Ability,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::LoseAbility(*ability_id),
-                );
+                )?;
                 Ok(())
             }
 
             Primitive::LoseAllAbilities(duration) => {
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer6Ability,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::LoseAllAbilities,
-                );
+                )?;
                 Ok(())
             }
 
@@ -1204,11 +1213,12 @@ impl GameState {
                 let grantees = self.affected_permanents(recipient, targets, ctx);
                 let granted = self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer6Ability,
                     *duration,
                     grantees.clone(),
                     EffectModification::GrantAbility(def.clone()),
-                );
+                )?;
 
                 // CR 613.7a clause 2: a granted static ability's own effects take the
                 // *later* of this effect's timestamp and the grantee's, so a permanent
@@ -1600,11 +1610,12 @@ impl GameState {
                 // locked at resolution.
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer2Control,
                     *duration,
                     affected,
                     EffectModification::SetController(PlayerRef::You),
-                );
+                )?;
                 Ok(())
             }
 
@@ -1747,20 +1758,35 @@ impl GameState {
     fn add_resolution_effect(
         &mut self,
         ctx: &ResolutionContext,
+        actx: &ActionContext,
         layer: Layer,
         duration: Duration,
         affected: Vec<ObjectId>,
         modification: EffectModification,
-    ) -> Option<(Timestamp, EffectId)> {
+    ) -> Result<Option<(Timestamp, EffectId)>, String> {
         if affected.is_empty() {
-            return None;
+            return Ok(None);
         }
+        self.settle_before_a_resolution_effect(actx)?;
         let timestamp = self.allocate_timestamp();
-        Some((timestamp, self.add_resolution_row(ctx, layer, duration, timestamp, affected, modification)))
+        Ok(Some((timestamp, self.add_resolution_row(ctx, layer, duration, timestamp, affected, modification))))
+    }
+
+    /// CR 603.2: what an earlier instruction's effect did to a controller or
+    /// a combatant (CR 603.10d, 506.4) is an event as it happens, so it is
+    /// announced before the next effect is written rather than merged into
+    /// the next batch's. Inside a batch, as a rider's resolution is, the
+    /// batch's close settles it.
+    fn settle_before_a_resolution_effect(&mut self, actx: &ActionContext) -> Result<(), String> {
+        if self.nesting.batch_depth > 0 || self.nesting.dispatch_depth > 0 {
+            return Ok(());
+        }
+        self.settle_layer_consequences(actx)
     }
 
     /// One row of a resolution's continuous effect at `timestamp`, which the
-    /// caller allocates: a type change's sibling rows share one (CR 613.7b).
+    /// caller allocates: a type change's sibling rows share one (CR 613.7b),
+    /// so the caller settles once, before the effect's first row.
     fn add_resolution_row(
         &mut self,
         ctx: &ResolutionContext,
@@ -1979,6 +2005,8 @@ impl GameState {
         let keeps_own_value = except.iter().any(|exception| matches!(exception, CopyException::DoesNotCopy(_)));
         let row_subjects: Vec<Vec<ObjectId>> =
             if keeps_own_value { affected.iter().map(|&id| vec![id]).collect() } else { vec![affected] };
+        // One effect, whatever its rows: settled before the first write.
+        self.settle_before_a_resolution_effect(&ActionContext::resolving(dp, ctx))?;
         for affected in row_subjects {
             let mut values = captured.clone();
             if !except.is_empty() {
