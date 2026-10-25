@@ -10,7 +10,7 @@ use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
-use crate::state::trace::{render_debug, Record, RecordKind};
+use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
 use crate::types::effects::{
     ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
 };
@@ -809,7 +809,7 @@ impl IterationTrace {
         IterationTrace {
             iteration,
             event: render_debug(first),
-            subject: subject.map_or_else(|| "Game".to_string(), |subject| render_debug(&subject)),
+            subject: render_subject(*subject),
             frame_computed: false,
             candidates: Vec::new(),
             prohibited: Vec::new(),

@@ -18,7 +18,7 @@ use crate::engine::replacement::{BatchMember, SubjectGroup};
 use crate::engine::targeting::TargetInstance;
 use crate::events::event::EventId;
 use crate::state::game_state::{AbilityIdentity, GameState};
-use crate::state::trace::{render_debug, Record, RecordKind};
+use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{PendingTrigger, TriggerTier};
 use crate::types::zones::Zone;
@@ -51,7 +51,7 @@ pub(crate) fn batch(game: &GameState, groups: &[SubjectGroup], inherited: usize)
     r.key("groups").begin_array();
     for group in groups {
         r.begin_object();
-        r.field_str("subject", &render_debug(&group.subject));
+        r.field_str("subject", &render_subject(group.subject));
         let places: Vec<usize> = group.members.iter().map(|m| m.place).collect();
         r.field_usizes("members", &places);
         r.end();
