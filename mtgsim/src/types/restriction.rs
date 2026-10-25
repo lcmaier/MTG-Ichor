@@ -125,6 +125,28 @@ pub enum Restriction {
         /// permanent and every player.
         affected: AffectedSet,
     },
+
+    // ---- Axis 4: a rule's own action (CR 101.1) --------------------------
+    /// A rule's own action does not happen to what `affected` names: "damage
+    /// isn't removed from this creature during cleanup steps" (CR 514.2),
+    /// "you don't lose the game for having 0 or less life" (704.5a), "the
+    /// legend rule doesn't apply" (704.5j). Not a "can't" of an event: the
+    /// rule's action is a turn-based or state-based one, which the rule
+    /// performs or proposes only for what no such restriction names, so a
+    /// player Phyrexian Unlife keeps at 0 life still loses to poison. CR 101.1:
+    /// the card takes precedence over the rule.
+    RuleDoesNotApply { rule: RuleAction, affected: AffectedSet },
+}
+
+/// A rule whose own action a card can switch off, named by the rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuleAction {
+    /// A state-based action (CR 704.5, 704.6), by its subrule. The check
+    /// asks of every member it gathers.
+    StateBased(crate::events::cause::StateBasedAction),
+    /// CR 514.2's removal of the damage marked on a permanent in the cleanup
+    /// step.
+    CleanupDamageRemoval,
 }
 
 impl Restriction {
@@ -133,14 +155,18 @@ impl Restriction {
     /// resolution's targets without caring which arm it is.
     pub fn affected(&self) -> &AffectedSet {
         match self {
-            Restriction::Event { affected, .. } | Restriction::ApplyReplacement { affected, .. } => affected,
+            Restriction::Event { affected, .. }
+            | Restriction::ApplyReplacement { affected, .. }
+            | Restriction::RuleDoesNotApply { affected, .. } => affected,
         }
     }
 
     /// [`Self::affected`], to fill in.
     pub fn affected_mut(&mut self) -> &mut AffectedSet {
         match self {
-            Restriction::Event { affected, .. } | Restriction::ApplyReplacement { affected, .. } => affected,
+            Restriction::Event { affected, .. }
+            | Restriction::ApplyReplacement { affected, .. }
+            | Restriction::RuleDoesNotApply { affected, .. } => affected,
         }
     }
 }

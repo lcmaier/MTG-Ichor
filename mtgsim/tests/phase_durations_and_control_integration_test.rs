@@ -13,15 +13,19 @@ use mtgsim::events::cause::GeneratedBy;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_in_graveyard, put_on_battlefield, setup_game, setup_two_player_game, test_ctx, test_dp};
-use mtgsim::types::card_types::CardType;
+use mtgsim::events::cause::StateBasedAction;
+use mtgsim::state::game_state::{GameResult, StepType};
+use mtgsim::test_support::{
+    put_in_graveyard, put_on_battlefield, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
+};
+use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::effects::{
-    AffectedSet, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PatternFill, PlayerRef, Primitive,
-    SelectionFilter, TargetCount,
+    AffectedSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PatternFill, PlayerRef, PlayerSet,
+    Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
-use mtgsim::types::restriction::{Restriction, RestrictionDef};
+use mtgsim::types::restriction::{Restriction, RestrictionDef, RuleAction};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -243,5 +247,103 @@ fn an_opponent_gains_control_asks_nothing_with_one_opponent() {
 
     game.resolve_top_of_stack(&dp).unwrap();
     assert_eq!(controller(&game, horse), Some(1));
+    assert!(dp.asked().is_empty(), "asked {:?}", dp.asked());
+}
+
+/// An enchantment whose one static ability says `rule` does not apply to
+/// what `affected` names.
+fn rule_does_not_apply(name: &str, rule: RuleAction, affected: AffectedSet) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::RuleDoesNotApply {
+            rule,
+            affected,
+        })))))
+        .build()
+}
+
+fn creatures_you_control() -> AffectedSet {
+    AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Creature)),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    )))
+}
+
+/// CR 514.2's wipe skips what "damage isn't removed from creatures you
+/// control during cleanup steps" names, and only that: the opponent's
+/// creature's damage wears off.
+#[test]
+fn damage_a_card_says_is_not_removed_survives_the_cleanup_step() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(
+        &mut game,
+        rule_does_not_apply("Fixture Festering Ward", RuleAction::CleanupDamageRemoval, creatures_you_control()),
+        0,
+    );
+    let ours = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    for id in [ours, theirs] {
+        game.battlefield.get_mut(&id).unwrap().damage_marked = 1;
+    }
+
+    while !(game.active_player == 1 && game.phase.step == Some(StepType::Upkeep)) {
+        game.advance_turn(&test_dp()).unwrap();
+    }
+    let damage = |id: ObjectId| game.battlefield[&id].damage_marked;
+    assert_eq!((damage(ours), damage(theirs)), (1, 0), "kept into the next turn, and worn off");
+}
+
+/// Phyrexian Unlife's "you don't lose the game for having 0 or less life":
+/// CR 704.5a does not apply to its controller, and 704.5c still does. The
+/// check's one loss per player names its first reason (CR 704.7), so the
+/// exemption is asked of each reason before they collapse.
+#[test]
+fn a_player_a_card_keeps_at_zero_life_still_loses_to_poison() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(
+        &mut game,
+        rule_does_not_apply(
+            "Fixture Unlife",
+            RuleAction::StateBased(StateBasedAction::ZeroLife),
+            AffectedSet::players(PlayerSet::You),
+        ),
+        0,
+    );
+    game.players[0].life_total = 0;
+    game.check_state_based_actions(&test_dp()).unwrap();
+    assert!(game.result.is_none(), "CR 704.5a does not apply to player 0");
+
+    game.players[0].add_counters(CounterType::Poison, 10);
+    game.check_state_based_actions(&test_dp()).unwrap();
+    assert_eq!(game.result, Some(GameResult::Winner(1)), "CR 704.5c does");
+}
+
+/// Mirror Gallery's "the legend rule doesn't apply": two legends of one name
+/// under one controller stay, and nobody is asked which to keep.
+#[test]
+fn legends_the_legend_rule_does_not_apply_to_stay_unasked() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(
+        &mut game,
+        rule_does_not_apply(
+            "Fixture Gallery",
+            RuleAction::StateBased(StateBasedAction::LegendRule),
+            AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::All)),
+        ),
+        0,
+    );
+    let legend = || {
+        CardDataBuilder::new("Fixture Legend")
+            .supertype(Supertype::Legendary)
+            .card_type(CardType::Creature)
+            .power_toughness(2, 2)
+            .build()
+    };
+    let first = put_on_battlefield(&mut game, legend(), 0);
+    let second = put_on_battlefield(&mut game, legend(), 0);
+    let dp = ScriptedDecisionProvider::new();
+
+    game.check_state_based_actions(&dp).unwrap();
+    assert!(game.battlefield.contains_key(&first) && game.battlefield.contains_key(&second));
     assert!(dp.asked().is_empty(), "asked {:?}", dp.asked());
 }

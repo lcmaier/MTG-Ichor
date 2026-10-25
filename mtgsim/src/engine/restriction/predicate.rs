@@ -21,7 +21,7 @@ use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{
-    ReplacementKindFilter, Restriction, RestrictionDef, SourceFilter,
+    ReplacementKindFilter, Restriction, RestrictionDef, RuleAction, SourceFilter,
 };
 
 /// What [`is_prohibited`] is being asked about.
@@ -49,6 +49,11 @@ pub(crate) enum Query<'a> {
     ApplyReplacement {
         kind: ReplacementKindFilter,
         subject: Option<ObjectOrPlayerId>,
+    },
+    /// CR 101.1 — does this rule's own action apply to `subject`?
+    RuleAction {
+        rule: RuleAction,
+        subject: ObjectOrPlayerId,
     },
 }
 
@@ -102,7 +107,7 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
                 let fresh = lookahead.map(EntryFrame::uncomputed);
                 prohibition_sweeping(game, &Query::Event { action, cause, lookahead: fresh.as_ref() }, Sweep::Everything)
             }
-            Query::ApplyReplacement { .. } => prohibition_sweeping(game, query, Sweep::Everything),
+            Query::ApplyReplacement { .. } | Query::RuleAction { .. } => prohibition_sweeping(game, query, Sweep::Everything),
         });
         let named = |found: Option<Prohibition>| found.map(|p| format!("{p:?}")).into_iter().collect();
         assert_shortcut_agrees("the restriction sweep's gate", || format!("{query:?}"), named(found), named(everything));
@@ -147,7 +152,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
             derived = EntryFrame::new(game, action);
             Some(&derived)
         }
-        Query::ApplyReplacement { .. } => None,
+        Query::ApplyReplacement { .. } | Query::RuleAction { .. } => None,
     };
 
     // --- Source 1: the battlefield sweep ---------------------------------
@@ -267,8 +272,14 @@ fn matches(
             kind == asked && set_affects(game, affected, source, controller, *subject, None)
         }
 
-        (Restriction::Event { .. }, Query::ApplyReplacement { .. })
-        | (Restriction::ApplyReplacement { .. }, Query::Event { .. }) => false,
+        (
+            Restriction::RuleDoesNotApply { rule, affected },
+            Query::RuleAction { rule: asked, subject },
+        ) => rule == asked && set_affects(game, affected, source, controller, Some(*subject), None),
+
+        (Restriction::Event { .. }, Query::ApplyReplacement { .. } | Query::RuleAction { .. })
+        | (Restriction::ApplyReplacement { .. }, Query::Event { .. } | Query::RuleAction { .. })
+        | (Restriction::RuleDoesNotApply { .. }, Query::Event { .. } | Query::ApplyReplacement { .. }) => false,
     }
 }
 

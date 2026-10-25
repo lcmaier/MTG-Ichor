@@ -1547,9 +1547,9 @@ impl GameState {
 
             // NOT REPLACEABLE: a direct write because nothing replaces *this* removal — Pyramids, the
             // one printed card that removes all damage, uses it as a replacement's
-            // substituted event. Not by analogy to the CR 514.2 cleanup wipe, which
-            // seven cards restrict and which owes an enforcement point
-            // (`codebase-state.md`, Before Replacement item 20).
+            // substituted event. Not by analogy to the CR 514.2 cleanup wipe, a
+            // rule's action a card can switch off (`Restriction::RuleDoesNotApply`),
+            // where this is an effect's.
             Primitive::RemoveAllDamage => {
                 for object in self.affected_permanents(recipient, targets, ctx) {
                     if let Some(entry) = self.battlefield.get_mut(&object) {
