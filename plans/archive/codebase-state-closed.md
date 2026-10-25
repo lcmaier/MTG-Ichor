@@ -8222,7 +8222,7 @@ One LKI store keyed by existence, written once by `depart` and read by `lki`, wi
 
 ### Item 247 — closed 2026-10-25 by PR #289 (`trigger-matcher-merges`)
 
-Every T-entry merged or kept with its reason (#289's body): T1's tail, T2's queue, T3's fold, T4's `CreatedAt`, T6's candidate constructors, T7's tables with a pairing test over all 30 arms, T8's `extra_turn_is_coming`, T9's three, T12's `owner_of` with its two hand-overs kept, T14 re-read, T15's `named_objects`, T16's peel, T19's `mana_part`, T20's `role_objects`, T21's `has_first_or_double_strike`; the work-list's merge rows with them.
+Every T-entry merged or kept with its reason (#289's body): T1's tail, T2's queue, T3's fold, T4's `CreatedAt`, T6's candidate constructors, T7's tables with a pairing test over all 30 arms, T8's `extra_turn_current_or_queued`, T9's three, T12's `owner_of` with its two hand-overs kept, T14 re-read, T15's `named_objects`, T16's peel, T19's `mana_part`, T20's `object_roles`, T21's `has_first_or_double_strike`; the work-list's merge rows with them.
 
 *Original entry:*
 
@@ -8289,7 +8289,7 @@ The state check walks `lki_keepers`' legs, the resolving one included, as CR 400
 
 ### Item 302 — closed 2026-10-25 by PR #289 (`trigger-matcher-merges`)
 
-`TriggerGate`, built by `trigger_gate` for the dispatch, the look-back snapshot and the state check, with today's legs (`OffTheBattlefield`); the zone leg's filter is readiness's to price on it.
+`TriggerGate`, built by `trigger_gate` for the dispatch, the look-back snapshot and the state check, with today's legs (`OffBattlefieldLegs`); the zone leg's filter is readiness's to price on it.
 
 *Original entry:*
 
@@ -8341,7 +8341,7 @@ The state check walks `lki_keepers`' legs, the resolving one included, as CR 400
 
 ### Item 309 — closed 2026-10-25 by PR #289 (`trigger-matcher-merges`)
 
-`TriggerEvent::names_referred`, and `readings_its_arms_cannot_give` refuses a referred object its arm's subject does not remember.
+`TriggerEvent::names_referred_object`, and `readings_its_arms_cannot_give` refuses a referred object its arm's subject does not remember.
 
 *Original entry:*
 
@@ -8434,7 +8434,7 @@ Each restated fact is read off its record's frame: `SameZoneMove`'s owner, `Cont
 
 ### Item 320 — closed 2026-10-25 by PR #289 (`trigger-matcher-merges`)
 
-Split in the doc at #289: a move's records (`DepartedObject`) and the three always-framed records (their frame) name their existence; the other payloads' plain ids are item 328, at `one-fact-one-type`.
+Split in the doc at #289: a move's records (`DepartedObject`) and the three always-framed records (their frame) name their existence; the other payloads' plain ids are item 328, at `record-existences`.
 
 *Original entry:*
 

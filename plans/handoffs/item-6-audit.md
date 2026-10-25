@@ -172,11 +172,14 @@ pass re-reads what it touches: a number here is a starting point.
   301, 302, 304, 309, 315, 317, 319, 320 and 321 closed, and the merge rows,
   each dispositioned in #289's body. Item 320 ran long and was split in the
   doc: a move's records and the three always-framed ones name their
-  existence, and the other payloads' ids are item 328, at
-  `one-fact-one-type` beside item 291, since converting them moves the
-  stream. Item 329, a rider's missing ability source, filed to
-  `resolution-recipients-and-amounts`. The next PR is `one-fact-one-type`
-  (4).
+  existence, and the other payloads' ids are item 328, since converting them
+  moves the stream. Item 329, a rider's missing ability source, filed to
+  `resolution-recipients-and-amounts`. At #289's review (2026-10-25) the
+  owner split `one-fact-one-type` in two, since a session's length follows
+  how many separate fixes it holds: item 328 is `record-existences` (3b),
+  with its own `differ` A/B, and goes first, because item 291's
+  object-or-player type is built over its result. The next PR is
+  `record-existences` (3b), then `one-fact-one-type` (4).
 
 ## 1. Why this audit is bigger than the last
 
@@ -763,14 +766,16 @@ about.
 | 1d | `concept-census-and-register` | Each CR concept that names a thing, every type and field that holds it and its one owner; a gate that fails a new field holding an owned concept without a register line (added at #284's review) | — | — | its census's | — | identical | none |
 | 2 | `resolution-context-rider` | `ResolutionContext`'s two rider numbers as one optional value | 137 | — | ~130 | ~130–160 | identical | none |
 | 3 | `trigger-matcher-merges` | The trigger matcher's facts, each written once | 247, 301, 302, 304, 309, 315, 319, 320, 321, and 317 (decision 2) | 2, 3, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 30, 53, 54, 55, 59, 67, 68; and 5 | ~910 | ~1,250–1,600; ~1,350–1,800 with 317 | identical for the merges; with 317 both pools differ, since Blood Artist's order prompts go: a three-arm A/B | the dispatch, and the close-out's audited smoke (`engineering-practices.md#the-close-out`) |
-| 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296, 326, 327, 328 | 46 | ~1,850–2,100 | ~2,000–2,400 | identical but item 328's, which moves the stream: its own `differ` A/B | the replacement gather's membership test |
+| 3b | `record-existences` | Every record names its object by existence (split from 4 at #289's review) | 328 | — | ~300 | ~450–600 | both differ: a trigger names the existence its event was about, which is another where an object moved again in its own window; an A/B attributed to those windows | the dispatch's subject reads |
+| 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296, 326, 327 | 46 | ~1,550–1,800 | ~1,550–1,850 | identical | the replacement gather's membership test |
 | 5 | `batches-durations-and-control` | The triage's batches, durations and control builds, two record checks among them | 17, 20, 26, 61, 62, 134, 148, 300, 324, 325, "Before Layers" 13 | — | ~1,390 | ~1,750–2,100 | identical: 300's narrow form keeps Ray of Command's order | phase 2's check per member, the duration sweep per batch |
 | 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329 | 38 | ~1,230 | ~1,500–1,800 | identical | castability's assignment (155) |
 | 7 | `layers-combat-and-counters` | The triage's layer, combat and counter builds, one record check among them | 86, 117, 184, 190, 205, 206, 308, 322, 323, "Before Layers" 16, "Before card breadth" 1, 3, 5 and 6 | 41, 44, 50 | ~1,330 | ~1,650–2,000 | identical | the layer walk |
 | 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 284, 285; the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
 
-That is **60 items and 40 merge rows in 8 PRs**, about 11,000–14,000
-lines carried, 9 if 317 stays its own. 1d's census (#287, 2026-10-24) added
+That is **60 items and 40 merge rows in 9 PRs**, about 11,000–14,000
+lines carried, since `record-existences` was split from
+`one-fact-one-type` at #289's review. 1d's census (#287, 2026-10-24) added
 ten items to five of them, each in its row above: about 400–750 lines, which
 leave every row in the band (`trigger-matcher-merges` about 1,570–2,210
 carried with 317, the largest). Item 291 does not pass the band
@@ -955,6 +960,12 @@ item 124's precedent that a sweep does not ride inside a rules change.
      a dropped Blood Artist (or Flickerwisp) order prompt
      (`fuzz-record.md`). Item 320 split in the doc: its other payloads are
      item 328, below.
+3b. `record-existences`, split from `one-fact-one-type` at #289's review.
+   - Item 328, split from item 320 at #289: the record payloads that still
+     name an object by its id, each an `ObjectRef`. It moves the stream, so
+     its A/B is attributed game by game to the windows where an object
+     moved twice. Ahead of `one-fact-one-type`, whose object-or-player type
+     by reference is built over its result.
 4. `one-fact-one-type`.
    - Item 291, three things each written as several types:
      - `Selector` becomes an `ObjectSet`;
@@ -970,10 +981,6 @@ item 124's precedent that a sweep does not ride inside a rules change.
      `Not(SourceInZone(..))` cannot state a zone silently.
    - Row 46: the `PlayerRef` that names a player for an entering object,
      merged keeping the refusal CR 616.1b needs.
-   - Item 328, split from item 320 at #289: the record payloads that still
-     name an object by its id, each an `ObjectRef`, ahead of item 291's
-     object-or-player type over the result. It moves the stream, so it
-     carries its own `differ` A/B.
 5. `batches-durations-and-control`.
    - Item 17: "for as long as" ends with the object it names. The
      replacement and restriction registries are swept, the watched object is
@@ -1043,9 +1050,10 @@ item 124's precedent that a sweep does not ride inside a rules change.
      - `chars` is spelled `characteristics`, since a programmer reads it as
        characters first: about 400 lines in `src/` and `tests/` name a local,
        a field or a parameter `chars`, beside the accessors #285 renamed;
-     - an `EventId` is never called `seq`, a name left over from
-       `EventSeq`: about 210 lines, the matchers' parameters, the locals and
-       `EventRecord.seq` among them;
+     - no id is called `seq`, not even a local (widened at #289's review):
+       an `EventId`'s, left over from `EventSeq`, about 200 lines, the
+       matchers' parameters, the locals and `EventRecord.seq` among them.
+       The trigger's id, `TriggerId`, was renamed whole at #289;
      - a name that says last known information with other words in it
        takes the `lki_` prefix, as `lki_as_read_by` does.
    - Item 285: the tuple returns, sorted by `engineering-practices.md#names`'s

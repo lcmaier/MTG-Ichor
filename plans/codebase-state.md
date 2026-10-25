@@ -8816,7 +8816,7 @@ ones on the last-known-information and zone-change surface are items 176 and
      `CreatedAt`, T6's candidate constructors, T7's tables with a pairing
      test over all 30 arms, T8's `extra_turn_current_or_queued`, T9's three, T12's
      `owner_of` with its two hand-overs kept, T14 re-read, T15's
-     `named_objects`, T16's peel, T19's `mana_part`, T20's `role_objects`, T21's
+     `named_objects`, T16's peel, T19's `mana_part`, T20's `object_roles`, T21's
      `has_first_or_double_strike`; the work-list's merge rows with them.
      **Reachability (2026-10-25):** closed — PR #289.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 247".
@@ -9895,7 +9895,7 @@ keyed by its event.
      — ✅ CLOSED 2026-10-25 (PR #289, `trigger-matcher-merges`).** — archived.
      Split in the doc at #289: a move's records (`DepartedObject`) and the three
      always-framed records (their frame) name their existence; the other
-     payloads' plain ids are item 328, at `one-fact-one-type`.
+     payloads' plain ids are item 328, at `record-existences`.
      **Reachability (2026-10-25):** closed — PR #289.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 320".
 
@@ -9996,8 +9996,10 @@ keyed by its event.
      **Sized:** ~300 lines: each field an `ObjectRef`, its emitters, and its
      readers in the matcher, the history, the log and the tests; a `differ`
      A/B attributed to the windows where an object moved twice.
-     **Slotted:** A6e's cleanup, in `one-fact-one-type`, with item 291, which
-     makes object-or-player one type by reference over the result.
+     **Slotted:** A6e's cleanup, in `record-existences`, split from
+     `one-fact-one-type` at #289's review so that it has its own PR and A/B,
+     and ahead of it, since item 291 makes object-or-player one type by
+     reference over the result.
 
 329. **A replacement's rider names no ability source, so `ExileUntil`
      refuses its "this".** `resolve_rider` builds the rider's
