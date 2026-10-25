@@ -1613,7 +1613,7 @@ impl GameState {
             self.combat_had_attackers = true;
         }
         self.emit_event(
-            crate::events::event::GameEvent::PermanentEnteredBattlefield { object: self.existence_of(id)?, controller: effective },
+            crate::events::event::GameEvent::PermanentEnteredBattlefield { object: self.existence_for_record(id)?, controller: effective },
             cause,
         )?;
         self.announce_entry_counters(id, effective, mods, cause)?;
@@ -1648,7 +1648,7 @@ impl GameState {
             };
             self.emit_event(
                 crate::events::event::GameEvent::CountersPutOn {
-                    subject: crate::types::triggers::ObjectOrPlayer::Object(self.existence_of(id)?),
+                    subject: crate::types::triggers::ObjectOrPlayer::Object(self.existence_for_record(id)?),
                     counter_type: row.counter,
                     n: row.n,
                     by: row.by.unwrap_or(controller),
@@ -1865,7 +1865,7 @@ impl GameState {
                         .blocking
                         .iter()
                         .flat_map(|block| &block.blocking)
-                        .filter_map(|&attacker| self.existence_of(attacker).ok())
+                        .filter_map(|&attacker| self.existence_for_record(attacker).ok())
                         .collect(),
                 })
             })

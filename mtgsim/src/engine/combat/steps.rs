@@ -89,7 +89,7 @@ impl GameState {
         // between.
         let attackers = proposed
             .into_iter()
-            .map(|(attacker, target)| Ok((self.existence_of(attacker)?, target)))
+            .map(|(attacker, target)| Ok((self.existence_for_record(attacker)?, target)))
             .collect::<Result<Vec<_>, String>>()?;
         self.emit_event_with_provider(GameEvent::AttackersDeclared { attackers }, &actx)?;
 
@@ -185,11 +185,11 @@ impl GameState {
             .battlefield_ordered()
             .into_iter()
             .filter(|(_, e)| e.attacking.as_ref().is_some_and(|info| !info.is_blocked))
-            .map(|(id, _)| self.existence_of(id))
+            .map(|(id, _)| self.existence_for_record(id))
             .collect::<Result<_, String>>()?;
         let blocks = blocks
             .into_iter()
-            .map(|(blocker, attacker)| Ok((self.existence_of(blocker)?, self.existence_of(attacker)?)))
+            .map(|(blocker, attacker)| Ok((self.existence_for_record(blocker)?, self.existence_for_record(attacker)?)))
             .collect::<Result<Vec<_>, String>>()?;
         // With the step's provider, as the attack declaration's: one record can
         // hold two triggering events of one arm, which CR 603.7b asks between.

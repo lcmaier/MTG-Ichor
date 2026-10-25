@@ -1538,12 +1538,12 @@ impl GameState {
 
                 let dealt_by = match &source_lki {
                     Some(lki) => lki.object(),
-                    None => self.existence_of(source)?,
+                    None => self.existence_for_record(source)?,
                 };
                 self.emit_event(GameEvent::DamageDealt {
                     source: dealt_by,
                     source_lki,
-                    target: target.existence_in(self)?,
+                    target: target.for_record(self)?,
                     amount,
                     excess,
                     is_combat,
@@ -1612,7 +1612,7 @@ impl GameState {
                     player_id: player,
                     old: old_life,
                     new: new_life,
-                    source: self.existence_of(source).ok(),
+                    source: self.existence_for_record(source).ok(),
                 }, ctx.cause)?;
 
                 Ok(())
@@ -1636,7 +1636,7 @@ impl GameState {
                     old: old_life,
                     new: new_life,
                     // CR 120.3a's loss names the damage's source.
-                    source: damage_source.and_then(|source| self.existence_of(source).ok()),
+                    source: damage_source.and_then(|source| self.existence_for_record(source).ok()),
                 }, ctx.cause)?;
 
                 Ok(())
@@ -1672,7 +1672,7 @@ impl GameState {
                 }
                 entry.tapped = false;
                 self.bump_layer_epoch_if_read(GatedWalkInput::TappedStatus);
-                self.emit_event(GameEvent::Untapped { object: self.existence_of(object)? }, ctx.cause)?;
+                self.emit_event(GameEvent::Untapped { object: self.existence_for_record(object)? }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1696,7 +1696,7 @@ impl GameState {
                     if let (Some(former), Some(moved)) = (unattached_from, self.object_ref(attachment)) {
                         self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, false, false, ctx.cause)?;
                     }
-                    let (attachment, host) = (self.existence_of(attachment)?, self.existence_of(host)?);
+                    let (attachment, host) = (self.existence_for_record(attachment)?, self.existence_for_record(host)?);
                     self.emit_event(GameEvent::Attached { attachment, host, former_host: unattached_from }, ctx.cause)?;
                 }
                 Ok(())
@@ -1730,7 +1730,7 @@ impl GameState {
                 }
                 entry.tapped = true;
                 self.bump_layer_epoch_if_read(GatedWalkInput::TappedStatus);
-                self.emit_event(GameEvent::Tapped { object: self.existence_of(object)? }, ctx.cause)?;
+                self.emit_event(GameEvent::Tapped { object: self.existence_for_record(object)? }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1745,7 +1745,7 @@ impl GameState {
                 }
                 attack.is_blocked = true;
                 self.bump_layer_epoch_if_read(GatedWalkInput::Combat);
-                self.emit_event(GameEvent::BecameBlocked { attacker: self.existence_of(attacker)? }, ctx.cause)?;
+                self.emit_event(GameEvent::BecameBlocked { attacker: self.existence_for_record(attacker)? }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1774,7 +1774,7 @@ impl GameState {
                     }
                 }
                 let now = self.counter_count_of(subject, counter);
-                let subject = subject.existence_in(self)?;
+                let subject = subject.for_record(self)?;
                 self.emit_event(GameEvent::CountersPutOn { subject, counter_type: counter, n, by, now }, ctx.cause)?;
                 Ok(())
             }
@@ -1804,7 +1804,7 @@ impl GameState {
                     return Ok(());
                 }
                 let now = self.counter_count_of(subject, counter);
-                let subject = subject.existence_in(self)?;
+                let subject = subject.for_record(self)?;
                 self.emit_event(GameEvent::CountersRemovedFrom { subject, counter_type: counter, n: removed, by, now }, ctx.cause)?;
                 Ok(())
             }
@@ -1864,7 +1864,7 @@ impl GameState {
                     && can_enter_attached(self, object)
                     && self.attach(object, host)
                 {
-                    let (attachment, host) = (self.existence_of(object)?, self.existence_of(host)?);
+                    let (attachment, host) = (self.existence_for_record(object)?, self.existence_for_record(host)?);
                     self.emit_event(GameEvent::Attached { attachment, host, former_host: None }, ctx.cause)?;
                 }
                 Ok(())
@@ -1890,7 +1890,7 @@ impl GameState {
                 if !token.is_token || zone == Zone::Battlefield {
                     return Err(format!("{} cannot cease to exist: CR 704.5d is a token's off the battlefield", object));
                 }
-                let ended = self.existence_of(object)?;
+                let ended = self.existence_for_record(object)?;
                 self.remove_from_zone_collection(object, zone)?;
                 self.remove_object(object);
                 self.emit_event(GameEvent::TokenCeasedToExist { token: ended }, ctx.cause)?;
@@ -2042,7 +2042,7 @@ impl GameState {
                 }
                 let source = match &source_lki {
                     Some(lki) => lki.object(),
-                    None => self.existence_of(source)?,
+                    None => self.existence_for_record(source)?,
                 };
                 self.emit_event(GameEvent::ManaAdded {
                     player_id: player,
@@ -2178,7 +2178,7 @@ impl GameState {
             .find(|(id, _)| *id == object)
             .map(|(_, definition)| Arc::clone(definition))
             .ok_or_else(|| format!("{object} is announced as a token no creation made"))?;
-        self.emit_event(GameEvent::TokenCreated { token: self.existence_of(object)?, owner, zone, definition }, cause)?;
+        self.emit_event(GameEvent::TokenCreated { token: self.existence_for_record(object)?, owner, zone, definition }, cause)?;
         Ok(())
     }
 

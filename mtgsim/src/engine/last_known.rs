@@ -118,11 +118,13 @@ impl GameState {
         self.objects.get(&id).map(|object| object.owner).or_else(|| self.lki_store.lki_of_last_existence(id).map(Lki::owner))
     }
 
-    /// `id` as the existence a record emitted now names (CR 400.7): the object
-    /// it is, or, once the store has lost it, as [`Self::owner_of`] reads, the
-    /// existence it last was. Loud for an id that left with no frame, which no
-    /// record can name.
-    pub(crate) fn existence_of(&self, id: ObjectId) -> Result<ObjectRef, String> {
+    /// The existence a record emitted now names for `id`, which a performer
+    /// writes into the record it announces (CR 400.7): the object's current
+    /// existence, or, once the store has lost it, the existence it last was, as
+    /// [`Self::owner_of`] reads. Loud for an id that left with no frame, which
+    /// no record can name. A proposal's object-or-player is converted by
+    /// `for_record` on its type, which calls this.
+    pub(crate) fn existence_for_record(&self, id: ObjectId) -> Result<ObjectRef, String> {
         self.object_ref(id)
             .or_else(|| self.lki_store.lki_of_last_existence(id).map(Lki::object))
             .ok_or_else(|| format!("{id} is in no zone and left no frame, so no record can name it"))

@@ -87,7 +87,7 @@ WATCHLIST = [
     "cursor", "customer", "def", "edit", "entity", "placement",
     "decomposition", "departed", "departing", "donor", "drain", "drainer",
     "emitter",
-    "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
+    "epoch", "existence", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
     "lineage", "lki", "member", "outer event", "splice",
     "memo", "performer", "pool", "position", "proposal", "putter", "quadrant",
     "queue", "reach", "registry", "retype", "rider", "schedule", "seed", "shield",

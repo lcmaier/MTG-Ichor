@@ -843,7 +843,7 @@ pub enum UnattachRoute {
 }
 
 /// What damage is being dealt to, in a proposal. A record names its object
-/// by existence instead ([`ObjectOrPlayer`], [`Self::existence_in`]).
+/// by existence instead ([`ObjectOrPlayer`], [`Self::for_record`]).
 ///
 /// `Copy` because CR 614.9's redirection moves one of these into a
 /// rewritten proposal while the original is still being read for the rule's
@@ -855,12 +855,12 @@ pub enum DamageTarget {
 }
 
 impl DamageTarget {
-    /// The object or player as the record of the damage names it: the
-    /// object as the existence it is now (CR 400.7).
-    pub(crate) fn existence_in(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
+    /// The recipient as the record of the damage names it: a player as it
+    /// is, an object as `GameState::existence_for_record` names it.
+    pub(crate) fn for_record(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
         Ok(match self {
             DamageTarget::Player(player) => ObjectOrPlayer::Player(player),
-            DamageTarget::Object(id) => ObjectOrPlayer::Object(game.existence_of(id)?),
+            DamageTarget::Object(id) => ObjectOrPlayer::Object(game.existence_for_record(id)?),
         })
     }
 }
@@ -881,12 +881,12 @@ pub enum CounterSubject {
 }
 
 impl CounterSubject {
-    /// The object or player as the record of the counters names it, as
-    /// [`DamageTarget::existence_in`].
-    pub(crate) fn existence_in(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
+    /// The subject as the record of the counters names it: a player as it
+    /// is, an object as `GameState::existence_for_record` names it.
+    pub(crate) fn for_record(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
         Ok(match self {
             CounterSubject::Player(player) => ObjectOrPlayer::Player(player),
-            CounterSubject::Object(id) => ObjectOrPlayer::Object(game.existence_of(id)?),
+            CounterSubject::Object(id) => ObjectOrPlayer::Object(game.existence_for_record(id)?),
         })
     }
 }

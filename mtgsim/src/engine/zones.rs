@@ -311,7 +311,7 @@ impl GameState {
         self.change_zone(card_id, Zone::Hand, ZoneChangeAct::Drawn, ctx)?;
         // CR 121.5 — the zone change alone cannot distinguish this from a tutor.
         // Named, not read off a batch: CR 103.5's opening hands draw outside one.
-        self.emit_event(GameEvent::CardDrawn { player_id, card: self.existence_of(card_id)? }, ctx.cause)?;
+        self.emit_event(GameEvent::CardDrawn { player_id, card: self.existence_for_record(card_id)? }, ctx.cause)?;
         Ok(Some(card_id))
     }
 

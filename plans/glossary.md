@@ -463,6 +463,16 @@ per `layer_epoch` under a descending layer **ceiling**; and `EntryFrame`, CR
 at most once per pipeline iteration. → `engine/layers/board.rs`,
 `engine/replacement/lookahead.rs`.
 
+**existence** — one object from the zone change that made it until the next,
+which ends it: a moved object is a new object (CR 400.7). An `ObjectRef` names
+one, the object's id, which every existence shares, with its
+`zone_change_epoch` (**epoch** (2)). "The existence it is now" is the object's
+current one, `object_ref`. A record names the existence its event was about,
+the one a performer gives it (`existence_for_record`), so a trigger on the
+record remembers that one, even when the object moved again later in the same
+event; an existence that has ended is read through its **LKI**. →
+`types/ids.rs`; `cr-coverage-audit.md` §4c, "An object's existence".
+
 **LKI** — an object's last known information (CR 113.7a, 608.2h): the
 existence that left its zone (CR 400.7) together with its **frame** as it last
 existed there, the type `Lki`. The **LKI store** (`GameState.lki_store`)

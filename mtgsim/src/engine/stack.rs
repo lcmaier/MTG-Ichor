@@ -286,7 +286,7 @@ impl GameState {
         controller: crate::types::ids::PlayerId,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        let spell = self.existence_of(object_id)?;
+        let spell = self.existence_for_record(object_id)?;
         if entry.is_spell {
             // CR 608.2b — it doesn't resolve, and this is a real zone change,
             // the rule's and no resolution's: the spell never resolved.
