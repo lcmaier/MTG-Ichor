@@ -6898,12 +6898,18 @@ owner decided it the same day.
 
      **Sized:** the card, its `Primitive` arm, and one test: a Colossus in exile under
      Pull from Eternity is shuffled into its owner's library instead. Phase 8.
-     **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-     (the card-homed triage, 2026-10-23): a `Primitive` that puts an object
-     into its owner's graveyard (`ZoneChangeAct::Put`, `EventCause::Effect`),
-     with a fixture "put target face-up exiled card into its owner's
-     graveyard" and the Colossus test: one in exile is shuffled into its
-     owner's library instead.
+     **Re-sized (2026-10-25, `batches-durations-and-control`'s intake):**
+     "target face-up exiled card" is a target outside the battlefield and
+     the stack, which no `SelectionFilter` arm selects and no registered card
+     asks for; its surface is ~260–400 lines for exile alone, in targeting,
+     castability and the target prompt. 15 printed cards target an exiled
+     card and 1,286 a card in a graveyard (Scryfall, 2026-10-25), so the
+     surface is built for both zones at once.
+     **Slotted:** `ironworks-loop`, which builds graveyard targets (Scrap
+     Trawler, Myr Retriever): the `Primitive` that puts an object into its
+     owner's graveyard (`ZoneChangeAct::Put`, `EventCause::Effect`), with
+     Pull from Eternity and the Colossus test, one in exile shuffled into its
+     owner's library instead (the owner, at #293's review, 2026-10-25).
 
 ### Found by A4g — process-stable ids (PR #158, 2026-09-16)
 

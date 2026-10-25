@@ -83,7 +83,8 @@ Carried at the plan's 1.5–2× on code, that's **1,720–2,940**, against the p
    high end, and decision 2's option D is most of the risk. If the build
    crosses 2,500 at item 61, item 134 moves then, as (b).
 
-2. **Item 61: when devour's sacrifices are performed.** Today each
+2. **Item 61: when devour's sacrifices are performed.** **Settled: D** (the
+   owner, at #293's review, 2026-10-25). Today each
    application performs its moves through its own batch at once, so two
    devour creatures entering together sacrifice at two moments, and "whenever
    one or more creatures die" triggers twice (the Thunder-Thrash Elder
@@ -118,7 +119,8 @@ Carried at the plan's 1.5–2× on code, that's **1,720–2,940**, against the p
    **Recommended: D.** It's exact for every board above, and the cost is one
    split of the batch body, not a second loop.
 
-3. **Item 134: when an entry choice's cost is paid.** "As this land enters,
+3. **Item 134: when an entry choice's cost is paid.** **Settled: (b)** (the
+   owner, at #293's review, 2026-10-25). "As this land enters,
    you may pay 2 life. If you don't, it enters tapped." CR 614.12b ("may not
    make choices ... that would cause the combined costs of those effects to
    not be payable") only means something if the costs are paid after the
@@ -136,7 +138,9 @@ Carried at the plan's 1.5–2× on code, that's **1,720–2,940**, against the p
    **Recommended: (b),** with D in decision 2: one mechanism for both of CR
    614.12's side effects. With A or B there, (a).
 
-4. **Item 148: the target in exile.** "Gaps a phase finds" files a gap outside
+4. **Item 148: the target in exile.** **Settled: (a)**, re-slotted to
+   `ironworks-loop` (the owner, at #293's review, 2026-10-25), and its
+   **Slotted:** line says so. "Gaps a phase finds" files a gap outside
    the PR's subsystem with no registered customer, and targeting is neither
    this PR's subsystem nor reached by any registered card: no card targets a
    card in a graveyard or exile. `ironworks-loop` already builds graveyard

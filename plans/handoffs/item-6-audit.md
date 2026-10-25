@@ -782,7 +782,7 @@ about.
 | 3 | `trigger-matcher-merges` | The trigger matcher's facts, each written once | 247, 301, 302, 304, 309, 315, 319, 320, 321, and 317 (decision 2) | 2, 3, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 30, 53, 54, 55, 59, 67, 68; and 5 | ~910 | ~1,250–1,600; ~1,350–1,800 with 317 | identical for the merges; with 317 both pools differ, since Blood Artist's order prompts go: a three-arm A/B | the dispatch, and the close-out's audited smoke (`engineering-practices.md#the-close-out`) |
 | 3b | `record-existences` | Every record names its object by existence (split from 4 at #289's review) | 328 | — | ~300 | ~450–600 | both differ: a trigger names the existence its event was about, which is another where an object moved again in its own window; an A/B attributed to those windows | the dispatch's subject reads |
 | 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296, 326, 327 | 46 | ~1,550–1,800 | ~1,550–1,850 | identical | the replacement gather's membership test |
-| 5 | `batches-durations-and-control` | The triage's batches, durations and control builds, two record checks among them | 17, 20, 26, 61, 62, 134, 148, 300, 324, 325, 330, "Before Layers" 13 | — | ~1,390 | ~1,750–2,100 | identical: 300's narrow form keeps Ray of Command's order | phase 2's check per member, the duration sweep per batch |
+| 5 | `batches-durations-and-control` | The triage's batches, durations and control builds, two record checks among them | 17, 20, 26, 61, 62, 134, 300, 324, 325, 330, "Before Layers" 13 (148 to `ironworks-loop` at #293) | — | ~1,390 | ~1,750–2,100 | identical: 300's narrow form keeps Ray of Command's order | phase 2's check per member, the duration sweep per batch |
 | 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329 | 38 | ~1,230 | ~1,500–1,800 | identical | castability's assignment (155) |
 | 7 | `layers-combat-and-counters` | The triage's layer, combat and counter builds, one record check among them | 86, 117, 184, 190, 205, 206, 308, 322, 323, "Before Layers" 16, "Before card breadth" 1, 3, 5 and 6 | 41, 44, 50 | ~1,330 | ~1,650–2,000 | identical | the layer walk |
 | 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 284, 285; the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
@@ -1023,8 +1023,9 @@ item 124's precedent that a sweep does not ride inside a rules change.
    - Item 134: an entry choice's cost, and CR 614.12b's payability over a
      batch.
    - Item 20: CR 514.2's wipe asks the restriction registry.
-   - Item 148: a primitive that puts an exiled card into its owner's
-     graveyard.
+   - Item 148: re-slotted to `ironworks-loop` at #293's review (the owner,
+     2026-10-25). Its card targets an exiled card, a surface built with the
+     graveyard targets that row already builds.
    - "Before Layers" 13: "an opponent gains control", chosen at resolution
      above two players.
    - Item 300: two control changes one resolution writes are announced one
