@@ -199,8 +199,8 @@ fn panharmonicon_doubles_soul_warden_on_a_creature_entering() {
 
     reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
     assert_eq!(waiting_from(&game, warden), 2, "once, and once more");
-    let seqs: Vec<_> = game.pending_triggers.iter().map(|p| p.seq).collect();
-    assert_ne!(seqs[0], seqs[1], "each time is its own trigger");
+    let ids: Vec<_> = game.pending_triggers.iter().map(|p| p.id).collect();
+    assert_ne!(ids[0], ids[1], "each time is its own trigger");
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 0), before + 2);
 }

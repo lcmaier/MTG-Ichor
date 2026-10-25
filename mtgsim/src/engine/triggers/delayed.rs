@@ -361,7 +361,7 @@ impl GameState {
             return;
         }
         let caused_by = pending.binding.first_record().map(|r| r.seq);
-        let pending = PendingTrigger { seq: self.take_next_trigger_id(), ..pending };
+        let pending = PendingTrigger { id: self.take_next_trigger_id(), ..pending };
         self.queue_trigger(pending, caused_by, announce);
     }
 
@@ -446,7 +446,7 @@ fn matched_of(delayed: &DelayedTrigger, event: EventIndex, triggering_events: Ve
 /// left, the frame the source left with (CR 113.7a).
 fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
     PendingTrigger {
-        seq: TriggerId(0),
+        id: TriggerId(0),
         origin: TriggerOrigin::Delayed(m.identity),
         controller: m.controller,
         source_card: m.source_card,

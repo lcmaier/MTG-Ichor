@@ -326,22 +326,11 @@ pub fn damage_sources(game: &GameState, exclude_id: Option<ObjectId>) -> Vec<Obj
     sources
 }
 
-/// CR 609.7a's referred-to sources of damage: the objects a player choosing
-/// a source may choose because something waiting refers to them, each by
-/// the existence it was (CR 400.7), in this order: by each object on the stack, bottom first,
-/// then the one resolving now — an ability's source, what its trigger names,
-/// its targets, and each it named that has since left; by each replacement
-/// or prevention effect a resolution created, in the order they were — its
-/// chosen source of damage, its targets and the objects it is around; and by
-/// each delayed triggered ability, in the order they were — its source and
-/// what it refers to. A trigger on its subject's departure names the object
-/// that left (CR 603.10a), the one that deals its damage, and not the one it
-/// became. Not a CR 610.3 return, which is no triggered ability.
 /// What a stack object or the resolving one names that a damage source can be
 /// chosen from: its source, then the objects its trigger's events are about.
 fn named_by(identity: Option<AbilityIdentity>, trigger: Option<&TriggerBinding>) -> impl Iterator<Item = ObjectRef> + '_ {
-    let objects = trigger.into_iter().flat_map(|binding| binding.triggering_events.iter()).flat_map(|event| event.objects.objects());
-    identity.map(|identity| identity.source).into_iter().chain(objects.map(|(_, object)| object))
+    let source = identity.map(|identity| identity.source);
+    source.into_iter().chain(trigger.into_iter().flat_map(TriggerBinding::objects_of_triggering_events))
 }
 
 /// [`named_by`], each as the trigger reads it: the existence it left as,
@@ -355,6 +344,17 @@ fn left_since_read<'a>(game: &'a GameState, identity: Option<AbilityIdentity>, t
     named_by(identity, trigger).filter(move |object| game.lki(*object).is_some())
 }
 
+/// CR 609.7a's referred-to sources of damage: the objects a player choosing
+/// a source may choose because something waiting refers to them, each by
+/// the existence it was (CR 400.7), in this order: by each object on the stack, bottom first,
+/// then the one resolving now — an ability's source, what its trigger names,
+/// its targets, and each it named that has since left; by each replacement
+/// or prevention effect a resolution created, in the order they were — its
+/// chosen source of damage, its targets and the objects it is around; and by
+/// each delayed triggered ability, in the order they were — its source and
+/// what it refers to. A trigger on its subject's departure names the object
+/// that left (CR 603.10a), the one that deals its damage, and not the one it
+/// became. Not a CR 610.3 return, which is no triggered ability.
 fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
     use crate::engine::targeting::TargetRef;
     let objects_of = |targets: &[TargetRef]| -> Vec<ObjectRef> {

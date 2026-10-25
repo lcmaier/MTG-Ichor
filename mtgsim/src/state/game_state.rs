@@ -268,7 +268,7 @@ impl AbilityIdentity {
     /// give the object two instances, each its own identity; CR 603.7h's "when
     /// this ability has resolved for the third time this turn" (Ashling the
     /// Pilgrim) counts resolutions of the ability, whichever instance resolved.
-    pub fn ignoring_grant(self) -> AbilityIdentity {
+    pub fn ignoring_ability_grant(self) -> AbilityIdentity {
         AbilityIdentity { source: self.source, ability: self.ability.definition() }
     }
 }

@@ -21,14 +21,20 @@ use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerId};
 /// existence of it left (an object that moves is a new object, CR 400.7) and
 /// who owns it (CR 108.3).
 ///
-/// Most moves frame the object just before it leaves (`capture_lki`): every
-/// move a "leaves the battlefield" or "dies" trigger looks back at, and every
-/// move of an object something waiting will read. The frame, an `Lki`, holds
-/// the existence and the owner itself, so `WithLki` is the whole record. A
-/// move nothing reads back has no frame, and `WithoutLki` holds the two
-/// facts alone. Either way each is held once. Not the mover's `Departure`
-/// (`engine::last_known`), which is what the mover takes with it before it
-/// announces this.
+/// Every object that leaves a zone has last known information, but a move's
+/// record carries it only where a trigger on that move looks back in time
+/// (CR 603.10a): a permanent leaving the battlefield, a card leaving a
+/// graveyard, an object all players can see put into a hand or library. A
+/// trigger on any other move (a card milled, a spell resolving into a
+/// graveyard, a card exiled from a hand) sees the object as it is after the
+/// move, so that record has no LKI, and `WithoutLki` holds the existence and
+/// the owner alone. Where the record has one, the LKI names both already, so
+/// `WithLki` is all it holds and neither fact is written twice. Something
+/// that reads a departed object later, such as a trigger waiting to go on
+/// the stack, finds its LKI in the store (`GameState::lki`), not here.
+///
+/// Not the mover's `Departure` (`engine::last_known`): the before-move half
+/// that hands this record its LKI and keeps what the move unattaches.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DepartedObject {
     WithLki(Lki),
@@ -297,7 +303,7 @@ pub enum GameEvent {
     /// (the first of them, for a "one or more" trigger), and `None` for a
     /// state trigger, which no record caused (CR 603.8).
     AbilityTriggered {
-        seq: TriggerId,
+        trigger: TriggerId,
         origin: TriggerOrigin,
         controller: PlayerId,
         caused_by: Option<EventId>,

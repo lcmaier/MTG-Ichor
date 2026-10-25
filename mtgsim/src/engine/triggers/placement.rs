@@ -66,7 +66,7 @@ impl GameState {
                 if entries.is_empty() {
                     continue;
                 }
-                let mine: Vec<TriggerId> = entries.iter().map(|t| t.seq).collect();
+                let mine: Vec<TriggerId> = entries.iter().map(|t| t.id).collect();
                 let order: Vec<usize> = if entries.len() < 2 {
                     (0..mine.len()).collect()
                 } else if self.trigger_order_cannot_change_outcome(&entries) {
@@ -81,8 +81,8 @@ impl GameState {
                 };
                 self.queue_last_placed_first(tier, player, &order);
                 for i in order {
-                    let seq = mine[i];
-                    let Some(from_end) = self.pending_triggers.iter().rev().position(|t| t.seq == seq) else { continue };
+                    let id = mine[i];
+                    let Some(from_end) = self.pending_triggers.iter().rev().position(|t| t.id == id) else { continue };
                     let Some(pending) = self.pending_triggers.remove(self.pending_triggers.len() - 1 - from_end) else { continue };
                     if self.place_one(pending, dp)? {
                         placed += 1;

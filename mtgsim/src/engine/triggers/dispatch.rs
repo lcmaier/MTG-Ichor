@@ -898,7 +898,7 @@ impl GameState {
             // the binding, so a trigger counted once copies nothing.
             for binding in std::iter::repeat_n(binding, times as usize) {
                 let pending = PendingTrigger {
-                    seq: self.take_next_trigger_id(),
+                    id: self.take_next_trigger_id(),
                     origin,
                     controller: m.controller,
                     source_card: Arc::clone(&m.source_card),
@@ -936,9 +936,9 @@ impl GameState {
 
     /// The next trigger's number, in the order triggers are queued.
     pub(super) fn take_next_trigger_id(&mut self) -> TriggerId {
-        let seq = TriggerId(self.next_trigger_id);
+        let id = TriggerId(self.next_trigger_id);
         self.next_trigger_id += 1;
-        seq
+        id
     }
 
     /// `pending` onto the queue, and its `AbilityTriggered` onto `announce`:
@@ -946,7 +946,7 @@ impl GameState {
     /// trigger), or by none for a state trigger (CR 603.8) and a "when you
     /// don't" (CR 603.12).
     pub(super) fn queue_trigger(&mut self, pending: PendingTrigger, caused_by: Option<EventId>, announce: &mut Vec<GameEvent>) {
-        announce.push(GameEvent::AbilityTriggered { seq: pending.seq, origin: pending.origin, controller: pending.controller, caused_by });
+        announce.push(GameEvent::AbilityTriggered { trigger: pending.id, origin: pending.origin, controller: pending.controller, caused_by });
         self.pending_triggers.push(pending);
     }
 
@@ -2183,7 +2183,7 @@ impl GameState {
             (
                 TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility },
                 GameEvent::AbilityResolved { identity: resolved, .. },
-            ) => triggering_event_if(referents.this_ability.is_some_and(|this| this.ignoring_grant() == resolved.ignoring_grant())),
+            ) => triggering_event_if(referents.this_ability.is_some_and(|this| this.ignoring_ability_grant() == resolved.ignoring_ability_grant())),
             // Read after the event: the attach is done when the dispatch asks
             // (Siona, Captain of the Pyleas' fourth ruling).
             (

@@ -627,7 +627,7 @@ impl<'s> Loader<'s> {
                         self.state.history.triggered_this_turn.insert(identity);
                     }
                     CardWord::Resolved { times, .. } => {
-                        self.state.history.resolutions_this_turn.insert(identity.ignoring_grant(), *times);
+                        self.state.history.resolutions_this_turn.insert(identity.ignoring_ability_grant(), *times);
                     }
                     _ => {
                         let controller = get_effective_controller(&self.state, source).unwrap_or(self.state.objects[&source].owner);

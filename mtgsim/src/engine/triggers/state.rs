@@ -63,7 +63,7 @@ impl GameState {
                 continue;
             }
             let pending = PendingTrigger {
-                seq: self.take_next_trigger_id(),
+                id: self.take_next_trigger_id(),
                 origin: TriggerOrigin::Object(m.identity),
                 controller: m.controller,
                 source_card: m.source_card,

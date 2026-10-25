@@ -221,55 +221,6 @@ enum OccurrenceSubject {
     DamageRecipient,
 }
 
-/// The arms that carry CR 603.2c's multiplicity field, as one exhaustive
-/// match that hands back the field.
-///
-/// A macro because two functions need the same match with different
-/// receivers: `multiplicity` takes `&self` and gets `&Multiplicity`, and
-/// `multiplicity_mut`, the authoring setter's, takes `&mut self` and gets
-/// `&mut Multiplicity`. Rust has no function generic over that, so the list
-/// was written twice, once in this file and once in `cards::authoring`,
-/// where a new arm had to be remembered and a missed one panicked. The
-/// macro body is pasted into each function, where `match self` binds the
-/// field by `&` in one and `&mut` in the other: one list, and a new arm
-/// fails to compile until it is in it.
-macro_rules! multiplicity_field {
-    ($arm:expr) => {
-        match $arm {
-            TriggerEvent::ZoneChange { multiplicity, .. }
-            | TriggerEvent::DrawsCard { multiplicity, .. }
-            | TriggerEvent::DamageDealt { multiplicity, .. }
-            | TriggerEvent::DamageIsPrevented { multiplicity, .. }
-            | TriggerEvent::GainsLife { multiplicity, .. }
-            | TriggerEvent::LosesLife { multiplicity, .. }
-            | TriggerEvent::EntersBattlefield { multiplicity, .. }
-            | TriggerEvent::Attacks { multiplicity, .. }
-            | TriggerEvent::Blocks { multiplicity, .. }
-            | TriggerEvent::BecomesTarget { multiplicity, .. }
-            | TriggerEvent::CountersPutOn { multiplicity, .. }
-            | TriggerEvent::CountersRemovedFrom { multiplicity, .. }
-            | TriggerEvent::CreatesToken { multiplicity, .. } => Some(multiplicity),
-            TriggerEvent::BecomesTapped { .. }
-            | TriggerEvent::BecomesUntapped { .. }
-            | TriggerEvent::ManaAdded { .. }
-            | TriggerEvent::PhaseBegins { .. }
-            | TriggerEvent::StepBegins { .. }
-            | TriggerEvent::TurnBegins { .. }
-            | TriggerEvent::CastsSpell { .. }
-            | TriggerEvent::IsCountered { .. }
-            | TriggerEvent::PlayerLoses { .. }
-            | TriggerEvent::ShufflesLibrary { .. }
-            | TriggerEvent::BecomesAttached { .. }
-            | TriggerEvent::BecomesUnattached { .. }
-            | TriggerEvent::ControlChanges { .. }
-            | TriggerEvent::ActivatesAbility { .. }
-            | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. }
-            | TriggerEvent::Scries { .. } => None,
-        }
-    };
-}
-
 /// What a counter arm's counters are on (CR 122.1): an object, or a player.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CountersOn {
@@ -545,69 +496,71 @@ impl TriggeringEventObjects {
     /// a defender's attackers are several, and [`Self::objects`] has them.
     pub fn get(&self, role: EventRole) -> Option<ObjectRef> {
         // Among the roles one object fills, the one asked for.
-        let RoleObjects { one_each, .. } = self.role_objects();
+        let ObjectRoles { one_each, .. } = self.object_roles();
         one_each.into_iter().flatten().find(|&(part, _)| part == role).map(|(_, object)| object)
     }
 
     /// Each object, with the part it played.
     pub fn objects(&self) -> impl Iterator<Item = (EventRole, ObjectRef)> + '_ {
-        let RoleObjects { one_each, several: (role, several) } = self.role_objects();
-        one_each.into_iter().flatten().chain(several.iter().map(move |&object| (role, object)))
+        let ObjectRoles { one_each, several } = self.object_roles();
+        let several = several.into_iter().flat_map(|(role, objects)| objects.iter().map(move |&object| (role, object)));
+        one_each.into_iter().flatten().chain(several)
     }
 
     /// Which objects fill which roles, by variant: the one table that
     /// [`Self::get`] and [`Self::objects`] read.
-    fn role_objects(&self) -> RoleObjects<'_> {
-        let (one_each, several): ([Option<(EventRole, ObjectRef)>; 2], (EventRole, &[ObjectRef])) = match self {
-            TriggeringEventObjects::NoObject => ([None, None], (EventRole::Attacker, &[])),
-            TriggeringEventObjects::Object(object) => ([Some((EventRole::Object, *object)), None], (EventRole::Attacker, &[])),
+    fn object_roles(&self) -> ObjectRoles<'_> {
+        let (one_each, several): ([Option<(EventRole, ObjectRef)>; 2], Option<(EventRole, &[ObjectRef])>) = match self {
+            TriggeringEventObjects::NoObject => ([None, None], None),
+            TriggeringEventObjects::Object(object) => ([Some((EventRole::Object, *object)), None], None),
             TriggeringEventObjects::Damage { source, recipient } => (
                 [Some((EventRole::DamageSource, *source)), recipient.object().map(|o| (EventRole::DamageRecipient, o))],
-                (EventRole::Attacker, &[]),
+                None,
             ),
             TriggeringEventObjects::Prevention { recipient } => {
-                ([Some((EventRole::DamageRecipient, *recipient)), None], (EventRole::Attacker, &[]))
+                ([Some((EventRole::DamageRecipient, *recipient)), None], None)
             }
             TriggeringEventObjects::Attack { attacker, defender } => (
                 [Some((EventRole::Attacker, *attacker)), defender.object().map(|o| (EventRole::Attacked, o))],
-                (EventRole::Attacker, &[]),
+                None,
             ),
             TriggeringEventObjects::Defense { defender, attackers } => {
-                ([defender.object().map(|o| (EventRole::Attacked, o)), None], (EventRole::Attacker, attackers))
+                ([defender.object().map(|o| (EventRole::Attacked, o)), None], Some((EventRole::Attacker, attackers)))
             }
             TriggeringEventObjects::Attach { attachment, host } => (
                 [Some((EventRole::Attachment, *attachment)), Some((EventRole::Host, *host))],
-                (EventRole::Attacker, &[]),
+                None,
             ),
             TriggeringEventObjects::Block { blocker, attacker } => (
                 [Some((EventRole::Blocker, *blocker)), Some((EventRole::Attacker, *attacker))],
-                (EventRole::Attacker, &[]),
+                None,
             ),
             TriggeringEventObjects::Blocking { blocker, attackers } => {
-                ([Some((EventRole::Blocker, *blocker)), None], (EventRole::Attacker, attackers))
+                ([Some((EventRole::Blocker, *blocker)), None], Some((EventRole::Attacker, attackers)))
             }
             TriggeringEventObjects::BlockedBy { attacker, blockers } => {
-                ([Some((EventRole::Attacker, *attacker)), None], (EventRole::Blocker, blockers))
+                ([Some((EventRole::Attacker, *attacker)), None], Some((EventRole::Blocker, blockers)))
             }
             TriggeringEventObjects::Unblocked { attacker } => {
-                ([Some((EventRole::Attacker, *attacker)), None], (EventRole::Attacker, &[]))
+                ([Some((EventRole::Attacker, *attacker)), None], None)
             }
             TriggeringEventObjects::Target { target, by } => (
                 [target.object().map(|o| (EventRole::Target, o)), Some((EventRole::SpellOrAbility, *by))],
-                (EventRole::Attacker, &[]),
+                None,
             ),
         };
-        RoleObjects { one_each, several }
+        ObjectRoles { one_each, several }
     }
 }
 
-/// An event's objects by the role each fills: up to two roles one object
-/// fills each (a damage's source and recipient), then one role several
-/// objects fill (a defender's attackers, a blocker's attackers, a blocked
-/// creature's blockers), empty for most events.
-struct RoleObjects<'a> {
+/// An event's objects, each with the role it fills: up to two roles that one
+/// object fills each (a damage's source and its recipient), and at most one
+/// role that several objects fill (a defender's attackers, a blocker's
+/// attackers, a blocked creature's blockers). A fixed shape, so building it
+/// allocates nothing.
+struct ObjectRoles<'a> {
     one_each: [Option<(EventRole, ObjectRef)>; 2],
-    several: (EventRole, &'a [ObjectRef]),
+    several: Option<(EventRole, &'a [ObjectRef])>,
 }
 
 /// One event that triggered an ability: one occurrence of its trigger event
@@ -1386,12 +1339,79 @@ impl TriggerEvent {
     /// How the arm counts its occurrences (CR 603.2c): its multiplicity
     /// field, and per occurrence for an arm that has none.
     pub fn multiplicity(&self) -> Multiplicity {
-        multiplicity_field!(self).copied().unwrap_or(Multiplicity::PerOccurrence)
+        match self {
+            TriggerEvent::ZoneChange { multiplicity, .. }
+            | TriggerEvent::DrawsCard { multiplicity, .. }
+            | TriggerEvent::DamageDealt { multiplicity, .. }
+            | TriggerEvent::DamageIsPrevented { multiplicity, .. }
+            | TriggerEvent::GainsLife { multiplicity, .. }
+            | TriggerEvent::LosesLife { multiplicity, .. }
+            | TriggerEvent::EntersBattlefield { multiplicity, .. }
+            | TriggerEvent::Attacks { multiplicity, .. }
+            | TriggerEvent::Blocks { multiplicity, .. }
+            | TriggerEvent::BecomesTarget { multiplicity, .. }
+            | TriggerEvent::CountersPutOn { multiplicity, .. }
+            | TriggerEvent::CountersRemovedFrom { multiplicity, .. }
+            | TriggerEvent::CreatesToken { multiplicity, .. } => *multiplicity,
+            TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::BecomesAttached { .. }
+            | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::ActivatesAbility { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::Scries { .. } => Multiplicity::PerOccurrence,
+        }
     }
 
     /// The arm's multiplicity field, to set; `None` for an arm that has none.
+    /// The same arms as [`Self::multiplicity`]: Rust writes a read through
+    /// `&self` and a write through `&mut self` as a function each, as `get`
+    /// and `get_mut` are two. Neither match has a catch-all, so a new arm does
+    /// not compile until it is in both, and
+    /// `both_multiplicity_accessors_list_the_same_arms` checks the lists agree.
     pub fn multiplicity_mut(&mut self) -> Option<&mut Multiplicity> {
-        multiplicity_field!(self)
+        match self {
+            TriggerEvent::ZoneChange { multiplicity, .. }
+            | TriggerEvent::DrawsCard { multiplicity, .. }
+            | TriggerEvent::DamageDealt { multiplicity, .. }
+            | TriggerEvent::DamageIsPrevented { multiplicity, .. }
+            | TriggerEvent::GainsLife { multiplicity, .. }
+            | TriggerEvent::LosesLife { multiplicity, .. }
+            | TriggerEvent::EntersBattlefield { multiplicity, .. }
+            | TriggerEvent::Attacks { multiplicity, .. }
+            | TriggerEvent::Blocks { multiplicity, .. }
+            | TriggerEvent::BecomesTarget { multiplicity, .. }
+            | TriggerEvent::CountersPutOn { multiplicity, .. }
+            | TriggerEvent::CountersRemovedFrom { multiplicity, .. }
+            | TriggerEvent::CreatesToken { multiplicity, .. } => Some(multiplicity),
+            TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::BecomesAttached { .. }
+            | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::ActivatesAbility { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. }
+            | TriggerEvent::Scries { .. } => None,
+        }
     }
 
     /// Whether one triggering event of this arm may have several objects in
@@ -1750,6 +1770,11 @@ impl TriggerBinding {
     /// "one or more" trigger, which has no single object.
     pub fn triggering_object(&self, role: EventRole) -> Option<ObjectRef> {
         self.triggering_event()?.objects.get(self.event()?.role_as_recorded(role))
+    }
+
+    /// Every object of every triggering event, whatever part it played.
+    pub fn objects_of_triggering_events(&self) -> impl Iterator<Item = ObjectRef> + '_ {
+        self.triggering_events.iter().flat_map(|event| event.objects.objects()).map(|(_, object)| object)
     }
 
     /// "That creature", "them": each object that played `role` in each
@@ -2178,7 +2203,7 @@ impl Lki {
 /// item 40's invariant, which the fork test enforces.
 #[derive(Debug, Clone)]
 pub struct PendingTrigger {
-    pub seq: TriggerId,
+    pub id: TriggerId,
     pub origin: TriggerOrigin,
     /// CR 603.3a — the player who controlled the source as it triggered.
     pub controller: PlayerId,
@@ -2270,7 +2295,7 @@ pub(crate) mod samples {
             ("BlockersDeclared", GameEvent::BlockersDeclared { blocks: vec![(id, id)], unblocked: Vec::new() }),
             ("BecameBlocked", GameEvent::BecameBlocked { attacker: id }),
             ("AbilityTriggered", GameEvent::AbilityTriggered {
-                seq: TriggerId(0),
+                trigger: TriggerId(0),
                 origin: TriggerOrigin::Object(identity),
                 controller: 0,
                 caused_by: Some(EventId(0)),
@@ -2447,6 +2472,22 @@ mod tests {
     /// damage to a player has no recipient object (CR 120.1), and a player
     /// attacked is no object attacked (CR 506.3), so "that creature" there is
     /// refused at the registry rather than finding nothing at resolution.
+    /// An arm's own field names, as `Debug` prints them, say whether it has a
+    /// multiplicity: the setter finds exactly those, and the reader reads back
+    /// what the setter wrote.
+    #[test]
+    fn both_multiplicity_accessors_list_the_same_arms() {
+        for (mut arm, _) in samples::arms() {
+            let has_field = format!("{arm:?}").contains("multiplicity:");
+            match arm.multiplicity_mut() {
+                Some(multiplicity) => *multiplicity = Multiplicity::OncePerEvent,
+                None => assert!(!has_field, "{arm:?}: the setter misses its multiplicity"),
+            }
+            let written = if has_field { Multiplicity::OncePerEvent } else { Multiplicity::PerOccurrence };
+            assert_eq!(arm.multiplicity(), written, "{arm:?}: the reader misses its multiplicity");
+        }
+    }
+
     #[test]
     fn an_arm_that_watches_a_player_declares_no_object_in_its_place() {
         let each = Multiplicity::PerOccurrence;

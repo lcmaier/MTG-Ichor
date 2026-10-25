@@ -173,7 +173,7 @@ impl GameState {
     fn count(&mut self, update: &HistoryUpdate) {
         match update {
             HistoryUpdate::AbilityResolved { identity } => {
-                *self.history.resolutions_this_turn.entry(identity.ignoring_grant()).or_insert(0) += 1;
+                *self.history.resolutions_this_turn.entry(identity.ignoring_ability_grant()).or_insert(0) += 1;
             }
             HistoryUpdate::CardDrawn { player } if self.turn_number >= FIRST_TURN && self.in_own_draw_step(*player) => {
                 if let Some(history) = self.history.players.get_mut(*player) {
@@ -222,7 +222,7 @@ impl GameState {
 
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
     pub(crate) fn resolutions_this_turn_of(&self, identity: AbilityIdentity) -> u32 {
-        self.history.resolutions_this_turn.get(&identity.ignoring_grant()).copied().unwrap_or(0)
+        self.history.resolutions_this_turn.get(&identity.ignoring_ability_grant()).copied().unwrap_or(0)
     }
 
     /// The log's rows for record `seq` of `window`, each its object as the

@@ -984,12 +984,12 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         }
         AbilityActivated { identity, controller, .. } => format!(
             "AbilityActivated: {} [{}]", named(identity.source.id), player_in_log(*controller)),
-        AbilityTriggered { seq, origin, controller, .. } => {
+        AbilityTriggered { trigger, origin, controller, .. } => {
             let ability = triggered_ability_in_log(named(origin.source()), origin.identity());
             // An object's own trigger also by the number that orders it among
             // the waiting ones; a delayed trigger's name is its number.
-            let seq = if origin.identity().ability.delayed_trigger().is_some() { String::new() } else { format!(" #{}", seq.0) };
-            format!("AbilityTriggered: {ability} [{}]{seq}", player_in_log(*controller))
+            let number = if origin.identity().ability.delayed_trigger().is_some() { String::new() } else { format!(" #{}", trigger.0) };
+            format!("AbilityTriggered: {ability} [{}]{number}", player_in_log(*controller))
         }
         AbilityResolved { identity, controller } => format!(
             "AbilityResolved: {} [{}]", triggered_ability_in_log(named(identity.source.id), *identity), player_in_log(*controller)),
@@ -1716,7 +1716,7 @@ mod tests {
             GameEvent::AbilityResolved { identity: identity(game, id()), controller: 0 },
             GameEvent::AbilityActivated { identity: identity(game, id()), controller: 0, mana_ability: false, from: Zone::Battlefield, source_lki: None },
             GameEvent::Targeted { target: TargetRef::Object(reference(game, id())), by: id(), ability_source: Some(id()), controller: 0, instances: 1 },
-            GameEvent::AbilityTriggered { seq: TriggerId(0), origin: TriggerOrigin::Object(identity(game, id())), controller: 0, caused_by: Some(EventId(0)) },
+            GameEvent::AbilityTriggered { trigger: TriggerId(0), origin: TriggerOrigin::Object(identity(game, id())), controller: 0, caused_by: Some(EventId(0)) },
             GameEvent::DelayedTriggerCreated {
                 id: crate::types::ids::DelayedTriggerId(1),
                 source: id(),
