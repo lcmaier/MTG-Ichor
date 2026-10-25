@@ -15,7 +15,7 @@ use std::sync::Arc;
 use mtgsim::cards::authoring::{another, leaves_the_battlefield, triggered_ability, whenever};
 use mtgsim::cards::phase_rb_cards::kalitas_traitor_of_ghet;
 use mtgsim::engine::actions::GameAction;
-use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
@@ -27,7 +27,7 @@ use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact,
     PlayerRef, PlayerSet, Primitive,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 
@@ -232,7 +232,7 @@ fn a_destruction_a_shield_counter_replaced_proposes_no_move() {
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
     game.execute_action(
-        GameAction::AddCounters { subject: CounterSubject::Object(bear), counter: CounterType::Shield, n: 1, by: 1 },
+        GameAction::AddCounters { subject: ObjectOrPlayerId::Object(bear), counter: CounterType::Shield, n: 1, by: 1 },
         &test_ctx(),
     )
     .unwrap();

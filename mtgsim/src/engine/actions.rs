@@ -5,7 +5,7 @@ use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_da
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, CounterSubject, DepartedObject, EventId, GameEvent, UnattachRoute};
+use crate::events::event::{AppliedReplacement, DepartedObject, EventId, GameEvent, UnattachRoute};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
@@ -312,7 +312,7 @@ pub enum GameAction {
     /// counters is not an effect and must not be matched by CR 614.16's
     /// watchers; no cost produces this yet (`codebase-state.md`, "Found by RE-5").
     AddCounters {
-        subject: CounterSubject,
+        subject: ObjectOrPlayerId,
         counter: CounterType,
         n: u32,
         by: PlayerId,
@@ -339,7 +339,7 @@ pub enum GameAction {
     /// controller's), and `None` where a rule does and names no player: CR
     /// 704.5q, and damage to a planeswalker (CR 120.3c).
     RemoveCounters {
-        subject: CounterSubject,
+        subject: ObjectOrPlayerId,
         counter: CounterType,
         n: u32,
         by: Option<PlayerId>,
@@ -739,7 +739,7 @@ impl GameState {
                 let results = DamageResults::for_object(self, id);
                 let as_creature = results.mark_damage.then(|| lethal_damage_owed(self, id, &[], deathtouch));
                 let as_planeswalker =
-                    results.remove_loyalty.then(|| u64::from(self.counter_count_of(CounterSubject::Object(id), CounterType::Loyalty)));
+                    results.remove_loyalty.then(|| u64::from(self.counter_count_of(ObjectOrPlayerId::Object(id), CounterType::Loyalty)));
                 let lethal = match (as_creature, as_planeswalker) {
                     (Some(creature), Some(planeswalker)) => creature.min(planeswalker),
                     (Some(lethal), None) | (None, Some(lethal)) => lethal,
@@ -1568,7 +1568,7 @@ impl GameState {
                     && let ObjectOrPlayerId::Object(id) = &target {
                     self.execute_action(
                         GameAction::RemoveCounters {
-                            subject: CounterSubject::Object(*id),
+                            subject: ObjectOrPlayerId::Object(*id),
                             counter: CounterType::Loyalty,
                             n: amount as u32,
                             by: None,
@@ -1759,7 +1759,7 @@ impl GameState {
                     return Ok(());
                 }
                 match subject {
-                    CounterSubject::Object(object) => {
+                    ObjectOrPlayerId::Object(object) => {
                         if !self.battlefield.contains_key(&object) {
                             return Err(format!(
                                 "Cannot put counters on {}: not on the battlefield", object
@@ -1770,7 +1770,7 @@ impl GameState {
                         // replacement source now, and nothing has to be recorded: counters are
                         // scanned, not cached (`gather::any_replacement_counter`).
                     }
-                    CounterSubject::Player(player) => {
+                    ObjectOrPlayerId::Player(player) => {
                         self.get_player_mut(player)?.add_counters(counter, n);
                     }
                 }
@@ -1789,7 +1789,7 @@ impl GameState {
                 // event: CR 603.2e's transition rule is the same shape the
                 // `Tap`/`Untap` arms follow.
                 let removed = match subject {
-                    CounterSubject::Object(object) => {
+                    ObjectOrPlayerId::Object(object) => {
                         if !self.battlefield.contains_key(&object) {
                             return Err(format!(
                                 "Cannot remove counters from {}: not on the battlefield", object
@@ -1797,7 +1797,7 @@ impl GameState {
                         }
                         self.remove_counters(object, counter, n)
                     }
-                    CounterSubject::Player(player) => {
+                    ObjectOrPlayerId::Player(player) => {
                         self.get_player_mut(player)?.remove_counters(counter, n)
                     }
                 };

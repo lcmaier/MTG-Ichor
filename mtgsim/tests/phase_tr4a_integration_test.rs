@@ -26,7 +26,7 @@ use mtgsim::cards::phase_re_cards::doubling_season;
 use mtgsim::cards::phase_tr1_cards::blood_artist;
 use mtgsim::cards::phase_tr4a_cards::{compost, demonic_vigor, strangleroot_geist};
 use mtgsim::engine::actions::{ActionContext, GameAction};
-use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness, has_type};
@@ -44,7 +44,7 @@ use mtgsim::types::effects::{
     AmountExpr, Antecedent, ColorChange, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup,
     PlayerRef, PlayerSet, Primitive, ReturnUnder, SelectionFilter, TargetCount, TypeChange,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
     DamageRecipient, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, Referred,
@@ -150,7 +150,7 @@ fn destroy(game: &mut GameState, object: ObjectId) {
 
 fn add_counters(game: &mut GameState, object: ObjectId, counter: CounterType, n: u32) {
     let by = game.objects[&object].owner;
-    game.execute_action(GameAction::AddCounters { subject: CounterSubject::Object(object), counter, n, by }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(object), counter, n, by }, &test_ctx()).unwrap();
 }
 
 /// Put every waiting trigger on the stack and resolve the stack, answering

@@ -22,7 +22,7 @@ use mtgsim::cards::phase_tr7_cards::{grumgully_the_generous, viscera_seer, wingr
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::combat::validation::can_block;
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_name, get_effective_toughness, has_keyword, has_type};
 use mtgsim::state::game_state::GameState;
@@ -151,7 +151,7 @@ fn destroy(game: &mut GameState, object: ObjectId) {
 
 fn add_counters(game: &mut GameState, object: ObjectId, counter: CounterType, n: u32) {
     let by = game.objects[&object].owner;
-    game.execute_action(GameAction::AddCounters { subject: CounterSubject::Object(object), counter, n, by }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(object), counter, n, by }, &test_ctx()).unwrap();
 }
 
 /// Put every waiting trigger on the stack and resolve the stack.

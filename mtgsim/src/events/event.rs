@@ -842,32 +842,6 @@ pub enum UnattachRoute {
     HostLeft,
 }
 
-/// What counters are being put on or taken off — CR 122.1's "a marker placed
-/// on an object or player".
-///
-/// [`ObjectOrPlayerId`]'s shape, for the same reason it has one: the two halves are
-/// ids, CR 616.1's chooser is the object's controller for one and the player
-/// for the other, and a `PlayerState` holds counters of the same
-/// `CounterType` a permanent does because CR 701.34a's proliferate sweeps
-/// "permanents and/or players" in one pass. `Copy` because a rewritten
-/// proposal carries it while the original is still read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CounterSubject {
-    Object(ObjectId),
-    Player(PlayerId),
-}
-
-impl CounterSubject {
-    /// The subject as the record of the counters names it: a player as it
-    /// is, an object as `GameState::existence_for_record` names it.
-    pub(crate) fn for_record(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
-        Ok(match self {
-            CounterSubject::Player(player) => ObjectOrPlayer::Player(player),
-            CounterSubject::Object(id) => ObjectOrPlayer::Object(game.existence_for_record(id)?),
-        })
-    }
-}
-
 /// Which performed event a record is. Ids are handed out in the order events
 /// are performed, so a smaller id happened earlier, and the trace prints it
 /// as `index`. Never a position in a buffer: the window flushes and the

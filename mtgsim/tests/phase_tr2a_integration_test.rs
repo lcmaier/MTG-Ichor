@@ -29,7 +29,7 @@ use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
@@ -1164,7 +1164,7 @@ fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
     let mut game = setup_two_player_game();
     let paladin = put_on_battlefield(&mut game, paladin_of_atonement(), 0);
     let counters = |kind, n| GameAction::AddCounters {
-        subject: CounterSubject::Object(paladin),
+        subject: ObjectOrPlayerId::Object(paladin),
         counter: kind,
         n,
         by: 0,
@@ -1178,7 +1178,7 @@ fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
     let mut game = setup_two_player_game();
     let paladin = put_on_battlefield(&mut game, paladin_of_atonement(), 0);
     let minus = GameAction::AddCounters {
-        subject: CounterSubject::Object(paladin),
+        subject: ObjectOrPlayerId::Object(paladin),
         counter: CounterType::MinusOneMinusOne,
         n: 2,
         by: 0,

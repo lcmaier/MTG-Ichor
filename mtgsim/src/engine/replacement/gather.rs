@@ -35,7 +35,7 @@ use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::zone_function::functions_as_static;
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, ResolutionStamp};
+use crate::events::event::ResolutionStamp;
 use crate::objects::card_data::AbilityDef;
 use crate::oracle::characteristics::{controller_or_owner, FrameContext, ObjectInformation};
 use crate::state::continuous_effects::puts_a_replacement_ability;
@@ -97,15 +97,6 @@ impl From<ObjectOrPlayerId> for EventSubject {
         match target {
             ObjectOrPlayerId::Object(id) => EventSubject::Object(id),
             ObjectOrPlayerId::Player(player) => EventSubject::Player(player),
-        }
-    }
-}
-
-impl From<CounterSubject> for EventSubject {
-    fn from(subject: CounterSubject) -> Self {
-        match subject {
-            CounterSubject::Object(id) => EventSubject::Object(id),
-            CounterSubject::Player(player) => EventSubject::Player(player),
         }
     }
 }

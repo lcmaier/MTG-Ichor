@@ -18,7 +18,7 @@ use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, StateBasedAction};
-use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameResult, GameState, StepType};
 use mtgsim::test_support::{
@@ -531,7 +531,7 @@ fn a_put_arm_reads_counters_a_player_gets() {
         multiplicity: Multiplicity::OncePerSubject,
     };
     let gorger = put_on_battlefield(&mut game, enchantment_that_gains("Fixture Gorger", arm, AmountExpr::TriggeringAmount), 0);
-    let energy = |player| GameAction::AddCounters { subject: CounterSubject::Player(player), counter: CounterType::Energy, n: 2, by: player };
+    let energy = |player| GameAction::AddCounters { subject: ObjectOrPlayerId::Player(player), counter: CounterType::Energy, n: 2, by: player };
 
     game.execute_action(energy(1), &test_ctx()).expect("an opponent gets energy");
     assert_eq!(waiting_from(&game, gorger), 0);

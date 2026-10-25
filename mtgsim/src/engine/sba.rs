@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use crate::events::cause::{EventCause, GameRule, StateBasedAction};
-use crate::events::event::{CounterSubject, GameEvent};
+use crate::events::event::GameEvent;
 use crate::oracle::characteristics::{
     get_effective_controller, get_effective_name, get_effective_toughness,
     has_subtype, has_supertype, has_type, is_creature,
@@ -17,7 +17,7 @@ use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype,
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::engine::replacement::{subject_of, EventSubject};
 use crate::types::effects::CounterType;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::zones::Zone;
 use crate::ui::ask::{ask_choose_legend_to_keep, ask_take_or_leave};
 use crate::ui::choice_types::ChoiceKind;
@@ -303,7 +303,7 @@ impl GameState {
                 continue;
             }
             for counter in [CounterType::PlusOnePlusOne, CounterType::MinusOneMinusOne] {
-                let removal = GameAction::RemoveCounters { subject: CounterSubject::Object(id), counter, n: pairs, by: None };
+                let removal = GameAction::RemoveCounters { subject: ObjectOrPlayerId::Object(id), counter, n: pairs, by: None };
                 batch.push((removal, StateBasedAction::CountersAnnihilate));
             }
         }

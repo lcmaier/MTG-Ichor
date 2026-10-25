@@ -8,7 +8,6 @@ use std::sync::Arc;
 use mtgsim::cards::authoring::triggers::{counters_removed_from, triggered_ability, whenever};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
-use mtgsim::events::event::CounterSubject;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp, vanilla_creature};
@@ -30,7 +29,7 @@ fn exiles_what_loses_a_counter() -> Arc<CardData> {
 }
 
 fn add_counters(game: &mut GameState, object: ObjectId, counter: CounterType, n: u32) {
-    game.execute_action(GameAction::AddCounters { subject: CounterSubject::Object(object), counter, n, by: 0 }, &test_ctx())
+    game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(object), counter, n, by: 0 }, &test_ctx())
         .expect("on the battlefield");
 }
 

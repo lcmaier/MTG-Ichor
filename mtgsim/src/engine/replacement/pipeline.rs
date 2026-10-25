@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{AppliedReplacement, CounterSubject, GameEvent, ResolutionStamp};
+use crate::events::event::{AppliedReplacement, GameEvent, ResolutionStamp};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
@@ -2652,7 +2652,7 @@ fn substitute(
                 // rider does: for a shield or stun counter's own effect (CR
                 // 122.1c, 122.1d), the protected permanent's controller.
                 Some(object) => Ok(GameAction::RemoveCounters {
-                    subject: CounterSubject::Object(object),
+                    subject: ObjectOrPlayerId::Object(object),
                     counter: *counter,
                     n: *n,
                     by: Some(chosen.controller),
@@ -3081,7 +3081,7 @@ pub(super) fn strip_prohibited_counters(
     };
     for row in &extra.counters {
         let action = GameAction::AddCounters {
-            subject: CounterSubject::Object(object),
+            subject: ObjectOrPlayerId::Object(object),
             counter: row.counter,
             n: row.n,
             by: row.putter(controller),

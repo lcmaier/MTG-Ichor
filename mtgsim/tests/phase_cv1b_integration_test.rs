@@ -42,7 +42,7 @@ use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
@@ -231,7 +231,7 @@ fn a_creature_exiled_and_returned_is_a_new_object() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     resolve_spell(&mut game, giant_growth(), 0, &[bears]);
     game.execute_action(
-        GameAction::AddCounters { subject: CounterSubject::Object(bears), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
+        GameAction::AddCounters { subject: ObjectOrPlayerId::Object(bears), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
         &test_ctx(),
     )
     .unwrap();
@@ -490,7 +490,7 @@ fn a_stolen_creature_destroyed_goes_home_as_a_new_object() {
     resolve_spell(&mut game, mtgsim::cards::phase_lg_cards::act_of_treason(), 0, &[bears]);
     assert_eq!(mtgsim::oracle::characteristics::get_effective_controller(&game, bears), Some(0));
     game.execute_action(
-        GameAction::AddCounters { subject: CounterSubject::Object(bears), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
+        GameAction::AddCounters { subject: ObjectOrPlayerId::Object(bears), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
         &test_ctx(),
     )
     .unwrap();

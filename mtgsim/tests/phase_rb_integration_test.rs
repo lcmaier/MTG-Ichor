@@ -13,7 +13,7 @@ use mtgsim::cards::phase_rb_cards::{
     kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
 };
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
@@ -348,7 +348,7 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
 
 /// Counters placed the way the engine places them, through the chokepoint.
 fn add_counters(game: &mut GameState, id: ObjectId, counter: CounterType, n: u32) {
-    game.execute_action(GameAction::AddCounters { subject: CounterSubject::Object(id), counter, n, by: 0 }, &test_ctx())
+    game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(id), counter, n, by: 0 }, &test_ctx())
         .unwrap();
 }
 

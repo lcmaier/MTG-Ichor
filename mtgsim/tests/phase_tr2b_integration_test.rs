@@ -20,7 +20,7 @@ use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_po
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
@@ -500,7 +500,7 @@ fn an_enters_trigger_reads_its_controller_and_power_once_its_source_is_sacrifice
     let reckoner = put_on_battlefield_under(&mut game, reckoner(), 1, 0);
     place(&mut game, &test_dp());
     let grow = GameAction::AddCounters {
-        subject: CounterSubject::Object(reckoner),
+        subject: ObjectOrPlayerId::Object(reckoner),
         counter: CounterType::PlusOnePlusOne,
         n: 2,
         by: 0,

@@ -7,7 +7,7 @@ use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, PtValue, Timestamp,
 };
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, EventId, GameEvent, ResolutionStamp};
+use crate::events::event::{EventId, GameEvent, ResolutionStamp};
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::objects::card_data::AbilityDef;
@@ -599,13 +599,7 @@ impl GameState {
                     | EffectRecipient::DefendingPlayer(_)
                     | EffectRecipient::EachOf(_)
                     | EffectRecipient::Group(_)
-                    | EffectRecipient::ChosenBy(_) => targets
-                        .iter()
-                        .map(|t| match t {
-                            ObjectOrPlayerId::Object(id) => ObjectOrPlayerId::Object(*id),
-                            ObjectOrPlayerId::Player(pid) => ObjectOrPlayerId::Player(*pid),
-                        })
-                        .collect(),
+                    | EffectRecipient::ChosenBy(_) => targets.to_vec(),
                 };
                 if targets.is_empty() {
                     return Ok(());
@@ -1576,7 +1570,7 @@ impl GameState {
                 let by = self.resolve_player_ref(by, targets, ctx)?;
                 self.execute_action(
                     GameAction::AddCounters {
-                        subject: CounterSubject::Player(player),
+                        subject: ObjectOrPlayerId::Player(player),
                         counter: *counter,
                         n,
                         by,
@@ -2273,7 +2267,7 @@ impl GameState {
             Primitive::AddCounters { counter, amount, by } => match is_permanent {
                 false => None,
                 true => Some(GameAction::AddCounters {
-                    subject: CounterSubject::Object(object),
+                    subject: ObjectOrPlayerId::Object(object),
                     counter: *counter,
                     n: self.evaluate_amount(amount, ctx, None)? as u32,
                     by: self.resolve_player_ref(by, targets, ctx)?,
@@ -2283,7 +2277,7 @@ impl GameState {
             Primitive::RemoveCounters(counter, amount) => match is_permanent {
                 false => None,
                 true => Some(GameAction::RemoveCounters {
-                    subject: CounterSubject::Object(object),
+                    subject: ObjectOrPlayerId::Object(object),
                     counter: *counter,
                     n: self.evaluate_amount(amount, ctx, None)? as u32,
                     by: Some(ctx.controller),

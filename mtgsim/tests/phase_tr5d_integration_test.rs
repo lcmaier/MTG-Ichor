@@ -24,7 +24,7 @@ use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GeneratedBy};
-use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::events::event::GameEvent;
 use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
@@ -674,7 +674,7 @@ fn a_delayed_trigger_made_after_its_source_left_reads_it_as_it_left() {
     let card = vanilla_creature(1, 1, &[]);
     let id = put_on_battlefield(&mut game, Arc::clone(&card), 0);
     let source = game.object_ref(id).expect("it is there");
-    let counters = GameAction::AddCounters { subject: CounterSubject::Object(id), counter: CounterType::PlusOnePlusOne, n: 2, by: 0 };
+    let counters = GameAction::AddCounters { subject: ObjectOrPlayerId::Object(id), counter: CounterType::PlusOnePlusOne, n: 2, by: 0 };
     game.execute_action(counters, &ActionContext::new(&test_dp())).expect("the counters go on");
     game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&test_dp())).expect("it dies");
     let gain = at_the_next_end_step(Effect::Atom(

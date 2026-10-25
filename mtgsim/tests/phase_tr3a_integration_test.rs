@@ -26,7 +26,6 @@ use mtgsim::cards::phase_re_cards::time_walk;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::events::event::CounterSubject;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::is_creature;
 use mtgsim::state::game_state::{GameState, StepType};
@@ -39,7 +38,7 @@ use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerGroup,
     PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
-use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{
@@ -431,7 +430,7 @@ fn a_delayed_trigger_keeps_the_frame_its_source_left_with() {
     let herald_then = game.object_ref(herald).unwrap();
     activate_and_resolve(&mut game, 0, herald, 0);
     let counters = GameAction::AddCounters {
-        subject: CounterSubject::Object(herald),
+        subject: ObjectOrPlayerId::Object(herald),
         counter: CounterType::PlusOnePlusOne,
         n: 2,
         by: 0,
