@@ -402,7 +402,6 @@ fn limited(event: impl Into<TriggerEvent>, limit: TriggerLimit, effect: Effect) 
     triggered_ability("", TriggerDef {
         condition: TriggerCondition::Event(event.into()),
         intervening_if: None,
-        functions_in: None,
         limit: Some(limit),
         effect,
     })
@@ -982,7 +981,6 @@ fn all_of_several_conditions_this_turn_reads_the_whole_turn() {
                 TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(spell_type(CardType::Artifact)) },
             ]),
             intervening_if: Some(both_this_turn),
-            functions_in: None,
             limit: None,
             effect: draw_one(),
         }),
@@ -1074,7 +1072,6 @@ fn since_your_last_turn_spans_the_turns_after_it() {
             triggered_ability("", TriggerDef {
                 condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
                 intervening_if: Some(quiet.clone()),
-                functions_in: None,
                 limit: None,
                 effect: draw_one(),
             }),

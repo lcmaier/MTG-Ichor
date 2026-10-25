@@ -9543,16 +9543,15 @@ scan of the history log, and the place in a turn that reads a tally since
      **Slotted:** Phase 9, with the monarch.
 
 296. **~~`Condition` holds both CR 113.6b/c's zone statements and game predicates, so `Not(SourceInZone(Z))` silently states no zone.~~ — ✅ CLOSED 2026-10-25 (PR #291, `one-fact-one-type`).** — archived.
-     The `SourceInZone` leaf is gone. A static ability's statement is
-     `Effect::FunctionsIn(zones, body)` at its effect's root, found by the one
-     peel every reader of a static body takes, refused anywhere else by the
-     static lowering and the resolver, and checked at the root of every
-     registered card by a registry test; a triggered ability's is
-     `TriggerDef::functions_in`, beside the intervening "if" it is printed as,
-     asked with it as a window is dispatched and as the ability resolves (CR 603.4) (the owner's
-     choice at the build, superseding `layers-architecture.md` §13d decision
-     1b). `functioning_zones`, CR 604.2's existence check at every layer and
-     the dispatcher's zone gate read the statement.
+     The `SourceInZone` leaf is gone. Every ability's statement is
+     `Effect::FunctionsIn(zones, effect)` at its effect's root, static or
+     triggered, found by the peels every reader takes, refused anywhere else
+     by the static lowering and the resolver, and checked at the root of every
+     registered card by a registry test. A trigger's binding takes it as the
+     ability triggers, and the dispatch and the resolution ask it beside the
+     intervening "if" (CR 603.4); `functioning_zones` and CR 604.2's existence
+     check at every layer read it too. The owner's choice at the build and its
+     review, superseding `layers-architecture.md` §13d decision 1b.
      **Reachability (2026-10-25):** closed — PR #291.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 296".
 

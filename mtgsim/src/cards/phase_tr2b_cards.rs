@@ -90,7 +90,6 @@ pub fn nykthos_paragon() -> Arc<CardData> {
                 multiplicity: Multiplicity::PerOccurrence,
             }),
             intervening_if: None,
-            functions_in: None,
             limit: Some(TriggerLimit::DoThisOnlyOnceEachTurn),
             effect: you_may_put_counters(AmountExpr::TriggeringAmount, each_creature_you_control),
         }))

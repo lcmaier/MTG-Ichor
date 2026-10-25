@@ -446,12 +446,10 @@ impl GameState {
                     .to_string(),
             ),
 
-            // CR 113.6b's statement is a static ability's, and a static ability
-            // does not resolve; a triggered ability's is its def's field.
+            // CR 113.6b's statement wraps an ability's whole effect and never
+            // resolves; a trigger's binding carries it for the re-check before.
             Effect::FunctionsIn(..) => Err(
-                "`Effect::FunctionsIn` states where a static ability functions and \
-                 does not resolve; a triggered ability states its zones in \
-                 `TriggerDef::functions_in`."
+                "`Effect::FunctionsIn` states where an ability functions, at its effect's root; it does not resolve, and a triggered ability's binding carries it for the resolution's check before its effect."
                     .to_string(),
             ),
 

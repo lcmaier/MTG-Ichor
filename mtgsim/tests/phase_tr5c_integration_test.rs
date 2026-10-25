@@ -446,7 +446,6 @@ fn basilisk() -> Arc<CardData> {
             becomes_blocked_by(TriggerSubject::ThisObject, TriggerSubject::Any).into(),
         ]),
         intervening_if: None,
-        functions_in: None,
         limit: None,
         effect: destroy,
     };

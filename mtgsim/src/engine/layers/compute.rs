@@ -17,7 +17,7 @@ use crate::oracle::characteristics::{FrameContext, ObjectInformation};
 use crate::types::effects::{Antecedent, ObjectSet};
 use crate::engine::layers::board::{
     compute_board, compute_board_to, is_dynamic, pass_membership, record_intrinsic, Board, PassMembership, RowNote,
-    AffectedSet,
+    HowAffected,
 };
 use crate::engine::layers::explain::{AppliedBy, RecordedStep, Recorder, StepResult};
 use crate::engine::layers::lookahead::Lookahead;
@@ -393,7 +393,7 @@ pub(super) fn compute_non_member_recorded(
         matches!(&note.row.affected_objects, ObjectSet::Filter { zones, .. } if zones.contains(obj.zone))
     };
     let starts_here = |note: &RowNote| {
-        note.layer_index < ceiling && matches!(note.affected, AffectedSet::Fresh { .. }) && reaches(note)
+        note.layer_index < ceiling && matches!(note.affected, HowAffected::Fresh { .. }) && reaches(note)
     };
     if !crate::engine::layers::cda::has_any_cda(&chars) && !notes.iter().any(starts_here) {
         if LAYER_ORDER.iter().take(ceiling).any(|l| *l == Layer::Layer4Type) {
@@ -431,8 +431,8 @@ pub(super) fn compute_non_member_recorded(
             let applies = match note.affected {
                 // Wherever the locked row itself points: CR 613.6 applies it to
                 // the set its effect started with.
-                AffectedSet::Locked => matched.contains(&row.group()),
-                AffectedSet::Fresh { you } => {
+                HowAffected::Locked => matched.contains(&row.group()),
+                HowAffected::Fresh { you } => {
                     let ObjectSet::Filter { filter, .. } = &row.affected_objects else { continue };
                     if !reaches(note) {
                         continue;
@@ -454,8 +454,8 @@ pub(super) fn compute_non_member_recorded(
             {
                 let watched = match (applies, note.affected) {
                     (true, _) => StepResult::Applied { before, after: chars.clone() },
-                    (false, AffectedSet::Locked) => StepResult::LockedOut,
-                    (false, AffectedSet::Fresh { .. }) => StepResult::NotMatched,
+                    (false, HowAffected::Locked) => StepResult::LockedOut,
+                    (false, HowAffected::Fresh { .. }) => StepResult::NotMatched,
                 };
                 recorder.push(RecordedStep {
                     layer,

@@ -807,19 +807,19 @@ fn aura_spell_targeting(game: &mut GameState, aura: Arc<CardData>, controller: P
 /// **Fixture.** Bridge from Below's first ability with "from the
 /// battlefield" printed "from anywhere".
 fn from_anywhere_twin() -> Arc<CardData> {
-    use mtgsim::cards::authoring::{triggered_ability, whenever};
+    use mtgsim::cards::authoring::{functioning_in, triggered_ability, whenever};
     use mtgsim::objects::card_data::CardDataBuilder;
     use mtgsim::types::card_types::CardType;
     use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
-    use mtgsim::types::triggers::{Multiplicity, TriggerDef, TriggerEvent, TriggerSubject};
+    use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
     use mtgsim::types::zones::{ZoneChangePattern, ZoneSet};
     CardDataBuilder::new("Fixture Bridge from Anywhere")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability(
-            "",
-            TriggerDef {
-                functions_in: Some(ZoneSet::GRAVEYARD),
-                ..whenever(
+        .ability(functioning_in(
+            ZoneSet::GRAVEYARD,
+            triggered_ability(
+                "",
+                whenever(
                     TriggerEvent::ZoneChange {
                         subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
                         change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
@@ -828,8 +828,8 @@ fn from_anywhere_twin() -> Arc<CardData> {
                         multiplicity: Multiplicity::PerOccurrence,
                     },
                     Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
-                )
-            },
+                ),
+            ),
         ))
         .build()
 }

@@ -851,7 +851,7 @@ fn scan_mana_production_watchers(game: &GameState) -> ManaProductionWatchers {
         let Some(chars) = compute_characteristics(game, permanent) else { continue };
         for (index, ability) in chars.abilities.iter().enumerate() {
             let at = AbilityAt { permanent, index };
-            if let Effect::Triggered(def) = &ability.effect {
+            if let Some(def) = ability.effect.as_trigger() {
                 if could_be_a_mana_ability(def) {
                     found.triggers.push(at);
                 }
@@ -960,7 +960,7 @@ fn mana_trigger_adds(
     made: &ManaBag,
 ) -> Vec<ManaBag> {
     let abilities = get_effective_abilities(game, at.permanent);
-    let Some(Effect::Triggered(def)) = abilities.get(at.index).map(|ability| &ability.effect) else {
+    let Some(def) = abilities.get(at.index).and_then(|ability| ability.effect.as_trigger()) else {
         return Vec::new();
     };
     let controller = controller_or_owner(game, at.permanent).unwrap_or(0);

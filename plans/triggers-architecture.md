@@ -128,9 +128,6 @@ pub struct TriggerDef {
     /// resolves (608.2a). `None` is an ability with no "if" clause; an
     /// `if` anywhere else in the text is ordinary `Effect::Conditional`.
     pub intervening_if: Option<Condition>,
-    /// CR 113.6b's statement, Bridge from Below's "if this card is in your
-    /// graveyard": asked with the intervening "if" at both times (item 296).
-    pub functions_in: Option<ZoneSet>,
     /// The two once-per-turn gates and "for the first time each turn" (§3.5).
     pub limit: Option<TriggerLimit>,
     /// What it does. Its targets are `Effect::instances` of this tree,
@@ -311,6 +308,10 @@ pub struct TriggerBinding {
     /// owner's graveyard, which "this card" finds: the one field written
     /// after the ability triggered.
     pub source_found_in_graveyard: Option<ObjectRef>,
+    /// CR 113.6b's statement, Bridge from Below's "if this card is in your
+    /// graveyard", handed over from the ability's `Effect::FunctionsIn` as it
+    /// triggers and asked with the intervening "if" at both times (item 296).
+    pub stated_zones: Option<ZoneSet>,
 }
 ```
 
@@ -1878,10 +1879,9 @@ For each record, the candidates are the union of:
    where the Jailer stops it. "When this card is put into a graveyard from
    anywhere" functions everywhere it can be, and Guerrilla Tactics' discard
    in the graveyard, in Rest in Peace's exile and in Library of Leng's
-   library. And an intervening "if" that states a zone replaces the
-   derivation for every condition of its ability (CR 113.6b; Bridge from
-   Below, item 173), in `functioning_zones` and `condition_functions_in`
-   alike.
+   library. And a zone the ability's text states replaces the derivation
+   for every condition of it (CR 113.6b; Bridge from Below, item 173), in
+   `functioning_zones` and `condition_functions_in` alike.
 4. **The record's own subject**, wherever it is now — CR 603.10's default
    is "objects that exist immediately after an event", and a card
    discarded into a graveyard exists there with its printed abilities.

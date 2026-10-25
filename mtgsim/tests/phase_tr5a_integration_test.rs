@@ -479,7 +479,6 @@ fn an_intervening_if_counts_every_kind_of_counter_it_had() {
     let def = TriggerDef {
         condition: TriggerCondition::Event(leaves.into()),
         intervening_if: Some(had_counters),
-        functions_in: None,
         limit: None,
         effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
     };

@@ -113,8 +113,7 @@ impl GameState {
         if let Some(binding) = &entry.trigger {
             let source = entry.this_object();
             let left_its_stated_zone = binding
-                .def
-                .functions_in
+                .stated_zones
                 .is_some_and(|zones| !self.objects.get(&source).is_some_and(|object| zones.contains(object.zone)));
             let condition_is_false = binding.def.intervening_if.as_ref().is_some_and(|condition| {
                 let objects = self.condition_objects(entry.ability_identity.map(|identity| identity.source), Some(binding));

@@ -22,7 +22,6 @@
 
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::types::card_types::{CardType, CardTypes};
-use crate::types::effects::Effect;
 use crate::types::triggers::{TriggerDef, TriggerEvent, TriggerSubject};
 use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
@@ -63,13 +62,13 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
 
     // CR 113.6b — "An ability that states which zones it functions in
     // functions only from those zones" — and 113.6c, which is the same field
-    // holding a complement (`ZoneSet::ALL.without(..)`): a static ability's
-    // `Effect::FunctionsIn` (Wonder) or a triggered ability's
-    // `TriggerDef::functions_in` (Bridge from Below). A keyword's own rule
+    // holding a complement (`ZoneSet::ALL.without(..)`): the
+    // `Effect::FunctionsIn` at the ability's root, a static ability's (Wonder)
+    // or a triggered ability's (Bridge from Below). A keyword's own rule
     // (flashback in a graveyard, CR 702.34a) and CR 113.6m's inference from a
     // cost or effect place an ability without its text stating a zone, and
     // are arms of their own when they land.
-    if let Some(zones) = zones_its_text_states(&ability.effect) {
+    if let Some(zones) = ability.effect.stated_zones() {
         return zones;
     }
 
@@ -82,33 +81,11 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
     // on the battlefield. The ability's zones are its conditions' together,
     // and the dispatcher asks each again ([`condition_functions_in`]). What an
     // *effect* says about a zone is CR 113.6m's, not derived.
-    if let Effect::Triggered(def) = &ability.effect {
+    if let Some(def) = ability.effect.as_trigger() {
         return trigger_zones(def, types);
     }
 
     default_zones(types)
-}
-
-/// The zones an ability's text states it functions in (CR 113.6b, 113.6c):
-/// the clause of a static ability's "as long as", or of a triggered ability's
-/// intervening "if". `None` when the text states none.
-fn zones_its_text_states(effect: &Effect) -> Option<ZoneSet> {
-    match effect {
-        Effect::FunctionsIn(zones, _) => Some(*zones),
-        Effect::Triggered(def) => def.functions_in,
-        Effect::Atom(..)
-        | Effect::Conditional(..)
-        | Effect::Sequence(_)
-        | Effect::Modal { .. }
-        | Effect::Optional { .. }
-        | Effect::Remember(_)
-        | Effect::ForEach(..)
-        | Effect::Repeat(..)
-        | Effect::Replacement(_)
-        | Effect::Restriction(_)
-        | Effect::CostModification(_)
-        | Effect::TriggerMultiplier(_) => None,
-    }
 }
 
 /// CR 113.6k's derivation for a triggered ability — see the arm above.
@@ -161,10 +138,10 @@ fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
 /// conditions does, so [`functions_in`] can say yes for the ability while
 /// this says no for one condition of it — Absolver Thrull's "enters" in the
 /// exile its haunt condition functions in, which is the CR's own example.
-/// `contains` for [`functions_in`]'s reason. A stated zone answers for every
-/// condition of the ability (CR 113.6b).
-pub fn condition_functions_in(def: &TriggerDef, arm: &TriggerEvent, types: &CardTypes, zone: Zone) -> bool {
-    def.functions_in.unwrap_or_else(|| condition_zones(arm, types)).contains(zone)
+/// `contains` for [`functions_in`]'s reason. A zone the ability's text
+/// states, `stated`, answers for every condition of it (CR 113.6b).
+pub fn condition_functions_in(stated: Option<ZoneSet>, arm: &TriggerEvent, types: &CardTypes, zone: Zone) -> bool {
+    stated.unwrap_or_else(|| condition_zones(arm, types)).contains(zone)
 }
 
 /// CR 113.6 as a caller asks it: does `ability` function *here*?
@@ -219,7 +196,7 @@ mod tests {
     use crate::types::card_types::{LandType, Subtype};
     use crate::types::cost_modification::{CostChange, CostModificationDef};
     use crate::types::effects::{
-        AmountExpr, Condition, Duration, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive,
+        AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive,
     };
     use crate::types::ids::new_ability_id;
     use crate::types::mana::ManaCost;

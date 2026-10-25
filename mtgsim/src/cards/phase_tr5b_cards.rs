@@ -94,7 +94,6 @@ pub fn simic_ascendancy() -> Arc<CardData> {
             kind: Some(CounterType::Growth),
             count: CountIs::AtLeast(20),
         }),
-        functions_in: None,
         limit: None,
         effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Controller),
     };

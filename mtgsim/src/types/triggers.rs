@@ -36,13 +36,6 @@ pub struct TriggerDef {
     /// resolves (608.2a). `None` is an ability with no "if" clause; an `if`
     /// anywhere else in the text is ordinary `Effect::Conditional`.
     pub intervening_if: Option<Condition>,
-    /// CR 113.6b's statement of where the ability functions: Bridge from
-    /// Below's "if this card is in your graveyard". Printed as an intervening
-    /// "if", so it is asked with [`Self::intervening_if`] as the event
-    /// happens and again as the ability resolves (CR 603.4); a fact about the
-    /// ability rather than the game, so it is no `Condition`. A static
-    /// ability's is `Effect::FunctionsIn`.
-    pub functions_in: Option<ZoneSet>,
     /// The two once-per-turn gates and "for the first time each turn" (§3.5).
     pub limit: Option<TriggerLimit>,
     /// Its targets are `Effect::instances` of this tree, announced at
@@ -1717,6 +1710,12 @@ pub struct TriggerBinding {
     /// by itself, and so would a copy of the ability (CR 707.10); on the
     /// entries, every one of those hand-offs would have to carry it.
     pub source_found_in_graveyard: Option<ObjectRef>,
+    /// CR 113.6b's statement of where the ability functions, handed over
+    /// from its `Effect::FunctionsIn` as it triggers, as the def is (CR
+    /// 113.7a): Bridge from Below's "if this card is in your graveyard",
+    /// printed as an intervening "if" and so asked again as it resolves (CR
+    /// 603.4). `None` for an ability whose text states no zone.
+    pub stated_zones: Option<ZoneSet>,
 }
 
 impl TriggerBinding {
@@ -2547,7 +2546,6 @@ mod tests {
                 TriggerEvent::BecomesUntapped { subject: TriggerSubject::ThisObject },
             ]),
             intervening_if: None,
-            functions_in: None,
             limit: None,
             effect: Effect::Sequence(Vec::new()),
         };

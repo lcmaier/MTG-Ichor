@@ -103,15 +103,13 @@ impl BitOr for TriggerBindingReads {
 
 impl TriggerDef {
     /// Every fact of its entry this def reads: its effect's, its intervening
-    /// "if"'s and stated zone's, and CR 603.2h's gate's.
+    /// "if"'s, and CR 603.2h's gate's.
     pub fn trigger_binding_reads(&self) -> TriggerBindingReads {
         let gate = match self.limit {
             Some(TriggerLimit::DoThisOnlyOnceEachTurn) => TriggerBindingReads::ABILITY,
             Some(TriggerLimit::TriggersOnlyOnceEachTurn | TriggerLimit::FirstTimeEachTurn) | None => TriggerBindingReads::NONE,
         };
-        // Its stated zone is asked of the source as it resolves (CR 603.4).
-        let stated = if self.functions_in.is_some() { TriggerBindingReads::SOURCE } else { TriggerBindingReads::NONE };
-        effect_reads(&self.effect) | self.intervening_if.as_ref().map_or(TriggerBindingReads::NONE, condition_reads) | stated | gate
+        effect_reads(&self.effect) | self.intervening_if.as_ref().map_or(TriggerBindingReads::NONE, condition_reads) | gate
     }
 
     /// Each event role the def names that some arm of its condition does not

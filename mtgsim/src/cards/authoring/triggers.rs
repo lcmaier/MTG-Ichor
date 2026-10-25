@@ -23,9 +23,17 @@ use crate::types::triggers::{
     AttackOccurrence, BlockOccurrence, ObjectOrPlayerSubject, DamageRecipient, TargetedBy, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
     ReflexiveForm, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
-use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
+use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 
 /// A triggered ability: no cost, the def as its effect.
+/// `ability`, functioning only in `zones` (CR 113.6b): Bridge from Below's
+/// "if this card is in your graveyard", printed as its intervening "if", which
+/// the dispatch and the resolution ask beside the def's own (CR 603.4).
+pub fn functioning_in(zones: ZoneSet, mut ability: AbilityDef) -> AbilityDef {
+    ability.effect = Effect::FunctionsIn(zones, Box::new(ability.effect));
+    ability
+}
+
 pub fn triggered_ability(rules_text: &'static str, def: TriggerDef) -> AbilityDef {
     AbilityDef {
         rules_text: rules_text.into(),
@@ -46,7 +54,6 @@ pub fn whenever(event: impl Into<TriggerEvent>, effect: Effect) -> TriggerDef {
     TriggerDef {
         condition: TriggerCondition::Event(event.into()),
         intervening_if: None,
-        functions_in: None,
         limit: None,
         effect,
     }
@@ -269,7 +276,6 @@ fn returns_unless_it_had(keyword: &'static str, counter: CounterType) -> Ability
     triggered_ability(keyword, TriggerDef {
         condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
         intervening_if: Some(Condition::CounterCount { object: Antecedent::Triggering(EventRole::Object), kind: Some(counter), count: CountIs::AtMost(0) }),
-        functions_in: None,
         limit: None,
         effect: Effect::Atom(returns, EffectRecipient::Triggering(EventRole::Object)),
     })

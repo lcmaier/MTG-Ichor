@@ -482,7 +482,6 @@ fn reckoner() -> Arc<CardData> {
             players: PlayerSet::You,
             fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(10)),
         }),
-        functions_in: None,
         limit: None,
         effect: each_opponent_loses_its_power(),
     };

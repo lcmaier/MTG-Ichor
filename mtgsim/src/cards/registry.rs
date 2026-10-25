@@ -1328,18 +1328,19 @@ mod tests {
 
     /// `AbilityType::Triggered` and `Effect::Triggered` are one fact written
     /// twice: the tag is what priority and display key on, the effect is what
-    /// the trigger dispatcher reads. `authoring::triggered_ability` writes both
-    /// and is the only constructor of either, so the dispatcher asks only the
-    /// effect. This is what makes that safe for every card, printed or nested.
+    /// the trigger dispatcher reads, through `Effect::as_trigger`, which sees
+    /// past a statement of where it functions. `authoring::triggered_ability`
+    /// writes both and is the only constructor of either, so the dispatcher
+    /// asks only the effect. This is what makes that safe for every card,
+    /// printed or nested.
     #[test]
     fn a_triggered_tag_and_a_triggered_effect_always_come_together() {
         use crate::objects::card_data::{AbilityDef, AbilityType};
-        use crate::types::effects::Effect;
 
         fn check(what: &str, def: &AbilityDef) {
             assert_eq!(
                 def.ability_type == AbilityType::Triggered,
-                matches!(def.effect, Effect::Triggered(_)),
+                def.effect.as_trigger().is_some(),
                 "{what}: the ability's tag and its effect disagree"
             );
         }

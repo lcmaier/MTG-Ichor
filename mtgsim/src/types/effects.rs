@@ -2335,15 +2335,17 @@ pub enum Effect {
     /// "If [condition], [effect]" — intervening if (rule 603.4)
     Conditional(Condition, Box<Effect>),
 
-    /// CR 113.6b's statement around a static ability's body: "as long as this
-    /// card is in your graveyard" (Wonder), or 113.6c's complement, "as long
-    /// as this card isn't on the battlefield" (`ZoneSet::EVERYWHERE_BUT_BATTLEFIELD`).
-    /// A fact about the ability, where the ability functions, and not a
-    /// predicate about the game, so it is no `Condition`: `functioning_zones`
-    /// places the ability by it, and CR 604.2's existence check asks whether
-    /// the source is still there at every layer. Outside any "as long as"
-    /// clause the text adds. A triggered ability's is
-    /// `TriggerDef::functions_in`.
+    /// CR 113.6b's statement around an ability's whole effect: a static
+    /// ability's "as long as this card is in your graveyard" (Wonder) or 113.6c's
+    /// complement, "as long as this card isn't on the battlefield"
+    /// (`ZoneSet::EVERYWHERE_BUT_BATTLEFIELD`); a triggered ability's "if this
+    /// card is in your graveyard" (Bridge from Below). A fact about the
+    /// ability, where it functions, and not a predicate about the game, so it
+    /// is no `Condition`. At an ability's root only: `functioning_zones`
+    /// places the ability by it, CR 604.2's existence check asks it of a
+    /// static ability's source at every layer, and a trigger's binding takes
+    /// it as the ability triggers, for the dispatch and the resolution to ask
+    /// beside the intervening "if" (CR 603.4).
     FunctionsIn(ZoneSet, Box<Effect>),
 
     /// "[Chooser] may [effect]" (CR 603.5): asked as the effect resolves,
@@ -2608,6 +2610,8 @@ impl Effect {
             // CR 603.3d — a trigger's targets are its effect's, announced at
             // placement; item 153's note said this walk would want the arm.
             Effect::Triggered(def) => def.effect.for_each_instance(f),
+            // A statement of where it functions changes nothing it targets.
+            Effect::FunctionsIn(_, inner) => inner.for_each_instance(f),
             // A "may" changes nothing about what is targeted: the target is
             // chosen as the ability is put on the stack and the choice made as
             // it resolves (CR 603.3d, 603.5; Cryptoplasm's first ruling).
@@ -2633,9 +2637,8 @@ impl Effect {
         }
     }
 
-    /// The zones a static ability's text states it functions in (CR 113.6b,
-    /// 113.6c), when its body says so: [`Effect::FunctionsIn`]. A triggered
-    /// ability's is `TriggerDef::functions_in`.
+    /// The zones an ability's text states it functions in (CR 113.6b,
+    /// 113.6c), when its effect says so: [`Effect::FunctionsIn`].
     pub(crate) fn stated_zones(&self) -> Option<ZoneSet> {
         match self {
             Effect::FunctionsIn(zones, _) => Some(*zones),
@@ -2696,6 +2699,11 @@ impl Effect {
     pub fn as_trigger(&self) -> Option<&std::sync::Arc<crate::types::triggers::TriggerDef>> {
         match self {
             Effect::Triggered(def) => Some(def),
+            // CR 113.6b's statement wraps the whole ability.
+            Effect::FunctionsIn(_, inner) => match &**inner {
+                Effect::Triggered(def) => Some(def),
+                _ => None,
+            },
             _ => None,
         }
     }

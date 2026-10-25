@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{dies, triggered_ability, whenever};
+use crate::cards::authoring::{dies, functioning_in, triggered_ability, whenever};
 use crate::cards::phase_rb_cards::zombie_token;
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
@@ -27,7 +27,7 @@ use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::restriction::SourceFilter;
-use crate::types::triggers::{EventRole, Multiplicity, TriggerDef, TriggerEvent, TriggerSubject};
+use crate::types::triggers::{EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 
 /// "Whenever [subject] is put into [whose] graveyard from the battlefield":
@@ -276,27 +276,27 @@ pub fn bridge_from_below() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("Whenever a nontoken creature is put into your graveyard from the battlefield, if this card is in your graveyard, create a 2/2 black Zombie creature token.\nWhen a creature is put into an opponent's graveyard from the battlefield, if this card is in your graveyard, exile this card.")
-        .ability(triggered_ability(
-            zombie,
-            TriggerDef {
-                // CR 113.6b's statement, printed as the intervening "if" (CR 603.4).
-                functions_in: Some(ZoneSet::GRAVEYARD),
-                ..whenever(
+        // CR 113.6b's statement, "if this card is in your graveyard", printed
+        // as each ability's intervening "if" (CR 603.4).
+        .ability(functioning_in(
+            ZoneSet::GRAVEYARD,
+            triggered_ability(
+                zombie,
+                whenever(
                     put_into_a_graveyard_from_the_battlefield(nontoken_creature, PlayerRef::You),
                     Effect::Atom(Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)), EffectRecipient::Controller),
-                )
-            },
+                ),
+            ),
         ))
-        .ability(triggered_ability(
-            exile,
-            TriggerDef {
-                // CR 113.6b's statement, printed as the intervening "if" (CR 603.4).
-                functions_in: Some(ZoneSet::GRAVEYARD),
-                ..whenever(
+        .ability(functioning_in(
+            ZoneSet::GRAVEYARD,
+            triggered_ability(
+                exile,
+                whenever(
                     put_into_a_graveyard_from_the_battlefield(ObjectFilter::ByType(CardType::Creature), PlayerRef::Opponent),
                     Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
-                )
-            },
+                ),
+            ),
         ))
         .build()
 }

@@ -493,7 +493,6 @@ pub fn cryptoplasm() -> Arc<CardData> {
         .ability(triggered_ability(text, TriggerDef {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
             intervening_if: None,
-            functions_in: None,
             limit: None,
             effect: Effect::Optional { chooser: PlayerRef::You, effect: Box::new(copy) },
         }))

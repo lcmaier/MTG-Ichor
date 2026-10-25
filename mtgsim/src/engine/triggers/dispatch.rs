@@ -536,6 +536,8 @@ struct TriggerCandidateDef<'a> {
     candidate: usize,
     identity: AbilityIdentity,
     def: &'a Arc<TriggerDef>,
+    /// The zones its text states it functions in (CR 113.6b).
+    stated_zones: Option<ZoneSet>,
     instances: &'a [EffectRecipient],
 }
 
@@ -595,6 +597,9 @@ pub(super) struct MatchedTrigger {
     pub(super) identity: AbilityIdentity,
     pub(super) controller: PlayerId,
     pub(super) def: Arc<TriggerDef>,
+    /// The zones its text states it functions in, which its binding takes
+    /// (CR 113.6b).
+    pub(super) stated_zones: Option<ZoneSet>,
     pub(super) source_card: Arc<CardData>,
     pub(super) instances: Vec<EffectRecipient>,
     pub(super) event: EventIndex,
@@ -887,6 +892,7 @@ impl GameState {
                 triggered_by: None,
                 referred: Referred::default(),
                 source_found_in_graveyard,
+                stated_zones: m.stated_zones,
             };
             let origin = TriggerOrigin::Object(m.identity);
             // Each time it triggers is its own trigger, with its own choices
@@ -1642,6 +1648,7 @@ impl GameState {
                     candidate: index,
                     identity: AbilityIdentity { source: candidate.object, ability: ability.id },
                     def,
+                    stated_zones: ability.effect.stated_zones(),
                     instances: &ability.instances,
                 });
             }
@@ -1658,7 +1665,7 @@ impl GameState {
                 let Some(answered) = candidate.frame.answered_arms(looks_back_through, is_newcomer[row.candidate]) else { continue };
                 let identity = row.identity;
                 let def = row.def;
-                let outcome = self.match_def(def, candidate, answered, record, identity);
+                let outcome = self.match_def(def, row.stated_zones, candidate, answered, record, identity);
                 let (matched, triggering_events, refusal) = match outcome {
                     Ok((event, triggering_events)) => (Some(event), triggering_events, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
@@ -1694,6 +1701,7 @@ impl GameState {
                         identity: row.identity,
                         controller: candidate.controller,
                         def: Arc::clone(row.def),
+                        stated_zones: row.stated_zones,
                         source_card: Arc::clone(&candidate.card),
                         instances: row.instances.to_vec(),
                         event: matched,
@@ -1714,6 +1722,7 @@ impl GameState {
     fn match_def(
         &self,
         def: &TriggerDef,
+        stated_zones: Option<ZoneSet>,
         candidate: &TriggerCandidate<'_>,
         answered: AnsweredArms,
         record: &EventRecord,
@@ -1730,10 +1739,10 @@ impl GameState {
         // 109.5): the source's now, or its frame's for a look-back candidate,
         // and "this" is read as it left for one.
         let source = TriggerSource { object: candidate.object.id, controller: candidate.controller, lki: candidate.frame.lki() };
-        self.first_arm_that_triggers(def, identity, &referents, record, source, |arm| {
+        self.first_arm_that_triggers(def, stated_zones, identity, &referents, record, source, |arm| {
             // CR 113.6k asks each trigger condition where it functions; the
             // pre-pass asked the ability, which is their union.
-            answered.admits(arm) && condition_functions_in(def, arm, &candidate.frame.characteristics().types, candidate.zone)
+            answered.admits(arm) && condition_functions_in(stated_zones, arm, &candidate.frame.characteristics().types, candidate.zone)
         })
     }
 
@@ -1753,6 +1762,7 @@ impl GameState {
     pub(super) fn first_arm_that_triggers(
         &self,
         def: &TriggerDef,
+        stated_zones: Option<ZoneSet>,
         identity: AbilityIdentity,
         referents: &TriggerReferents<'_>,
         record: &EventRecord,
@@ -1774,7 +1784,7 @@ impl GameState {
         if !self.within_once_per_turn_limit(def, identity, source.controller, arm, record, referents) {
             return Err(Refusal::Limit);
         }
-        let triggering_events = self.triggers_whose_intervening_if_holds(def, arm, record, triggering_events, source)?;
+        let triggering_events = self.triggers_whose_intervening_if_holds(def, stated_zones, arm, record, triggering_events, source)?;
         Ok((event_index, triggering_events))
     }
 
@@ -1802,6 +1812,7 @@ impl GameState {
     pub(super) fn triggers_whose_intervening_if_holds(
         &self,
         def: &TriggerDef,
+        stated_zones: Option<ZoneSet>,
         arm: &TriggerEvent,
         record: &EventRecord,
         triggering_events: Vec<TriggeringEventObjects>,
@@ -1809,7 +1820,7 @@ impl GameState {
     ) -> Result<Vec<TriggeringEventObjects>, Refusal> {
         // CR 113.6b's statement is printed as the intervening "if" and asked
         // with it, of the source where it is now, as the resolution asks it.
-        if def.functions_in.is_some_and(|zones| !self.objects.get(&source.object).is_some_and(|object| zones.contains(object.zone))) {
+        if stated_zones.is_some_and(|zones| !self.objects.get(&source.object).is_some_and(|object| zones.contains(object.zone))) {
             return Err(Refusal::InterveningIf);
         }
         let Some(condition) = &def.intervening_if else { return Ok(triggering_events) };

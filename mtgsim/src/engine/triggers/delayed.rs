@@ -316,7 +316,8 @@ impl GameState {
         record: &EventRecord,
     ) -> Result<(EventIndex, Vec<TriggeringEventObjects>), Refusal> {
         let source = TriggerSource { object: delayed.source.id, controller: delayed.controller, lki: self.lki(delayed.source) };
-        self.first_arm_that_triggers(&delayed.def, delayed.identity(), referents, record, source, |_| true)
+        // A delayed trigger states no zone: it has no source to function in.
+        self.first_arm_that_triggers(&delayed.def, None, delayed.identity(), referents, record, source, |_| true)
     }
 
     /// The trace's `trigger` record of an entry's verdict on record `seq`,
@@ -432,6 +433,7 @@ fn matched_of(delayed: &DelayedTrigger, event: EventIndex, triggering_events: Ve
         identity: delayed.identity(),
         controller: delayed.controller,
         def: Arc::clone(&delayed.def),
+        stated_zones: None,
         source_card: Arc::clone(&delayed.source_card),
         instances: delayed.instances.clone(),
         event,
@@ -458,6 +460,7 @@ fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
             triggered_by: None,
             referred: delayed.referred.clone(),
             source_found_in_graveyard: None,
+            stated_zones: None,
         },
         x_value: delayed.x_value,
     }

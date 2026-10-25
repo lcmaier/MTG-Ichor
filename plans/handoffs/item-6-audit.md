@@ -190,10 +190,10 @@ pass re-reads what it touches: a number here is a starting point.
   or a player is `ObjectOrPlayerId` by id and `ObjectOrPlayer` by
   reference, in `types::ids`; what an effect is affecting is one
   `AffectedSet`; `Selector` is an `ObjectSet`. A zone statement left
-  `Condition` for a home by the ability's kind, `Effect::FunctionsIn` for
-  a static ability and `TriggerDef::functions_in` for a triggered one (the
-  owner, at the build, superseding `layers-architecture.md` §13d decision
-  1b). The next PR is `batches-durations-and-control` (5).
+  `Condition` for `Effect::FunctionsIn` at every ability's root, which a
+  trigger's binding carries for the dispatch and the resolution to ask (the
+  owner, at the build and its review, superseding `layers-architecture.md`
+  §13d decision 1b). The next PR is `batches-durations-and-control` (5).
 
 ## 1. Why this audit is bigger than the last
 

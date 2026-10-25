@@ -8564,7 +8564,7 @@ Every record names each object it is about by an `ObjectRef`, the existence the 
 
 ### Item 296 — closed 2026-10-25 by PR #291 (`one-fact-one-type`)
 
-The `SourceInZone` leaf is gone. A static ability's statement is `Effect::FunctionsIn(zones, body)` at its effect's root, found by the one peel every reader of a static body takes, refused anywhere else by the static lowering and the resolver, and checked at the root of every registered card by a registry test; a triggered ability's is `TriggerDef::functions_in`, beside the intervening "if" it is printed as, asked with it as a window is dispatched and as the ability resolves (CR 603.4) (the owner's choice at the build, superseding `layers-architecture.md` §13d decision 1b). `functioning_zones`, CR 604.2's existence check at every layer and the dispatcher's zone gate read the statement.
+The `SourceInZone` leaf is gone. Every ability's statement is `Effect::FunctionsIn(zones, effect)` at its effect's root, static or triggered, found by the peels every reader takes, refused anywhere else by the static lowering and the resolver, and checked at the root of every registered card by a registry test. A trigger's binding takes it as the ability triggers, and the dispatch and the resolution ask it beside the intervening "if" (CR 603.4); `functioning_zones` and CR 604.2's existence check at every layer read it too. The owner's choice at the build and its review, superseding `layers-architecture.md` §13d decision 1b.
 
 *Original entry:*
 

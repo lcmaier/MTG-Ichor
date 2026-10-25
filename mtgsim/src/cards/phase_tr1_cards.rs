@@ -233,7 +233,6 @@ pub fn felidar_sovereign() -> Arc<CardData> {
                 players: PlayerSet::You,
                 fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(40)),
             }),
-            functions_in: None,
             limit: None,
             effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Controller),
         }))

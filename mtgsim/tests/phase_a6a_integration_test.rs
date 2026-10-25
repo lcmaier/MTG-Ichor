@@ -221,7 +221,6 @@ fn since_your_last_turn_spans_the_other_seats_turns() {
             .ability(triggered_ability("", TriggerDef {
                 condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
                 intervening_if: Some(quiet.clone()),
-                functions_in: None,
                 limit: None,
                 effect: Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
             }))
@@ -282,7 +281,6 @@ fn since_your_last_turn_counts_amounts_and_events_around_four_seats() {
                 exactly(TurnFact::LifeLost, 5),
                 exactly(TurnFact::LifeLossEvents, 3),
             ])),
-            functions_in: None,
             limit: None,
             effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
         }))

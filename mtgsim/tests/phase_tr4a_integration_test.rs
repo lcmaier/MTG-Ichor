@@ -597,7 +597,6 @@ fn creature_with_a_dies_trigger_if(condition: Condition) -> Arc<CardData> {
     let def = TriggerDef {
         condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
         intervening_if: Some(condition),
-        functions_in: None,
         limit: None,
         effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
     };
@@ -676,7 +675,6 @@ fn aura_leaves_trigger_if_it_enchanted_a_creature_reads_its_last_host() {
         let def = TriggerDef {
             condition: TriggerCondition::Event(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
             intervening_if: Some(Condition::HostMatches(ObjectFilter::ByType(CardType::Creature))),
-            functions_in: None,
             limit: None,
             effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
         };
@@ -711,7 +709,6 @@ fn delayed_trigger_if_its_source_was_tapped_reads_the_creature_that_made_it() {
             multiplicity: Multiplicity::PerOccurrence,
         }),
         intervening_if: Some(Condition::SourceTapped),
-        functions_in: None,
         limit: None,
         effect: Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(5)), EffectRecipient::Controller),
     };
@@ -904,7 +901,6 @@ fn attack_trigger_if_it_had_no_counters_checks_each_attacker_separately() {
             kind: Some(CounterType::PlusOnePlusOne),
             count: CountIs::AtMost(0),
         }),
-        functions_in: None,
         limit: None,
         effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
     };
@@ -934,7 +930,6 @@ fn delayed_trigger_if_its_spell_was_kicked_holds_after_the_spell_resolved() {
             multiplicity: Multiplicity::PerOccurrence,
         }),
         intervening_if: Some(Condition::SpellWasKicked),
-        functions_in: None,
         limit: None,
         effect: Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(5)), EffectRecipient::Controller),
     };
@@ -967,7 +962,6 @@ fn token_aura_leaves_trigger_if_its_owner_controls_the_host_holds_after_the_toke
     let def = TriggerDef {
         condition: TriggerCondition::Event(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
         intervening_if: Some(Condition::HostMatches(ObjectFilter::ByController(PlayerRef::Owner))),
-        functions_in: None,
         limit: None,
         effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
     };

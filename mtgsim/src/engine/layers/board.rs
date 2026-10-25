@@ -156,13 +156,13 @@ impl EnteredAsNote {
 pub(crate) struct RowNote {
     pub(super) layer_index: usize,
     pub(super) row: Arc<ContinuousEffect>,
-    pub(super) affected: AffectedSet,
+    pub(super) affected: HowAffected,
 }
 
 /// How the pass found the set a noted row affects: `Affected` without its
 /// members, since a card the pass leaves out was never among them.
 #[derive(Debug, Clone, Copy)]
-pub(super) enum AffectedSet {
+pub(super) enum HowAffected {
     /// CR 613.6 — the effect started in an earlier layer or row, so the row
     /// applies to a card exactly when the card matched where it started.
     Locked,
@@ -469,7 +469,7 @@ impl<'l> Board<'l> {
     ///
     /// The row is found in its registry slice by id, for the `Arc` the note
     /// keeps. A look-ahead's own rows are in no registry, and never come here.
-    fn note(&mut self, game: &GameState, layer_index: usize, row: &ContinuousEffect, affected: AffectedSet) {
+    fn note(&mut self, game: &GameState, layer_index: usize, row: &ContinuousEffect, affected: HowAffected) {
         let stored = game
             .continuous_effects
             .effects_in_layer(LAYER_ORDER[layer_index])
@@ -490,7 +490,7 @@ impl<'l> Board<'l> {
     fn start_noted(&self, group: EffectGroup) -> bool {
         self.notes
             .iter()
-            .any(|note| matches!(note.affected, AffectedSet::Fresh { .. }) && note.row.group() == group)
+            .any(|note| matches!(note.affected, HowAffected::Fresh { .. }) && note.row.group() == group)
     }
 
     /// One member's frame, consuming the pass.
@@ -1400,9 +1400,9 @@ fn perform(
                     && (board.reaches_left_out(row) || (!fresh && board.start_noted(row.group())));
                 if noted {
                     let set = if fresh {
-                        AffectedSet::Fresh { you: FilterPlayers::for_row(row, game, board, layer_index).you() }
+                        HowAffected::Fresh { you: FilterPlayers::for_row(row, game, board, layer_index).you() }
                     } else {
-                        AffectedSet::Locked
+                        HowAffected::Locked
                     };
                     board.note(game, layer_index, row, set);
                 }
