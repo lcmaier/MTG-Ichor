@@ -130,16 +130,35 @@ pub struct LkiCapture {
 /// triggering event too, so a batch frames one of them that leaves, for the
 /// LKI store.
 #[derive(Clone, Copy)]
-struct LkiKeeper<'a> {
-    source: Option<ObjectRef>,
+pub(super) struct LkiKeeper<'a> {
+    /// The ability it is; `None` for a spell.
+    identity: Option<AbilityIdentity>,
+    /// Its trigger, for a triggered ability that has triggered and not yet
+    /// left the stack (CR 603.8, 608.2n).
     trigger: Option<&'a TriggerBinding>,
+    place: KeeperPlace,
+}
+
+/// Where a keeper is, for the one writer of what a trigger keeps
+/// (`aura_put_into_graveyard_by_the_check`).
+#[derive(Clone, Copy)]
+enum KeeperPlace {
+    Waiting(usize),
+    Stacked(ObjectId),
+    Resolving,
+    Delayed,
 }
 
 impl LkiKeeper<'_> {
     /// The objects it reads: its source, then its triggering event's objects.
     fn objects(self) -> impl Iterator<Item = ObjectRef> {
         let event_objects = self.trigger.and_then(TriggerBinding::triggering_event).into_iter().flat_map(|event| event.objects.objects());
-        self.source.into_iter().chain(event_objects.map(|(_, object)| object))
+        self.identity.map(|identity| identity.source).into_iter().chain(event_objects.map(|(_, object)| object))
+    }
+
+    /// Whether it is ability `identity` triggered and not yet left the stack.
+    pub(super) fn is_triggered(self, identity: AbilityIdentity) -> bool {
+        self.trigger.is_some() && self.identity == Some(identity)
     }
 }
 
@@ -836,36 +855,24 @@ impl GameState {
     /// a write copies the trigger if a fork shares it (`state::shared_stores`).
     pub(crate) fn aura_put_into_graveyard_by_the_check(&mut self, aura: ObjectRef) {
         let Some(found) = self.object_ref(aura.id) else { return };
-        let finds = |source: ObjectRef, binding: &TriggerBinding| {
-            source == aura
-                && binding.event().is_some_and(TriggerEvent::watches_its_host_leave)
-                && binding.source_found_in_graveyard.is_none()
-        };
-        let waiting_that_find_it: Vec<usize> = self
-            .pending_triggers
-            .iter()
-            .enumerate()
-            .filter(|(_, pending)| finds(pending.origin.source_ref(), &pending.binding))
-            .map(|(queue_index, _)| queue_index)
-            .collect();
-        for queue_index in waiting_that_find_it {
-            if let Some(pending) = self.pending_triggers.get_mut(queue_index) {
-                pending.binding.source_found_in_graveyard = Some(found);
-            }
-        }
-        let stacked: Vec<ObjectId> = self
-            .stack
-            .iter()
-            .copied()
-            .filter(|id| {
-                self.stack_entries.get(id).is_some_and(|entry| match (entry.ability_identity, entry.trigger.as_ref()) {
-                    (Some(identity), Some(binding)) => finds(identity.source, binding),
-                    _ => false,
-                })
+        let that_find_it: Vec<KeeperPlace> = self
+            .lki_keepers()
+            .filter(|keeper| {
+                keeper.identity.is_some_and(|identity| identity.source == aura)
+                    && keeper.trigger.is_some_and(|binding| {
+                        binding.event().is_some_and(TriggerEvent::watches_its_host_leave) && binding.source_found_in_graveyard.is_none()
+                    })
             })
+            .map(|keeper| keeper.place)
             .collect();
-        for id in stacked {
-            if let Some(binding) = self.stack_entries.get_mut(&id).and_then(|entry| entry.trigger.as_mut()) {
+        for place in that_find_it {
+            let binding = match place {
+                KeeperPlace::Waiting(queue_index) => self.pending_triggers.get_mut(queue_index).map(|pending| &mut pending.binding),
+                KeeperPlace::Stacked(id) => self.stack_entries.get_mut(&id).and_then(|entry| entry.trigger.as_mut()),
+                KeeperPlace::Resolving => self.resolving.as_mut().and_then(|resolving| resolving.trigger.as_mut()),
+                KeeperPlace::Delayed => None,
+            };
+            if let Some(binding) = binding {
                 binding.source_found_in_graveyard = Some(found);
             }
         }
@@ -1076,25 +1083,29 @@ impl GameState {
     /// objects anyone reads) for the LKI store. The walk only reads: the
     /// waiting triggers and the stack entries live in stores a fork shares
     /// (`state::shared_stores`), where a write copies what it touches.
-    fn lki_keepers(&self) -> impl Iterator<Item = LkiKeeper<'_>> + '_ {
-        let waiting = self
-            .pending_triggers
-            .iter()
-            .map(|pending| LkiKeeper { source: Some(pending.origin.source_ref()), trigger: Some(&pending.binding) });
+    pub(super) fn lki_keepers(&self) -> impl Iterator<Item = LkiKeeper<'_>> + '_ {
+        let waiting = self.pending_triggers.iter().enumerate().map(|(queue_index, pending)| LkiKeeper {
+            identity: Some(pending.origin.identity()),
+            trigger: Some(&pending.binding),
+            place: KeeperPlace::Waiting(queue_index),
+        });
         // In stack order, never the map's: a capture is a layer walk, which
         // writes a trace record.
         let stacked = self.stack.iter().filter_map(|&id| {
             let entry = self.stack_entries.get(&id)?;
-            Some(LkiKeeper { source: entry.ability_identity.map(|identity| identity.source), trigger: entry.trigger.as_ref() })
+            Some(LkiKeeper { identity: entry.ability_identity, trigger: entry.trigger.as_ref(), place: KeeperPlace::Stacked(id) })
         });
-        let delayed = self.delayed_triggers.iter().map(|delayed| LkiKeeper { source: Some(delayed.source), trigger: None });
+        let delayed = self
+            .delayed_triggers
+            .iter()
+            .map(|delayed| LkiKeeper { identity: Some(delayed.identity()), trigger: None, place: KeeperPlace::Delayed });
         waiting.chain(stacked).chain(self.resolving_keeper()).chain(delayed)
     }
 
     /// The resolving object, as a keeper.
     fn resolving_keeper(&self) -> Option<LkiKeeper<'_>> {
         let resolving = self.resolving.as_ref()?;
-        Some(LkiKeeper { source: resolving.identity.map(|identity| identity.source), trigger: resolving.trigger.as_ref() })
+        Some(LkiKeeper { identity: resolving.identity, trigger: resolving.trigger.as_ref(), place: KeeperPlace::Resolving })
     }
 
     /// How `object` last existed, as a keeper that reads it does (CR 113.7a):

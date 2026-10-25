@@ -23,8 +23,6 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::trace_records;
 use crate::engine::zone_function::functions_in;
-use crate::events::cause::{EventCause, GameRule};
-use crate::events::event::GameEvent;
 use crate::objects::card_data::CardData;
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::{AbilityIdentity, GameState};
@@ -32,7 +30,7 @@ use crate::types::effects::{Effect, EffectRecipient};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     EventIndex, EventKind, EventKindMask, PendingTrigger, Referred, TriggerBinding, TriggerCondition, TriggerDef, TriggerLimit,
-    TriggerOrigin, TriggerSeq,
+    TriggerOrigin,
 };
 use crate::types::zones::ZoneSet;
 
@@ -159,15 +157,12 @@ impl GameState {
 
     /// CR 603.8: "A state-triggered ability doesn't trigger again until the
     /// ability has resolved, has been countered, or has otherwise left the
-    /// stack" — so until then it is waiting to be put on the stack, or on it.
-    /// Read off the queue and the stack, which say exactly that, so nothing
-    /// re-arms it: its leaving, however it leaves, is the answer changing.
+    /// stack" — so until then it is waiting to be put on the stack, on it, or
+    /// resolving (CR 608.2n's last step is the leaving). Read off the keepers,
+    /// which say exactly that, so nothing re-arms it: its leaving, however it
+    /// leaves, is the answer changing.
     fn state_trigger_has_not_left_the_stack(&self, identity: AbilityIdentity) -> bool {
-        let this = TriggerOrigin::Object(identity);
-        self.pending_triggers.iter().any(|pending| pending.origin == this)
-            || self.stack.iter().any(|id| {
-                self.stack_entries.get(id).is_some_and(|entry| entry.trigger.is_some() && entry.ability_identity == Some(identity))
-            })
+        self.lki_keepers().any(|keeper| keeper.is_triggered(identity))
     }
 
     /// The state check asked again of every object that may trigger, with no

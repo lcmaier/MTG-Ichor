@@ -20,10 +20,12 @@ use mtgsim::test_support::{
     setup_two_player_game, test_ctx, test_dp,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{
+    AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive, SelectionFilter, TargetCount,
+};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
-use mtgsim::types::triggers::{TriggerEvent, TriggerSubject, TriggerTier};
+use mtgsim::types::triggers::{TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::DecisionProvider;
@@ -142,6 +144,31 @@ fn a_state_trigger_triggers_once_until_it_has_left_the_stack() {
     let card = game.players[0].hand[0];
     game.change_zone(card, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx()).unwrap();
     assert_eq!(triggered(&game, source), 2, "it left the stack, and the hand is empty again");
+}
+
+/// CR 603.8, 608.2n: a state trigger resolving has not left the stack, so a
+/// record its own resolution makes while its state still holds does not
+/// trigger it again. "Whenever you have no cards in hand, you gain 1 life"
+/// gains the life with the hand still empty.
+#[test]
+fn a_resolving_state_trigger_has_not_left_the_stack() {
+    let mut game = audited_game();
+    game.players[0].hand.clear();
+    let gains = TriggerDef {
+        condition: TriggerCondition::State(Condition::Player { players: PlayerSet::You, fact: PlayerFact::HandEmpty }),
+        intervening_if: None,
+        limit: None,
+        effect: gain_one(),
+    };
+    let mut ability = triggered_ability("Whenever you have no cards in hand, you gain 1 life.", gains);
+    ability.id = new_ability_id();
+    let source = put_on_battlefield(&mut game, creature_with_ability("Fixture: gains on an empty hand", 1, 1, ability), 0);
+
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(triggered(&game, source), 1);
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.players[0].life_total, 21);
+    assert_eq!(triggered(&game, source), 1, "its own gain came while it was resolving");
 }
 
 /// CR 603.8's second sentence of its example: "Discard your hand, then draw
