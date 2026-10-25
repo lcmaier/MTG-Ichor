@@ -36,6 +36,7 @@ use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::ui::decision::AsksNobody;
 use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
+use crate::objects::object::GameObject;
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
@@ -234,7 +235,47 @@ pub(super) struct TriggerCandidate<'a> {
     pub(super) card: Arc<CardData>,
 }
 
-impl TriggerCandidate<'_> {
+impl<'a> TriggerCandidate<'a> {
+    /// A live object read through `frame`, under its controller `now` (CR
+    /// 603.3a). A list from before an event is its controller's then (CR
+    /// 603.10, 603.3a), which a control change made someone else.
+    pub(super) fn live(
+        object: &'a GameObject,
+        existence: ObjectRef,
+        now: PlayerId,
+        host: Option<ObjectId>,
+        frame: TriggerCandidateFrame<'a>,
+    ) -> Self {
+        let controller = match &frame {
+            TriggerCandidateFrame::Before { lki, .. } => lki.characteristics().controller,
+            TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::LastKnown { .. } => now,
+        };
+        TriggerCandidate { object: existence, controller, owner: object.owner, zone: object.zone, host, frame, card: Arc::clone(&object.card_data) }
+    }
+
+    /// An existence that has left `zone`, read through its last known
+    /// information, under its controller then (CR 603.3a, 603.10a):
+    /// `snapshot: None` is the frame its record carries, `Some(k)` snapshot
+    /// `k`'s. The card is the store's after a zone change; for an object gone
+    /// from the store with its owner (CR 800.4a) the frame's own list is all
+    /// there is, and the stack object is built from a card that names what
+    /// the frame does.
+    pub(super) fn last_known(game: &GameState, lki: &'a Lki, zone: Zone, snapshot: Option<usize>) -> Self {
+        let card = match game.objects.get(&lki.object().id) {
+            Some(object) => Arc::clone(&object.card_data),
+            None => Arc::new(frame_card(lki.characteristics())),
+        };
+        TriggerCandidate {
+            object: lki.object(),
+            controller: lki.characteristics().controller,
+            owner: lki.owner(),
+            zone,
+            host: lki.host(),
+            frame: TriggerCandidateFrame::LastKnown { lki, snapshot },
+            card,
+        }
+    }
+
     /// What the candidate's ability means by its words for itself (§3.3),
     /// "this ability" being `this_ability` (CR 603.7h).
     fn referents(&self, this_ability: Option<AbilityIdentity>) -> TriggerReferents<'static> {
@@ -1347,9 +1388,7 @@ impl GameState {
 
         let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
         self.push_live_candidates(live, &mut before, &mut candidates);
-        for (lki, from) in frames {
-            candidates.push(self.departure_candidate(lki, from));
-        }
+        candidates.extend(frames.into_iter().map(|(lki, from)| TriggerCandidate::last_known(self, lki, from, None)));
 
         let (mut matches, matched_candidates) = self.match_candidates(&records, &candidates, snapshots);
         // CR 603.2d, asked only of a window that triggered something.
@@ -1398,46 +1437,7 @@ impl GameState {
                 .into_iter()
                 .map(|(snapshot, lki)| TriggerCandidateFrame::Before { lki, snapshot });
             let lists = std::iter::once(TriggerCandidateFrame::Live { chars, snapshots }).chain(before_lists);
-            for frame in lists {
-                // A list from before the event is its controller's then (CR
-                // 603.10, 603.3a), which a control change made someone else.
-                let controller = match &frame {
-                    TriggerCandidateFrame::Before { lki, .. } => lki.characteristics().controller,
-                    TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::LastKnown { .. } => controller,
-                };
-                candidates.push(TriggerCandidate {
-                    object: existence,
-                    controller,
-                    owner: object.owner,
-                    zone: object.zone,
-                    host,
-                    frame,
-                    card: Arc::clone(&object.card_data),
-                });
-            }
-        }
-    }
-
-    /// An object that left in the window, as a candidate: its ability list
-    /// from just before it left, off the CR 603.10a frame its record carries,
-    /// which answers only the arms that look back.
-    fn departure_candidate<'a>(&self, lki: &'a Lki, from: Zone) -> TriggerCandidate<'a> {
-        // The card of an object that left: in the store for a zone change,
-        // gone for a `LeftTheGame` — then the frame's own list is all
-        // there is, and the stack object is built from a card that names
-        // what the frame does.
-        let card = match self.objects.get(&lki.object().id) {
-            Some(object) => Arc::clone(&object.card_data),
-            None => Arc::new(frame_card(lki.characteristics())),
-        };
-        TriggerCandidate {
-            object: lki.object(),
-            controller: lki.characteristics().controller,
-            owner: lki.owner(),
-            zone: from,
-            host: lki.host(),
-            frame: TriggerCandidateFrame::LastKnown { lki, snapshot: None },
-            card,
+            candidates.extend(lists.map(|frame| TriggerCandidate::live(object, existence, controller, host, frame)));
         }
     }
 
@@ -1467,7 +1467,7 @@ impl GameState {
         }
         for (lki, from, _) in records.iter().filter_map(|(_, record)| record.event.lki()) {
             if from == Zone::Battlefield && carries_a_trigger_multiplier(lki.characteristics()) {
-                candidates.push(self.departure_candidate(lki, from));
+                candidates.push(TriggerCandidate::last_known(self, lki, from, None));
             }
         }
         candidates
