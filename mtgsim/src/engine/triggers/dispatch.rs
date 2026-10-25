@@ -46,7 +46,7 @@ use crate::types::effects::{Condition, Effect, EffectRecipient, PlayerRef, Primi
 use crate::types::history::CountIs;
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::triggers::{zone_change_looks_back, AttackOccurrence, BlockOccurrence, CountersOn, TargetSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerId, TriggerSubject, TriggeringEvent, TriggeringEventObjects};
+use crate::types::triggers::{zone_change_looks_back, AttackOccurrence, BlockOccurrence, ObjectOrPlayerSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerId, TriggerSubject, TriggeringEvent, TriggeringEventObjects};
 use super::binding::TriggeringEventView;
 
 use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
@@ -2131,15 +2131,7 @@ impl GameState {
                 TriggerEvent::BecomesTarget { target: watched, by: kind, controller: whose, .. },
                 GameEvent::Targeted { target, by, ability_source, controller, .. },
             ) => {
-                let target_ok = match (watched, target) {
-                    (TargetSubject::Object(subject), ObjectOrPlayer::Object(object)) => {
-                        self.named_subject_matches(subject, *object, referents, seq)
-                    }
-                    (TargetSubject::Player(who), ObjectOrPlayer::Player(player)) => {
-                        who.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents))
-                    }
-                    (TargetSubject::Object(_), ObjectOrPlayer::Player(_)) | (TargetSubject::Player(_), ObjectOrPlayer::Object(_)) => false,
-                };
+                let target_ok = self.object_or_player_matches(watched, *target, referents, seq);
                 let kind_ok = kind.admits(ability_source.is_none())
                     && match kind {
                         TargetedBy::Spell(Some(filter)) => {
@@ -2378,27 +2370,35 @@ impl GameState {
         };
         let matched = counter_type.is_none_or(|k| k == kind)
             && by.as_ref().is_none_or(|p| who.is_some_and(|who| self.player_ref_is(p, who, referents)))
-            && self.counters_on_matches(watched, on, referents, record.seq);
+            && self.object_or_player_matches(watched, on, referents, record.seq);
         if !matched {
             return Vec::new();
         }
         vec![self.triggering_event_objects(arm, record); multiplicity.counter_occurrences(n).0]
     }
 
-    /// Whether the counters a record put or removed are where the arm watches.
-    /// `watched` is the card's words, `on` the record's fact. "On this
-    /// creature" or "on a creature you control" (`CountersOn::Object`) asks
-    /// the object `on` names the question every object arm asks, of the object
-    /// as it is after the event (CR 603.10). "On you" or "on a player"
-    /// (`CountersOn::Player`) asks the player `on` names, any player for
-    /// `None`. Counters on a player never match an object arm, nor the reverse.
-    fn counters_on_matches(&self, watched: &CountersOn, on: ObjectOrPlayer, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
-        match (watched, on) {
-            (CountersOn::Object(which), ObjectOrPlayer::Object(object)) => self.named_subject_matches(which, object, referents, seq),
-            (CountersOn::Player(who), ObjectOrPlayer::Player(player)) => {
+    /// Whether the object or player a record names is the one the arm
+    /// watches: what counters went on or came off, or what became a target.
+    /// `watched` is the card's words, `it` the record's fact. "This creature"
+    /// or "a creature you control" (`ObjectOrPlayerSubject::Object`) asks the
+    /// object `it` names the question every object arm asks, of the object as
+    /// it is after the event (CR 603.10). "You" or "a player"
+    /// (`ObjectOrPlayerSubject::Player`) asks the player `it` names, any
+    /// player for `None`. A player never matches an object arm, nor the
+    /// reverse.
+    fn object_or_player_matches(
+        &self,
+        watched: &ObjectOrPlayerSubject,
+        it: ObjectOrPlayer,
+        referents: &TriggerReferents<'_>,
+        seq: EventId,
+    ) -> bool {
+        match (watched, it) {
+            (ObjectOrPlayerSubject::Object(which), ObjectOrPlayer::Object(object)) => self.named_subject_matches(which, object, referents, seq),
+            (ObjectOrPlayerSubject::Player(who), ObjectOrPlayer::Player(player)) => {
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, player, referents))
             }
-            (CountersOn::Object(_), ObjectOrPlayer::Player(_)) | (CountersOn::Player(_), ObjectOrPlayer::Object(_)) => false,
+            (ObjectOrPlayerSubject::Object(_), ObjectOrPlayer::Player(_)) | (ObjectOrPlayerSubject::Player(_), ObjectOrPlayer::Object(_)) => false,
         }
     }
 
