@@ -156,13 +156,14 @@ impl EnteredAsNote {
 pub(crate) struct RowNote {
     pub(super) layer_index: usize,
     pub(super) row: Arc<ContinuousEffect>,
-    pub(super) affected: HowAffected,
+    pub(super) membership: MembershipTest,
 }
 
-/// How the pass found the set a noted row affects: `Affected` without its
-/// members, since a card the pass leaves out was never among them.
+/// How a card the pass left out is tested for a noted row's membership,
+/// walked alone later: `Affected` without its members, since such a card was
+/// never among them.
 #[derive(Debug, Clone, Copy)]
-pub(super) enum HowAffected {
+pub(super) enum MembershipTest {
     /// CR 613.6 — the effect started in an earlier layer or row, so the row
     /// applies to a card exactly when the card matched where it started.
     Locked,
@@ -469,7 +470,7 @@ impl<'l> Board<'l> {
     ///
     /// The row is found in its registry slice by id, for the `Arc` the note
     /// keeps. A look-ahead's own rows are in no registry, and never come here.
-    fn note(&mut self, game: &GameState, layer_index: usize, row: &ContinuousEffect, affected: HowAffected) {
+    fn note(&mut self, game: &GameState, layer_index: usize, row: &ContinuousEffect, membership: MembershipTest) {
         let stored = game
             .continuous_effects
             .effects_in_layer(LAYER_ORDER[layer_index])
@@ -477,7 +478,7 @@ impl<'l> Board<'l> {
             .find(|stored| stored.id == row.id);
         debug_assert!(stored.is_some(), "a row reaching a left-out zone is a registry row");
         if let Some(stored) = stored {
-            self.notes.push(RowNote { layer_index, row: Arc::clone(stored), affected });
+            self.notes.push(RowNote { layer_index, row: Arc::clone(stored), membership });
         }
     }
 
@@ -490,7 +491,7 @@ impl<'l> Board<'l> {
     fn start_noted(&self, group: EffectGroup) -> bool {
         self.notes
             .iter()
-            .any(|note| matches!(note.affected, HowAffected::Fresh { .. }) && note.row.group() == group)
+            .any(|note| matches!(note.membership, MembershipTest::Fresh { .. }) && note.row.group() == group)
     }
 
     /// One member's frame, consuming the pass.
@@ -1400,9 +1401,9 @@ fn perform(
                     && (board.reaches_left_out(row) || (!fresh && board.start_noted(row.group())));
                 if noted {
                     let set = if fresh {
-                        HowAffected::Fresh { you: FilterPlayers::for_row(row, game, board, layer_index).you() }
+                        MembershipTest::Fresh { you: FilterPlayers::for_row(row, game, board, layer_index).you() }
                     } else {
-                        HowAffected::Locked
+                        MembershipTest::Locked
                     };
                     board.note(game, layer_index, row, set);
                 }
