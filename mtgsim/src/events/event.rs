@@ -801,6 +801,27 @@ pub struct EventId(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BatchId(pub u64);
 
+/// Where in the stream something waiting for an event was created: a
+/// delayed trigger (CR 603.7a) or the return an "until" exile waits to make
+/// (CR 610.3). "Won't trigger until it has actually been created, even if
+/// its trigger event occurred just beforehand": a record before it is no
+/// event it waits for, and neither is one of the batch it was created
+/// during. A rider (CR 615.5) creates one inside its own batch, on both
+/// sides of its records, and that whole event happened just beforehand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreationPoint {
+    /// The first record performed after it was created.
+    pub first_record: EventId,
+    pub batch: Option<BatchId>,
+}
+
+impl CreationPoint {
+    /// Whether it was created before the event `record` is part of.
+    pub fn is_before(self, record: &EventRecord) -> bool {
+        record.seq >= self.first_record && !self.batch.is_some_and(|batch| record.stamp.batch == Some(batch))
+    }
+}
+
 /// Which resolution an event belongs to (CR 608.2).
 ///
 /// `source` is the stack object that was resolving: a spell's card, which keeps
@@ -1044,6 +1065,11 @@ impl EventWindow {
         self.open
     }
 
+    /// The point in the stream something created now is created at.
+    pub fn creation_point(&self) -> CreationPoint {
+        CreationPoint { first_record: self.next_seq(), batch: self.current_batch() }
+    }
+
     /// Open a batch, returning what to hand back to [`Self::close_batch`].
     ///
     /// **A nested call joins the enclosing batch rather than opening a new
@@ -1116,6 +1142,22 @@ mod tests {
         assert_eq!(window.held().len(), 2);
         assert_eq!(window.held()[1].seq, EventId(1));
         assert_eq!(window.next_seq(), EventId(2));
+    }
+
+    /// CR 603.7a: a record of the batch something was created in, on either
+    /// side of it, came before it; a record after that batch did not.
+    #[test]
+    fn what_is_created_in_a_batch_is_after_every_record_of_it() {
+        let mut window = EventWindow::new();
+        let outer = window.open_batch();
+        window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
+        let created = window.creation_point();
+        window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
+        window.close_batch(outer);
+        window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
+
+        let after: Vec<bool> = window.held().iter().map(|record| created.is_before(record)).collect();
+        assert_eq!(after, vec![false, false, true]);
     }
 
     #[test]

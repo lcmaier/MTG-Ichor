@@ -96,8 +96,7 @@ impl GameState {
             source_card: provenance.source_card,
             controller: provenance.controller,
             owner,
-            created_at: self.events.next_seq(),
-            created_in: self.events.current_batch(),
+            created: self.events.creation_point(),
             created_by: provenance.created_by,
             duration: template.duration,
             x_value: provenance.x_value,
@@ -235,7 +234,7 @@ impl GameState {
             referred: &until.referred,
         };
         window.iter().filter_map(|seq| self.events.record(*seq)).any(|record| {
-            record.seq >= until.created_at
+            until.created.is_before(record)
                 && until.until.reads(&record.event)
                 && !self.triggering_events_in(&until.until, &referents, record).is_empty()
         })
@@ -301,7 +300,7 @@ impl GameState {
         delayed: &DelayedTrigger,
         window: &[EventId],
     ) -> Vec<MatchedTrigger> {
-        self.occurrences_among(delayed, window, |record| existed_before(delayed, record))
+        self.occurrences_among(delayed, window, |record| delayed.created.is_before(record))
     }
 
     /// Every occurrence that triggers an entry among the records of `window`
@@ -468,13 +467,6 @@ impl GameState {
         let chosen = ask_choose_delayed_trigger_event(ctx.dp, self, controller, source, &options);
         distinct.into_iter().nth(chosen)
     }
-}
-
-/// CR 603.7a: whether `delayed` existed before the event `record` is part of
-/// — created ahead of the record, and not during that event, which a rider's
-/// batch performs on both sides of the rider.
-fn existed_before(delayed: &DelayedTrigger, record: &EventRecord) -> bool {
-    record.seq >= delayed.created_at && !delayed.created_in.is_some_and(|batch| record.stamp.batch == Some(batch))
 }
 
 /// A delayed trigger's match on its arm `event`: never a mana ability, and

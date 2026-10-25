@@ -19,7 +19,7 @@ use crate::types::restriction::SourceFilter;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
 use crate::engine::replacement::EventSubject;
-use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventId, GameEvent, ResolutionStamp};
+use crate::events::event::{CounterSubject, CreationPoint, DamageTarget, EventRecord, EventId, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
@@ -1810,13 +1810,8 @@ pub struct DelayedTrigger {
     /// "Its owner": the source's (CR 108.3), read as it was created, since
     /// the store may lose the source before the trigger reads it.
     pub owner: PlayerId,
-    /// The first record performed after it was created, and the batch it was
-    /// created during, if any: CR 603.7a's "won't trigger until it has
-    /// actually been created". A rider (CR 615.5) creates one inside the
-    /// batch it rides on, after some of that event's members are performed
-    /// and before others are, and the whole event happened "just beforehand".
-    pub created_at: EventId,
-    pub created_in: Option<BatchId>,
+    /// CR 603.7a's "won't trigger until it has actually been created".
+    pub created: CreationPoint,
     /// The ability that created it, for CR 603.7h's "this ability"; `None`
     /// for a spell's and a replacement effect's.
     pub created_by: Option<AbilityIdentity>,

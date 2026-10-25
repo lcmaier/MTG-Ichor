@@ -164,7 +164,7 @@ impl GameState {
             returns: returns.iter().map(|(object, _)| object.id).collect(),
         };
         self.emit_event(made, cause)?;
-        let created_at = self.events.next_seq();
+        let created = self.events.creation_point();
         let owner = self.owner_of_source(source)?;
         self.until_returns.push(UntilReturn {
             id,
@@ -175,7 +175,7 @@ impl GameState {
             under,
             controller,
             owner,
-            created_at,
+            created,
             cause,
         });
         Ok(())

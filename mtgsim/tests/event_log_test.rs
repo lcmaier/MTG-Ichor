@@ -432,7 +432,7 @@ fn a_delayed_triggers_creation_is_recorded_once_and_triggers_nothing() {
         .map(|r| r.seq)
         .collect();
     assert_eq!(creations.len(), 1);
-    assert!(game.delayed_triggers[0].created_at > creations[0], "created after its own record");
+    assert!(game.delayed_triggers[0].created.first_record > creations[0], "created after its own record");
     assert_eq!(EventKind::from_record(&GameEvent::DelayedTriggerCreated {
         id: game.delayed_triggers[0].id,
         source: game.delayed_triggers[0].source.id,
@@ -466,7 +466,7 @@ fn an_until_return_is_announced_as_it_is_made() {
     let records = game.recorded_events();
     let record = records.records().iter().find(|r| matches!(r.event, GameEvent::UntilReturnMade { .. })).unwrap();
     assert_eq!(game.until_returns[0].id, UntilReturnId(1));
-    assert!(game.until_returns[0].created_at > record.seq, "made after its own record");
+    assert!(game.until_returns[0].created.first_record > record.seq, "made after its own record");
     assert_eq!(EventKind::from_record(&record.event), None);
 }
 
