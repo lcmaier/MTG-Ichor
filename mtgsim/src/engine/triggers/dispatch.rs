@@ -2137,7 +2137,7 @@ impl GameState {
                 TriggerEvent::BecomesTarget { target: watched, by: kind, controller: whose, .. },
                 GameEvent::Targeted { target, by, ability_source, controller, .. },
             ) => {
-                let target_ok = self.object_or_player_matches(watched, *target, referents, seq);
+                let target_ok = self.object_or_player_subject_matches(watched, *target, referents, seq);
                 let kind_ok = kind.admits(ability_source.is_none())
                     && match kind {
                         TargetedBy::Spell(Some(filter)) => {
@@ -2376,23 +2376,25 @@ impl GameState {
         };
         let matched = counter_type.is_none_or(|k| k == kind)
             && by.as_ref().is_none_or(|p| who.is_some_and(|who| self.player_ref_is(p, who, referents)))
-            && self.object_or_player_matches(watched, on, referents, record.seq);
+            && self.object_or_player_subject_matches(watched, on, referents, record.seq);
         if !matched {
             return Vec::new();
         }
         vec![self.triggering_event_objects(arm, record); multiplicity.counter_occurrences(n).0]
     }
 
-    /// Whether the object or player a record names is the one the arm
-    /// watches: what counters went on or came off, or what became a target.
-    /// `watched` is the card's words, `it` the record's fact. "This creature"
+    /// Whether the object or player a record names is the one an arm's
+    /// [`ObjectOrPlayerSubject`] watches, for both arms that have one: a
+    /// counter arm's (what the counters went on or came off) and a targeting
+    /// arm's (what became the target). `watched` is the card's words, `it`
+    /// the record's fact. "This creature"
     /// or "a creature you control" (`ObjectOrPlayerSubject::Object`) asks the
     /// object `it` names the question every object arm asks, of the object as
     /// it is after the event (CR 603.10). "You" or "a player"
     /// (`ObjectOrPlayerSubject::Player`) asks the player `it` names, any
     /// player for `None`. A player never matches an object arm, nor the
     /// reverse.
-    fn object_or_player_matches(
+    fn object_or_player_subject_matches(
         &self,
         watched: &ObjectOrPlayerSubject,
         it: ObjectOrPlayer,

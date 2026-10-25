@@ -41,7 +41,7 @@ use crate::oracle::characteristics::{controller_or_owner, FrameContext, ObjectIn
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    Affected, ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter,
+    ObjectAndPlayerSet, ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter,
     Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::{IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
@@ -725,7 +725,7 @@ fn def_applies(
 /// player is not an object and no layer computes one.
 pub(crate) fn set_affects(
     game: &GameState,
-    affected: &Affected,
+    affected: &ObjectAndPlayerSet,
     source: ObjectId,
     controller: PlayerId,
     subject: Option<ObjectOrPlayerId>,

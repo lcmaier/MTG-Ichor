@@ -32,7 +32,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    Affected, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    ObjectAndPlayerSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -168,7 +168,7 @@ fn cant_be_prevented_this_turn(game: &mut GameState, source: ObjectId, controlle
         created_on_turn: turn,
         def: RestrictionDef::new(Restriction::ApplyReplacement {
             kind: ReplacementKindFilter::Prevention,
-            affected: Affected { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
+            affected: ObjectAndPlayerSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
         }),
     });
 }
@@ -200,7 +200,7 @@ fn leyline_fixture() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::GainLife,
-                affected: Affected::players(PlayerSet::Everyone),
+                affected: ObjectAndPlayerSet::players(PlayerSet::Everyone),
                 by: None,
             }))),
             is_characteristic_defining: false,
@@ -215,7 +215,7 @@ fn leyline_fixture() -> Arc<CardData> {
             effect: Effect::Restriction(Box::new(RestrictionDef::new(
                 Restriction::ApplyReplacement {
                     kind: ReplacementKindFilter::Prevention,
-                    affected: Affected { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
+                    affected: ObjectAndPlayerSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
                 },
             ))),
             is_characteristic_defining: false,

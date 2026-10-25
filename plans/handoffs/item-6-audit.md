@@ -189,7 +189,7 @@ pass re-reads what it touches: a number here is a starting point.
   items 291, 296, 326 and 327 closed and rows 46 and 64 merged. An object
   or a player is `ObjectOrPlayerId` by id and `ObjectOrPlayer` by
   reference, in `types::ids`; what an effect is affecting is one
-  `Affected`; `Selector` is an `ObjectSet`. A zone statement left
+  `ObjectAndPlayerSet`; `Selector` is an `ObjectSet`. A zone statement left
   `Condition` for a home by the ability's kind, `Effect::FunctionsIn` for
   a static ability and `TriggerDef::functions_in` for a triggered one (the
   owner, at the build, superseding `layers-architecture.md` §13d decision

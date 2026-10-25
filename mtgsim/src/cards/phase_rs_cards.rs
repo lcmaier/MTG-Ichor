@@ -18,7 +18,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Affected, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    ObjectAndPlayerSet, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -111,7 +111,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
-                affected: Affected::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
+                affected: ObjectAndPlayerSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
             }))),
         })

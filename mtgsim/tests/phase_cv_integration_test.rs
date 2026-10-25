@@ -37,7 +37,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    Affected, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectAndPlayerSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -834,7 +834,7 @@ fn restriction_creature() -> Arc<CardData> {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
-                affected: Affected::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
+                affected: ObjectAndPlayerSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
             }))),
         })

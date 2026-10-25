@@ -16,7 +16,7 @@ use crate::engine::replacement::{pattern_watches, set_affects, subject_of, Entry
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
-use crate::types::effects::{Affected, ObjectSet};
+use crate::types::effects::{ObjectAndPlayerSet, ObjectSet};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::EventPattern;
@@ -248,7 +248,7 @@ fn matches(
     query: &Query,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
-    match (&def.what, query) {
+    match (&def.restriction, query) {
         (
             Restriction::Event { pattern, affected, by },
             Query::Event { action, cause, .. },
@@ -309,8 +309,8 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause:
     for (keyword, def) in defs {
         debug_assert!(
             matches!(
-                def.what,
-                Restriction::Event { affected: Affected { objects: ObjectSet::SourceOnly, .. }, .. }
+                def.restriction,
+                Restriction::Event { affected: ObjectAndPlayerSet { objects: ObjectSet::SourceOnly, .. }, .. }
             ),
             "a keyword-derived restriction that is not `ObjectSet::SourceOnly` \
              cannot be found by asking the event's subject about its own \
@@ -356,7 +356,7 @@ fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<(KeywordFlag, Res
             KeywordFlag::Indestructible,
             RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::Destroy { source: None },
-                affected: Affected::objects(ObjectSet::SourceOnly),
+                affected: ObjectAndPlayerSet::objects(ObjectSet::SourceOnly),
                 by: None,
             }),
         ));

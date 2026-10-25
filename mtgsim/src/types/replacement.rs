@@ -32,7 +32,7 @@
 //! `Effect` tree — no new vocabulary at all.
 
 use crate::types::effects::{
-    Affected, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef,
+    ObjectAndPlayerSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef,
     PlayerSet, TokenDef,
 };
 use crate::state::game_state::{PhaseType, StepType};
@@ -66,7 +66,7 @@ pub struct ReplacementDef {
     /// breaks silently (`replacement-architecture.md` §11 item 2). The player
     /// half is a [`PlayerSet`] rather than an `ObjectSet` variant, for the
     /// reason that type's own docs give.
-    pub affected: Affected,
+    pub affected: ObjectAndPlayerSet,
 
     /// What must have *caused* the event for this effect to apply — the
     /// clause "a spell or ability an opponent controls causes you to …"
@@ -1323,7 +1323,7 @@ pub struct EntryCountersTemplate {
     /// those counters on it". `None` is the rule's default, the object's
     /// controller, and is what every printed "enters with" writes; a
     /// `Some` is resolved against the effect when it is applied
-    /// (`pipeline::putter_of`): `You` is the effect's controller, `Owner`
+    /// (`pipeline::player_putting_counters`): `You` is the effect's controller, `Owner`
     /// the entering object's owner, `Player` itself, and `Opponent` the only
     /// one there is. No printed card names one (Scryfall, 2026-09-14), and
     /// that is why the field exists rather than why it does not: the rule
@@ -1941,8 +1941,8 @@ impl ReplacementDef {
     /// bug rather than a style choice.
     ///
     /// `affected` is its objects (an `ObjectSet`), its players (a
-    /// `PlayerSet`), or both (an [`Affected`]).
-    pub fn new(pattern: EventPattern, affected: impl Into<Affected>, rewrite: Rewrite) -> Self {
+    /// `PlayerSet`), or both (an [`ObjectAndPlayerSet`]).
+    pub fn new(pattern: EventPattern, affected: impl Into<ObjectAndPlayerSet>, rewrite: Rewrite) -> Self {
         let class = ReplacementClass::from_rewrite(&rewrite);
         ReplacementDef {
             pattern,

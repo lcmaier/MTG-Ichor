@@ -24,9 +24,9 @@ use crate::types::ids::{IdMap, IdSet, PlayerId};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerHistory {
     /// The turn this player most recently began.
-    own_turn: Option<u32>,
+    most_recent_turn: Option<u32>,
     /// The turn this player began before that one.
-    previous_own_turn: Option<u32>,
+    previous_turn: Option<u32>,
     /// The cards drawn since this player's draw step in progress began (CR
     /// 504), read only while it is in progress.
     this_draw_step: u64,
@@ -80,19 +80,19 @@ impl TurnTally {
 impl PlayerHistory {
     /// A player's history before the game's first turn.
     pub fn before_any_turn() -> Self {
-        PlayerHistory { own_turn: None, previous_own_turn: None, this_draw_step: 0, turn_tally: TurnTally::NONE }
+        PlayerHistory { most_recent_turn: None, previous_turn: None, this_draw_step: 0, turn_tally: TurnTally::NONE }
     }
 
     /// The turn this player most recently began, which CR 302.6 measures
     /// against (`GameState::most_recent_turn_began`).
-    pub fn own_turn(&self) -> Option<u32> {
-        self.own_turn
+    pub fn most_recent_turn(&self) -> Option<u32> {
+        self.most_recent_turn
     }
 
-    pub(crate) fn record_own_turn(&mut self, turn: u32) {
-        if self.own_turn != Some(turn) {
-            self.previous_own_turn = self.own_turn;
-            self.own_turn = Some(turn);
+    pub(crate) fn record_turn_began(&mut self, turn: u32) {
+        if self.most_recent_turn != Some(turn) {
+            self.previous_turn = self.most_recent_turn;
+            self.most_recent_turn = Some(turn);
         }
     }
 
@@ -100,7 +100,7 @@ impl PlayerHistory {
     /// have ended, so on their own turn the one before. `None` before any
     /// has.
     pub fn your_last_turn(&self, now: u32) -> Option<u32> {
-        if self.own_turn == Some(now) { self.previous_own_turn } else { self.own_turn }
+        if self.most_recent_turn == Some(now) { self.previous_turn } else { self.most_recent_turn }
     }
 
     /// The cards drawn in this player's draw step in progress.
@@ -297,14 +297,14 @@ mod tests {
     #[test]
     fn since_your_last_turn_starts_when_your_turn_ends() {
         let mut history = GameHistory::new(2);
-        history.players[0].record_own_turn(1);
+        history.players[0].record_turn_began(1);
         drew(&mut history, 1, 1, 5);
-        history.players[1].record_own_turn(2);
+        history.players[1].record_turn_began(2);
         drew(&mut history, 1, 2, 1);
         let since = |history: &GameHistory, now| history.count(1, DRAWN, history.since_your_last_turn(0, now));
         assert_eq!(since(&history, 2), 1);
 
-        history.players[0].record_own_turn(3);
+        history.players[0].record_turn_began(3);
         drew(&mut history, 1, 3, 1);
         assert_eq!(since(&history, 3), 2, "on your own turn, your last turn is the one before");
     }
@@ -314,9 +314,9 @@ mod tests {
     #[test]
     fn after_an_extra_turn_your_last_turn_is_the_one_just_ended() {
         let mut history = GameHistory::new(2);
-        history.players[0].record_own_turn(1);
+        history.players[0].record_turn_began(1);
         drew(&mut history, 0, 1, 4);
-        history.players[0].record_own_turn(2);
+        history.players[0].record_turn_began(2);
         drew(&mut history, 0, 2, 1);
         assert_eq!(history.count(0, DRAWN, history.since_your_last_turn(0, 2)), 1);
     }

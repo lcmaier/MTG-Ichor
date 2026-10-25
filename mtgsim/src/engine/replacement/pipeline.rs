@@ -1155,7 +1155,7 @@ fn counters_invite_a_multiplier(
     for (instance, _) in &writers {
         let Rewrite::EnterWith(template) = &instance.def.rewrite else { continue };
         for row in &template.counters {
-            let by = row.by.as_ref().and_then(|named| putter_of(game, instance, *object, named).ok());
+            let by = row.by.as_ref().and_then(|named| player_putting_counters(game, instance, *object, named).ok());
             written.merge(&EnterMods { counters: vec![EntryCounters { counter: row.counter, n: 1, by }], ..EnterMods::NONE });
         }
     }
@@ -1598,7 +1598,7 @@ impl EntryWrites {
                 | Rewrite::Retarget(_) => {}
             }
         }
-        if writes_state && entering.is_some_and(characteristics_hang_on_entry_state) {
+        if writes_state && entering.is_some_and(characteristics_depend_on_entry_state) {
             writes.feeds_all = true;
         }
         writes
@@ -1705,7 +1705,7 @@ impl EntryWrites {
 /// Does the entering object have a static ability that changes its own
 /// characteristics under a condition on its status or counters? The feeds
 /// table's last row.
-fn characteristics_hang_on_entry_state(chars: &EffectiveCharacteristics) -> bool {
+fn characteristics_depend_on_entry_state(chars: &EffectiveCharacteristics) -> bool {
     chars.abilities.iter().any(|ability| {
         ability.ability_type == AbilityType::Static
             && ability.effect.with_its_condition().0.is_some_and(crate::types::effects::Condition::reads_entry_state)
@@ -3136,7 +3136,7 @@ pub(super) fn evaluate_enter_template(
         // against the entry's controller where it is read, never here.
         let by = match &row.by {
             None => None,
-            Some(player_ref) => Some(putter_of(game, chosen, entering, player_ref)?),
+            Some(player_ref) => Some(player_putting_counters(game, chosen, entering, player_ref)?),
         };
         if n > 0 {
             out.counters.push(EntryCounters { counter: row.counter, n: n as u32, by });
@@ -3145,16 +3145,14 @@ pub(super) fn evaluate_enter_template(
     Ok(out)
 }
 
-/// CR 122.6a's named putter, resolved against the effect applying it.
+/// The player who puts an entering object's counters on it, where the effect
+/// names one (CR 122.6a), resolved against the effect applying it.
 ///
-/// An `Opponent` among several is not asked for, as `entering_controller`'s
-/// is: CR 616.1b's control choice is the entering permanent's controller's to
-/// make and the rule says so; "an opponent puts those counters on it" with
-/// three opponents is an authoring error on a static effect, and a resolution
-/// that means a particular one names it as `PlayerRef::Player`, the way
-/// `PatternFill` fills a chosen source. The refusal is an `Err`, which the
-/// CR 616.1b look-ahead reads as no putter.
-fn putter_of(
+/// "An opponent" names the one opponent there is. Among several it is a
+/// choice, tribute's "choose an opponent. That player may put …" (CR
+/// 702.104a), which is not built: it is refused with an `Err`, which the CR
+/// 616.1b look-ahead reads as no putter.
+fn player_putting_counters(
     game: &GameState,
     chosen: &ReplacementInstance,
     entering: ObjectId,

@@ -41,7 +41,7 @@ use mtgsim::types::card_types::{
 };
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    Affected, ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef,
+    ObjectAndPlayerSet, ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     PlayerSet, Primitive, SelectionFilter, TokenDef,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -636,7 +636,7 @@ fn a_token_that_cannot_enter_is_not_created() {
                 change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None },
                 object: None,
             },
-            affected: Affected::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature))),
+            affected: ObjectAndPlayerSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature))),
             by: None,
         },
     ))));

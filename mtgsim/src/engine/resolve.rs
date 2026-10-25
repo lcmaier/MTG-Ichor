@@ -24,7 +24,7 @@ use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::RestrictionDef;
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
-use crate::types::effects::{Affected, EntersAttacking, ExtraPhasesAfter};
+use crate::types::effects::{ObjectAndPlayerSet, EntersAttacking, ExtraPhasesAfter};
 use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
 use crate::engine::triggers::binding_reads::TriggerBindingReads;
@@ -1309,7 +1309,7 @@ impl GameState {
                 };
                 let def = &def;
 
-                let authored_empty = def.affected == Affected::NOTHING;
+                let authored_empty = def.affected == ObjectAndPlayerSet::NOTHING;
                 let fill_object = |id: ObjectId| {
                     let mut row = (*def).clone();
                     row.affected.objects = ObjectSet::Fixed(vec![id]);
@@ -1335,7 +1335,7 @@ impl GameState {
                             "a `Primitive::CreateReplacement` on {:?} with a targeting \
                              recipient authored a non-empty affected set, which the \
                              resolution then overwrote with its own targets. Write \
-                             `Affected::NOTHING`.",
+                             `ObjectAndPlayerSet::NOTHING`.",
                             ctx.source
                         );
                         targets
@@ -1444,11 +1444,11 @@ impl GameState {
                 let mut rows: Vec<RestrictionDef> = Vec::new();
                 let fill = |set: ObjectSet| {
                     let mut filled = def.clone();
-                    let affected = filled.what.affected_mut();
+                    let affected = filled.restriction.affected_mut();
                     affected.objects = set;
                     filled
                 };
-                if *def.what.affected() == Affected::NOTHING {
+                if *def.restriction.affected() == ObjectAndPlayerSet::NOTHING {
                     match recipient {
                         // CR 611.2c's second sentence: a "can't" modifies no
                         // characteristic, so its set is not fixed, and a creature

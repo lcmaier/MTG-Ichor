@@ -753,7 +753,7 @@ pub struct HistoryCount { pub players: PlayerSet, pub fact: TurnFact, pub of: Op
 // AttackersDeclared (raid is at least one)
 
 /// Beside the log, per player: "your last turn" and the draw step's count.
-pub struct PlayerHistory { own_turn: Option<u32>, previous_own_turn: Option<u32>, this_draw_step: u64 }
+pub struct PlayerHistory { most_recent_turn: Option<u32>, previous_turn: Option<u32>, this_draw_step: u64 }
 ```
 
 **One store, written once.** Every count a card reads and every "what did

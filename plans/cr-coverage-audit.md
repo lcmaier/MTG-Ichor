@@ -934,7 +934,8 @@ type `i64` named `life_total`
 #### The turn a player's turn began
 CR 302.6, 500.1. **Key:** a player. **Owner:** `PlayerHistory`, which
 `GameState::begin_turn` alone writes. **Query:** type `u32` named
-`last_turn_began`; type `u32` named `own_turn`
+`last_turn_began`; type `u32` named `most_recent_turn`; type `u32` named
+`previous_turn`
 - `PlayerHistory` ×2 — owner of the turn a player's most recent turn began,
   which CR 302.6 measures against, and of the one before it, which "your
   last turn" reads on that player's own turn (item 326 removed

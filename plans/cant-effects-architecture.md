@@ -423,7 +423,7 @@ pub enum Restriction {
     /// `ActionContext`, so it is a field rather than a mechanism.
     Event {
         pattern: EventPattern,
-        // CR 614.1's objects and players, one `Affected` (item 291); its player
+        // CR 614.1's objects and players, one `ObjectAndPlayerSet` (item 291); its player
         // half is RE-3's "players can't gain life", and `set_affects` asks the
         // half the event's subject is.
         affected: Affected,

@@ -29,7 +29,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::types::effects::{
-    Affected, ObjectSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    ObjectAndPlayerSet, ObjectSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -1267,7 +1267,7 @@ fn cant_be_regenerated() -> Primitive {
     Primitive::Restrict(
         RestrictionDef::new(Restriction::ApplyReplacement {
             kind: ReplacementKindFilter::Regeneration,
-            affected: Affected::objects(ObjectSet::Fixed(Vec::new())),
+            affected: ObjectAndPlayerSet::objects(ObjectSet::Fixed(Vec::new())),
         }),
         Duration::UntilEndOfTurn,
     )

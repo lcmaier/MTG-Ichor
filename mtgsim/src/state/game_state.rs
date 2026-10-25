@@ -999,7 +999,7 @@ impl GameState {
         let mut history = crate::state::history::GameHistory::new(num_players);
         // Turn 1 has begun for the starting player; nobody else has had one.
         if let Some(first) = history.players.first_mut() {
-            first.record_own_turn(1);
+            first.record_turn_began(1);
         }
 
         GameState {
@@ -1113,7 +1113,7 @@ impl GameState {
     /// Begin turn `turn` with `player` as the active player, recording the turn
     /// start that CR 302.6 measures against.
     ///
-    /// The one writer of a player's turns (`PlayerHistory::record_own_turn`). A
+    /// The one writer of a player's turns (`PlayerHistory::record_turn_began`). A
     /// caller that assigns `turn_number` on its own leaves the clock stale and
     /// every summoning-sickness question answers against the wrong turn.
     pub fn begin_turn(&mut self, turn: u32, player: PlayerId) {
@@ -1121,7 +1121,7 @@ impl GameState {
         self.active_player = player;
         self.history.turn_began();
         if let Some(history) = self.history.players.get_mut(player) {
-            history.record_own_turn(turn);
+            history.record_turn_began(turn);
         }
         self.bump_layer_epoch_if_read(GatedWalkInput::TurnNumber);
     }
@@ -1252,7 +1252,7 @@ impl GameState {
     /// derived from `turn_number` once there are more than two players, or
     /// once extra turns exist.
     pub fn most_recent_turn_began(&self, player: PlayerId) -> Option<u32> {
-        self.history.players.get(player).and_then(crate::state::history::PlayerHistory::own_turn)
+        self.history.players.get(player).and_then(crate::state::history::PlayerHistory::most_recent_turn)
     }
 
     /// Skip the layer memo's debug audits until [`Self::resume_layer_audit`]:

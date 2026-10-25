@@ -86,10 +86,10 @@ impl DurationRow for RegisteredRestriction {
     /// Not a chosen source of damage, named by identity: no move ends it
     /// (`RegisteredReplacementEffect::refers_to`).
     fn refers_to(&self, object: ObjectId) -> bool {
-        self.def.what.affected().refers_to(object)
+        self.def.restriction.affected().refers_to(object)
     }
     fn remove_reference_to(&mut self, object: ObjectId) -> bool {
-        self.def.what.affected_mut().remove_reference_to(object)
+        self.def.restriction.affected_mut().remove_reference_to(object)
     }
 }
 
@@ -99,7 +99,7 @@ pub type RestrictionRegistry = DurationRegistry<RegisteredRestriction>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::effects::{Affected, ObjectSet};
+    use crate::types::effects::{ObjectAndPlayerSet, ObjectSet};
     use crate::types::replacement::EventPattern;
     use crate::types::restriction::{Restriction, RestrictionDef};
     use crate::types::ids::new_object_id;
@@ -113,7 +113,7 @@ mod tests {
             created_on_turn: 1,
             def: RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::Destroy { source: None },
-                affected: Affected::objects(ObjectSet::Fixed(vec![source])),
+                affected: ObjectAndPlayerSet::objects(ObjectSet::Fixed(vec![source])),
                 by: None,
             }),
         }

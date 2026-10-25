@@ -39,7 +39,7 @@ use mtgsim::test_support::{RecordingDecisionProvider,
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    Affected, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectAndPlayerSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
@@ -207,7 +207,7 @@ fn lands_cant_enter() -> Restriction {
             change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None },
             object: None,
         },
-        affected: Affected::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land))),
+        affected: ObjectAndPlayerSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land))),
         by: None,
     }
 }
@@ -217,7 +217,7 @@ fn lands_cant_enter() -> Restriction {
 fn no_minus_counters_on_your_creatures() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::AddCounters { counter: Some(CounterType::MinusOneMinusOne), by: None },
-        affected: Affected::objects(ObjectSet::battlefield_filter(ObjectFilter::And(
+        affected: ObjectAndPlayerSet::objects(ObjectSet::battlefield_filter(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerRef::You)),
             ))),
@@ -768,7 +768,7 @@ fn test_the_rules_own_entry_counters_go_through_the_same_door() {
             "No loyalty counters",
             Restriction::Event {
                 pattern: EventPattern::AddCounters { counter: Some(CounterType::Loyalty), by: None },
-                affected: Affected::objects(ObjectSet::battlefield_filter(ObjectFilter::All)),
+                affected: ObjectAndPlayerSet::objects(ObjectSet::battlefield_filter(ObjectFilter::All)),
                 by: None,
             },
         ),
