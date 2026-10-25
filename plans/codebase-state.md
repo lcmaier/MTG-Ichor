@@ -9950,35 +9950,43 @@ keyed by its event.
      and "this object" and "that creature" compare it, but a filter reads the
      object by id as it is after the event (`named_subject_matches`,
      `engine/triggers/dispatch.rs`). Where one event both changes an object and
-     moves it, that is the new object: "whenever a red creature becomes
-     tapped" or "whenever a +1/+1 counter is removed from a creature you
-     control" asks the card in the graveyard, which no effect makes red any
-     more and no player controls. A damage source is read as it dealt the
+     moves it, that is the new object: "whenever one or more counters are
+     removed from a permanent you control" asks the card in the graveyard,
+     which no player controls. A damage source is read as it dealt the
      damage since #290's review, on CR 608.2h's side, as the judges' Dragonhawk
      ruling reads lifelink. For every other arm the rule is CR 603.10's, which
      reads objects "immediately after the event" and names only 603.10a's
      zone-change triggers as looking back; it says nothing of an object the
-     event ended. Raised by the owner (2026-10-25), with two questions for the
-     judges:
-     - Is paying "{T}, Sacrifice this" one event to a trigger on the tap? The
-       engine pays each cost as its own event (`pay_single_cost`), so
-       "whenever an artifact you control becomes tapped" matches a Treasure
-       tapped on the battlefield, before its sacrifice.
-     - Where one event changes an object and moves it, does a trigger's
-       filter read the object as the event found it (its last known
-       information), as the damage source is read, or as it is after the
-       event? CR 704.8's board is one event: a state-based check that removes
-       a creature's paired counters and puts it into its graveyard.
+     event ended. Raised by the owner (2026-10-25), with two questions, the
+     first since answered:
+     - **Answered: no** (the owner, at #293's review, 2026-10-25), paying
+       "{T}, Sacrifice this" is not one event to a trigger on the tap. CR
+       601.2h pays a cost's parts "in any order", one after another, and
+       Relic Putrescence's second ruling reads an artifact that "is no longer
+       on the battlefield" after it became tapped: a Treasure tapped and then
+       sacrificed. The engine pays each part as its own event
+       (`pay_single_cost`), so "whenever an artifact you control becomes
+       tapped" matches the Treasure as it is tapped on the battlefield, which
+       is right.
+     - For the judges: where one event changes an object and moves it, does a
+       trigger's filter read the object as the event found it (its last known
+       information, which CR 704.8 derives from before the check), as the
+       damage source is read, or as it is after the event? The board is a
+       state-based check: Black Sun's Zenith for 2 puts two -1/-1 counters on
+       a 1/1 with a +1/+1 counter, and the next check removes one of each (CR
+       704.5q) and puts the 0/0 into its graveyard (704.5f) as one event (CR
+       704.3). Cloudsculpt Armorer's "whenever one or more counters are
+       removed from a permanent you control" triggers if its filter reads the
+       creature as the event found it, and doesn't if it reads the card in
+       the graveyard.
      **Reachability (2026-10-25):** unreachable — no registered card puts a
      change to an object and its move in one event (#290's A/B), and the only
      registered counter-removal trigger is Protean Hydra's on itself.
      **Sized:** ~10–20 lines if the answer is the last known information:
      `named_subject_matches` reads `ObjectInformation::of(named.id,
-     self.lki(named))`, as the damage arm does; ~60–100 of fixtures, a tap
-     and a counter removal each with its move in one event, shown failing
-     first. If the answer is the object after the event, the damage arm's read
-     goes back instead. If paying a cost is one event, the cost payment becomes
-     one batch, a design of its own, re-slotted when that is known.
+     self.lki(named))`, as the damage arm does; ~40–60 of fixtures, the
+     counter removal above shown failing first. If the answer is the object
+     after the event, the damage arm's read goes back instead.
      **Slotted:** A6e's cleanup, in `batches-durations-and-control`, once the
      judges answer.
 
