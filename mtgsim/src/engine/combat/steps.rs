@@ -18,7 +18,7 @@ use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo};
 use crate::state::game_state::GameState;
 use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use super::keywords::strikes_first;
+use super::keywords::has_first_or_double_strike;
 use crate::ui::ask::{ask_choose_attackers, ask_choose_blockers};
 use crate::ui::choice_types::Rejection;
 use crate::ui::decision::DecisionProvider;
@@ -203,7 +203,7 @@ impl GameState {
                 .battlefield
                 .get(&id)
                 .is_some_and(|e| e.attacking.is_some() || e.blocking.is_some());
-            in_combat && strikes_first(self, id)
+            in_combat && has_first_or_double_strike(self, id)
         })
     }
 
@@ -241,7 +241,7 @@ impl GameState {
             // avoid a borrow conflict.
             let fs_ids: Vec<ObjectId> = self.battlefield_ordered().into_iter()
                 .filter(|(id, e)| {
-                    (e.attacking.is_some() || e.blocking.is_some()) && strikes_first(self, *id)
+                    (e.attacking.is_some() || e.blocking.is_some()) && has_first_or_double_strike(self, *id)
                 })
                 .map(|(id, _)| id)
                 .collect();

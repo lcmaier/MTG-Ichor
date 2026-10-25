@@ -1202,9 +1202,8 @@ fn static_ability_still_exists(
     // Source is gone from the object store entirely.
     let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return false };
     let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return false };
-    ability.effect.with_its_condition().0.is_none_or(|cond| {
-        condition::holds(cond, game, board, effect.source, layer_index, None, condition::ConditionReferents::NONE)
-    })
+    let (as_long_as, _) = ability.effect.with_its_condition();
+    as_long_as.is_none_or(|cond| condition::holds(cond, game, board, effect.source, layer_index, None, condition::ConditionReferents::NONE))
 }
 
 /// CR 604.2 for a CDA: still on the object, and still characteristic-defining

@@ -18,7 +18,7 @@ use crate::state::history_log::{HistoryLog, HistoryRow, added_to_count};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
 use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
-use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectRef, PlayerId};
+use crate::types::ids::{IdMap, IdSet, PlayerId};
 
 /// One player's history beside the log.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,7 +136,7 @@ pub struct GameHistory {
     /// by the ability rather than by who controlled it (Ashling the Pilgrim's
     /// ruling), so a control change does not restart it. Advanced off
     /// `AbilityResolved` by the dispatcher.
-    pub resolutions_this_turn: IdMap<(ObjectRef, AbilityId), u32>,
+    pub resolutions_this_turn: IdMap<AbilityIdentity, u32>,
     /// Every event a card can ask about later, for the whole game
     /// (`state::history_log`): what each player and each object did.
     pub log: HistoryLog,

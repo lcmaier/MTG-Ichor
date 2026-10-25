@@ -1510,7 +1510,7 @@ fn main() {
                 agg_stats.avg(agg_stats.total_turns_after_departure)
             );
             println!(
-                "  Departed-owned permanents:   {:>6.1}",
+                "  DepartedObject-owned permanents:   {:>6.1}",
                 agg_stats.avg(agg_stats.total_departed_owned_permanents)
             );
         }

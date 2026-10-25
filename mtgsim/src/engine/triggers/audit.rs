@@ -140,7 +140,7 @@ impl GameState {
                     }
                     // Moved or gone since the snapshot: as it was then, the
                     // existence that triggered.
-                    None => TriggerCandidate::last_known(self, lki, frame.zone, Some(k)),
+                    None => TriggerCandidate::from_lki(self, lki, frame.zone, Some(k)),
                 };
                 candidates.push(candidate);
             }

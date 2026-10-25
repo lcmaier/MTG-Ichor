@@ -14,8 +14,63 @@ use crate::engine::targeting::TargetRef;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
-use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerSeq};
+use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerId};
 
+
+/// The object a move took out of a zone, as its record names it: which
+/// existence of it left (an object that moves is a new object, CR 400.7) and
+/// who owns it (CR 108.3).
+///
+/// Most moves frame the object just before it leaves (`capture_lki`): every
+/// move a "leaves the battlefield" or "dies" trigger looks back at, and every
+/// move of an object something waiting will read. The frame, an `Lki`, holds
+/// the existence and the owner itself, so `WithLki` is the whole record. A
+/// move nothing reads back has no frame, and `WithoutLki` holds the two
+/// facts alone. Either way each is held once. Not the mover's `Departure`
+/// (`engine::last_known`), which is what the mover takes with it before it
+/// announces this.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DepartedObject {
+    WithLki(Lki),
+    WithoutLki { object: ObjectRef, owner: PlayerId },
+}
+
+impl DepartedObject {
+    /// The existence that left.
+    pub fn object(&self) -> ObjectRef {
+        match self {
+            DepartedObject::WithLki(lki) => lki.object(),
+            DepartedObject::WithoutLki { object, .. } => *object,
+        }
+    }
+
+    pub fn owner(&self) -> PlayerId {
+        match self {
+            DepartedObject::WithLki(lki) => lki.owner(),
+            DepartedObject::WithoutLki { owner, .. } => *owner,
+        }
+    }
+
+    /// The frame the move carries, if it carries one.
+    pub fn lki(&self) -> Option<&Lki> {
+        match self {
+            DepartedObject::WithLki(lki) => Some(lki),
+            DepartedObject::WithoutLki { .. } => None,
+        }
+    }
+
+    /// The object `object`, owned by `owner`, which left with `frame` if the
+    /// move framed it.
+    pub fn new(object: ObjectRef, owner: PlayerId, frame: Option<Lki>) -> DepartedObject {
+        match frame {
+            Some(lki) => {
+                debug_assert!(lki.object() == object && lki.owner() == owner, "{} left with another object's frame", object.id);
+                DepartedObject::WithLki(lki)
+            }
+            None => DepartedObject::WithoutLki { object, owner },
+        }
+    }
+}
 
 /// Game events that can be observed by triggered abilities and logging systems.
 ///
@@ -23,52 +78,6 @@ use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerSeq};
 /// facts about what happened, not requests for what should happen. What a
 /// replacement effect reads is the proposal before it is performed
 /// (`engine::actions::GameAction`, CR 614), never one of these.
-/// The existence a move ended (CR 400.7) and its owner (CR 108.3), each
-/// held once: by the move's frame where it carries one (CR 603.10a, and any
-/// mover a keeper reads), which names both, and as the two alone where it
-/// does not.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Departed {
-    Framed(Lki),
-    Unframed { object: ObjectRef, owner: PlayerId },
-}
-
-impl Departed {
-    /// The existence that left.
-    pub fn object(&self) -> ObjectRef {
-        match self {
-            Departed::Framed(lki) => lki.object(),
-            Departed::Unframed { object, .. } => *object,
-        }
-    }
-
-    pub fn owner(&self) -> PlayerId {
-        match self {
-            Departed::Framed(lki) => lki.owner(),
-            Departed::Unframed { owner, .. } => *owner,
-        }
-    }
-
-    /// The frame the move carries, if it carries one.
-    pub fn lki(&self) -> Option<&Lki> {
-        match self {
-            Departed::Framed(lki) => Some(lki),
-            Departed::Unframed { .. } => None,
-        }
-    }
-
-    /// `object`, `owner`'s, as `frame` says it left.
-    pub fn of(object: ObjectRef, owner: PlayerId, frame: Option<Lki>) -> Departed {
-        match frame {
-            Some(lki) => {
-                debug_assert!(lki.object() == object && lki.owner() == owner, "{} left with another object's frame", object.id);
-                Departed::Framed(lki)
-            }
-            None => Departed::Unframed { object, owner },
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum GameEvent {
     // --- Zone transitions ---
@@ -92,10 +101,9 @@ pub enum GameEvent {
         ///
         /// The frame is behind an `Arc`, and the layer memo's own: the widest
         /// type in the engine is shared rather than copied, so a trigger
-        /// binding that copies this record copies a pointer
-        /// (`triggers-architecture.md` §3.4). What a dies trigger's "it deals
-        /// damage" was (CR 608.2h).
-        departed: Departed,
+        /// binding that copies this record copies a pointer. It is what a dies
+        /// trigger's "it deals damage" was (CR 608.2h).
+        departed: DepartedObject,
         from: Zone,
         to: Zone,
         /// What was done (`replacement-architecture.md` §2b.2). A redirect
@@ -289,7 +297,7 @@ pub enum GameEvent {
     /// (the first of them, for a "one or more" trigger), and `None` for a
     /// state trigger, which no record caused (CR 603.8).
     AbilityTriggered {
-        seq: TriggerSeq,
+        seq: TriggerId,
         origin: TriggerOrigin,
         controller: PlayerId,
         caused_by: Option<EventId>,
@@ -520,7 +528,7 @@ pub enum GameEvent {
     /// out* permanent does not trigger, and phasing (CR 702.26) is not built
     /// (`codebase-state.md`, "Phasing"). Every permanent is phased in today.
     LeftTheGame {
-        departed: Departed,
+        departed: DepartedObject,
         from: Zone,
     },
 
@@ -665,8 +673,8 @@ impl GameEvent {
     /// record and for a move no look-back reads.
     pub fn lki(&self) -> Option<(&Lki, Zone, PlayerId)> {
         match self {
-            GameEvent::ZoneChange { departed: Departed::Framed(lki), from, .. }
-            | GameEvent::LeftTheGame { departed: Departed::Framed(lki), from } => Some((lki, *from, lki.owner())),
+            GameEvent::ZoneChange { departed: DepartedObject::WithLki(lki), from, .. }
+            | GameEvent::LeftTheGame { departed: DepartedObject::WithLki(lki), from } => Some((lki, *from, lki.owner())),
             GameEvent::SpellCountered { lki, .. } => Some((lki, Zone::Stack, lki.owner())),
             _ => None,
         }
@@ -867,21 +875,28 @@ pub struct EventId(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BatchId(pub u64);
 
-/// Where in the stream something waiting for an event was created: a
-/// delayed trigger (CR 603.7a) or the return an "until" exile waits to make
-/// (CR 610.3). "Won't trigger until it has actually been created, even if
+/// When something waiting for an event was created, as a position in the
+/// event stream: a delayed trigger (CR 603.7a) or the return an "until" exile
+/// waits to make (CR 610.3). Not a CR 613.7 timestamp, which orders
+/// permanents and effects; this orders records. "Won't trigger until it has actually been created, even if
 /// its trigger event occurred just beforehand": a record before it is no
 /// event it waits for, and neither is one of the batch it was created
 /// during. A rider (CR 615.5) creates one inside its own batch, on both
 /// sides of its records, and that whole event happened just beforehand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CreationPoint {
+pub struct CreatedAt {
     /// The first record performed after it was created.
     pub first_record: EventId,
     pub batch: Option<BatchId>,
 }
 
-impl CreationPoint {
+impl CreatedAt {
+    /// The position something created now has: the next record's id, and
+    /// the batch open now, if one is.
+    pub fn now(window: &EventWindow) -> CreatedAt {
+        CreatedAt { first_record: window.next_seq(), batch: window.current_batch() }
+    }
+
     /// Whether it was created before the event `record` is part of.
     pub fn is_before(self, record: &EventRecord) -> bool {
         record.seq >= self.first_record && !self.batch.is_some_and(|batch| record.stamp.batch == Some(batch))
@@ -1131,11 +1146,6 @@ impl EventWindow {
         self.open
     }
 
-    /// The point in the stream something created now is created at.
-    pub fn creation_point(&self) -> CreationPoint {
-        CreationPoint { first_record: self.next_seq(), batch: self.current_batch() }
-    }
-
     /// Open a batch, returning what to hand back to [`Self::close_batch`].
     ///
     /// **A nested call joins the enclosing batch rather than opening a new
@@ -1217,12 +1227,12 @@ mod tests {
         let mut window = EventWindow::new();
         let outer = window.open_batch();
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
-        let created = window.creation_point();
+        let created_at = CreatedAt::now(&window);
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
         window.close_batch(outer);
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
 
-        let after: Vec<bool> = window.held().iter().map(|record| created.is_before(record)).collect();
+        let after: Vec<bool> = window.held().iter().map(|record| created_at.is_before(record)).collect();
         assert_eq!(after, vec![false, false, true]);
     }
 

@@ -188,13 +188,13 @@ place today, so the design names each one's single home.
 - **L2. This reference is still the object (CR 400.7).** `RememberedObject::found`
   and `is` (`types/triggers.rs`), `TargetRef::still_exists`
   (`engine/targeting.rs`), `bound_object` (`triggers/binding.rs`),
-  `this_object` (`engine/resolve.rs`), `find_matches` (`triggers/dispatch.rs`),
+  `this_object` (`engine/resolve.rs`), `find_trigger_matches` (`triggers/dispatch.rs`),
   `matches_without_shortcuts` (`triggers/audit.rs`), `returns.rs:177`,
   `ui/ask.rs:1314` and `scenario/write.rs`'s `write_this_turn_counts`: an
   epoch comparison or `object_ref(id) == Some(r)`, ten places. Item 177 puts
   the epoch a move stamped on the record, which is the same identity.
 - **L3. The CR 603.10a frame a record carries** (a `ZoneChange`'s or a
-  `LeftTheGame`'s `lki`): `frame_of` and `find_matches`' second leg
+  `LeftTheGame`'s `lki`): `frame_of` and `find_trigger_matches`' second leg
   (`triggers/dispatch.rs`) and `departure_frame` (`triggers/binding.rs`,
   which adds the subject check). A method on the record.
 - **L4. Taking a mover's frame:** `take_departure_frame` opens with
@@ -250,7 +250,7 @@ Item 6's close audit (`roadmap-v2.md` A6e) takes these with its hygiene pass,
 - **T5. CR 603.2h's (identity, controller) key:** `within_once_per_turn_limit`
   (`dispatch.rs`), `resolve_taken`'s action gate (`stack.rs`) and the
   placement's elision (`triggers/placement.rs`).
-- **T6. The `TriggerCandidate` for an object:** `find_matches` builds it, and
+- **T6. The `TriggerCandidate` for an object:** `find_trigger_matches` builds it, and
   `matches_without_shortcuts` (`triggers/audit.rs`) writes the literal again,
   twice. For an object that left the game the audit's card is its name only,
   where the dispatcher's (`frame_card`) carries the frame's abilities; the
@@ -640,7 +640,7 @@ the mirror, merged four, and kept the rest with their reasons.
   and `Plus` and not `Multiply`; `amount_with_announced_x` is the one.
 - **T33. A spell's X at announcement and on its stack entry:** 0 for a
   spell without X at one, none at the other; one answer for both.
-- **T34. The survivors a look-back count asks:** `find_matches` asks a
+- **T34. The survivors a look-back count asks:** `find_trigger_matches` asks a
   survivor only a list from before reaches; the multipliers' candidates did
   not, so a granted multiplier whose granter left in the batch went unasked.
 - The mirror: `binding_reads::recipient_reads` read nothing off a count of
@@ -814,7 +814,7 @@ One table per section, in the report's order; **where** names §3's group.
 | 9 | `remove_object() + stack` | `engine/put_on_stack::rollback_ability_activation`, `engine/resolve::resolve_primitive`, `engine/stack::resolve_taken`, `engine/stack::handle_fizzle`, `engine/triggers/placement::place_one` | merge | M3 | an ability leaving the stack ceases to exist, seven sites |
 | 10 | `abilities + make_mut()` | `engine/layers/compute::apply_resolved`, `engine/layers/copy::except`, `engine/layers/copy::modify`, `engine/layers/land_types::apply_set_subtypes`, `engine/layers/land_types::apply_add_subtype`, `engine/resolve::apply_copy` | false positive |  | the `Arc` copy-on-write idiom |
 | 11 | `saturating_sub() + to_vec()` | `scenario/setup::generic_split`, `ui/ask::forced_allocation`, `ui/random::allocate`, `view_model::allocate` | keep |  | four allocation policies |
-| 12 | `object + object_ref()` | `engine/resolve::remembered_since`, `engine/triggers/dispatch::capture_frame`, `engine/triggers/dispatch::take_named_frame`, `engine/triggers/dispatch::take_departure_frame`, `engine/triggers/dispatch::find_matches`, `oracle/characteristics::damage_source_existence`, `types/triggers::is`, `types/triggers::found` | merge | L2, L4 | "this reference is still the object" (L2); taking a mover's frame (L4) |
+| 12 | `object + object_ref()` | `engine/resolve::remembered_since`, `engine/triggers/dispatch::capture_frame`, `engine/triggers/dispatch::take_named_frame`, `engine/triggers/dispatch::take_departure_frame`, `engine/triggers/dispatch::find_trigger_matches`, `oracle/characteristics::damage_source_existence`, `types/triggers::is`, `types/triggers::found` | merge | L2, L4 | "this reference is still the object" (L2); taking a mover's frame (L4) |
 | 13 | `battlefield + is_creature()` | `engine/combat/validation::can_block`, `engine/sba::check_state_based_actions`, `oracle/legality::can_attack`, `ui/display::format_permanent` | false positive |  | each asks "a creature?" for its own rule |
 | 14 | `named() + player_name()` | `ui/display::attack_target_name`, `ui/display::damage_target_name`, `ui/what_happened::iteration_lines`, `ui/why::ranges_over`, `snapshot::target_name` | keep |  | one formatter per target enum over shared leaves |
 | 15 | `compute_characteristics() + types` | `engine/actions::for_object`, `engine/triggers/history::history_update`, `oracle/characteristics::is_instant_or_has_flash`, `oracle/characteristics::is_creature`, `oracle/characteristics::has_summoning_sickness`, `oracle/characteristics::get_effective_types`, `oracle/characteristics::has_type`, `oracle/characteristics::has_permanent_type`, `snapshot::permanent` | keep |  | the wrappers themselves (`is_creature` is `has_type`'s, word for word) |
@@ -839,7 +839,7 @@ One table per section, in the report's order; **where** names §3's group.
 | 34 | `ability_type + functions_in()` | `engine/replacement/gather::push_static_ability_replacements`, `oracle/mana_supply::scan_mana_production_watchers`, `state/game_state::register_static_effects` | merge | M2 | corrected at #250, where M2 already said merge: the gather and the scan ask one `functioning_replacement` and one `replacement_exists`; `register_static_effects` lowers every static ability, not one kind |
 | 35 | `subtypes + word()` | `types/effects::effective_name`, `ui/display::type_line_against`, `app::type_line` | false positive |  | a token's name (CR 111.4) is another rule |
 | 36 | `functions_in() + types` | `engine/replacement/gather::push_static_ability_replacements`, `engine/triggers/dispatch::match_candidates`, `oracle/mana_supply::scan_mana_production_watchers` | merge | M2 | as 34; `match_candidates` reads triggered abilities, another kind |
-| 37 | `event + events.record()` | `engine/triggers/delayed::occurrences_among`, `engine/triggers/dispatch::dispatch_inner`, `engine/triggers/dispatch::find_matches`, `engine/triggers/dispatch::occurrences_matching_arm`, `engine/triggers/history::history_update` | false positive |  | the record accessor; the arm match is already one helper |
+| 37 | `event + events.record()` | `engine/triggers/delayed::occurrences_among`, `engine/triggers/dispatch::dispatch_inner`, `engine/triggers/dispatch::find_trigger_matches`, `engine/triggers/dispatch::occurrences_matching_arm`, `engine/triggers/history::history_update` | false positive |  | the record accessor; the arm match is already one helper |
 | 38 | `controls() + tapped` | `engine/combat/validation::can_block`, `oracle/legality::can_attack`, `oracle/legality::legal_blockers`, `ui/random::pick_number` | merge | M1 | as same inputs 21 |
 | 39 | `effect + effect.as_cost_modification()` | `engine/zone_function::functioning_zones`, `state/continuous_effects::of`, `state/game_state::register_static_effects` | merge | M3 | "is this body a restriction", seen through "as long as" in two places and not in two |
 | 40 | `checked_sub() + saturating_add()` | `scenario/build::history_counts_by_turn`, `scenario/write::since_your_last_turn_differs`, `editor::permanent_rows` | keep |  | the scenario writer predicts the loader on purpose |
@@ -849,7 +849,7 @@ One table per section, in the report's order; **where** names §3's group.
 | 44 | `get_effective_controller() + stack` | `engine/leaving::uncarded_stack_objects_cease`, `engine/leaving::exile_objects_no_player_in_game_controls`, `engine/resolve::resolve_primitive`, `engine/stack::resolve_top_of_stack` | keep |  | two CR 800.4a sentences and a resolution reading its controller |
 | 45 | `compute_characteristics() + keyword_flags` | `oracle/characteristics::has_keyword`, `oracle/characteristics::is_instant_or_has_flash`, `ui/display::collect_keywords`, `snapshot::permanent` | merge | M5 | a permanent's keywords as words, in the display and the window |
 | 46 | `in_game() + players` | `engine/sba::check_state_based_actions`, `engine/targeting::validate_player_target`, `engine/targeting::validate_any_target`, `engine/targeting::has_legal_choices`, `state/game_state::next_player_in_game`, `state/game_state::settle_game_result` | merge | M1 | as 2; `validate_any_target` restates `validate_player_target` |
-| 47 | `controller_or_owner() + owner` | `engine/replacement/gather::gather`, `engine/triggers/audit::matches_without_shortcuts`, `engine/triggers/dispatch::find_matches` | merge | T6 | the dispatcher's `TriggerCandidate` literal, written again in the audit |
+| 47 | `controller_or_owner() + owner` | `engine/replacement/gather::gather`, `engine/triggers/audit::matches_without_shortcuts`, `engine/triggers/dispatch::find_trigger_matches` | merge | T6 | the dispatcher's `TriggerCandidate` literal, written again in the audit |
 | 48 | `effect + get_effective_abilities()` | `engine/put_on_stack::activate_ability`, `engine/restriction/predicate::prohibition`, `oracle/mana_supply::mana_trigger_adds` | false positive |  | each a different ability's effect |
 
 ### same test: 30

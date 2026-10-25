@@ -369,7 +369,7 @@ hold no fact about the game:
 - three instruments nothing may branch on: `diagnostics`, `dispatch_audit`,
   `trace`;
 - `nesting`, whose type `NestingGuards` guards the engine rather than a rule;
-- two id allocators, `next_trigger_seq` and `next_object_id`.
+- two id allocators, `next_trigger_id` and `next_object_id`.
 
 **Carried to pass 3 from §3's run, and answered there.** `spell-copies`'s clone would
 keep `mana_spent`, and also `cast_from` and `controller`, so
@@ -507,7 +507,7 @@ is derivable; where each name was read is not, and the gate needs the names.
     `restriction_ability_sources`, `trigger_sources`,
     `zone_replacement_ability_sources`, `zone_trigger_sources`, `layer_epoch`,
     `layer_memo`, `diagnostics`, `dispatch_audit`, `trace`, `nesting`,
-    `next_trigger_seq`, `next_object_id`.
+    `next_trigger_id`, `next_object_id`.
 - **Added by TR-2a (2026-09-24)**, each asked §2's question as it landed:
   - `history`, which moved onto `PlayerState` in #186's review: every
     player's "this turn" quantities, one row per turn, recorded as each
@@ -701,7 +701,7 @@ CR 109.1, 400.7. **Key:** the object and the zone change that made it, an
 - `GameObject` — owner: the existence the object is now.
 - `ObjectRef` — key: the key itself.
 - `GameEvent` — moment: `ZoneChange.new_epoch`, the existence a move made
-  (CR 400.7e). The existence that left is its `Departed`'s, the frame's or
+  (CR 400.7e). The existence that left is its `DepartedObject`'s, the frame's or
   the unframed pair's (item 320, #289); the other records' plain ids are
   item 328.
 - `GameState` ×2 — none: the epoch allocator, and a debug build's window
@@ -714,8 +714,8 @@ CR 108.3. **Key:** the object, for its whole life. **Owner:** `GameObject`.
 - `LkiBody` — moment: the owner of an ended existence, which the object store
   loses at CR 704.5d and 800.4a.
 - `GameEvent` — moment: `TokenCreated.owner`, CR 111.2's creator. A move's
-  owner is its `Departed`'s, and a kept move's its frame's (item 319, #289).
-- `Departed` — moment: an unframed departure's owner, which no frame holds.
+  owner is its `DepartedObject`'s, and a kept move's its frame's (item 319, #289).
+- `DepartedObject` — moment: an unframed departure's owner, which no frame holds.
 - `DelayedTrigger` — hand-over: its source's owner, written once from
   `owner_of` as the entry is made, since a source can leave the store
   unframed before the entry reads it (item 247's T12, kept at #289).
@@ -770,7 +770,7 @@ an ended existence; the record, or the snapshot, for the other two.
 - `GameEvent` ×6 — key for a source that left (`source_lki`) and a countered
   spell, handles to the store's own `Lki`; owner for a survivor's frame
   (`ControlChanged`, `SameZoneMove`).
-- `Departed` — key for a framed departure, a handle to the store's own
+- `DepartedObject` — key for a framed departure, a handle to the store's own
   `Lki`.
 - `ObjectSnapshot` — owner: a survivor's frame before a batch.
 - `RowFrame` — key: a handle to the store's or a record's `Lki`.
@@ -942,7 +942,7 @@ named `controller_since_turn`; type `u32` named `control_since_turn`
 CR 400.7. **Key:** the existence. **Query:** type `EventId` named `left_at`
 
 No holder: the departure record names the existence that left
-(`Departed`), and a remembered object is asked against the existence a
+(`DepartedObject`), and a remembered object is asked against the existence a
 record names (item 321, #289). The two keepers' copies are gone.
 
 ### What no entry claims

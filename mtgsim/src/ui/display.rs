@@ -1264,7 +1264,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::events::event::Departed;
+    use crate::events::event::DepartedObject;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
@@ -1672,7 +1672,7 @@ mod tests {
         use crate::state::game_state::{AbilityIdentity, StepType};
         use crate::types::effects::CounterType;
         use crate::types::ids::{AbilityId, UntilReturnId};
-        use crate::types::triggers::{DelayedDuration, TriggerOrigin, TriggerSeq};
+        use crate::types::triggers::{DelayedDuration, TriggerOrigin, TriggerId};
         use crate::types::zones::ZoneChangeAct;
 
         let mut object = || crate::test_support::put_on_battlefield(game, crate::test_support::vanilla_creature(1, 1, &[]), 0);
@@ -1688,7 +1688,7 @@ mod tests {
         let (attacker, walker, blocker, blocked, unblocked, exit, exit_blocked) = (id(), id(), id(), id(), id(), id(), id());
         vec![
             GameEvent::ZoneChange {
-                departed: Departed::Unframed { object: reference(game, id()), owner: 0 },
+                departed: DepartedObject::WithoutLki { object: reference(game, id()), owner: 0 },
                 from: Zone::Battlefield,
                 to: Zone::Graveyard,
                 act: ZoneChangeAct::Destroyed,
@@ -1716,7 +1716,7 @@ mod tests {
             GameEvent::AbilityResolved { identity: identity(game, id()), controller: 0 },
             GameEvent::AbilityActivated { identity: identity(game, id()), controller: 0, mana_ability: false, from: Zone::Battlefield, source_lki: None },
             GameEvent::Targeted { target: TargetRef::Object(reference(game, id())), by: id(), ability_source: Some(id()), controller: 0, instances: 1 },
-            GameEvent::AbilityTriggered { seq: TriggerSeq(0), origin: TriggerOrigin::Object(identity(game, id())), controller: 0, caused_by: Some(EventId(0)) },
+            GameEvent::AbilityTriggered { seq: TriggerId(0), origin: TriggerOrigin::Object(identity(game, id())), controller: 0, caused_by: Some(EventId(0)) },
             GameEvent::DelayedTriggerCreated {
                 id: crate::types::ids::DelayedTriggerId(1),
                 source: id(),
@@ -1745,7 +1745,7 @@ mod tests {
                 former_host_left: false,
             },
             GameEvent::ControlChanged { to: 1, lki: lki(game, controlled) },
-            GameEvent::LeftTheGame { departed: Departed::Unframed { object: reference(game, id()), owner: 1 }, from: Zone::Battlefield },
+            GameEvent::LeftTheGame { departed: DepartedObject::WithoutLki { object: reference(game, id()), owner: 1 }, from: Zone::Battlefield },
             GameEvent::SameZoneMove { zone: Zone::Battlefield, act: ZoneChangeAct::Destroyed, applied: None, lki: lki(game, kept) },
             GameEvent::TokenCreated { object_id: id(), owner: 0, zone: Zone::Battlefield, definition: Arc::new(crate::cards::phase_re_cards::goblin_token()) },
             GameEvent::TokenCeasedToExist { object_id: id() },

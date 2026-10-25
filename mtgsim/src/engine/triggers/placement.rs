@@ -19,7 +19,7 @@ use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
+use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerId, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
@@ -66,7 +66,7 @@ impl GameState {
                 if entries.is_empty() {
                     continue;
                 }
-                let mine: Vec<TriggerSeq> = entries.iter().map(|t| t.seq).collect();
+                let mine: Vec<TriggerId> = entries.iter().map(|t| t.seq).collect();
                 let order: Vec<usize> = if entries.len() < 2 {
                     (0..mine.len()).collect()
                 } else if self.trigger_order_cannot_change_outcome(&entries) {

@@ -45,8 +45,10 @@ impl LkiStore {
         Some(&ended[at])
     }
 
-    /// The last known information of `id`'s most recent ended existence.
-    fn latest(&self, id: ObjectId) -> Option<&Lki> {
+    /// The last known information of `id`'s most recent ended existence, by
+    /// the object's id alone: what `owner_of` reads, since an owner is the same
+    /// in every existence. [`Self::of`] is the lookup by existence.
+    fn lki_of_last_existence(&self, id: ObjectId) -> Option<&Lki> {
         self.ended.get(&id)?.0.last()
     }
 
@@ -113,7 +115,7 @@ impl GameState {
     /// 800.4a), its last known information's. `None` for one that left with
     /// no frame.
     pub fn owner_of(&self, id: ObjectId) -> Option<PlayerId> {
-        self.objects.get(&id).map(|object| object.owner).or_else(|| self.lki_store.latest(id).map(Lki::owner))
+        self.objects.get(&id).map(|object| object.owner).or_else(|| self.lki_store.lki_of_last_existence(id).map(Lki::owner))
     }
 
     /// What `id` leaving `from` for `to` (`None`: the game) takes with it,

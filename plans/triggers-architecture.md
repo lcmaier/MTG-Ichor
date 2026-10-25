@@ -301,7 +301,7 @@ pub struct TriggerBinding {
     /// projections (below) say what the bound facts are.
     pub event: EventIndex,
     /// The ability whose triggering this is (CR 603.3b's second tier).
-    pub triggered_by: Option<TriggerSeq>,
+    pub triggered_by: Option<TriggerId>,
     /// CR 603.7c — what a delayed trigger refers to; empty for an object's.
     pub referred: Referred,
     /// CR 400.7f — the card an Aura watching its host leave became in its
@@ -476,7 +476,7 @@ one replacement ability are two effects, as the CR has them.
 pub struct PendingTrigger {
     /// Monotonic per game; the stable order key within one player's
     /// triggers, and the handle a tier-2 trigger's "that ability" resolves.
-    pub seq: TriggerSeq,
+    pub seq: TriggerId,
     pub origin: TriggerOrigin,            // §3.8
     /// CR 603.3a — the player who controlled the source as it triggered,
     /// locked here; for a delayed trigger, 603.7d–g's.
@@ -506,7 +506,7 @@ pub struct PendingTrigger {
 
 // on GameState:
 pub pending_triggers: SharedList<PendingTrigger>,   // state::shared_stores: chunks a fork shares, each trigger copied alone when written
-pub(crate) next_trigger_seq: u64,
+pub(crate) next_trigger_id: u64,
 ```
 
 On `GameState` and nowhere else — item 40's invariant, and A4h's fork test
@@ -636,7 +636,7 @@ departures from the sketch, each forced by a board:
 - **`source_left_at`**, gone with item 321 (#289): a departure record
   named the object's id and not which existence of it moved, so the movers
   noted the record that ended a delayed trigger's source. A departure now
-  names the existence that left (`Departed`), and "when this creature
+  names the existence that left (`DepartedObject`), and "when this creature
   leaves the battlefield" matches the record whose existence is its source,
   and no later object's.
 - **`source_frame`**, added at the review, then `source_lki`, an `Lki`, from
@@ -1432,7 +1432,7 @@ from a known item, so the calibration also bought two findings.
 | `AbilityResolved` | holds: the identity (CR 603.7h) | holds | holds | holds: the count's last step (§6.5) | holds |
 | `AbilityActivated` | **item 256**: no stack object for "copy that ability" (CR 707.10) → `spell-copies` | holds | holds | holds | holds |
 | `Targeted` | **item 255**: target and spell or ability (Frost Titan's "that spell") → TR-5a; the arm item 12 → TR-5c | holds: once per spell or ability (§14 question 11) | holds | holds: CR 601.2i | holds |
-| `AbilityTriggered` | **item 256**: a placed trigger keeps no `TriggerSeq` → `spell-copies` | holds: `caused_by` (CR 603.3b) | holds | holds: dispatched as it is emitted | holds |
+| `AbilityTriggered` | **item 256**: a placed trigger keeps no `TriggerId` → `spell-copies` | holds: `caused_by` (CR 603.3b) | holds | holds: dispatched as it is emitted | holds |
 | `SpellCountered`, `AbilityCountered` | holds | holds: `countered_by` and the cause | holds: a redirected counter keeps its act (CR 608.2c) | holds | **item 253**: no frame for CR 603.10e → TR-4d |
 | `SpellFizzled`, `AbilityFizzled` | holds: no reader (§3.3) | holds | holds | holds | holds |
 | `PlayerLost` | holds | holds: why is the cause (CR 603.9) | holds | holds: the leaving's records share its window | holds: CR 603.10f reads the `LeftTheGame` frames |
@@ -1474,7 +1474,7 @@ The rest, row by row where it is not obvious:
   `by`. `spell-copies`'s copies and CR 115.7's changed targets each announce a new one,
   since a copy with new targets is a new targeting.
 - A remembered object is the existence a record names (item 321, #289): a
-  departure's own (`Departed`), and for any other record the existence its
+  departure's own (`DepartedObject`), and for any other record the existence its
   frame keeps or the object as it is now. A same-zone move names the
   existence it kept, which is right while it makes no new object (CR 400.7).
 - No printed delayed trigger reads an object it refers to after that object has
@@ -1588,7 +1588,7 @@ Eleven new items, and one re-slotted, in route order. Item 261 came at #246's re
   objects as `ObjectRef`s at the dispatch.
 - **Item 256 (`spell-copies`): "copy that ability" has no stack object to copy.**
   `AbilityActivated` names the ability by identity, which two activations of
-  one ability share. A placed trigger's stack entry keeps no `TriggerSeq`, so
+  one ability share. A placed trigger's stack entry keeps no `TriggerId`, so
   `AbilityTriggered.seq` finds nothing on the stack. `TriggerBinding.triggered_by`
   is never written. 15 cards: `(o:"when " or o:"whenever ") o:"copy that
   ability"`, Illusionist's Bracers and Aboleth Spawn among them. `spell-copies` builds

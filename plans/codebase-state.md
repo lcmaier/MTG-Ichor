@@ -7554,7 +7554,7 @@ has the notes that are not items.
 **The matcher was reviewed and rebuilt (2026-09-22, the TR-1 review, theme
 C).** Four things, and only one of them changed an answer. **F1**: the
 dispatcher applied CR 113.6 per *object* — `register_static_effects` files
-only the ability ids that function in the object's zone, and `find_matches`
+only the ability ids that function in the object's zone, and `find_trigger_matches`
 read the map's keys and then asked the whole effective list, so a card in a
 graveyard for its "from anywhere" half was also asked its battlefield-only
 half. `functions_in` is now asked per def, on every leg, as
@@ -8813,11 +8813,11 @@ ones on the last-known-information and zone-change surface are items 176 and
      records in two places each.~~ — ✅ CLOSED 2026-10-25 (PR #289,
      `trigger-matcher-merges`).** — archived. Every T-entry merged or kept with
      its reason (#289's body): T1's tail, T2's queue, T3's fold, T4's
-     `CreationPoint`, T6's candidate constructors, T7's tables with a pairing
-     test over all 30 arms, T8's `extra_turn_is_coming`, T9's three, T12's
+     `CreatedAt`, T6's candidate constructors, T7's tables with a pairing
+     test over all 30 arms, T8's `extra_turn_current_or_queued`, T9's three, T12's
      `owner_of` with its two hand-overs kept, T14 re-read, T15's
-     `named_objects`, T16's peel, T19's `mana_part`, T20's `pairs`, T21's
-     `strikes_first`; the work-list's merge rows with them.
+     `named_objects`, T16's peel, T19's `mana_part`, T20's `role_objects`, T21's
+     `has_first_or_double_strike`; the work-list's merge rows with them.
      **Reachability (2026-10-25):** closed — PR #289.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 247".
 
@@ -8902,7 +8902,7 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
 
 256. **"Copy that ability" has no stack object to copy.** `AbilityActivated`
      names the ability by identity, which two activations of one ability
-     share. A placed trigger's stack entry keeps no `TriggerSeq`, so
+     share. A placed trigger's stack entry keeps no `TriggerId`, so
      `AbilityTriggered.seq` finds nothing on the stack (CR 707.10).
      `TriggerBinding.triggered_by` is never written. 15 cards: `(o:"when " or
      o:"whenever ") o:"copy that ability"`, Illusionist's Bracers and Aboleth
@@ -9707,7 +9707,7 @@ row 57 is item 297.
      itself, and the dispatch walks the whole zone map.~~ — ✅ CLOSED 2026-10-25
      (PR #289, `trigger-matcher-merges`).** — archived. `TriggerGate`, built by
      `trigger_gate` for the dispatch, the look-back snapshot and the state
-     check, with today's legs (`OffTheBattlefield`); the zone leg's filter is
+     check, with today's legs (`OffBattlefieldLegs`); the zone leg's filter is
      readiness's to price on it.
      **Reachability (2026-10-25):** closed — PR #289.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 302".
@@ -9773,7 +9773,7 @@ row 57 is item 297.
 309. **~~A template naming a referred object its arm never remembers is made
      empty, and never triggers, with no error.~~ — ✅ CLOSED 2026-10-25 (PR
      #289, `trigger-matcher-merges`).** — archived.
-     `TriggerEvent::names_referred`, and `readings_its_arms_cannot_give`
+     `TriggerEvent::names_referred_object`, and `readings_its_arms_cannot_give`
      refuses a referred object its arm's subject does not remember.
      **Reachability (2026-10-25):** closed — PR #289.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 309".
@@ -9887,13 +9887,13 @@ keyed by its event.
      (PR #289, `trigger-matcher-merges`).** — archived. Each restated fact is
      read off its record's frame: `SameZoneMove`'s owner, `ControlChanged`'s
      "from", `SpellCountered`'s controller, and a move's owner through
-     `Departed`.
+     `DepartedObject`.
      **Reachability (2026-10-25):** closed — PR #289.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 319".
 
 320. **~~Records name an object by its id where the CR keys it by existence.~~
      — ✅ CLOSED 2026-10-25 (PR #289, `trigger-matcher-merges`).** — archived.
-     Split in the doc at #289: a move's records (`Departed`) and the three
+     Split in the doc at #289: a move's records (`DepartedObject`) and the three
      always-framed records (their frame) name their existence; the other
      payloads' plain ids are item 328, at `one-fact-one-type`.
      **Reachability (2026-10-25):** closed — PR #289.
@@ -9976,7 +9976,7 @@ keyed by its event.
 ### Found by `trigger-matcher-merges` (2026-10-25)
 
 328. **Most record payloads still name an object by its id alone.** Item 320
-     landed for a move's two records, whose `Departed` names the existence
+     landed for a move's two records, whose `DepartedObject` names the existence
      that left, and for the three that always carry a frame. Eighteen fields
      still hold a bare `ObjectId` where the CR keys the object by existence
      (CR 400.7): `Tapped`, `Untapped`, `CardDrawn.card_id`,

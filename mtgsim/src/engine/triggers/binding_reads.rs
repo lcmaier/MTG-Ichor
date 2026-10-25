@@ -151,7 +151,7 @@ impl TriggerDef {
         // The creating resolution remembers what an arm's subject refers to
         // (CR 603.7c) and nothing else; named anywhere else, the referred
         // set is empty and the trigger never triggers.
-        if arms.iter().any(|arm| arm.names_referred() && !arm.watches_referred()) {
+        if arms.iter().any(|arm| arm.names_referred_object() && !arm.watches_referred()) {
             wrong.push("a referred object, named where its arm remembers none (CR 603.7c)");
         }
         // CR 120.10's excess is the event's, which a permanent's records sum

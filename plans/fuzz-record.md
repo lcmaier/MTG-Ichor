@@ -606,7 +606,7 @@ and B10's design moved up to right after TR-5g.
 
 **Copies** (`close_out.py`'s report against `main`, and the model pass,
 `plans/references/duplicate-inventory.md` §3.10): the report's twelve
-compositions are the candidate building `find_matches` was split into beside
+compositions are the candidate building `find_trigger_matches` was split into beside
 the audit's deliberate re-derivation, and two merges (a match's arm, a
 functioning static ability). The model pass named four defects in the
 branch's new code, fixed at review, and four merges; the shipped arm before
@@ -4604,7 +4604,7 @@ the head:
 | `oracle::mana_helpers::activatable_abilities` | 6.05 | 6.05 | 6.3% |
 | `layers::board::row_affected` | 6.61 | 5.76 | 6.0% |
 
-The dispatcher itself (`dispatch_inner`, which `find_matches` inlines into on
+The dispatcher itself (`dispatch_inner`, which `find_trigger_matches` inlines into on
 the head) is 1.72 G on `main` and 1.73 G on the head, 1.8%: §11.2's 2% at this
 scale, now an instruction count. Two rows no phase has named sit in the top
 third: the sort behind `battlefield_ordered` (10.3% inclusive, 7.6% of it

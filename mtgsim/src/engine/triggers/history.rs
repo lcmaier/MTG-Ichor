@@ -12,7 +12,7 @@ use std::sync::Arc;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::events::event::{DamageTarget, Departed, EventId, GameEvent, LifeChange};
+use crate::events::event::{DamageTarget, DepartedObject, EventId, GameEvent, LifeChange};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history_log::{HistoryRow, RowFact, RowFrame, RowKind, FIRST_TURN};
 use crate::types::history::TurnFact;
@@ -173,7 +173,7 @@ impl GameState {
     fn count(&mut self, update: &HistoryUpdate) {
         match update {
             HistoryUpdate::AbilityResolved { identity } => {
-                *self.history.resolutions_this_turn.entry(identity.whichever_instance()).or_insert(0) += 1;
+                *self.history.resolutions_this_turn.entry(identity.ignoring_grant()).or_insert(0) += 1;
             }
             HistoryUpdate::CardDrawn { player } if self.turn_number >= FIRST_TURN && self.in_own_draw_step(*player) => {
                 if let Some(history) = self.history.players.get_mut(*player) {
@@ -222,7 +222,7 @@ impl GameState {
 
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
     pub(crate) fn resolutions_this_turn_of(&self, identity: AbilityIdentity) -> u32 {
-        self.history.resolutions_this_turn.get(&identity.whichever_instance()).copied().unwrap_or(0)
+        self.history.resolutions_this_turn.get(&identity.ignoring_grant()).copied().unwrap_or(0)
     }
 
     /// The log's rows for record `seq` of `window`, each its object as the
@@ -288,22 +288,22 @@ impl GameState {
                 let became = ObjectRef { id: moved.object().id, zone_change_epoch: *new_epoch };
                 let fact = RowFact::LeftZone { from: *from, to: *to, act: *act, became };
                 match moved {
-                    Departed::Framed(lki) => {
+                    DepartedObject::WithLki(lki) => {
                         let (object, frame) = departed(lki);
                         draft_history_row(Some(lki.characteristics().controller), object, frame, fact);
                     }
-                    Departed::Unframed { owner, .. } => draft_history_row(Some(*owner), Some(became), as_left(frame_as_left(became)), fact),
+                    DepartedObject::WithoutLki { owner, .. } => draft_history_row(Some(*owner), Some(became), as_left(frame_as_left(became)), fact),
                 }
             }
             GameEvent::SameZoneMove { zone, act, lki, .. } => {
                 let fact = RowFact::LeftZone { from: *zone, to: *zone, act: *act, became: lki.object() };
                 draft_history_row(Some(lki.owner()), Some(lki.object()), RowFrame::LastKnown(lki.clone()), fact);
             }
-            GameEvent::LeftTheGame { departed: Departed::Framed(lki), from } => {
+            GameEvent::LeftTheGame { departed: DepartedObject::WithLki(lki), from } => {
                 let (object, frame) = departed(lki);
                 draft_history_row(Some(lki.owner()), object, frame, RowFact::LeftTheGame { from: *from });
             }
-            GameEvent::LeftTheGame { departed: Departed::Unframed { object, owner }, from } => {
+            GameEvent::LeftTheGame { departed: DepartedObject::WithoutLki { object, owner }, from } => {
                 draft_history_row(Some(*owner), Some(*object), RowFrame::None, RowFact::LeftTheGame { from: *from });
             }
             // A source that left before dealing it deals it as it last existed

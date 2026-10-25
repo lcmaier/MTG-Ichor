@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use super::dispatch::{visible_to_all, OffTheBattlefield};
+use super::dispatch::{visible_to_all, OffBattlefieldLegs};
 use super::audit::assert_agree;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -63,7 +63,7 @@ impl GameState {
                 continue;
             }
             let pending = PendingTrigger {
-                seq: self.take_next_trigger_seq(),
+                seq: self.take_next_trigger_id(),
                 origin: TriggerOrigin::Object(m.identity),
                 controller: m.controller,
                 source_card: m.source_card,
@@ -89,7 +89,7 @@ impl GameState {
     /// off it, the objects a row naming them puts one on, and the zones a
     /// `Filter` row does. In CR 613.7 order, as the dispatcher's candidates.
     fn state_trigger_candidates(&self) -> Vec<ObjectId> {
-        let gate = self.trigger_gate(EventKindMask::of(EventKind::BoardState), Vec::new(), OffTheBattlefield::OfTheKinds);
+        let gate = self.trigger_gate(EventKindMask::of(EventKind::BoardState), Vec::new(), OffBattlefieldLegs::FilteredByKind);
         if gate.is_empty() {
             return Vec::new();
         }

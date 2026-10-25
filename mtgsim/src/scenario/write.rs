@@ -123,7 +123,7 @@ impl<'g> Writer<'g> {
             #[cfg(debug_assertions)]
             last_sba_check_epoch: _,
             pending_triggers,
-            next_trigger_seq: _,
+            next_trigger_id: _,
             delayed_triggers,
             until_returns,
             next_delayed_trigger_id: _, // a counter
@@ -637,9 +637,9 @@ impl<'g> Writer<'g> {
         }
         // ORDER-FREE: sorted next.
         let mut resolved: Vec<_> = state.history.resolutions_this_turn.iter().collect();
-        resolved.sort_by_key(|entry| board_order(entry.0.0, entry.0.1));
-        for (&(source, ability), &times) in resolved {
-            if let Some((id, n)) = ability_of(self, source, ability) {
+        resolved.sort_by_key(|entry| board_order(entry.0.source, entry.0.ability));
+        for (identity, &times) in resolved {
+            if let Some((id, n)) = ability_of(self, identity.source, identity.ability) {
                 facts.push((id, n, CardWord::Resolved { ability: Some(n), times }));
             }
         }

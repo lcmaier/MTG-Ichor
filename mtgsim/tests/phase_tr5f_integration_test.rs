@@ -22,7 +22,7 @@ use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy};
-use mtgsim::events::event::{CombatExit, Departed, EventRecord, GameEvent};
+use mtgsim::events::event::{CombatExit, DepartedObject, EventRecord, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::history_log::RowFact;
@@ -274,7 +274,7 @@ fn leaving_the_battlefield_removes_it_with_no_removal_record() {
     let left = records
         .events()
         .find_map(|event| match event {
-            GameEvent::ZoneChange { from: Zone::Battlefield, departed: Departed::Framed(lki), .. } => Some(lki.attacking()),
+            GameEvent::ZoneChange { from: Zone::Battlefield, departed: DepartedObject::WithLki(lki), .. } => Some(lki.attacking()),
             _ => None,
         })
         .expect("the zone change");

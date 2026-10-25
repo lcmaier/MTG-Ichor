@@ -45,7 +45,7 @@ if hasattr(sys.stdout, "reconfigure"):
 KEYS = {
     "ObjectId", "ObjectRef", "PlayerId", "EventId", "BatchId", "AbilityId", "AbilityIdentity",
     "ZoneChangeEpoch", "DelayedTriggerId", "ExtraTurnId", "ReplacementInstanceId", "UntilReturnId",
-    "TriggerSeq", "TargetRef", "ObjectOrPlayer",
+    "TriggerId", "TargetRef", "ObjectOrPlayer",
 }
 CONTAINERS = {
     "Option", "Vec", "Box", "Rc", "Arc", "IdSet", "IdMap", "HashSet", "HashMap", "BTreeMap", "BTreeSet",

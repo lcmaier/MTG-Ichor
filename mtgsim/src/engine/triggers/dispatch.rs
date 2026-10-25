@@ -34,7 +34,7 @@ use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::ui::decision::AsksNobody;
-use crate::events::event::{BatchId, CounterSubject, DamageTarget, Departed, EventRecord, EventId, GameEvent, LifeChange};
+use crate::events::event::{BatchId, CounterSubject, DamageTarget, DepartedObject, EventRecord, EventId, GameEvent, LifeChange};
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::oracle::characteristics::controller_or_owner;
@@ -50,7 +50,7 @@ use crate::types::mana::ManaType;
 use crate::types::triggers::{
     zone_change_looks_back, AttackOccurrence, BlockOccurrence, CountersOn, TargetSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
     ObjectOrPlayer, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
-    TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
+    TriggerLimit, TriggerOrigin, TriggerId, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
 };
 use super::binding::TriggeringEventView;
 
@@ -139,8 +139,10 @@ pub(super) struct LkiKeeper<'a> {
     place: KeeperPlace,
 }
 
-/// Where a keeper is, for the one writer of what a trigger keeps
-/// (`aura_put_into_graveyard_by_the_check`).
+/// Where a keeper is, so a write can reach it. A trigger's binding is fixed
+/// once it triggers but for one field, `source_found_in_graveyard` (CR
+/// 400.7f), which a state-based action can fill while the trigger waits or
+/// sits on the stack (`aura_put_into_graveyard_by_sba`).
 #[derive(Clone, Copy)]
 enum KeeperPlace {
     Waiting(usize),
@@ -216,7 +218,7 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
 }
 
 /// The objects that may carry a triggered ability reading some kinds of
-/// record, as the dispatch gate's legs find them (§4.2): the permanents whose
+/// record, as the dispatch gate's legs find them: the permanents whose
 /// printed triggers read one, the objects a row naming them puts one on, the
 /// window's newcomers, the zones a `Filter` row reaches, and the cards off
 /// the battlefield on the zone map. Built by one constructor
@@ -225,47 +227,52 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
 pub(super) struct TriggerGate<'a> {
     game: &'a GameState,
     kinds: EventKindMask,
-    off_the_battlefield: OffTheBattlefield,
+    off_battlefield_legs: OffBattlefieldLegs,
     readers: Vec<ObjectId>,
     named: Vec<ObjectId>,
     newcomers: Vec<ObjectId>,
     unattributed: ZoneSet,
 }
 
-/// Whether the legs off the battlefield ask the kinds. The zone map files
-/// each object's kinds and the summary a `Filter` row's, but the dispatch
-/// and the look-back snapshot walk both whole; which filtering the dispatch
-/// could afford is readiness's to price, on this constructor.
+/// Which of the cards off the battlefield the gate hands the matcher. Two
+/// legs find them: the zone map, every card whose triggered ability works
+/// where it is (a graveyard's, a hand's), filed with the kinds of record its
+/// abilities read; and the zones a row granting or copying a triggered
+/// ability reaches. `Unfiltered` takes every card on both, whatever the
+/// window holds: the dispatch and the look-back snapshot ask that today.
+/// `FilteredByKind` takes only those whose abilities read a kind the window
+/// carries: the state check asks that, for its one kind. Whether the dispatch
+/// can afford to filter too is the readiness pass's question.
 #[derive(Clone, Copy)]
-pub(super) enum OffTheBattlefield {
-    Whole,
-    OfTheKinds,
+pub(super) enum OffBattlefieldLegs {
+    Unfiltered,
+    FilteredByKind,
 }
 
 impl<'a> TriggerGate<'a> {
     /// Whether no leg holds anything, so the candidates are none.
     pub(super) fn is_empty(&self) -> bool {
-        let no_zone_sources = match self.off_the_battlefield {
-            OffTheBattlefield::Whole => self.game.zone_trigger_sources.is_empty(),
-            OffTheBattlefield::OfTheKinds => zone_sources(self.game, self.kinds, self.off_the_battlefield).next().is_none(),
+        let no_zone_sources = match self.off_battlefield_legs {
+            OffBattlefieldLegs::Unfiltered => self.game.zone_trigger_sources.is_empty(),
+            OffBattlefieldLegs::FilteredByKind => zone_sources(self.game, self.kinds, self.off_battlefield_legs).next().is_none(),
         };
         self.readers.is_empty() && self.named.is_empty() && self.newcomers.is_empty() && self.unattributed.is_empty() && no_zone_sources
     }
 
-    /// The candidates its legs reach, in CR 613.7 order (`candidates_now`).
+    /// The candidates its legs reach, in timestamp order.
     pub(super) fn candidates(self) -> Vec<ObjectId> {
-        let TriggerGate { game, kinds, off_the_battlefield, readers, named, newcomers, unattributed } = self;
-        game.candidates_now(readers, named, newcomers, unattributed, zone_sources(game, kinds, off_the_battlefield))
+        let TriggerGate { game, kinds, off_battlefield_legs, readers, named, newcomers, unattributed } = self;
+        game.candidates_now(readers, named, newcomers, unattributed, zone_sources(game, kinds, off_battlefield_legs))
     }
 }
 
 /// The zone map's objects, only those filed under `kinds` where the legs off
 /// the battlefield ask them.
-fn zone_sources(game: &GameState, kinds: EventKindMask, off_the_battlefield: OffTheBattlefield) -> impl Iterator<Item = ObjectId> + '_ {
+fn zone_sources(game: &GameState, kinds: EventKindMask, off_battlefield_legs: OffBattlefieldLegs) -> impl Iterator<Item = ObjectId> + '_ {
     // ORDER-FREE: `candidates_now` sorts the zone map's objects by timestamp.
     game.zone_trigger_sources
         .iter()
-        .filter(move |(_, filed)| matches!(off_the_battlefield, OffTheBattlefield::Whole) || filed.intersects(kinds))
+        .filter(move |(_, filed)| matches!(off_battlefield_legs, OffBattlefieldLegs::Unfiltered) || filed.intersects(kinds))
         .map(|(&id, _)| id)
 }
 
@@ -314,7 +321,7 @@ impl<'a> TriggerCandidate<'a> {
     /// from the store with its owner (CR 800.4a) the frame's own list is all
     /// there is, and the stack object is built from a card that names what
     /// the frame does.
-    pub(super) fn last_known(game: &GameState, lki: &'a Lki, zone: Zone, snapshot: Option<usize>) -> Self {
+    pub(super) fn from_lki(game: &GameState, lki: &'a Lki, zone: Zone, snapshot: Option<usize>) -> Self {
         let card = match game.objects.get(&lki.object().id) {
             Some(object) => Arc::clone(&object.card_data),
             None => Arc::new(frame_card(lki.characteristics())),
@@ -330,8 +337,9 @@ impl<'a> TriggerCandidate<'a> {
         }
     }
 
-    /// What the candidate's ability means by its words for itself (§3.3),
-    /// "this ability" being `this_ability` (CR 603.7h).
+    /// What the candidate's ability means by "this object", "you", "its
+    /// owner" and "enchanted creature", "this ability" being `this_ability`
+    /// (CR 603.7h).
     fn referents(&self, this_ability: Option<AbilityIdentity>) -> TriggerReferents<'static> {
         TriggerReferents::of_object(self.object.id, self.controller, self.owner, self.host, this_ability)
     }
@@ -568,7 +576,7 @@ impl AnsweredArms {
 /// A departure's subject `id` as an arm reads it: as its record framed it for
 /// an arm that looks back, and as it is now for any other, "from anywhere"
 /// among them (CR 603.6c, 603.10).
-fn departure_read<'a>(arm: &TriggerEvent, departed: &'a Departed) -> ObjectInformation<'a> {
+fn departure_read<'a>(arm: &TriggerEvent, departed: &'a DepartedObject) -> ObjectInformation<'a> {
     match departed.lki() {
         Some(lki) if arm.looks_back() => ObjectInformation::LastKnown(lki),
         _ => ObjectInformation::Current(departed.object().id),
@@ -752,7 +760,7 @@ impl GameState {
     ///    frame with a triggered ability in it, and whether a batch of the
     ///    window took a look-back snapshot. All empty, and a dispatch is the
     ///    probes and nothing else.
-    /// 2. **The candidates** — `find_matches`' four legs: every object that
+    /// 2. **The candidates** — `find_trigger_matches`' four legs: every object that
     ///    may carry a triggered ability functioning where it is, in CR 613.7
     ///    order, each with the effective ability list read once and the card a
     ///    stack object would be built from.
@@ -820,7 +828,7 @@ impl GameState {
         if window_kinds.is_empty() {
             return Vec::new();
         }
-        let gate = self.trigger_gate(window_kinds, self.newcomer_trigger_carriers(window), OffTheBattlefield::Whole);
+        let gate = self.trigger_gate(window_kinds, self.newcomer_trigger_carriers(window), OffBattlefieldLegs::Unfiltered);
         // The departed leg reads lists no registration saw, so it keeps its
         // whole walk.
         let any_frame_source = window.iter().any(|seq| {
@@ -831,22 +839,23 @@ impl GameState {
         if gate.is_empty() && !any_frame_source && snapshots.is_empty() {
             return Vec::new();
         }
-        self.find_matches(window, gate, snapshots)
+        self.find_trigger_matches(window, gate, snapshots)
     }
 
-    /// The dispatch gate's legs for `kinds` (§4.2), with `newcomers`, the
-    /// window's, and the legs off the battlefield whole or of the kinds.
-    pub(super) fn trigger_gate(&self, kinds: EventKindMask, newcomers: Vec<ObjectId>, off_the_battlefield: OffTheBattlefield) -> TriggerGate<'_> {
+    /// The dispatch gate's legs for a window carrying `kinds`, with the
+    /// window's `newcomers`, and the cards off the battlefield filtered or
+    /// not (`OffBattlefieldLegs`).
+    pub(super) fn trigger_gate(&self, kinds: EventKindMask, newcomers: Vec<ObjectId>, off_battlefield_legs: OffBattlefieldLegs) -> TriggerGate<'_> {
         let summary = self.continuous_effects.summary();
-        let unattributed = match off_the_battlefield {
-            OffTheBattlefield::Whole => summary.unattributed_trigger_zones,
-            OffTheBattlefield::OfTheKinds if summary.unattributed_trigger_kinds.intersects(kinds) => summary.unattributed_trigger_zones,
-            OffTheBattlefield::OfTheKinds => ZoneSet::EMPTY,
+        let unattributed = match off_battlefield_legs {
+            OffBattlefieldLegs::Unfiltered => summary.unattributed_trigger_zones,
+            OffBattlefieldLegs::FilteredByKind if summary.unattributed_trigger_kinds.intersects(kinds) => summary.unattributed_trigger_zones,
+            OffBattlefieldLegs::FilteredByKind => ZoneSet::EMPTY,
         };
         TriggerGate {
             game: self,
             kinds,
-            off_the_battlefield,
+            off_battlefield_legs,
             readers: self.battlefield_readers(kinds),
             named: self.named_trigger_carriers(kinds),
             newcomers,
@@ -889,7 +898,7 @@ impl GameState {
             // the binding, so a trigger counted once copies nothing.
             for binding in std::iter::repeat_n(binding, times as usize) {
                 let pending = PendingTrigger {
-                    seq: self.take_next_trigger_seq(),
+                    seq: self.take_next_trigger_id(),
                     origin,
                     controller: m.controller,
                     source_card: Arc::clone(&m.source_card),
@@ -918,17 +927,17 @@ impl GameState {
         self.announce_triggered(announce)
     }
 
-    /// "This ability triggers only once each turn" (§3.5), taken as the
-    /// ability queues, so a second match in the same window finds it taken.
+    /// "This ability triggers only once each turn", taken as the ability
+    /// queues, so a second match in the same window finds it taken.
     /// False once this turn's has been taken.
     pub(super) fn may_trigger_this_turn(&mut self, def: &TriggerDef, identity: AbilityIdentity) -> bool {
         def.limit != Some(TriggerLimit::TriggersOnlyOnceEachTurn) || self.history.triggered_this_turn.insert(identity)
     }
 
     /// The next trigger's number, in the order triggers are queued.
-    pub(super) fn take_next_trigger_seq(&mut self) -> TriggerSeq {
-        let seq = TriggerSeq(self.next_trigger_seq);
-        self.next_trigger_seq += 1;
+    pub(super) fn take_next_trigger_id(&mut self) -> TriggerId {
+        let seq = TriggerId(self.next_trigger_id);
+        self.next_trigger_id += 1;
         seq
     }
 
@@ -941,9 +950,9 @@ impl GameState {
         self.pending_triggers.push(pending);
     }
 
-    /// CR 603.3b's second tier watches these records (§4.8): emitted after
-    /// the window has closed, unstamped, each dispatched as it is emitted
-    /// like any unbatched record.
+    /// The records CR 603.3b's second tier ("whenever an ability triggers")
+    /// watches: emitted after the window has closed, unstamped, each
+    /// dispatched as it is emitted like any unbatched record.
     pub(super) fn announce_triggered(&mut self, announce: Vec<GameEvent>) -> Result<(), String> {
         for triggered in announce {
             self.emit_event_unbatched(triggered, EventCause::GameRule(GameRule::AbilityTriggers))?;
@@ -965,7 +974,7 @@ impl GameState {
         // (`engineering-practices.md#when-a-ruling-and-the-cr-disagree`), with
         // the CR 704.5m hook's: the graveyard only.
         self.events.held().iter().find_map(|record| match &record.event {
-            GameEvent::ZoneChange { to: Zone::Graveyard, departed: Departed::Framed(lki), .. } if lki.object() == aura => record.event.new_object(),
+            GameEvent::ZoneChange { to: Zone::Graveyard, departed: DepartedObject::WithLki(lki), .. } if lki.object() == aura => record.event.new_object(),
             _ => None,
         })
     }
@@ -979,9 +988,9 @@ impl GameState {
     ///
     /// The triggers that find it are read first and only those are written:
     /// a write copies the trigger if a fork shares it (`state::shared_stores`).
-    pub(crate) fn aura_put_into_graveyard_by_the_check(&mut self, aura: ObjectRef) {
+    pub(crate) fn aura_put_into_graveyard_by_sba(&mut self, aura: ObjectRef) {
         let Some(found) = self.object_ref(aura.id) else { return };
-        let that_find_it: Vec<KeeperPlace> = self
+        let triggers_finding_the_aura: Vec<KeeperPlace> = self
             .lki_keepers()
             .filter(|keeper| {
                 keeper.identity.is_some_and(|identity| identity.source == aura)
@@ -991,7 +1000,7 @@ impl GameState {
             })
             .map(|keeper| keeper.place)
             .collect();
-        for place in that_find_it {
+        for place in triggers_finding_the_aura {
             let binding = match place {
                 KeeperPlace::Waiting(queue_index) => self.pending_triggers.get_mut(queue_index).map(|pending| &mut pending.binding),
                 KeeperPlace::Stacked(id) => self.stack_entries.get_mut(&id).and_then(|entry| entry.trigger.as_mut()),
@@ -1314,7 +1323,7 @@ impl GameState {
         // reads: which arms look back is `TriggerEvent::looks_back`'s to say,
         // and a kind filter here would be a second table of it. No newcomer's
         // trigger looks back but off its own move's frame.
-        let mut ids = self.trigger_gate(EventKindMask::ALL, Vec::new(), OffTheBattlefield::Whole).candidates();
+        let mut ids = self.trigger_gate(EventKindMask::ALL, Vec::new(), OffBattlefieldLegs::Unfiltered).candidates();
         // And the multipliers, which CR 603.2d's count reads on the same board.
         for id in self.trigger_multiplier_sources_now() {
             if !ids.contains(&id) {
@@ -1388,7 +1397,7 @@ impl GameState {
     /// The matcher's read-only half: the dispatcher's candidates for the
     /// window — its four legs and the survivors' lists from before — asked
     /// by [`Self::match_candidates`].
-    fn find_matches(&self, window: &[EventId], gate: TriggerGate<'_>, snapshots: &[LookBackSnapshot]) -> Vec<MatchedTrigger> {
+    fn find_trigger_matches(&self, window: &[EventId], gate: TriggerGate<'_>, snapshots: &[LookBackSnapshot]) -> Vec<MatchedTrigger> {
         let mut live = gate.candidates();
 
         // Each survivor's lists from before the window's snapshotting batches.
@@ -1418,7 +1427,7 @@ impl GameState {
 
         let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
         self.push_live_candidates(live, &mut before, &mut candidates);
-        candidates.extend(frames.into_iter().map(|(lki, from)| TriggerCandidate::last_known(self, lki, from, None)));
+        candidates.extend(frames.into_iter().map(|(lki, from)| TriggerCandidate::from_lki(self, lki, from, None)));
 
         let (mut matches, matched_candidates) = self.match_candidates(&records, &candidates, snapshots);
         // CR 603.2d, asked only of a window that triggered something.
@@ -1497,7 +1506,7 @@ impl GameState {
         }
         for (lki, from, _) in records.iter().filter_map(|(_, record)| record.event.lki()) {
             if from == Zone::Battlefield && carries_a_trigger_multiplier(lki.characteristics()) {
-                candidates.push(TriggerCandidate::last_known(self, lki, from, None));
+                candidates.push(TriggerCandidate::from_lki(self, lki, from, None));
             }
         }
         candidates
@@ -1684,7 +1693,7 @@ impl GameState {
                 // The ability's own def, shared: nothing writes it once the card
                 // is built, so a Humility landing before placement still cannot
                 // un-trigger it (CR 113.7a).
-                let made = fold_occurrences(&mut matches, row.identity, arm, matched, record, triggering_events, |triggering_events| {
+                let triggers_added = fold_trigger_occurrences(&mut matches, row.identity, arm, matched, record, triggering_events, |triggering_events| {
                     MatchedTrigger {
                         identity: row.identity,
                         controller: candidate.controller,
@@ -1697,7 +1706,7 @@ impl GameState {
                         additional: 0,
                     }
                 });
-                matched_candidates.extend(std::iter::repeat_n(row.candidate, made));
+                matched_candidates.extend(std::iter::repeat_n(row.candidate, triggers_added));
             }
         }
         (matches, matched_candidates)
@@ -1732,11 +1741,19 @@ impl GameState {
         })
     }
 
-    /// The tail every triggered ability's match ends in, an object's
-    /// (`match_def`) and a registry entry's (`match_delayed`): the first of
-    /// `def`'s arms that `asks` admits and `record` triggers, then the
-    /// once-per-turn limits (§3.5), then CR 603.4's intervening "if" at the
-    /// trigger. `Err` names the predicate that refused.
+    /// Whether `record` triggers the ability `def`, and how. The last three
+    /// steps of a match, the same for an object's ability (`match_def`) and a
+    /// delayed trigger (`match_delayed`), each of which asks its own
+    /// questions first:
+    /// 1. the first of the def's trigger events ("whenever X or Y" has two)
+    ///    that reads `record` and that `asks` admits, with the objects of
+    ///    each event in `record` it matches;
+    /// 2. the once-per-turn limits ("only once each turn", "the first time
+    ///    each turn"), checked against that event;
+    /// 3. CR 603.4's intervening "if", which a trigger must pass as it
+    ///    triggers.
+    ///
+    /// `Err` names the step that refused, which the trace records.
     pub(super) fn first_arm_that_triggers(
         &self,
         def: &TriggerDef,
@@ -1914,7 +1931,7 @@ impl GameState {
                 // The resolving spell or ability caused the move, also where a
                 // replacement redirected it (`replacement-architecture.md` §2b.4).
                 let caused = || by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }));
-                let (moved, existence, moved_owner, moved_as_named) = match event {
+                let (moved, left, moved_owner, moved_as_named) = match event {
                     // The subject is read as the record framed it only for an
                     // arm that looks back (CR 603.10a); "from anywhere" reads the
                     // object after the move (CR 603.6c's last sentence, 603.10).
@@ -1947,7 +1964,7 @@ impl GameState {
                 triggering_event_if(
                     moved_as_named
                         && owner.as_ref().is_none_or(|p| self.player_ref_is(p, moved_owner, referents))
-                        && self.subject_matches_existence(subject, moved, Some(existence), referents, seq),
+                        && self.subject_of_a_move_matches(subject, moved, left, referents, seq),
                 )
             }
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
@@ -2166,7 +2183,7 @@ impl GameState {
             (
                 TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility },
                 GameEvent::AbilityResolved { identity: resolved, .. },
-            ) => triggering_event_if(referents.this_ability.is_some_and(|this| this.whichever_instance() == resolved.whichever_instance())),
+            ) => triggering_event_if(referents.this_ability.is_some_and(|this| this.ignoring_grant() == resolved.ignoring_grant())),
             // Read after the event: the attach is done when the dispatch asks
             // (Siona, Captain of the Pyleas' fourth ruling).
             (
@@ -2474,10 +2491,28 @@ impl GameState {
         self.subject_matches_existence(subject, object, None, referents, event_id)
     }
 
-    /// [`Self::subject_matches`] where the record names the existence it is
-    /// about, `existence`, which a remembered object is asked against (CR
-    /// 400.7): a departure's, the existence that left. Without one it is the
-    /// existence `object`'s frame keeps, or the object as it is now.
+    /// [`Self::subject_matches`] for the object a move moved, `left` being
+    /// the existence that left. A delayed trigger's own source and the
+    /// objects it refers to ("when that creature dies") are each one
+    /// existence: once an object moves it is a new object (CR 400.7), so
+    /// asking whether a record is about one needs the existence the record
+    /// is about. Every other record leaves that to the read, where it is the
+    /// existence a frame keeps or the object as it is now. A move read as it
+    /// is now (an arm that does not look back) would give the existence the
+    /// move made, so the move passes the one that left.
+    fn subject_of_a_move_matches(
+        &self,
+        subject: &TriggerSubject,
+        object: ObjectInformation<'_>,
+        left: ObjectRef,
+        referents: &TriggerReferents<'_>,
+        event_id: EventId,
+    ) -> bool {
+        self.subject_matches_existence(subject, object, Some(left), referents, event_id)
+    }
+
+    /// The one body of the two above: `existence`, where given, is which
+    /// existence of its object the record is about.
     fn subject_matches_existence(
         &self,
         subject: &TriggerSubject,
@@ -2487,7 +2522,9 @@ impl GameState {
         event_id: EventId,
     ) -> bool {
         let id = object.id();
-        let named = || {
+        // Read only for "this object" and "that creature", which compare
+        // existences: the given one, else the frame's, else the object's now.
+        let record_existence = || {
             existence.or_else(|| match &object {
                 ObjectInformation::LastKnown(lki) => Some(lki.object()),
                 ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, ..) => self.object_ref(*id),
@@ -2495,7 +2532,7 @@ impl GameState {
         };
         match subject {
             TriggerSubject::Any => true,
-            TriggerSubject::ThisObject => referents.this.is(id, named()),
+            TriggerSubject::ThisObject => referents.this.is(id, record_existence()),
             // Only a permanent has anything attached to it (CR 301.5, 303.4).
             // One read as it was just before this event is asked as that frame
             // has it (CR 603.10a), since the Aura or Equipment that stays has
@@ -2511,8 +2548,8 @@ impl GameState {
                 ObjectInformation::Characteristics(_, _, FrameContext::Entering | FrameContext::HistoryRow(_)) => false,
             },
             TriggerSubject::Referred => {
-                let named = named();
-                referents.referred.iter().any(|r| named == Some(r.object))
+                let existence = record_existence();
+                referents.referred.iter().any(|referred| existence == Some(referred.object))
             }
             TriggerSubject::Filter(filter) => self.object_matches_filter(object, filter, &mut { *referents }),
         }
@@ -2783,13 +2820,16 @@ impl GameState {
     }
 }
 
-/// CR 603.2c's fold of one record's triggering events of `arm`, the ability
-/// `identity`'s arm `event`, into the window's triggers. An arm read per
-/// occurrence makes a trigger of each; a "one or more" arm's events join the
-/// window's one trigger of it, or for an arm read once per subject the one
-/// about the record's subject (§4.4). `trigger` makes a new trigger of its
-/// events. Returns how many it made.
-pub(super) fn fold_occurrences(
+/// Adds one record's matches of one ability to the window's triggers (CR
+/// 603.2c): `triggering_events`, the occurrences of `arm` (the ability
+/// `identity`'s trigger event number `event`) that `record` holds. An arm
+/// read per occurrence makes a trigger of each. A "one or more" arm's
+/// occurrences join the window's one trigger of that arm, or, for an arm
+/// read once per subject, the window's one trigger about the record's
+/// object or player. `trigger` builds a new trigger from its events.
+/// Returns how many new triggers it added, which the dispatch counts to keep
+/// its list of each trigger's candidate in step.
+pub(super) fn fold_trigger_occurrences(
     matches: &mut Vec<MatchedTrigger>,
     identity: AbilityIdentity,
     arm: &TriggerEvent,

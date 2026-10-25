@@ -119,7 +119,7 @@ fn waiting_trigger(game: &GameState, delayed: &DelayedTrigger) -> Option<Waiting
             TriggersIn::ExtraTurn { player: game.active_player, in_progress: true }
         }
         TriggerTurn::Extra(id) => {
-            if !game.extra_turn_is_coming(id) {
+            if !game.extra_turn_current_or_queued(id) {
                 return None;
             }
             let queued = game.turn_queue.iter().find(|turn| turn.id == id)?;

@@ -919,9 +919,9 @@ impl GameState {
                 // CR 603.7c — its "that card" is what this resolution
                 // remembered; a template that names one with nothing
                 // remembered is a card missing its `Effect::Remember`.
-                let names_referred = template.def.trigger_binding_reads().contains(TriggerBindingReads::REFERRED)
+                let names_referred_object = template.def.trigger_binding_reads().contains(TriggerBindingReads::REFERRED)
                     || template.def.condition.events().iter().any(TriggerEvent::watches_referred);
-                if names_referred && walk.remembered.is_none() {
+                if names_referred_object && walk.remembered.is_none() {
                     return Err(format!(
                         "a delayed trigger on {} refers to an object its resolution never remembered (`Effect::Remember`)",
                         ctx.source

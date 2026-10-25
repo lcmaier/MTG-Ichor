@@ -24,18 +24,18 @@
 
 use std::sync::Arc;
 
-use super::dispatch::{fold_occurrences, TriggerReferents, TriggerSource, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
+use super::dispatch::{fold_trigger_occurrences, TriggerReferents, TriggerSource, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
 use crate::types::triggers::{CreatingResolution, ReflexiveForm};
 use crate::engine::actions::ActionContext;
 use super::binding::TriggeringEventView;
 use crate::engine::trace_records;
-use crate::events::event::{EventRecord, EventId, GameEvent};
+use crate::events::event::{CreatedAt, EventRecord, EventId, GameEvent};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, EventIndex, EventKindMask,
-    PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerOrigin, TriggerSeq,
+    PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerOrigin, TriggerId,
     TriggeringEvent, TriggeringEventObjects,
     TriggerTurn,
 };
@@ -95,7 +95,7 @@ impl GameState {
             source_card: provenance.source_card,
             controller: provenance.controller,
             owner,
-            created: self.events.creation_point(),
+            created_at: CreatedAt::now(&self.events),
             created_by: provenance.created_by,
             duration: template.duration,
             x_value: provenance.x_value,
@@ -187,7 +187,7 @@ impl GameState {
             referred: &until.referred,
         };
         window.iter().filter_map(|seq| self.events.record(*seq)).any(|record| {
-            until.created.is_before(record) && !self.triggering_events_in(&until.until, &referents, record).is_empty()
+            until.created_at.is_before(record) && !self.triggering_events_in(&until.until, &referents, record).is_empty()
         })
     }
 
@@ -206,7 +206,7 @@ impl GameState {
             .delayed_triggers
             .iter()
             .filter_map(|d| match d.turn {
-                TriggerTurn::Extra(turn) if !self.extra_turn_is_coming(turn) => Some(turn),
+                TriggerTurn::Extra(turn) if !self.extra_turn_current_or_queued(turn) => Some(turn),
                 TriggerTurn::Extra(_) | TriggerTurn::Any | TriggerTurn::LaterThan(_) => None,
             })
             .collect();
@@ -256,7 +256,7 @@ impl GameState {
         delayed: &DelayedTrigger,
         window: &[EventId],
     ) -> Vec<MatchedTrigger> {
-        self.occurrences_among(delayed, window, |record| delayed.created.is_before(record))
+        self.occurrences_among(delayed, window, |record| delayed.created_at.is_before(record))
     }
 
     /// Every occurrence that triggers an entry among the records of `window`
@@ -282,7 +282,7 @@ impl GameState {
             self.trace_delayed_verdict(delayed, record.seq, verdict.as_ref().err().copied());
             if let Ok((event, triggering_events)) = verdict {
                 let arm = &arms[event.0];
-                fold_occurrences(&mut matches, delayed.identity(), arm, event, record, triggering_events, |triggering_events| {
+                fold_trigger_occurrences(&mut matches, delayed.identity(), arm, event, record, triggering_events, |triggering_events| {
                     matched_of(delayed, event, triggering_events)
                 });
             }
@@ -361,7 +361,7 @@ impl GameState {
             return;
         }
         let caused_by = pending.binding.first_record().map(|r| r.seq);
-        let pending = PendingTrigger { seq: self.take_next_trigger_seq(), ..pending };
+        let pending = PendingTrigger { seq: self.take_next_trigger_id(), ..pending };
         self.queue_trigger(pending, caused_by, announce);
     }
 
@@ -446,7 +446,7 @@ fn matched_of(delayed: &DelayedTrigger, event: EventIndex, triggering_events: Ve
 /// left, the frame the source left with (CR 113.7a).
 fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
     PendingTrigger {
-        seq: TriggerSeq(0),
+        seq: TriggerId(0),
         origin: TriggerOrigin::Delayed(m.identity),
         controller: m.controller,
         source_card: m.source_card,

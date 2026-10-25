@@ -5,7 +5,7 @@ use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_da
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, Departed, EventId, GameEvent, UnattachRoute};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, DepartedObject, EventId, GameEvent, UnattachRoute};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
@@ -2087,7 +2087,7 @@ impl GameState {
         // (`engineering-practices.md#when-a-ruling-and-the-cr-disagree`), with
         // the same-event half's.
         if cause == EventCause::StateBasedAction(StateBasedAction::AuraAttachedIllegally) && to == Zone::Graveyard {
-            self.aura_put_into_graveyard_by_the_check(leaving);
+            self.aura_put_into_graveyard_by_sba(leaving);
         }
         self.announce_zone_change(leaving, from, to, act, departure.frame.clone(), applied, cause)?;
         self.announce_unattached_by_leaving(departure, cause)
@@ -2128,7 +2128,7 @@ impl GameState {
     ) -> Result<(), String> {
         let moved = self.get_object(left.id)?;
         let (owner, new_epoch) = (moved.owner, moved.zone_change_epoch);
-        let departed = Departed::of(left, owner, lki);
+        let departed = DepartedObject::new(left, owner, lki);
         self.emit_event(GameEvent::ZoneChange { departed, from, to, act, applied, new_epoch }, cause)?;
         Ok(())
     }

@@ -5,7 +5,7 @@
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::cause::EventCause;
-use crate::events::event::{EventId, GameEvent, ResolutionStamp};
+use crate::events::event::{CreatedAt, EventId, GameEvent, ResolutionStamp};
 use crate::oracle::characteristics::has_subtype;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{EnchantmentType, Subtype};
@@ -164,7 +164,7 @@ impl GameState {
             returns: returns.iter().map(|(object, _)| object.id).collect(),
         };
         self.emit_event(made, cause)?;
-        let created = self.events.creation_point();
+        let created_at = CreatedAt::now(&self.events);
         let owner = self.owner_of_source(source)?;
         self.until_returns.push(UntilReturn {
             id,
@@ -175,7 +175,7 @@ impl GameState {
             under,
             controller,
             owner,
-            created,
+            created_at,
             cause,
         });
         Ok(())

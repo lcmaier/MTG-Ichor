@@ -235,7 +235,7 @@ pub struct ExtraTurn {
     pub player: PlayerId,
 }
 
-/// Permanents in CR 613.7 order, each with its timestamp. Sorted on the pair
+/// Permanents in timestamp order (CR 613.7), each given with its timestamp. Sorted on the pair
 /// and not keyed on a map lookup, which `sort` calls O(n log n) times and once
 /// paid ~20× (measured 2026-08-25). The timestamp alone is the key: one counter
 /// mints them, so no two tie, and an `ObjectId` is not an order
@@ -263,10 +263,13 @@ pub struct AbilityIdentity {
 }
 
 impl AbilityIdentity {
-    /// CR 603.7h's "this ability": the same ability of the same object,
-    /// whichever instance, which "the third time this turn" counts by (§6.5).
-    pub fn whichever_instance(self) -> (ObjectRef, AbilityId) {
-        (self.source, self.ability.definition())
+    /// This identity with the ability's grant dropped: the same ability of the
+    /// same object, whichever instance of it. Two effects granting one ability
+    /// give the object two instances, each its own identity; CR 603.7h's "when
+    /// this ability has resolved for the third time this turn" (Ashling the
+    /// Pilgrim) counts resolutions of the ability, whichever instance resolved.
+    pub fn ignoring_grant(self) -> AbilityIdentity {
+        AbilityIdentity { source: self.source, ability: self.ability.definition() }
     }
 }
 
@@ -722,7 +725,7 @@ pub struct GameState {
     /// places it, so a clone taken at the ordering prompt resumes by running
     /// the drain again.
     pub pending_triggers: SharedList<crate::types::triggers::PendingTrigger>,
-    pub(crate) next_trigger_seq: u64,
+    pub(crate) next_trigger_id: u64,
     /// CR 603.7's delayed triggered abilities waiting for their events, in
     /// the order they were created: the dispatcher asks every one at every
     /// window carrying a kind it reads (`triggers-architecture.md` §4.6).
@@ -1081,7 +1084,7 @@ impl GameState {
             #[cfg(debug_assertions)]
             last_sba_check_epoch: 1,
             pending_triggers: SharedList::default(),
-            next_trigger_seq: 0,
+            next_trigger_id: 0,
             delayed_triggers: Vec::new(),
             until_returns: Vec::new(),
             next_delayed_trigger_id: 1,
