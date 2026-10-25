@@ -61,7 +61,7 @@ pub enum FrameContext {
     Entering,
     /// A history row's object as the event left it, and the existence the
     /// row names, which a scenario's stated row does not have.
-    AsTheEventLeftIt(Option<ObjectRef>),
+    HistoryRow(Option<ObjectRef>),
 }
 
 impl<'a> ObjectInformation<'a> {
@@ -95,7 +95,7 @@ impl<'a> ObjectInformation<'a> {
     pub fn existence(&self, game: &GameState) -> Option<ObjectRef> {
         match self {
             ObjectInformation::LastKnown(lki) => Some(lki.object()),
-            ObjectInformation::Characteristics(_, _, FrameContext::AsTheEventLeftIt(row_object)) => *row_object,
+            ObjectInformation::Characteristics(_, _, FrameContext::HistoryRow(row_object)) => *row_object,
             ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameContext::Now | FrameContext::Entering) => {
                 game.object_ref(*id)
             }

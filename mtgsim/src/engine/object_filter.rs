@@ -394,7 +394,7 @@ fn board_entry<'g>(
 ) -> Result<Option<&'g PermanentState>, FilterRefusal> {
     match object {
         ObjectInformation::Current(_) | ObjectInformation::Characteristics(_, _, FrameContext::Now) => Ok(game.battlefield.get(&id)),
-        ObjectInformation::Characteristics(_, _, FrameContext::AsTheEventLeftIt(row_object))
+        ObjectInformation::Characteristics(_, _, FrameContext::HistoryRow(row_object))
             if row_object.is_some() && game.object_ref(id) == *row_object =>
         {
             Ok(game.battlefield.get(&id))
@@ -410,7 +410,7 @@ fn board_entry<'g>(
 fn existence_of(game: &GameState, id: ObjectId, object: &ObjectInformation<'_>) -> Result<ObjectRef, FilterRefusal> {
     match object {
         ObjectInformation::LastKnown(lki) => Ok(lki.object()),
-        ObjectInformation::Characteristics(_, _, FrameContext::AsTheEventLeftIt(row_object)) => {
+        ObjectInformation::Characteristics(_, _, FrameContext::HistoryRow(row_object)) => {
             (*row_object).ok_or(FilterRefusal::ObjectGone(id))
         }
         ObjectInformation::Characteristics(_, _, FrameContext::Entering) => Err(FilterRefusal::NotInCharacteristics(id)),

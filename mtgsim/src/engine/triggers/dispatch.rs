@@ -2437,7 +2437,7 @@ impl GameState {
             TriggerSubject::Host => match object {
                 ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameContext::Now) => referents.host == Some(id),
                 ObjectInformation::LastKnown(lki) => !self.gone_before(event_id, lki) && lki.had_attached(referents.this.id()),
-                ObjectInformation::Characteristics(_, _, FrameContext::Entering | FrameContext::AsTheEventLeftIt(_)) => false,
+                ObjectInformation::Characteristics(_, _, FrameContext::Entering | FrameContext::HistoryRow(_)) => false,
             },
             TriggerSubject::Referred => referents.referred.iter().any(|r| r.is(self, id, event_id)),
             TriggerSubject::Filter(filter) => self.object_matches_filter(object, filter, &mut { *referents }),

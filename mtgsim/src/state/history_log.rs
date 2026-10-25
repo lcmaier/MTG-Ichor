@@ -67,7 +67,7 @@ pub enum RowFrame {
     /// Nothing: a row about no object, or a count a scenario states.
     None,
     /// The object's characteristics as the event left it.
-    AsTheEventLeftIt(Arc<EffectiveCharacteristics>),
+    Characteristics(Arc<EffectiveCharacteristics>),
     /// An object that had left by the event, a departure or damage from a
     /// source gone before it: the LKI store's last known information of it,
     /// its frame with what the object store no longer answers, whether it was
@@ -87,7 +87,7 @@ impl RowFrame {
     pub fn frame(&self) -> Option<&Arc<EffectiveCharacteristics>> {
         match self {
             RowFrame::None => None,
-            RowFrame::AsTheEventLeftIt(frame) => Some(frame),
+            RowFrame::Characteristics(frame) => Some(frame),
             RowFrame::LastKnown(lki) => Some(lki.frame()),
         }
     }
@@ -171,8 +171,8 @@ impl HistoryRow {
         let id = self.object.map_or(ObjectId::UNASSIGNED, |object| object.id);
         match &self.frame {
             RowFrame::LastKnown(lki) => matches(ObjectInformation::LastKnown(lki)),
-            RowFrame::AsTheEventLeftIt(frame) => {
-                matches(ObjectInformation::Characteristics(id, frame, FrameContext::AsTheEventLeftIt(self.object)))
+            RowFrame::Characteristics(frame) => {
+                matches(ObjectInformation::Characteristics(id, frame, FrameContext::HistoryRow(self.object)))
             }
             RowFrame::None => {
                 debug_assert!(
@@ -560,7 +560,7 @@ impl HistoryLog {
             .rows_newest_first()
             .filter_map(|row| match &row.frame {
                 RowFrame::LastKnown(lki) => Some(lki.bytes_beside_its_frame()),
-                RowFrame::None | RowFrame::AsTheEventLeftIt(_) => None,
+                RowFrame::None | RowFrame::Characteristics(_) => None,
             })
             .sum();
         let rows: usize = std::iter::successors(self.newest.as_deref(), |chunk| chunk.older.as_deref())
@@ -626,7 +626,7 @@ mod tests {
             log.push(drew(seq, 1));
         }
         let fork = log.clone();
-        let framed = || frame.clone().map_or(RowFrame::None, RowFrame::AsTheEventLeftIt);
+        let framed = || frame.clone().map_or(RowFrame::None, RowFrame::Characteristics);
         log.reframe_newest(vec![framed(), framed(), framed(), RowFrame::None]);
         let framed: Vec<bool> = log.rows_newest_first().take(5).map(|row| row.frame.characteristics().is_some()).collect();
         assert_eq!(framed, [false, true, true, true, false], "oldest first: the newest row took the last frame");
@@ -659,7 +659,7 @@ mod tests {
             combat: 0,
             player: Some(0),
             object: Some(attacker),
-            frame: RowFrame::AsTheEventLeftIt(frame),
+            frame: RowFrame::Characteristics(frame),
             fact: RowFact::Cast { from: Zone::Hand },
         };
         if let Some(object) = game.objects.get_mut(&bears) {
