@@ -14,6 +14,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
 use crate::events::event::{AppliedReplacement, DamageTarget, EventRecord, GameEvent, NamesAsAnnounced};
+use crate::types::triggers::ObjectOrPlayer;
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer, UnaskedChoice};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
@@ -949,16 +950,11 @@ pub fn format_record(game: &GameState, record: &EventRecord) -> String {
 /// Format one event, each object named as its record kept it, and a zone
 /// change with its act and its cause.
 pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnnounced, cause: &EventCause) -> String {
-    use crate::events::event::CounterSubject;
     use crate::events::event::GameEvent::*;
     let named = |id: ObjectId| named_in(game, event, id, announced);
-    let counter_subject_named = |subject: CounterSubject| match subject {
-        CounterSubject::Object(id) => named(id),
-        CounterSubject::Player(player) => player_in_log(player),
-    };
-    let damage_target_named = |target: DamageTarget| match target {
-        DamageTarget::Object(id) => named(id),
-        DamageTarget::Player(player) => player_in_log(player),
+    let object_or_player_named = |named_one: ObjectOrPlayer| match named_one {
+        ObjectOrPlayer::Object(object) => named(object.id),
+        ObjectOrPlayer::Player(player) => player_in_log(player),
     };
     match event {
         ZoneChange { departed, from, to, act, applied, new_epoch: _ } => {
@@ -1040,9 +1036,9 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 if *tapped_for_mana { " tapped for mana" } else { "" },
             )
         }
-        DamageDealt { source_id, source_lki: _, target, amount, excess, is_combat } => {
-            let target_str = damage_target_named(*target);
-            let source = named(*source_id);
+        DamageDealt { source, source_lki: _, target, amount, excess, is_combat } => {
+            let target_str = object_or_player_named(*target);
+            let source = named(source.id);
             let excess = if *excess > 0 { format!(", {excess} excess") } else { String::new() };
             format!(
                 "DamageDealt: {} -> {} for {}{}{}",
@@ -1054,7 +1050,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             )
         }
         DamagePrevented { target, amount, by: _ } => {
-            let target_str = damage_target_named(*target);
+            let target_str = object_or_player_named(*target);
             format!("DamagePrevented: {} to {} by {}", amount, target_str, cause_words(cause, named))
         }
         PhaseBegin { phase, player } => format!("PhaseBegin: {:?} [{}]", phase, player_in_log(*player)),
@@ -1065,7 +1061,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         }
         LifeChanged { player_id, old, new, source, .. } => {
             let src = match source {
-                Some(id) => format!(" (source: {})", named(*id)),
+                Some(source) => format!(" (source: {})", named(source.id)),
                 None => String::new(),
             };
             format!("LifeChanged: {} {} -> {}{}", player_in_log(*player_id), old, new, src)
@@ -1131,13 +1127,13 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         GameEndedInADraw => format!("GameEndedInADraw: by {}", cause_words(cause, named)),
         CountersPutOn { subject, counter_type, n, by, now } => format!(
             "CountersPutOn: {} {} counter(s) put on {} by {} (now {})",
-            n, counter_type.name(), counter_subject_named(*subject), player_in_log(*by), now
+            n, counter_type.name(), object_or_player_named(*subject), player_in_log(*by), now
         ),
         CountersRemovedFrom { subject, counter_type, n, by, now } => {
             let whom = by.map_or_else(|| "a rule".to_string(), player_in_log);
             format!(
                 "CountersRemovedFrom: {} {} counter(s) removed from {} by {} (now {})",
-                n, counter_type.name(), counter_subject_named(*subject), whom, now
+                n, counter_type.name(), object_or_player_named(*subject), whom, now
             )
         }
         Scried { player_id, n, looked_at } => {
@@ -1668,7 +1664,7 @@ mod tests {
     fn every_record(game: &mut GameState) -> Vec<GameEvent> {
         use crate::engine::replacement::ReplacementInstanceId;
         use crate::engine::targeting::TargetRef;
-        use crate::events::event::{CombatExit, CounterSubject, EventId, UnattachRoute};
+        use crate::events::event::{CombatExit, EventId, UnattachRoute};
         use crate::state::game_state::{AbilityIdentity, StepType};
         use crate::types::effects::CounterType;
         use crate::types::ids::{AbilityId, UntilReturnId};
@@ -1699,13 +1695,20 @@ mod tests {
             GameEvent::Untapped { object: reference(game, id()) },
             GameEvent::CardDrawn { player_id: 0, card: reference(game, id()) },
             GameEvent::ManaAdded { player_id: 0, source: reference(game, id()), mana: Vec::new(), tapped_for_mana: true, source_lki: None },
-            GameEvent::DamageDealt { source_id: a, target: DamageTarget::Object(b), amount: 1, excess: 0, is_combat: false, source_lki: None },
-            GameEvent::DamagePrevented { target: DamageTarget::Object(c), amount: 1, by: ReplacementInstanceId::StaticAbility(reference(game, d), AbilityId::printed("x", 0)) },
+            GameEvent::DamageDealt {
+                source: reference(game, a),
+                target: ObjectOrPlayer::Object(reference(game, b)),
+                amount: 1,
+                excess: 0,
+                is_combat: false,
+                source_lki: None,
+            },
+            GameEvent::DamagePrevented { target: ObjectOrPlayer::Object(reference(game, c)), amount: 1, by: ReplacementInstanceId::StaticAbility(reference(game, d), AbilityId::printed("x", 0)) },
             GameEvent::PhaseBegin { phase: PhaseType::Precombat, player: 0 },
             GameEvent::StepBegin { step: StepType::Upkeep, player: 0 },
             GameEvent::TurnBegin { player: 0, turn_number: 1 },
             GameEvent::PermanentEnteredBattlefield { object: reference(game, id()), controller: 0 },
-            GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: Some(id()) },
+            GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: Some(reference(game, id())) },
             GameEvent::AttackersDeclared { attackers: vec![(attacker, AttackTarget::Planeswalker(walker))] },
             GameEvent::BlockersDeclared { blocks: vec![(blocker, blocked)], unblocked: vec![unblocked] },
             GameEvent::BecameBlocked { attacker: id() },
@@ -1740,8 +1743,8 @@ mod tests {
             GameEvent::GameEndedInADraw,
             GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 },
             GameEvent::LibraryShuffled { player_id: 0 },
-            GameEvent::CountersPutOn { subject: CounterSubject::Object(id()), counter_type: CounterType::PlusOnePlusOne, n: 1, by: 0, now: 1 },
-            GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(id()), counter_type: CounterType::PlusOnePlusOne, n: 1, by: None, now: 0 },
+            GameEvent::CountersPutOn { subject: ObjectOrPlayer::Object(reference(game, id())), counter_type: CounterType::PlusOnePlusOne, n: 1, by: 0, now: 1 },
+            GameEvent::CountersRemovedFrom { subject: ObjectOrPlayer::Object(reference(game, id())), counter_type: CounterType::PlusOnePlusOne, n: 1, by: None, now: 0 },
             GameEvent::Attached {
                 attachment: reference(game, attached),
                 host: reference(game, host),

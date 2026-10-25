@@ -27,6 +27,7 @@ use mtgsim::cards::phase_tr1_cards::blood_artist;
 use mtgsim::cards::phase_tr4a_cards::{compost, demonic_vigor, strangleroot_geist};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness, has_type};
 use mtgsim::state::battlefield::CostChoices;
@@ -776,7 +777,7 @@ fn a_dies_trigger_puts_as_many_counters_as_its_source_had() {
     resolve_all(&mut game, &test_dp());
     assert_eq!(counters(&game, b, CounterType::PlusOnePlusOne), 6, "three new counters, put and so doubled");
     let put_on_b = game.recorded_events().events().any(|event| {
-        matches!(event, GameEvent::CountersPutOn { subject: CounterSubject::Object(id), n: 6, .. } if *id == b)
+        matches!(event, GameEvent::CountersPutOn { subject: ObjectOrPlayer::Object(object), n: 6, .. } if object.id == b)
     });
     assert!(put_on_b, "put, not moved: A's ceased to exist as it left (CR 122.2)");
 }

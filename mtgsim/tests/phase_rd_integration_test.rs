@@ -177,7 +177,7 @@ fn the_life_change_from_damage_still_names_the_damage_source() {
         .records_from(before)
         .iter()
         .filter_map(|r| match r.event {
-            GameEvent::LifeChanged { source, .. } => Some(source),
+            GameEvent::LifeChanged { source, .. } => Some(source.map(|source| source.id)),
             _ => None,
         })
         .collect();

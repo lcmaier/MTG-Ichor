@@ -139,7 +139,7 @@ fn damage_since(game: &GameState, from: usize) -> Vec<(ObjectId, u64)> {
         .events()
         .skip(from)
         .filter_map(|e| match e {
-            GameEvent::DamageDealt { source_id, amount, .. } => Some((*source_id, *amount)),
+            GameEvent::DamageDealt { source, amount, .. } => Some((source.id, *amount)),
             _ => None,
         })
         .collect()

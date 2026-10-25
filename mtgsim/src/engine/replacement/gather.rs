@@ -101,6 +101,15 @@ impl From<DamageTarget> for EventSubject {
     }
 }
 
+impl From<crate::types::triggers::ObjectOrPlayer> for EventSubject {
+    fn from(subject: crate::types::triggers::ObjectOrPlayer) -> Self {
+        match subject {
+            crate::types::triggers::ObjectOrPlayer::Object(object) => EventSubject::Object(object.id),
+            crate::types::triggers::ObjectOrPlayer::Player(player) => EventSubject::Player(player),
+        }
+    }
+}
+
 impl From<CounterSubject> for EventSubject {
     fn from(subject: CounterSubject) -> Self {
         match subject {

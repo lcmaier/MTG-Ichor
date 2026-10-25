@@ -14,7 +14,7 @@ use crate::engine::targeting::TargetRef;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
-use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerId};
+use crate::types::triggers::{DelayedDuration, Lki, ObjectOrPlayer, TriggerOrigin, TriggerId};
 
 
 /// The object a move took out of a zone, as its record names it: which
@@ -180,8 +180,10 @@ pub enum GameEvent {
     /// step deals noncombat damage in that step (`codebase-state.md` "Before
     /// Triggered abilities" item 10).
     DamageDealt {
-        source_id: ObjectId,
-        target: DamageTarget,
+        /// The existence that dealt it: as it last existed where it left
+        /// first, which `source_lki` frames.
+        source: ObjectRef,
+        target: ObjectOrPlayer,
         amount: u64,
         /// CR 120.10: how much of `amount` was past the damage still lethal
         /// to the permanent after the batch's earlier damage to it, so its
@@ -202,7 +204,7 @@ pub enum GameEvent {
     /// **Announced while its batch decides**, ahead of what the batch
     /// performs: the prevented damage is never performed (CR 615.6), and
     /// the application is the event.
-    DamagePrevented { target: DamageTarget, amount: u64, by: ReplacementInstanceId },
+    DamagePrevented { target: ObjectOrPlayer, amount: u64, by: ReplacementInstanceId },
 
     // --- Turn structure ---
     //
@@ -219,14 +221,16 @@ pub enum GameEvent {
 
     // --- Life ---
     /// `source` is a gain's source, or the source of the damage a loss is a
-    /// result of (CR 120.3a). What caused it — an effect, a cost, combat damage
+    /// result of (CR 120.3a), as the existence it is or last was: `None` for
+    /// one that left the game unframed, which no existence names (CR 800.4a).
+    /// What caused it — an effect, a cost, combat damage
     /// — is the record's cause, which CR 727.1a's "from radiation" reads
     /// (item 10).
     LifeChanged {
         player_id: PlayerId,
         old: i64,
         new: i64,
-        source: Option<ObjectId>,
+        source: Option<ObjectRef>,
     },
 
     // --- Combat ---
@@ -441,7 +445,7 @@ pub enum GameEvent {
     /// are put on a permanent" and "whenever you get one or more counters"
     /// read the same record and differ in the subject they ask for.
     CountersPutOn {
-        subject: CounterSubject,
+        subject: ObjectOrPlayer,
         counter_type: CounterType,
         /// How many were put on: never 0, since putting none announces
         /// nothing.
@@ -460,7 +464,7 @@ pub enum GameEvent {
     /// were really there (CR 609.3's "only as much as possible"), and removing none
     /// announces nothing, the same transition rule CR 603.2e gives tapping.
     CountersRemovedFrom {
-        subject: CounterSubject,
+        subject: ObjectOrPlayer,
         counter_type: CounterType,
         /// How many were removed, never 0.
         n: u32,
@@ -706,12 +710,12 @@ impl GameEvent {
             | CardDrawn { card: object, .. }
             | ManaAdded { source: object, .. }
             | SpellCast { spell: object, .. }
-            | SpellFizzled { spell: object, .. } => each(object.id),
-            CountersPutOn { subject: CounterSubject::Object(id), .. }
-            | CountersRemovedFrom { subject: CounterSubject::Object(id), .. }
-            | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
-            | DamagePrevented { target: DamageTarget::Object(id), .. }
-            | BecameBlocked { attacker: id } => each(*id),
+            | SpellFizzled { spell: object, .. }
+            | CountersPutOn { subject: ObjectOrPlayer::Object(object), .. }
+            | CountersRemovedFrom { subject: ObjectOrPlayer::Object(object), .. }
+            | DamageDealt { source: object, target: ObjectOrPlayer::Player(_), .. }
+            | DamagePrevented { target: ObjectOrPlayer::Object(object), .. } => each(object.id),
+            BecameBlocked { attacker: id } => each(*id),
             AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
                 each(identity.source.id)
             }
@@ -735,12 +739,12 @@ impl GameEvent {
             }
             LifeChanged { source, .. } => {
                 if let Some(source) = source {
-                    each(*source);
+                    each(source.id);
                 }
             }
-            DamageDealt { source_id: a, target: DamageTarget::Object(b), .. } => {
-                each(*a);
-                each(*b);
+            DamageDealt { source, target: ObjectOrPlayer::Object(recipient), .. } => {
+                each(source.id);
+                each(recipient.id);
             }
             SpellCountered { countered_by, lki } => {
                 each(lki.object().id);
@@ -792,7 +796,7 @@ impl GameEvent {
             | LeftTheGame { .. }
             | CountersPutOn { .. }
             | CountersRemovedFrom { .. }
-            | DamagePrevented { target: DamageTarget::Player(_), .. }
+            | DamagePrevented { target: ObjectOrPlayer::Player(_), .. }
             | PhaseBegin { .. }
             | StepBegin { .. }
             | TurnBegin { .. }
@@ -836,7 +840,8 @@ pub enum UnattachRoute {
     HostLeft,
 }
 
-/// What damage is being dealt to.
+/// What damage is being dealt to, in a proposal. A record names its object
+/// by existence instead ([`ObjectOrPlayer`], [`Self::existence_in`]).
 ///
 /// `Copy` because CR 614.9's redirection moves one of these into a
 /// rewritten proposal while the original is still being read for the rule's
@@ -845,6 +850,17 @@ pub enum UnattachRoute {
 pub enum DamageTarget {
     Player(PlayerId),
     Object(ObjectId),
+}
+
+impl DamageTarget {
+    /// The object or player as the record of the damage names it: the
+    /// object as the existence it is now (CR 400.7).
+    pub(crate) fn existence_in(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
+        Ok(match self {
+            DamageTarget::Player(player) => ObjectOrPlayer::Player(player),
+            DamageTarget::Object(id) => ObjectOrPlayer::Object(game.existence_of(id)?),
+        })
+    }
 }
 
 /// What counters are being put on or taken off — CR 122.1's "a marker placed
@@ -860,6 +876,17 @@ pub enum DamageTarget {
 pub enum CounterSubject {
     Object(ObjectId),
     Player(PlayerId),
+}
+
+impl CounterSubject {
+    /// The object or player as the record of the counters names it, as
+    /// [`DamageTarget::existence_in`].
+    pub(crate) fn existence_in(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
+        Ok(match self {
+            CounterSubject::Player(player) => ObjectOrPlayer::Player(player),
+            CounterSubject::Object(id) => ObjectOrPlayer::Object(game.existence_of(id)?),
+        })
+    }
 }
 
 /// Which performed event a record is. Ids are handed out in the order events

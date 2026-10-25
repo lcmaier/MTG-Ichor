@@ -1536,10 +1536,14 @@ impl GameState {
                     }
                 }
 
+                let dealt_by = match &source_lki {
+                    Some(lki) => lki.object(),
+                    None => self.existence_of(source)?,
+                };
                 self.emit_event(GameEvent::DamageDealt {
-                    source_id: source,
+                    source: dealt_by,
                     source_lki,
-                    target,
+                    target: target.existence_in(self)?,
                     amount,
                     excess,
                     is_combat,
@@ -1608,7 +1612,7 @@ impl GameState {
                     player_id: player,
                     old: old_life,
                     new: new_life,
-                    source: Some(source),
+                    source: self.existence_of(source).ok(),
                 }, ctx.cause)?;
 
                 Ok(())
@@ -1632,7 +1636,7 @@ impl GameState {
                     old: old_life,
                     new: new_life,
                     // CR 120.3a's loss names the damage's source.
-                    source: damage_source,
+                    source: damage_source.and_then(|source| self.existence_of(source).ok()),
                 }, ctx.cause)?;
 
                 Ok(())
@@ -1770,6 +1774,7 @@ impl GameState {
                     }
                 }
                 let now = self.counter_count_of(subject, counter);
+                let subject = subject.existence_in(self)?;
                 self.emit_event(GameEvent::CountersPutOn { subject, counter_type: counter, n, by, now }, ctx.cause)?;
                 Ok(())
             }
@@ -1799,6 +1804,7 @@ impl GameState {
                     return Ok(());
                 }
                 let now = self.counter_count_of(subject, counter);
+                let subject = subject.existence_in(self)?;
                 self.emit_event(GameEvent::CountersRemovedFrom { subject, counter_type: counter, n: removed, by, now }, ctx.cause)?;
                 Ok(())
             }
@@ -2648,7 +2654,7 @@ mod tests {
         // all been dealt, CR 702.15e).
         let life_events: Vec<_> = game.recorded_events().events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id, old, new, source, .. } = e {
-                Some((*player_id, *old, *new, *source))
+                Some((*player_id, *old, *new, source.map(|source| source.id)))
             } else {
                 None
             }
@@ -2720,7 +2726,7 @@ mod tests {
         // Collect all LifeChanged events for P0 (lifelink gains)
         let lifelink_gains: Vec<_> = game.recorded_events().events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id: 0, source, .. } = e {
-                Some(*source)
+                Some(source.map(|source| source.id))
             } else {
                 None
             }
@@ -2870,7 +2876,7 @@ mod tests {
 
         let life_events: Vec<_> = game.recorded_events().events().filter_map(|e| {
             if let GameEvent::LifeChanged { source, .. } = e {
-                Some(*source)
+                Some(source.map(|source| source.id))
             } else {
                 None
             }

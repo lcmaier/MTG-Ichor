@@ -99,7 +99,7 @@ fn life_changes(game: &GameState) -> Vec<(PlayerId, i64, Option<ObjectId>)> {
         .records()
         .iter()
         .filter_map(|r| match r.event {
-            GameEvent::LifeChanged { player_id, old, new, source, .. } => Some((player_id, new - old, source)),
+            GameEvent::LifeChanged { player_id, old, new, source, .. } => Some((player_id, new - old, source.map(|source| source.id))),
             _ => None,
         })
         .collect()

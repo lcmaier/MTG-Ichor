@@ -204,7 +204,7 @@ mod tests {
         match gains.as_slice() {
             [GameEvent::LifeChanged { old, new, source: src, .. }] => {
                 assert_eq!((*old, *new), (20, 22));
-                assert_eq!(*src, Some(source), "CR 702.15b attributes the gain to the lifelinker");
+                assert_eq!(src.map(|src| src.id), Some(source), "CR 702.15b attributes the gain to the lifelinker");
             }
             other => panic!("expected one gain for player 0, got {:?}", other),
         }

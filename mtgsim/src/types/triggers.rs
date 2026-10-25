@@ -19,7 +19,7 @@ use crate::types::restriction::SourceFilter;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
 use crate::engine::replacement::EventSubject;
-use crate::events::event::{CounterSubject, CreatedAt, DamageTarget, EventRecord, EventId, GameEvent, LifeChange, ResolutionStamp};
+use crate::events::event::{CreatedAt, EventRecord, EventId, GameEvent, LifeChange, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
@@ -1513,8 +1513,8 @@ impl TriggerEvent {
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { player_id, .. }) => Some(*player_id),
             (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. })
             | (TriggerEvent::DamageIsPrevented { .. }, GameEvent::DamagePrevented { target, .. }) => match target {
-                DamageTarget::Player(pid) => Some(*pid),
-                DamageTarget::Object(_) => None,
+                ObjectOrPlayer::Player(pid) => Some(*pid),
+                ObjectOrPlayer::Object(_) => None,
             },
             (TriggerEvent::PhaseBegins { .. }, GameEvent::PhaseBegin { player, .. })
             | (TriggerEvent::StepBegins { .. }, GameEvent::StepBegin { player, .. })
@@ -1540,8 +1540,8 @@ impl TriggerEvent {
             // The player who got them; counters on an object name no player.
             (TriggerEvent::CountersPutOn { .. }, GameEvent::CountersPutOn { subject, .. })
             | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { subject, .. }) => match subject {
-                CounterSubject::Player(player) => Some(*player),
-                CounterSubject::Object(_) => None,
+                ObjectOrPlayer::Player(player) => Some(*player),
+                ObjectOrPlayer::Object(_) => None,
             },
             (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { controller, .. })
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { controller, .. }) => {
@@ -2279,8 +2279,8 @@ pub(crate) mod samples {
             ("Untapped", GameEvent::Untapped { object: identity.source }),
             ("ManaAdded", GameEvent::ManaAdded { player_id: 0, source: identity.source, mana: Vec::new(), tapped_for_mana: false, source_lki: None }),
             ("DamageDealt", GameEvent::DamageDealt {
-                source_id: id,
-                target: DamageTarget::Player(0),
+                source: identity.source,
+                target: ObjectOrPlayer::Player(0),
                 amount: 1,
                 excess: 0,
                 is_combat: false,
@@ -2313,7 +2313,7 @@ pub(crate) mod samples {
                 former_host_left: false,
             }),
             ("DamagePrevented", GameEvent::DamagePrevented {
-                target: DamageTarget::Player(0),
+                target: ObjectOrPlayer::Player(0),
                 amount: 1,
                 by: crate::engine::replacement::ReplacementInstanceId::StaticAbility(identity.source, identity.ability),
             }),
@@ -2337,14 +2337,14 @@ pub(crate) mod samples {
             ("SameZoneMove", GameEvent::SameZoneMove { zone: Zone::Library, act: ZoneChangeAct::Milled, applied: None, lki: lki.clone() }),
             ("ControlChanged", GameEvent::ControlChanged { to: 1, lki }),
             ("CountersPutOn", GameEvent::CountersPutOn {
-                subject: CounterSubject::Object(id),
+                subject: ObjectOrPlayer::Object(identity.source),
                 counter_type: CounterType::PlusOnePlusOne,
                 n: 1,
                 by: 0,
                 now: 1,
             }),
             ("CountersRemovedFrom", GameEvent::CountersRemovedFrom {
-                subject: CounterSubject::Object(id),
+                subject: ObjectOrPlayer::Object(identity.source),
                 counter_type: CounterType::PlusOnePlusOne,
                 n: 1,
                 by: Some(0),

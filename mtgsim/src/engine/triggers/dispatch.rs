@@ -34,7 +34,7 @@ use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::ui::decision::AsksNobody;
-use crate::events::event::{BatchId, CounterSubject, DamageTarget, DepartedObject, EventRecord, EventId, GameEvent, LifeChange};
+use crate::events::event::{BatchId, DepartedObject, EventRecord, EventId, GameEvent, LifeChange};
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::oracle::characteristics::controller_or_owner;
@@ -1991,11 +1991,11 @@ impl GameState {
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, excess, .. },
-                GameEvent::DamageDealt { source_id, target, is_combat, excess: dealt_excess, .. },
+                GameEvent::DamageDealt { source: dealt_by, target, is_combat, excess: dealt_excess, .. },
             ) => {
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
-                let source_read = ObjectInformation::of(*source_id, record.event.source_lki());
+                let source_read = ObjectInformation::of(dealt_by.id, record.event.source_lki());
                 triggering_event_if(
                     self.damage_recipient_matches(recipient, *target, referents, seq)
                         && combat.is_none_or(|c| c == *is_combat)
@@ -2381,9 +2381,9 @@ impl GameState {
         else {
             return Vec::new();
         };
-        let (on, kind, n, who) = match record.event {
-            GameEvent::CountersPutOn { subject, counter_type, n, by, .. } => (subject, counter_type, n, Some(by)),
-            GameEvent::CountersRemovedFrom { subject, counter_type, n, by, .. } => (subject, counter_type, n, by),
+        let (on, kind, n, who) = match &record.event {
+            GameEvent::CountersPutOn { subject, counter_type, n, by, .. } => (*subject, *counter_type, *n, Some(*by)),
+            GameEvent::CountersRemovedFrom { subject, counter_type, n, by, .. } => (*subject, *counter_type, *n, *by),
             _ => return Vec::new(),
         };
         let matched = counter_type.is_none_or(|k| k == kind)
@@ -2402,15 +2402,15 @@ impl GameState {
     /// as it is after the event (CR 603.10). "On you" or "on a player"
     /// (`CountersOn::Player`) asks the player `on` names, any player for
     /// `None`. Counters on a player never match an object arm, nor the reverse.
-    fn counters_on_matches(&self, watched: &CountersOn, on: CounterSubject, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
+    fn counters_on_matches(&self, watched: &CountersOn, on: ObjectOrPlayer, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
         match (watched, on) {
-            (CountersOn::Object(which), CounterSubject::Object(id)) => {
-                self.subject_matches(which, ObjectInformation::Current(id), referents, seq)
+            (CountersOn::Object(which), ObjectOrPlayer::Object(object)) => {
+                self.subject_matches(which, ObjectInformation::Current(object.id), referents, seq)
             }
-            (CountersOn::Player(who), CounterSubject::Player(player)) => {
+            (CountersOn::Player(who), ObjectOrPlayer::Player(player)) => {
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, player, referents))
             }
-            (CountersOn::Object(_), CounterSubject::Player(_)) | (CountersOn::Player(_), CounterSubject::Object(_)) => false,
+            (CountersOn::Object(_), ObjectOrPlayer::Player(_)) | (CountersOn::Player(_), ObjectOrPlayer::Object(_)) => false,
         }
     }
 
@@ -2466,22 +2466,22 @@ impl GameState {
     fn damage_recipient_matches(
         &self,
         recipient: &DamageRecipient,
-        target: DamageTarget,
+        target: ObjectOrPlayer,
         referents: &TriggerReferents<'_>,
         seq: EventId,
     ) -> bool {
         match (recipient, target) {
             (DamageRecipient::Any, _) => true,
-            (DamageRecipient::Player(who), DamageTarget::Player(pid)) => {
+            (DamageRecipient::Player(who), ObjectOrPlayer::Player(pid)) => {
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, pid, referents))
             }
-            (DamageRecipient::Object(filter), DamageTarget::Object(id)) => match filter {
+            (DamageRecipient::Object(filter), ObjectOrPlayer::Object(object)) => match filter {
                 None => true,
                 Some(filter) => {
-                    self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(id), referents, seq)
+                    self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(object.id), referents, seq)
                 }
             },
-            (DamageRecipient::Player(_), DamageTarget::Object(_)) | (DamageRecipient::Object(_), DamageTarget::Player(_)) => false,
+            (DamageRecipient::Player(_), ObjectOrPlayer::Object(_)) | (DamageRecipient::Object(_), ObjectOrPlayer::Player(_)) => false,
         }
     }
 
@@ -2643,9 +2643,9 @@ impl GameState {
             TriggerEvent::DamageIsPrevented { .. } => self.prevention_objects(&record.event),
             TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } => {
                 match &record.event {
-                    GameEvent::CountersPutOn { subject: CounterSubject::Object(id), .. }
-                    | GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(id), .. } => self
-                        .subject_after(&record.event, *id)
+                    GameEvent::CountersPutOn { subject: ObjectOrPlayer::Object(object), .. }
+                    | GameEvent::CountersRemovedFrom { subject: ObjectOrPlayer::Object(object), .. } => self
+                        .subject_after(&record.event, object.id)
                         .map_or(TriggeringEventObjects::NoObject, TriggeringEventObjects::Object),
                     _ => TriggeringEventObjects::NoObject,
                 }
@@ -2698,13 +2698,13 @@ impl GameState {
     /// A damage event's source and recipient. A source that left before
     /// dealing the damage is the existence that dealt it (CR 608.2h).
     fn damage_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
-        let GameEvent::DamageDealt { source_id, target, .. } = event else {
+        let GameEvent::DamageDealt { source: dealt_by, target, .. } = event else {
             return TriggeringEventObjects::NoObject;
         };
-        let source = event.source_lki().map(Lki::object).or_else(|| self.subject_after(event, *source_id));
+        let source = event.source_lki().map(Lki::object).or_else(|| self.subject_after(event, dealt_by.id));
         let recipient = match target {
-            DamageTarget::Object(id) => self.subject_after(event, *id).map(ObjectOrPlayer::Object),
-            DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
+            ObjectOrPlayer::Object(object) => self.subject_after(event, object.id).map(ObjectOrPlayer::Object),
+            ObjectOrPlayer::Player(player) => Some(ObjectOrPlayer::Player(*player)),
         };
         match (source, recipient) {
             (Some(source), Some(recipient)) => TriggeringEventObjects::Damage { source, recipient },
@@ -2716,8 +2716,8 @@ impl GameState {
     /// none.
     fn prevention_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
         match event {
-            GameEvent::DamagePrevented { target: DamageTarget::Object(id), .. } => self
-                .subject_after(event, *id)
+            GameEvent::DamagePrevented { target: ObjectOrPlayer::Object(object), .. } => self
+                .subject_after(event, object.id)
                 .map_or(TriggeringEventObjects::NoObject, |recipient| TriggeringEventObjects::Prevention { recipient }),
             _ => TriggeringEventObjects::NoObject,
         }

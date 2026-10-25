@@ -23,6 +23,7 @@ use mtgsim::cards::phase_sba_cards::battlegrowth;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
@@ -210,15 +211,19 @@ fn your_permanents_enter_with_a_charge_counter() -> Arc<CardData> {
     )
 }
 
-/// The signed counter changes in the log since `start`.
+/// The signed counter changes in the log since `start`, each subject by id.
 fn counter_changes(game: &GameState, start: usize) -> Vec<(CounterSubject, CounterType, i32)> {
+    let by_id = |subject: ObjectOrPlayer| match subject {
+        ObjectOrPlayer::Object(object) => CounterSubject::Object(object.id),
+        ObjectOrPlayer::Player(player) => CounterSubject::Player(player),
+    };
     game.recorded_events()
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::CountersPutOn { subject, counter_type, n, .. } => Some((*subject, *counter_type, *n as i32)),
+            GameEvent::CountersPutOn { subject, counter_type, n, .. } => Some((by_id(*subject), *counter_type, *n as i32)),
             GameEvent::CountersRemovedFrom { subject, counter_type, n, .. } => {
-                Some((*subject, *counter_type, -(*n as i32)))
+                Some((by_id(*subject), *counter_type, -(*n as i32)))
             }
             _ => None,
         })

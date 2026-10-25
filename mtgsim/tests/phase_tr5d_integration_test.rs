@@ -25,6 +25,7 @@ use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GeneratedBy};
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, StepType};
@@ -122,7 +123,8 @@ fn prevented_since(game: &GameState, from: usize) -> Vec<(DamageTarget, u64)> {
         .events()
         .skip(from)
         .filter_map(|e| match e {
-            GameEvent::DamagePrevented { target, amount, .. } => Some((*target, *amount)),
+            GameEvent::DamagePrevented { target: ObjectOrPlayer::Object(object), amount, .. } => Some((DamageTarget::Object(object.id), *amount)),
+            GameEvent::DamagePrevented { target: ObjectOrPlayer::Player(player), amount, .. } => Some((DamageTarget::Player(*player), *amount)),
             _ => None,
         })
         .collect()

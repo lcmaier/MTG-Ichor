@@ -461,7 +461,7 @@ mod tests {
     #[test]
     fn a_history_read_is_invalidated_by_its_kind_of_row_only() {
         use crate::events::cause::{EventCause, GameRule};
-        use crate::events::event::{DamageTarget, GameEvent};
+        use crate::events::event::GameEvent;
         use crate::state::battlefield::AttackTarget;
         use crate::types::effects::{ObjectFilter, ObjectSet};
         use crate::types::history::ObjectFact;
@@ -480,8 +480,8 @@ mod tests {
 
         let cause = EventCause::GameRule(GameRule::StepBegins);
         let damage = GameEvent::DamageDealt {
-            source_id: bears,
-            target: DamageTarget::Object(wall),
+            source: game.object_ref(bears).unwrap(),
+            target: crate::types::triggers::ObjectOrPlayer::Object(game.object_ref(wall).unwrap()),
             amount: 1,
             excess: 0,
             is_combat: false,

@@ -12,7 +12,7 @@ use std::sync::Arc;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::events::event::{DamageTarget, DepartedObject, EventId, GameEvent, LifeChange};
+use crate::events::event::{DepartedObject, EventId, GameEvent, LifeChange};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history_log::{HistoryRow, RowFact, RowFrame, RowKind, FIRST_TURN};
 use crate::types::history::TurnFact;
@@ -309,17 +309,17 @@ impl GameState {
             }
             // A source that left before dealing it deals it as it last existed
             // (CR 608.2h).
-            GameEvent::DamageDealt { source_id, target, amount, excess, is_combat, source_lki } => {
+            GameEvent::DamageDealt { source, target, amount, excess, is_combat, source_lki } => {
                 let (object, frame) = match source_lki {
                     Some(lki) => departed(lki),
-                    None => match current(*source_id) {
+                    None => match current(source.id) {
                         Some((object, frame)) => (Some(object), frame),
                         None => (None, RowFrame::None),
                     },
                 };
                 let to = match target {
-                    DamageTarget::Object(id) => self.object_ref(*id).map(ObjectOrPlayer::Object),
-                    DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
+                    ObjectOrPlayer::Object(object) => self.object_ref(object.id).map(ObjectOrPlayer::Object),
+                    ObjectOrPlayer::Player(player) => Some(ObjectOrPlayer::Player(*player)),
                 };
                 if let Some(to) = to {
                     let fact = RowFact::DealtDamage { to, amount: *amount, excess: *excess, combat: *is_combat };

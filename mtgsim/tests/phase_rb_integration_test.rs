@@ -14,6 +14,7 @@ use mtgsim::cards::phase_rb_cards::{
 };
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
@@ -356,11 +357,11 @@ fn counter_changes(game: &GameState) -> Vec<(ObjectId, CounterType, i32)> {
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::CountersPutOn { subject: CounterSubject::Object(object_id), counter_type, n, .. } => {
-                Some((*object_id, *counter_type, *n as i32))
+            GameEvent::CountersPutOn { subject: ObjectOrPlayer::Object(object), counter_type, n, .. } => {
+                Some((object.id, *counter_type, *n as i32))
             }
-            GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(object_id), counter_type, n, .. } => {
-                Some((*object_id, *counter_type, -(*n as i32)))
+            GameEvent::CountersRemovedFrom { subject: ObjectOrPlayer::Object(object), counter_type, n, .. } => {
+                Some((object.id, *counter_type, -(*n as i32)))
             }
             _ => None,
         })

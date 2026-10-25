@@ -1648,7 +1648,7 @@ impl GameState {
             };
             self.emit_event(
                 crate::events::event::GameEvent::CountersPutOn {
-                    subject: crate::events::event::CounterSubject::Object(id),
+                    subject: crate::types::triggers::ObjectOrPlayer::Object(self.existence_of(id)?),
                     counter_type: row.counter,
                     n: row.n,
                     by: row.by.unwrap_or(controller),

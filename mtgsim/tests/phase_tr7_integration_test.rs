@@ -732,7 +732,7 @@ fn the_return_announces_two_counter_rows_and_one_check_removes_both() {
     let put: Vec<_> = records
         .iter()
         .filter_map(|r| match r.event {
-            GameEvent::CountersPutOn { subject, counter_type, n, .. } if subject == CounterSubject::Object(scarecrow) => {
+            GameEvent::CountersPutOn { subject, counter_type, n, .. } if subject.object().is_some_and(|on| on.id == scarecrow) => {
                 Some((r.batch(), counter_type, n))
             }
             _ => None,
@@ -742,7 +742,7 @@ fn the_return_announces_two_counter_rows_and_one_check_removes_both() {
     let removed: Vec<_> = records
         .iter()
         .filter_map(|r| match r.event {
-            GameEvent::CountersRemovedFrom { subject, counter_type, n, by, .. } if subject == CounterSubject::Object(scarecrow) => {
+            GameEvent::CountersRemovedFrom { subject, counter_type, n, by, .. } if subject.object().is_some_and(|on| on.id == scarecrow) => {
                 Some((r.batch(), counter_type, n, by))
             }
             _ => None,
