@@ -14,7 +14,7 @@ use crate::engine::targeting::TargetRef;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
-use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerId};
+use crate::types::triggers::{DelayedDuration, Lki, ObjectOrPlayer, TriggerOrigin, TriggerId};
 
 
 /// The object a move took out of a zone, as its record names it: which
@@ -135,10 +135,10 @@ pub enum GameEvent {
     /// tapped — it does not fire for a redundant tap, and does not fire for a
     /// permanent that *enters* tapped. CR 701.26a agrees from the other side:
     /// only untapped permanents can be tapped at all.
-    Tapped { object_id: ObjectId },
+    Tapped { object: ObjectRef },
 
     /// A permanent became untapped (CR 701.26b). Transition-only, as `Tapped`.
-    Untapped { object_id: ObjectId },
+    Untapped { object: ObjectRef },
 
     /// A player drew a card (CR 121.1).
     ///
@@ -152,7 +152,7 @@ pub enum GameEvent {
     /// Not emitted when the library was empty: nothing was drawn, and CR 704.5b
     /// handles the attempt as a state-based action instead.
     ///
-    CardDrawn { player_id: PlayerId, card_id: ObjectId },
+    CardDrawn { player_id: PlayerId, card: ObjectRef },
 
     // --- Mana ---
     /// CR 106.6a / 106.12 — a spell or ability produced mana, performed as
@@ -166,7 +166,7 @@ pub enum GameEvent {
     /// permanent is tapped for mana" triggers read off the performed event.
     ManaAdded {
         player_id: PlayerId,
-        source_id: ObjectId,
+        source: ObjectRef,
         mana: Vec<(ManaType, u64)>,
         tapped_for_mana: bool,
         /// The source as it last existed, where its own mana ability's cost
@@ -180,8 +180,10 @@ pub enum GameEvent {
     /// step deals noncombat damage in that step (`codebase-state.md` "Before
     /// Triggered abilities" item 10).
     DamageDealt {
-        source_id: ObjectId,
-        target: DamageTarget,
+        /// The existence that dealt it: as it last existed where it left
+        /// first, which `source_lki` frames.
+        source: ObjectRef,
+        target: ObjectOrPlayer,
         amount: u64,
         /// CR 120.10: how much of `amount` was past the damage still lethal
         /// to the permanent after the batch's earlier damage to it, so its
@@ -202,7 +204,7 @@ pub enum GameEvent {
     /// **Announced while its batch decides**, ahead of what the batch
     /// performs: the prevented damage is never performed (CR 615.6), and
     /// the application is the event.
-    DamagePrevented { target: DamageTarget, amount: u64, by: ReplacementInstanceId },
+    DamagePrevented { target: ObjectOrPlayer, amount: u64, by: ReplacementInstanceId },
 
     // --- Turn structure ---
     //
@@ -215,36 +217,40 @@ pub enum GameEvent {
     TurnBegin { player: PlayerId, turn_number: u32 },
 
     // --- Permanents ---
-    PermanentEnteredBattlefield { object_id: ObjectId, controller: PlayerId },
+    PermanentEnteredBattlefield { object: ObjectRef, controller: PlayerId },
 
     // --- Life ---
     /// `source` is a gain's source, or the source of the damage a loss is a
-    /// result of (CR 120.3a). What caused it — an effect, a cost, combat damage
+    /// result of (CR 120.3a), as the existence it is or last was: `None` for
+    /// one that left the game unframed, which no existence names (CR 800.4a).
+    /// What caused it — an effect, a cost, combat damage
     /// — is the record's cause, which CR 727.1a's "from radiation" reads
     /// (item 10).
     LifeChanged {
         player_id: PlayerId,
         old: i64,
         new: i64,
-        source: Option<ObjectId>,
+        source: Option<ObjectRef>,
     },
 
     // --- Combat ---
     /// CR 508.1: each creature declared as an attacker, with what it attacks
     /// (CR 508.1b). A creature put onto the battlefield attacking is in no
-    /// record: it never "attacked" (CR 508.4).
-    AttackersDeclared { attackers: Vec<(ObjectId, AttackTarget)> },
+    /// record: it never "attacked" (CR 508.4). What it attacks is the
+    /// combat's own `AttackTarget`, a permanent by id: the record is
+    /// unbatched, so its dispatch reads that permanent at the record's moment.
+    AttackersDeclared { attackers: Vec<(ObjectRef, AttackTarget)> },
     /// CR 509.1: every defending player's blocks (CR 802.4), each as (blocker,
     /// attacker), and each attacking creature no creature was declared
     /// blocking, which became an unblocked creature (CR 509.1h). One record
     /// for the step, written when nobody blocks too, since CR 509.3g's
     /// "attacks and isn't blocked" reads the declaration whole.
-    BlockersDeclared { blocks: Vec<(ObjectId, ObjectId)>, unblocked: Vec<ObjectId> },
+    BlockersDeclared { blocks: Vec<(ObjectRef, ObjectRef)>, unblocked: Vec<ObjectRef> },
     /// CR 509.1h: an unblocked attacking creature became blocked by an
     /// effect, no creature blocking it. "Whenever this becomes blocked"
     /// reads it (CR 509.3c); "becomes blocked by a creature" never does
     /// (509.3d).
-    BecameBlocked { attacker: ObjectId },
+    BecameBlocked { attacker: ObjectRef },
     /// CR 506.4, 511.3: permanents removed from combat at once, each with
     /// what it was attacking or blocking as it was removed, which CR 508.5
     /// reads once its creature has left combat. No replaceable event
@@ -254,7 +260,8 @@ pub enum GameEvent {
     RemovedFromCombat { removed: Vec<CombatExit> },
 
     // --- Spells ---
-    SpellCast { spell_id: ObjectId, caster: PlayerId },
+    /// `spell` is the existence the cast made (CR 400.7).
+    SpellCast { spell: ObjectRef, caster: PlayerId },
 
     // There is no `SpellResolved`/`StackObjectResolved`: a spell finishing
     // resolution is a `ZoneChange` out of the stack caused by CR 608.2n's or
@@ -290,10 +297,11 @@ pub enum GameEvent {
     /// goes on the stack (603.3d). A choice that does not target announces
     /// nothing (CR 115.10a).
     ///
-    /// `ability_source` is an ability's source, which a reader names it by:
-    /// `by` is the stack object, which CR 608.2n removes. `None` for a spell.
-    /// Not the whole `AbilityIdentity`, which would grow every event by half.
-    Targeted { target: TargetRef, by: ObjectId, ability_source: Option<ObjectId>, controller: PlayerId, instances: u32 },
+    /// `ability_source` is an ability's source, as the existence the ability
+    /// is of, which a reader names it by: `by` is the stack object, which CR
+    /// 608.2n removes. `None` for a spell. Not the whole `AbilityIdentity`,
+    /// which would grow every event by half.
+    Targeted { target: TargetRef, by: ObjectRef, ability_source: Option<ObjectRef>, controller: PlayerId, instances: u32 },
     /// An ability triggered (CR 603.2) — the record CR 603.3b's second tier
     /// watches, emitted by the dispatcher once per queued trigger after the
     /// window it belongs to has closed (`triggers-architecture.md` §4.8).
@@ -314,7 +322,7 @@ pub enum GameEvent {
     /// `source` and `controller` are CR 603.7d–g's.
     DelayedTriggerCreated {
         id: DelayedTriggerId,
-        source: ObjectId,
+        source: ObjectRef,
         controller: PlayerId,
         rules_text: AbilityText,
         duration: DelayedDuration,
@@ -324,22 +332,23 @@ pub enum GameEvent {
     /// record for a log and a client, as [`Self::DelayedTriggerCreated`] is.
     /// `source` is the exiling spell or ability's source, `returns` what it
     /// exiled.
-    UntilReturnMade { id: UntilReturnId, source: ObjectId, controller: PlayerId, returns: Vec<ObjectId> },
+    UntilReturnMade { id: UntilReturnId, source: ObjectRef, controller: PlayerId, returns: Vec<ObjectRef> },
     /// A spell was countered (CR 701.6a). `lki` is the spell as it was on the
     /// stack, its entry included, which "whenever a spell is countered" looks
     /// back at (CR 603.10e): the existence it was, who cast it, its
     /// controller as it left the stack (in its owner's graveyard it has none,
     /// CR 108.4a), and what it was before it became a card in a graveyard.
-    SpellCountered { countered_by: ObjectId, lki: Lki },
+    SpellCountered { countered_by: ObjectRef, lki: Lki },
     /// An activated or triggered ability was countered (CR 701.6b), named by
     /// what it is: the stack object ceased to exist as it was countered.
-    AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectId },
+    AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectRef },
     /// A spell doesn't resolve (CR 608.2b): every target of every instance of
     /// "target" is illegal. Its move to the graveyard, the `ZoneChange` caused
     /// by `GameRule::TargetsIllegal`, comes first. Not a countering: CR 701.6a's
     /// counter is an effect's, and "whenever a spell is countered" does not
-    /// read this. `controller` as [`Self::SpellCountered`]'s.
-    SpellFizzled { spell_id: ObjectId, controller: PlayerId },
+    /// read this. `controller` as [`Self::SpellCountered`]'s, and `spell` the
+    /// existence that was on the stack, named before its move.
+    SpellFizzled { spell: ObjectRef, controller: PlayerId },
     /// An ability doesn't resolve (CR 608.2b), named by what it is, as
     /// [`Self::AbilityResolved`] is: CR 608.2b removes the stack object, so
     /// its id names nothing once this is read.
@@ -438,7 +447,7 @@ pub enum GameEvent {
     /// are put on a permanent" and "whenever you get one or more counters"
     /// read the same record and differ in the subject they ask for.
     CountersPutOn {
-        subject: CounterSubject,
+        subject: ObjectOrPlayer,
         counter_type: CounterType,
         /// How many were put on: never 0, since putting none announces
         /// nothing.
@@ -457,7 +466,7 @@ pub enum GameEvent {
     /// were really there (CR 609.3's "only as much as possible"), and removing none
     /// announces nothing, the same transition rule CR 603.2e gives tapping.
     CountersRemovedFrom {
-        subject: CounterSubject,
+        subject: ObjectOrPlayer,
         counter_type: CounterType,
         /// How many were removed, never 0.
         n: u32,
@@ -475,7 +484,7 @@ pub enum GameEvent {
     /// by the `GameAction::Attach` performer on the transition only — an
     /// attach to the host it is already on is CR 701.3b's "does nothing" and
     /// announces nothing.
-    Attached { attachment: ObjectId, host: ObjectId, former_host: Option<ObjectId> },
+    Attached { attachment: ObjectRef, host: ObjectRef, former_host: Option<ObjectRef> },
 
     /// An Aura, Equipment or Fortification stopped being attached to
     /// `former_host` (CR 701.3d), by `route`. Each is the existence it was at
@@ -584,11 +593,12 @@ pub enum GameEvent {
     /// what the creation made it from, after any replacement substituted
     /// another (Divine Visitation), which "when you do" after "create a
     /// [token]" asks (Ajani, Nacatl Avenger's eighth ruling).
-    TokenCreated { object_id: ObjectId, owner: PlayerId, zone: Zone, definition: Arc<crate::types::effects::TokenDef> },
+    TokenCreated { token: ObjectRef, owner: PlayerId, zone: Zone, definition: Arc<crate::types::effects::TokenDef> },
 
     /// A token in a non-battlefield zone ceased to exist (rule 704.5d).
     /// Not a zone change — the token is simply removed from the game.
-    TokenCeasedToExist { object_id: ObjectId },
+    /// `token` is the existence that ended, named before the store lost it.
+    TokenCeasedToExist { token: ObjectRef },
 
     // --- State-based ---
     StateBasedActionPerformed,
@@ -694,53 +704,53 @@ impl GameEvent {
     pub fn for_each_object_named(&self, mut each: impl FnMut(ObjectId)) {
         use GameEvent::*;
         match self {
-            Tapped { object_id: id }
-            | Untapped { object_id: id }
-            | PermanentEnteredBattlefield { object_id: id, .. }
-            | CountersPutOn { subject: CounterSubject::Object(id), .. }
-            | CountersRemovedFrom { subject: CounterSubject::Object(id), .. }
-            | TokenCreated { object_id: id, .. }
-            | TokenCeasedToExist { object_id: id }
-            | CardDrawn { card_id: id, .. }
-            | ManaAdded { source_id: id, .. }
-            | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
-            | DamagePrevented { target: DamageTarget::Object(id), .. }
-            | SpellCast { spell_id: id, .. }
-            | SpellFizzled { spell_id: id, .. }
-            | BecameBlocked { attacker: id } => each(*id),
+            Tapped { object }
+            | Untapped { object }
+            | PermanentEnteredBattlefield { object, .. }
+            | TokenCreated { token: object, .. }
+            | TokenCeasedToExist { token: object }
+            | CardDrawn { card: object, .. }
+            | ManaAdded { source: object, .. }
+            | SpellCast { spell: object, .. }
+            | SpellFizzled { spell: object, .. }
+            | CountersPutOn { subject: ObjectOrPlayer::Object(object), .. }
+            | CountersRemovedFrom { subject: ObjectOrPlayer::Object(object), .. }
+            | DamageDealt { source: object, target: ObjectOrPlayer::Player(_), .. }
+            | DamagePrevented { target: ObjectOrPlayer::Object(object), .. }
+            | BecameBlocked { attacker: object } => each(object.id),
             AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
                 each(identity.source.id)
             }
             AbilityCountered { identity, countered_by, .. } => {
                 each(identity.source.id);
-                each(*countered_by);
+                each(countered_by.id);
             }
             Targeted { target, by, ability_source, .. } => {
                 if let TargetRef::Object(object) = target {
                     each(object.id);
                 }
-                each(ability_source.unwrap_or(*by));
+                each(ability_source.unwrap_or(*by).id);
             }
             AbilityTriggered { origin, .. } => each(origin.source()),
-            DelayedTriggerCreated { source, .. } => each(*source),
+            DelayedTriggerCreated { source, .. } => each(source.id),
             UntilReturnMade { source, returns, .. } => {
-                each(*source);
-                for &returned in returns {
-                    each(returned);
+                each(source.id);
+                for returned in returns {
+                    each(returned.id);
                 }
             }
             LifeChanged { source, .. } => {
                 if let Some(source) = source {
-                    each(*source);
+                    each(source.id);
                 }
             }
-            DamageDealt { source_id: a, target: DamageTarget::Object(b), .. } => {
-                each(*a);
-                each(*b);
+            DamageDealt { source, target: ObjectOrPlayer::Object(recipient), .. } => {
+                each(source.id);
+                each(recipient.id);
             }
             SpellCountered { countered_by, lki } => {
                 each(lki.object().id);
-                each(*countered_by);
+                each(countered_by.id);
             }
             SameZoneMove { lki, .. } | ControlChanged { lki, .. } => each(lki.object().id),
             Unattached { attachment, former_host, .. } => {
@@ -748,16 +758,16 @@ impl GameEvent {
                 each(former_host.id);
             }
             Attached { attachment, host, former_host } => {
-                each(*attachment);
-                each(*host);
+                each(attachment.id);
+                each(host.id);
                 if let Some(former_host) = former_host {
-                    each(*former_host);
+                    each(former_host.id);
                 }
             }
             // Each attacker, and the planeswalker or battle it attacks.
             AttackersDeclared { attackers } => {
                 for &(attacker, target) in attackers {
-                    each(attacker);
+                    each(attacker.id);
                     if let Some(attacked) = target.permanent() {
                         each(attacked);
                     }
@@ -765,11 +775,11 @@ impl GameEvent {
             }
             BlockersDeclared { blocks, unblocked } => {
                 for &(blocker, attacker) in blocks {
-                    each(blocker);
-                    each(attacker);
+                    each(blocker.id);
+                    each(attacker.id);
                 }
-                for &attacker in unblocked {
-                    each(attacker);
+                for attacker in unblocked {
+                    each(attacker.id);
                 }
             }
             // Each permanent removed, and what it attacked or blocked.
@@ -779,8 +789,8 @@ impl GameEvent {
                     if let Some(attacked) = exit.attacking.and_then(AttackTarget::permanent) {
                         each(attacked);
                     }
-                    for &attacker in &exit.blocking {
-                        each(attacker);
+                    for attacker in &exit.blocking {
+                        each(attacker.id);
                     }
                 }
             }
@@ -788,7 +798,7 @@ impl GameEvent {
             | LeftTheGame { .. }
             | CountersPutOn { .. }
             | CountersRemovedFrom { .. }
-            | DamagePrevented { target: DamageTarget::Player(_), .. }
+            | DamagePrevented { target: ObjectOrPlayer::Player(_), .. }
             | PhaseBegin { .. }
             | StepBegin { .. }
             | TurnBegin { .. }
@@ -812,7 +822,7 @@ pub struct CombatExit {
     /// whose planeswalker or battle had left combat first (CR 506.4c).
     pub attacking: Option<AttackTarget>,
     /// The attackers it was blocking.
-    pub blocking: Vec<ObjectId>,
+    pub blocking: Vec<ObjectRef>,
 }
 
 /// Which of CR 701.3d's ways an attachment stopped being attached to its
@@ -832,7 +842,8 @@ pub enum UnattachRoute {
     HostLeft,
 }
 
-/// What damage is being dealt to.
+/// What damage is being dealt to, in a proposal. A record names its object
+/// by existence instead ([`ObjectOrPlayer`], [`Self::for_record`]).
 ///
 /// `Copy` because CR 614.9's redirection moves one of these into a
 /// rewritten proposal while the original is still being read for the rule's
@@ -841,6 +852,17 @@ pub enum UnattachRoute {
 pub enum DamageTarget {
     Player(PlayerId),
     Object(ObjectId),
+}
+
+impl DamageTarget {
+    /// The recipient as the record of the damage names it: a player as it
+    /// is, an object as `GameState::existence_for_record` names it.
+    pub(crate) fn for_record(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
+        Ok(match self {
+            DamageTarget::Player(player) => ObjectOrPlayer::Player(player),
+            DamageTarget::Object(id) => ObjectOrPlayer::Object(game.existence_for_record(id)?),
+        })
+    }
 }
 
 /// What counters are being put on or taken off — CR 122.1's "a marker placed
@@ -856,6 +878,17 @@ pub enum DamageTarget {
 pub enum CounterSubject {
     Object(ObjectId),
     Player(PlayerId),
+}
+
+impl CounterSubject {
+    /// The subject as the record of the counters names it: a player as it
+    /// is, an object as `GameState::existence_for_record` names it.
+    pub(crate) fn for_record(self, game: &crate::state::game_state::GameState) -> Result<ObjectOrPlayer, String> {
+        Ok(match self {
+            CounterSubject::Player(player) => ObjectOrPlayer::Player(player),
+            CounterSubject::Object(id) => ObjectOrPlayer::Object(game.existence_for_record(id)?),
+        })
+    }
 }
 
 /// Which performed event a record is. Ids are handed out in the order events
@@ -1281,8 +1314,9 @@ mod tests {
     fn test_a_batch_stamps_every_event_it_emits() {
         let mut window = EventWindow::new();
         let outer = window.open_batch();
-        window.push(GameEvent::Tapped { object_id: ObjectId::UNASSIGNED }, window.stamp_caused_by(EventCause::Harness), None);
-        window.push(GameEvent::Untapped { object_id: ObjectId::UNASSIGNED }, window.stamp_caused_by(EventCause::Harness), None);
+        let object = ObjectRef { id: ObjectId::UNASSIGNED, zone_change_epoch: 0 };
+        window.push(GameEvent::Tapped { object }, window.stamp_caused_by(EventCause::Harness), None);
+        window.push(GameEvent::Untapped { object }, window.stamp_caused_by(EventCause::Harness), None);
         window.close_batch(outer);
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
 

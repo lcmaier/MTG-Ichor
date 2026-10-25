@@ -1613,7 +1613,7 @@ impl GameState {
             self.combat_had_attackers = true;
         }
         self.emit_event(
-            crate::events::event::GameEvent::PermanentEnteredBattlefield { object_id: id, controller: effective },
+            crate::events::event::GameEvent::PermanentEnteredBattlefield { object: self.existence_for_record(id)?, controller: effective },
             cause,
         )?;
         self.announce_entry_counters(id, effective, mods, cause)?;
@@ -1648,7 +1648,7 @@ impl GameState {
             };
             self.emit_event(
                 crate::events::event::GameEvent::CountersPutOn {
-                    subject: crate::events::event::CounterSubject::Object(id),
+                    subject: crate::types::triggers::ObjectOrPlayer::Object(self.existence_for_record(id)?),
                     counter_type: row.counter,
                     n: row.n,
                     by: row.by.unwrap_or(controller),
@@ -1861,7 +1861,12 @@ impl GameState {
                 Some(CombatExit {
                     object: self.object_ref(id)?,
                     attacking: entry.attacking.as_ref().map(|attack| attack.target),
-                    blocking: entry.blocking.as_ref().map(|block| block.blocking.clone()).unwrap_or_default(),
+                    blocking: entry
+                        .blocking
+                        .iter()
+                        .flat_map(|block| &block.blocking)
+                        .filter_map(|&attacker| self.existence_for_record(attacker).ok())
+                        .collect(),
                 })
             })
             .collect();
@@ -1912,15 +1917,15 @@ impl GameState {
         };
         for attacker in blocked.iter().filter(|id| !before.0.contains(id)) {
             let announced = records.iter().any(|record| match &record.event {
-                GameEvent::BecameBlocked { attacker: named } => named == attacker,
-                GameEvent::BlockersDeclared { blocks, .. } => blocks.iter().any(|(_, named)| named == attacker),
+                GameEvent::BecameBlocked { attacker: named } => named.id == *attacker,
+                GameEvent::BlockersDeclared { blocks, .. } => blocks.iter().any(|(_, named)| named.id == *attacker),
                 _ => false,
             });
             debug_assert!(announced, "{attacker} became blocked and no record says so");
         }
         for blocker in blocking.iter().filter(|id| !before.1.contains(id)) {
             let announced = records.iter().any(|record| match &record.event {
-                GameEvent::BlockersDeclared { blocks, .. } => blocks.iter().any(|(named, _)| named == blocker),
+                GameEvent::BlockersDeclared { blocks, .. } => blocks.iter().any(|(named, _)| named.id == *blocker),
                 _ => false,
             });
             debug_assert!(announced, "{blocker} began blocking and no record says so");

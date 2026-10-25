@@ -34,7 +34,7 @@ use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::ui::decision::AsksNobody;
-use crate::events::event::{BatchId, CounterSubject, DamageTarget, DepartedObject, EventRecord, EventId, GameEvent, LifeChange};
+use crate::events::event::{BatchId, DepartedObject, EventRecord, EventId, GameEvent, LifeChange};
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::oracle::characteristics::controller_or_owner;
@@ -1967,9 +1967,9 @@ impl GameState {
                         && self.subject_of_a_move_matches(subject, moved, left, referents, seq),
                 )
             }
-            (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
-            | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
-                triggering_event_if(self.subject_matches(subject, ObjectInformation::Current(*object_id), referents, seq))
+            (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object })
+            | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object }) => {
+                triggering_event_if(self.named_subject_matches(subject, *object, referents, seq))
             }
             (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, .. }) => triggering_event_if(
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents))
@@ -1983,24 +1983,26 @@ impl GameState {
             }
             (
                 TriggerEvent::ManaAdded { .. },
-                GameEvent::ManaAdded { source_id, mana: added, tapped_for_mana: tapped, .. },
+                GameEvent::ManaAdded { source, mana: added, tapped_for_mana: tapped, .. },
             ) => {
                 let added = |m: ManaType| added.iter().any(|(t, n)| *t == m && *n > 0);
-                let producer = ManaProducer { id: *source_id, tapped_for_mana: *tapped, lki: event.source_lki() };
-                triggering_event_if(self.mana_added_arm_matches(arm, producer, added, referents, seq))
+                let producer = ManaProducer { id: source.id, tapped_for_mana: *tapped, lki: event.source_lki() };
+                triggering_event_if(self.mana_added_arm_matches(arm, producer, Some(*source), added, referents, seq))
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, excess, .. },
-                GameEvent::DamageDealt { source_id, target, is_combat, excess: dealt_excess, .. },
+                GameEvent::DamageDealt { source: dealt_by, target, is_combat, excess: dealt_excess, .. },
             ) => {
-                // A source that left before dealing damage deals it as it last
-                // existed (CR 608.2h); one still there is read now.
-                let source_read = ObjectInformation::of(*source_id, record.event.source_lki());
+                // The source as it dealt the damage (CR 608.2h): as it last
+                // existed once the existence that dealt it has ended, before
+                // the damage or later in this event, and else as it is now.
+                let as_it_dealt = record.event.source_lki().or_else(|| self.lki(*dealt_by));
+                let source_read = ObjectInformation::of(dealt_by.id, as_it_dealt);
                 triggering_event_if(
                     self.damage_recipient_matches(recipient, *target, referents, seq)
                         && combat.is_none_or(|c| c == *is_combat)
                         && (!*excess || *dealt_excess > 0)
-                        && self.subject_matches(source, source_read, referents, seq),
+                        && self.subject_matches_existence(source, source_read, Some(*dealt_by), referents, seq),
                 )
             }
             // Announced as the batch decided, and read at its close, so the
@@ -2026,12 +2028,12 @@ impl GameState {
                 matches!(event.life_change(), Some(LifeChange::Lost(_)))
                     && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)),
             ),
-            (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell_id, caster: who }) => {
+            (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell: cast, caster: who }) => {
                 let spell_ok = match spell {
                     None => true,
                     Some(filter) => self.subject_matches(
                         &TriggerSubject::Filter(filter.clone()),
-                        ObjectInformation::Current(*spell_id),
+                        ObjectInformation::Current(cast.id),
                         referents,
                         seq,
                     ),
@@ -2051,8 +2053,9 @@ impl GameState {
             }
             (
                 TriggerEvent::EntersBattlefield { subject, controller, from, was_cast, .. },
-                GameEvent::PermanentEnteredBattlefield { object_id, controller: rc },
+                GameEvent::PermanentEnteredBattlefield { object, controller: rc },
             ) => {
+                let object_id = &object.id;
                 // The join (§4.4): `from` off the same object's zone change in
                 // this window — a token has none — and "cast" off the facts the
                 // permanent keeps (CR 400.7d).
@@ -2067,7 +2070,7 @@ impl GameState {
                     from_ok
                         && cast_ok
                         && controller.as_ref().is_none_or(|p| self.player_ref_is(p, *rc, referents))
-                        && self.subject_matches(subject, ObjectInformation::Current(*object_id), referents, seq),
+                        && self.named_subject_matches(subject, *object, referents, seq),
                 )
             }
             // The declaration's attackers that match, each with what it
@@ -2083,11 +2086,11 @@ impl GameState {
                 }
                 let attacks = attackers
                     .iter()
-                    .filter(|&&(id, target)| {
-                        self.subject_matches(attacker, ObjectInformation::Current(id), referents, seq)
+                    .filter(|&&(declared, target)| {
+                        self.named_subject_matches(attacker, declared, referents, seq)
                             && defender.as_ref().is_none_or(|asked| self.defender_matches(asked, target, referents, seq))
                     })
-                    .filter_map(|&(id, target)| Some((self.subject_after(event, id)?, self.attacked(target)?)));
+                    .filter_map(|&(declared, target)| Some((declared, self.attacked(target)?)));
                 match occurrence {
                     AttackOccurrence::Attacker => {
                         attacks.map(|(attacker, defender)| TriggeringEventObjects::Attack { attacker, defender }).collect()
@@ -2135,7 +2138,7 @@ impl GameState {
             ) => {
                 let target_ok = match (watched, target) {
                     (TargetSubject::Object(subject), TargetRef::Object(object)) => {
-                        self.subject_matches(subject, ObjectInformation::Current(object.id), referents, seq)
+                        self.named_subject_matches(subject, *object, referents, seq)
                     }
                     (TargetSubject::Player(who), TargetRef::Player(player)) => {
                         who.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents))
@@ -2145,7 +2148,7 @@ impl GameState {
                 let kind_ok = kind.admits(ability_source.is_none())
                     && match kind {
                         TargetedBy::Spell(Some(filter)) => {
-                            self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(*by), referents, seq)
+                            self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(by.id), referents, seq)
                         }
                         TargetedBy::Spell(None) | TargetedBy::SpellOrAbility | TargetedBy::Ability => true,
                     };
@@ -2155,7 +2158,7 @@ impl GameState {
                         TargetRef::Object(object) => ObjectOrPlayer::Object(*object),
                         TargetRef::Player(player) => ObjectOrPlayer::Player(*player),
                     };
-                    Some(TriggeringEventObjects::Target { target, by: self.object_ref(*by)? })
+                    Some(TriggeringEventObjects::Target { target, by: *by })
                 };
                 if target_ok && kind_ok && whose_ok { objects().into_iter().collect() } else { Vec::new() }
             }
@@ -2190,8 +2193,8 @@ impl GameState {
                 TriggerEvent::BecomesAttached { attachment: watched, host: on },
                 GameEvent::Attached { attachment, host, .. },
             ) => triggering_event_if(
-                self.subject_matches(watched, ObjectInformation::Current(*attachment), referents, seq)
-                    && self.subject_matches(on, ObjectInformation::Current(*host), referents, seq),
+                self.named_subject_matches(watched, *attachment, referents, seq)
+                    && self.named_subject_matches(on, *host, referents, seq),
             ),
             // CR 603.10c: each end as it was just before, which for one that
             // left in this event is its departure's frame.
@@ -2299,9 +2302,8 @@ impl GameState {
             GameEvent::BecameBlocked { attacker: blocked },
         ) = (arm, &record.event)
         {
-            let watched = self.subject_matches(attacker, ObjectInformation::Current(*blocked), referents, record.seq);
-            let attacker = self.subject_after(&record.event, *blocked).filter(|_| watched);
-            return attacker.map(|attacker| TriggeringEventObjects::BlockedBy { attacker, blockers: Vec::new() }).into_iter().collect();
+            let watched = self.named_subject_matches(attacker, *blocked, referents, record.seq);
+            return watched.then_some(TriggeringEventObjects::BlockedBy { attacker: *blocked, blockers: Vec::new() }).into_iter().collect();
         }
         let (
             TriggerEvent::Blocks { blocker, attacker, occurrence, count, alone, .. },
@@ -2310,12 +2312,12 @@ impl GameState {
         else {
             return Vec::new();
         };
-        let (event, seq) = (&record.event, record.seq);
+        let seq = record.seq;
         // Each creature on one side of the declaration once, in the order it
         // first appears there. The CR fixes no order among one event's
         // occurrences; an attack's defenders are read the same way.
-        let each_on = |side: fn(&(ObjectId, ObjectId)) -> ObjectId| {
-            let mut each: Vec<ObjectId> = Vec::new();
+        let each_on = |side: fn(&(ObjectRef, ObjectRef)) -> ObjectRef| {
+            let mut each: Vec<ObjectRef> = Vec::new();
             for pair in blocks {
                 if !each.contains(&side(pair)) {
                     each.push(side(pair));
@@ -2323,29 +2325,27 @@ impl GameState {
             }
             each
         };
-        let blocker_of = |&(b, _): &(ObjectId, ObjectId)| b;
-        let attacker_of = |&(_, a): &(ObjectId, ObjectId)| a;
+        let blocker_of = |&(b, _): &(ObjectRef, ObjectRef)| b;
+        let attacker_of = |&(_, a): &(ObjectRef, ObjectRef)| a;
         // CR 506.5: the only creature declared as a blocker.
         if *alone && each_on(blocker_of).len() != 1 {
             return Vec::new();
         }
-        let is = |subject: &TriggerSubject, id: ObjectId| self.subject_matches(subject, ObjectInformation::Current(id), referents, seq);
-        let now = |id: ObjectId| self.subject_after(event, id);
+        let is = |subject: &TriggerSubject, named: ObjectRef| self.named_subject_matches(subject, named, referents, seq);
         let enough = |n: usize| count.unwrap_or(CountIs::AtLeast(1)).satisfied_by(n as u64);
         match *occurrence {
             BlockOccurrence::Block => blocks
                 .iter()
                 .filter(|&&(b, a)| is(blocker, b) && is(attacker, a))
-                .filter_map(|&(b, a)| Some(TriggeringEventObjects::Block { blocker: now(b)?, attacker: now(a)? }))
+                .map(|&(b, a)| TriggeringEventObjects::Block { blocker: b, attacker: a })
                 .collect(),
             BlockOccurrence::Blocker => each_on(blocker_of)
                 .into_iter()
                     .filter(|&b| is(blocker, b))
                     .filter_map(|b| {
                         let attackers: Vec<ObjectRef> =
-                            blocks.iter().filter(|&&(of, a)| of == b && is(attacker, a)).filter_map(|&(_, a)| now(a)).collect();
-                        enough(attackers.len()).then_some(())?;
-                        Some(TriggeringEventObjects::Blocking { blocker: now(b)?, attackers })
+                            blocks.iter().filter(|&&(of, a)| of == b && is(attacker, a)).map(|&(_, a)| a).collect();
+                        enough(attackers.len()).then_some(TriggeringEventObjects::Blocking { blocker: b, attackers })
                     })
                     .collect(),
             BlockOccurrence::Blocked => each_on(attacker_of)
@@ -2353,15 +2353,14 @@ impl GameState {
                     .filter(|&a| is(attacker, a))
                     .filter_map(|a| {
                         let blockers: Vec<ObjectRef> =
-                            blocks.iter().filter(|&&(b, of)| of == a && is(blocker, b)).filter_map(|&(b, _)| now(b)).collect();
-                        enough(blockers.len()).then_some(())?;
-                        Some(TriggeringEventObjects::BlockedBy { attacker: now(a)?, blockers })
+                            blocks.iter().filter(|&&(b, of)| of == a && is(blocker, b)).map(|&(b, _)| b).collect();
+                        enough(blockers.len()).then_some(TriggeringEventObjects::BlockedBy { attacker: a, blockers })
                     })
                     .collect(),
             BlockOccurrence::Unblocked => unblocked
                 .iter()
                 .filter(|&&a| is(attacker, a))
-                .filter_map(|&a| Some(TriggeringEventObjects::Unblocked { attacker: now(a)? }))
+                .map(|&a| TriggeringEventObjects::Unblocked { attacker: a })
                 .collect(),
         }
     }
@@ -2380,9 +2379,9 @@ impl GameState {
         else {
             return Vec::new();
         };
-        let (on, kind, n, who) = match record.event {
-            GameEvent::CountersPutOn { subject, counter_type, n, by, .. } => (subject, counter_type, n, Some(by)),
-            GameEvent::CountersRemovedFrom { subject, counter_type, n, by, .. } => (subject, counter_type, n, by),
+        let (on, kind, n, who) = match &record.event {
+            GameEvent::CountersPutOn { subject, counter_type, n, by, .. } => (*subject, *counter_type, *n, Some(*by)),
+            GameEvent::CountersRemovedFrom { subject, counter_type, n, by, .. } => (*subject, *counter_type, *n, *by),
             _ => return Vec::new(),
         };
         let matched = counter_type.is_none_or(|k| k == kind)
@@ -2401,15 +2400,13 @@ impl GameState {
     /// as it is after the event (CR 603.10). "On you" or "on a player"
     /// (`CountersOn::Player`) asks the player `on` names, any player for
     /// `None`. Counters on a player never match an object arm, nor the reverse.
-    fn counters_on_matches(&self, watched: &CountersOn, on: CounterSubject, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
+    fn counters_on_matches(&self, watched: &CountersOn, on: ObjectOrPlayer, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
         match (watched, on) {
-            (CountersOn::Object(which), CounterSubject::Object(id)) => {
-                self.subject_matches(which, ObjectInformation::Current(id), referents, seq)
-            }
-            (CountersOn::Player(who), CounterSubject::Player(player)) => {
+            (CountersOn::Object(which), ObjectOrPlayer::Object(object)) => self.named_subject_matches(which, object, referents, seq),
+            (CountersOn::Player(who), ObjectOrPlayer::Player(player)) => {
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, player, referents))
             }
-            (CountersOn::Object(_), CounterSubject::Player(_)) | (CountersOn::Player(_), CounterSubject::Object(_)) => false,
+            (CountersOn::Object(_), ObjectOrPlayer::Player(_)) | (CountersOn::Player(_), ObjectOrPlayer::Object(_)) => false,
         }
     }
 
@@ -2417,11 +2414,13 @@ impl GameState {
     /// "whenever [something] is tapped for mana" or "adds mana" (CR 106.12a) —
     /// that the mana `producer` just made sets off: tapped for mana or not,
     /// with the types `added` admits, and made by the object the arm names
-    /// for `referents`' ability (Wild Growth's enchanted land).
+    /// for `referents`' ability (Wild Growth's enchanted land). `made_by` is
+    /// the existence the record names, and `None` before any record.
     fn mana_added_arm_matches(
         &self,
         arm: &TriggerEvent,
         producer: ManaProducer<'_>,
+        made_by: Option<ObjectRef>,
         added: impl Fn(ManaType) -> bool,
         referents: &TriggerReferents<'_>,
         seq: EventId,
@@ -2431,7 +2430,7 @@ impl GameState {
         let read = ObjectInformation::of(producer.id, producer.lki);
         tapped_for_mana.is_none_or(|t| t == producer.tapped_for_mana)
             && mana.is_none_or(added)
-            && self.subject_matches(source, read, referents, seq)
+            && self.subject_matches_existence(source, read, made_by, referents, seq)
     }
 
     /// [`Self::mana_added_arm_matches`], asked before the mana is made.
@@ -2457,7 +2456,7 @@ impl GameState {
         let Some(object) = self.objects.get(&permanent) else { return false };
         let referents = TriggerReferents::of_object(permanent, controller, object.owner, crate::oracle::board::host_of(self, permanent), None);
         let producer = ManaProducer { id: producer, tapped_for_mana: tapped, lki: None };
-        self.mana_added_arm_matches(arm, producer, added, &referents, self.events.next_seq())
+        self.mana_added_arm_matches(arm, producer, None, added, &referents, self.events.next_seq())
     }
 
     /// Whether damage dealt, or prevented, to `target` is to the player or
@@ -2465,22 +2464,20 @@ impl GameState {
     fn damage_recipient_matches(
         &self,
         recipient: &DamageRecipient,
-        target: DamageTarget,
+        target: ObjectOrPlayer,
         referents: &TriggerReferents<'_>,
         seq: EventId,
     ) -> bool {
         match (recipient, target) {
             (DamageRecipient::Any, _) => true,
-            (DamageRecipient::Player(who), DamageTarget::Player(pid)) => {
+            (DamageRecipient::Player(who), ObjectOrPlayer::Player(pid)) => {
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, pid, referents))
             }
-            (DamageRecipient::Object(filter), DamageTarget::Object(id)) => match filter {
+            (DamageRecipient::Object(filter), ObjectOrPlayer::Object(object)) => match filter {
                 None => true,
-                Some(filter) => {
-                    self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(id), referents, seq)
-                }
+                Some(filter) => self.named_subject_matches(&TriggerSubject::Filter(filter.clone()), object, referents, seq),
             },
-            (DamageRecipient::Player(_), DamageTarget::Object(_)) | (DamageRecipient::Object(_), DamageTarget::Player(_)) => false,
+            (DamageRecipient::Player(_), ObjectOrPlayer::Object(_)) | (DamageRecipient::Object(_), ObjectOrPlayer::Player(_)) => false,
         }
     }
 
@@ -2489,6 +2486,14 @@ impl GameState {
     /// `event_id` names the matched record.
     fn subject_matches(&self, subject: &TriggerSubject, object: ObjectInformation<'_>, referents: &TriggerReferents<'_>, event_id: EventId) -> bool {
         self.subject_matches_existence(subject, object, None, referents, event_id)
+    }
+
+    /// [`Self::subject_matches`] for an object a record names, `named` being
+    /// the existence the event was about (CR 400.7): "this object" and "that
+    /// creature" compare it, though the object may have moved since in the
+    /// same event, and a filter reads the object as it is now.
+    fn named_subject_matches(&self, subject: &TriggerSubject, named: ObjectRef, referents: &TriggerReferents<'_>, event_id: EventId) -> bool {
+        self.subject_matches_existence(subject, ObjectInformation::Current(named.id), Some(named), referents, event_id)
     }
 
     /// [`Self::subject_matches`] for the object a move moved, `left` being
@@ -2612,7 +2617,7 @@ impl GameState {
                 GameEvent::ZoneChange { departed, to: Zone::Battlefield, from, .. } if departed.object().id == id => {
                     return Some(*from)
                 }
-                GameEvent::TokenCreated { object_id, .. } if *object_id == id => return None,
+                GameEvent::TokenCreated { token, .. } if token.id == id => return None,
                 _ => {}
             }
         }
@@ -2620,11 +2625,10 @@ impl GameState {
     }
 
     /// The objects `record`'s one triggering event is about (§3.4), each as
-    /// the existence the trigger remembers (`subject_after`), grouped as the
-    /// arm's `event_roles()` groups them; a part this event fills with a
-    /// player names no object. Its record is one `triggering_events_in`
-    /// matched to it. An object the store no longer holds leaves the event
-    /// about none. An attack record holds one event per attacker, which
+    /// the existence its record names, which the trigger remembers, grouped
+    /// as the arm's `event_roles()` groups them; a part this event fills with
+    /// a player names no object. Its record is one `triggering_events_in`
+    /// matched to it. An attack record holds one event per attacker, which
     /// `triggering_events_in` makes, so it answers none here.
     fn triggering_event_objects(&self, arm: &TriggerEvent, record: &EventRecord) -> TriggeringEventObjects {
         match arm {
@@ -2642,10 +2646,10 @@ impl GameState {
             TriggerEvent::DamageIsPrevented { .. } => self.prevention_objects(&record.event),
             TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } => {
                 match &record.event {
-                    GameEvent::CountersPutOn { subject: CounterSubject::Object(id), .. }
-                    | GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(id), .. } => self
-                        .subject_after(&record.event, *id)
-                        .map_or(TriggeringEventObjects::NoObject, TriggeringEventObjects::Object),
+                    GameEvent::CountersPutOn { subject: ObjectOrPlayer::Object(object), .. }
+                    | GameEvent::CountersRemovedFrom { subject: ObjectOrPlayer::Object(object), .. } => {
+                        TriggeringEventObjects::Object(*object)
+                    }
                     _ => TriggeringEventObjects::NoObject,
                 }
             }
@@ -2673,40 +2677,40 @@ impl GameState {
     /// that moved, was tapped, untapped, entered or changed control, the
     /// token created, the mana's source, the card drawn, or the spell.
     fn single_object(&self, event: &GameEvent) -> TriggeringEventObjects {
-        let id = match event {
+        let object = match event {
             // The existence that left the game, which the store no longer
             // holds by the time the record is read (CR 800.4a).
-            GameEvent::LeftTheGame { departed, .. } => return TriggeringEventObjects::Object(departed.object()),
-            GameEvent::SameZoneMove { lki, .. } | GameEvent::ControlChanged { lki, .. } => lki.object().id,
-            GameEvent::SpellCountered { lki, .. } => lki.object().id,
-            GameEvent::ZoneChange { departed, .. } => departed.object().id,
-            GameEvent::Tapped { object_id }
-            | GameEvent::Untapped { object_id }
-            | GameEvent::PermanentEnteredBattlefield { object_id, .. }
-            | GameEvent::TokenCreated { object_id, .. } => *object_id,
-            // The existence that made the mana, where its own cost moved it.
-            GameEvent::ManaAdded { source_lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
-            GameEvent::ManaAdded { source_id, .. } => *source_id,
-            GameEvent::CardDrawn { card_id, .. } => *card_id,
-            GameEvent::SpellCast { spell_id, .. } => *spell_id,
+            GameEvent::LeftTheGame { departed, .. } => departed.object(),
+            // The new object the move made, so "return it" after a dies
+            // trigger finds the card only in the graveyard it went to (CR
+            // 603.6c, 400.7e).
+            GameEvent::ZoneChange { departed, new_epoch, .. } => {
+                ObjectRef { id: departed.object().id, zone_change_epoch: *new_epoch }
+            }
+            GameEvent::SameZoneMove { lki, .. } | GameEvent::ControlChanged { lki, .. } => lki.object(),
+            // The card the counter put into its owner's graveyard, as the
+            // dispatch finds it: the countering's move is a record of its own.
+            GameEvent::SpellCountered { lki, .. } => match self.object_ref(lki.object().id) {
+                Some(card) => card,
+                None => return TriggeringEventObjects::NoObject,
+            },
+            GameEvent::Tapped { object }
+            | GameEvent::Untapped { object }
+            | GameEvent::PermanentEnteredBattlefield { object, .. }
+            | GameEvent::TokenCreated { token: object, .. }
+            | GameEvent::ManaAdded { source: object, .. }
+            | GameEvent::CardDrawn { card: object, .. }
+            | GameEvent::SpellCast { spell: object, .. } => *object,
             _ => return TriggeringEventObjects::NoObject,
         };
-        self.subject_after(event, id).map_or(TriggeringEventObjects::NoObject, TriggeringEventObjects::Object)
+        TriggeringEventObjects::Object(object)
     }
 
     /// A damage event's source and recipient. A source that left before
     /// dealing the damage is the existence that dealt it (CR 608.2h).
     fn damage_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
-        let GameEvent::DamageDealt { source_id, target, .. } = event else {
-            return TriggeringEventObjects::NoObject;
-        };
-        let source = event.source_lki().map(Lki::object).or_else(|| self.subject_after(event, *source_id));
-        let recipient = match target {
-            DamageTarget::Object(id) => self.subject_after(event, *id).map(ObjectOrPlayer::Object),
-            DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
-        };
-        match (source, recipient) {
-            (Some(source), Some(recipient)) => TriggeringEventObjects::Damage { source, recipient },
+        match event {
+            GameEvent::DamageDealt { source, target, .. } => TriggeringEventObjects::Damage { source: *source, recipient: *target },
             _ => TriggeringEventObjects::NoObject,
         }
     }
@@ -2715,9 +2719,9 @@ impl GameState {
     /// none.
     fn prevention_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
         match event {
-            GameEvent::DamagePrevented { target: DamageTarget::Object(id), .. } => self
-                .subject_after(event, *id)
-                .map_or(TriggeringEventObjects::NoObject, |recipient| TriggeringEventObjects::Prevention { recipient }),
+            GameEvent::DamagePrevented { target: ObjectOrPlayer::Object(recipient), .. } => {
+                TriggeringEventObjects::Prevention { recipient: *recipient }
+            }
             _ => TriggeringEventObjects::NoObject,
         }
     }
@@ -2727,31 +2731,11 @@ impl GameState {
     /// ruling).
     fn attachment_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
         match event {
-            GameEvent::Attached { attachment, host, .. } => {
-                match (self.subject_after(event, *attachment), self.subject_after(event, *host)) {
-                    (Some(attachment), Some(host)) => TriggeringEventObjects::Attach { attachment, host },
-                    _ => TriggeringEventObjects::NoObject,
-                }
-            }
+            GameEvent::Attached { attachment, host, .. } => TriggeringEventObjects::Attach { attachment: *attachment, host: *host },
             GameEvent::Unattached { attachment, former_host, .. } => {
                 TriggeringEventObjects::Attach { attachment: *attachment, host: *former_host }
             }
             _ => TriggeringEventObjects::NoObject,
-        }
-    }
-
-    /// "That object" as a trigger remembers it: `id` together with the
-    /// zone-change epoch that tells this object from what it becomes if it
-    /// moves again (CR 400.7). For a zone change of `id`, the epoch is the one
-    /// the move gave it, which the record carries, so "return it" after a dies
-    /// trigger looks for the card only in the graveyard it went to (CR
-    /// 603.6c), even if something moved it before the dispatch. Any other
-    /// record names `id` alone, so the object is taken as the dispatch finds
-    /// it, which is right after the event.
-    pub(super) fn subject_after(&self, event: &GameEvent, id: ObjectId) -> Option<ObjectRef> {
-        match event.new_object() {
-            Some(made) if made.id == id => Some(made),
-            _ => self.object_ref(id),
         }
     }
 
@@ -2770,7 +2754,7 @@ impl GameState {
     /// beside it.
     fn newcomer_from(&self, event: &GameEvent) -> Option<ObjectRef> {
         match event {
-            GameEvent::TokenCreated { object_id, .. } => self.object_ref(*object_id),
+            GameEvent::TokenCreated { token, .. } => Some(*token),
             event => event.new_object(),
         }
     }

@@ -292,7 +292,7 @@ impl GameState {
         let casting = EventCause::Casting(player_id);
         self.announce_zone_change(card_before_cast, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, None, casting)?;
         self.announce_targeted_records(card_id, casting, decisions)?;
-        self.emit_event(GameEvent::SpellCast { spell_id: card_id, caster: player_id }, casting)?;
+        self.emit_event(GameEvent::SpellCast { spell: self.existence_for_record(card_id)?, caster: player_id }, casting)?;
 
         Ok(())
     }
@@ -394,11 +394,12 @@ impl GameState {
                 None => targeted.push((*target, 1)),
             }
         }
-        let ability_source = entry.ability_identity.map(|identity| identity.source.id);
+        let ability_source = entry.ability_identity.map(|identity| identity.source);
         let controller = entry.controller;
         if targeted.is_empty() {
             return Ok(());
         }
+        let by = self.existence_for_record(by)?;
         let previous = self.events.open_batch();
         let joined = previous.is_some();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());

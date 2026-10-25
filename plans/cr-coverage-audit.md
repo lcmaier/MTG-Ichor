@@ -702,8 +702,9 @@ CR 109.1, 400.7. **Key:** the object and the zone change that made it, an
 - `ObjectRef` — key: the key itself.
 - `GameEvent` — moment: `ZoneChange.new_epoch`, the existence a move made
   (CR 400.7e). The existence that left is its `DepartedObject`'s, the frame's or
-  the unframed pair's (item 320, #289); the other records' plain ids are
-  item 328.
+  the unframed pair's (item 320, #289); every other record names each of its
+  objects by an `ObjectRef` (item 328, `record-existences`), but the
+  combat's `AttackTarget`, whose holders are under Combat.
 - `GameState` ×2 — none: the epoch allocator, and a debug build's window
   for the state-based check's old walk.
 
@@ -854,8 +855,8 @@ to one object. **Query:** type `ObjectId` named `attached_to`; type
 #### Combat
 CR 506.3–506.5, 508.1, 509.1. **Key:** a creature's existence, in the
 combat. **Query:** type `AttackTarget`; type `AttackingInfo`; type
-`BlockingInfo`; type `ObjectId` named `blocking`; type `ObjectId` named
-`blocked_by`; type `bool` named `is_blocked`
+`BlockingInfo`; type `ObjectId` named `blocking`; type `ObjectRef` named
+`blocking`; type `ObjectId` named `blocked_by`; type `bool` named `is_blocked`
 - `PermanentState` ×2 — owner: what it attacks and what it blocks.
 - `AttackingInfo` ×3 — owner of what it attacks and whether it is blocked
   (CR 509.1h), and the attacker's end of the blocks, `blocked_by`, written
@@ -863,7 +864,9 @@ combat. **Query:** type `AttackTarget`; type `AttackingInfo`; type
   item 323 checks that they agree.
 - `BlockingInfo` — owner of the blocks, from the blocker's end.
 - `PermanentFacts` — moment: what it was attacking, in an `Lki`.
-- `CombatExit` ×2 — moment: what it attacked or blocked as it left combat.
+- `CombatExit` ×2 — moment: what it attacked or blocked as it left combat,
+  the attackers it blocked by existence (item 328) and what it attacked as
+  the combat's `AttackTarget`, by id, which no reader resolves later.
 - `EntersAttackingCandidates` — owner: what an entering creature may attack
   (CR 508.4), the proposal's.
 - `GameEvent` — moment: the declaration's.

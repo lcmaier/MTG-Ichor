@@ -72,11 +72,13 @@ fn declare(game: &mut GameState, attackers: &[ObjectId], attacks: &[(ObjectId, P
     game.process_declare_attackers(&dp).unwrap();
 }
 
-/// The one declaration's record.
+/// The one declaration's record, each attacker by id.
 fn declared(game: &GameState) -> Vec<(ObjectId, AttackTarget)> {
     let records = game.recorded_events();
     let mut declarations = records.events().filter_map(|event| match event {
-        GameEvent::AttackersDeclared { attackers } => Some(attackers.clone()),
+        GameEvent::AttackersDeclared { attackers } => {
+            Some(attackers.iter().map(|&(attacker, target)| (attacker.id, target)).collect::<Vec<_>>())
+        }
         _ => None,
     });
     let attacks = declarations.next().expect("a declaration");

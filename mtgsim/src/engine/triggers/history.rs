@@ -12,12 +12,12 @@ use std::sync::Arc;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::events::event::{DamageTarget, DepartedObject, EventId, GameEvent, LifeChange};
+use crate::events::event::{DepartedObject, EventId, GameEvent, LifeChange};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history_log::{HistoryRow, RowFact, RowFrame, RowKind, FIRST_TURN};
 use crate::types::history::TurnFact;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{Lki, ObjectOrPlayer};
+use crate::types::ids::{ObjectRef, PlayerId};
+use crate::types::triggers::Lki;
 use crate::types::zones::{Zone, ZoneChangeAct};
 use crate::state::layer_memo::GatedWalkInput;
 
@@ -250,36 +250,29 @@ impl GameState {
                 })
             }
         };
-        // The object `id` is now, and its characteristics as the event left it.
-        let current = |id: ObjectId| self.object_ref(id).map(|object| (object, as_left(compute_characteristics(self, id))));
         let controller = |frame: &RowFrame| frame.characteristics().map(|chars| chars.controller);
         match &record.event {
-            GameEvent::SpellCast { spell_id, caster } => {
-                if let (Some((object, frame)), Some(from)) =
-                    (current(*spell_id), self.stack_entries.get(spell_id).and_then(|entry| entry.cast_from))
-                {
-                    draft_history_row(Some(*caster), Some(object), frame, RowFact::Cast { from });
+            GameEvent::SpellCast { spell, caster } => {
+                if let Some(from) = self.stack_entries.get(&spell.id).and_then(|entry| entry.cast_from) {
+                    draft_history_row(Some(*caster), Some(*spell), as_left(frame_as_left(*spell)), RowFact::Cast { from });
                 }
             }
-            GameEvent::CardDrawn { player_id, card_id } => {
-                if let Some((object, frame)) = current(*card_id) {
-                    draft_history_row(Some(*player_id), Some(object), frame, RowFact::Drew);
-                }
+            GameEvent::CardDrawn { player_id, card } => {
+                draft_history_row(Some(*player_id), Some(*card), as_left(frame_as_left(*card)), RowFact::Drew);
             }
             GameEvent::LifeChanged { player_id, .. } => match record.event.life_change() {
                 Some(LifeChange::Gained(n)) => draft_history_row(Some(*player_id), None, RowFrame::None, RowFact::GainedLife(n)),
                 Some(LifeChange::Lost(n)) => draft_history_row(Some(*player_id), None, RowFrame::None, RowFact::LostLife(n)),
                 None => {}
             },
-            GameEvent::PermanentEnteredBattlefield { object_id, controller } => {
-                let from = self.entry_origin(*object_id, seq);
-                if let Some((object, frame)) = current(*object_id) {
-                    debug_assert!(
-                        self.battlefield.get(object_id).is_none_or(|entry| entry.entered_battlefield_turn == self.turn_number),
-                        "{object_id}'s entry row and its own entry turn disagree"
-                    );
-                    draft_history_row(Some(*controller), Some(object), frame, RowFact::EnteredBattlefield { from });
-                }
+            GameEvent::PermanentEnteredBattlefield { object, controller } => {
+                let from = self.entry_origin(object.id, seq);
+                debug_assert!(
+                    self.battlefield.get(&object.id).is_none_or(|entry| entry.entered_battlefield_turn == self.turn_number),
+                    "{}'s entry row and its own entry turn disagree",
+                    object.id
+                );
+                draft_history_row(Some(*controller), Some(*object), as_left(frame_as_left(*object)), RowFact::EnteredBattlefield { from });
             }
             // A draw, a cast and an entry are their own rows.
             GameEvent::ZoneChange { to: Zone::Battlefield, .. }
@@ -308,41 +301,28 @@ impl GameState {
             }
             // A source that left before dealing it deals it as it last existed
             // (CR 608.2h).
-            GameEvent::DamageDealt { source_id, target, amount, excess, is_combat, source_lki } => {
+            GameEvent::DamageDealt { source, target, amount, excess, is_combat, source_lki } => {
                 let (object, frame) = match source_lki {
                     Some(lki) => departed(lki),
-                    None => match current(*source_id) {
-                        Some((object, frame)) => (Some(object), frame),
-                        None => (None, RowFrame::None),
-                    },
+                    None => (Some(*source), as_left(frame_as_left(*source))),
                 };
-                let to = match target {
-                    DamageTarget::Object(id) => self.object_ref(*id).map(ObjectOrPlayer::Object),
-                    DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
-                };
-                if let Some(to) = to {
-                    let fact = RowFact::DealtDamage { to, amount: *amount, excess: *excess, combat: *is_combat };
-                    draft_history_row(controller(&frame), object, frame, fact);
-                }
+                let fact = RowFact::DealtDamage { to: *target, amount: *amount, excess: *excess, combat: *is_combat };
+                draft_history_row(controller(&frame), object, frame, fact);
             }
             GameEvent::AttackersDeclared { attackers } => {
                 for &(attacker, target) in attackers {
-                    if let Some((object, frame)) = current(attacker) {
-                        draft_history_row(Some(self.active_player), Some(object), frame, RowFact::Attacked(target));
-                    }
+                    draft_history_row(Some(self.active_player), Some(attacker), as_left(frame_as_left(attacker)), RowFact::Attacked(target));
                 }
             }
             GameEvent::BlockersDeclared { blocks, .. } => {
                 for &(blocker, attacker) in blocks {
-                    if let (Some((object, frame)), Some(attacker)) = (current(blocker), self.object_ref(attacker)) {
-                        draft_history_row(controller(&frame), Some(object), frame, RowFact::Blocked(attacker));
-                    }
+                    let frame = as_left(frame_as_left(blocker));
+                    draft_history_row(controller(&frame), Some(blocker), frame, RowFact::Blocked(attacker));
                 }
             }
             GameEvent::BecameBlocked { attacker } => {
-                if let Some((object, frame)) = current(*attacker) {
-                    draft_history_row(controller(&frame), Some(object), frame, RowFact::BecameBlocked);
-                }
+                let frame = as_left(frame_as_left(*attacker));
+                draft_history_row(controller(&frame), Some(*attacker), frame, RowFact::BecameBlocked);
             }
             GameEvent::RemovedFromCombat { removed } => {
                 for exit in removed {

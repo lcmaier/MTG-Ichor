@@ -16,7 +16,7 @@ use crate::engine::priority::REJECTION_LIMIT;
 use crate::oracle::legality::{legal_attackers, legal_blockers};
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo};
 use crate::state::game_state::GameState;
-use crate::types::ids::{IdSet, ObjectId, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use super::keywords::has_first_or_double_strike;
 use crate::ui::ask::{ask_choose_attackers, ask_choose_blockers};
@@ -87,7 +87,11 @@ impl GameState {
         // With the step's provider: the one unbatched record that can carry
         // two triggering events of one arm, which CR 603.7b's choice asks
         // between.
-        self.emit_event_with_provider(GameEvent::AttackersDeclared { attackers: proposed }, &actx)?;
+        let attackers = proposed
+            .into_iter()
+            .map(|(attacker, target)| Ok((self.existence_for_record(attacker)?, target)))
+            .collect::<Result<Vec<_>, String>>()?;
+        self.emit_event_with_provider(GameEvent::AttackersDeclared { attackers }, &actx)?;
 
         Ok(true)
     }
@@ -177,11 +181,16 @@ impl GameState {
 
         // CR 509.1h: an attacking creature no creature was declared blocking is
         // unblocked, whether it was declared or entered attacking (CR 509.3g).
-        let unblocked: Vec<ObjectId> = self
+        let unblocked: Vec<ObjectRef> = self
             .battlefield_ordered()
             .into_iter()
-            .filter_map(|(id, e)| e.attacking.as_ref().filter(|info| !info.is_blocked).map(|_| id))
-            .collect();
+            .filter(|(_, e)| e.attacking.as_ref().is_some_and(|info| !info.is_blocked))
+            .map(|(id, _)| self.existence_for_record(id))
+            .collect::<Result<_, String>>()?;
+        let blocks = blocks
+            .into_iter()
+            .map(|(blocker, attacker)| Ok((self.existence_for_record(blocker)?, self.existence_for_record(attacker)?)))
+            .collect::<Result<Vec<_>, String>>()?;
         // With the step's provider, as the attack declaration's: one record can
         // hold two triggering events of one arm, which CR 603.7b asks between.
         let actx = ActionContext::turn_based(decisions, TurnBasedAction::DeclareBlockers);

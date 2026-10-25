@@ -772,7 +772,7 @@ mod tests {
 
         // Should have emitted TokenCeasedToExist event
         let has_event = game.recorded_events().events().any(|e| {
-            matches!(e, crate::events::event::GameEvent::TokenCeasedToExist { object_id } if *object_id == id)
+            matches!(e, crate::events::event::GameEvent::TokenCeasedToExist { token } if token.id == id)
         });
         assert!(has_event);
     }
@@ -822,8 +822,8 @@ mod tests {
             .recorded_events()
             .events()
             .filter_map(|e| match e {
-                crate::events::event::GameEvent::TokenCeasedToExist { object_id } => {
-                    Some(*object_id)
+                crate::events::event::GameEvent::TokenCeasedToExist { token } => {
+                    Some(token.id)
                 }
                 _ => None,
             })

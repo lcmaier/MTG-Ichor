@@ -81,7 +81,7 @@ fn entries(game: &GameState, start: usize) -> Vec<ObjectId> {
     log_after(game, start)
         .iter()
         .filter_map(|e| match e {
-            GameEvent::PermanentEnteredBattlefield { object_id, .. } => Some(*object_id),
+            GameEvent::PermanentEnteredBattlefield { object, .. } => Some(object.id),
             _ => None,
         })
         .collect()
@@ -414,7 +414,7 @@ fn test_an_exiled_instead_token_never_had_a_battlefield_to_leave() {
     let created: Vec<(ObjectId, Zone)> = log_after(&game, start)
         .iter()
         .filter_map(|e| match e {
-            GameEvent::TokenCreated { object_id, zone, .. } => Some((*object_id, *zone)),
+            GameEvent::TokenCreated { token, zone, .. } => Some((token.id, *zone)),
             _ => None,
         })
         .collect();

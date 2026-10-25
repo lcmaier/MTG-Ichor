@@ -516,7 +516,7 @@ fn guerrilla_tactics_discarded_by_an_opponents_spell_deals_four_damage() {
     resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
     assert_eq!(damage_dealt(&game), 4);
     let dealt = game.recorded_events().records().iter().find_map(|r| match &r.event {
-        GameEvent::DamageDealt { source_id, .. } => Some((*source_id, r.stamp.cause)),
+        GameEvent::DamageDealt { source, .. } => Some((source.id, r.stamp.cause)),
         _ => None,
     });
     let (source, cause) = dealt.expect("damage was dealt");

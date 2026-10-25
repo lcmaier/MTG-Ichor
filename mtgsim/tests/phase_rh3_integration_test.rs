@@ -382,10 +382,18 @@ fn who_exiled_a_redirected_move_is_the_resolving_spells_controller() {
     assert_eq!(exiles_seen(Some(0), 1), 0, "an opponent's destroy, which your Rest in Peace exiled");
 }
 
-/// The record grew by what it holds and not by a byte (§2b.10's pricing).
+/// Every record, trigger binding and clone made mid-batch copies a whole
+/// `GameEvent`, so its size is a cost, and this is its ceiling. A payload
+/// that would take the event past it goes behind an `Arc` or a `Box`, as a
+/// zone change's frame does. Raising the ceiling instead is a decision its PR
+/// prices: the cost per decision, measured on a commit that changes the size
+/// alone, in its `fuzz-record.md` block. Raised from 72 to 80 at
+/// `record-existences`, where a targeting came to name its spell or ability
+/// and that ability's source by existence, at −0.40%.
 #[test]
-fn the_event_keeps_its_size() {
-    assert_eq!(std::mem::size_of::<GameEvent>(), 72);
+fn the_event_stays_under_its_ceiling() {
+    let ceiling = 80;
+    assert!(std::mem::size_of::<GameEvent>() <= ceiling, "box the payload, or price raising the ceiling");
 }
 
 // ---------------------------------------------------------------------------

@@ -2366,7 +2366,7 @@ impl GameState {
         self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, actx)?;
         let lki = self.lki(spell).cloned().ok_or_else(|| format!("countering {id}, which left the stack unframed"))?;
         debug_assert_eq!(lki.characteristics().controller, controller, "{id}'s frame names another controller than the stack's");
-        let countered = crate::events::event::GameEvent::SpellCountered { countered_by: ctx.source, lki };
+        let countered = crate::events::event::GameEvent::SpellCountered { countered_by: self.existence_for_record(ctx.source)?, lki };
         self.emit_event(countered, actx.cause)
     }
 
@@ -2377,8 +2377,8 @@ impl GameState {
             && let Some(entry) = self.ability_leaves_the_stack(id)
             && let Some(identity) = entry.ability_identity
         {
-            let countered =
-                crate::events::event::GameEvent::AbilityCountered { identity, controller: entry.controller, countered_by: ctx.source };
+            let countered_by = self.existence_for_record(ctx.source)?;
+            let countered = crate::events::event::GameEvent::AbilityCountered { identity, controller: entry.controller, countered_by };
             self.emit_event(countered, actx.cause)?;
         }
         Ok(())
@@ -2951,7 +2951,7 @@ impl GameState {
         for record in self.events.resolution_records(stamp, mark) {
             let moved = match &record.event {
                 GameEvent::ZoneChange { from, to, .. } => record.event.new_object().map(|o| (o, Some(*from), *to)),
-                GameEvent::TokenCreated { object_id, zone, .. } => self.object_ref(*object_id).map(|o| (o, None, *zone)),
+                GameEvent::TokenCreated { token, zone, .. } => Some((*token, None, *zone)),
                 _ => None,
             };
             if let Some((object, from, to)) = moved

@@ -249,7 +249,7 @@ fn the_end_of_combat_removes_everything_at_once() {
 
     game.advance_turn(&test_dp()).unwrap();
     assert_eq!(game.phase.phase_type, PhaseType::Postcombat);
-    let blocking = |id| CombatExit { object: existence(&game, id), attacking: None, blocking: vec![attacker] };
+    let blocking = |id| CombatExit { object: existence(&game, id), attacking: None, blocking: vec![existence(&game, attacker)] };
     assert_eq!(removals(&game), vec![vec![attacking(&game, attacker, 1), blocking(first), blocking(second)]]);
     for id in [attacker, first, second] {
         let entry = &game.battlefield[&id];
@@ -399,7 +399,7 @@ fn a_blocker_that_stops_being_a_creature_leaves_and_its_attacker_stays_blocked()
     assert!(game.battlefield[&ring].blocking.is_none());
     let info = game.battlefield[&bears].attacking.as_ref().expect("still attacking");
     assert!(info.is_blocked && info.blocked_by.is_empty(), "CR 509.1h: blocked, by nothing");
-    let exit = CombatExit { object: existence(&game, ring), attacking: None, blocking: vec![bears] };
+    let exit = CombatExit { object: existence(&game, ring), attacking: None, blocking: vec![existence(&game, bears)] };
     assert_eq!(removals(&game), vec![vec![exit]]);
     game.process_combat_damage(&test_dp(), false).unwrap();
     assert_eq!(life(&game, 1), 20);

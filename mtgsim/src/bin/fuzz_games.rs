@@ -517,10 +517,10 @@ fn extract_stats<'a>(
         // event alone, as this function always has.
         let event = &record.event;
         match event {
-            GameEvent::SpellCast { spell_id, .. } => {
+            GameEvent::SpellCast { spell, .. } => {
                 stats.spells_cast += 1;
                 if !watch.is_empty() {
-                    bump(&mut stats, named(*spell_id), true);
+                    bump(&mut stats, named(spell.id), true);
                 }
             }
 
@@ -532,12 +532,12 @@ fn extract_stats<'a>(
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
                 stats.combat_phases_with_attackers += 1;
             }
-            GameEvent::PermanentEnteredBattlefield { object_id, .. } => {
+            GameEvent::PermanentEnteredBattlefield { object, .. } => {
                 // AS PRINTED: the colors, for the reason `named` reads the
                 // printed name: the question is which *cards* the required
                 // one met, and a copy's effective color is its donor's.
                 if !watch.is_empty() && !stats.met_another_color {
-                    let printed = game.objects.get(object_id).map(|o| &o.card_data.colors);
+                    let printed = game.objects.get(&object.id).map(|o| &o.card_data.colors);
                     if printed.is_some_and(|cs| cs.iter().any(|c| !required_colors.contains(c))) {
                         stats.met_another_color = true;
                     }
@@ -634,8 +634,8 @@ fn uncast_resolutions<'a>(
     let mut violations = Vec::new();
     for (index, record) in records.enumerate() {
         match &record.event {
-            GameEvent::SpellCast { spell_id, .. } => {
-                *casts.entry(*spell_id).or_insert(0) += 1;
+            GameEvent::SpellCast { spell, .. } => {
+                *casts.entry(spell.id).or_insert(0) += 1;
             }
             GameEvent::ZoneChange { departed, from: Zone::Stack, .. }
                 if resolved_off_the_stack(record, departed.object().id) =>

@@ -261,8 +261,8 @@ fn mana_added(game: &GameState) -> Vec<(ObjectId, Vec<(ManaType, u64)>, bool)> {
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ManaAdded { source_id, mana, tapped_for_mana, .. } => {
-                Some((*source_id, mana.clone(), *tapped_for_mana))
+            GameEvent::ManaAdded { source, mana, tapped_for_mana, .. } => {
+                Some((source.id, mana.clone(), *tapped_for_mana))
             }
             _ => None,
         })
@@ -340,7 +340,7 @@ fn the_tap_and_the_production_are_two_batches() {
     let tapped = recorded
         .records()
         .iter()
-        .find(|r| matches!(r.event, GameEvent::Tapped { object_id } if object_id == id))
+        .find(|r| matches!(r.event, GameEvent::Tapped { object } if object.id == id))
         .expect("the Forest tapped");
     let produced = recorded
         .records()

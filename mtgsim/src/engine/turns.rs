@@ -722,7 +722,7 @@ mod tests {
 
         let untapped: Vec<crate::types::ids::ObjectId> = game.recorded_events().records_from(before).iter()
             .filter_map(|r| match &r.event {
-                crate::events::event::GameEvent::Untapped { object_id } => Some(*object_id),
+                crate::events::event::GameEvent::Untapped { object } => Some(object.id),
                 _ => None,
             })
             .collect();

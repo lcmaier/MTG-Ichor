@@ -9975,31 +9975,13 @@ keyed by its event.
 
 ### Found by `trigger-matcher-merges` (2026-10-25)
 
-328. **Most record payloads still name an object by its id alone.** Item 320
-     landed for a move's two records, whose `DepartedObject` names the existence
-     that left, and for the three that always carry a frame. Eighteen fields
-     still hold a bare `ObjectId` where the CR keys the object by existence
-     (CR 400.7): `Tapped`, `Untapped`, `CardDrawn.card_id`,
-     `ManaAdded.source_id`, `DamageDealt.source_id`,
-     `PermanentEnteredBattlefield`, `BecameBlocked`, `SpellCast`,
-     `Targeted.by`, `DelayedTriggerCreated.source`, `UntilReturnMade.source`,
-     the two `countered_by`s, `SpellFizzled`, `Attached`'s two ends,
-     `TokenCreated` and `TokenCeasedToExist`, beside the ids inside
-     `AttackersDeclared`, `BlockersDeclared`, `LifeChanged.source`,
-     `CounterSubject` and `DamageTarget`.
-     **Reachability (2026-10-25):** reachable — not wrong today: a dispatch
-     reads a record inside its window, and `subject_after` takes the object
-     as the dispatch finds it. Converting a field makes the trigger name the
-     existence the event was about, which differs for an object that moved
-     again in its own window: the CR's answer (CR 400.7), and a move in the
-     stream, which is why it did not ride a PR predicted identical.
-     **Sized:** ~300 lines: each field an `ObjectRef`, its emitters, and its
-     readers in the matcher, the history, the log and the tests; a `differ`
-     A/B attributed to the windows where an object moved twice.
-     **Slotted:** A6e's cleanup, in `record-existences`, split from
-     `one-fact-one-type` at #289's review so that it has its own PR and A/B,
-     and ahead of it, since item 291 makes object-or-player one type by
-     reference over the result.
+328. **~~Most record payloads still name an object by its id alone.~~ — ✅
+     CLOSED 2026-10-25 (PR #290, `record-existences`).** — archived. Every
+     record names each object by the existence the event was about, and a
+     trigger remembers that existence; what a creature attacks stays the
+     combat's `AttackTarget`, by id.
+     **Reachability (2026-10-25):** closed — PR #290.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 328".
 
 329. **A replacement's rider names no ability source, so `ExileUntil`
      refuses its "this".** `resolve_rider` builds the rider's

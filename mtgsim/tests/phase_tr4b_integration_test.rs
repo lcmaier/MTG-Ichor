@@ -148,7 +148,7 @@ fn reattaching_announces_the_unattach_from_the_first_host_then_the_attach() {
         attachment_records(&game),
         vec![
             unattached(sword_ref, bears_ref, UnattachRoute::AttachedElsewhere),
-            GameEvent::Attached { attachment: sword, host: other, former_host: Some(bears) },
+            GameEvent::Attached { attachment: sword_ref, host: game.object_ref(other).unwrap(), former_host: Some(bears_ref) },
         ]
     );
     let batches: Vec<_> = game.recorded_events().records().iter().map(|r| r.stamp.batch).collect();
@@ -395,8 +395,8 @@ fn records_of(game: &GameState, id: ObjectId) -> Vec<(&'static str, Option<mtgsi
         .filter_map(|r| {
             let kind = match &r.event {
                 GameEvent::ZoneChange { departed, .. } if departed.object().id == id => "move",
-                GameEvent::PermanentEnteredBattlefield { object_id, .. } if *object_id == id => "entered",
-                GameEvent::Attached { attachment, .. } if *attachment == id => "attached",
+                GameEvent::PermanentEnteredBattlefield { object, .. } if object.id == id => "entered",
+                GameEvent::Attached { attachment, .. } if attachment.id == id => "attached",
                 _ => return None,
             };
             Some((kind, r.stamp.batch))
@@ -417,7 +417,7 @@ fn an_aura_spell_resolving_announces_that_it_became_attached() {
     game.resolve_top_of_stack(&test_dp()).unwrap();
 
     assert_eq!(host(&game, aura), Some(bears));
-    assert!(game.recorded_events().events().any(|e| *e == GameEvent::Attached { attachment: aura, host: bears, former_host: None }));
+    assert!(game.recorded_events().events().any(|e| *e == GameEvent::Attached { attachment: game.object_ref(aura).unwrap(), host: game.object_ref(bears).unwrap(), former_host: None }));
     let records = records_of(&game, aura);
     assert_eq!(records.iter().map(|(kind, _)| *kind).collect::<Vec<_>>(), vec!["move", "entered", "attached"]);
     assert!(records.iter().all(|(_, batch)| *batch == records[0].1), "one event (CR 303.4f's \"as it enters\")");

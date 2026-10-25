@@ -96,6 +96,52 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-10-25 for item 328** (#290, `record-existences`: every
+record names each object it is about by existence, and a trigger remembers
+that existence; A6e's cleanup PR 3b). No card moves and neither pool moved,
+so no table is re-recorded. One `close_out.py` sitting against **main**
+`c4d7942` (#289's merge): **types** `9b34db7`, the five commits that convert
+the records with every reader still asking by id, and **shipped** `3242c64`.
+
+**Predictions, before any arm ran** (#290's body):
+- the types arm identical to `main` on both pools at two seats and four,
+  every engine-work row too, and the log the same;
+- the shipped arm differing on both pools (the plan's row), each first
+  divergence at a window where an object a record names moved again in its
+  batch; the session's own reading of the batches expected few or none;
+- instructions per decision within ±0.3% for the types arm, `GameEvent`
+  growing from 72 to 80 bytes and `EventRecord` from 144 to 152;
+- the clone floors and held memory as #289 left them.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, types vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, types, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,027 |
+| gameplay rows, shipped vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, shipped, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,027 |
+| instructions / decision, types vs `main`, callgrind, the Commander board | | 0.7442 M → 0.7412 M, **−0.40%** |
+| clone, worst decision (`clone_bound_test`), `main` → shipped | | 40 allocations, 6.4 KB, as `main` |
+| held, log and store together (`history_held_test`), `main` → shipped | | 4,234 B a turn, as `main` |
+| audited smoke, shipped, 1,000 games at seed 777, performance / stress: errors, panics, turn limits | 0 / 0 | 0 / 0 |
+
+**Neither pool moved, where the plan's row predicted both.** A record and a
+later move of its object share a window only inside one batch, and no
+registered card's batches put them there: a cost's tap and its sacrifice
+are each their own action, the declarations are unbatched, and a rider runs
+as its own batch. The one shape in the tree is a state-based check that
+removes a creature's counters and kills it (CR 704.8), and the only
+registered removal trigger is Protean Hydra's on itself, whose ability is
+gone once the check kills it. #290's fixture puts a removal trigger naming
+the creature on that board.
+
+**The cost: −0.40%, where the bound was ±0.3%.** The types arm adds an
+existence lookup to each emission and 8 bytes to each record and removes no
+work, so the cheaper reading is not explained; it was not probed, since a
+cost below the prediction is inside the budget. A clone mid-batch
+copies the window's records, so one entering-attacker prompt went from 6.3
+to 6.4 KB; the worst decision's figure is unchanged. The held reading is
+the history's rows, which hold no record.
+
 **Re-recorded 2026-10-25 for item 317** (#289, `trigger-matcher-merges`:
 the trigger matcher's facts each written once, items 247, 301, 302, 304,
 309, 315 and 319–321, and item 317 as its last commit; A6e's cleanup PR 3).

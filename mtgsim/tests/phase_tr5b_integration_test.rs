@@ -33,7 +33,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
-use mtgsim::types::triggers::{CountersOn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{CountersOn, Multiplicity, ObjectOrPlayer, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::oracle::x_values::LegalXValues;
@@ -107,11 +107,16 @@ fn counter_records(game: &GameState, start: usize) -> Vec<GameEvent> {
         .collect()
 }
 
+/// `object` as the counter records since it was last moved name it.
+fn on(game: &GameState, object: ObjectId) -> ObjectOrPlayer {
+    ObjectOrPlayer::Object(game.object_ref(object).expect("in a zone"))
+}
+
 /// Whether every counter record since `start` is about `object`.
 fn records_name_only(game: &GameState, start: usize, object: ObjectId) -> bool {
     counter_records(game, start).iter().all(|event| match event {
         GameEvent::CountersPutOn { subject, .. } | GameEvent::CountersRemovedFrom { subject, .. } => {
-            *subject == CounterSubject::Object(object)
+            subject.object().is_some_and(|named| named.id == object)
         }
         _ => false,
     })
@@ -140,7 +145,7 @@ fn a_put_names_the_instructions_controller_and_the_count_it_leaves() {
     assert_eq!(
         counter_records(&game, start),
         vec![GameEvent::CountersPutOn {
-            subject: CounterSubject::Object(bears),
+            subject: on(&game, bears),
             counter_type: CounterType::PlusOnePlusOne,
             n: 2,
             by: 1,
@@ -162,7 +167,7 @@ fn a_removal_by_an_instruction_names_its_controller_and_takes_what_is_there() {
     counters_on_target(&mut game, 1, bears, remove(CounterType::PlusOnePlusOne, 5));
 
     let removed = |n, now| GameEvent::CountersRemovedFrom {
-        subject: CounterSubject::Object(bears),
+        subject: on(&game, bears),
         counter_type: CounterType::PlusOnePlusOne,
         n,
         by: Some(1),
@@ -196,7 +201,7 @@ fn damage_to_a_planeswalker_removes_loyalty_that_no_player_removed() {
     assert_eq!(
         counter_records(&game, start),
         vec![GameEvent::CountersRemovedFrom {
-            subject: CounterSubject::Object(walker),
+            subject: on(&game, walker),
             counter_type: CounterType::Loyalty,
             n: 2,
             by: None,
@@ -221,7 +226,7 @@ fn a_stun_counters_own_replacement_is_its_permanents_controllers_removal() {
     assert_eq!(
         counter_records(&game, start),
         vec![GameEvent::CountersRemovedFrom {
-            subject: CounterSubject::Object(bears),
+            subject: on(&game, bears),
             counter_type: CounterType::Stun,
             n: 1,
             by: Some(0),
@@ -269,7 +274,7 @@ fn an_entry_announces_its_counters_after_itself_in_its_batch() {
     let records = log.records_from(start);
     let entered = records
         .iter()
-        .position(|r| matches!(r.event, GameEvent::PermanentEnteredBattlefield { object_id, .. } if object_id == chained))
+        .position(|r| matches!(r.event, GameEvent::PermanentEnteredBattlefield { object, .. } if object.id == chained))
         .expect("it entered");
     let put = records.iter().position(|r| matches!(r.event, GameEvent::CountersPutOn { .. })).expect("its counters were announced");
     assert!(entered < put, "the entry first, then what it entered with");
@@ -277,7 +282,7 @@ fn an_entry_announces_its_counters_after_itself_in_its_batch() {
     assert_eq!(
         records[put].event,
         GameEvent::CountersPutOn {
-            subject: CounterSubject::Object(chained),
+            subject: on(&game, chained),
             counter_type: CounterType::MinusOneMinusOne,
             n: 2,
             by: 1,
@@ -314,7 +319,7 @@ fn an_entrys_rows_are_one_record_per_kind_and_putter_each_with_its_count() {
     let start = game.recorded_events().records().len();
     let grower = reanimate(&mut game, enters_with_a_counter(), 0);
     let put = |object, n, by, now| GameEvent::CountersPutOn {
-        subject: CounterSubject::Object(object),
+        subject: on(&game, object),
         counter_type: CounterType::PlusOnePlusOne,
         n,
         by,
@@ -567,7 +572,7 @@ fn a_removal_asking_more_than_is_there_records_and_triggers_on_what_it_took() {
 
     counters_on_target(&mut game, 1, hydra, remove(CounterType::PlusOnePlusOne, 3));
     let took_one = GameEvent::CountersRemovedFrom {
-        subject: CounterSubject::Object(hydra),
+        subject: on(&game, hydra),
         counter_type: CounterType::PlusOnePlusOne,
         n: 1,
         by: Some(1),
@@ -688,8 +693,8 @@ fn annihilations_since(game: &GameState, start: usize) -> Vec<(GameEvent, Option
         .collect()
 }
 
-fn removed(object: ObjectId, counter_type: CounterType, n: u32, now: u32) -> GameEvent {
-    GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(object), counter_type, n, by: None, now }
+fn removed(subject: ObjectOrPlayer, counter_type: CounterType, n: u32, now: u32) -> GameEvent {
+    GameEvent::CountersRemovedFrom { subject, counter_type, n, by: None, now }
 }
 
 // COVERS: ATOM-704.5q-001
@@ -707,7 +712,7 @@ fn the_annihilation_is_two_removals_of_one_event_that_no_player_made() {
     let events: Vec<GameEvent> = records.iter().map(|(event, _)| event.clone()).collect();
     assert_eq!(
         events,
-        vec![removed(bears, CounterType::PlusOnePlusOne, 2, 1), removed(bears, CounterType::MinusOneMinusOne, 2, 0)]
+        vec![removed(on(&game, bears), CounterType::PlusOnePlusOne, 2, 1), removed(on(&game, bears), CounterType::MinusOneMinusOne, 2, 0)]
     );
     assert_eq!(records[0].1, records[1].1, "CR 704.3: one event");
     assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 1);
@@ -727,7 +732,7 @@ fn equal_counts_annihilate_to_none_of_either() {
     let events: Vec<GameEvent> = annihilations_since(&game, start).into_iter().map(|(event, _)| event).collect();
     assert_eq!(
         events,
-        vec![removed(bears, CounterType::PlusOnePlusOne, 3, 0), removed(bears, CounterType::MinusOneMinusOne, 3, 0)]
+        vec![removed(on(&game, bears), CounterType::PlusOnePlusOne, 3, 0), removed(on(&game, bears), CounterType::MinusOneMinusOne, 3, 0)]
     );
     let left = |kind| game.battlefield[&bears].counter_count(kind);
     assert_eq!((left(CounterType::PlusOnePlusOne), left(CounterType::MinusOneMinusOne)), (0, 0));
@@ -746,13 +751,14 @@ fn a_creature_the_check_kills_is_framed_before_its_annihilation() {
     counters_on_target(&mut game, 0, geist, put(CounterType::PlusOnePlusOne, 1));
     counters_on_target(&mut game, 1, geist, put(CounterType::MinusOneMinusOne, 3));
     let start = game.recorded_events().records().len();
+    let annihilated = on(&game, geist);
 
     resolve_all(&mut game);
 
     let events: Vec<GameEvent> = annihilations_since(&game, start).into_iter().map(|(event, _)| event).collect();
     assert_eq!(
         events,
-        vec![removed(geist, CounterType::PlusOnePlusOne, 1, 0), removed(geist, CounterType::MinusOneMinusOne, 1, 2)],
+        vec![removed(annihilated, CounterType::PlusOnePlusOne, 1, 0), removed(annihilated, CounterType::MinusOneMinusOne, 1, 2)],
         "both removals are performed, the death beside them"
     );
     assert_eq!(game.get_object(geist).expect("its card").zone, Zone::Graveyard, "undying did not return it");
@@ -1028,7 +1034,7 @@ fn protean_hydra_prevents_all_damage_and_loses_the_counters_it_has() {
     assert_eq!(
         removals,
         vec![GameEvent::CountersRemovedFrom {
-            subject: CounterSubject::Object(hydra),
+            subject: on(&game, hydra),
             counter_type: CounterType::PlusOnePlusOne,
             n: 2,
             by: Some(0),

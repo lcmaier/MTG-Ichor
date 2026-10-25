@@ -18,8 +18,7 @@ use crate::types::restriction::SourceFilter;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
-use crate::engine::replacement::EventSubject;
-use crate::events::event::{CounterSubject, CreatedAt, DamageTarget, EventRecord, EventId, GameEvent, LifeChange, ResolutionStamp};
+use crate::events::event::{CreatedAt, EventRecord, EventId, GameEvent, LifeChange, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
@@ -455,8 +454,7 @@ impl ObjectOrPlayer {
 }
 
 /// The objects a triggering event is about, each by the part it played, as the
-/// existence the dispatch found (CR 400.7): the one fact a record, which names
-/// its objects by id, does not carry. One variant per shape of event.
+/// existence its record names (CR 400.7). One variant per shape of event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TriggeringEventObjects {
     /// A step beginning, a life change, a player losing.
@@ -1278,12 +1276,12 @@ impl TriggerEvent {
     /// trigger is one of, the counters' object or player, or the damage's
     /// recipient. `None` for every other arm, and for a record it does not
     /// read.
-    pub(crate) fn occurrence_subject(&self, record: &GameEvent) -> Option<EventSubject> {
+    pub(crate) fn occurrence_subject(&self, record: &GameEvent) -> Option<ObjectOrPlayer> {
         match (self.occurrence_subject_part()?, record) {
             (OccurrenceSubject::CountersOn, GameEvent::CountersPutOn { subject, .. } | GameEvent::CountersRemovedFrom { subject, .. }) => {
-                Some(EventSubject::from(*subject))
+                Some(*subject)
             }
-            (OccurrenceSubject::DamageRecipient, GameEvent::DamageDealt { target, .. }) => Some(EventSubject::from(*target)),
+            (OccurrenceSubject::DamageRecipient, GameEvent::DamageDealt { target, .. }) => Some(*target),
             (OccurrenceSubject::CountersOn | OccurrenceSubject::DamageRecipient, _) => None,
         }
     }
@@ -1513,8 +1511,8 @@ impl TriggerEvent {
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { player_id, .. }) => Some(*player_id),
             (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. })
             | (TriggerEvent::DamageIsPrevented { .. }, GameEvent::DamagePrevented { target, .. }) => match target {
-                DamageTarget::Player(pid) => Some(*pid),
-                DamageTarget::Object(_) => None,
+                ObjectOrPlayer::Player(pid) => Some(*pid),
+                ObjectOrPlayer::Object(_) => None,
             },
             (TriggerEvent::PhaseBegins { .. }, GameEvent::PhaseBegin { player, .. })
             | (TriggerEvent::StepBegins { .. }, GameEvent::StepBegin { player, .. })
@@ -1540,8 +1538,8 @@ impl TriggerEvent {
             // The player who got them; counters on an object name no player.
             (TriggerEvent::CountersPutOn { .. }, GameEvent::CountersPutOn { subject, .. })
             | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { subject, .. }) => match subject {
-                CounterSubject::Player(player) => Some(*player),
-                CounterSubject::Object(_) => None,
+                ObjectOrPlayer::Player(player) => Some(*player),
+                ObjectOrPlayer::Object(_) => None,
             },
             (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { controller, .. })
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { controller, .. }) => {
@@ -1766,7 +1764,7 @@ impl TriggerBinding {
     }
 
     /// "Its power", "if it had": the object that played `role` in the
-    /// one triggering event, as the existence the dispatch found. `None` for a
+    /// one triggering event, as the existence its record names. `None` for a
     /// "one or more" trigger, which has no single object.
     pub fn triggering_object(&self, role: EventRole) -> Option<ObjectRef> {
         self.triggering_event()?.objects.get(self.event()?.role_as_recorded(role))
@@ -2275,12 +2273,12 @@ pub(crate) mod samples {
                 new_epoch: 1,
             }),
             ("LeftTheGame", GameEvent::LeftTheGame { departed: DepartedObject::WithoutLki { object: identity.source, owner: 0 }, from: Zone::Battlefield }),
-            ("Tapped", GameEvent::Tapped { object_id: id }),
-            ("Untapped", GameEvent::Untapped { object_id: id }),
-            ("ManaAdded", GameEvent::ManaAdded { player_id: 0, source_id: id, mana: Vec::new(), tapped_for_mana: false, source_lki: None }),
+            ("Tapped", GameEvent::Tapped { object: identity.source }),
+            ("Untapped", GameEvent::Untapped { object: identity.source }),
+            ("ManaAdded", GameEvent::ManaAdded { player_id: 0, source: identity.source, mana: Vec::new(), tapped_for_mana: false, source_lki: None }),
             ("DamageDealt", GameEvent::DamageDealt {
-                source_id: id,
-                target: DamageTarget::Player(0),
+                source: identity.source,
+                target: ObjectOrPlayer::Player(0),
                 amount: 1,
                 excess: 0,
                 is_combat: false,
@@ -2290,21 +2288,21 @@ pub(crate) mod samples {
             ("StepBegin", GameEvent::StepBegin { step: StepType::Upkeep, player: 0 }),
             ("TurnBegin", GameEvent::TurnBegin { player: 0, turn_number: 1 }),
             ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None }),
-            ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object_id: id, controller: 0 }),
-            ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![(id, AttackTarget::Player(1))] }),
-            ("BlockersDeclared", GameEvent::BlockersDeclared { blocks: vec![(id, id)], unblocked: Vec::new() }),
-            ("BecameBlocked", GameEvent::BecameBlocked { attacker: id }),
+            ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object: identity.source, controller: 0 }),
+            ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![(identity.source, AttackTarget::Player(1))] }),
+            ("BlockersDeclared", GameEvent::BlockersDeclared { blocks: vec![(identity.source, identity.source)], unblocked: Vec::new() }),
+            ("BecameBlocked", GameEvent::BecameBlocked { attacker: identity.source }),
             ("AbilityTriggered", GameEvent::AbilityTriggered {
                 trigger: TriggerId(0),
                 origin: TriggerOrigin::Object(identity),
                 controller: 0,
                 caused_by: Some(EventId(0)),
             }),
-            ("SpellCast", GameEvent::SpellCast { spell_id: id, caster: 0 }),
-            ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id }),
+            ("SpellCast", GameEvent::SpellCast { spell: identity.source, caster: 0 }),
+            ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card: identity.source }),
             ("LibraryShuffled", GameEvent::LibraryShuffled { player_id: 0 }),
             ("AbilityResolved", GameEvent::AbilityResolved { identity, controller: 0 }),
-            ("Attached", GameEvent::Attached { attachment: id, host: id, former_host: None }),
+            ("Attached", GameEvent::Attached { attachment: identity.source, host: identity.source, former_host: None }),
             ("Unattached", GameEvent::Unattached {
                 attachment: identity.source,
                 former_host: identity.source,
@@ -2313,44 +2311,44 @@ pub(crate) mod samples {
                 former_host_left: false,
             }),
             ("DamagePrevented", GameEvent::DamagePrevented {
-                target: DamageTarget::Player(0),
+                target: ObjectOrPlayer::Player(0),
                 amount: 1,
                 by: crate::engine::replacement::ReplacementInstanceId::StaticAbility(identity.source, identity.ability),
             }),
             ("Scried", GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 }),
             ("TokenCreated", GameEvent::TokenCreated {
-                object_id: id,
+                token: identity.source,
                 owner: 0,
                 zone: Zone::Battlefield,
                 definition: Arc::new(crate::cards::phase_re_cards::goblin_token()),
             }),
             ("Targeted", GameEvent::Targeted {
                 target: crate::engine::targeting::TargetRef::Object(identity.source),
-                by: id,
+                by: identity.source,
                 ability_source: None,
                 controller: 0,
                 instances: 1,
             }),
             ("AbilityActivated", GameEvent::AbilityActivated { identity, controller: 0, mana_ability: false, from: Zone::Battlefield, source_lki: None }),
-            ("SpellCountered", GameEvent::SpellCountered { countered_by: id, lki: lki.clone() }),
+            ("SpellCountered", GameEvent::SpellCountered { countered_by: identity.source, lki: lki.clone() }),
             ("PlayerLost", GameEvent::PlayerLost { player_id: 0 }),
             ("SameZoneMove", GameEvent::SameZoneMove { zone: Zone::Library, act: ZoneChangeAct::Milled, applied: None, lki: lki.clone() }),
             ("ControlChanged", GameEvent::ControlChanged { to: 1, lki }),
             ("CountersPutOn", GameEvent::CountersPutOn {
-                subject: CounterSubject::Object(id),
+                subject: ObjectOrPlayer::Object(identity.source),
                 counter_type: CounterType::PlusOnePlusOne,
                 n: 1,
                 by: 0,
                 now: 1,
             }),
             ("CountersRemovedFrom", GameEvent::CountersRemovedFrom {
-                subject: CounterSubject::Object(id),
+                subject: ObjectOrPlayer::Object(identity.source),
                 counter_type: CounterType::PlusOnePlusOne,
                 n: 1,
                 by: Some(0),
                 now: 0,
             }),
-            ("TokenCeasedToExist", GameEvent::TokenCeasedToExist { object_id: id }),
+            ("TokenCeasedToExist", GameEvent::TokenCeasedToExist { token: identity.source }),
         ]
     }
 

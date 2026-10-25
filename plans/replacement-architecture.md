@@ -479,7 +479,9 @@ Priced:
 - **Bytes: none.** `EventCause` fits in the 24 bytes `Option<ResolutionStamp>`
   takes today. Its widest arm is a `ResolutionStamp` (16 bytes) and one byte of
   kind. Measured 2026-10-10 with a probe crate: `EventStamp` is 40 bytes and
-  `EventRecord` 144, and both keep their sizes. RH-1 asserts them in a test.
+  `EventRecord` 144, and both keep their sizes. RH-1 asserted them in a test;
+  since `record-existences` the event's size is a ceiling with its rule
+  (`the_event_stays_under_its_ceiling`), and the record follows from it.
 - **Sites.** Every proposal names its cause through `ActionContext`'s
   constructors, one per kind of cause:
   - the 14 production `ActionContext::new` calls each become the constructor

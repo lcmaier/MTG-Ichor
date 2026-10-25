@@ -21,6 +21,7 @@ use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
@@ -260,7 +261,7 @@ fn a_may_whose_damage_is_prevented_still_answers_does() {
     assert!(
         game.recorded_events().events().any(|e| matches!(
             e,
-            GameEvent::DamagePrevented { target: DamageTarget::Player(0), amount: 2, .. }
+            GameEvent::DamagePrevented { target: ObjectOrPlayer::Player(0), amount: 2, .. }
         )),
         "the 2 were proposed and reached Safe Passage"
     );

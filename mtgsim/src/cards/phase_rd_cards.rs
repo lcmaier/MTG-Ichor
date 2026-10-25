@@ -1391,7 +1391,7 @@ mod tests {
             .recorded_events()
             .events()
             .filter_map(|e| match e {
-                GameEvent::DamageDealt { source_id, amount, .. } => Some((*source_id, *amount)),
+                GameEvent::DamageDealt { source, amount, .. } => Some((source.id, *amount)),
                 _ => None,
             })
             .collect();
@@ -2051,7 +2051,7 @@ mod tests {
             .recorded_events()
             .events()
             .filter_map(|e| match e {
-                GameEvent::DamageDealt { source_id, amount, .. } => Some((*source_id, *amount)),
+                GameEvent::DamageDealt { source, amount, .. } => Some((source.id, *amount)),
                 _ => None,
             })
             .collect();
@@ -2204,7 +2204,7 @@ mod tests {
         let assignments = assign_combat_damage(&game, &dp, 1, false);
         game.apply_combat_damage(assignments, &ActionContext::new(&dp)).unwrap();
 
-        let dealt: Vec<DamageTarget> = game
+        let dealt: Vec<crate::types::triggers::ObjectOrPlayer> = game
             .recorded_events()
             .records_from(from)
             .iter()

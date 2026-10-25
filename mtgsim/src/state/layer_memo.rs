@@ -461,7 +461,7 @@ mod tests {
     #[test]
     fn a_history_read_is_invalidated_by_its_kind_of_row_only() {
         use crate::events::cause::{EventCause, GameRule};
-        use crate::events::event::{DamageTarget, GameEvent};
+        use crate::events::event::GameEvent;
         use crate::state::battlefield::AttackTarget;
         use crate::types::effects::{ObjectFilter, ObjectSet};
         use crate::types::history::ObjectFact;
@@ -480,8 +480,8 @@ mod tests {
 
         let cause = EventCause::GameRule(GameRule::StepBegins);
         let damage = GameEvent::DamageDealt {
-            source_id: bears,
-            target: DamageTarget::Object(wall),
+            source: game.object_ref(bears).unwrap(),
+            target: crate::types::triggers::ObjectOrPlayer::Object(game.object_ref(wall).unwrap()),
             amount: 1,
             excess: 0,
             is_combat: false,
@@ -491,7 +491,8 @@ mod tests {
         assert!(game.history.log.rows_newest_first().any(|row| row.fact.kind() == crate::state::history_log::RowKind::DealtDamage));
         assert_eq!(power(&game, bears), (Some(2), true), "a damage row is not what the static read");
 
-        game.emit_event(GameEvent::AttackersDeclared { attackers: vec![(bears, AttackTarget::Player(1))] }, cause).unwrap();
+        let attacker = game.object_ref(bears).unwrap();
+        game.emit_event(GameEvent::AttackersDeclared { attackers: vec![(attacker, AttackTarget::Player(1))] }, cause).unwrap();
         assert_eq!(power(&game, bears), (Some(5), false), "an attack row is, and the bears attacked");
     }
 

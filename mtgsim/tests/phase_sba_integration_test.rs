@@ -19,7 +19,8 @@ use mtgsim::cards::phase_sba_cards::battlegrowth;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
 use mtgsim::events::cause::{EventCause, StateBasedAction};
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::oracle::characteristics::{get_effective_name, get_effective_power, get_effective_toughness};
 use mtgsim::state::game_state::GameState;
@@ -83,10 +84,10 @@ fn annihilations(game: &GameState) -> Vec<(ObjectId, u32)> {
             .iter()
             .filter(|r| r.stamp.cause == annihilating)
             .filter_map(|r| match r.event {
-                GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(id), counter_type, n, by: None, .. }
+                GameEvent::CountersRemovedFrom { subject: ObjectOrPlayer::Object(object), counter_type, n, by: None, .. }
                     if counter_type == kind =>
                 {
-                    Some((id, n))
+                    Some((object.id, n))
                 }
                 _ => None,
             })

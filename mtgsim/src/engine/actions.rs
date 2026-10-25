@@ -1536,10 +1536,14 @@ impl GameState {
                     }
                 }
 
+                let dealt_by = match &source_lki {
+                    Some(lki) => lki.object(),
+                    None => self.existence_for_record(source)?,
+                };
                 self.emit_event(GameEvent::DamageDealt {
-                    source_id: source,
+                    source: dealt_by,
                     source_lki,
-                    target,
+                    target: target.for_record(self)?,
                     amount,
                     excess,
                     is_combat,
@@ -1608,7 +1612,7 @@ impl GameState {
                     player_id: player,
                     old: old_life,
                     new: new_life,
-                    source: Some(source),
+                    source: self.existence_for_record(source).ok(),
                 }, ctx.cause)?;
 
                 Ok(())
@@ -1632,7 +1636,7 @@ impl GameState {
                     old: old_life,
                     new: new_life,
                     // CR 120.3a's loss names the damage's source.
-                    source: damage_source,
+                    source: damage_source.and_then(|source| self.existence_for_record(source).ok()),
                 }, ctx.cause)?;
 
                 Ok(())
@@ -1668,7 +1672,7 @@ impl GameState {
                 }
                 entry.tapped = false;
                 self.bump_layer_epoch_if_read(GatedWalkInput::TappedStatus);
-                self.emit_event(GameEvent::Untapped { object_id: object }, ctx.cause)?;
+                self.emit_event(GameEvent::Untapped { object: self.existence_for_record(object)? }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1683,8 +1687,7 @@ impl GameState {
                 if !self.battlefield.contains_key(&host) {
                     return Err(format!("Cannot attach to {}: not on the battlefield", host));
                 }
-                let former_host = self.battlefield[&attachment].attached_to;
-                let unattached_from = former_host.and_then(|former| self.object_ref(former));
+                let unattached_from = self.battlefield[&attachment].attached_to.and_then(|former| self.object_ref(former));
                 // CR 701.3b — already there: the effect does nothing, and
                 // nothing "becomes attached" (CR 603.2e's transition rule).
                 if self.attach(attachment, host) {
@@ -1693,7 +1696,8 @@ impl GameState {
                     if let (Some(former), Some(moved)) = (unattached_from, self.object_ref(attachment)) {
                         self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, false, false, ctx.cause)?;
                     }
-                    self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
+                    let (attachment, host) = (self.existence_for_record(attachment)?, self.existence_for_record(host)?);
+                    self.emit_event(GameEvent::Attached { attachment, host, former_host: unattached_from }, ctx.cause)?;
                 }
                 Ok(())
             }
@@ -1726,7 +1730,7 @@ impl GameState {
                 }
                 entry.tapped = true;
                 self.bump_layer_epoch_if_read(GatedWalkInput::TappedStatus);
-                self.emit_event(GameEvent::Tapped { object_id: object }, ctx.cause)?;
+                self.emit_event(GameEvent::Tapped { object: self.existence_for_record(object)? }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1741,7 +1745,7 @@ impl GameState {
                 }
                 attack.is_blocked = true;
                 self.bump_layer_epoch_if_read(GatedWalkInput::Combat);
-                self.emit_event(GameEvent::BecameBlocked { attacker }, ctx.cause)?;
+                self.emit_event(GameEvent::BecameBlocked { attacker: self.existence_for_record(attacker)? }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1770,6 +1774,7 @@ impl GameState {
                     }
                 }
                 let now = self.counter_count_of(subject, counter);
+                let subject = subject.for_record(self)?;
                 self.emit_event(GameEvent::CountersPutOn { subject, counter_type: counter, n, by, now }, ctx.cause)?;
                 Ok(())
             }
@@ -1799,6 +1804,7 @@ impl GameState {
                     return Ok(());
                 }
                 let now = self.counter_count_of(subject, counter);
+                let subject = subject.for_record(self)?;
                 self.emit_event(GameEvent::CountersRemovedFrom { subject, counter_type: counter, n: removed, by, now }, ctx.cause)?;
                 Ok(())
             }
@@ -1858,7 +1864,8 @@ impl GameState {
                     && can_enter_attached(self, object)
                     && self.attach(object, host)
                 {
-                    self.emit_event(GameEvent::Attached { attachment: object, host, former_host: None }, ctx.cause)?;
+                    let (attachment, host) = (self.existence_for_record(object)?, self.existence_for_record(host)?);
+                    self.emit_event(GameEvent::Attached { attachment, host, former_host: None }, ctx.cause)?;
                 }
                 Ok(())
             }
@@ -1883,9 +1890,10 @@ impl GameState {
                 if !token.is_token || zone == Zone::Battlefield {
                     return Err(format!("{} cannot cease to exist: CR 704.5d is a token's off the battlefield", object));
                 }
+                let ended = self.existence_for_record(object)?;
                 self.remove_from_zone_collection(object, zone)?;
                 self.remove_object(object);
-                self.emit_event(GameEvent::TokenCeasedToExist { object_id: object }, ctx.cause)?;
+                self.emit_event(GameEvent::TokenCeasedToExist { token: ended }, ctx.cause)?;
                 Ok(())
             }
 
@@ -2032,9 +2040,13 @@ impl GameState {
                         None => announced.push((mana_type, n)),
                     }
                 }
+                let source = match &source_lki {
+                    Some(lki) => lki.object(),
+                    None => self.existence_for_record(source)?,
+                };
                 self.emit_event(GameEvent::ManaAdded {
                     player_id: player,
-                    source_id: source,
+                    source,
                     mana: announced,
                     tapped_for_mana,
                     source_lki,
@@ -2166,7 +2178,7 @@ impl GameState {
             .find(|(id, _)| *id == object)
             .map(|(_, definition)| Arc::clone(definition))
             .ok_or_else(|| format!("{object} is announced as a token no creation made"))?;
-        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone, definition }, cause)?;
+        self.emit_event(GameEvent::TokenCreated { token: self.existence_for_record(object)?, owner, zone, definition }, cause)?;
         Ok(())
     }
 
@@ -2642,7 +2654,7 @@ mod tests {
         // all been dealt, CR 702.15e).
         let life_events: Vec<_> = game.recorded_events().events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id, old, new, source, .. } = e {
-                Some((*player_id, *old, *new, *source))
+                Some((*player_id, *old, *new, source.map(|source| source.id)))
             } else {
                 None
             }
@@ -2714,7 +2726,7 @@ mod tests {
         // Collect all LifeChanged events for P0 (lifelink gains)
         let lifelink_gains: Vec<_> = game.recorded_events().events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id: 0, source, .. } = e {
-                Some(*source)
+                Some(source.map(|source| source.id))
             } else {
                 None
             }
@@ -2864,7 +2876,7 @@ mod tests {
 
         let life_events: Vec<_> = game.recorded_events().events().filter_map(|e| {
             if let GameEvent::LifeChanged { source, .. } = e {
-                Some(*source)
+                Some(source.map(|source| source.id))
             } else {
                 None
             }
