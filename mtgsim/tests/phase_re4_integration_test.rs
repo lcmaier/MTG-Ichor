@@ -55,7 +55,6 @@ use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -72,16 +71,7 @@ fn fixture_object() -> Arc<CardData> {
 /// assertion below counts.
 fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn DecisionProvider) {
     let source = put_in_hand(game, fixture_object(), player);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: player,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, player, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }
 
@@ -742,16 +732,7 @@ fn amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest() {
     )));
     put_on_battlefield(&mut game, enchantment_with("That Many Plus One", plus_one), 0);
     let source = put_in_hand(&mut game, fixture_object(), 0);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     let effect = raise_the_alarm().abilities[0].effect.clone();
 
     let err = game.resolve_effect(&effect, &ctx, &test_dp()).unwrap_err();

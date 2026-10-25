@@ -468,8 +468,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&spell, &ctx, &test_dp()).unwrap();
@@ -511,8 +510,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&spell, &ctx, &test_dp()).unwrap();
@@ -551,8 +549,7 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&spell, &ctx, &test_dp()).unwrap();
@@ -606,8 +603,7 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&spell, &ctx, &test_dp()).unwrap();

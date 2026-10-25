@@ -75,8 +75,7 @@ fn resolve_spell(
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.into_iter().map(ResolvedTarget::Object).collect()),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&effect, &ctx, dp).expect("resolution failed");

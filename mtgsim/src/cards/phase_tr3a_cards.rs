@@ -147,7 +147,6 @@ mod tests {
     use crate::cards::phase_re_cards::{meditate, time_walk};
     use crate::engine::actions::GameAction;
     use crate::engine::resolve::ResolutionContext;
-    use crate::engine::targeting::ChosenTargets;
     use crate::state::game_state::{GameResult, GameState};
     use crate::test_support::{put_in_hand, setup_two_player_game, stock_libraries, test_ctx, test_dp, RecordingDecisionProvider};
     use crate::types::ids::{ObjectId, PlayerId};
@@ -159,16 +158,7 @@ mod tests {
     /// own source.
     fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId) -> ObjectId {
         let id = put_in_hand(game, card.clone(), controller);
-        let ctx = ResolutionContext {
-            source: id,
-            ability_source: None,
-            controller,
-            generated_by: crate::events::cause::GeneratedBy::Spell,
-            targets: ChosenTargets::NONE,
-            replaced_amount: None,
-            damage_prevented: None,
-            trigger: None,
-        };
+        let ctx = ResolutionContext::untargeted(id, controller, crate::events::cause::GeneratedBy::Spell);
         game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
         id
     }

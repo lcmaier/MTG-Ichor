@@ -50,16 +50,7 @@ fn fixture_object() -> Arc<CardData> {
 /// any CR 616.1 prompt.
 fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn DecisionProvider) {
     let source = put_in_hand(game, fixture_object(), player);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: player,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, player, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }
 
@@ -121,8 +112,7 @@ fn resolve_from(
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).expect("resolving");

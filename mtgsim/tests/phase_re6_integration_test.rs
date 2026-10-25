@@ -72,8 +72,7 @@ fn resolve_with(
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
@@ -83,16 +82,7 @@ fn resolve_with(
 /// own id is the resolution's source, as it is for a row the card creates.
 fn resolve_card(game: &mut GameState, card: Arc<CardData>, controller: PlayerId) -> ObjectId {
     let id = put_in_hand(game, card.clone(), controller);
-    let ctx = ResolutionContext {
-        source: id,
-        ability_source: None,
-        controller,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(id, controller, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell"), &ctx, &test_dp()).expect("resolving");
     id
 }

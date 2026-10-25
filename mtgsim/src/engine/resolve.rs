@@ -63,38 +63,48 @@ pub struct ResolutionContext {
     /// targets went illegal is empty here, and the atom that reads it does
     /// nothing, which is 608.2b's "it won't affect that target".
     pub targets: ChosenTargets,
-    /// CR 615.5's "that much" — the amount the replaced event carried, for a
-    /// rider and for nothing else.
+    /// The event a CR 615.5 rider's replacement or prevention effect applied
+    /// to, for a rider and for nothing else.
     ///
     /// `None` on every other resolution, which is what makes
-    /// `AmountExpr::ReplacedAmount` refuse rather than read a wrong number: a
-    /// resolving spell has no replaced event, so the question has no answer
-    /// rather than a default one.
-    pub replaced_amount: Option<u64>,
-    /// CR 615.5's "the amount of damage that was prevented" — for a rider and
-    /// for nothing else, read by `AmountExpr::DamagePrevented`.
-    ///
-    /// `Some(0)` for a rider whose effect prevented nothing — a plain
-    /// replacement's, or a prevention that met CR 615.12's unpreventable damage
-    /// — because that is the number Reverse Damage's "you gain life
-    /// equal to the damage prevented this way" needs there. `None` outside a
-    /// rider, for `replaced_amount`'s reason.
-    pub damage_prevented: Option<u64>,
+    /// `AmountExpr::ReplacedAmount` and `DamagePrevented` refuse rather than
+    /// read a wrong number: a resolving spell has no replaced event, so the
+    /// question has no answer rather than a default one.
+    pub replaced_event: Option<ReplacedEvent>,
     /// A triggered ability's bound facts, for the resolution of one and for
     /// nothing else (`triggers-architecture.md` §6.3): `Triggering`,
     /// `TriggeringPlayer` and `TriggeringAmount` read it, and refuse outside
-    /// a trigger rather than reading a default. One field, not a third
-    /// `Option` beside the rider pair (§15 item 8).
+    /// a trigger rather than reading a default.
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
 }
 
-impl ResolutionContext {
-    /// A resolution that names nothing — no targets, no rider, and no
-    /// permanent distinct from `source`. What a mana ability's resolution uses.
+/// What a CR 615.5 rider may refer to of the event its replacement or
+/// prevention effect applied to, captured as the rider is queued.
+///
+/// The amount is taken from the event as the loop sees it, so a rider queued
+/// after a doubler reads the doubled number, and is captured rather than
+/// recomputed after the event, which Angel of Suffering's ruling that
+/// unpreventable damage still mills needs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplacedEvent {
+    /// Damage: what the event carried, "that much", and what this application
+    /// prevented, "the damage prevented this way" (`AmountExpr::DamagePrevented`).
     ///
-    /// The two CR 615.5 numbers are one optional thing wearing two `Option`s;
-    /// the type-side fix is a single `rider: Option<RiderAmounts>`, a 48-site
-    /// sweep and its own PR (`codebase-state.md` "Found by RE-9", item 137).
+    /// The two differ under a partial shield, and under CR 615.12's
+    /// unpreventable damage, where `prevented` is 0: Angel of Suffering mills
+    /// `amount`, and Reverse Damage gains `prevented`.
+    Damage { amount: u64, prevented: u64 },
+    /// Any other event that carries a number (`pipeline::event_amount`): life
+    /// gained or lost, cards drawn, tokens created, a scry, mana produced.
+    Amount(u64),
+    /// An event with no number: a zone change, a player losing the game.
+    NoAmount,
+}
+
+impl ResolutionContext {
+    /// A resolution that names nothing — no targets, no replaced event, no
+    /// trigger, and no permanent distinct from `source`. What a mana ability's
+    /// resolution uses.
     pub fn untargeted(source: ObjectId, controller: PlayerId, generated_by: GeneratedBy) -> Self {
         ResolutionContext {
             source,
@@ -102,10 +112,9 @@ impl ResolutionContext {
             controller,
             generated_by,
             targets: ChosenTargets::NONE,
-            replaced_amount: None,
-            damage_prevented: None,
+            replaced_event: None,
             trigger: None,
-                    }
+        }
     }
 
     /// A mana ability's resolution, activated or triggered (CR 605.3b, 605.4a):
@@ -2619,20 +2628,28 @@ impl GameState {
             // CR 615.5's "that much"/"that many". Only a rider sets the field, so
             // outside a `ReplacementDef::then` this leaf asks a question its context
             // cannot answer, and a 0 would be silently wrong.
-            AmountExpr::ReplacedAmount => _ctx.replaced_amount.ok_or_else(|| {
-                "ReplacedAmount has no meaning outside a CR 615.5 rider".to_string()
-            }),
+            AmountExpr::ReplacedAmount => match _ctx.replaced_event {
+                Some(ReplacedEvent::Damage { amount, .. } | ReplacedEvent::Amount(amount)) => Ok(amount),
+                Some(ReplacedEvent::NoAmount) => {
+                    Err("ReplacedAmount: the event this rider replaced carried no amount".to_string())
+                }
+                None => Err("ReplacedAmount has no meaning outside a CR 615.5 rider".to_string()),
+            },
             // Doubling Cube's "each type of unspent mana you have": the
             // controller's pool now, restricted units counted by their type
             // (CR 106.6 — a restriction "doesn't affect the mana's type").
             AmountExpr::UnspentMana(mana_type) => {
                 Ok(self.get_player(_ctx.controller)?.mana_pool.unspent(*mana_type))
             }
-            // The other number a CR 615.5 rider may refer to, and the same
-            // refusal outside one.
-            AmountExpr::DamagePrevented => _ctx.damage_prevented.ok_or_else(|| {
-                "DamagePrevented has no meaning outside a CR 615.5 rider".to_string()
-            }),
+            // The other number a CR 615.5 rider may refer to, which only damage
+            // has, and the same refusal outside one.
+            AmountExpr::DamagePrevented => match _ctx.replaced_event {
+                Some(ReplacedEvent::Damage { prevented, .. }) => Ok(prevented),
+                Some(ReplacedEvent::Amount(_) | ReplacedEvent::NoAmount) => {
+                    Err("DamagePrevented: the event this rider replaced was not damage".to_string())
+                }
+                None => Err("DamagePrevented has no meaning outside a CR 615.5 rider".to_string()),
+            },
             // Saturating rather than checked: the inner amount is a damage or life
             // number and the factor is printed on a card, and a debug panic or a
             // release wrap is not an answer. `AmountRewrite::Multiplier` saturates too.
@@ -3074,6 +3091,31 @@ mod tests {
         assert_eq!(game.evaluate_amount(&twice_x_plus_one, &ctx, Some(3)), Ok(7));
         assert!(game.evaluate_amount(&AmountExpr::X, &ctx, None).is_err());
     }
+
+    /// CR 615.5's two numbers are a rider's: outside one both leaves refuse.
+    /// Inside one, each refuses an event that lacks its number, saying so
+    /// rather than "outside a rider", and damage that was not prevented reads 0.
+    #[test]
+    fn a_riders_numbers_are_read_only_inside_a_rider() {
+        let game = GameState::new(2, 20);
+        let outside = ResolutionContext::untargeted(crate::types::ids::ObjectId::UNASSIGNED, 0, GeneratedBy::Spell);
+        let read = |expr: AmountExpr, ctx: &ResolutionContext| game.evaluate_amount(&expr, ctx, None);
+        let inside = |event: ReplacedEvent| ResolutionContext { replaced_event: Some(event), ..outside.clone() };
+        assert!(read(AmountExpr::ReplacedAmount, &outside).is_err_and(|e| e.contains("outside a CR 615.5 rider")));
+        assert!(read(AmountExpr::DamagePrevented, &outside).is_err_and(|e| e.contains("outside a CR 615.5 rider")));
+
+        let zone_change = inside(ReplacedEvent::NoAmount);
+        assert!(read(AmountExpr::ReplacedAmount, &zone_change).is_err_and(|e| e.contains("carried no amount")));
+        assert!(read(AmountExpr::DamagePrevented, &zone_change).is_err_and(|e| e.contains("was not damage")));
+
+        let draw = inside(ReplacedEvent::Amount(2));
+        assert_eq!(read(AmountExpr::ReplacedAmount, &draw), Ok(2));
+        assert!(read(AmountExpr::DamagePrevented, &draw).is_err_and(|e| e.contains("was not damage")));
+
+        let unpreventable = inside(ReplacedEvent::Damage { amount: 3, prevented: 0 });
+        assert_eq!(read(AmountExpr::ReplacedAmount, &unpreventable), Ok(3));
+        assert_eq!(read(AmountExpr::DamagePrevented, &unpreventable), Ok(0));
+    }
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
@@ -3109,10 +3151,9 @@ mod tests {
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,
             targets: ChosenTargets::one(targets),
-            replaced_amount: None,
-            damage_prevented: None,
+            replaced_event: None,
             trigger: None,
-                    }
+        }
     }
 
     #[test]

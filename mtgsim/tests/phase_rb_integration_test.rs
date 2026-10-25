@@ -1095,8 +1095,7 @@ fn regenerate(game: &mut GameState, source: ObjectId, target: ObjectId) {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(
@@ -1301,8 +1300,7 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(bear)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(
@@ -1343,8 +1341,7 @@ fn test_cant_be_regenerated_does_not_withhold_other_replacements() {
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(bear)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(

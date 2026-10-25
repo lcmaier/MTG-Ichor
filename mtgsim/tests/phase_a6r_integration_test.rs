@@ -11,7 +11,6 @@ use mtgsim::cards::phase_re8_cards::opt;
 use mtgsim::cards::phase_re_cards::{notion_thief, teferis_ageless_insight, thought_reflection, words_of_worship};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{spell_effect, CardData, CardDataBuilder};
@@ -60,16 +59,7 @@ fn take_the_draw_step(game: &mut GameState) {
 }
 
 fn resolve_as(game: &mut GameState, source: ObjectId, controller: PlayerId, effect: &Effect, dp: &dyn DecisionProvider) {
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller,
-        generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, controller, GeneratedBy::Spell);
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }
 

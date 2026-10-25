@@ -480,7 +480,7 @@ types cannot say, which is this file's subject.
 |---|---|
 | **Rules** | CR 121.6c, and CR 121.7's ordering beside it |
 | **Verdict** | `Effect::Sequence` carries no result between atoms; `Primitive` returns nothing to the tree |
-| **Size** | one field on `ResolutionContext`, written by the draw performer through the resolution that proposed it, plus a `SelectionFilter` leaf that reads it — the shape `replaced_amount` and `damage_prevented` already have. ~80 lines, and the same field is what CR 701's "the cards milled this way" and "the token created this way" will want |
+| **Size** | one field on `ResolutionContext`, written by the draw performer through the resolution that proposed it, plus a `SelectionFilter` leaf that reads it — the shape `ResolutionContext::replaced_event` already has. ~80 lines, and the same field is what CR 701's "the cards milled this way" and "the token created this way" will want |
 | **Blocks** | the "draw and reveal" four — Fa'adiyah Seer, Sindbad, Pact Weapon, Breathstealer's Crypt (Scryfall, 2026-09-12) — each of which *also* needs `Primitive::Discard` (RE-8) or the information model (§2.9), so none is unblocked by this alone |
 | **Atoms** | `ATOM-614.11b-001`, uncovered with this reason in `tests/phase_re2_integration_test.rs`'s module doc |
 | **Owner** | — |

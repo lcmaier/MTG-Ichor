@@ -1578,8 +1578,7 @@ mod tests {
             controller,
             generated_by: crate::events::cause::GeneratedBy::Spell,
             targets: ChosenTargets::one(targets),
-            replaced_amount: None,
-            damage_prevented: None,
+            replaced_event: None,
             trigger: None,
         };
         let dp = crate::test_support::test_dp();
@@ -1752,14 +1751,8 @@ mod tests {
     ) -> crate::types::ids::ObjectId {
         let permanent = put_on_battlefield(game, card.clone(), controller);
         let ctx = ResolutionContext {
-            source: permanent,
             ability_source: game.object_ref(permanent),
-            controller,
-            generated_by: crate::events::cause::GeneratedBy::Spell,
-            targets: ChosenTargets::NONE,
-            replaced_amount: None,
-            damage_prevented: None,
-            trigger: None,
+            ..ResolutionContext::untargeted(permanent, controller, crate::events::cause::GeneratedBy::Spell)
         };
         game.resolve_effect(&card.abilities[0].effect, &ctx, dp).unwrap();
         permanent

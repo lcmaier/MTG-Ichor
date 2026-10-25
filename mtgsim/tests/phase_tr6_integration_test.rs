@@ -285,8 +285,7 @@ fn counter(game: &mut GameState, ability: ObjectId) {
         controller: 1,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(ability)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     let stifle = Effect::Atom(Primitive::CounterAbility, EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)));
@@ -373,16 +372,7 @@ fn each_creature_you_control(game: &mut GameState, primitive: Primitive) -> (Vec
         Box::new(ObjectFilter::ByController(mtgsim::types::effects::PlayerRef::You)),
     );
     let source = put_in_hand(game, grizzly_bears(), 0);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: 0,
-        generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, 0, GeneratedBy::Spell);
     let each = Effect::Atom(primitive, EffectRecipient::FilteredPermanents(yours_filter));
     game.resolve_effect(&each, &ctx, &test_dp()).expect("resolving");
     (yours, theirs)

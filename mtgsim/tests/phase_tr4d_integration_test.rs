@@ -100,8 +100,7 @@ fn resolve_at(game: &mut GameState, player: PlayerId, primitive: Primitive, obje
         controller: player,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(object)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     let effect = Effect::Atom(primitive, EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)));
@@ -322,16 +321,7 @@ fn the_losers_own_watcher_triggers_and_is_kept_off_the_stack() {
 /// `player` mills `n` cards, as their own spell's instruction.
 fn mill(game: &mut GameState, player: PlayerId, n: u64) {
     let source = put_in_graveyard(game, grizzly_bears(), player);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: player,
-        generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, player, GeneratedBy::Spell);
     let effect = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(n)), EffectRecipient::Controller);
     game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
 }
@@ -554,8 +544,7 @@ fn steal(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         controller: thief,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
@@ -719,16 +708,7 @@ fn a_watcher_stolen_with_another_permanent_triggers_for_each() {
         )),
     );
     let source = put_in_hand(&mut game, grizzly_bears(), 1);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: 1,
-        generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, 1, GeneratedBy::Spell);
     game.resolve_effect(&mob_rule, &ctx, &test_dp()).unwrap();
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert_eq!(controller(&game, zidane), Some(1));
@@ -999,8 +979,7 @@ fn two_control_changes_in_one_resolution_are_two_events() {
         controller: 1,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(Vec::new()),
-        replaced_amount: None,
-        damage_prevented: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&verse, &ctx, &test_dp()).unwrap();
