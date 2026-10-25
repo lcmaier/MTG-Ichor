@@ -9470,7 +9470,7 @@ scan of the history log, and the place in a turn that reads a tally since
      said `target`. Row 64's `CountersOn` and `TargetSubject` are one
      `ObjectOrPlayerSubject` with one matcher; `DamageRecipient` and
      `DefenderFilter` keep theirs. What an effect is affecting is one
-     `Affected` on `ReplacementDef` and both `Restriction` arms, objects,
+     `ObjectAndPlayerSet` on `ReplacementDef` and both `Restriction` arms, objects,
      players or both, asked by one `set_affects` of the merged subject. Its
      A/B read every gameplay row identical on both pools at two seats and
      four, so the verdict stood: reachable — not wrong.
@@ -9943,4 +9943,45 @@ keyed by its event.
      replacement's source, and the T4 board (a return made inside a rider's
      batch) then shows CR 603.7a's filter failing first.
      **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`.
+
+### Found by `one-fact-one-type` (2026-10-25)
+
+331. **`Duration::WhileSourceOnBattlefield` holds two durations, and a static
+     ability's body writes one nothing reads.** `register_static_effects`
+     stamps every static ability's row `WhileSourceOnBattlefield`, and the
+     static lowering drops each atom's own duration (`GrantKeywordFlag(kw,
+     _dur)`), so the duration a static body passes says nothing, and
+     Wonder's, Pocket Griffin's and Exiled Ancestor's, whose sources function
+     off the battlefield, read as false. The variant also means CR 611.2b's
+     "for as long as [this] remains on the battlefield" for a resolution's
+     effect, which `Duration::ends_with_its_source` reads. A static ability's
+     effect lasts as CR 611.3b says: while the object generating it is where
+     the ability functions, which CR 604.2's existence check asks at every
+     layer. Found at #291's review (the owner, 2026-10-25).
+     **Reachability (2026-10-25):** reachable — not wrong: no reader branches
+     on a static row's duration as the battlefield's.
+     **Sized:** a duration for CR 611.3b's static effect, or none on a static
+     body; the registration's stamp; and every static body that writes the
+     variant, each read as a static ability's or a resolution's: ~80–120
+     lines, most in card files.
+     **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`.
+
+332. **"An opponent" as the player putting an entering object's counters is
+     refused among several opponents, where CR 702.104a makes it a choice.**
+     `player_putting_counters` (`engine/replacement/pipeline.rs`) names the
+     one opponent there is and returns an `Err` among several, which the entry
+     refuses and the CR 616.1b look-ahead reads as no putter. Tribute is the
+     choice: "As this creature enters, choose an opponent. That player may put
+     an additional N +1/+1 counters on it as it enters" (CR 702.104a). The
+     entering creature's controller chooses before it enters, as CR 614.12a
+     times Xantcha's choice of controller (`entering_controller`), and the
+     chosen player may decline. Its old doc comment called the case an
+     authoring error (the owner, at #291's review, 2026-10-25).
+     **Reachability (2026-10-25):** unreachable — no registered card names an
+     opponent as the putter.
+     **Sized:** a prompt for the choice beside
+     `ask_choose_entering_controller`, the entry asking it where the
+     look-ahead keeps refusing, and the "may": ~40–60 lines and a fixture.
+     CR 702.104b's "if tribute wasn't paid" is the card's.
+     **Slotted:** with the first registered card that has tribute.
 
