@@ -2712,12 +2712,6 @@ impl GameState {
     /// record names `id` alone, so the object is taken as the dispatch finds
     /// it, which is right after the event.
     pub(super) fn subject_after(&self, event: &GameEvent, id: ObjectId) -> Option<ObjectRef> {
-        // An unattach names each end as the existence it was, so a host that
-        // has left since is not "that permanent" (Grafted Wargear's first
-        // ruling).
-        if let GameEvent::Unattached { attachment, former_host, .. } = event {
-            return [*attachment, *former_host].into_iter().find(|end| end.id == id);
-        }
         match event.new_object() {
             Some(made) if made.id == id => Some(made),
             _ => self.object_ref(id),
