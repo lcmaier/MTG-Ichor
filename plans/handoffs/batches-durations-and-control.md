@@ -19,6 +19,23 @@ Layers" 13 gives `Primitive::GainControl` a recipient. Item 20 is the cleanup
 step's damage wipe (CR 514.2), and item 148 a primitive that moves a card into
 its owner's graveyard.
 
+**Words this note uses.**
+
+- A **batch** is one event made of several things that happen at once: the
+  creatures one state-based check destroys (CR 704.3), the two tokens one
+  effect creates, the cards a player draws one at a time are not one.
+- **Phase 1 (deciding)** works out, for each thing in the batch and against
+  the board as it was before any of it, which replacement effects apply and
+  in what order (CR 616.1). An "as this enters" choice is made here (CR
+  614.12a): which creatures devour sacrifices, whether a shockland's
+  controller pays 2 life. Nothing has happened yet.
+- **Phase 2 (performing)** does everything phase 1 decided, in the batch's
+  order. Then the batch's triggers are checked, against the whole event.
+- **The narrow form** (decision 7) is item 300's own term: announce a waiting
+  change of control only before the next control-changing instruction. The
+  **wide form** announces before every continuous effect a resolution
+  writes, of any layer.
+
 ## The re-count
 
 Each item's **Sized:** line, read against the tree. Code and tests are
@@ -134,7 +151,8 @@ Carried at the plan's 1.5–2× on code, that's **1,720–2,940**, against the p
 
    **Recommended: (a).**
 
-5. **"Before Layers" 13: where "an opponent" is chosen.**
+5. **"Before Layers" 13: where "an opponent" is chosen.** **Settled: (a)**
+   (the owner, at #293's review, 2026-10-25).
    `resolve_player_ref` names the one opponent there is and returns an `Err`
    above two players. CR 608.2d makes a choice the instruction offers a
    choice at resolution, and the Akroan Horse ruling says so for this one.
