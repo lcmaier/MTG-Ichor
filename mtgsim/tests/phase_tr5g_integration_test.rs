@@ -575,10 +575,8 @@ fn ajani_activates(game: &mut GameState, red_beside: bool) -> ObjectId {
 /// The waiting triggers on the stack, each aimed at player 1, in the order
 /// they triggered.
 fn place_each_at_the_opponent(game: &mut GameState, triggers: usize) {
+    // One ability's agreeing triggers are not ordered (CR 603.3b).
     let dp = ScriptedDecisionProvider::new();
-    if triggers > 1 {
-        dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, (0..triggers).collect());
-    }
     for _ in 0..triggers {
         dp.expect_choice(
             ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },

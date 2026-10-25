@@ -2618,11 +2618,16 @@ reason the prompt is asked otherwise:
   read may differ: Soul Warden's two triggers for two Soldiers are one game.
   TR-1 compared the records and the subject whatever the def read, and no
   source.
-- **No instance of "target".** CR 603.3d's choice is made per object as
-  each goes on the stack, so the order decides who chooses against what.
-- **No mode.** CR 603.3c's choice, the same way.
 - **Tier 1.** A tier-2 entry's effect reads the stack it is put onto
   (CR 603.3b).
+
+**A target or a mode is no condition** (item 317, which TR-2b's elision
+had as two more). CR 603.3d's targets and 603.3c's modes are chosen per
+entry as each goes on the stack, after the order, so the order would decide
+who chooses against what only if the entries differed. Agreeing entries of
+one def are interchangeable: any order, with any sequence of choices, builds
+the stack the first order builds with that same sequence. Blood Artist on a
+wipe of three is placed unasked and still targeted three times.
 
 `trigger_order_cannot_change_outcome` is these conditions' conjunction and
 says no more. They were written beside the predicate at first, on the

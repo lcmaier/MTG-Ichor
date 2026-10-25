@@ -114,15 +114,13 @@ impl GameState {
     /// they go on the stack, so the ordering prompt is not asked.
     /// `triggers-architecture.md` §5.2 gives the reason for each condition.
     /// Compared by def rather than by id, since two grants of one ability
-    /// carry two ids.
+    /// carry two ids. A target or a mode, chosen as each goes on the stack
+    /// (CR 603.3c, 603.3d), is no condition: the entries are interchangeable.
     fn trigger_order_cannot_change_outcome(&self, entries: &[&PendingTrigger]) -> bool {
         let Some(first) = entries.first() else { return true };
         let reads = first.binding.def.trigger_binding_reads();
         entries.iter().all(|t| {
-            t.tier() == TriggerTier::First
-                && t.instances.is_empty()
-                && t.binding.def == first.binding.def
-                && self.entries_agree_on(reads, first, t)
+            t.tier() == TriggerTier::First && t.binding.def == first.binding.def && self.entries_agree_on(reads, first, t)
         })
     }
 
