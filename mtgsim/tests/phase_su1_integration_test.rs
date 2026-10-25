@@ -84,7 +84,7 @@ fn players_starting_life_turn_active_and_step() {
     assert_eq!(state.starting_life, 30);
     assert_eq!((state.turn_number, state.active_player, state.priority_player, state.turn_rotation), (5, 2, 2, 2));
     // The natural rotation up to player 2's turn 5: 1, 2, 0, 1, 2.
-    assert_eq!(state.last_turn_began, [3, 4, 5]);
+    assert_eq!((0..3).map(|p| state.most_recent_turn_began(p)).collect::<Vec<_>>(), [Some(3), Some(4), Some(5)]);
     assert_eq!((state.phase.phase_type, state.phase.step), (PhaseType::Beginning, Some(StepType::Upkeep)));
     assert!(!state.skip_first_draw, "a turn-5 upkeep has no first draw to skip");
 }
@@ -150,7 +150,11 @@ fn player_counters_lands_played_and_commander_damage() {
 fn a_player_who_has_left() {
     let game = load("players 3\nturn 4\nactive 2\nplayer 1: left the game");
     assert!(!game.state.in_game(1));
-    assert_eq!(game.state.last_turn_began, [3, 0, 4], "turns 1 to 4 went 0, 2, 0, 2");
+    assert_eq!(
+        (0..3).map(|p| game.state.most_recent_turn_began(p)).collect::<Vec<_>>(),
+        [Some(3), None, Some(4)],
+        "turns 1 to 4 went 0, 2, 0, 2"
+    );
     for (text, says) in [
         ("players 3\nplayer 1: left the game\nhand 1: Forest", "owns or controls"),
         ("players 3\nplayer 0: left the game", "the active player"),

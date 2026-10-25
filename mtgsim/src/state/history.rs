@@ -83,6 +83,12 @@ impl PlayerHistory {
         PlayerHistory { own_turn: None, previous_own_turn: None, this_draw_step: 0, turn_tally: TurnTally::NONE }
     }
 
+    /// The turn this player most recently began, which CR 302.6 measures
+    /// against (`GameState::most_recent_turn_began`).
+    pub fn own_turn(&self) -> Option<u32> {
+        self.own_turn
+    }
+
     pub(crate) fn record_own_turn(&mut self, turn: u32) {
         if self.own_turn != Some(turn) {
             self.previous_own_turn = self.own_turn;

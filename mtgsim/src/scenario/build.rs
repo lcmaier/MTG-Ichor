@@ -132,7 +132,6 @@ impl<'s> Loader<'s> {
         // begins the rotation's turns last. `GameState::new` began turn 1
         // for player 0, which this game's rotation may not.
         state.turn_number = 0;
-        state.last_turn_began = vec![0; scenario.players];
         for history in &mut state.history.players {
             *history = PlayerHistory::before_any_turn();
         }

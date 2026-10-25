@@ -391,13 +391,6 @@ pub struct GameState {
 
     // --- Turn tracking ---
     pub turn_number: u32,
-    /// The turn number on which each player's most recent turn began, indexed
-    /// by `PlayerId`. `0` means that player has not had a turn yet.
-    ///
-    /// This is what CR 302.6 measures against, and it cannot be derived from
-    /// `turn_number` once there are more than two players — or once extra turns
-    /// exist — so it is recorded. Written only by [`GameState::begin_turn`].
-    pub last_turn_began: Vec<u32>,
     pub active_player: PlayerId,
     pub priority_player: PlayerId,
     pub phase: Phase,
@@ -1016,7 +1009,7 @@ impl GameState {
             .map(|id| PlayerState::new(id, starting_life))
             .collect();
         let mut history = crate::state::history::GameHistory::new(num_players);
-        // Turn 1 has begun for the starting player, as `last_turn_began` says.
+        // Turn 1 has begun for the starting player; nobody else has had one.
         if let Some(first) = history.players.first_mut() {
             first.record_own_turn(1);
         }
@@ -1034,12 +1027,6 @@ impl GameState {
             exile: Vec::new(),
             command: Vec::new(),
             turn_number: 1,
-            // Turn 1 has begun for the starting player; nobody else has had one.
-            last_turn_began: {
-                let mut v = vec![0; num_players];
-                v[0] = 1;
-                v
-            },
             active_player: 0,
             priority_player: 0,
             phase: Phase::new(PhaseType::Beginning),
@@ -1138,13 +1125,12 @@ impl GameState {
     /// Begin turn `turn` with `player` as the active player, recording the turn
     /// start that CR 302.6 measures against.
     ///
-    /// The one writer of `last_turn_began`. A caller that assigns `turn_number`
-    /// on its own leaves the clock stale and every summoning-sickness question
-    /// answers against the wrong turn.
+    /// The one writer of a player's turns (`PlayerHistory::record_own_turn`). A
+    /// caller that assigns `turn_number` on its own leaves the clock stale and
+    /// every summoning-sickness question answers against the wrong turn.
     pub fn begin_turn(&mut self, turn: u32, player: PlayerId) {
         self.turn_number = turn;
         self.active_player = player;
-        self.last_turn_began[player] = turn;
         self.history.turn_began();
         if let Some(history) = self.history.players.get_mut(player) {
             history.record_own_turn(turn);
@@ -1274,12 +1260,11 @@ impl GameState {
     }
 
     /// The turn on which `player`'s most recent turn began, or `None` if they
-    /// have not had one yet.
+    /// have not had one yet: what CR 302.6 measures against, which cannot be
+    /// derived from `turn_number` once there are more than two players, or
+    /// once extra turns exist.
     pub fn most_recent_turn_began(&self, player: PlayerId) -> Option<u32> {
-        match self.last_turn_began.get(player) {
-            Some(0) | None => None,
-            Some(turn) => Some(*turn),
-        }
+        self.history.players.get(player).and_then(crate::state::history::PlayerHistory::own_turn)
     }
 
     /// Skip the layer memo's debug audits until [`Self::resume_layer_audit`]:

@@ -481,7 +481,7 @@ pub enum GameAction {
     ///
     /// `turn` is the number this turn *would* be — `turn_number + 1` — and a
     /// dropped proposal never advances it: `begin_turn` is the only writer of
-    /// `last_turn_began`, so a turn that does not begin expires no "until your
+    /// a player's turns, so a turn that does not begin expires no "until your
     /// next turn" effect and starts no CR 302.6 clock (CR 614.10a).
     ///
     /// CR 500.7's extra turns and the natural rotation are the *schedule* the
@@ -1899,7 +1899,7 @@ impl GameState {
             // Turn-based actions and expiries are separate events (CR 703.4, 500.4)
             // the drainer runs after the proposal survives (`engine::turns`).
             GameAction::BeginTurn { player, turn, extra_turn } => {
-                // `begin_turn` is the one writer of `last_turn_began`, so a
+                // `begin_turn` is the one writer of a player's turns, so a
                 // turn that is skipped starts no CR 302.6 clock and expires no
                 // "until your next turn" effect (CR 614.10a).
                 self.begin_turn(turn, player);

@@ -488,10 +488,10 @@ the owner's call. A field is named here once §2's question has been asked of
 it, beside the pass that asked or the reason it holds nothing. The list itself
 is derivable; where each name was read is not, and the gate needs the names.
 
-- **The 27 fields `GameState` had at `3c322e5` and still has**, under §4's
+- **The 26 fields `GameState` had at `3c322e5` and still has**, under §4's
   first table and the remainder it dispositioned: `objects`, `players`,
   `stack`, `stack_entries`, `resolving`, `battlefield`, `exile`, `command`,
-  `turn_number`, `last_turn_began`, `active_player`, `priority_player`,
+  `turn_number`, `active_player`, `priority_player`,
   `phase`, `combat_had_attackers`, `blockers_declared`,
   `blocker_damage_divisions`, `dealt_first_strike_damage`, `next_timestamp`,
   `player_lost`, `skip_first_draw`, `continuous_effects`,
@@ -932,11 +932,13 @@ type `i64` named `life_total`
 - `GameState` — owner of the starting life total, a concept of its own.
 
 #### The turn a player's turn began
-CR 302.6, 500.1. **Key:** a player. **Query:** type `u32` named
+CR 302.6, 500.1. **Key:** a player. **Owner:** `PlayerHistory`, which
+`GameState::begin_turn` alone writes. **Query:** type `u32` named
 `last_turn_began`; type `u32` named `own_turn`
-- `GameState` — owner: what CR 302.6 measures against.
-- `PlayerHistory` ×2 — a copy of it, `own_turn`, written beside it, and the
-  turn before it: item 326.
+- `PlayerHistory` ×2 — owner of the turn a player's most recent turn began,
+  which CR 302.6 measures against, and of the one before it, which "your
+  last turn" reads on that player's own turn (item 326 removed
+  `GameState`'s copy).
 
 #### The turn a permanent entered, and control since
 CR 302.6, 603.6. **Key:** a permanent's existence. **Query:** type `u32`
