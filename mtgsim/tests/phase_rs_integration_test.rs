@@ -137,7 +137,7 @@ fn resolve_edict(
         controller: caster,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&effect, &ctx, dp).unwrap();
@@ -182,7 +182,7 @@ fn resolve_edict_effect(
         controller: caster,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).unwrap();
@@ -653,7 +653,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(a), ResolvedTarget::Object(b)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&effect, &ctx, &ScriptedDecisionProvider::new()).unwrap();

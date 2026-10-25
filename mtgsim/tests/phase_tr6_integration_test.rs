@@ -285,7 +285,7 @@ fn counter(game: &mut GameState, ability: ObjectId) {
         controller: 1,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(ability)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     let stifle = Effect::Atom(Primitive::CounterAbility, EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)));

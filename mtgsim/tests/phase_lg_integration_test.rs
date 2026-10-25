@@ -54,7 +54,7 @@ fn act_of_treason(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         controller: thief,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp())
@@ -85,7 +85,7 @@ fn gain_control(
         controller: thief,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&effect, &ctx, &test_dp())

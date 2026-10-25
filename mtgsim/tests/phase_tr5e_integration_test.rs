@@ -132,7 +132,7 @@ fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, target: O
         controller: player,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(effect, &ctx, &test_dp()).unwrap();
@@ -331,7 +331,7 @@ fn a_creature_turned_green_after_it_attacks_triggers_nothing() {
         controller: 0,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(drake)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&make_green, &ctx, &test_dp()).unwrap();

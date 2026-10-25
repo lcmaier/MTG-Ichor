@@ -142,7 +142,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&giant_growth, &ctx, &test_dp()).expect("the pump");

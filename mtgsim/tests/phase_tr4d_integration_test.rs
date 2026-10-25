@@ -100,7 +100,7 @@ fn resolve_at(game: &mut GameState, player: PlayerId, primitive: Primitive, obje
         controller: player,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(object)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     let effect = Effect::Atom(primitive, EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)));
@@ -544,7 +544,7 @@ fn steal(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         controller: thief,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
@@ -979,7 +979,7 @@ fn two_control_changes_in_one_resolution_are_two_events() {
         controller: 1,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(Vec::new()),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&verse, &ctx, &test_dp()).unwrap();

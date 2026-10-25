@@ -91,7 +91,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
@@ -581,7 +581,7 @@ fn resolve_spell_with(
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, dp).unwrap();
@@ -1227,7 +1227,7 @@ fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets,
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     let dp = ScriptedDecisionProvider::new();

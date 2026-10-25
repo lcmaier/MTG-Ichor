@@ -15,7 +15,7 @@ use crate::types::effects::{
     ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
 };
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::resolve::RiderAmounts;
+use crate::engine::resolve::ReplacedEvent;
 use crate::objects::card_data::AbilityType;
 use crate::types::replacement::{TokenKind, TokenSubstitution};
 use crate::types::ids::{ObjectId, PlayerId};
@@ -90,8 +90,8 @@ pub(crate) struct Rider {
     /// (Reverse Damage's gain, Angel of Suffering's mill) has to name the player
     /// (`replacement-architecture.md` §11 item 16).
     pub subject: EventSubject,
-    /// Becomes the rider's `ResolutionContext::rider`.
-    pub amounts: RiderAmounts,
+    /// Becomes the rider's `ResolutionContext::replaced_event`.
+    pub replaced_event: ReplacedEvent,
     pub effect: Effect,
 }
 
@@ -112,11 +112,12 @@ struct Applied {
     /// every reader decide what `None` meant, and every one of them would
     /// answer "treat it as 0".
     ///
-    /// The `Option` that *is* meaningful is one level out:
-    /// `ResolutionContext::rider` is `None` outside a CR 615.5 rider — where
-    /// the question has no answer at all — and inside one that prevented
-    /// nothing its `damage_prevented` is 0, which is the number Reverse
-    /// Damage's "life equal to the damage prevented this way" needs.
+    /// The absence that *is* meaningful is one level out:
+    /// `ResolutionContext::replaced_event` is `None` outside a CR 615.5 rider,
+    /// and a rider whose event was not damage has no prevented amount at all —
+    /// where the question has no answer — while damage that was not prevented
+    /// is `ReplacedEvent::Damage` with `prevented` 0, which is the number
+    /// Reverse Damage's "life equal to the damage prevented this way" needs.
     prevented: u64,
 }
 
@@ -596,6 +597,7 @@ pub(crate) fn apply_replacements(
         // effects count only the amount of damage" — and the use is spent by
         // what the whole application did (decision 7).
         let mut replaced_amount: Option<u64> = None;
+        let mut replaced_damage = false;
         let mut rider_subject: Option<EventSubject> = None;
         let mut outcome = Applied::default();
         let mut redirected = false;
@@ -613,6 +615,7 @@ pub(crate) fn apply_replacements(
             if let Some(amount) = event_amount(&event) {
                 replaced_amount = Some(replaced_amount.unwrap_or(0) + amount);
             }
+            replaced_damage |= damaged.is_some();
             // Per member, and it is the member's own event that answers: two
             // members of one group can have different subjects once a redirect
             // has moved one of them.
@@ -684,7 +687,13 @@ pub(crate) fn apply_replacements(
                 // is about the event the effect replaced, so a later redirect in the same loop
                 // does not rename Reverse Damage's player.
                 subject: rider_subject.unwrap_or(subject),
-                amounts: RiderAmounts { replaced_amount, damage_prevented: outcome.prevented },
+                // One kind of event per group, since a pattern matches one
+                // `GameAction` arm, and damage always carries its amount.
+                replaced_event: match (replaced_damage, replaced_amount) {
+                    (true, Some(amount)) => ReplacedEvent::Damage { amount, prevented: outcome.prevented },
+                    (_, Some(amount)) => ReplacedEvent::Amount(amount),
+                    (_, None) => ReplacedEvent::NoAmount,
+                },
                 effect: then,
             });
         }

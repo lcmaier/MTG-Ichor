@@ -57,7 +57,7 @@ fn grant(game: &mut GameState, source: ObjectId, target: ObjectId, ability: mtgs
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&spell, &ctx, &test_dp()).unwrap();

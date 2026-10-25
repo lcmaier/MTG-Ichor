@@ -798,7 +798,7 @@ fn test_a_multi_target_destroy_is_one_event() {
             mtgsim::engine::resolve::ResolvedTarget::Object(b),
             mtgsim::engine::resolve::ResolvedTarget::Object(c),
         ]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     let dp = ScriptedDecisionProvider::new();

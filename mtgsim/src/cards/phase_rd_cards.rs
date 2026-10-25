@@ -1578,7 +1578,7 @@ mod tests {
             controller,
             generated_by: crate::events::cause::GeneratedBy::Spell,
             targets: ChosenTargets::one(targets),
-            rider: None,
+            replaced_event: None,
             trigger: None,
         };
         let dp = crate::test_support::test_dp();

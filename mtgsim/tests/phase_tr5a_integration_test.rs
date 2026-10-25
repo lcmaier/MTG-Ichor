@@ -104,7 +104,7 @@ fn steal(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         controller: thief,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
@@ -130,7 +130,7 @@ fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, targets: 
         controller: player,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(effect, &ctx, &test_dp()).unwrap();

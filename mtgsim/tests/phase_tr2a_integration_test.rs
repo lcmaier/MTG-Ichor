@@ -166,7 +166,7 @@ fn steal(game: &mut GameState, victim: ObjectId, player: PlayerId) {
         controller: player,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&act_of_treason().abilities[0].effect, &ctx, &test_dp()).expect("the steal");
@@ -651,7 +651,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&giant_growth, &ctx, &test_dp()).expect("the pump");
@@ -1306,7 +1306,7 @@ fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(trigger)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&counter, &ctx, &test_dp()).expect("the counter");
@@ -1380,7 +1380,7 @@ fn retype(game: &mut GameState, id: ObjectId, add: Vec<Subtype>, remove: Vec<Sub
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&effect, &ctx, &test_dp()).expect("the retype");

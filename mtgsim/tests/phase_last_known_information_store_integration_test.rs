@@ -35,7 +35,7 @@ fn counter(game: &mut GameState, spell: ObjectId, player: PlayerId) {
         controller: player,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(spell)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     let effect = Effect::Atom(Primitive::CounterSpell, EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)));

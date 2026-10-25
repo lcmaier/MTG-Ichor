@@ -94,7 +94,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&pump, &ctx, &test_dp()).expect("the pump");
@@ -312,7 +312,7 @@ fn steal(game: &mut GameState, victim: ObjectId, player: PlayerId) {
         controller: player,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&act_of_treason().abilities[0].effect, &ctx, &test_dp()).expect("the steal");

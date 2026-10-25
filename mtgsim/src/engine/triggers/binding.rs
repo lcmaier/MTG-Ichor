@@ -300,7 +300,7 @@ mod tests {
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,
             targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
-            rider: None,
+            replaced_event: None,
             trigger: None,
         };
         let threaten = Effect::Atom(

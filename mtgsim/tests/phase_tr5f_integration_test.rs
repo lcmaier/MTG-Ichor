@@ -99,7 +99,7 @@ fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, target: O
         controller: player,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(effect, &ctx, &test_dp()).unwrap();
@@ -438,7 +438,7 @@ fn a_change_of_control_a_batch_causes_is_announced_in_its_window() {
         controller: 0,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(bears)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     let take = at_target_creature(Primitive::GainControl(Duration::WhileSourceOnBattlefield));

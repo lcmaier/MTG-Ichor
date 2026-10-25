@@ -161,7 +161,7 @@ fn resolve_spell_at(
         controller: caster,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(target_player)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     game.resolve_effect(&effect, &ctx, dp).expect("resolving");

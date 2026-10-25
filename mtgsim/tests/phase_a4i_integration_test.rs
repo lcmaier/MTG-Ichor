@@ -194,7 +194,7 @@ fn make_black(game: &mut GameState, id: ObjectId, controller: PlayerId) {
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     let effect = Effect::Atom(

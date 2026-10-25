@@ -168,7 +168,7 @@ fn a_countered_spell_says_whose_it_was() {
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(bolt)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     let effect = Effect::Atom(Primitive::CounterSpell, EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)));
@@ -197,7 +197,7 @@ fn a_countered_ability_is_named_by_its_source() {
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(ability)]),
-        rider: None,
+        replaced_event: None,
         trigger: None,
     };
     let counter = Effect::Atom(Primitive::CounterAbility, EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)));

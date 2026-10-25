@@ -148,8 +148,8 @@ impl GameState {
             },
             targets: surviving,
             // A resolving spell or ability replaced nothing, so CR 615.5's
-            // "that much" has no answer here — see `ResolutionContext::rider`.
-            rider: None,
+            // "that much" has no answer here — see `ResolutionContext::replaced_event`.
+            replaced_event: None,
             trigger: entry.trigger.clone(),
         };
         // CR 603.2h at resolution: an instance whose action its controller has
