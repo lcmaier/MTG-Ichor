@@ -207,6 +207,10 @@ is designed:
 - **Read the intake at the first ticket**: `check_state_of_play.py --slotted
   <name>` lists every open item slotted to the phase; take each or re-slot it.
 - **Every PR in a split carries at least one consumer of what it builds.**
+- **A brief opens with five plain lines the owner approves**: what changes in a
+  game, why now, what done means, the size, and a detour's budget. → `/next-brief`.
+- **A detour states its PR budget when it starts.** An audit, cleanup or rename
+  off the route names how many PRs it may take; going past needs the owner's yes.
 - **Review findings go to `plans/handoffs/<phase>-review.md`**, captured before
   anything is fixed, triaged, and closed one theme per session.
 - **`git log main..HEAD` lies after a squash merge**; check content with
