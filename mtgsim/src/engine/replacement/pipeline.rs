@@ -2954,9 +2954,7 @@ fn redirection_is_legal(game: &GameState, to: ObjectOrPlayerId, from: ObjectOrPl
 ///
 /// `Opponent` with several opponents is a choice the effect's controller makes
 /// — Xantcha's "an opponent of your choice" — and CR 614.12a says it is made
-/// before the permanent enters, which this is. Players who have lost are not
-/// opponents to choose (CR 800.4a: a player who leaves the game leaves it), so
-/// a three-player game down to two asks nothing.
+/// before the permanent enters, which this is.
 fn entering_controller(
     game: &GameState,
     ctx: &ActionContext,
@@ -2964,35 +2962,8 @@ fn entering_controller(
     object: ObjectId,
     player_ref: &PlayerRef,
 ) -> Result<PlayerId, String> {
-    let you = chosen.controller;
-    Ok(match player_ref {
-        PlayerRef::You => you,
-        PlayerRef::Player(pid) => *pid,
-        PlayerRef::Owner => game
-            .objects
-            .get(&object)
-            .map(|obj| obj.owner)
-            .ok_or_else(|| format!("entering object {} is not in the object store", object))?,
-        PlayerRef::Opponent => {
-            let opponents = game.opponents_of(you);
-            match opponents.as_slice() {
-                [] => {
-                    return Err(format!(
-                        "replacement {:?} puts {} under an opponent's control, and player \
-                         {} has no opponent left in the game",
-                        chosen.id, object, you
-                    ))
-                }
-                some => ask_choose_entering_controller(ctx.dp, game, you, object, some),
-            }
-        }
-        PlayerRef::DefendingPlayer(_) | PlayerRef::AnyDefendingPlayer => {
-            return Err(format!(
-                "replacement {:?} puts {} under \"defending player\"'s control, which an entering \
-                 object's replacement has no attacking creature to name",
-                chosen.id, object
-            ))
-        }
+    named_for_an_entry(game, chosen, object, player_ref, "as the controller of", |opponents| {
+        Ok(ask_choose_entering_controller(ctx.dp, game, chosen.controller, object, opponents))
     })
 }
 
@@ -3176,17 +3147,43 @@ pub(super) fn evaluate_enter_template(
 
 /// CR 122.6a's named putter, resolved against the effect applying it.
 ///
-/// `entering_controller`'s answers with one difference: an `Opponent` among
-/// several is not asked for. CR 616.1b's control choice is the entering
-/// permanent's controller's to make and the rule says so; "an opponent puts
-/// those counters on it" with three opponents is an authoring error on a
-/// static effect, and a resolution that means a particular one names it as
-/// `PlayerRef::Player`, the way `PatternFill` fills a chosen source.
+/// An `Opponent` among several is not asked for, as `entering_controller`'s
+/// is: CR 616.1b's control choice is the entering permanent's controller's to
+/// make and the rule says so; "an opponent puts those counters on it" with
+/// three opponents is an authoring error on a static effect, and a resolution
+/// that means a particular one names it as `PlayerRef::Player`, the way
+/// `PatternFill` fills a chosen source. The refusal is an `Err`, which the
+/// CR 616.1b look-ahead reads as no putter.
 fn putter_of(
     game: &GameState,
     chosen: &ReplacementInstance,
     entering: ObjectId,
     player_ref: &PlayerRef,
+) -> Result<PlayerId, String> {
+    named_for_an_entry(game, chosen, entering, player_ref, "as the player putting counters on", |opponents| match opponents {
+        [only] => Ok(*only),
+        several => Err(format!(
+            "replacement {:?} names \"an opponent\" as the player putting counters on {}, and player {} has {} opponents in the game; name one as `PlayerRef::Player`",
+            chosen.id,
+            entering,
+            chosen.controller,
+            several.len()
+        )),
+    })
+}
+
+/// The player `player_ref` names for an entering object, relative to the
+/// effect's controller: the controller it enters under, or the player putting
+/// its counters on (CR 122.6a). The two differ only at an `Opponent` among
+/// several, which `among_opponents` answers. Players who have lost are not
+/// opponents (CR 800.4a), so a three-player game down to two names one.
+fn named_for_an_entry(
+    game: &GameState,
+    chosen: &ReplacementInstance,
+    entering: ObjectId,
+    player_ref: &PlayerRef,
+    role: &str,
+    among_opponents: impl FnOnce(&[PlayerId]) -> Result<PlayerId, String>,
 ) -> Result<PlayerId, String> {
     let you = chosen.controller;
     Ok(match player_ref {
@@ -3198,21 +3195,18 @@ fn putter_of(
             .map(|obj| obj.owner)
             .ok_or_else(|| format!("entering object {} is not in the object store", entering))?,
         PlayerRef::Opponent => match game.opponents_of(you).as_slice() {
-            [only] => *only,
-            others => {
+            [] => {
                 return Err(format!(
-                    "replacement {:?} names \"an opponent\" as the player putting counters on \
-                     {}, and player {} has {} opponents in the game; name one as \
-                     `PlayerRef::Player`",
-                    chosen.id, entering, you, others.len()
+                    "replacement {:?} names \"an opponent\" {role} {entering}, and player {you} has no opponent left in the game",
+                    chosen.id
                 ))
             }
+            opponents => among_opponents(opponents)?,
         },
         PlayerRef::DefendingPlayer(_) | PlayerRef::AnyDefendingPlayer => {
             return Err(format!(
-                "replacement {:?} names \"defending player\" as the player putting counters on {}, \
-                 which an entering object's replacement has no attacking creature to name",
-                chosen.id, entering
+                "replacement {:?} names \"defending player\" {role} {entering}, which an entering object's replacement has no attacking creature to name",
+                chosen.id
             ))
         }
     })
