@@ -853,7 +853,7 @@ carry (it is the layer walk's output). So the type carries both.
 
 **The body, as built (TR-4a, 2026-10-14): one type, one body behind one
 `Arc`** (`types/triggers.rs`). Every holder shares the one body, and
-`GameEvent` keeps its 72 bytes. The body is private, and the readers on the
+`GameEvent` kept its 72 bytes (80 since `record-existences`). The body is private, and the readers on the
 type are its whole surface:
 
 ```rust
@@ -1661,8 +1661,8 @@ it. Its phase builds the corrected one.
   16, TR-5d). One subject group can hold several sources, as two attackers into
   a Fog do. The printed readers say "prevented this way", which the instance
   answers, and none reads the prevention's controller. §2b.4's
-  `AppliedReplacement` would widen `GameEvent` past the 72 bytes
-  `the_event_keeps_its_size` pins, so `by` stays a `ReplacementInstanceId`. It
+  `AppliedReplacement` would widen `GameEvent` past the ceiling
+  `the_event_stays_under_its_ceiling` keeps, so `by` stays a `ReplacementInstanceId`. It
   is the one record emitted while a batch decides, and its doc says so. Built
   with #260, its stamp's cause the prevention's own (`caused_by_replacement`).
 - **`TokenCreated` carries the definition it was made from** (§3.3's
