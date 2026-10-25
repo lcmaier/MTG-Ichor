@@ -9998,3 +9998,42 @@ keyed by its event.
      batch) then shows CR 603.7a's filter failing first.
      **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`.
 
+### Found by `record-existences` (2026-10-25)
+
+330. **A trigger's filter reads an object its own event moved as the card it
+     became.** Since #290 a record names the existence its event was about,
+     and "this object" and "that creature" compare it, but a filter reads the
+     object by id as it is after the event (`named_subject_matches`,
+     `engine/triggers/dispatch.rs`). Where one event both changes an object and
+     moves it, that is the new object: "whenever a red creature becomes
+     tapped" or "whenever a +1/+1 counter is removed from a creature you
+     control" asks the card in the graveyard, which no effect makes red any
+     more and no player controls. A damage source is read as it dealt the
+     damage since #290's review, on CR 608.2h's side, as the judges' Dragonhawk
+     ruling reads lifelink. For every other arm the rule is CR 603.10's, which
+     reads objects "immediately after the event" and names only 603.10a's
+     zone-change triggers as looking back; it says nothing of an object the
+     event ended. Raised by the owner (2026-10-25), with two questions for the
+     judges:
+     - Is paying "{T}, Sacrifice this" one event to a trigger on the tap? The
+       engine pays each cost as its own event (`pay_single_cost`), so
+       "whenever an artifact you control becomes tapped" matches a Treasure
+       tapped on the battlefield, before its sacrifice.
+     - Where one event changes an object and moves it, does a trigger's
+       filter read the object as the event found it (its last known
+       information), as the damage source is read, or as it is after the
+       event? CR 704.8's board is one event: a state-based check that removes
+       a creature's paired counters and puts it into its graveyard.
+     **Reachability (2026-10-25):** unreachable — no registered card puts a
+     change to an object and its move in one event (#290's A/B), and the only
+     registered counter-removal trigger is Protean Hydra's on itself.
+     **Sized:** ~10–20 lines if the answer is the last known information:
+     `named_subject_matches` reads `ObjectInformation::of(named.id,
+     self.lki(named))`, as the damage arm does; ~60–100 of fixtures, a tap
+     and a counter removal each with its move in one event, shown failing
+     first. If the answer is the object after the event, the damage arm's read
+     goes back instead. If paying a cost is one event, the cost payment becomes
+     one batch, a design of its own, re-slotted when that is known.
+     **Slotted:** A6e's cleanup, in `batches-durations-and-control`, once the
+     judges answer.
+
