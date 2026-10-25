@@ -161,8 +161,7 @@ fn resolve_spell_at(
         controller: caster,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(target_player)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(&effect, &ctx, dp).expect("resolving");
@@ -179,16 +178,7 @@ fn resolve_spell(
 ) -> ObjectId {
     let source = put_in_graveyard(game, card.clone(), caster);
     let effect = mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell");
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: caster,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, caster, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&effect, &ctx, dp).expect("resolving");
     source
 }

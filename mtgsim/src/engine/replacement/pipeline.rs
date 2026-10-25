@@ -15,6 +15,7 @@ use crate::types::effects::{
     ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
 };
 use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::engine::resolve::RiderAmounts;
 use crate::objects::card_data::AbilityType;
 use crate::types::replacement::{TokenKind, TokenSubstitution};
 use crate::types::ids::{ObjectId, PlayerId};
@@ -89,21 +90,8 @@ pub(crate) struct Rider {
     /// (Reverse Damage's gain, Angel of Suffering's mill) has to name the player
     /// (`replacement-architecture.md` §11 item 16).
     pub subject: EventSubject,
-    /// The amount the replaced event carried when this rider was queued, read
-    /// by `AmountExpr::ReplacedAmount` — CR 615.5's "that much"/"that many".
-    ///
-    /// Taken from the event as the loop sees it, so a rider queued after a
-    /// doubler reads the doubled number; `None` for an event with no amount.
-    /// Angel of Suffering's "mill twice that many cards" is the customer, and
-    /// its ruling that unpreventable damage still mills is why the number is
-    /// captured here rather than recomputed after the event.
-    pub replaced_amount: Option<u64>,
-    /// How much damage the application that queued this rider prevented, read
-    /// by `AmountExpr::DamagePrevented` — CR 615.5's "the amount of damage
-    /// that was prevented". 0 for a rider on anything but a prevention effect,
-    /// and 0 for a prevention effect that prevented nothing, which is the
-    /// answer CR 615.12 needs from it.
-    pub prevented: u64,
+    /// Becomes the rider's `ResolutionContext::rider`.
+    pub amounts: RiderAmounts,
     pub effect: Effect,
 }
 
@@ -125,10 +113,10 @@ struct Applied {
     /// answer "treat it as 0".
     ///
     /// The `Option` that *is* meaningful is one level out:
-    /// `ResolutionContext::damage_prevented` is `None` outside a CR 615.5
-    /// rider — where the question has no answer at all — and `Some(0)` inside
-    /// one that prevented nothing, which is the number Reverse Damage's "life
-    /// equal to the damage prevented this way" needs.
+    /// `ResolutionContext::rider` is `None` outside a CR 615.5 rider — where
+    /// the question has no answer at all — and inside one that prevented
+    /// nothing its `damage_prevented` is 0, which is the number Reverse
+    /// Damage's "life equal to the damage prevented this way" needs.
     prevented: u64,
 }
 
@@ -184,8 +172,8 @@ struct Candidate {
 /// reason: a `GameAction` variant added later has to be classified rather than
 /// defaulting to "no amount". The failure a fallthrough would cause is quiet at
 /// the point it happens and loud in the wrong place — `AmountExpr::ReplacedAmount`
-/// would report "no meaning outside a CR 615.5 rider" from inside a rider,
-/// which is the one message guaranteed to send a reader looking somewhere else.
+/// would refuse inside a rider, saying the replaced event carried no amount,
+/// about an event that carried one.
 ///
 /// `AddCounters`/`RemoveCounters` carry a count of *counters*, not the amount
 /// CR 615.5's "that much" is about, and no rider reads one; the first that does
@@ -696,8 +684,7 @@ pub(crate) fn apply_replacements(
                 // is about the event the effect replaced, so a later redirect in the same loop
                 // does not rename Reverse Damage's player.
                 subject: rider_subject.unwrap_or(subject),
-                replaced_amount,
-                prevented: outcome.prevented,
+                amounts: RiderAmounts { replaced_amount, damage_prevented: outcome.prevented },
                 effect: then,
             });
         }

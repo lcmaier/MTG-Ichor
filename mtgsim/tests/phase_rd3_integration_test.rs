@@ -42,7 +42,6 @@ use mtgsim::types::replacement::{
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
-use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,16 +50,7 @@ use mtgsim::engine::targeting::{ChosenTargets};
 /// Resolve `card`'s spell effect for `controller`, the way the stack would.
 fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId) -> ObjectId {
     let id = put_in_hand(game, card.clone(), controller);
-    let ctx = ResolutionContext {
-        source: id,
-        ability_source: None,
-        controller,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(id, controller, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
     id
 }
@@ -456,14 +446,8 @@ fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
     // the stack's spells — [circle, spell] — so index 1 is the spell.
     let dp = RecordingDecisionProvider::picking(1);
     let ctx = ResolutionContext {
-        source: circle,
         ability_source: game.object_ref(circle),
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
+        ..ResolutionContext::untargeted(circle, 0, mtgsim::events::cause::GeneratedBy::Spell)
     };
     game.resolve_effect(&circle_of_protection_red().abilities[0].effect, &ctx, &dp)
         .unwrap();

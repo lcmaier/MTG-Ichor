@@ -58,8 +58,7 @@ fn resolve(game: &mut GameState, controller: PlayerId, effect: &Effect, targets:
         controller,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(effect, &ctx, &ScriptedDecisionProvider::new()).expect("resolving");

@@ -63,38 +63,50 @@ pub struct ResolutionContext {
     /// targets went illegal is empty here, and the atom that reads it does
     /// nothing, which is 608.2b's "it won't affect that target".
     pub targets: ChosenTargets,
-    /// CR 615.5's "that much" — the amount the replaced event carried, for a
-    /// rider and for nothing else.
+    /// The numbers a CR 615.5 rider may refer to, for a rider and for nothing
+    /// else.
     ///
     /// `None` on every other resolution, which is what makes
-    /// `AmountExpr::ReplacedAmount` refuse rather than read a wrong number: a
-    /// resolving spell has no replaced event, so the question has no answer
-    /// rather than a default one.
-    pub replaced_amount: Option<u64>,
-    /// CR 615.5's "the amount of damage that was prevented" — for a rider and
-    /// for nothing else, read by `AmountExpr::DamagePrevented`.
-    ///
-    /// `Some(0)` for a rider whose effect prevented nothing — a plain
-    /// replacement's, or a prevention that met CR 615.12's unpreventable damage
-    /// — because that is the number Reverse Damage's "you gain life
-    /// equal to the damage prevented this way" needs there. `None` outside a
-    /// rider, for `replaced_amount`'s reason.
-    pub damage_prevented: Option<u64>,
+    /// `AmountExpr::ReplacedAmount` and `DamagePrevented` refuse rather than
+    /// read a wrong number: a resolving spell has no replaced event, so the
+    /// question has no answer rather than a default one.
+    pub rider: Option<RiderAmounts>,
     /// A triggered ability's bound facts, for the resolution of one and for
     /// nothing else (`triggers-architecture.md` §6.3): `Triggering`,
     /// `TriggeringPlayer` and `TriggeringAmount` read it, and refuse outside
-    /// a trigger rather than reading a default. One field, not a third
-    /// `Option` beside the rider pair (§15 item 8).
+    /// a trigger rather than reading a default.
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
 }
 
-impl ResolutionContext {
-    /// A resolution that names nothing — no targets, no rider, and no
-    /// permanent distinct from `source`. What a mana ability's resolution uses.
+/// What a CR 615.5 rider may refer to of the event its replacement or
+/// prevention effect applied to, captured as the rider is queued.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RiderAmounts {
+    /// CR 615.5's "that much"/"that many": the amount the replaced event
+    /// carried, read by `AmountExpr::ReplacedAmount`. `None` for an event with
+    /// no amount, a zone change's.
     ///
-    /// The two CR 615.5 numbers are one optional thing wearing two `Option`s;
-    /// the type-side fix is a single `rider: Option<RiderAmounts>`, a 48-site
-    /// sweep and its own PR (`codebase-state.md` "Found by RE-9", item 137).
+    /// Taken from the event as the loop sees it, so a rider queued after a
+    /// doubler reads the doubled number. Angel of Suffering's "mill twice that
+    /// many cards" is the customer, and its ruling that unpreventable damage
+    /// still mills is why the number is captured rather than recomputed after
+    /// the event.
+    pub replaced_amount: Option<u64>,
+    /// CR 615.5's "the amount of damage that was prevented": how much the
+    /// application that queued the rider prevented, read by
+    /// `AmountExpr::DamagePrevented`.
+    ///
+    /// 0 for a rider whose effect prevented nothing — a plain replacement's,
+    /// or a prevention that met CR 615.12's unpreventable damage — because
+    /// that is the number Reverse Damage's "you gain life equal to the damage
+    /// prevented this way" needs there.
+    pub damage_prevented: u64,
+}
+
+impl ResolutionContext {
+    /// A resolution that names nothing — no targets, no rider, no trigger, and
+    /// no permanent distinct from `source`. What a mana ability's resolution
+    /// uses.
     pub fn untargeted(source: ObjectId, controller: PlayerId, generated_by: GeneratedBy) -> Self {
         ResolutionContext {
             source,
@@ -102,10 +114,9 @@ impl ResolutionContext {
             controller,
             generated_by,
             targets: ChosenTargets::NONE,
-            replaced_amount: None,
-            damage_prevented: None,
+            rider: None,
             trigger: None,
-                    }
+        }
     }
 
     /// A mana ability's resolution, activated or triggered (CR 605.3b, 605.4a):
@@ -2619,9 +2630,12 @@ impl GameState {
             // CR 615.5's "that much"/"that many". Only a rider sets the field, so
             // outside a `ReplacementDef::then` this leaf asks a question its context
             // cannot answer, and a 0 would be silently wrong.
-            AmountExpr::ReplacedAmount => _ctx.replaced_amount.ok_or_else(|| {
-                "ReplacedAmount has no meaning outside a CR 615.5 rider".to_string()
-            }),
+            AmountExpr::ReplacedAmount => match _ctx.rider {
+                None => Err("ReplacedAmount has no meaning outside a CR 615.5 rider".to_string()),
+                Some(rider) => rider
+                    .replaced_amount
+                    .ok_or_else(|| "ReplacedAmount: the event this rider replaced carried no amount".to_string()),
+            },
             // Doubling Cube's "each type of unspent mana you have": the
             // controller's pool now, restricted units counted by their type
             // (CR 106.6 — a restriction "doesn't affect the mana's type").
@@ -2630,7 +2644,7 @@ impl GameState {
             }
             // The other number a CR 615.5 rider may refer to, and the same
             // refusal outside one.
-            AmountExpr::DamagePrevented => _ctx.damage_prevented.ok_or_else(|| {
+            AmountExpr::DamagePrevented => _ctx.rider.map(|rider| rider.damage_prevented).ok_or_else(|| {
                 "DamagePrevented has no meaning outside a CR 615.5 rider".to_string()
             }),
             // Saturating rather than checked: the inner amount is a damage or life
@@ -3074,6 +3088,28 @@ mod tests {
         assert_eq!(game.evaluate_amount(&twice_x_plus_one, &ctx, Some(3)), Ok(7));
         assert!(game.evaluate_amount(&AmountExpr::X, &ctx, None).is_err());
     }
+
+    /// CR 615.5's two numbers are a rider's: outside one both leaves refuse.
+    /// Inside one, a rider that prevented nothing reads 0, and "that much"
+    /// about an event with no amount refuses as that, not as "outside a rider".
+    #[test]
+    fn a_riders_numbers_are_read_only_inside_a_rider() {
+        let game = GameState::new(2, 20);
+        let outside = ResolutionContext::untargeted(crate::types::ids::ObjectId::UNASSIGNED, 0, GeneratedBy::Spell);
+        let read = |expr: AmountExpr, ctx: &ResolutionContext| game.evaluate_amount(&expr, ctx, None);
+        assert!(read(AmountExpr::ReplacedAmount, &outside).is_err_and(|e| e.contains("outside a CR 615.5 rider")));
+        assert!(read(AmountExpr::DamagePrevented, &outside).is_err_and(|e| e.contains("outside a CR 615.5 rider")));
+
+        let zone_change = RiderAmounts { replaced_amount: None, damage_prevented: 0 };
+        let inside = ResolutionContext { rider: Some(zone_change), ..outside.clone() };
+        assert!(read(AmountExpr::ReplacedAmount, &inside).is_err_and(|e| e.contains("carried no amount")));
+        assert_eq!(read(AmountExpr::DamagePrevented, &inside), Ok(0));
+
+        let damage = RiderAmounts { replaced_amount: Some(3), damage_prevented: 2 };
+        let inside = ResolutionContext { rider: Some(damage), ..outside };
+        assert_eq!(read(AmountExpr::ReplacedAmount, &inside), Ok(3));
+        assert_eq!(read(AmountExpr::DamagePrevented, &inside), Ok(2));
+    }
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
@@ -3109,10 +3145,9 @@ mod tests {
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,
             targets: ChosenTargets::one(targets),
-            replaced_amount: None,
-            damage_prevented: None,
+            rider: None,
             trigger: None,
-                    }
+        }
     }
 
     #[test]

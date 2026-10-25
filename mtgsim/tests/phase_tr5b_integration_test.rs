@@ -65,8 +65,7 @@ fn resolve_targeting(
         controller: player,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).expect("resolving");

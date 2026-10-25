@@ -49,8 +49,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(Vec::new()),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();

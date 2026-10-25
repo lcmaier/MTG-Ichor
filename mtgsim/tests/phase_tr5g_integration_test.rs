@@ -433,8 +433,7 @@ fn a_copied_multiplier_is_found_through_the_registry_summary() {
         controller: 0,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(copyist)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     let dp = ScriptedDecisionProvider::new();

@@ -148,11 +148,10 @@ impl GameState {
             },
             targets: surviving,
             // A resolving spell or ability replaced nothing, so CR 615.5's
-            // "that much" has no answer here — see `ResolutionContext`.
-            replaced_amount: None,
-            damage_prevented: None,
+            // "that much" has no answer here — see `ResolutionContext::rider`.
+            rider: None,
             trigger: entry.trigger.clone(),
-                    };
+        };
         // CR 603.2h at resolution: an instance whose action its controller has
         // already taken this turn resolves and does nothing (Nykthos Paragon's
         // fourth ruling); otherwise it acts, and that takes the action.

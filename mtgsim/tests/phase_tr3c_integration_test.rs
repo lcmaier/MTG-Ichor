@@ -29,7 +29,6 @@ use mtgsim::cards::phase_tr3b_cards::flickerwisp;
 use mtgsim::cards::phase_tr3c_cards::cornered_crook;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::legality::damage_sources;
@@ -183,14 +182,8 @@ impl DecisionProvider for ChoosingSource {
 /// options offered, as the log words them.
 fn circle_chooses(game: &mut GameState, circle: ObjectId, wanted: ChoiceOption) -> Vec<String> {
     let ctx = ResolutionContext {
-        source: circle,
         ability_source: game.object_ref(circle),
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
+        ..ResolutionContext::untargeted(circle, 0, mtgsim::events::cause::GeneratedBy::Spell)
     };
     let dp = ChoosingSource::new(wanted);
     game.resolve_effect(&circle_of_protection_red().abilities[0].effect, &ctx, &dp).unwrap();
@@ -995,14 +988,8 @@ fn a_circle_that_chose_cornered_crook_prevents_its_damage_after_it_dies() {
     place_targeting(&mut game, ChoiceOption::Player(1));
 
     let ctx = ResolutionContext {
-        source: circle,
         ability_source: game.object_ref(circle),
-        controller: 1,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
+        ..ResolutionContext::untargeted(circle, 1, mtgsim::events::cause::GeneratedBy::Spell)
     };
     let dp = ChoosingSource::new(now(crook));
     game.resolve_effect(&circle_of_protection_red().abilities[0].effect, &ctx, &dp).unwrap();

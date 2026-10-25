@@ -300,10 +300,9 @@ mod tests {
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,
             targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
-            replaced_amount: None,
-            damage_prevented: None,
+            rider: None,
             trigger: None,
-                    };
+        };
         let threaten = Effect::Atom(
             Primitive::GainControl(Duration::UntilEndOfTurn),
             EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),

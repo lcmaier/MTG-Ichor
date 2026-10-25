@@ -120,8 +120,7 @@ fn resolve_spell_with(
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, dp).unwrap();
@@ -247,16 +246,7 @@ fn a_static_players_cant_gain_life_refuses_the_gain_while_its_source_is_there() 
         Primitive::GainLife(AmountExpr::Fixed(4)),
         EffectRecipient::Controller,
     );
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: 1,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, 1, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&gain, &ctx, &ScriptedDecisionProvider::new()).unwrap();
     assert_eq!(life(&game, 1), before, "CR 101.2 refuses the proposal");
 

@@ -27,7 +27,6 @@ use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::CounterSubject;
-use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::is_creature;
 use mtgsim::state::game_state::{GameState, StepType};
@@ -160,16 +159,7 @@ fn create_token(game: &mut GameState, controller: PlayerId, def: TokenDef) -> Ob
 /// with nothing targeted; the card's own id is the resolution's source.
 fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId) -> ObjectId {
     let id = put_in_hand(game, card.clone(), controller);
-    let ctx = ResolutionContext {
-        source: id,
-        ability_source: None,
-        controller,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(id, controller, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
     id
 }

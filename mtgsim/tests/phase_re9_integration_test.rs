@@ -55,7 +55,6 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::engine::targeting::{ChosenTargets};
 
 /// CR 616.1's choice between two applicable effects.
 const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
@@ -240,16 +239,7 @@ fn tap_for_mana(
 fn resolve_dark_ritual(game: &mut GameState, player: PlayerId, dp: &dyn DecisionProvider) -> ObjectId {
     let card = dark_ritual();
     let source = put_in_graveyard(game, card.clone(), player);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: player,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, player, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&card.abilities[0].effect, &ctx, dp).expect("resolving Dark Ritual");
     source
 }
@@ -261,16 +251,7 @@ fn resolve_dark_ritual(game: &mut GameState, player: PlayerId, dp: &dyn Decision
 fn activate_deep_water(game: &mut GameState, player: PlayerId, dp: &dyn DecisionProvider) -> ObjectId {
     let card = deep_water();
     let id = put_on_battlefield(game, card.clone(), player);
-    let ctx = ResolutionContext {
-        source: id,
-        ability_source: None,
-        controller: player,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(id, player, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&card.abilities[0].effect, &ctx, dp).expect("activating Deep Water");
     id
 }
@@ -753,16 +734,7 @@ fn pale_moon_retypes_any_players_nonbasic_land_and_leaves_a_basic_alone() {
     let mut game = setup_two_player_game();
     let card = pale_moon();
     let source = put_in_graveyard(&mut game, card.clone(), 0);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).expect("resolving Pale Moon");
 
     tap_for_mana(&mut game, twin_plains(), 1, &test_dp()).unwrap();

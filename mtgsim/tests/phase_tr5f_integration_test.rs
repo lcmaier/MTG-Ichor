@@ -99,8 +99,7 @@ fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, target: O
         controller: player,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(effect, &ctx, &test_dp()).unwrap();
@@ -439,8 +438,7 @@ fn a_change_of_control_a_batch_causes_is_announced_in_its_window() {
         controller: 0,
         generated_by: GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(bears)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     let take = at_target_creature(Primitive::GainControl(Duration::WhileSourceOnBattlefield));
@@ -480,16 +478,7 @@ fn a_human(entering: EntersAttacking) -> TokenDef {
 fn create(game: &mut GameState, player: PlayerId, def: TokenDef, n: u64, dp: &dyn DecisionProvider) {
     let effect = Effect::Atom(Primitive::CreateToken(def, AmountExpr::Fixed(n)), EffectRecipient::Controller);
     let source = put_in_graveyard(game, act_of_treason(), player);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: player,
-        generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, player, GeneratedBy::Spell);
     game.resolve_effect(&effect, &ctx, dp).unwrap();
 }
 
@@ -683,14 +672,8 @@ fn a_token_whose_player_has_left_the_game_does_not_attack() {
         EffectRecipient::Controller,
     );
     let ctx = ResolutionContext {
-        source: bears,
         ability_source: game.object_ref(bears),
-        controller: 0,
-        generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
+        ..ResolutionContext::untargeted(bears, 0, GeneratedBy::Spell)
     };
     game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
     let [token] = tokens(&game)[..] else { panic!("one token") };
@@ -910,16 +893,7 @@ fn a_sweep_a_trigger_reads_is_a_line() {
 fn relentless_assault_resolves(game: &mut GameState, player: PlayerId) {
     let card = relentless_assault();
     let source = put_in_graveyard(game, card.clone(), player);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: player,
-        generated_by: GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, player, GeneratedBy::Spell);
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
 }
 

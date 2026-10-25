@@ -30,7 +30,6 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
-use mtgsim::engine::targeting::{ChosenTargets};
 
 fn zone_of(game: &GameState, id: ObjectId) -> Zone {
     game.get_object(id).unwrap().zone
@@ -126,16 +125,7 @@ fn test_a_mill_is_one_event_and_the_colossus_replaces_only_its_own_member() {
     let source = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 0);
     let before = game.recorded_events().len();
 
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(
         &Effect::Atom(Primitive::Mill(AmountExpr::Fixed(3)), EffectRecipient::Controller),
         &ctx,

@@ -42,7 +42,6 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -73,16 +72,7 @@ fn stocked(num_players: usize) -> GameState {
 /// about, so the helper never loops.
 fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn DecisionProvider) {
     let source = put_in_hand(game, fixture_object(), player);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: player,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, player, mtgsim::events::cause::GeneratedBy::Spell);
     let effect = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(n)),
         EffectRecipient::Controller,
@@ -93,16 +83,7 @@ fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn Dec
 /// Resolve an arbitrary effect for `player`, the way a spell would.
 fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn DecisionProvider) {
     let source = put_in_hand(game, fixture_object(), player);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: player,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, player, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }
 

@@ -1418,10 +1418,9 @@ impl GameState {
                 EventSubject::Player(pid) => vec![ResolvedTarget::Player(pid)],
                 EventSubject::Game => Vec::new(),
             }),
-            replaced_amount: rider.replaced_amount,
-            damage_prevented: Some(rider.prevented),
+            rider: Some(rider.amounts),
             trigger: None,
-                    };
+        };
         let outer = self.rider_lineage.replace(rider.lineage);
         let result = self.resolve_effect(&rider.effect, &rctx, ctx.dp);
         self.rider_lineage = outer;

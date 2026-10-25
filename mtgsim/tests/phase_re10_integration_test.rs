@@ -63,14 +63,8 @@ fn resolve_ability(
     controller: PlayerId,
 ) {
     let ctx = ResolutionContext {
-        source,
         ability_source: game.object_ref(source),
-        controller,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
+        ..ResolutionContext::untargeted(source, controller, mtgsim::events::cause::GeneratedBy::Spell)
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp())
         .expect("resolving Aggravated Assault");
@@ -90,8 +84,7 @@ fn resolve_spell(
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();

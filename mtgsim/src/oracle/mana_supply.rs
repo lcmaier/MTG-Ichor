@@ -1385,7 +1385,6 @@ mod tests {
     use crate::cards::phase_rc_cards::chainbreaker;
     use crate::cards::phase_re9_cards::{deep_water, doubling_cube, mana_reflection, pale_moon};
     use crate::cards::phase_tr1_cards::wild_growth;
-    use crate::engine::targeting::ChosenTargets;
     use crate::objects::card_data::{ActivationRestriction, CardData, CardDataBuilder};
     use crate::test_support::{put_on_battlefield, put_on_battlefield_this_turn, setup_two_player_game, test_dp};
     use crate::types::card_types::CardType;
@@ -1660,16 +1659,7 @@ mod tests {
     /// Resolve `card`'s first ability for player 0, as a resolution would.
     fn resolve_first_ability(game: &mut GameState, card: Arc<CardData>) {
         let id = put_on_battlefield(game, card.clone(), 0);
-        let ctx = ResolutionContext {
-            source: id,
-            ability_source: None,
-            controller: 0,
-            generated_by: crate::events::cause::GeneratedBy::ActivatedAbility,
-            targets: ChosenTargets::NONE,
-            replaced_amount: None,
-            damage_prevented: None,
-            trigger: None,
-        };
+        let ctx = ResolutionContext::untargeted(id, 0, crate::events::cause::GeneratedBy::ActivatedAbility);
         game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
     }
 

@@ -91,8 +91,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
@@ -303,14 +302,8 @@ fn a_shield_against_a_chosen_source_does_not_watch_the_object_it_returns_as() {
     // CR 609.7a's candidates are the battlefield in timestamp order: [circle, red].
     let dp = RecordingDecisionProvider::picking(1);
     let ctx = ResolutionContext {
-        source: circle,
         ability_source: game.object_ref(circle),
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
+        ..ResolutionContext::untargeted(circle, 0, mtgsim::events::cause::GeneratedBy::Spell)
     };
     game.resolve_effect(&circle_of_protection_red().abilities[0].effect, &ctx, &dp).unwrap();
     assert_eq!(game.replacement_effects.len(), 1);
@@ -588,8 +581,7 @@ fn resolve_spell_with(
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, dp).unwrap();
@@ -1235,8 +1227,7 @@ fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets,
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     let dp = ScriptedDecisionProvider::new();

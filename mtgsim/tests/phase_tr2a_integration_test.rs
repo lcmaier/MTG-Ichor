@@ -166,8 +166,7 @@ fn steal(game: &mut GameState, victim: ObjectId, player: PlayerId) {
         controller: player,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(&act_of_treason().abilities[0].effect, &ctx, &test_dp()).expect("the steal");
@@ -652,8 +651,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(&giant_growth, &ctx, &test_dp()).expect("the pump");
@@ -720,16 +718,7 @@ fn a_filtered_one_shot_applies_to_the_permanents_it_matched_as_it_resolved() {
         Effect::Atom(Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::UntilEndOfTurn), yours),
     ]);
     let source = put_in_hand(&mut game, grizzly_bears(), 0);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&rally, &ctx, &test_dp()).expect("the rally");
     let late = put_on_battlefield(&mut game, grizzly_bears(), 0);
 
@@ -793,16 +782,7 @@ fn draw_order(game: &GameState) -> Vec<PlayerId> {
 fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64) {
     let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(n)), EffectRecipient::Controller);
     let source = put_in_hand(game, grizzly_bears(), player);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: player,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, player, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&draw, &ctx, &test_dp()).expect("the draw");
 }
 
@@ -842,16 +822,7 @@ fn each_player_draws_in_apnap_order_over_the_seats_still_in_the_game() {
         EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone)),
     );
     let source = put_in_hand(&mut game, grizzly_bears(), 0);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&each_draws, &ctx, &test_dp()).expect("the draws");
     assert_eq!(draw_order(&game), vec![2, 0, 1]);
 }
@@ -868,16 +839,7 @@ fn each_player_draws_three_and_the_active_player_draws_all_of_theirs_first() {
         EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone)),
     );
     let source = put_in_hand(&mut game, grizzly_bears(), 1);
-    let ctx = ResolutionContext {
-        source,
-        ability_source: None,
-        controller: 1,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(source, 1, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&each_draws_three, &ctx, &test_dp()).expect("the draws");
     assert_eq!(draw_order(&game), vec![0, 0, 0, 1, 1, 1]);
 }
@@ -1344,8 +1306,7 @@ fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
         controller: 1,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(trigger)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(&counter, &ctx, &test_dp()).expect("the counter");
@@ -1419,8 +1380,7 @@ fn retype(game: &mut GameState, id: ObjectId, add: Vec<Subtype>, remove: Vec<Sub
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
-        replaced_amount: None,
-        damage_prevented: None,
+        rider: None,
         trigger: None,
     };
     game.resolve_effect(&effect, &ctx, &test_dp()).expect("the retype");

@@ -38,7 +38,6 @@ use mtgsim::test_support::{
 };
 use mtgsim::cards::phase_re9_cards::deep_water;
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
@@ -1151,16 +1150,7 @@ fn a_replacement_reads_a_source_its_cost_moved_as_it_was() {
     let mut game = stocked(2);
     let card = deep_water();
     let water = put_on_battlefield(&mut game, card.clone(), 0);
-    let ctx = ResolutionContext {
-        source: water,
-        ability_source: None,
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::NONE,
-        replaced_amount: None,
-        damage_prevented: None,
-        trigger: None,
-    };
+    let ctx = ResolutionContext::untargeted(water, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).expect("Deep Water's ability");
     let vein = a_stolen_vein(&mut game);
     tap_for_mana(&mut game, 0, vein);
