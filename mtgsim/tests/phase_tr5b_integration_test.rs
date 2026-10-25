@@ -30,10 +30,10 @@ use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
-use mtgsim::types::triggers::{CountersOn, Multiplicity, ObjectOrPlayer, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{CountersOn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::oracle::x_values::LegalXValues;

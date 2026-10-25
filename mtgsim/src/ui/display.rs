@@ -11,10 +11,8 @@ use crate::engine::put_on_stack::SorceryTiming;
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::copy::{CopiableValues, copiable_values, copiable_values_on_battlefield};
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::targeting::TargetRef;
 use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
 use crate::events::event::{AppliedReplacement, EventRecord, GameEvent, NamesAsAnnounced};
-use crate::types::triggers::ObjectOrPlayer;
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer, UnaskedChoice};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
@@ -28,7 +26,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPlayerId, PlayerId};
+use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaSymbol, ManaType};
@@ -1009,8 +1007,8 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         }
         Targeted { target, by, ability_source, controller, instances } => {
             let target = match target {
-                TargetRef::Object(object) => named(object.id),
-                TargetRef::Player(player) => player_in_log(*player),
+                ObjectOrPlayer::Object(object) => named(object.id),
+                ObjectOrPlayer::Player(player) => player_in_log(*player),
             };
             let by = match ability_source {
                 Some(source) => format!("{}'s ability", named(source.id)),
@@ -1036,22 +1034,22 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 if *tapped_for_mana { " tapped for mana" } else { "" },
             )
         }
-        DamageDealt { source, source_lki: _, target, amount, excess, is_combat } => {
-            let target_str = object_or_player_named(*target);
+        DamageDealt { source, source_lki: _, recipient, amount, excess, is_combat } => {
+            let recipient = object_or_player_named(*recipient);
             let source = named(source.id);
             let excess = if *excess > 0 { format!(", {excess} excess") } else { String::new() };
             format!(
                 "DamageDealt: {} -> {} for {}{}{}",
                 source,
-                target_str,
+                recipient,
                 amount,
                 excess,
                 if *is_combat { " (combat)" } else { "" },
             )
         }
-        DamagePrevented { target, amount, by: _ } => {
-            let target_str = object_or_player_named(*target);
-            format!("DamagePrevented: {} to {} by {}", amount, target_str, cause_words(cause, named))
+        DamagePrevented { recipient, amount, by: _ } => {
+            let recipient = object_or_player_named(*recipient);
+            format!("DamagePrevented: {} to {} by {}", amount, recipient, cause_words(cause, named))
         }
         PhaseBegin { phase, player } => format!("PhaseBegin: {:?} [{}]", phase, player_in_log(*player)),
         StepBegin { step, player } => format!("StepBegin: {:?} [{}]", step, player_in_log(*player)),
@@ -1663,7 +1661,7 @@ mod tests {
     /// fresh permanent of `game`'s, and each player a seat.
     fn every_record(game: &mut GameState) -> Vec<GameEvent> {
         use crate::engine::replacement::ReplacementInstanceId;
-        use crate::engine::targeting::TargetRef;
+        use crate::types::ids::ObjectOrPlayer;
         use crate::events::event::{CombatExit, EventId, UnattachRoute};
         use crate::state::game_state::{AbilityIdentity, StepType};
         use crate::types::effects::CounterType;
@@ -1697,13 +1695,13 @@ mod tests {
             GameEvent::ManaAdded { player_id: 0, source: reference(game, id()), mana: Vec::new(), tapped_for_mana: true, source_lki: None },
             GameEvent::DamageDealt {
                 source: reference(game, a),
-                target: ObjectOrPlayer::Object(reference(game, b)),
+                recipient: ObjectOrPlayer::Object(reference(game, b)),
                 amount: 1,
                 excess: 0,
                 is_combat: false,
                 source_lki: None,
             },
-            GameEvent::DamagePrevented { target: ObjectOrPlayer::Object(reference(game, c)), amount: 1, by: ReplacementInstanceId::StaticAbility(reference(game, d), AbilityId::printed("x", 0)) },
+            GameEvent::DamagePrevented { recipient: ObjectOrPlayer::Object(reference(game, c)), amount: 1, by: ReplacementInstanceId::StaticAbility(reference(game, d), AbilityId::printed("x", 0)) },
             GameEvent::PhaseBegin { phase: PhaseType::Precombat, player: 0 },
             GameEvent::StepBegin { step: StepType::Upkeep, player: 0 },
             GameEvent::TurnBegin { player: 0, turn_number: 1 },
@@ -1722,7 +1720,7 @@ mod tests {
             GameEvent::AbilityResolved { identity: identity(game, id()), controller: 0 },
             GameEvent::AbilityActivated { identity: identity(game, id()), controller: 0, mana_ability: false, from: Zone::Battlefield, source_lki: None },
             GameEvent::Targeted {
-                target: TargetRef::Object(reference(game, id())),
+                target: ObjectOrPlayer::Object(reference(game, id())),
                 by: reference(game, id()),
                 ability_source: Some(reference(game, id())),
                 controller: 0,

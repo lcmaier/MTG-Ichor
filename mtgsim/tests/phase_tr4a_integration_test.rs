@@ -27,7 +27,6 @@ use mtgsim::cards::phase_tr1_cards::blood_artist;
 use mtgsim::cards::phase_tr4a_cards::{compost, demonic_vigor, strangleroot_geist};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::events::event::GameEvent;
-use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness, has_type};
 use mtgsim::state::battlefield::CostChoices;
@@ -44,7 +43,7 @@ use mtgsim::types::effects::{
     AmountExpr, Antecedent, ColorChange, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup,
     PlayerRef, PlayerSet, Primitive, ReturnUnder, SelectionFilter, TargetCount, TypeChange,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
     DamageRecipient, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, Referred,

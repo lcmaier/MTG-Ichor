@@ -43,15 +43,10 @@ use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::state::history_log::RowFact;
 use crate::types::effects::{Condition, Effect, EffectRecipient, PlayerRef, Primitive};
-use crate::engine::targeting::TargetRef;
 use crate::types::history::CountIs;
-use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::triggers::{
-    zone_change_looks_back, AttackOccurrence, BlockOccurrence, CountersOn, TargetSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
-    ObjectOrPlayer, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
-    TriggerLimit, TriggerOrigin, TriggerId, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
-};
+use crate::types::triggers::{zone_change_looks_back, AttackOccurrence, BlockOccurrence, CountersOn, TargetSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerId, TriggerSubject, TriggeringEvent, TriggeringEventObjects};
 use super::binding::TriggeringEventView;
 
 use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
@@ -1991,7 +1986,7 @@ impl GameState {
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, excess, .. },
-                GameEvent::DamageDealt { source: dealt_by, target, is_combat, excess: dealt_excess, .. },
+                GameEvent::DamageDealt { source: dealt_by, recipient: dealt_to, is_combat, excess: dealt_excess, .. },
             ) => {
                 // The source as it dealt the damage (CR 608.2h): as it last
                 // existed once the existence that dealt it has ended, before
@@ -1999,7 +1994,7 @@ impl GameState {
                 let as_it_dealt = record.event.source_lki().or_else(|| self.lki(*dealt_by));
                 let source_read = ObjectInformation::of(dealt_by.id, as_it_dealt);
                 triggering_event_if(
-                    self.damage_recipient_matches(recipient, *target, referents, seq)
+                    self.damage_recipient_matches(recipient, *dealt_to, referents, seq)
                         && combat.is_none_or(|c| c == *is_combat)
                         && (!*excess || *dealt_excess > 0)
                         && self.subject_matches_existence(source, source_read, Some(*dealt_by), referents, seq),
@@ -2007,8 +2002,8 @@ impl GameState {
             }
             // Announced as the batch decided, and read at its close, so the
             // recipient is asked as the damage left it (CR 603.10).
-            (TriggerEvent::DamageIsPrevented { recipient, .. }, GameEvent::DamagePrevented { target, .. }) => {
-                triggering_event_if(self.damage_recipient_matches(recipient, *target, referents, seq))
+            (TriggerEvent::DamageIsPrevented { recipient, .. }, GameEvent::DamagePrevented { recipient: prevented_to, .. }) => {
+                triggering_event_if(self.damage_recipient_matches(recipient, *prevented_to, referents, seq))
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
                 triggering_event_if(phase == rp && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
@@ -2137,13 +2132,13 @@ impl GameState {
                 GameEvent::Targeted { target, by, ability_source, controller, .. },
             ) => {
                 let target_ok = match (watched, target) {
-                    (TargetSubject::Object(subject), TargetRef::Object(object)) => {
+                    (TargetSubject::Object(subject), ObjectOrPlayer::Object(object)) => {
                         self.named_subject_matches(subject, *object, referents, seq)
                     }
-                    (TargetSubject::Player(who), TargetRef::Player(player)) => {
+                    (TargetSubject::Player(who), ObjectOrPlayer::Player(player)) => {
                         who.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents))
                     }
-                    (TargetSubject::Object(_), TargetRef::Player(_)) | (TargetSubject::Player(_), TargetRef::Object(_)) => false,
+                    (TargetSubject::Object(_), ObjectOrPlayer::Player(_)) | (TargetSubject::Player(_), ObjectOrPlayer::Object(_)) => false,
                 };
                 let kind_ok = kind.admits(ability_source.is_none())
                     && match kind {
@@ -2153,14 +2148,11 @@ impl GameState {
                         TargetedBy::Spell(None) | TargetedBy::SpellOrAbility | TargetedBy::Ability => true,
                     };
                 let whose_ok = whose.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents));
-                let objects = || {
-                    let target = match target {
-                        TargetRef::Object(object) => ObjectOrPlayer::Object(*object),
-                        TargetRef::Player(player) => ObjectOrPlayer::Player(*player),
-                    };
-                    Some(TriggeringEventObjects::Target { target, by: *by })
-                };
-                if target_ok && kind_ok && whose_ok { objects().into_iter().collect() } else { Vec::new() }
+                if target_ok && kind_ok && whose_ok {
+                    vec![TriggeringEventObjects::Target { target: *target, by: *by }]
+                } else {
+                    Vec::new()
+                }
             }
             (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
                 let source_ok = match source {
@@ -2710,7 +2702,7 @@ impl GameState {
     /// dealing the damage is the existence that dealt it (CR 608.2h).
     fn damage_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
         match event {
-            GameEvent::DamageDealt { source, target, .. } => TriggeringEventObjects::Damage { source: *source, recipient: *target },
+            GameEvent::DamageDealt { source, recipient, .. } => TriggeringEventObjects::Damage { source: *source, recipient: *recipient },
             _ => TriggeringEventObjects::NoObject,
         }
     }
@@ -2719,7 +2711,7 @@ impl GameState {
     /// none.
     fn prevention_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
         match event {
-            GameEvent::DamagePrevented { target: ObjectOrPlayer::Object(recipient), .. } => {
+            GameEvent::DamagePrevented { recipient: ObjectOrPlayer::Object(recipient), .. } => {
                 TriggeringEventObjects::Prevention { recipient: *recipient }
             }
             _ => TriggeringEventObjects::NoObject,

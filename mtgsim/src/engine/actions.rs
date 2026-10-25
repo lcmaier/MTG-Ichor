@@ -1538,7 +1538,7 @@ impl GameState {
                 self.emit_event(GameEvent::DamageDealt {
                     source: dealt_by,
                     source_lki,
-                    target: target.for_record(self)?,
+                    recipient: target.for_record(self)?,
                     amount,
                     excess,
                     is_combat,

@@ -1617,7 +1617,7 @@ mod tests {
         assert_eq!(row.duration, Duration::UntilEndOfTurn);
         assert_eq!(row.source, spell);
         assert_eq!(row.controller, 0);
-        assert_eq!(row.targets, vec![crate::engine::targeting::TargetRef::Player(1)]);
+        assert_eq!(row.targets, vec![crate::types::ids::ObjectOrPlayer::Player(1)]);
         assert!(row.def.is_prevention());
     }
 
@@ -2204,12 +2204,12 @@ mod tests {
         let assignments = assign_combat_damage(&game, &dp, 1, false);
         game.apply_combat_damage(assignments, &ActionContext::new(&dp)).unwrap();
 
-        let dealt: Vec<crate::types::triggers::ObjectOrPlayer> = game
+        let dealt: Vec<crate::types::ids::ObjectOrPlayer> = game
             .recorded_events()
             .records_from(from)
             .iter()
             .filter_map(|r| match &r.event {
-                GameEvent::DamageDealt { target, .. } => Some(*target),
+                GameEvent::DamageDealt { recipient, .. } => Some(*recipient),
                 _ => None,
             })
             .collect();

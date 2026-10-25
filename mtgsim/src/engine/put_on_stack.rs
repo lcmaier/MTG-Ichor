@@ -20,9 +20,9 @@ use crate::events::event::GameEvent;
 use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
-use crate::engine::targeting::{TargetInstance, TargetRef};
+use crate::engine::targeting::TargetInstance;
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayer, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
@@ -387,7 +387,7 @@ impl GameState {
     /// is once for the spell, and the dispatch may ask with `dp`.
     pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause, dp: &dyn DecisionProvider) -> Result<(), String> {
         let Some(entry) = self.stack_entries.get(&by) else { return Ok(()) };
-        let mut targeted: Vec<(TargetRef, u32)> = Vec::new();
+        let mut targeted: Vec<(ObjectOrPlayer, u32)> = Vec::new();
         for target in entry.chosen_targets.iter().filter(|instance| instance.is_targeted()).flat_map(|instance| &instance.chosen) {
             match targeted.iter_mut().find(|(seen, _)| seen == target) {
                 Some((_, instances)) => *instances += 1,

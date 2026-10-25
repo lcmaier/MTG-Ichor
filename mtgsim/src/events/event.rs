@@ -3,18 +3,17 @@ use std::sync::Arc;
 
 use super::cause::EventCause;
 use super::recorder::RecorderHandle;
-use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId, UntilReturnId, ZoneChangeEpoch};
+use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId, UntilReturnId, ZoneChangeEpoch};
 use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
 use crate::engine::actions::ZoneChangeAct;
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::last_known::LkiStore;
-use crate::engine::targeting::TargetRef;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
-use crate::types::triggers::{DelayedDuration, Lki, ObjectOrPlayer, TriggerOrigin, TriggerId};
+use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerId};
 
 
 /// The object a move took out of a zone, as its record names it: which
@@ -183,7 +182,7 @@ pub enum GameEvent {
         /// The existence that dealt it: as it last existed where it left
         /// first, which `source_lki` frames.
         source: ObjectRef,
-        target: ObjectOrPlayer,
+        recipient: ObjectOrPlayer,
         amount: u64,
         /// CR 120.10: how much of `amount` was past the damage still lethal
         /// to the permanent after the batch's earlier damage to it, so its
@@ -204,7 +203,7 @@ pub enum GameEvent {
     /// **Announced while its batch decides**, ahead of what the batch
     /// performs: the prevented damage is never performed (CR 615.6), and
     /// the application is the event.
-    DamagePrevented { target: ObjectOrPlayer, amount: u64, by: ReplacementInstanceId },
+    DamagePrevented { recipient: ObjectOrPlayer, amount: u64, by: ReplacementInstanceId },
 
     // --- Turn structure ---
     //
@@ -301,7 +300,7 @@ pub enum GameEvent {
     /// is of, which a reader names it by: `by` is the stack object, which CR
     /// 608.2n removes. `None` for a spell. Not the whole `AbilityIdentity`,
     /// which would grow every event by half.
-    Targeted { target: TargetRef, by: ObjectRef, ability_source: Option<ObjectRef>, controller: PlayerId, instances: u32 },
+    Targeted { target: ObjectOrPlayer, by: ObjectRef, ability_source: Option<ObjectRef>, controller: PlayerId, instances: u32 },
     /// An ability triggered (CR 603.2) — the record CR 603.3b's second tier
     /// watches, emitted by the dispatcher once per queued trigger after the
     /// window it belongs to has closed (`triggers-architecture.md` §4.8).
@@ -715,8 +714,8 @@ impl GameEvent {
             | SpellFizzled { spell: object, .. }
             | CountersPutOn { subject: ObjectOrPlayer::Object(object), .. }
             | CountersRemovedFrom { subject: ObjectOrPlayer::Object(object), .. }
-            | DamageDealt { source: object, target: ObjectOrPlayer::Player(_), .. }
-            | DamagePrevented { target: ObjectOrPlayer::Object(object), .. }
+            | DamageDealt { source: object, recipient: ObjectOrPlayer::Player(_), .. }
+            | DamagePrevented { recipient: ObjectOrPlayer::Object(object), .. }
             | BecameBlocked { attacker: object } => each(object.id),
             AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
                 each(identity.source.id)
@@ -726,7 +725,7 @@ impl GameEvent {
                 each(countered_by.id);
             }
             Targeted { target, by, ability_source, .. } => {
-                if let TargetRef::Object(object) = target {
+                if let ObjectOrPlayer::Object(object) = target {
                     each(object.id);
                 }
                 each(ability_source.unwrap_or(*by).id);
@@ -744,7 +743,7 @@ impl GameEvent {
                     each(source.id);
                 }
             }
-            DamageDealt { source, target: ObjectOrPlayer::Object(recipient), .. } => {
+            DamageDealt { source, recipient: ObjectOrPlayer::Object(recipient), .. } => {
                 each(source.id);
                 each(recipient.id);
             }
@@ -798,7 +797,7 @@ impl GameEvent {
             | LeftTheGame { .. }
             | CountersPutOn { .. }
             | CountersRemovedFrom { .. }
-            | DamagePrevented { target: ObjectOrPlayer::Player(_), .. }
+            | DamagePrevented { recipient: ObjectOrPlayer::Player(_), .. }
             | PhaseBegin { .. }
             | StepBegin { .. }
             | TurnBegin { .. }

@@ -7,7 +7,7 @@ use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
 use crate::oracle::characteristics::ObjectInformation;
-use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 
 /// One instance of the word "target" (CR 115.3) — the clause it was chosen
 /// against, and what was chosen for it.
@@ -23,48 +23,11 @@ pub struct TargetInstance {
     pub recipient: EffectRecipient,
     /// The objects and players chosen for it, in the order they were offered,
     /// each object as the existence it was chosen in.
-    pub chosen: Vec<TargetRef>,
-}
-
-/// One object or player chosen for an instance of "target", remembered by
-/// identity: an object by its id **and** the zone-change epoch it had when
-/// it was chosen (CR 400.7), so a creature that left and came back is not
-/// the one chosen.
-///
-/// CR 608.2b's "a target that's no longer in the zone it was in when it was
-/// targeted is illegal" is the comparison: a bare id finds the new object
-/// and calls it legal. Only the announcement holds these. The survivors CR
-/// 608.2b keeps are plain [`ObjectOrPlayerId`]s, legal as the resolution
-/// begins, which is all a primitive reads.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TargetRef {
-    Object(crate::types::ids::ObjectRef),
-    Player(PlayerId),
-}
-
-impl TargetRef {
-    /// What the object or player is now, which is all a reader past the
-    /// existence check needs.
-    pub fn as_resolved_target(self) -> ObjectOrPlayerId {
-        match self {
-            TargetRef::Object(object) => ObjectOrPlayerId::Object(object.id),
-            TargetRef::Player(player) => ObjectOrPlayerId::Player(player),
-        }
-    }
-
-    /// Is this still the object that was chosen: in the store, at the epoch
-    /// it was chosen at (CR 400.7)? A player is always that player; CR
-    /// 800.4a's departure is the target check's question, not this one's.
-    pub fn still_exists(self, game: &GameState) -> bool {
-        match self {
-            TargetRef::Object(object) => game.find(object).is_some(),
-            TargetRef::Player(_) => true,
-        }
-    }
+    pub chosen: Vec<ObjectOrPlayer>,
 }
 
 impl TargetInstance {
-    pub fn new(recipient: EffectRecipient, chosen: Vec<TargetRef>) -> Self {
+    pub fn new(recipient: EffectRecipient, chosen: Vec<ObjectOrPlayer>) -> Self {
         TargetInstance { recipient, chosen }
     }
 
@@ -81,7 +44,7 @@ impl TargetInstance {
 
     /// What was chosen for this instance, as it is now.
     pub fn as_resolved_targets(&self) -> impl Iterator<Item = ObjectOrPlayerId> + '_ {
-        self.chosen.iter().map(|chosen| chosen.as_resolved_target())
+        self.chosen.iter().map(|chosen| chosen.id())
     }
 
     /// Whether this instance *targets* — CR 115.1's word, as opposed to a
@@ -344,10 +307,10 @@ pub(crate) fn instance_of<'a>(
 impl GameState {
     /// `target` remembered by identity: [`Self::object_ref`]'s answer for an
     /// object, and `None` for one not in the store.
-    pub fn target_ref(&self, target: ObjectOrPlayerId) -> Option<TargetRef> {
+    pub fn target_ref(&self, target: ObjectOrPlayerId) -> Option<ObjectOrPlayer> {
         match target {
-            ObjectOrPlayerId::Object(id) => self.object_ref(id).map(TargetRef::Object),
-            ObjectOrPlayerId::Player(player) => Some(TargetRef::Player(player)),
+            ObjectOrPlayerId::Object(id) => self.object_ref(id).map(ObjectOrPlayer::Object),
+            ObjectOrPlayerId::Player(player) => Some(ObjectOrPlayer::Player(player)),
         }
     }
 
@@ -768,7 +731,7 @@ impl GameState {
         let mut survived = false;
         let mut survivors = ChosenTargets::NONE;
         for inst in instances {
-            let existing = inst.chosen.iter().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.as_resolved_target());
+            let existing = inst.chosen.iter().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.id());
             if !inst.is_targeted() {
                 // A `Choose` does not fizzle and is not re-checked against its
                 // clause, so all of it that still exists is carried through.

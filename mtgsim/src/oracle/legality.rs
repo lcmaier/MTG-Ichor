@@ -356,13 +356,13 @@ fn left_since_read<'a>(game: &'a GameState, identity: Option<AbilityIdentity>, t
 /// that left (CR 603.10a), the one that deals its damage, and not the one it
 /// became. Not a CR 610.3 return, which is no triggered ability.
 fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
-    use crate::engine::targeting::TargetRef;
-    let objects_of = |targets: &[TargetRef]| -> Vec<ObjectRef> {
+    use crate::types::ids::ObjectOrPlayer;
+    let objects_of = |targets: &[ObjectOrPlayer]| -> Vec<ObjectRef> {
         targets
             .iter()
             .filter_map(|t| match t {
-                TargetRef::Object(object) => Some(*object),
-                TargetRef::Player(_) => None,
+                ObjectOrPlayer::Object(object) => Some(*object),
+                ObjectOrPlayer::Player(_) => None,
             })
             .collect()
     };

@@ -2418,7 +2418,7 @@ impl GameState {
     /// `targets` as a row keeps them: each object by identity, at the epoch
     /// it has now. An object an earlier part of this effect moved is the one
     /// it moved, which CR 400.7j lets the rest of the effect find.
-    fn target_refs(&self, targets: &[ObjectOrPlayerId]) -> Vec<crate::engine::targeting::TargetRef> {
+    fn target_refs(&self, targets: &[ObjectOrPlayerId]) -> Vec<crate::types::ids::ObjectOrPlayer> {
         targets.iter().filter_map(|&target| self.target_ref(target)).collect()
     }
 

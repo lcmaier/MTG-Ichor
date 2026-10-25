@@ -21,7 +21,6 @@ use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;
-use mtgsim::types::triggers::ObjectOrPlayer;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
@@ -35,7 +34,7 @@ use mtgsim::types::effects::{
     EffectRecipient, ObjectFilter, Pick, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
@@ -261,7 +260,7 @@ fn a_may_whose_damage_is_prevented_still_answers_does() {
     assert!(
         game.recorded_events().events().any(|e| matches!(
             e,
-            GameEvent::DamagePrevented { target: ObjectOrPlayer::Player(0), amount: 2, .. }
+            GameEvent::DamagePrevented { recipient: ObjectOrPlayer::Player(0), amount: 2, .. }
         )),
         "the 2 were proposed and reached Safe Passage"
     );

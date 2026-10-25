@@ -663,7 +663,7 @@ pub(crate) fn apply_replacements(
         // CR 615.13 — the application is the event, so it is announced as the
         // batch decides; unpreventable damage (CR 615.12) prevented none.
         for (target, amount) in prevented_to {
-            let event = GameEvent::DamagePrevented { target: target.for_record(game)?, amount, by: chosen.id };
+            let event = GameEvent::DamagePrevented { recipient: target.for_record(game)?, amount, by: chosen.id };
             game.emit_event(event, caused_by_replacement(game, &chosen)?)?;
         }
         // Into the set once applied, before the next iteration gathers (CR

@@ -23,7 +23,7 @@ use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
 use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, TokenDef};
-use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::history::TurnFact;
 use crate::types::mana::ManaType;
 use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
@@ -433,24 +433,6 @@ impl EventRole {
         EventRole::Target,
         EventRole::SpellOrAbility,
     ];
-}
-
-/// What damage is dealt to (CR 120.1), or what is attacked (CR 506.3): an
-/// object, or a player.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ObjectOrPlayer {
-    Object(ObjectRef),
-    Player(PlayerId),
-}
-
-impl ObjectOrPlayer {
-    /// The object; `None` for a player.
-    pub fn object(self) -> Option<ObjectRef> {
-        match self {
-            ObjectOrPlayer::Object(object) => Some(object),
-            ObjectOrPlayer::Player(_) => None,
-        }
-    }
 }
 
 /// The objects a triggering event is about, each by the part it played, as the
@@ -1281,7 +1263,7 @@ impl TriggerEvent {
             (OccurrenceSubject::CountersOn, GameEvent::CountersPutOn { subject, .. } | GameEvent::CountersRemovedFrom { subject, .. }) => {
                 Some(*subject)
             }
-            (OccurrenceSubject::DamageRecipient, GameEvent::DamageDealt { target, .. }) => Some(*target),
+            (OccurrenceSubject::DamageRecipient, GameEvent::DamageDealt { recipient, .. }) => Some(*recipient),
             (OccurrenceSubject::CountersOn | OccurrenceSubject::DamageRecipient, _) => None,
         }
     }
@@ -1509,8 +1491,8 @@ impl TriggerEvent {
             }
             (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { lki, .. }) => Some(lki.owner()),
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { player_id, .. }) => Some(*player_id),
-            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. })
-            | (TriggerEvent::DamageIsPrevented { .. }, GameEvent::DamagePrevented { target, .. }) => match target {
+            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { recipient, .. })
+            | (TriggerEvent::DamageIsPrevented { .. }, GameEvent::DamagePrevented { recipient, .. }) => match recipient {
                 ObjectOrPlayer::Player(pid) => Some(*pid),
                 ObjectOrPlayer::Object(_) => None,
             },
@@ -2278,7 +2260,7 @@ pub(crate) mod samples {
             ("ManaAdded", GameEvent::ManaAdded { player_id: 0, source: identity.source, mana: Vec::new(), tapped_for_mana: false, source_lki: None }),
             ("DamageDealt", GameEvent::DamageDealt {
                 source: identity.source,
-                target: ObjectOrPlayer::Player(0),
+                recipient: ObjectOrPlayer::Player(0),
                 amount: 1,
                 excess: 0,
                 is_combat: false,
@@ -2311,7 +2293,7 @@ pub(crate) mod samples {
                 former_host_left: false,
             }),
             ("DamagePrevented", GameEvent::DamagePrevented {
-                target: ObjectOrPlayer::Player(0),
+                recipient: ObjectOrPlayer::Player(0),
                 amount: 1,
                 by: crate::engine::replacement::ReplacementInstanceId::StaticAbility(identity.source, identity.ability),
             }),
@@ -2323,7 +2305,7 @@ pub(crate) mod samples {
                 definition: Arc::new(crate::cards::phase_re_cards::goblin_token()),
             }),
             ("Targeted", GameEvent::Targeted {
-                target: crate::engine::targeting::TargetRef::Object(identity.source),
+                target: crate::types::ids::ObjectOrPlayer::Object(identity.source),
                 by: identity.source,
                 ability_source: None,
                 controller: 0,
