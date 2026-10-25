@@ -127,7 +127,7 @@ fn control_rows(game: &GameState) -> usize {
     game.continuous_effects.iter().filter(|row| row.layer == Layer::Layer2Control).count()
 }
 
-// RULING: Sower of Temptation #1 - "If Sower of Temptation leaves the battlefield before its enters-the-battlefield ability resolves, that ability has no effect."
+// RULING: Sower of Temptation #2 - "If Sower of Temptation leaves the battlefield before the ability resolves, the ability will have no effect."
 /// Flickered in response, the Tempter is a new object (CR 400.7), so the
 /// duration its ability watches has ended before the effect would first
 /// apply: CR 611.2b's "does nothing", and no row is written.
@@ -160,7 +160,7 @@ fn a_cant_and_a_shield_for_as_long_as_their_source_remains_end_as_it_leaves() {
     assert_eq!((game.restrictions.len(), game.replacement_effects.len()), (0, 0), "both ended with their source");
 }
 
-// RULING: Dragonlord Silumgar #2 - "If Dragonlord Silumgar leaves the battlefield, you no longer control it, and the control-changing effect of its triggered ability will end."
+// RULING: Dragonlord Silumgar #3 - "If another player gains control of Dragonlord Silumgar, its control-change effect ends. Regaining control of Dragonlord Silumgar won't cause you to regain control of the creature or planeswalker."
 /// "For as long as you control" ends as another player gains control of the
 /// source, and the stolen creature goes back. Taking the source back later
 /// does not begin it again.
@@ -181,6 +181,7 @@ fn a_steal_for_as_long_as_you_control_its_source_ends_when_another_player_takes_
     assert_eq!(controller(&game, bears), Some(1), "and regaining control does not restore it");
 }
 
+// RULING: Dragonlord Silumgar #2 - "If Dragonlord Silumgar ceases to be under your control before its ability resolves, you won't gain control of the creature or planeswalker at all."
 /// The Dragonlord changes hands with its trigger on the stack: its
 /// controller when it triggered is no longer its controller, so the duration
 /// never starts (CR 611.2b, 603.3a).
