@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::engine::layers::copy::{copiable_values, CopiableValues};
-use crate::oracle::characteristics::{FrameMoment, ObjectInformation};
+use crate::oracle::characteristics::{FrameContext, ObjectInformation};
 use crate::state::game_state::GameState;
 use crate::types::effects::{CopyException, ObjectFilter};
 use crate::types::ids::{ObjectId, PlayerId};
@@ -141,7 +141,7 @@ impl ExceptionConditions<'_> {
             return Ok(false);
         };
         Ok(self.game.object_matches_filter_of_source(
-            ObjectInformation::Characteristics(self.object, chars, FrameMoment::Entering),
+            ObjectInformation::Characteristics(self.object, chars, FrameContext::Entering),
             filter,
             self.chosen.controller,
             self.chosen.source,

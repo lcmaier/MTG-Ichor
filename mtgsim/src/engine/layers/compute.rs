@@ -14,7 +14,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use crate::oracle::characteristics::{FrameMoment, ObjectInformation};
+use crate::oracle::characteristics::{FrameContext, ObjectInformation};
 use crate::types::effects::Antecedent;
 use crate::engine::layers::board::{
     compute_board, compute_board_to, is_dynamic, pass_membership, record_intrinsic, Board, PassMembership, RowNote,
@@ -838,7 +838,7 @@ pub(super) fn object_matches_filter(
     players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
     let game = players.game;
-    object_filter::evaluate(game, filter, ObjectInformation::Characteristics(id, chars, FrameMoment::Now), &|| Some(chars), players)
+    object_filter::evaluate(game, filter, ObjectInformation::Characteristics(id, chars, FrameContext::Now), &|| Some(chars), players)
 }
 
 /// Resolve one side of a P/T modification against the frame so far.

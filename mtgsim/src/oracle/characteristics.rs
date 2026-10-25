@@ -43,7 +43,7 @@ pub enum ObjectInformation<'a> {
     LastKnown(&'a Lki),
     /// Characteristics the asker already holds, from the moment it names,
     /// which says where a reader finds what they do not carry.
-    Characteristics(ObjectId, &'a EffectiveCharacteristics, FrameMoment),
+    Characteristics(ObjectId, &'a EffectiveCharacteristics, FrameContext),
 }
 
 /// When characteristics an asker holds are from (`ObjectInformation::Characteristics`).
@@ -51,7 +51,7 @@ pub enum ObjectInformation<'a> {
 /// turn) is read off the board only for a frame of now; a frame from any
 /// other moment answers only what it keeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FrameMoment {
+pub enum FrameContext {
     /// Now: a spell being cast (cost determination, CR 601.2f), or a live
     /// object whose list the asker already walked.
     Now,
@@ -95,8 +95,8 @@ impl<'a> ObjectInformation<'a> {
     pub fn existence(&self, game: &GameState) -> Option<ObjectRef> {
         match self {
             ObjectInformation::LastKnown(lki) => Some(lki.object()),
-            ObjectInformation::Characteristics(_, _, FrameMoment::AsTheEventLeftIt(row_object)) => *row_object,
-            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameMoment::Now | FrameMoment::Entering) => {
+            ObjectInformation::Characteristics(_, _, FrameContext::AsTheEventLeftIt(row_object)) => *row_object,
+            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameContext::Now | FrameContext::Entering) => {
                 game.object_ref(*id)
             }
         }
@@ -117,11 +117,11 @@ impl<'a> ObjectInformation<'a> {
     pub fn attacking(&self, game: &GameState) -> Option<AttackTarget> {
         match self {
             ObjectInformation::LastKnown(lki) => lki.attacking(),
-            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameMoment::Now) => {
+            ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameContext::Now) => {
                 game.battlefield.get(id)?.attacking.as_ref().map(|attack| attack.target)
             }
             ObjectInformation::Characteristics(id, _, moment) => {
-                debug_assert!(*moment == FrameMoment::Entering, "what {id} attacked was asked of a history row's frame, which keeps no combat");
+                debug_assert!(*moment == FrameContext::Entering, "what {id} attacked was asked of a history row's frame, which keeps no combat");
                 None
             }
         }

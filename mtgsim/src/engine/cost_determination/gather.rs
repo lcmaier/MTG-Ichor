@@ -9,7 +9,7 @@ use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::board::filter_reads_mana_value;
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
-use crate::oracle::characteristics::{FrameMoment, ObjectInformation};
+use crate::oracle::characteristics::{FrameContext, ObjectInformation};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
@@ -188,7 +188,7 @@ fn applies_to(
             );
             source != spell
                 && game.object_matches_filter_of_source(
-                    ObjectInformation::Characteristics(spell, frame, FrameMoment::Now),
+                    ObjectInformation::Characteristics(spell, frame, FrameContext::Now),
                     filter,
                     source_controller,
                     source,

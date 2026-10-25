@@ -22,7 +22,7 @@ use crate::types::effects::{CounterType, ObjectFilter, PlayerRef};
 use crate::types::history::ObjectFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::objects::object::GameObject;
-use crate::oracle::characteristics::{FrameMoment, ObjectInformation};
+use crate::oracle::characteristics::{FrameContext, ObjectInformation};
 use crate::state::battlefield::PermanentState;
 use crate::state::layer_memo::GatedWalkInput;
 
@@ -171,8 +171,8 @@ enum FilterRefusal {
     NoPower(ObjectId),
     /// A fact the characteristics do not carry (counters, combat, what it did
     /// this turn) asked of a frame from a moment that does not keep it, which
-    /// the board now cannot answer for (`FrameMoment`).
-    NotInTheFrame(ObjectId),
+    /// the board now cannot answer for (`FrameContext`).
+    NotInCharacteristics(ObjectId),
 }
 
 impl FilterRefusal {
@@ -184,7 +184,7 @@ impl FilterRefusal {
     fn is_malformed_question(self) -> bool {
         match self {
             FilterRefusal::ObjectGone(_) | FilterRefusal::NoPower(_) => false,
-            FilterRefusal::NoSource(_) | FilterRefusal::InstanceNotAnnounced { .. } | FilterRefusal::NotInTheFrame(_) => {
+            FilterRefusal::NoSource(_) | FilterRefusal::InstanceNotAnnounced { .. } | FilterRefusal::NotInCharacteristics(_) => {
                 true
             }
         }
@@ -206,7 +206,7 @@ impl std::fmt::Display for FilterRefusal {
                  instances; a filter asked anywhere else cannot carry this leaf."
             ),
             FilterRefusal::NoPower(id) => write!(f, "Object {id} has no power"),
-            FilterRefusal::NotInTheFrame(id) => write!(
+            FilterRefusal::NotInCharacteristics(id) => write!(
                 f,
                 "a filter asked {id}, read by a frame from another moment, for a fact the frame does not \
                  keep and the board now does not answer: its counters, its combat, or what it did this turn"
@@ -336,10 +336,10 @@ fn answer_or_refuse<'f>(
         ObjectFilter::WithCounters { kind, count } => {
             let n = match object {
                 ObjectInformation::LastKnown(lki) => lki.counters_of(*kind),
-                ObjectInformation::Current(_) | ObjectInformation::Characteristics(_, _, FrameMoment::Now) => {
+                ObjectInformation::Current(_) | ObjectInformation::Characteristics(_, _, FrameContext::Now) => {
                     referents.counters_on(game, id, *kind)
                 }
-                ObjectInformation::Characteristics(..) => return Err(FilterRefusal::NotInTheFrame(id)),
+                ObjectInformation::Characteristics(..) => return Err(FilterRefusal::NotInCharacteristics(id)),
             };
             Ok(count.satisfied_by(u64::from(n)))
         }
@@ -393,13 +393,13 @@ fn board_entry<'g>(
     object: &ObjectInformation<'_>,
 ) -> Result<Option<&'g PermanentState>, FilterRefusal> {
     match object {
-        ObjectInformation::Current(_) | ObjectInformation::Characteristics(_, _, FrameMoment::Now) => Ok(game.battlefield.get(&id)),
-        ObjectInformation::Characteristics(_, _, FrameMoment::AsTheEventLeftIt(row_object))
+        ObjectInformation::Current(_) | ObjectInformation::Characteristics(_, _, FrameContext::Now) => Ok(game.battlefield.get(&id)),
+        ObjectInformation::Characteristics(_, _, FrameContext::AsTheEventLeftIt(row_object))
             if row_object.is_some() && game.object_ref(id) == *row_object =>
         {
             Ok(game.battlefield.get(&id))
         }
-        ObjectInformation::Characteristics(..) => Err(FilterRefusal::NotInTheFrame(id)),
+        ObjectInformation::Characteristics(..) => Err(FilterRefusal::NotInCharacteristics(id)),
         ObjectInformation::LastKnown(_) => Err(FilterRefusal::ObjectGone(id)),
     }
 }
@@ -410,11 +410,11 @@ fn board_entry<'g>(
 fn existence_of(game: &GameState, id: ObjectId, object: &ObjectInformation<'_>) -> Result<ObjectRef, FilterRefusal> {
     match object {
         ObjectInformation::LastKnown(lki) => Ok(lki.object()),
-        ObjectInformation::Characteristics(_, _, FrameMoment::AsTheEventLeftIt(row_object)) => {
+        ObjectInformation::Characteristics(_, _, FrameContext::AsTheEventLeftIt(row_object)) => {
             (*row_object).ok_or(FilterRefusal::ObjectGone(id))
         }
-        ObjectInformation::Characteristics(_, _, FrameMoment::Entering) => Err(FilterRefusal::NotInTheFrame(id)),
-        ObjectInformation::Current(_) | ObjectInformation::Characteristics(_, _, FrameMoment::Now) => {
+        ObjectInformation::Characteristics(_, _, FrameContext::Entering) => Err(FilterRefusal::NotInCharacteristics(id)),
+        ObjectInformation::Current(_) | ObjectInformation::Characteristics(_, _, FrameContext::Now) => {
             game.object_ref(id).ok_or(FilterRefusal::ObjectGone(id))
         }
     }

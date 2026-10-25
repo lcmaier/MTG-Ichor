@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::oracle::characteristics::{FrameMoment, ObjectInformation};
+use crate::oracle::characteristics::{FrameContext, ObjectInformation};
 use crate::events::event::EventId;
 use crate::state::battlefield::AttackTarget;
 use crate::state::layer_memo::GatedWalkInput;
@@ -172,7 +172,7 @@ impl HistoryRow {
         match &self.frame {
             RowFrame::LastKnown(lki) => matches(ObjectInformation::LastKnown(lki)),
             RowFrame::AsTheEventLeftIt(frame) => {
-                matches(ObjectInformation::Characteristics(id, frame, FrameMoment::AsTheEventLeftIt(self.object)))
+                matches(ObjectInformation::Characteristics(id, frame, FrameContext::AsTheEventLeftIt(self.object)))
             }
             RowFrame::None => {
                 debug_assert!(

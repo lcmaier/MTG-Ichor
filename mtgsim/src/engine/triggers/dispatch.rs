@@ -21,7 +21,7 @@
 use std::sync::Arc;
 
 use crate::engine::mana::ManaProducer;
-use crate::oracle::characteristics::{FrameMoment, ObjectInformation};
+use crate::oracle::characteristics::{FrameContext, ObjectInformation};
 use crate::types::effects::Antecedent;
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::engine::layers::compute::compute_characteristics;
@@ -333,7 +333,7 @@ impl TriggerCandidateFrame<'_> {
             TriggerCandidateFrame::LastKnown { lki, .. } | TriggerCandidateFrame::Before { lki, .. } => {
                 ObjectInformation::LastKnown(lki)
             }
-            TriggerCandidateFrame::Live { chars, .. } => ObjectInformation::Characteristics(id, chars, FrameMoment::Now),
+            TriggerCandidateFrame::Live { chars, .. } => ObjectInformation::Characteristics(id, chars, FrameContext::Now),
         }
     }
 
@@ -2435,9 +2435,9 @@ impl GameState {
             // Nothing is attached to a permanent not yet on the battlefield,
             // and a history row's frame keeps no attachments.
             TriggerSubject::Host => match object {
-                ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameMoment::Now) => referents.host == Some(id),
+                ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameContext::Now) => referents.host == Some(id),
                 ObjectInformation::LastKnown(lki) => !self.gone_before(event_id, lki) && lki.had_attached(referents.this.id()),
-                ObjectInformation::Characteristics(_, _, FrameMoment::Entering | FrameMoment::AsTheEventLeftIt(_)) => false,
+                ObjectInformation::Characteristics(_, _, FrameContext::Entering | FrameContext::AsTheEventLeftIt(_)) => false,
             },
             TriggerSubject::Referred => referents.referred.iter().any(|r| r.is(self, id, event_id)),
             TriggerSubject::Filter(filter) => self.object_matches_filter(object, filter, &mut { *referents }),
