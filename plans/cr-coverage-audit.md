@@ -908,8 +908,8 @@ named `chosen_modes`
 CR 118.8, 118.9, 601.2h, 400.7d, 707.10. **Key:** the stack object, and
 through CR 400.7d the permanent it became. **Query:** type `ManaSpent`; type
 `CostChoices`; type `AlternativeCost`; type `AdditionalCost`; type `CastFacts`
-- `StackEntry` ×3 — owner: the mana spent, and the cost decisions as two
-  fields where every later holder has one `CostChoices`: item 327.
+- `StackEntry` ×2 — owner: the mana spent, and the cost decisions, one
+  `CostChoices` as every later holder has (item 327).
 - `CostChoices` ×2 — owner: the type itself.
 - `ResolvingObject` ×2 — hand-over, to the permanent.
 - `PermanentState` ×2 — owner: the spell it was (CR 400.7d).

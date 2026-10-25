@@ -16,7 +16,6 @@ use crate::state::replacement_effects::{
 use crate::state::restrictions::RestrictionRegistry;
 use crate::state::shared_stores::{ObjectTable, SharedList};
 use crate::state::player::PlayerState;
-use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
 use crate::types::mana::ManaSpent;
 use crate::types::ids::{
@@ -90,12 +89,10 @@ pub struct StackEntry {
     /// Whether this is a spell (true) or an ability (false).
     /// Spells go to graveyard after resolution; abilities cease to exist.
     pub is_spell: bool,
-    /// The alternative cost chosen for this spell, if any (rule 118.9).
-    /// At most one alternative cost may be chosen per cast.
-    pub chosen_alternative_cost: Option<AlternativeCost>,
-    /// Additional costs that were paid for this spell (rule 118.8).
-    /// Multiple additional costs can be paid (e.g. kicker + buyback).
-    pub additional_costs_paid: Vec<AdditionalCost>,
+    /// The alternative cost chosen (CR 118.9, at most one) and the additional
+    /// costs paid (CR 118.8), which a copy and the permanent the spell
+    /// becomes keep (CR 707.10).
+    pub cost_choices: crate::state::battlefield::CostChoices,
     /// The mana spent on this spell's total cost, written once CR 601.2h's
     /// payment succeeds. Zero for an ability, and zero for a copy of a spell
     /// that was not itself cast: mana is not an object, so CR 707.10 gives a
@@ -156,15 +153,6 @@ impl StackEntry {
     pub fn caster(&self) -> Option<PlayerId> {
         self.cast_from.map(|_| self.controller)
     }
-
-    /// CR 707.10's decisions about its costs, which a copy and the permanent
-    /// it becomes keep.
-    pub fn cost_choices(&self) -> crate::state::battlefield::CostChoices {
-        crate::state::battlefield::CostChoices {
-            additional: self.additional_costs_paid.clone(),
-            alternative: self.chosen_alternative_cost.clone(),
-        }
-    }
 }
 
 impl GameState {
@@ -177,7 +165,7 @@ impl GameState {
             return Some(entry.cost_choices.clone());
         }
         if let Some(spell) = self.stack_entries.get(&id) {
-            return Some(spell.cost_choices());
+            return Some(spell.cost_choices.clone());
         }
         self.resolving.as_ref().filter(|r| r.id == id).map(|r| r.cost_choices.clone())
     }
@@ -2904,14 +2892,13 @@ mod tests {
             x_value: None,
             effect: Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
 };
-        assert!(entry.chosen_alternative_cost.is_none());
-        assert!(entry.additional_costs_paid.is_empty());
+        assert!(entry.cost_choices.alternative.is_none());
+        assert!(entry.cost_choices.additional.is_empty());
     }
 }

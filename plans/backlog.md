@@ -85,7 +85,7 @@ is `hybrid-and-phyrexian-payment`, a sized slot. The entry is kept as written fo
 - **Verdict** — `apply_cost_modifications` is a passthrough stub with a test
   asserting so. `ManaPool::pay` has no hybrid and no Phyrexian branch; seven
   atoms carry a `NEW` ticket naming exactly that. `StackEntry`'s
-  `chosen_alternative_cost` and `additional_costs_paid` are written at cast and
+  `cost_choices` (then two fields) is written at cast and
   read by no production code.
 - **Size** — not small, and it wants splitting: cost *representation and
   payment* (hybrid, Phyrexian, `{Q}`, mana value with X / hybrid / Phyrexian) is

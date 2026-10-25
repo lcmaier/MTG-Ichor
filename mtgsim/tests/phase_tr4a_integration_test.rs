@@ -948,7 +948,7 @@ fn delayed_trigger_if_its_spell_was_kicked_holds_after_the_spell_resolved() {
     let id = put_spell_on_stack(&mut game, spell, 0);
     let entry = game.stack_entries.get_mut(&id).unwrap();
     entry.effect = Arc::new(Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller));
-    entry.additional_costs_paid = vec![AdditionalCost::Kicker(Vec::new())];
+    entry.cost_choices.additional = vec![AdditionalCost::Kicker(Vec::new())];
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(zone(&game, id), Some(Zone::Graveyard));
 
