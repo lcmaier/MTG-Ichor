@@ -1617,9 +1617,11 @@ impl GameState {
                 // `You` rather than `ctx.controller`, though they name the
                 // same player: on a `Resolution` row, `FilterPlayers::you()`
                 // reads `ContinuousEffect.controller`, which CR 611.2c
-                // locked at resolution. Anyone else is settled now.
+                // locked at resolution. `Owner` is each object's own (CR
+                // 108.3), read per object by the walk (Homeward Path).
+                // Anyone else is settled now.
                 let to = match to {
-                    PlayerRef::You => PlayerRef::You,
+                    PlayerRef::You | PlayerRef::Owner => to.clone(),
                     other => PlayerRef::Player(self.player_the_instruction_names(other, targets, ctx, dp)?),
                 };
                 self.add_resolution_effect(

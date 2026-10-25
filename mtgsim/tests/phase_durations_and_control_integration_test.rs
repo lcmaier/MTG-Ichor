@@ -16,7 +16,8 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::events::cause::StateBasedAction;
 use mtgsim::state::game_state::{GameResult, StepType};
 use mtgsim::test_support::{
-    put_in_graveyard, put_on_battlefield, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
+    card_of_type, put_in_graveyard, put_on_battlefield, put_on_battlefield_under, setup_game, setup_two_player_game,
+    static_ability, test_ctx, test_dp,
 };
 use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::effects::{
@@ -348,4 +349,32 @@ fn legends_the_legend_rule_does_not_apply_to_stay_unasked() {
     game.check_state_based_actions(&dp).unwrap();
     assert!(game.battlefield.contains_key(&first) && game.battlefield.contains_key(&second));
     assert!(dp.asked().is_empty(), "asked {:?}", dp.asked());
+}
+
+/// Homeward Path's activated ability, "each player gains control of all
+/// creatures they own", resolved by player 0: each creature goes to its own
+/// owner (CR 108.3), read per object as the walk reads `Owner`, never as
+/// the owner of the ability's source.
+#[test]
+fn each_player_gains_control_of_what_they_own_object_by_object() {
+    let mut game = setup_two_player_game();
+    let path = put_on_battlefield(&mut game, card_of_type("Fixture Homeward Path", CardType::Land), 0);
+    let mine_with_them = put_on_battlefield_under(&mut game, grizzly_bears(), 0, 1);
+    let theirs_with_me = put_on_battlefield_under(&mut game, grizzly_bears(), 1, 0);
+    let homecoming = Effect::Atom(
+        Primitive::GainControl { to: PlayerRef::Owner, duration: Duration::Indefinite },
+        EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+    );
+    let ctx = ResolutionContext {
+        source: path,
+        ability_source: Some(game.object_ref(path).unwrap()),
+        controller: 0,
+        generated_by: GeneratedBy::ActivatedAbility,
+        targets: ChosenTargets::one(Vec::new()),
+        replaced_event: None,
+        trigger: None,
+    };
+    game.resolve_effect(&homecoming, &ctx, &test_dp()).unwrap();
+
+    assert_eq!((controller(&game, mine_with_them), controller(&game, theirs_with_me)), (Some(0), Some(1)));
 }
