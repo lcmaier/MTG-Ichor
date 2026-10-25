@@ -22,9 +22,9 @@ use crate::types::effects::{
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
-use crate::types::restriction::{Restriction, RestrictionDef};
+use crate::types::restriction::RestrictionDef;
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
-use crate::types::effects::{EntersAttacking, ExtraPhasesAfter};
+use crate::types::effects::{Affected, EntersAttacking, ExtraPhasesAfter};
 use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
 use crate::engine::triggers::binding_reads::TriggerBindingReads;
@@ -1299,16 +1299,15 @@ impl GameState {
                 };
                 let def = &def;
 
-                let authored_empty = matches!(def.affected_objects, ObjectSet::Fixed(ref ids) if ids.is_empty())
-                    && def.affected_players == PlayerSet::Nobody;
+                let authored_empty = def.affected == Affected::NOTHING;
                 let fill_object = |id: ObjectId| {
                     let mut row = (*def).clone();
-                    row.affected_objects = ObjectSet::Fixed(vec![id]);
+                    row.affected.objects = ObjectSet::Fixed(vec![id]);
                     row
                 };
                 let fill_player = |pid: PlayerId| {
                     let mut row = (*def).clone();
-                    row.affected_players = PlayerSet::Fixed(vec![pid]);
+                    row.affected.players = PlayerSet::Fixed(vec![pid]);
                     row
                 };
                 let rows: Vec<ReplacementDef> = match recipient {
@@ -1326,7 +1325,7 @@ impl GameState {
                             "a `Primitive::CreateReplacement` on {:?} with a targeting \
                              recipient authored a non-empty affected set, which the \
                              resolution then overwrote with its own targets. Write \
-                             `ObjectSet::NO_OBJECTS` and `PlayerSet::Nobody`.",
+                             `Affected::NOTHING`.",
                             ctx.source
                         );
                         targets
@@ -1433,15 +1432,12 @@ impl GameState {
                 // row naming both would make a second copy a no-op under CR 614.5.
                 // Anything else is complete as authored (Skullcrack's `Everyone`).
                 let mut rows: Vec<RestrictionDef> = Vec::new();
-                let (objects, players) = restriction_scope(def);
                 let fill = |set: ObjectSet| {
                     let mut filled = def.clone();
-                    *restriction_object_set_mut(&mut filled) = set;
+                    filled.what.affected_mut().objects = set;
                     filled
                 };
-                if matches!(objects, ObjectSet::Fixed(ids) if ids.is_empty())
-                    && matches!(players, PlayerSet::Nobody)
-                {
+                if *def.what.affected() == Affected::NOTHING {
                     match recipient {
                         // CR 611.2c's second sentence: a "can't" modifies no
                         // characteristic, so its set is not fixed, and a creature
@@ -3040,34 +3036,6 @@ fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> Strin
         "a primitive on {:?} was handed {:?}, a back-reference to an instance of \"target\" rather than the clause that declared it (CR 115.3). Resolve it through `targeting::instance_of`.",
         ctx.source, recipient
     )
-}
-
-/// The affected set inside a [`RestrictionDef`], whichever arm it is.
-///
-/// One accessor rather than a match at each caller: every `Restriction` arm
-/// names the objects it applies to, and `Primitive::Restrict` overwrites that
-/// set with the resolution's targets without caring which arm it is. Matched
-/// exhaustively, so a new arm has to say where its objects live rather than
-/// silently keeping whatever the card wrote.
-fn restriction_object_set_mut(def: &mut RestrictionDef) -> &mut ObjectSet {
-    match &mut def.what {
-        Restriction::Event { affected_objects, .. } => affected_objects,
-        Restriction::ApplyReplacement { to_objects, .. } => to_objects,
-    }
-}
-
-/// Both halves of a [`RestrictionDef`]'s scope, whichever arm it is.
-///
-/// The read-only sibling of [`restriction_object_set_mut`], and it returns
-/// the *pair* because that is the question `Primitive::Restrict` asks: a
-/// restriction naming no objects and no players is the one whose subject the
-/// resolution supplies. Either half alone would answer it wrongly — Skullcrack
-/// names no object and every player.
-fn restriction_scope(def: &RestrictionDef) -> (&ObjectSet, &PlayerSet) {
-    match &def.what {
-        Restriction::Event { affected_objects, affected_players, .. } => (affected_objects, affected_players),
-        Restriction::ApplyReplacement { to_objects, to_players, .. } => (to_objects, to_players),
-    }
 }
 
 #[cfg(test)]

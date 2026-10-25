@@ -515,6 +515,60 @@ impl PlayerSet {
     }
 }
 
+/// What an effect is affecting — CR 614.1's "whatever they're affecting":
+/// its objects and its players, unioned, neither half primary. A replacement
+/// or prevention effect holds one and so does a "can't" (CR 614.17), and both
+/// are asked the one membership question, `set_affects`.
+///
+/// Built from objects ([`Self::objects`]), players ([`Self::players`]) or
+/// both: Furnace of Rath's "a permanent or player" is both, Angel of
+/// Suffering's "you" players and no object.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Affected {
+    pub objects: ObjectSet,
+    pub players: PlayerSet,
+}
+
+impl Affected {
+    /// No object and no player: an effect a resolution creates, authored for
+    /// the resolution's targets to fill in.
+    pub const NOTHING: Affected = Affected { objects: ObjectSet::NO_OBJECTS, players: PlayerSet::Nobody };
+
+    /// These objects and no player.
+    pub fn objects(objects: ObjectSet) -> Self {
+        Affected { objects, players: PlayerSet::Nobody }
+    }
+
+    /// These players and no object.
+    pub fn players(players: PlayerSet) -> Self {
+        Affected { objects: ObjectSet::NO_OBJECTS, players }
+    }
+
+    /// CR 400.7 — does it refer to `object` by identity? Only its object
+    /// half can ([`ObjectSet::refers_to`]).
+    pub fn refers_to(&self, object: ObjectId) -> bool {
+        self.objects.refers_to(object)
+    }
+
+    /// CR 400.7 — stop referring to `object`, which has become a new object.
+    /// Returns whether it still affects anything: an object, or a player.
+    pub fn remove_reference_to(&mut self, object: ObjectId) -> bool {
+        self.objects.remove_reference_to(object) || self.players.can_contain_a_player()
+    }
+}
+
+impl From<ObjectSet> for Affected {
+    fn from(objects: ObjectSet) -> Self {
+        Affected::objects(objects)
+    }
+}
+
+impl From<PlayerSet> for Affected {
+    fn from(players: PlayerSet) -> Self {
+        Affected::players(players)
+    }
+}
+
 /// The players an instruction to several players names: those standing in
 /// `relation` to "you", together with those the effect's context names. A
 /// new printed phrase is a new `NamedPlayers` arm, not a new recipient:

@@ -36,7 +36,7 @@ use mtgsim::test_support::{
     test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    Affected, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -303,10 +303,9 @@ fn a_static_prevent_one_reduces_each_simultaneous_source_separately_guardian_ser
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventUpTo(1)),
-        )
-        .affecting_players(PlayerSet::You),
+        ),
     );
     let attackers = attackers_into(&mut game, &[2, 4]);
     let before = game.recorded_events().len();
@@ -440,10 +439,9 @@ fn a_count_spanning_you_and_your_permanents_is_allocated_once_divine_deflection_
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+            Affected { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)), players: PlayerSet::You },
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
-        .affecting_players(PlayerSet::You)
         .next_damage(3),
     );
     // Attacker A (2) unblocked into player 1; attacker B (4) blocked by
@@ -582,10 +580,9 @@ fn a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s()
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Down)),
         )
-        .affecting_players(PlayerSet::You)
         .once()
         .with_then(Effect::Atom(
             Primitive::GainLife(AmountExpr::DamagePrevented),
@@ -660,7 +657,7 @@ fn samite_censer_bearer_makes_a_separate_count_on_each_creature_at_resolution() 
     let rows: Vec<&RegisteredReplacementEffect> = game.replacement_effects.iter().collect();
     assert_eq!(rows.len(), 3, "one per creature, and none for the Censer-Bearer");
     for (row, creature) in rows.iter().zip(&originals) {
-        assert_eq!(row.def.affected_objects, ObjectSet::Fixed(vec![*creature]));
+        assert_eq!(row.def.affected.objects, ObjectSet::Fixed(vec![*creature]));
         assert_eq!(row.def.uses, Uses::NextDamage(1));
         assert_eq!(row.source, bearer, "CR 113.7a");
     }

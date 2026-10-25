@@ -41,7 +41,7 @@ use crate::oracle::characteristics::{controller_or_owner, FrameContext, ObjectIn
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    Affected, ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter,
     Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::{IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
@@ -555,7 +555,7 @@ fn push_static_ability_replacements(
         if !replacement_exists(condition, game, id) {
             continue;
         }
-        if scope == SelfScope::EnteringSelf && !matches!(def.affected_objects, ObjectSet::SourceOnly) {
+        if scope == SelfScope::EnteringSelf && !matches!(def.affected.objects, ObjectSet::SourceOnly) {
             continue;
         }
         let Some(object) = game.object_ref(id) else { continue };
@@ -701,28 +701,18 @@ fn def_applies(
     // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
     def.by.as_ref().is_none_or(|by| by.matches(game, &p.cause, &mut TextReferents::for_effect(game, controller, source)))
         && pattern_watches(game, &def.pattern, p.action, &p.cause, source, controller)
-        && set_affects(
-            game,
-            &def.affected_objects,
-            &def.affected_players,
-            source,
-            controller,
-            p.subject,
-            p.frame,
-        )
+        && set_affects(game, &def.affected, source, controller, p.subject, p.frame)
 }
 
-/// Is the event's subject inside this effect's two affected sets — CR 614.1's
+/// Is the event's subject among what this effect is affecting — CR 614.1's
 /// "whatever they're affecting"?
 ///
-/// **Two sets, unioned, because the CR names two kinds of subject.** An event
-/// about an object asks `ObjectSet`; an event about a player asks
-/// [`PlayerSet`]. Furnace of Rath's "a permanent or player" is `Filter { All }`
-/// plus `Everyone` and is one effect either way — which is why this is one
-/// function with two parameters rather than two functions
-/// (`replacement-architecture.md` §9, RD decision 0).
+/// **One membership test of the merged subject.** An event about an object
+/// asks the object half; an event about a player asks the player half.
+/// Furnace of Rath's "a permanent or player" is both halves and one effect
+/// either way (`replacement-architecture.md` §9, RD decision 0).
 ///
-/// Takes the sets and their owner's two ids rather than a
+/// Takes what it affects and its owner's two ids rather than a
 /// `ReplacementInstance`, because a "can't" asks the identical question of
 /// identical sets and has no instance to offer
 /// (`cant-effects-architecture.md` §3.1: a restriction is discovered exactly
@@ -735,8 +725,7 @@ fn def_applies(
 /// player is not an object and no layer computes one.
 pub(crate) fn set_affects(
     game: &GameState,
-    affected: &ObjectSet,
-    affected_players: &PlayerSet,
+    affected: &Affected,
     source: ObjectId,
     controller: PlayerId,
     subject: Option<ObjectOrPlayerId>,
@@ -747,10 +736,10 @@ pub(crate) fn set_affects(
         // CR 109.5 resolves "you" against the effect's *current* controller,
         // which is exactly what `controller` is here — the sweep reads it off
         // the board on every gather rather than snapshotting it at ETB.
-        Some(ObjectOrPlayerId::Player(pid)) => return affected_players.contains(controller, pid),
+        Some(ObjectOrPlayerId::Player(pid)) => return affected.players.contains(controller, pid),
         None => return false,
     };
-    match affected {
+    match &affected.objects {
         // CR 303.4m's host by id like the other two: an entering permanent is
         // attached to by nothing, so the frame has nothing to say.
         named @ (ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host) => {

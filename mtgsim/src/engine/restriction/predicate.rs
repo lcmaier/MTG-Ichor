@@ -16,7 +16,7 @@ use crate::engine::replacement::{pattern_watches, set_affects, subject_of, Entry
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
-use crate::types::effects::{ObjectSet, PlayerSet};
+use crate::types::effects::{Affected, ObjectSet};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::EventPattern;
@@ -200,7 +200,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 /// def  = Restriction::Event {
 ///            pattern:  ZoneChange { from: Battlefield, to: Graveyard,
 ///                                   act: Sacrificed, object: None },
-///            affected_objects: Filter { ByController(You) },
+///            affected: objects(Filter { ByController(You) }),
 ///            by:       Some(ControlledBy(Opponent)),
 ///        }
 /// source     = <Sigarda>          controller = P0   (CR 109.5: hers, now)
@@ -234,7 +234,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 /// # And the other axis
 ///
 /// "Destroy target creature. It can't be regenerated" registers a
-/// `Restriction::ApplyReplacement { kind: Regeneration, to_objects: Fixed([creature]) }`.
+/// `Restriction::ApplyReplacement { kind: Regeneration, affected: objects(Fixed([creature])) }`.
 /// When `gather` later finds a regeneration shield around that creature it asks
 /// `Query::ApplyReplacement { kind: Regeneration, subject: <creature> }`, and
 /// the second arm answers with the *same* `set_affects` call — the kinds agree
@@ -250,34 +250,21 @@ fn matches(
 ) -> bool {
     match (&def.what, query) {
         (
-            Restriction::Event { pattern, affected_objects, affected_players, by },
+            Restriction::Event { pattern, affected, by },
             Query::Event { action, cause, .. },
         ) => {
             pattern_watches(game, pattern, action, cause, source, controller)
-                // The union `ReplacementDef` already makes, and it is a union rather than
-                // a replacement because the two sets answer about different kinds of
-                // subject: `set_affects` asks one or the other by what the event is
-                // *about*, never both. So Skullcrack ("players can't gain life") carries
-                // `NO_OBJECTS` beside `Everyone`, and an object-scoped restriction carries
-                // its object set beside a `Nobody`.
-                && set_affects(
-                    game,
-                    affected_objects,
-                    affected_players,
-                    source,
-                    controller,
-                    subject_of(action),
-                    frame,
-                )
+                // The test `ReplacementDef` is asked: `set_affects` asks the object half
+                // or the player half by what the event is *about*, never both.
+                && set_affects(game, affected, source, controller, subject_of(action), frame)
                 && cause_matches(by.as_ref(), cause, &mut TextReferents::for_effect(game, controller, source))
         }
 
         (
-            Restriction::ApplyReplacement { kind, to_objects, to_players },
+            Restriction::ApplyReplacement { kind, affected },
             Query::ApplyReplacement { kind: asked, subject },
         ) => {
-            kind == asked
-                && set_affects(game, to_objects, to_players, source, controller, *subject, None)
+            kind == asked && set_affects(game, affected, source, controller, *subject, None)
         }
 
         (Restriction::Event { .. }, Query::ApplyReplacement { .. })
@@ -323,7 +310,7 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause:
         debug_assert!(
             matches!(
                 def.what,
-                Restriction::Event { affected_objects: ObjectSet::SourceOnly, .. }
+                Restriction::Event { affected: Affected { objects: ObjectSet::SourceOnly, .. }, .. }
             ),
             "a keyword-derived restriction that is not `ObjectSet::SourceOnly` \
              cannot be found by asking the event's subject about its own \
@@ -369,8 +356,7 @@ fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<(KeywordFlag, Res
             KeywordFlag::Indestructible,
             RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::Destroy { source: None },
-                affected_objects: ObjectSet::SourceOnly,
-                affected_players: PlayerSet::Nobody,
+                affected: Affected::objects(ObjectSet::SourceOnly),
                 by: None,
             }),
         ));

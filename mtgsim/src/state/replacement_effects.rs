@@ -136,10 +136,10 @@ impl DurationRow for RegisteredReplacementEffect {
     /// that has left still deals damage as it last existed (CR 608.2h), and a
     /// player may choose one that already has (CR 609.7a).
     fn refers_to(&self, object: ObjectId) -> bool {
-        self.def.affected_objects.refers_to(object)
+        self.def.affected.refers_to(object)
     }
     fn remove_reference_to(&mut self, object: ObjectId) -> bool {
-        self.def.affected_objects.remove_reference_to(object) || self.def.affected_players.can_contain_a_player()
+        self.def.affected.remove_reference_to(object)
     }
 }
 

@@ -35,7 +35,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, PlayerSet, Primitive, SelectionFilter,
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
@@ -841,10 +841,9 @@ fn a_riders_damage_during_the_resolution_is_not_dealt_this_way() {
         targets: Vec::new(),
         def: ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
-        .affecting_players(PlayerSet::You)
         .next_damage(3)
         .with_then(Effect::Atom(
             Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },

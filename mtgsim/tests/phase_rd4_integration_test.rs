@@ -32,7 +32,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    Affected, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -168,8 +168,7 @@ fn cant_be_prevented_this_turn(game: &mut GameState, source: ObjectId, controlle
         created_on_turn: turn,
         def: RestrictionDef::new(Restriction::ApplyReplacement {
             kind: ReplacementKindFilter::Prevention,
-            to_objects: ObjectSet::battlefield_filter(ObjectFilter::All),
-            to_players: PlayerSet::Everyone,
+            affected: Affected { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
         }),
     });
 }
@@ -201,8 +200,7 @@ fn leyline_fixture() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::GainLife,
-                affected_objects: ObjectSet::NO_OBJECTS,
-                affected_players: PlayerSet::Everyone,
+                affected: Affected::players(PlayerSet::Everyone),
                 by: None,
             }))),
             is_characteristic_defining: false,
@@ -217,8 +215,7 @@ fn leyline_fixture() -> Arc<CardData> {
             effect: Effect::Restriction(Box::new(RestrictionDef::new(
                 Restriction::ApplyReplacement {
                     kind: ReplacementKindFilter::Prevention,
-                    to_objects: ObjectSet::battlefield_filter(ObjectFilter::All),
-                    to_players: PlayerSet::Everyone,
+                    affected: Affected { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
                 },
             ))),
             is_characteristic_defining: false,
@@ -336,10 +333,9 @@ fn a_registry_row_whose_source_has_left_the_battlefield_redirects_nothing() {
         0,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Retarget(RetargetSpec::ToEffectSource),
-        )
-        .affecting_players(PlayerSet::You),
+        ),
     );
     let source = probe(&mut game, 1);
     let ctx = test_ctx();
@@ -392,10 +388,9 @@ fn a_redirect_onto_a_noncreature_permanent_does_nothing() {
         0,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Retarget(RetargetSpec::ToEffectSource),
-        )
-        .affecting_players(PlayerSet::You),
+        ),
     );
     let source = probe(&mut game, 1);
     let ctx = test_ctx();
@@ -531,10 +526,9 @@ fn a_count_applied_to_unpreventable_damage_prevents_nothing_and_is_not_reduced()
         0,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
-        .affecting_players(PlayerSet::You)
         .next_damage(3),
     );
     let ctx = test_ctx();
@@ -558,10 +552,9 @@ fn a_three_damage_count_under_five_unpreventable_damage_survives_intact() {
         0,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
-        .affecting_players(PlayerSet::You)
         .next_damage(3),
     );
     let ctx = test_ctx();
@@ -588,10 +581,9 @@ fn a_riders_prevented_amount_is_zero_under_unpreventable_damage() {
         0,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
+            PlayerSet::You,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
-        .affecting_players(PlayerSet::You)
         .next_damage(3)
         .with_then(Effect::Atom(
             Primitive::GainLife(AmountExpr::DamagePrevented),
@@ -626,10 +618,9 @@ fn two_prevention_effects_on_unpreventable_damage_are_each_applied_once() {
             0,
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::PreventUpTo(1)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         );
     }
     let dp = RecordingDecisionProvider::picking(0);

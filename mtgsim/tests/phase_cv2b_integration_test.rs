@@ -54,8 +54,8 @@ use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, PlaneswalkerT
 use mtgsim::types::colors::Color;
 use mtgsim::types::history::CountIs;
 use mtgsim::types::effects::{
-    AmountExpr, Antecedent, Characteristic, CharacteristicEdit, Condition, CopyException, CounterType,
-    Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, PlayerSet, Primitive,
+    Affected, AmountExpr, Antecedent, Characteristic, CharacteristicEdit, Condition, CopyException, CounterType,
+    Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
     SelectionFilter, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
@@ -468,8 +468,7 @@ fn no_plus_counters_on_your_creatures() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
-            affected_objects: ObjectSet::battlefield_filter(creatures_you_control()),
-            affected_players: PlayerSet::Nobody,
+            affected: Affected::objects(ObjectSet::battlefield_filter(creatures_you_control())),
             by: None,
         })))))
         .build()

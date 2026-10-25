@@ -40,7 +40,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, DiscardChooser, Effect, EffectRecipient, PlayerSet, Primitive,
+    AmountExpr, DiscardChooser, Effect, EffectRecipient, PlayerSet, Primitive,
 };
 use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -699,10 +699,9 @@ fn scry_plus_one() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(
                 ReplacementDef::new(
                     EventPattern::Scry,
-                    ObjectSet::NO_OBJECTS,
+                    PlayerSet::You,
                     Rewrite::Amount(AmountRewrite::Plus(1)),
-                )
-                .affecting_players(PlayerSet::You),
+                ),
             )),
         })
         .build()

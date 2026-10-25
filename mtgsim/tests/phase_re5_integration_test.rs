@@ -497,10 +497,9 @@ fn a_player_gets_counters_through_the_same_event() {
             "Fixture Energy Doubler",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: Some(CounterType::Energy), by: None },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ),
         0,
     );

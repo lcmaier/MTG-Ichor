@@ -318,7 +318,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
+    Affected, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
     PatternFill, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
     TokenDef,
 };
@@ -404,8 +404,7 @@ fn one_shot(rules_text: &'static str, ability_type: AbilityType, costs: Vec<Cost
 /// The object set is empty on every one of these: CR 614.10's three units are
 /// about a *player*, so the scope is a [`PlayerSet`] and nothing else.
 fn skip(pattern: EventPattern, players: PlayerSet) -> ReplacementDef {
-    ReplacementDef::new(pattern, ObjectSet::NO_OBJECTS, Rewrite::Prevent)
-        .affecting_players(players)
+    ReplacementDef::new(pattern, players, Rewrite::Prevent)
 }
 
 /// Yawgmoth's Bargain — {4}{B}{B}
@@ -640,13 +639,12 @@ pub fn moment_of_silence() -> Arc<CardData> {
 fn draw_two_instead(place: Option<DrawFilter>) -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::DrawCard { place },
-        ObjectSet::NO_OBJECTS,
+        PlayerSet::You,
         Rewrite::Instead(GameActionTemplate::DrawCards {
             n: TemplateAmount::Fixed(2),
             player: None,
         }),
     )
-    .affecting_players(PlayerSet::You)
 }
 
 /// Thought Reflection — {4}{U}{U}{U}
@@ -809,10 +807,9 @@ pub fn alms_collector() -> Arc<CardData> {
         .ability(static_replacement("If an opponent would draw two or more cards, instead you and that player each draw a card.",
             ReplacementDef::new(
                 EventPattern::DrawCards { at_least: Some(2) },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::Opponents,
                 Rewrite::Prevent,
             )
-            .affecting_players(PlayerSet::Opponents)
             .with_then(Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
                 EffectRecipient::EachOf(PlayerGroup::you_and_that_player()),
@@ -874,13 +871,12 @@ pub fn notion_thief() -> Arc<CardData> {
         .ability(static_replacement("If an opponent would draw a card except the first one they draw in each of their draw steps, instead that player skips that draw and you draw a card.",
             ReplacementDef::new(
                 EventPattern::DrawCard { place: Some(DrawFilter::NotFirstInDrawStep) },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::Opponents,
                 Rewrite::Instead(GameActionTemplate::DrawCards {
                     n: TemplateAmount::Fixed(1),
                     player: Some(PlayerRef::You),
                 }),
-            )
-            .affecting_players(PlayerSet::Opponents),
+            ),
         ))
         .build()
 }
@@ -931,10 +927,9 @@ pub fn rhox_faithmender() -> Arc<CardData> {
         .ability(static_replacement("If you would gain life, you gain twice that much life instead.",
             ReplacementDef::new(
                 EventPattern::GainLife,
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -978,12 +973,11 @@ pub fn tainted_remedy() -> Arc<CardData> {
         .ability(static_replacement("If an opponent would gain life, that player loses that much life instead.",
             ReplacementDef::new(
                 EventPattern::GainLife,
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::Opponents,
                 Rewrite::Instead(GameActionTemplate::LoseLife {
                     amount: TemplateAmount::ReplacedAmount,
                 }),
-            )
-            .affecting_players(PlayerSet::Opponents),
+            ),
         ))
         .build()
 }
@@ -1033,12 +1027,11 @@ pub fn words_of_worship() -> Arc<CardData> {
                     Box::new(
                         ReplacementDef::new(
                             EventPattern::DrawCard { place: None },
-                            ObjectSet::NO_OBJECTS,
+                            PlayerSet::You,
                             Rewrite::Instead(GameActionTemplate::GainLife {
                                 amount: TemplateAmount::Fixed(5),
                             }),
                         )
-                        .affecting_players(PlayerSet::You)
                         .once(),
                     ),
                     Duration::UntilEndOfTurn,
@@ -1108,10 +1101,9 @@ pub fn ali_from_cairo() -> Arc<CardData> {
         .ability(static_replacement("Damage that would reduce your life total to less than 1 reduces it to 1 instead.",
             ReplacementDef::new(
                 EventPattern::LoseLife { cause: Some(LifeLossCausePattern::Damage) },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::LifeFloor(1)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -1155,10 +1147,9 @@ pub fn alhammarrets_archive() -> Arc<CardData> {
         .ability(static_replacement("If you would gain life, you gain twice that much life instead.",
             ReplacementDef::new(
                 EventPattern::GainLife,
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawFilter::NotFirstInDrawStep))))
         .build()
@@ -1230,8 +1221,7 @@ pub fn skullcrack() -> Arc<CardData> {
                     Primitive::Restrict(
                         RestrictionDef::new(Restriction::Event {
                             pattern: EventPattern::GainLife,
-                            affected_objects: ObjectSet::NO_OBJECTS,
-                            affected_players: PlayerSet::Everyone,
+                            affected: Affected::players(PlayerSet::Everyone),
                             by: None,
                         }),
                         Duration::UntilEndOfTurn,
@@ -1244,8 +1234,7 @@ pub fn skullcrack() -> Arc<CardData> {
                     Primitive::Restrict(
                         RestrictionDef::new(Restriction::ApplyReplacement {
                             kind: ReplacementKindFilter::Prevention,
-                            to_objects: ObjectSet::battlefield_filter(ObjectFilter::All),
-                            to_players: PlayerSet::Everyone,
+                            affected: Affected { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
                         }),
                         Duration::UntilEndOfTurn,
                     ),
@@ -1317,10 +1306,9 @@ pub fn laboratory_maniac() -> Arc<CardData> {
             // draws one at a time and the library empties between them.
             ReplacementDef::new(
                 EventPattern::DrawCard { place: None },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Instead(GameActionTemplate::PlayerWins),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -1405,10 +1393,9 @@ pub fn exquisite_archangel() -> Arc<CardData> {
         .ability(static_replacement("If you would lose the game, instead exile this creature and your life total becomes equal to your starting life total.",
             ReplacementDef::new(
                 EventPattern::PlayerLoses,
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Prevent,
             )
-            .affecting_players(PlayerSet::You)
             .with_then(Effect::Sequence(vec![
                 Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
                 Effect::Atom(
@@ -1493,10 +1480,9 @@ pub fn stunning_reversal() -> Arc<CardData> {
                     Box::new(
                         ReplacementDef::new(
                             EventPattern::PlayerLoses,
-                            ObjectSet::NO_OBJECTS,
+                            PlayerSet::You,
                             Rewrite::Prevent,
                         )
-                        .affecting_players(PlayerSet::You)
                         .once()
                         .with_then(Effect::Sequence(vec![
                             Effect::Atom(
@@ -1576,14 +1562,12 @@ pub fn platinum_angel() -> Arc<CardData> {
         .rules_text("Flying\nYou can't lose the game and your opponents can't win the game.")
         .ability(static_restriction("You can't lose the game and your opponents can't win the game.", Restriction::Event {
             pattern: EventPattern::PlayerLoses,
-            affected_objects: ObjectSet::NO_OBJECTS,
-            affected_players: PlayerSet::You,
+            affected: Affected::players(PlayerSet::You),
             by: None,
         }))
         .ability(static_restriction("You can't lose the game and your opponents can't win the game.", Restriction::Event {
             pattern: EventPattern::PlayerWins,
-            affected_objects: ObjectSet::NO_OBJECTS,
-            affected_players: PlayerSet::Opponents,
+            affected: Affected::players(PlayerSet::Opponents),
             by: None,
         }))
         .build()
@@ -1739,10 +1723,9 @@ pub fn parallel_lives() -> Arc<CardData> {
         .ability(static_replacement("If an effect would create one or more tokens under your control, it creates twice that many of those tokens instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -1886,14 +1869,13 @@ pub fn divine_visitation() -> Arc<CardData> {
         .ability(static_replacement("If one or more creature tokens would be created under your control, that many 4/4 white Angel creature tokens with flying and vigilance are created instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Creature)) },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Instead(GameActionTemplate::CreateTokens {
                     def: angel_token(),
                     count: TemplateAmount::ReplacedAmount,
                     mode: TokenSubstitution::Replace,
                 }),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -1955,10 +1937,9 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
         .ability(static_replacement("If one or more tokens would be created under your control, twice that many of those tokens are created instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -2041,10 +2022,9 @@ pub fn doubling_season() -> Arc<CardData> {
         .ability(static_replacement("If an effect would create one or more tokens under your control, it creates twice that many of those tokens instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .ability(static_replacement("If an effect would put one or more counters on a permanent you control, it puts twice that many of those counters on that permanent instead.", doubles_counters_on_your_permanents()))
         .build()
@@ -2163,18 +2143,16 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
         .ability(static_replacement("If you would put one or more counters on a permanent or player, put twice that many of each of those kinds of counters on that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: Some(PlayerSet::You) },
-                ObjectSet::battlefield_filter(ObjectFilter::All),
+                Affected { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(PlayerSet::Everyone),
+            ),
         ))
         .ability(static_replacement("If an opponent would put one or more counters on a permanent or player, they put half that many of each of those kinds of counters on that permanent or player instead, rounded down.",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: Some(PlayerSet::Opponents) },
-                ObjectSet::battlefield_filter(ObjectFilter::All),
+                Affected { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
                 Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
-            )
-            .affecting_players(PlayerSet::Everyone),
+            ),
         ))
         .build()
 }
@@ -2190,7 +2168,7 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
 ///
 /// **Two `Plus(1)` rows, one per subject.** The object half is Hardened
 /// Scales' shape over every kind and an artifact-or-creature filter; the
-/// player half is the second player-subject watcher, `NO_OBJECTS` plus
+/// player half is the second player-subject watcher, no object and
 /// `PlayerSet::You`, Rhox Faithmender's shape over a counter event.
 ///
 /// # The rulings (Scryfall, 2026-09-13), and where each is tested
@@ -2258,10 +2236,9 @@ pub fn winding_constrictor() -> Arc<CardData> {
         .ability(static_replacement("If you would get one or more counters, you get that many plus one of each of those kinds of counters instead.",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: None },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 Rewrite::Amount(AmountRewrite::Plus(1)),
-            )
-            .affecting_players(PlayerSet::You),
+            ),
         ))
         .build()
 }
@@ -2367,10 +2344,9 @@ pub fn primal_vigor() -> Arc<CardData> {
         .ability(static_replacement("If one or more tokens would be created, twice that many of those tokens are created instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::Everyone,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
-            )
-            .affecting_players(PlayerSet::Everyone),
+            ),
         ))
         .ability(static_replacement("If one or more +1/+1 counters would be put on a creature, twice that many +1/+1 counters are put on that creature instead.", ReplacementDef::new(
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },

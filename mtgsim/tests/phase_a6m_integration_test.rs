@@ -22,8 +22,8 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    ObjectSet, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
+    Affected, AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -335,8 +335,7 @@ fn test_a_resolving_restriction_over_a_filter_reaches_creatures_that_arrive_late
         Primitive::Restrict(
             RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::Destroy { source: None },
-                affected_objects: ObjectSet::NO_OBJECTS,
-                affected_players: PlayerSet::Nobody,
+                affected: Affected::NOTHING,
                 by: None,
             }),
             Duration::UntilEndOfTurn,
@@ -367,8 +366,7 @@ fn test_a_granted_conditional_restriction_is_the_boards_only_restriction_and_app
         Condition::SourceUntapped,
         Box::new(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::Destroy { source: None },
-            affected_objects: ObjectSet::SourceOnly,
-            affected_players: PlayerSet::Nobody,
+            affected: Affected::objects(ObjectSet::SourceOnly),
             by: None,
         })))),
     ));

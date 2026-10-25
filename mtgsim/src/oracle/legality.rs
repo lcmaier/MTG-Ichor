@@ -384,7 +384,7 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
     for row in game.replacement_effects.iter() {
         referred.extend(row.def.pattern.chosen_damage_source());
         referred.extend(objects_of(&row.targets));
-        if let crate::types::effects::ObjectSet::Fixed(ids) = &row.def.affected_objects {
+        if let crate::types::effects::ObjectSet::Fixed(ids) = &row.def.affected.objects {
             referred.extend(ids.iter().filter_map(|&id| game.object_ref(id)));
         }
     }

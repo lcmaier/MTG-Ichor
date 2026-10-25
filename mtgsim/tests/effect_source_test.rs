@@ -370,7 +370,8 @@ fn make_red(game: &mut GameState, object: ObjectId) {
 
 /// A resolution's replacement row around `player` that outlives the
 /// damage's source, since it names no chosen source.
-fn shield_around(game: &mut GameState, player: PlayerId, def: ReplacementDef) {
+fn shield_around(game: &mut GameState, player: PlayerId, mut def: ReplacementDef) {
+    def.affected.players = PlayerSet::You;
     let anchor = put_on_battlefield(game, vanilla_creature(1, 1, &[]), player);
     let turn = game.turn_number;
     game.replacement_effects.add(RegisteredReplacementEffect {
@@ -381,7 +382,7 @@ fn shield_around(game: &mut GameState, player: PlayerId, def: ReplacementDef) {
         duration: Duration::UntilEndOfTurn,
         created_on_turn: turn,
         targets: Vec::new(),
-        def: def.affecting_players(PlayerSet::You),
+        def,
     });
 }
 

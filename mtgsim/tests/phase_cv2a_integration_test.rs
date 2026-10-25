@@ -50,7 +50,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, PlayerSet,
+    Affected, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef,
     Primitive, TokenDef,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -340,8 +340,7 @@ fn worms_of_the_earth() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black, ManaType::Black], 2))
         .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::ZoneChange { change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None }, object: None },
-            affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land)),
-            affected_players: PlayerSet::Nobody,
+            affected: Affected::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land))),
             by: None,
         })))))
         .build()

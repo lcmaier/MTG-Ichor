@@ -34,8 +34,7 @@ use mtgsim::test_support::{
     fill_library, put_in_hand, put_on_battlefield, setup_game, test_ctx, test_dp,
     vanilla_creature, RecordingDecisionProvider,
 };
-use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PlayerSet, Primitive,
+use mtgsim::types::effects::{Affected, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -476,10 +475,9 @@ fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
         effect: Effect::Replacement(Box::new(
             mtgsim::types::replacement::ReplacementDef::new(
                 EventPattern::PlayerLoses,
-                ObjectSet::NO_OBJECTS,
+                PlayerSet::You,
                 mtgsim::types::replacement::Rewrite::Prevent,
             )
-            .affecting_players(PlayerSet::You)
             .with_then(Effect::Atom(
                 Primitive::GainLife(AmountExpr::Fixed(1)),
                 EffectRecipient::Controller,
@@ -527,8 +525,7 @@ fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
             },
             Box::new(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::PlayerLoses,
-                affected_objects: ObjectSet::NO_OBJECTS,
-                affected_players: PlayerSet::You,
+                affected: Affected::players(PlayerSet::You),
                 by: None,
             })))),
         ),
@@ -722,8 +719,7 @@ fn setting_a_life_total_higher_under_a_cant_gain_does_nothing() {
         Primitive::Restrict(
             RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::GainLife,
-                affected_objects: ObjectSet::NO_OBJECTS,
-                affected_players: PlayerSet::Everyone,
+                affected: Affected::players(PlayerSet::Everyone),
                 by: None,
             }),
             Duration::UntilEndOfTurn,

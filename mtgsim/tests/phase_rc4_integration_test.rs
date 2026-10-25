@@ -39,8 +39,8 @@ use mtgsim::test_support::{RecordingDecisionProvider,
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    PlayerRef, PlayerSet, Primitive, TypeChange,
+    Affected, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    PlayerRef, Primitive, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -207,8 +207,7 @@ fn lands_cant_enter() -> Restriction {
             change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None },
             object: None,
         },
-        affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land)),
-        affected_players: PlayerSet::Nobody,
+        affected: Affected::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land))),
         by: None,
     }
 }
@@ -218,11 +217,10 @@ fn lands_cant_enter() -> Restriction {
 fn no_minus_counters_on_your_creatures() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::AddCounters { counter: Some(CounterType::MinusOneMinusOne), by: None },
-        affected_objects: ObjectSet::battlefield_filter(ObjectFilter::And(
+        affected: Affected::objects(ObjectSet::battlefield_filter(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerRef::You)),
-            )),
-        affected_players: PlayerSet::Nobody,
+            ))),
         by: None,
     }
 }
@@ -770,8 +768,7 @@ fn test_the_rules_own_entry_counters_go_through_the_same_door() {
             "No loyalty counters",
             Restriction::Event {
                 pattern: EventPattern::AddCounters { counter: Some(CounterType::Loyalty), by: None },
-                affected_objects: ObjectSet::battlefield_filter(ObjectFilter::All),
-                affected_players: PlayerSet::Nobody,
+                affected: Affected::objects(ObjectSet::battlefield_filter(ObjectFilter::All)),
                 by: None,
             },
         ),

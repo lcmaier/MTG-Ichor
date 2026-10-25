@@ -325,7 +325,7 @@ pub fn eligeth_crossroads_augur() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(
                 ReplacementDef::new(
                     EventPattern::Scry,
-                    ObjectSet::NO_OBJECTS,
+                    PlayerSet::You,
                     Rewrite::Instead(GameActionTemplate::DrawCards {
                         // "that many" — CR 615.5's amount, read off the scry.
                         n: TemplateAmount::ReplacedAmount,
@@ -333,8 +333,7 @@ pub fn eligeth_crossroads_augur() -> Arc<CardData> {
                         // the one who draws.
                         player: None,
                     }),
-                )
-                .affecting_players(PlayerSet::You),
+                ),
             )),
         })
         .build()

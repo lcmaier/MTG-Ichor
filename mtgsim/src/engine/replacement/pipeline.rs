@@ -1274,7 +1274,7 @@ fn classify<'a>(
     // what the bucket writes feeds; over a finished permanent it reads the
     // board, which no count in the proposal touches.
     let arithmetic_ok = !def.pattern.reads_the_amount()
-        && (!on_entry || !writes.can_unmatch(&def.affected_objects));
+        && (!on_entry || !writes.can_unmatch(&def.affected.objects));
     match &def.rewrite {
         Rewrite::Amount(AmountRewrite::Multiplier(n)) => {
             (*n >= 1 && arithmetic_ok).then(|| Commuting::Multiplier(kinds_of(&def.pattern)))
@@ -1297,7 +1297,7 @@ fn classify<'a>(
         // removes is an order, as two copies are: the later one wins.
         Rewrite::EnterWith(t) => ((t.is_fixed() || Some(instance.source) != entering)
             && t.edits.iter().all(CharacteristicEdit::adds)
-            && !writes.can_unmatch(&def.affected_objects))
+            && !writes.can_unmatch(&def.affected.objects))
         .then(|| Commuting::ModsAdding {
             kinds: Kinds::These(t.counters.iter().map(|c| c.counter).collect()),
             status: t.status,
@@ -2501,8 +2501,7 @@ fn counter_arithmetic(
 /// wrap on a number a card could author, with a counter's error message.
 ///
 /// The names stay two words apart on purpose: `count_arithmetic` beside
-/// `counter_arithmetic` would be the coin flip at every call site that
-/// `ReplacementDef::affecting_players` already refused once.
+/// `counter_arithmetic` would be a coin flip at every call site.
 ///
 /// **The refused arms are refused here, once.** A prevention arm (CR 615) is
 /// about damage and a [`AmountRewrite::LifeFloor`] is about a life total; over
