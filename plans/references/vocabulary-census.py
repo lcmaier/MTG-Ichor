@@ -47,7 +47,7 @@ def main() -> int:
         print("no §4c or §4d section in cr-coverage-audit.md")
         return 2
     stops, _ = register
-    classes, words = vocabulary
+    classes, words, _ = vocabulary
     classes = dict(classes, words=set(words))
     declared = read_type_declarations()
     enums = [declared[n] for n in vocabulary_scope(declared, stops) if declared[n].kind == "enum"]

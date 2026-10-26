@@ -30,10 +30,9 @@ stops at the types a card's text is written in. This one walks them: every
 enum they hold, transitively, is in one of the register's classes, and every
 arm of an enum in its `words` class has a line with a verdict. A new enum
 fails until it is classed, a new arm until it has a line, and a **folds**
-line whose item is not open, so a landed fold rewrites its lines. It lines
-arms, not fields: a word type held in a field of a struct, or of an enum in
-another class (a trigger event's `Option<PlayerRef>`, `Choice.chooser`), is
-not asked, which the register says too.
+line whose item is not open, so a landed fold rewrites its lines. Every
+field elsewhere in the walk whose type is a word type has a line too, so a new
+`Option<PlayerRef>` on a trigger event fails as a new arm does.
 
 **Why per type and never per field.** On 2026-09-24 the owner turned down a
 gate on the fields of the record structs: they are the most-edited in the
@@ -92,6 +91,11 @@ CLASS = re.compile(r"^- \*\*([a-z]+)\*\* —")
 WORD_ENTRY = re.compile(r"^#### `([A-Z][A-Za-z0-9_]*)`$")
 #: An arm's line: "- `Arm` — **verdict** ...".
 ARM = re.compile(r"^- `([A-Z][A-Za-z0-9_]*)` — (.*)$")
+FIELDS_HEADING = "### The fields"
+#: A field's line: "- `Owner.field` — ..." or "- `Owner::Variant.0` — ...".
+FIELD = re.compile(r"^- `([A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)?\.[A-Za-z0-9_]+)` — (.*)$")
+#: The types a word is held in; a field of one of them is lined.
+WORD_TYPES = {"PlayerRef", "PlayerSet", "Antecedent", "ObjectFilter"}
 VERDICTS = ("**owns**", "**holds**", "**kept**", "**folds**", "**not a word**")
 #: A fold's items: "(item 340)" or "(items 340, 341)".
 FOLD_ITEMS = re.compile(r"\(items? (\d+(?:, \d+)*)\)")
@@ -306,18 +310,26 @@ def check_register() -> int:
 
 
 def read_vocabulary(text: str):
-    """§4d's set-aside classes, as {class: enums}, and its word entries, as
-    {enum: {arm: line}}; `None` without the section."""
+    """§4d's set-aside classes, as {class: enums}, its word entries, as
+    {enum: {arm: line}}, and its field lines, as {field: line}; `None`
+    without the section."""
     lines = text.splitlines()
     starts = [i for i, line in enumerate(lines) if line.strip() == VOCABULARY]
     if len(starts) != 1:
         return None
     bullet_lines: dict[str, list[str]] = {}
     words: dict[str, dict[str, str]] = {}
-    current_class, current_enum = None, None
+    fields: dict[str, str] = {}
+    current_class, current_enum, in_fields = None, None, False
     for line in lines[starts[0] + 1 :]:
         if line.startswith("## ") or line.startswith("---"):
             break
+        if line.startswith("### "):
+            in_fields = line.strip() == FIELDS_HEADING
+        if in_fields:
+            if m := FIELD.match(line):
+                fields[m.group(1)] = m.group(2)
+            continue
         if m := CLASS.match(line):
             current_class, current_enum = m.group(1), None
             bullet_lines[current_class] = [line]
@@ -336,7 +348,7 @@ def read_vocabulary(text: str):
         name: set(re.findall(r"`([A-Z][A-Za-z0-9_]*)`", re.split(r":\s+(?=`)", " ".join(lines), maxsplit=1)[-1]))
         for name, lines in bullet_lines.items()
     }
-    return classes, words
+    return classes, words, fields
 
 
 def read_type_declarations():
@@ -381,9 +393,10 @@ def check_vocabulary() -> int:
         print(f"\nvocabulary: no `{VOCABULARY}` section in {AUDIT.relative_to(ROOT)}.")
         return 2
     stops, _ = register
-    classes, words = vocabulary
+    classes, words, field_lines = vocabulary
     declared = read_type_declarations()
-    reached = {name for name in vocabulary_scope(declared, stops) if declared[name].kind == "enum"}
+    walked = set(vocabulary_scope(declared, stops))
+    reached = {name for name in walked if declared[name].kind == "enum"}
     classed = dict(classes, words=set(words))
     failures = []
     for name in sorted(reached):
@@ -413,10 +426,34 @@ def check_vocabulary() -> int:
                 for number in cited or ["none"]:
                     if number == "none" or int(number) not in still_open:
                         failures.append(f"  `{name}::{arm}` folds through item {number}, which is not an open main item")
+    # A field elsewhere that holds a word type: a role naming a word through
+    # a field, not an arm. `holders` names a tuple payload `..0`; the
+    # register writes `.0`.
+    held = {}
+    for path in sorted(SRC.rglob("*.rs")):
+        for holder in holders(path.relative_to(ROOT).as_posix(), path.read_text(encoding="utf-8")):
+            if holder.owner in walked and holder.owner not in WORD_TYPES and holder.owner not in words:
+                if holder.types() & WORD_TYPES:
+                    held[holder.name().replace("..", ".")] = holder
+    for name in sorted(set(held) - set(field_lines)):
+        failures.append(f"  `{name}` holds {held[name].ty} and has no line")
+    for name, line in sorted(field_lines.items()):
+        if name not in held:
+            failures.append(f"  `{name}` has a line and holds no word type")
+        elif not any(line.startswith(v) for v in VERDICTS):
+            failures.append(f"  `{name}` has no verdict")
+        elif line.startswith("**folds**"):
+            cited = [n for group in FOLD_ITEMS.findall(line) for n in group.split(", ")]
+            for number in cited or ["none"]:
+                if number == "none" or int(number) not in still_open:
+                    failures.append(f"  `{name}` folds through item {number}, which is not an open main item")
     arms_total = sum(len(declared[n].members) for n in words if n in declared)
-    print(f"\nvocabulary: {len(reached)} enums reached, {len(words)} word entries, {lines_read} lines for {arms_total} arms")
+    print(
+        f"\nvocabulary: {len(reached)} enums reached, {len(words)} word entries, {lines_read} lines for "
+        f"{arms_total} arms, {len(field_lines)} for {len(held)} fields"
+    )
     if not failures:
-        print("every reached enum is classed, and every word arm has its line.")
+        print("every reached enum is classed, and every word arm and word-holding field has its line.")
         return 0
     print(f"\n{len(failures)} problem(s) with {VOCABULARY_ANCHOR}:\n")
     print("\n".join(failures))

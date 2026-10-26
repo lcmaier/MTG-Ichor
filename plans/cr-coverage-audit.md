@@ -1018,11 +1018,10 @@ arm's line does not wrap, so the check reads it whole.
 `check_type_surface.py`'s third check fails a reached enum in no class, a
 class naming an enum no longer reached, an arm with no line or a line naming
 no arm, a line with no verdict, and a **folds** line whose item is closed or
-missing: a landed fold rewrites its lines. **It lines arms, not fields.** A
-word type held in a struct's field, or in a field of an enum in another class,
-is not asked: a trigger event's `Option<PlayerRef>` ("whenever an opponent
-casts", about 19 fields, in item 342's fold), `Choice.chooser`. That limit
-was put to the owner at #296's handover.
+missing: a landed fold rewrites its lines. **It lines fields too** ("The
+fields", below): every field elsewhere whose type is a word type, so a new
+`Option<PlayerRef>` on a trigger event fails until it has its line, the
+route by which item 342's twenty arrived.
 
 ### The classes
 
@@ -1277,6 +1276,65 @@ was put to the owner at #296's handover.
 - `Filter` — **holds** an `ObjectFilter`.
 - `Any` — **folds** into `Filter(ObjectFilter::All)` (item 340).
 - `Referred` — **folds** into `Object(Antecedent::Referred)` (item 340).
+
+### The fields
+
+Every field or payload, outside the word entries above, whose type is a word
+type (`PlayerRef`, `PlayerSet`, `Antecedent`, `ObjectFilter`, or an `Option`
+of one), in a struct or enum the walk reaches: a role that names a word
+through a field rather than an arm (widened at #296's handover, the owner,
+2026-10-26). A tuple payload is `.0`. The same five verdicts; an `Option`'s
+`None` asks nothing of its field.
+
+- `AffectedSet.players` — **holds** a `PlayerSet`.
+- `PlayerGroup.relation` — **holds** a `PlayerSet`.
+- `HistoryCount.players` — **holds** a `PlayerSet`.
+- `HistoryCount.of` — **holds** an `ObjectFilter`.
+- `Cost::Sacrifice.0` — **holds** an `ObjectFilter`.
+- `Cost::Discard.0` — **holds** an `ObjectFilter`.
+- `Cost::ExileFromGraveyard.0` — **holds** an `ObjectFilter`.
+- `PlayerFact::ControlsPermanent.0` — **holds** an `ObjectFilter`.
+- `PlayerFact::CardInGraveyard.0` — **holds** an `ObjectFilter`.
+- `Pick.filter` — **holds** an `ObjectFilter`.
+- `CopyException::If.0` — **holds** an `ObjectFilter`.
+- `EventPattern::ZoneChange.object` — **holds** an `ObjectFilter`.
+- `EventPattern::AddCounters.by` — **holds** a `PlayerSet`.
+- `EventPattern::ProduceMana.source` — **holds** an `ObjectFilter`.
+- `SourcePattern.filter` — **holds** an `ObjectFilter`.
+- `AuxiliaryMove.filter` — **holds** an `ObjectFilter`.
+- `TriggerMultiplierDef.abilities_of` — **holds** an `ObjectFilter`.
+- `TargetedBy::Spell.0` — **holds** an `ObjectFilter`.
+- `TriggerEvent::CastsSpell.spell` — **holds** an `ObjectFilter`.
+- `TriggerEvent::IsCountered.spell` — **holds** an `ObjectFilter`.
+- `TriggerEvent::AbilityTriggers.source` — **holds** an `ObjectFilter`.
+- `Primitive::AddCounters.by` — **holds** a `PlayerRef`: the one player who puts the counters on.
+- `Primitive::GetCounters.by` — **holds** a `PlayerRef`, the same.
+- `Primitive::GainControl.to` — **holds** a `PlayerRef`: the one player who gains control.
+- `Effect::Optional.chooser` — **holds** a `PlayerRef`: the one player who chooses.
+- `Rewrite::EnterUnderControlOf.0` — **holds** a `PlayerRef`: the one player it enters under.
+- `EntryCountersTemplate.by` — **holds** a `PlayerRef`: the one player who puts them on.
+- `GameActionTemplate::DrawCards.player` — **holds** a `PlayerRef`: the one player who draws.
+- `ObjectFact::DealtDamageTo.player` — **folds**: a filter, its `PlayerRef` becomes a `PlayerSet` (item 342).
+- `TriggerEvent::ZoneChange.owner` — **folds**: a filter, its `PlayerRef` becomes a `PlayerSet` (item 342).
+- `TriggerEvent::DrawsCard.player` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::PhaseBegins.whose` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::StepBegins.whose` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::TurnBegins.whose` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::GainsLife.player` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::LosesLife.player` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::EntersBattlefield.controller` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::BecomesTarget.controller` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::ActivatesAbility.player` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::CastsSpell.caster` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::IsCountered.caster` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::PlayerLoses.player` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::ShufflesLibrary.player` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::CountersPutOn.by` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::CountersRemovedFrom.by` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::ControlChanges.from` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::ControlChanges.to` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::CreatesToken.owner` — **folds**: a filter, as above (item 342).
+- `TriggerEvent::Scries.player` — **folds**: a filter, as above (item 342).
 
 ---
 
