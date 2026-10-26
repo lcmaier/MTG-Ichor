@@ -15,7 +15,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    PlayerSet, Antecedent, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
 };
 use crate::types::history::CountIs;
 use crate::types::ids::AbilityId;
@@ -49,7 +49,7 @@ pub fn sphere_grid() -> Arc<CardData> {
     let unlock_text = "Unlock Ability — Creatures you control with +1/+1 counters on them have reach and trample.";
     let creature_you_control = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     );
     let with_a_counter = ObjectFilter::And(
         Box::new(creature_you_control.clone()),
@@ -57,7 +57,7 @@ pub fn sphere_grid() -> Arc<CardData> {
     );
     let deals_combat_damage_to_a_player = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(creature_you_control),
-        recipient: DamageRecipient::Player(None),
+        recipient: DamageRecipient::Player(PlayerSet::Everyone),
         combat: Some(true),
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,

@@ -42,7 +42,7 @@ use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
-    Antecedent, AmountExpr, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef,
+    PlayerSet, Antecedent, AmountExpr, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
@@ -525,7 +525,7 @@ fn create(template: DelayedTriggerTemplate) -> Effect {
 /// "You sacrifice [a permanent]": what "when you do" names after "you may
 /// sacrifice".
 fn you_sacrifice() -> TriggerEvent {
-    is_sacrificed(ObjectFilter::ByController(PlayerRef::You)).into()
+    is_sacrificed(ObjectFilter::ByController(PlayerSet::You)).into()
 }
 
 /// Spitefang Manticore — a fixture under no real card's name: Heart-Piercer
@@ -591,7 +591,7 @@ fn venomweave_charm() -> Arc<CardData> {
             Primitive::GrantKeywordFlag(KeywordFlag::Deathtouch, Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
         )))
         .build()
@@ -669,7 +669,7 @@ fn firstlight_lantern() -> Arc<CardData> {
     let gain_1 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let mut first_time = when_you_do(
-        TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
+        TriggerEvent::GainsLife { player: PlayerSet::You, multiplicity: Multiplicity::PerOccurrence },
         draw,
         "When you gain life this way for the first time this turn, draw a card.",
     );

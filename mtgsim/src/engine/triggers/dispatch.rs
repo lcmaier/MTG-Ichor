@@ -28,7 +28,7 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::mana::triggered_mana_recipient;
-use crate::engine::object_filter::{player_ref_names, EarlierTargets, FilterReferents};
+use crate::engine::object_filter::{player_set_names, EarlierTargets, FilterReferents};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
@@ -42,7 +42,7 @@ use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::state::history_log::RowFact;
-use crate::types::effects::{ObjectFilter, Condition, Effect, EffectRecipient, PlayerRef, Primitive};
+use crate::types::effects::{PlayerSet, ObjectFilter, Condition, Effect, EffectRecipient, Primitive};
 use crate::types::history::CountIs;
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
@@ -1872,7 +1872,7 @@ impl GameState {
                         earlier.seq < record.seq
                             && earlier.target == *target
                             && by.admits(earlier.by_spell)
-                            && whose.as_ref().is_none_or(|p| self.player_ref_is(p, earlier.controller, referents))
+                            && self.player_set_is(whose, earlier.controller, referents)
                     })
                 }
                 // "Your first creature spell each turn": the first of the
@@ -1977,7 +1977,7 @@ impl GameState {
                 };
                 triggering_event_if(
                     moved_as_named
-                        && owner.as_ref().is_none_or(|p| self.player_ref_is(p, moved_owner, referents))
+                        && self.player_set_is(owner, moved_owner, referents)
                         && self.subject_of_a_move_matches(subject, moved, left, referents, seq),
                 )
             }
@@ -1986,14 +1986,14 @@ impl GameState {
                 triggering_event_if(self.named_subject_matches(subject, *object, referents, seq))
             }
             (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, .. }) => triggering_event_if(
-                who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents))
+                self.player_set_is(who, *player_id, referents)
                     && place.is_none_or(|place| {
                         place.matches(DrawOrdinals { in_turn: record.place_in_turn(), in_draw_step: record.place_in_draw_step() })
                     }),
             ),
             (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id })
             | (TriggerEvent::PlayerLoses { player: who }, GameEvent::PlayerLost { player_id }) => {
-                triggering_event_if(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
+                triggering_event_if(self.player_set_is(who, *player_id, referents))
             }
             (
                 TriggerEvent::ManaAdded { .. },
@@ -2025,22 +2025,22 @@ impl GameState {
                 triggering_event_if(self.damage_recipient_matches(recipient, *prevented_to, referents, seq))
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
-                triggering_event_if(phase == rp && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
+                triggering_event_if(phase == rp && self.player_set_is(whose, *player, referents))
             }
             (TriggerEvent::StepBegins { step, whose }, GameEvent::StepBegin { step: rs, player }) => {
-                triggering_event_if(step == rs && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
+                triggering_event_if(step == rs && self.player_set_is(whose, *player, referents))
             }
             (TriggerEvent::TurnBegins { whose }, GameEvent::TurnBegin { player, .. }) => {
-                triggering_event_if(whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
+                triggering_event_if(self.player_set_is(whose, *player, referents))
             }
             // The direction is the split.
             (TriggerEvent::GainsLife { player: who, .. }, GameEvent::LifeChanged { player_id, .. }) => triggering_event_if(
                 matches!(event.life_change(), Some(LifeChange::Gained(_)))
-                    && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)),
+                    && self.player_set_is(who, *player_id, referents),
             ),
             (TriggerEvent::LosesLife { player: who, .. }, GameEvent::LifeChanged { player_id, .. }) => triggering_event_if(
                 matches!(event.life_change(), Some(LifeChange::Lost(_)))
-                    && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)),
+                    && self.player_set_is(who, *player_id, referents),
             ),
             (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell: cast, caster: who }) => {
                 let spell_ok = match spell {
@@ -2052,13 +2052,13 @@ impl GameState {
                         seq,
                     ),
                 };
-                triggering_event_if(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, referents)))
+                triggering_event_if(spell_ok && self.player_set_is(caster, *who, referents))
             }
             // CR 603.10e: the spell as it was on the stack, and whoever cast it.
             (TriggerEvent::IsCountered { spell, caster }, GameEvent::SpellCountered { lki, .. }) => {
                 let cast_by = lki.entry().and_then(StackEntry::caster);
                 triggering_event_if(
-                    caster.as_ref().is_none_or(|p| cast_by.is_some_and(|who| self.player_ref_is(p, who, referents)))
+                    self.player_if_any_is(caster, cast_by, referents)
                         && spell.as_ref().is_none_or(|filter| {
                             let filter = TriggerSubject::Filter(filter.clone());
                             self.subject_matches(&filter, ObjectInformation::LastKnown(lki), referents, seq)
@@ -2083,7 +2083,7 @@ impl GameState {
                 triggering_event_if(
                     from_ok
                         && cast_ok
-                        && controller.as_ref().is_none_or(|p| self.player_ref_is(p, *rc, referents))
+                        && self.player_set_is(controller, *rc, referents)
                         && self.named_subject_matches(subject, *object, referents, seq),
                 )
             }
@@ -2140,7 +2140,7 @@ impl GameState {
                 let read = ObjectInformation::of(identity.source.id, record.event.source_lki());
                 let matched = *from == Zone::Battlefield
                     && mana_ability.is_none_or(|asked| asked == *was_mana)
-                    && player.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents))
+                    && self.player_set_is(player, *controller, referents)
                     && self.subject_matches(source, read, referents, seq);
                 if matched { vec![TriggeringEventObjects::Object(identity.source)] } else { Vec::new() }
             }
@@ -2158,7 +2158,7 @@ impl GameState {
                         }
                         TargetedBy::Spell(None) | TargetedBy::SpellOrAbility | TargetedBy::Ability => true,
                     };
-                let whose_ok = whose.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents));
+                let whose_ok = self.player_set_is(whose, *controller, referents);
                 if target_ok && kind_ok && whose_ok {
                     vec![TriggeringEventObjects::Target { target: *target, by: *by }]
                 } else {
@@ -2215,8 +2215,8 @@ impl GameState {
             // controller then (the candidate's, off its frame from before).
             (TriggerEvent::ControlChanges { subject, from, to }, GameEvent::ControlChanged { to: gained, lki }) => {
                 triggering_event_if(
-                    from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.characteristics().controller, referents))
-                        && to.as_ref().is_none_or(|p| self.player_ref_is(p, *gained, referents))
+                    self.player_set_is(from, lki.characteristics().controller, referents)
+                        && self.player_set_is(to, *gained, referents)
                         && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
                 )
             }
@@ -2224,11 +2224,11 @@ impl GameState {
             // Betrayer's first ruling), to nobody: so only an arm that names no
             // one gaining it, and its controller as it left.
             (
-                TriggerEvent::ControlChanges { subject, from, to: None },
+                TriggerEvent::ControlChanges { subject, from, to: PlayerSet::Everyone },
                 GameEvent::ZoneChange { from: left, departed, .. } | GameEvent::LeftTheGame { from: left, departed },
             ) => match departed.lki() {
                 Some(lki) if *left == Zone::Battlefield => triggering_event_if(
-                    from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.characteristics().controller, referents))
+                    self.player_set_is(from, lki.characteristics().controller, referents)
                         && self.subject_matches(subject, ObjectInformation::LastKnown(lki), referents, seq),
                 ),
                 _ => Vec::new(),
@@ -2243,11 +2243,11 @@ impl GameState {
                 TriggerEvent::CreatesToken { owner, definition, .. },
                 GameEvent::TokenCreated { owner: creator, definition: made_from, .. },
             ) => triggering_event_if(
-                owner.as_ref().is_none_or(|p| self.player_ref_is(p, *creator, referents))
+                self.player_set_is(owner, *creator, referents)
                     && definition.as_deref().is_none_or(|definition| definition == made_from.as_ref()),
             ),
             (TriggerEvent::Scries { player }, GameEvent::Scried { player_id, .. }) => {
-                triggering_event_if(player.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
+                triggering_event_if(self.player_set_is(player, *player_id, referents))
             }
             // Every arm, by name, so a new arm does not compile until it is matched
             // here. The gate admits only the kinds an arm reads, and each such
@@ -2388,7 +2388,7 @@ impl GameState {
             _ => return Vec::new(),
         };
         let matched = counter_type.is_none_or(|k| k == kind)
-            && by.as_ref().is_none_or(|p| who.is_some_and(|who| self.player_ref_is(p, who, referents)))
+            && self.player_if_any_is(by, who, referents)
             && self.object_or_player_matches(watched, on, referents, record.seq);
         if !matched {
             return Vec::new();
@@ -2417,7 +2417,7 @@ impl GameState {
         match (watched, it) {
             (ObjectOrPlayerSubject::Object(which), ObjectOrPlayer::Object(object)) => self.named_subject_matches(which, object, referents, seq),
             (ObjectOrPlayerSubject::Player(who), ObjectOrPlayer::Player(player)) => {
-                who.as_ref().is_none_or(|p| self.player_ref_is(p, player, referents))
+                self.player_set_is(who, player, referents)
             }
             (ObjectOrPlayerSubject::Object(_), ObjectOrPlayer::Player(_)) | (ObjectOrPlayerSubject::Player(_), ObjectOrPlayer::Object(_)) => false,
         }
@@ -2484,7 +2484,7 @@ impl GameState {
         match (recipient, target) {
             (DamageRecipient::Any, _) => true,
             (DamageRecipient::Player(who), ObjectOrPlayer::Player(pid)) => {
-                who.as_ref().is_none_or(|p| self.player_ref_is(p, pid, referents))
+                self.player_set_is(who, pid, referents)
             }
             (DamageRecipient::Object(filter), ObjectOrPlayer::Object(object)) => match filter {
                 None => true,
@@ -2586,16 +2586,23 @@ impl GameState {
         self.events.record(event_id).and_then(|record| record.event.source_lki()).is_some_and(|source| source.object() == lki.object())
     }
 
-    /// "Whose" — a `PlayerRef` against a record's player, read for the
+    /// "Whose" — whether a record's player is in an arm's set, read for the
     /// trigger's referents (CR 109.5's "you" is its controller).
-    fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, referents: &TriggerReferents<'_>) -> bool {
-        player_ref_names(self, who, player, &mut { *referents }) == Some(true)
+    fn player_set_is(&self, set: &PlayerSet, player: PlayerId, referents: &TriggerReferents<'_>) -> bool {
+        player_set_names(self, set, player, &mut { *referents }) == Some(true)
+    }
+
+    /// [`Self::player_set_is`] for a record that may name no player, a
+    /// counter a rule removed: an arm that does not ask (`Everyone`) matches
+    /// it, and any other asks a player it does not have.
+    fn player_if_any_is(&self, set: &PlayerSet, player: Option<PlayerId>, referents: &TriggerReferents<'_>) -> bool {
+        *set == PlayerSet::Everyone || player.is_some_and(|player| self.player_set_is(set, player, referents))
     }
 
     /// Whether `target`, what a creature was declared attacking, is what
     /// `asked` names (CR 508.3a, 508.3b, 508.3e).
     fn defender_matches(&self, asked: &DefenderFilter, target: AttackTarget, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
-        asked.admits(target, &|who, player| self.player_ref_is(who, player, referents), &|filter, id| {
+        asked.admits(target, &|who, player| self.player_set_is(who, player, referents), &|filter, id| {
             self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(id), referents, seq)
         })
     }

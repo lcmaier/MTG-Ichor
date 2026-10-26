@@ -20,7 +20,7 @@ use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount,
+    PlayerSet, Antecedent, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -135,7 +135,7 @@ pub fn banishing_light() -> Arc<CardData> {
     let text = "When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.";
     let nonland_an_opponent_controls = ObjectFilter::And(
         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Land)))),
-        Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+        Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
     );
     CardDataBuilder::new("Banishing Light")
         .mana_cost(ManaCost::build(&[ManaType::White], 2))

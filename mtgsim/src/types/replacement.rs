@@ -74,7 +74,7 @@ pub struct ReplacementDef {
     /// prints, read against the resolution that proposed the event.
     ///
     /// Nephalia Academy's "if a spell or ability an opponent controls causes
-    /// you to discard a card" is `Some(ControlledBy(Opponent))`; sixteen of the
+    /// you to discard a card" is `Some(ControlledBy(Opponents))`; sixteen of the
     /// seventeen printed "causes you to discard" cards say the same words
     /// (Scryfall, 2026-09-14). `None` is "however caused", the default.
     ///

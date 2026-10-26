@@ -37,9 +37,9 @@
 //! reader instead.
 
 use crate::state::game_state::GameState;
-use crate::engine::object_filter::{player_ref_names, FilterReferents};
+use crate::engine::object_filter::{player_set_names, FilterReferents};
 use crate::events::cause::EventCause;
-use crate::types::effects::{AffectedSet, PlayerRef};
+use crate::types::effects::{PlayerSet, AffectedSet};
 use crate::types::replacement::EventPattern;
 
 /// One CR 101.2 "can't" — a prohibition on an action or an event.
@@ -204,12 +204,13 @@ impl Restriction {
 /// second spelling of it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SourceFilter {
-    /// The spell or ability that proposed the event is controlled by this
-    /// player, read relative to the restriction's own controller — so
-    /// `PlayerRef::Opponent` is Sigarda's "your opponents" and `PlayerRef::You`
-    /// is Tamiyo, Collector of Tales' mirror ("Spells and abilities your
-    /// opponents control can't cause you to discard cards" reads the same way).
-    ControlledBy(PlayerRef),
+    /// The spell or ability that proposed the event is controlled by a
+    /// player in the set, read relative to the restriction's own controller —
+    /// so `PlayerSet::Opponents` is Sigarda's "your opponents" and
+    /// `PlayerSet::You` is Tamiyo, Collector of Tales' mirror ("Spells and
+    /// abilities your opponents control can't cause you to discard cards"
+    /// reads the same way).
+    ControlledBy(PlayerSet),
 }
 
 impl SourceFilter {
@@ -238,7 +239,7 @@ impl SourceFilter {
             // Relative to the *asking* effect, whose "you" is CR 109.5's for a
             // static ability: Sigarda's "your opponents" is an opponent of
             // whoever currently controls Sigarda.
-            SourceFilter::ControlledBy(player_ref) => player_ref_names(game, player_ref, cause, referents) == Some(true),
+            SourceFilter::ControlledBy(players) => player_set_names(game, players, cause, referents) == Some(true),
         }
     }
 }

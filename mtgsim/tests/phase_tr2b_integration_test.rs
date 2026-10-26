@@ -316,7 +316,7 @@ fn a_sacrifice_whose_permanent_has_gone_answers_cant_and_draws_nothing() {
     let standing = CardDataBuilder::new("Standing Stillness")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(
-            TriggerEvent::CastsSpell { caster: None, spell: None },
+            TriggerEvent::CastsSpell { caster: PlayerSet::Everyone, spell: None },
             Effect::Sequence(vec![Effect::Atom(Primitive::Sacrifice, EffectRecipient::Object(Antecedent::ThisObject)), if_you(CostAnswer::Does, draw_three)]),
         )))
         .build();
@@ -547,7 +547,7 @@ fn the_recheck_of_a_stolen_source_reads_the_player_it_triggered_for() {
 #[test]
 fn a_cast_trigger_reads_the_power_of_a_spell_countered_in_response() {
     let mut game = setup_two_player_game();
-    let casts = TriggerEvent::CastsSpell { caster: None, spell: None };
+    let casts = TriggerEvent::CastsSpell { caster: PlayerSet::Everyone, spell: None };
     put_on_battlefield(&mut game, watcher("Spiteful Critic", casts, each_opponent_loses_its_power()), 0);
     let ogre = CardDataBuilder::new("Hasty Ogre")
         .mana_cost(ManaCost::build(&[], 0))
@@ -642,7 +642,7 @@ fn two_sources_are_asked_their_order_only_when_the_def_reads_the_source() {
 fn two_entries_are_asked_their_order_only_when_the_amounts_they_read_differ() {
     for (first, second) in [(2, 2), (1, 2)] {
         let mut game = setup_two_player_game();
-        let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
+        let gains = TriggerEvent::GainsLife { player: PlayerSet::You, multiplicity: Multiplicity::PerOccurrence };
         let drain = Effect::Atom(
             Primitive::LoseLife(AmountExpr::TriggeringAmount),
             EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents)),

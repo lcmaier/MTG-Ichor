@@ -20,7 +20,7 @@ use mtgsim::test_support::{
     creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game, test_dp,
 };
 use mtgsim::types::history::TurnFact;
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, PlayerRef, Primitive};
+use mtgsim::types::effects::{PlayerSet, AmountExpr, Effect, EffectRecipient, PlayerRef, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent};
 use mtgsim::types::zones::DrawFilter;
@@ -98,11 +98,11 @@ fn gain_one() -> Effect {
 
 /// A creature whose one ability triggers "whenever `who` draws" the card at
 /// `place`.
-fn draw_watcher(name: &str, who: PlayerRef, place: DrawFilter) -> Arc<CardData> {
+fn draw_watcher(name: &str, who: PlayerSet, place: DrawFilter) -> Arc<CardData> {
     let mut ability = triggered_ability(
         "",
         whenever(
-            TriggerEvent::DrawsCard { player: Some(who), multiplicity: Multiplicity::PerOccurrence, place: Some(place) },
+            TriggerEvent::DrawsCard { player: who, multiplicity: Multiplicity::PerOccurrence, place: Some(place) },
             gain_one(),
         ),
     );
@@ -169,7 +169,7 @@ fn notion_thief_leaves_opts_card_after_words_of_worship_took_the_draw_steps() {
 fn the_turns_second_card_triggers_once_whenever_the_watcher_arrived() {
     let mut game = stocked();
     draw(&mut game, 0, 1);
-    let gavi = put_on_battlefield(&mut game, draw_watcher("Fixture: Gavi", PlayerRef::You, DrawFilter::NthThisTurn(2)), 0);
+    let gavi = put_on_battlefield(&mut game, draw_watcher("Fixture: Gavi", PlayerSet::You, DrawFilter::NthThisTurn(2)), 0);
 
     draw(&mut game, 0, 1);
     assert_eq!(triggered(&game, gavi), 1, "the turn's second card");
@@ -184,7 +184,7 @@ fn the_turns_second_card_triggers_once_whenever_the_watcher_arrived() {
 fn a_doubled_draws_second_card_is_the_turns_second() {
     let mut game = stocked();
     put_on_battlefield(&mut game, thought_reflection(), 0);
-    let gavi = put_on_battlefield(&mut game, draw_watcher("Fixture: Gavi", PlayerRef::You, DrawFilter::NthThisTurn(2)), 0);
+    let gavi = put_on_battlefield(&mut game, draw_watcher("Fixture: Gavi", PlayerSet::You, DrawFilter::NthThisTurn(2)), 0);
 
     draw(&mut game, 0, 1);
 
@@ -199,7 +199,7 @@ fn a_doubled_draws_second_card_is_the_turns_second() {
 fn a_doubled_draw_steps_second_card_is_not_its_first() {
     let mut game = stocked();
     put_on_battlefield(&mut game, thought_reflection(), 0);
-    let bowmasters = put_on_battlefield(&mut game, draw_watcher("Fixture: Bowmasters", PlayerRef::Opponent, DrawFilter::NotFirstInDrawStep), 1);
+    let bowmasters = put_on_battlefield(&mut game, draw_watcher("Fixture: Bowmasters", PlayerSet::Opponents, DrawFilter::NotFirstInDrawStep), 1);
     at_upkeep(&mut game, 0);
 
     take_the_draw_step(&mut game);
@@ -216,8 +216,8 @@ fn a_doubled_draw_steps_second_card_is_not_its_first() {
 fn the_draw_steps_first_card_is_the_first_drawn_in_it() {
     let mut game = stocked();
     let words = put_on_battlefield(&mut game, words_of_worship(), 0);
-    let wiretapping = put_on_battlefield(&mut game, draw_watcher("Fixture: Wiretapping", PlayerRef::You, DrawFilter::FirstInDrawStep), 0);
-    let bowmasters = put_on_battlefield(&mut game, draw_watcher("Fixture: Bowmasters", PlayerRef::Opponent, DrawFilter::NotFirstInDrawStep), 1);
+    let wiretapping = put_on_battlefield(&mut game, draw_watcher("Fixture: Wiretapping", PlayerSet::You, DrawFilter::FirstInDrawStep), 0);
+    let bowmasters = put_on_battlefield(&mut game, draw_watcher("Fixture: Bowmasters", PlayerSet::Opponents, DrawFilter::NotFirstInDrawStep), 1);
     at_upkeep(&mut game, 0);
     activate_words(&mut game, words, 0);
 
@@ -238,7 +238,7 @@ fn the_draw_steps_first_card_is_the_first_drawn_in_it() {
 #[test]
 fn a_draw_of_three_after_the_draw_steps_card_holds_the_turns_third() {
     let mut game = stocked();
-    let tamiyo = put_on_battlefield(&mut game, draw_watcher("Fixture: Tamiyo", PlayerRef::You, DrawFilter::NthThisTurn(3)), 0);
+    let tamiyo = put_on_battlefield(&mut game, draw_watcher("Fixture: Tamiyo", PlayerSet::You, DrawFilter::NthThisTurn(3)), 0);
     at_upkeep(&mut game, 0);
     take_the_draw_step(&mut game);
 

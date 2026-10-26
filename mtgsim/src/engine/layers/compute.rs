@@ -14,7 +14,7 @@
 use std::sync::Arc;
 
 use crate::oracle::characteristics::{FrameContext, ObjectInformation};
-use crate::types::effects::{Antecedent, ObjectSet};
+use crate::types::effects::{PlayerSet, Antecedent, ObjectSet};
 use crate::engine::layers::board::{
     compute_board, compute_board_to, is_dynamic, pass_membership, record_intrinsic, Board, PassMembership, RowNote,
     EffectMembershipTest,
@@ -799,7 +799,7 @@ fn resolve_set_controller(
                 .defending_player(game, &|input| board.note_gated_read(input))
                 .filter(|&p| still_playing(p))
         }
-        PlayerRef::DefendingPlayer(Antecedent::Triggering(_) | Antecedent::Referred) | PlayerRef::AnyDefendingPlayer => None,
+        PlayerRef::DefendingPlayer(Antecedent::Triggering(_) | Antecedent::Referred) => None,
         PlayerRef::Opponent => {
             match game.opponents_of(players.you()).as_slice() {
                 // Exactly one opponent, so nothing was ever chosen.
@@ -889,7 +889,7 @@ pub(super) fn evaluate_amount(
     board: &Board<'_>,
     origin: Option<&ContinuousEffect>,
 ) -> Option<i32> {
-    use crate::types::effects::{AmountExpr, ObjectFilter, PlayerRef};
+    use crate::types::effects::{AmountExpr, ObjectFilter};
 
     match expr {
         AmountExpr::Fixed(n) => Some(*n as i32),
@@ -923,7 +923,7 @@ pub(super) fn evaluate_amount(
         AmountExpr::CountOf(set) => {
             if let Some(whose) = set.whose_hand() {
                 debug_assert!(
-                    *whose == PlayerRef::You,
+                    *whose == PlayerSet::You,
                     "CountOf({:?}'s hand) has no static-context evaluator yet (on '{}')",
                     whose, chars.name
                 );
@@ -1281,7 +1281,6 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::types::card_types::CardType;
     use crate::types::colors::Color;
-    use crate::types::effects::PlayerRef;
     use crate::types::keywords::KeywordFlag;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
@@ -1580,7 +1579,7 @@ mod tests {
             timestamp: 1,
             affected_objects: ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(1), toughness: PtValue::Fixed(1) },
         };
@@ -1822,7 +1821,7 @@ mod tests {
             timestamp: game.allocate_timestamp(),
             affected_objects: ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             modification: EffectModification::AddColor(Color::Red),
         };
@@ -2092,7 +2091,7 @@ mod tests {
                 ),
                 EffectRecipient::FilteredPermanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             )),
         )
@@ -2167,7 +2166,7 @@ mod tests {
             timestamp: 1,
             affected_objects: ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             modification: EffectModification::ModifyPowerToughness {
                 power: PtValue::Fixed(1),
@@ -2234,7 +2233,7 @@ mod tests {
         let mut game = setup_two_player_game();
         let expr = AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Artifact)),
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            Box::new(ObjectFilter::ByController(PlayerSet::You)),
         )));
 
         // A card in hand has no controller of its own, so "you" is its owner

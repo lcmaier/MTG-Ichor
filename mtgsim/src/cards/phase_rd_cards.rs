@@ -148,7 +148,7 @@ use crate::types::costs::Cost;
 use crate::types::ids::AbilityId;
 use crate::types::effects::{
     AffectedSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
-    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -354,14 +354,14 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to an opponent or a permanent an opponent controls, that source deals double that damage to that player or permanent instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)), players: PlayerSet::Opponents },
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::Opponents)), players: PlayerSet::Opponents },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             ),
         ))
         .ability(static_replacement("If a source would deal damage to you or a permanent you control, prevent half that damage, rounded up.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)), players: PlayerSet::You },
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You)), players: PlayerSet::You },
                 Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Up)),
             ),
         ))
@@ -512,7 +512,7 @@ fn any_target() -> EffectRecipient {
 fn creatures_you_control() -> ObjectFilter {
     ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     )
 }
 
@@ -703,7 +703,7 @@ fn clerics_you_control() -> ObjectFilter {
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::And(
             Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Cleric))),
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            Box::new(ObjectFilter::ByController(PlayerSet::You)),
         )),
     )
 }
@@ -914,7 +914,7 @@ pub fn guardian_seraph() -> Arc<CardData> {
             ReplacementDef::new(
                 EventPattern::DealDamage {
                     source: Some(SourcePattern::matching(ObjectFilter::ByController(
-                        PlayerRef::Opponent,
+                        PlayerSet::Opponents,
                     ))),
                     combat: None,
                 },
@@ -1045,7 +1045,7 @@ pub fn fog() -> Arc<CardData> {
 /// `AmountRewrite::Plus`'s printed customer, and the phase's only **two-sided**
 /// predicate that constrains both sides with a filter: a source-side
 /// `ByColor(Red)` and `ByController(You)` beside a target-side
-/// `ByController(Opponent)` and `PlayerSet::Opponents`. Both are asked at the
+/// `ByController(Opponents)` and `PlayerSet::Opponents`. Both are asked at the
 /// event, so a creature that stops being red stops adding 2 (CR 609.7c).
 ///
 /// # The rulings (Scryfall, 2026-09-08), and where each is tested
@@ -1084,11 +1084,11 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
                 EventPattern::DealDamage {
                     source: Some(SourcePattern::matching(ObjectFilter::And(
                         Box::new(ObjectFilter::ByColor(Color::Red)),
-                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                        Box::new(ObjectFilter::ByController(PlayerSet::You)),
                     ))),
                     combat: None,
                 },
-                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)), players: PlayerSet::Opponents },
+                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::Opponents)), players: PlayerSet::Opponents },
                 Rewrite::Amount(AmountRewrite::Plus(2)),
             ),
         ))
@@ -1206,7 +1206,7 @@ pub fn palisade_giant() -> Arc<CardData> {
         )
         .ability(static_replacement("All damage that would be dealt to you and other permanents you control is dealt to this creature instead.", all_damage_to_you(
             ObjectSet::battlefield_filter(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                     Box::new(ObjectFilter::NotSource),
                 )),
             RetargetSpec::ToEffectSource,

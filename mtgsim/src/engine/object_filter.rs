@@ -17,7 +17,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::{ChosenTargets, FilterIdentity, TargetInstance};
 use crate::state::game_state::GameState;
 use crate::state::history_log::CombatSpan;
-use crate::types::effects::{CounterType, ObjectFilter, PlayerRef};
+use crate::types::effects::{PlayerSet, CounterType, ObjectFilter, PlayerRef};
 use crate::types::history::ObjectFact;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::objects::object::GameObject;
@@ -262,7 +262,7 @@ fn answer_or_refuse<'f>(
         ObjectFilter::ByColor(color) => Ok(chars()?.colors.contains(color)),
         ObjectFilter::ByController(who) => {
             let controller = chars()?.controller;
-            player_ref_names(game, who, controller, referents).ok_or(FilterRefusal::NoSource(id))
+            player_set_names(game, who, controller, referents).ok_or(FilterRefusal::NoSource(id))
         }
         // CR 111.1 / 707.2 — being a token is a property of the object, not of
         // its characteristics: a copy effect does not make a nontoken
@@ -308,16 +308,11 @@ fn answer_or_refuse<'f>(
                 }
                 ObjectFact::DealtDamageTo { player, combat } => {
                     let dealt: Vec<PlayerId> = log.players_dealt_damage_by(existence()?, *combat, turn, span, &note).collect();
-                    match player {
-                        None => !dealt.is_empty(),
-                        Some(who) => {
-                            let mut named = false;
-                            for dealt_to in dealt {
-                                named |= player_ref_names(game, who, dealt_to, referents).ok_or(FilterRefusal::NoSource(id))?;
-                            }
-                            named
-                        }
+                    let mut named = false;
+                    for dealt_to in dealt {
+                        named |= player_set_names(game, player, dealt_to, referents).ok_or(FilterRefusal::NoSource(id))?;
                     }
+                    named
                 }
             })
         }
@@ -327,7 +322,7 @@ fn answer_or_refuse<'f>(
                 Some(lki) => lki.owner(),
                 None => in_store(game, id, object)?.owner,
             };
-            player_ref_names(game, who, owner, referents).ok_or(FilterRefusal::NoSource(id))
+            player_set_names(game, who, owner, referents).ok_or(FilterRefusal::NoSource(id))
         }
         ObjectFilter::PowerLE(max_power) => {
             chars()?.power.map(|power| power <= *max_power).ok_or(FilterRefusal::NoPower(id))
@@ -435,16 +430,43 @@ pub(crate) fn player_ref_names(
 ) -> Option<bool> {
     Some(match who {
         PlayerRef::You => player == referents.you(),
-        PlayerRef::Opponent => player != referents.you(),
         PlayerRef::OwnerOf(Antecedent::ThisObject) => player == referents.source_owner()?,
         // A filter names no object acted on, and no other object's owner is
-        // built; an event's or a remembered player is no filter's.
+        // built; an event's or a remembered player is no filter's, and "an
+        // opponent" chosen is no filter's either: its "an opponent" is any.
         PlayerRef::Owner
         | PlayerRef::OwnerOf(_)
         | PlayerRef::TheEventsPlayer
-        | PlayerRef::ReferredPlayer => return None,
+        | PlayerRef::ReferredPlayer
+        | PlayerRef::Opponent => return None,
         PlayerRef::Player(pid) => player == *pid,
         PlayerRef::DefendingPlayer(creature) => referents.defending_player(game, *creature) == Some(player),
-        PlayerRef::AnyDefendingPlayer => game.is_defending_player(player),
+    })
+}
+
+/// Is `player` in `set`, for text whose words mean `referents`? A filter's
+/// player half: "you", every opponent (CR 102.2), every player, the
+/// defending players, or the one player a word names, which
+/// [`player_ref_names`] answers, `None` where it has no answer.
+pub(crate) fn player_set_names(
+    game: &GameState,
+    set: &PlayerSet,
+    player: PlayerId,
+    referents: &mut impl FilterReferents,
+) -> Option<bool> {
+    Some(match set {
+        PlayerSet::Nobody => false,
+        PlayerSet::You => player == referents.you(),
+        PlayerSet::Opponents => player != referents.you(),
+        PlayerSet::Everyone => true,
+        PlayerSet::DefendingPlayers => game.is_defending_player(player),
+        PlayerSet::Fixed(ids) => ids.contains(&player),
+        PlayerSet::Player(who) => {
+            debug_assert!(
+                !matches!(who, PlayerRef::You | PlayerRef::Opponent),
+                "{set:?}: a set's \"you\" is `PlayerSet::You` and its \"an opponent\" `PlayerSet::Opponents`"
+            );
+            return player_ref_names(game, who, player, referents);
+        }
     })
 }

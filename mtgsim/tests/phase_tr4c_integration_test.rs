@@ -45,7 +45,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{Antecedent, AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
+use mtgsim::types::effects::{PlayerSet, Antecedent, AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
@@ -98,7 +98,7 @@ fn gain_one() -> Effect {
 
 /// "Whenever [subject] moves `change`, you gain 1 life": an enchantment with
 /// that one ability.
-fn watcher(name: &str, subject: TriggerSubject, change: ZoneChangePattern, owner: Option<PlayerRef>) -> Arc<CardData> {
+fn watcher(name: &str, subject: TriggerSubject, change: ZoneChangePattern, owner: PlayerSet) -> Arc<CardData> {
     let arm = TriggerEvent::ZoneChange { subject, change, by: None, owner, multiplicity: Multiplicity::PerOccurrence };
     CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, gain_one()))).build()
 }
@@ -110,7 +110,7 @@ fn mover(name: &str, card_type: CardType, change: ZoneChangePattern) -> Arc<Card
         subject: TriggerSubject::Object(Antecedent::ThisObject),
         change,
         by: None,
-        owner: None,
+        owner: PlayerSet::Everyone,
         multiplicity: Multiplicity::PerOccurrence,
     };
     let card = CardDataBuilder::new(name).card_type(card_type);
@@ -396,7 +396,7 @@ fn a_card_leaving_a_graveyard_is_read_as_it_was_there() {
     put_on_battlefield(&mut game, painted_black(ZoneSet::GRAVEYARD), 1);
     let watching = put_on_battlefield(
         &mut game,
-        watcher("Fixture Black Leaver Watch", ObjectFilter::ByColor(Color::Black).into(), change(Some(Zone::Graveyard), None), None),
+        watcher("Fixture Black Leaver Watch", ObjectFilter::ByColor(Color::Black).into(), change(Some(Zone::Graveyard), None), PlayerSet::Everyone),
         0,
     );
     let card = put_in_graveyard(&mut game, white_card(), 1);
@@ -413,7 +413,7 @@ fn a_card_put_into_a_hand_from_exile_is_read_as_it_was_in_exile() {
     put_on_battlefield(&mut game, painted_black(ZoneSet::EXILE), 1);
     let watching = put_on_battlefield(
         &mut game,
-        watcher("Fixture Black Returner Watch", ObjectFilter::ByColor(Color::Black).into(), change(None, Some(Zone::Hand)), None),
+        watcher("Fixture Black Returner Watch", ObjectFilter::ByColor(Color::Black).into(), change(None, Some(Zone::Hand)), PlayerSet::Everyone),
         0,
     );
     let card = put_in_exile(&mut game, white_card(), 1);
@@ -437,7 +437,7 @@ fn creature_cards_leaving_the_game_from_an_opponents_graveyard_trigger_nothing()
             "Fixture Titan Watch",
             ObjectFilter::ByType(CardType::Creature).into(),
             change(Some(Zone::Graveyard), None),
-            Some(PlayerRef::Opponent),
+            PlayerSet::Opponents,
         ),
         0,
     );
@@ -614,13 +614,13 @@ fn leng_shaped() -> Arc<CardData> {
     use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
     use mtgsim::types::restriction::SourceFilter;
     let discard = ZoneChangePattern { from: Some(Zone::Hand), to: None, act: Some(ZoneChangeAct::Discarded) };
-    let yours = ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::ALL);
+    let yours = ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerSet::You), ZoneSet::ALL);
     let def = ReplacementDef::new(
         EventPattern::ZoneChange { change: discard, object: None },
         yours,
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
     )
-    .caused_by(SourceFilter::ControlledBy(PlayerRef::Opponent));
+    .caused_by(SourceFilter::ControlledBy(PlayerSet::Opponents));
     CardDataBuilder::new("Fixture Leng").card_type(CardType::Artifact).ability(static_ability(Effect::Replacement(Box::new(def)))).build()
 }
 
@@ -824,7 +824,7 @@ fn from_anywhere_twin() -> Arc<CardData> {
                         subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
                         change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                         by: None,
-                        owner: Some(PlayerRef::You),
+                        owner: PlayerSet::You,
                         multiplicity: Multiplicity::PerOccurrence,
                     },
                     Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),

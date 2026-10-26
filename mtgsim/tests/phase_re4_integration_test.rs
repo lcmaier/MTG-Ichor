@@ -676,7 +676,7 @@ fn a_creation_is_reported_as_decided_and_the_log_counts_what_was_created() {
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             Rewrite::Prevent,
         )

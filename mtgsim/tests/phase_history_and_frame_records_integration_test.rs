@@ -149,7 +149,7 @@ fn fixture_exiles_tithe() -> std::sync::Arc<mtgsim::objects::card_data::CardData
         subject: TriggerSubject::Filter(ObjectFilter::All),
         change: ZoneChangePattern { from: Some(Zone::Hand), to: Some(Zone::Exile), act: None },
         by: None,
-        owner: None,
+        owner: PlayerSet::Everyone,
         multiplicity: Multiplicity::PerOccurrence,
     };
     let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Player(PlayerRef::You));

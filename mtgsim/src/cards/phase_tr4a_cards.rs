@@ -18,7 +18,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    PlayerSet, Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -148,7 +148,7 @@ pub fn compost() -> Arc<CardData> {
         subject: TriggerSubject::Filter(black_card),
         change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
         by: None,
-        owner: Some(PlayerRef::Opponent),
+        owner: PlayerSet::Opponents,
         multiplicity: Multiplicity::PerOccurrence,
     };
     let may_draw = Effect::Optional {

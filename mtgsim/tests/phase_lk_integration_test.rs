@@ -30,7 +30,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    PlayerSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
@@ -176,7 +176,7 @@ fn test_an_anthem_in_a_graveyard_does_not_apply_it() {
             ),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
         )),
     );

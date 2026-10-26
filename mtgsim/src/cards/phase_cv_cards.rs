@@ -23,7 +23,7 @@ use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    CharacteristicEdit, CopyException, CopyRoles, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    PlayerSet, CharacteristicEdit, CopyException, CopyRoles, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
@@ -178,7 +178,7 @@ pub fn mirrorform() -> Arc<CardData> {
                             Box::new(ObjectFilter::Not(Box::new(
                                 ObjectFilter::ByType(CardType::Land),
                             ))),
-                            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                            Box::new(ObjectFilter::ByController(PlayerSet::You)),
                         ),
                         exclude_donor: false,
                     },
@@ -387,7 +387,7 @@ pub fn spark_double() -> Arc<CardData> {
             Box::new(ObjectFilter::ByType(CardType::Creature)),
             Box::new(ObjectFilter::ByType(CardType::Planeswalker)),
         )),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     );
     CardDataBuilder::new("Spark Double")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 3))

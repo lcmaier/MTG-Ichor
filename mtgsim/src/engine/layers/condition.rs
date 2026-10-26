@@ -29,7 +29,7 @@ use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
 use crate::state::player::PlayerState;
 use crate::types::costs::AdditionalCost;
-use crate::types::effects::{Antecedent, Condition, ObjectFilter, PlayerFact, PlayerSet};
+use crate::types::effects::{PlayerRef, Antecedent, Condition, ObjectFilter, PlayerFact, PlayerSet};
 use crate::types::history::{CountIs, HistoryCount, HistorySpan};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::engine::triggers::binding::TriggeringEventView;
@@ -133,19 +133,29 @@ pub(super) fn holds(
         // "As long as you control a Forest", "as long as an opponent has 10 or
         // less life": a fact about each player the set names.
         Condition::Player { players, fact: player_fact } => {
-            player_fact_holds(players, player_fact, game, board, source, layer_index, locked_you, owner_if_gone)
-        }
-        // CR 508.5: the fact about one player, the creature's defending player.
-        // It attacks what the battlefield says, or what the history kept.
-        Condition::DefendingPlayer { of, fact: player_fact } => {
-            let note = |input| board.note_gated_read(input);
-            match referents.object_for(game, *of, source).and_then(|it| it.defending_player(game, &note)) {
-                Some(defending) => {
-                    let players = PlayerSet::Fixed(vec![defending]);
-                    player_fact_holds(&players, player_fact, game, board, source, layer_index, locked_you, owner_if_gone)
+            let named;
+            let players = match players {
+                // CR 508.5: the creature's defending player. It attacks what
+                // the battlefield says, or what the history kept.
+                PlayerSet::Player(PlayerRef::DefendingPlayer(of)) => {
+                    let note = |input| board.note_gated_read(input);
+                    match referents.object_for(game, *of, source).and_then(|it| it.defending_player(game, &note)) {
+                        Some(defending) => {
+                            named = PlayerSet::Fixed(vec![defending]);
+                            &named
+                        }
+                        None => return false,
+                    }
                 }
-                None => false,
-            }
+                PlayerSet::DefendingPlayers => {
+                    named = PlayerSet::Fixed((0..game.players.len()).filter(|&player| game.is_defending_player(player)).collect());
+                    &named
+                }
+                // Another one player a condition names is built with its card.
+                PlayerSet::Player(_) => return false,
+                PlayerSet::Nobody | PlayerSet::You | PlayerSet::Opponents | PlayerSet::Everyone | PlayerSet::Fixed(_) => players,
+            };
+            player_fact_holds(players, player_fact, game, board, source, layer_index, locked_you, owner_if_gone)
         }
 
         // Every clause, short-circuiting.

@@ -201,10 +201,10 @@ pub fn nephalia_academy() -> Arc<CardData> {
                     // permanent's controller's hand. Ownership rather than
                     // control, because a card in a hand has no controller and
                     // CR 400.3 sends a discard to its owner's graveyard.
-                    ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::HAND),
+                    ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerSet::You), ZoneSet::HAND),
                     Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
                 )
-                .caused_by(SourceFilter::ControlledBy(PlayerRef::Opponent))
+                .caused_by(SourceFilter::ControlledBy(PlayerSet::Opponents))
                 .optional(),
             )),
         })

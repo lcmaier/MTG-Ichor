@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, Subtype, Supertype, CreatureType};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Duration, Effect, ManaOutput, ObjectFilter, PlayerRef, Primitive, TargetCount, EffectRecipient, SelectionFilter};
+use crate::types::effects::{PlayerSet, AmountExpr, Duration, Effect, ManaOutput, ObjectFilter, PlayerRef, Primitive, TargetCount, EffectRecipient, SelectionFilter};
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -127,7 +127,7 @@ pub fn glorious_anthem() -> Arc<CardData> {
                 ),
                 EffectRecipient::FilteredPermanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             ),
         })

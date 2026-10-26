@@ -37,7 +37,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
+    PlayerSet, Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId};
 use mtgsim::types::triggers::{
@@ -140,7 +140,7 @@ fn one_ability_triggers_once_per_death_across_a_survivors_two_lists() {
                 subject: TriggerSubject::Filter(a_creature()),
                 change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                 by: None,
-                owner: None,
+                owner: PlayerSet::Everyone,
                 multiplicity: Multiplicity::PerOccurrence,
             },
         ]),
@@ -201,7 +201,7 @@ fn a_creature() -> ObjectFilter {
 fn dread_shaped() -> Arc<CardData> {
     let damage = TriggerEvent::DamageDealt {
         source: a_creature().into(),
-        recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+        recipient: DamageRecipient::Player(PlayerSet::You),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,
@@ -210,7 +210,7 @@ fn dread_shaped() -> Arc<CardData> {
         subject: TriggerSubject::Object(Antecedent::ThisObject),
         change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
         by: None,
-        owner: None,
+        owner: PlayerSet::Everyone,
         multiplicity: Multiplicity::PerOccurrence,
     };
     CardDataBuilder::new("Incarnate Menace")

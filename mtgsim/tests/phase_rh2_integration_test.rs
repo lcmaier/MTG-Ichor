@@ -73,7 +73,7 @@ fn granter_while_you_control_a_creature() -> Arc<CardData> {
                 Primitive::GrantAbility(Arc::new(granted), Duration::WhileSourceOnBattlefield),
                 EffectRecipient::FilteredPermanents(ObjectFilter::And(
                     Box::new(a_creature()),
-                    Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
                 )),
             )),
         )))

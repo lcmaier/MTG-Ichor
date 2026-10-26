@@ -17,7 +17,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    PlayerSet, Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -85,7 +85,7 @@ pub fn ray_of_command() -> Arc<CardData> {
     let text = "Untap target creature an opponent controls and gain control of it until end of turn. That creature gains haste until end of turn. When you lose control of the creature, tap it.";
     let creature_an_opponent_controls = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+        Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
     );
     let tap_it = DelayedTriggerTemplate {
         def: Arc::new(whenever(

@@ -5,7 +5,7 @@ use crate::types::card_types::{CardType, CardTypes, Supertype, Subtype, Subtypes
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::cost_modification::{CostChange, CostModificationDef};
-use crate::types::effects::{ObjectSet, AmountExpr, Effect, ManaOutput, ObjectFilter, PlayerRef, Primitive, EffectRecipient, SelectionFilter, TargetCount};
+use crate::types::effects::{PlayerSet, ObjectSet, AmountExpr, Effect, ManaOutput, ObjectFilter, Primitive, EffectRecipient, SelectionFilter, TargetCount};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::ids::AbilityId;
@@ -313,7 +313,7 @@ impl CardDataBuilder {
     pub fn affinity_for(self, rules_text: &'static str, filter: ObjectFilter) -> Self {
         let you_control = ObjectFilter::And(
             Box::new(filter),
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            Box::new(ObjectFilter::ByController(PlayerSet::You)),
         );
         self.ability(
             CostModificationDef::itself(CostChange::ReduceGeneric(AmountExpr::CountOf(

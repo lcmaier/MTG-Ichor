@@ -39,7 +39,7 @@ use crate::types::colors::Color;
 use crate::types::cost_modification::{CostChange, CostModificationDef};
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{
-    AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    PlayerSet, AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -48,7 +48,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// "Spells you cast" — CR 109.5's "you" is the source's current controller,
 /// and a spell's controller is its caster.
 fn you_cast(filter: ObjectFilter) -> ObjectFilter {
-    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::ByController(PlayerRef::You)))
+    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::ByController(PlayerSet::You)))
 }
 
 /// Thalia, Guardian of Thraben — {1}{W}

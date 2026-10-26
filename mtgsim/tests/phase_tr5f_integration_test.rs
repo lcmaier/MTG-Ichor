@@ -571,7 +571,7 @@ fn a_token_put_onto_the_battlefield_attacking_never_attacked() {
 #[test]
 fn a_token_put_onto_the_battlefield_attacking_triggers_no_defender_or_player() {
     let mut game = stocked(2);
-    put_on_battlefield(&mut game, watcher("Fixture Watchtower", is_attacked(DefenderFilter::Player(None)), gain_one()), 0);
+    put_on_battlefield(&mut game, watcher("Fixture Watchtower", is_attacked(DefenderFilter::Player(PlayerSet::Everyone)), gain_one()), 0);
     put_on_battlefield(&mut game, watcher("Fixture War Drum", player_attacks(Whose::Yours), gain_one()), 0);
     let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
     declare(&mut game, &[garrison], &[(garrison, 1)]);
@@ -729,7 +729,7 @@ fn a_creature_put_onto_the_battlefield_attacking_makes_combat_happen() {
 fn a_token_attacking_that_player_attacks_the_player_named() {
     let defending = EntersAttacking::Player {
         player: EffectRecipient::Player(PlayerRef::DefendingPlayer(Antecedent::ThisObject)),
-        among: DefenderFilter::Player(None),
+        among: DefenderFilter::Player(PlayerSet::Everyone),
     };
     let same = EntersAttacking::SameAs(Antecedent::ThisObject);
     for entering in [defending, same] {
@@ -876,7 +876,7 @@ fn the_log_leaves_a_rules_sweep_implicit() {
 /// shows whole, while the end of combat, which nothing read, stays implicit.
 #[test]
 fn a_sweep_a_trigger_reads_is_a_line() {
-    let yours = TriggerSubject::Filter(ObjectFilter::ByController(PlayerRef::You));
+    let yours = TriggerSubject::Filter(ObjectFilter::ByController(PlayerSet::You));
     let watching = watcher("Fixture Dawn Bell", TriggerEvent::BecomesUntapped { subject: yours }, gain_one());
     let game = a_combat_then_an_untap_step(Some(watching));
     let recorded = game.recorded_events();
@@ -1043,8 +1043,8 @@ fn a_static_reading_its_tapped_status_answers_anew_as_it_taps() {
 #[test]
 fn a_static_reading_its_defending_player_answers_anew_as_it_attacks() {
     let mut game = stocked(2);
-    let condition = Condition::DefendingPlayer {
-        of: Antecedent::ThisObject,
+    let condition = Condition::Player {
+        players: PlayerSet::Player(PlayerRef::DefendingPlayer(Antecedent::ThisObject)),
         fact: PlayerFact::ControlsPermanent(ObjectFilter::All),
     };
     let creature = put_on_battlefield(&mut game, while_it("Fixture Raider", condition, plus_one()), 0);

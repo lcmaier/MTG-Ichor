@@ -47,7 +47,7 @@ use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    Effect, EffectRecipient, ExtraPhasesAfter, ObjectFilter, PlayerRef, Primitive,
+    PlayerSet, Effect, EffectRecipient, ExtraPhasesAfter, ObjectFilter, PlayerRef, Primitive,
 };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
@@ -56,7 +56,7 @@ use crate::types::mana::{ManaCost, ManaType};
 fn creatures_you_control() -> ObjectFilter {
     ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     )
 }
 

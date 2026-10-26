@@ -513,7 +513,7 @@ mod tests {
         // "Creatures defending player controls get +3/+0", from the bears.
         let mut pumped = pump(bears, 10);
         pumped.affected_objects = ObjectSet::Filter {
-            filter: ObjectFilter::ByController(PlayerRef::DefendingPlayer(Antecedent::ThisObject)),
+            filter: ObjectFilter::ByController(PlayerSet::Player(PlayerRef::DefendingPlayer(Antecedent::ThisObject))),
             zones: ZoneSet::of(Zone::Battlefield),
         };
         game.continuous_effects.add(pumped);

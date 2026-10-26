@@ -158,14 +158,14 @@ fn a_counter_on(recipient: EffectRecipient) -> Effect {
 }
 
 fn creature_you_control() -> ObjectFilter {
-    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))
+    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerSet::You)))
 }
 
 /// "Whenever [a creature you control] deals combat damage to a player".
 fn combat_damage_to_a_player(multiplicity: Multiplicity) -> TriggerEvent {
     TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(creature_you_control()),
-        recipient: DamageRecipient::Player(None),
+        recipient: DamageRecipient::Player(PlayerSet::Everyone),
         combat: Some(true),
         excess: false, multiplicity,
     }
@@ -300,7 +300,7 @@ fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
     ]);
     let dealt_damage_by_a_creature = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
-        recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+        recipient: DamageRecipient::Player(PlayerSet::You),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,
@@ -373,7 +373,7 @@ fn them_over_entries_is_each_creature_still_there() {
     let on_each = a_counter_on(EffectRecipient::Object(Antecedent::Triggering(EventRole::Object)));
     let enters = TriggerEvent::EntersBattlefield {
         subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
-        controller: Some(PlayerRef::You),
+        controller: PlayerSet::You,
         from: None,
         was_cast: None,
         multiplicity: Multiplicity::OncePerEvent,
@@ -474,7 +474,7 @@ fn an_intervening_if_counts_every_kind_of_counter_it_had() {
     };
     let leaves = mtgsim::cards::authoring::leaves_the_battlefield(TriggerSubject::Filter(ObjectFilter::And(
         Box::new(ObjectFilter::NotSource),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     )));
     let def = TriggerDef {
         condition: TriggerCondition::Event(leaves.into()),

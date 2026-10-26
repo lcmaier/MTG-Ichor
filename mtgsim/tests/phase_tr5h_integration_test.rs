@@ -289,7 +289,7 @@ fn was_dealt_damage_this_turn_reads_the_rows_dealt_to_it() {
 #[test]
 fn dealt_combat_damage_to_an_opponent_reads_whom_and_how() {
     let mut game = setup_two_player_game();
-    let fact = ObjectFact::DealtDamageTo { player: Some(PlayerRef::Opponent), combat: true };
+    let fact = ObjectFact::DealtDamageTo { player: PlayerSet::Opponents, combat: true };
     put_on_battlefield(&mut game, banner_over(fact), 0);
     let raider = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let pinger = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -335,7 +335,7 @@ fn anthem_of(amount: AmountExpr) -> Arc<CardData> {
 fn a_static_amounts_you_follows_its_source_to_a_new_controller() {
     let quick = || free_spell("Quick Ritual", CardType::Instant, Effect::Sequence(Vec::new()));
     let spells = AmountExpr::History(HistorySpan::ThisTurn, Box::new(spells_you_cast(None)));
-    let hand = AmountExpr::CountOf(ObjectSet::hand(PlayerRef::You));
+    let hand = AmountExpr::CountOf(ObjectSet::hand(PlayerSet::You));
     for (amount, what) in [(spells, "spells cast"), (hand, "cards in hand")] {
         let mut game = setup_two_player_game();
         let totem = put_on_battlefield(&mut game, anthem_of(amount), 0);
@@ -369,7 +369,7 @@ fn a_gone_sources_history_filter_reads_its_owner_off_its_last_known_information(
     );
     game.battlefield.remove(&relic);
     game.objects.remove(&relic);
-    let owners_spells = spells_you_cast(Some(ObjectFilter::ByOwner(PlayerRef::OwnerOf(Antecedent::ThisObject))));
+    let owners_spells = spells_you_cast(Some(ObjectFilter::ByOwner(PlayerSet::Player(PlayerRef::OwnerOf(Antecedent::ThisObject)))));
     let cast_one = Condition::ThisTurn(owners_spells, CountIs::AtLeast(1));
     let referents = ConditionReferents { source_lki: Some(&lki), ..ConditionReferents::NONE };
     assert!(settled_holds(&cast_one, &game, relic, Some(0), referents), "player 0 owned both");

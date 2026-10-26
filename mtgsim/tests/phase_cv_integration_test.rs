@@ -37,7 +37,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    PlayerSet, AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -120,7 +120,7 @@ fn anthem_bear() -> Arc<CardData> {
             ),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
         )))
         .build()
@@ -836,8 +836,8 @@ fn restriction_creature() -> Arc<CardData> {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
-                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
-                by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
+                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You))),
+                by: Some(SourceFilter::ControlledBy(PlayerSet::Opponents)),
             }))),
         })
         .build()

@@ -213,7 +213,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 ///            pattern:  ZoneChange { from: Battlefield, to: Graveyard,
 ///                                   act: Sacrificed, object: None },
 ///            affected: objects(Filter { ByController(You) }),
-///            by:       Some(ControlledBy(Opponent)),
+///            by:       Some(ControlledBy(Opponents)),
 ///        }
 /// source     = <Sigarda>          controller = P0   (CR 109.5: hers, now)
 /// query      = Query::EventHappens {

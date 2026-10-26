@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
-use crate::types::effects::{ObjectFilter, PlayerRef};
+use crate::types::effects::{PlayerSet, ObjectFilter};
 use crate::types::mana::ManaCost;
 use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerEvent, TriggerMultiplierDef, TriggerSubject};
 
@@ -59,12 +59,12 @@ pub fn panharmonicon() -> Arc<CardData> {
     let multiplier = TriggerMultiplierDef {
         caused_by: Some(TriggerCondition::Event(TriggerEvent::EntersBattlefield {
             subject: TriggerSubject::Filter(artifact_or_creature),
-            controller: None,
+            controller: PlayerSet::Everyone,
             from: None,
             was_cast: None,
             multiplicity: Multiplicity::PerOccurrence,
         })),
-        abilities_of: ObjectFilter::ByController(PlayerRef::You),
+        abilities_of: ObjectFilter::ByController(PlayerSet::You),
         additional: 1,
     };
     CardDataBuilder::new("Panharmonicon")

@@ -39,7 +39,7 @@ use mtgsim::test_support::{RecordingDecisionProvider,
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    PlayerSet, AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
@@ -117,7 +117,7 @@ fn small_creatures_enter_tapped(n: i32) -> Arc<CardData> {
 
 /// Kismet's second clause: "Permanents your opponents control enter tapped."
 fn kismet_shaped() -> Arc<CardData> {
-    enter_tapped_when("Kismet-shaped", ObjectFilter::ByController(PlayerRef::Opponent))
+    enter_tapped_when("Kismet-shaped", ObjectFilter::ByController(PlayerSet::Opponents))
 }
 
 /// A 2/2 with "Creatures you control get +1/+1" — self-including, unlike
@@ -136,7 +136,7 @@ fn anthem_bear() -> Arc<CardData> {
             ),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
         )),
     )
@@ -219,7 +219,7 @@ fn no_minus_counters_on_your_creatures() -> Restriction {
         pattern: EventPattern::AddCounters { counter: Some(CounterType::MinusOneMinusOne), by: None },
         affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             ))),
         by: None,
     }

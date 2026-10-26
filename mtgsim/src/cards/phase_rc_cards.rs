@@ -67,8 +67,8 @@ use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    Antecedent, ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Duration, Effect, EffectRecipient,
-    ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
+    PlayerSet, Antecedent, ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Duration, Effect, EffectRecipient,
+    ObjectFilter, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -336,7 +336,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
 /// # Why this card out of the four
 ///
 /// Kismet, Loxodon Gatekeeper and Frozen Aether all scope to "your opponents",
-/// which is `ObjectFilter::ByController(PlayerRef::Opponent)` — and that
+/// which is `ObjectFilter::ByController(PlayerSet::Opponents)` — and that
 /// leaf reads `chars.controller`, which for an entering permanent comes from
 /// `compute::base_controller`'s owner fallback. Right for a land drop, wrong
 /// for a permanent spell cast by a non-owner, and unowned until this phase
@@ -551,7 +551,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
         AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(
             Box::new(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
             Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(
                 Subtype::Creature(CreatureType::Wall),
@@ -631,7 +631,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
 /// **Sigarda, Host of Herons is in the same pool and does not stop it**, which
 /// is worth stating because the opposite is the easy assumption. Her sentence
 /// is "spells and abilities **your opponents control** can't cause you to
-/// sacrifice permanents" — a `SourceFilter::ControlledBy(Opponent)` — and
+/// sacrifice permanents" — a `SourceFilter::ControlledBy(Opponents)` — and
 /// devour is your own creature's ability, so your own Sigarda is a legal
 /// candidate for it. What the pair does measure is that the `cause` the
 /// candidate filter asks CR 101.2 with is the *effect's* controller: get that
@@ -671,7 +671,7 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
                     // filter leaf, because control and ownership diverge there.
                     filter: ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
-                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                        Box::new(ObjectFilter::ByController(PlayerSet::You)),
                     ),
                     to: Zone::Graveyard,
                     act: ZoneChangeAct::Sacrificed,
@@ -852,7 +852,7 @@ pub fn master_biomancer() -> Arc<CardData> {
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
-                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                        Box::new(ObjectFilter::ByController(PlayerSet::You)),
                     )),
                 Rewrite::EnterWith(EnterModsTemplate {
                     edits: vec![CharacteristicEdit::Types(TypeChange {

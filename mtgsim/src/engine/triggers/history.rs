@@ -367,6 +367,7 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::effects::{PlayerSet};
     use crate::state::history::PLACED_FACTS;
     use crate::types::triggers::{Multiplicity, TriggerEvent};
 
@@ -379,10 +380,10 @@ mod tests {
     fn the_placed_facts_agree() {
         let each = Multiplicity::PerOccurrence;
         let arms_and_their_records = [
-            (TriggerEvent::CastsSpell { caster: None, spell: None }, HistoryUpdate::SpellCast { caster: 0 }),
-            (TriggerEvent::DrawsCard { player: None, multiplicity: each, place: None }, HistoryUpdate::CardDrawn { player: 0 }),
-            (TriggerEvent::GainsLife { player: None, multiplicity: each }, HistoryUpdate::LifeGained { player: 0 }),
-            (TriggerEvent::LosesLife { player: None, multiplicity: each }, HistoryUpdate::LifeLost { player: 0 }),
+            (TriggerEvent::CastsSpell { caster: PlayerSet::Everyone, spell: None }, HistoryUpdate::SpellCast { caster: 0 }),
+            (TriggerEvent::DrawsCard { player: PlayerSet::Everyone, multiplicity: each, place: None }, HistoryUpdate::CardDrawn { player: 0 }),
+            (TriggerEvent::GainsLife { player: PlayerSet::Everyone, multiplicity: each }, HistoryUpdate::LifeGained { player: 0 }),
+            (TriggerEvent::LosesLife { player: PlayerSet::Everyone, multiplicity: each }, HistoryUpdate::LifeLost { player: 0 }),
         ];
         let mut counted = Vec::new();
         for (arm, record) in &arms_and_their_records {

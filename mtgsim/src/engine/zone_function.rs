@@ -384,7 +384,7 @@ mod tests {
             subject: TriggerSubject::Object(Antecedent::ThisObject),
             change: ZoneChangePattern { from: Some(from), to, act },
             by: None,
-            owner: None,
+            owner: PlayerSet::Everyone,
             multiplicity: crate::types::triggers::Multiplicity::PerOccurrence,
         };
         ability(Effect::Triggered(std::sync::Arc::new(crate::cards::authoring::whenever(

@@ -19,7 +19,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet,
+    Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet,
     Primitive,
 };
 use crate::types::ids::AbilityId;
@@ -46,7 +46,7 @@ fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
 fn creatures_you_control() -> ObjectFilter {
     ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     )
 }
 

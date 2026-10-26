@@ -189,7 +189,7 @@ pub fn candidate_priority_actions(game: &GameState, player_id: PlayerId) -> Vec<
 /// target for itself" — the object being cast or activated, which the
 /// `Spell` and `DamageSource` filters would otherwise offer back to it.
 /// `you` is CR 109.5's "you" for the filter — the player the selection is being
-/// made for, which is who a `ByController(PlayerRef::You)` node names.
+/// made for, which is who a `ByController(PlayerSet::You)` node names.
 pub fn enumerate_legal_selections(
     game: &GameState,
     filter: &crate::types::effects::SelectionFilter,

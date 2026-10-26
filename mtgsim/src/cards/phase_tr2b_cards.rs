@@ -70,7 +70,7 @@ fn you_may_put_counters(amount: AmountExpr, recipient: EffectRecipient) -> Effec
 pub fn nykthos_paragon() -> Arc<CardData> {
     let each_creature_you_control = EffectRecipient::FilteredPermanents(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ));
     CardDataBuilder::new("Nykthos Paragon")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 4))
@@ -86,7 +86,7 @@ pub fn nykthos_paragon() -> Arc<CardData> {
         )
         .ability(triggered_ability("Whenever you gain life, you may put that many +1/+1 counters on each creature you control. Do this only once each turn.", TriggerDef {
             condition: TriggerCondition::Event(TriggerEvent::GainsLife {
-                player: Some(PlayerRef::You),
+                player: PlayerSet::You,
                 multiplicity: Multiplicity::PerOccurrence,
             }),
             intervening_if: None,
@@ -114,7 +114,7 @@ pub fn nykthos_paragon() -> Arc<CardData> {
 ///   trigger that many times."* (#1)
 ///   → `phase_tr2b_integration_test::psychosis_crawler_cast_from_hand_drains_once_per_card_drawn`.
 pub fn psychosis_crawler() -> Arc<CardData> {
-    let cards_in_your_hand = || AmountExpr::CountOf(ObjectSet::hand(PlayerRef::You));
+    let cards_in_your_hand = || AmountExpr::CountOf(ObjectSet::hand(PlayerSet::You));
     CardDataBuilder::new("Psychosis Crawler")
         .mana_cost(ManaCost::build(&[], 5))
         .card_type(CardType::Artifact)

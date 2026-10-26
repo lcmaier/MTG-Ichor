@@ -13,7 +13,7 @@
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
 use crate::state::game_state::StepType;
 use crate::types::effects::{
-    Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, TokenDef,
+    Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, ReturnUnder, TokenDef,
 };
 use crate::types::history::CountIs;
 use crate::types::replacement::EntryCounters;
@@ -77,11 +77,10 @@ impl From<ObjectFilter> for TriggerSubject {
 }
 
 /// Whose step, phase, draw or shuffle a card means — the word for the
-/// `Option`s on a [`TriggerEvent`] where `None` is a *distributive* reading
-/// rather than an unasked question. "At the beginning of each upkeep" is `whose: None` at
-/// the type, and a card that spells it `None` tells the next reader
-/// "nobody's upkeep". Everywhere else `None` does mean the arm does not
-/// ask, and a card says that by not calling a constructor that sets it.
+/// player sets on a [`TriggerEvent`] where `Everyone` is a *distributive*
+/// reading rather than an unasked question. "At the beginning of each
+/// upkeep" is `whose: PlayerSet::Everyone` at the type, and this word says
+/// "each" for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Whose {
     /// "Each upkeep" — every player's, whoever's turn it is.
@@ -93,12 +92,12 @@ pub enum Whose {
 }
 
 impl Whose {
-    /// The type-level spelling the matcher reads (`dispatch::player_ref_is`).
-    fn player_ref(self) -> Option<PlayerRef> {
+    /// The type-level spelling the matcher reads (`dispatch::player_set_is`).
+    fn player_set(self) -> PlayerSet {
         match self {
-            Whose::Each => None,
-            Whose::Yours => Some(PlayerRef::You),
-            Whose::AnOpponents => Some(PlayerRef::Opponent),
+            Whose::Each => PlayerSet::Everyone,
+            Whose::Yours => PlayerSet::You,
+            Whose::AnOpponents => PlayerSet::Opponents,
         }
     }
 }
@@ -112,7 +111,7 @@ pub struct CounterEvent {
     direction: CounterDirection,
     subject: ObjectOrPlayerSubject,
     counter_type: Option<CounterType>,
-    by: Option<PlayerRef>,
+    by: PlayerSet,
 }
 
 /// Which of the two counter records a [`CounterEvent`] reads.
@@ -135,8 +134,8 @@ impl CounterEvent {
 
     /// "Whenever [who] put[s]" or "remove[s]": the record's player (CR
     /// 122.6a for a put).
-    pub fn by(self, who: PlayerRef) -> CounterEvent {
-        CounterEvent { by: Some(who), ..self }
+    pub fn by(self, who: PlayerSet) -> CounterEvent {
+        CounterEvent { by: who, ..self }
     }
 
     fn counted(self, multiplicity: Multiplicity) -> TriggerEvent {
@@ -161,7 +160,7 @@ pub fn counters_put_on(subject: impl Into<TriggerSubject>, counter_type: impl In
         direction: CounterDirection::PutOn,
         subject: ObjectOrPlayerSubject::Object(subject.into()),
         counter_type: counter_type.into(),
-        by: None,
+        by: PlayerSet::Everyone,
     }
 }
 
@@ -174,13 +173,13 @@ pub fn counters_removed_from(
         direction: CounterDirection::RemovedFrom,
         subject: ObjectOrPlayerSubject::Object(subject.into()),
         counter_type: counter_type.into(),
-        by: None,
+        by: PlayerSet::Everyone,
     }
 }
 
 /// "At the beginning of [whose] [step]".
 pub fn at_beginning_of(step: StepType, whose: Whose) -> TriggerEvent {
-    TriggerEvent::StepBegins { step, whose: whose.player_ref() }
+    TriggerEvent::StepBegins { step, whose: whose.player_set() }
 }
 
 /// A trigger event whose arm carries CR 603.2c's multiplicity, and therefore
@@ -219,7 +218,7 @@ pub fn dies(subject: impl Into<TriggerSubject>) -> CountableEvent {
         subject: subject.into(),
         change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
         by: None,
-        owner: None,
+        owner: PlayerSet::Everyone,
         multiplicity: Multiplicity::PerOccurrence,
     })
 }
@@ -232,7 +231,7 @@ pub fn leaves_the_battlefield(subject: impl Into<TriggerSubject>) -> CountableEv
         subject: subject.into(),
         change: ZoneChangePattern { from: Some(Zone::Battlefield), to: None, act: None },
         by: None,
-        owner: None,
+        owner: PlayerSet::Everyone,
         multiplicity: Multiplicity::PerOccurrence,
     })
 }
@@ -245,7 +244,7 @@ pub fn is_sacrificed(subject: impl Into<TriggerSubject>) -> CountableEvent {
         subject: subject.into(),
         change: ZoneChangePattern { from: Some(Zone::Battlefield), to: None, act: Some(ZoneChangeAct::Sacrificed) },
         by: None,
-        owner: None,
+        owner: PlayerSet::Everyone,
         multiplicity: Multiplicity::PerOccurrence,
     })
 }
@@ -312,7 +311,7 @@ fn reflexive(form: ReflexiveForm, event: TriggerEvent, effect: Effect, rules_tex
 /// that made another token instead does not match.
 pub fn creates_a_token(whose: Whose, definition: Option<TokenDef>) -> CountableEvent {
     CountableEvent(TriggerEvent::CreatesToken {
-        owner: whose.player_ref(),
+        owner: whose.player_set(),
         definition: definition.map(Box::new),
         multiplicity: Multiplicity::PerOccurrence,
     })
@@ -320,13 +319,13 @@ pub fn creates_a_token(whose: Whose, definition: Option<TokenDef>) -> CountableE
 
 /// "Whenever [whose player] scr[y/ies]" (CR 701.22).
 pub fn scries(whose: Whose) -> TriggerEvent {
-    TriggerEvent::Scries { player: whose.player_ref() }
+    TriggerEvent::Scries { player: whose.player_set() }
 }
 
 /// "Whenever [whose player] draw[s] a card" (CR 121.1): one trigger per card
 /// drawn.
 pub fn draws_a_card(whose: Whose) -> CountableEvent {
-    CountableEvent(TriggerEvent::DrawsCard { player: whose.player_ref(), multiplicity: Multiplicity::PerOccurrence, place: None })
+    CountableEvent(TriggerEvent::DrawsCard { player: whose.player_set(), multiplicity: Multiplicity::PerOccurrence, place: None })
 }
 
 /// "Whenever damage that would be dealt to [recipient] is prevented" (CR
@@ -339,29 +338,29 @@ pub fn damage_to_is_prevented(recipient: DamageRecipient) -> CountableEvent {
 /// "Whenever a spell [whose player]'s cast is countered" (CR 701.6a): "a spell
 /// you've cast" is `Whose::Yours`, read off who cast it (CR 603.10e).
 pub fn spell_is_countered(cast_by: Whose) -> TriggerEvent {
-    TriggerEvent::IsCountered { spell: None, caster: cast_by.player_ref() }
+    TriggerEvent::IsCountered { spell: None, caster: cast_by.player_set() }
 }
 
 /// "When you lose control of [subject]" (CR 603.10d), which leaving the
 /// battlefield is too (Khârn the Betrayer's first ruling).
 pub fn you_lose_control_of(subject: impl Into<TriggerSubject>) -> TriggerEvent {
-    TriggerEvent::ControlChanges { subject: subject.into(), from: Some(PlayerRef::You), to: None }
+    TriggerEvent::ControlChanges { subject: subject.into(), from: PlayerSet::You, to: PlayerSet::Everyone }
 }
 
 /// "Whenever an opponent gains control of [subject] from you" (CR 603.10d).
 pub fn an_opponent_gains_control_of(subject: impl Into<TriggerSubject>) -> TriggerEvent {
-    TriggerEvent::ControlChanges { subject: subject.into(), from: Some(PlayerRef::You), to: Some(PlayerRef::Opponent) }
+    TriggerEvent::ControlChanges { subject: subject.into(), from: PlayerSet::You, to: PlayerSet::Opponents }
 }
 
 /// "Whenever [whose player] loses the game" (CR 603.9): "a player" is
 /// `Whose::Each`, "an opponent" `Whose::AnOpponents`.
 pub fn loses_the_game(whose: Whose) -> TriggerEvent {
-    TriggerEvent::PlayerLoses { player: whose.player_ref() }
+    TriggerEvent::PlayerLoses { player: whose.player_set() }
 }
 
 /// "Whenever [whose player] shuffle[s] their library" (CR 701.24).
 pub fn shuffles_their_library(whose: Whose) -> TriggerEvent {
-    TriggerEvent::ShufflesLibrary { player: whose.player_ref() }
+    TriggerEvent::ShufflesLibrary { player: whose.player_set() }
 }
 
 /// "Whenever [attachment] becomes attached to [host]" (CR 701.3a, 603.2e).
@@ -380,7 +379,7 @@ pub fn becomes_unattached(attachment: impl Into<TriggerSubject>, former_host: im
 pub fn enters(subject: impl Into<TriggerSubject>) -> CountableEvent {
     CountableEvent(TriggerEvent::EntersBattlefield {
         subject: subject.into(),
-        controller: None,
+        controller: PlayerSet::Everyone,
         from: None,
         was_cast: None,
         multiplicity: Multiplicity::PerOccurrence,
@@ -431,18 +430,18 @@ pub fn player_attacks(whose: Whose) -> TriggerEvent {
 /// controls are declared attacking. A planeswalker or battle attacked is not
 /// the player.
 pub fn player_attacks_player(whose: Whose, attacked: Whose) -> TriggerEvent {
-    let defender = DefenderFilter::Player(attacked.player_ref());
+    let defender = DefenderFilter::Player(attacked.player_set());
     attack_event(creature_controlled_by(whose), Some(defender), AttackOccurrence::Defender)
 }
 
 /// "[A player] or a planeswalker [that player] controls", as what is
 /// attacked: "whenever a creature attacks you or a planeswalker you control".
-pub fn player_or_their_planeswalker(who: PlayerRef) -> DefenderFilter {
+pub fn player_or_their_planeswalker(who: PlayerSet) -> DefenderFilter {
     let their_planeswalker = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Planeswalker)),
         Box::new(ObjectFilter::ByController(who.clone())),
     );
-    DefenderFilter::Or(Box::new(DefenderFilter::Player(Some(who))), Box::new(DefenderFilter::Permanent(their_planeswalker)))
+    DefenderFilter::Or(Box::new(DefenderFilter::Player(who)), Box::new(DefenderFilter::Permanent(their_planeswalker)))
 }
 
 /// "Whenever [subject] blocks" (CR 509.3a): once for each such creature
@@ -478,11 +477,11 @@ pub fn attacks_and_isnt_blocked(subject: impl Into<TriggerSubject>) -> Countable
 
 /// "Whenever [subject] becomes the target of [by] [controlled by]" (CR
 /// 115.1): once for each spell or ability. "An opponent controls" is
-/// `Some(Opponent)`, any controller `None`.
+/// `Opponents`, any controller `Everyone`.
 pub fn becomes_the_target_of(
     subject: impl Into<TriggerSubject>,
     by: TargetedBy,
-    controlled_by: Option<PlayerRef>,
+    controlled_by: PlayerSet,
 ) -> CountableEvent {
     CountableEvent(TriggerEvent::BecomesTarget {
         target: ObjectOrPlayerSubject::Object(subject.into()),
@@ -495,13 +494,13 @@ pub fn becomes_the_target_of(
 /// "Whenever [whose player] activates an ability of [source]" (CR 602.2),
 /// mana abilities included unless `mana_ability` says (CR 605.3a).
 pub fn activates_an_ability_of(whose: Whose, source: impl Into<TriggerSubject>, mana_ability: Option<bool>) -> TriggerEvent {
-    TriggerEvent::ActivatesAbility { player: whose.player_ref(), source: source.into(), mana_ability }
+    TriggerEvent::ActivatesAbility { player: whose.player_set(), source: source.into(), mana_ability }
 }
 
 /// "Whenever [whose player] become[s] the target of [by] [controlled by]".
-pub fn player_becomes_the_target_of(whose: Whose, by: TargetedBy, controlled_by: Option<PlayerRef>) -> CountableEvent {
+pub fn player_becomes_the_target_of(whose: Whose, by: TargetedBy, controlled_by: PlayerSet) -> CountableEvent {
     CountableEvent(TriggerEvent::BecomesTarget {
-        target: ObjectOrPlayerSubject::Player(whose.player_ref()),
+        target: ObjectOrPlayerSubject::Player(whose.player_set()),
         by,
         controller: controlled_by,
         multiplicity: Multiplicity::PerOccurrence,
@@ -518,11 +517,11 @@ fn attack_event(attacker: TriggerSubject, defender: Option<DefenderFilter>, occu
 
 /// "A creature [whose player] controls"; any creature for `Whose::Each`.
 fn creature_controlled_by(whose: Whose) -> TriggerSubject {
-    match whose.player_ref() {
-        None => TriggerSubject::Filter(ObjectFilter::All),
-        Some(player) => TriggerSubject::Filter(ObjectFilter::And(
+    match whose.player_set() {
+        PlayerSet::Everyone => TriggerSubject::Filter(ObjectFilter::All),
+        players => TriggerSubject::Filter(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::ByController(player)),
+            Box::new(ObjectFilter::ByController(players)),
         )),
     }
 }
@@ -546,14 +545,14 @@ mod tests {
                 damage_to_is_prevented(DamageRecipient::Any),
                 enters(this()),
                 attacks(this()),
-                attacks_defender(this(), DefenderFilter::Player(None)),
+                attacks_defender(this(), DefenderFilter::Player(PlayerSet::Everyone)),
                 blocks(this()),
                 blocks_a_creature(this(), TriggerSubject::Filter(ObjectFilter::All)),
                 becomes_blocked(this()),
                 becomes_blocked_by(this(), TriggerSubject::Filter(ObjectFilter::All)),
                 attacks_and_isnt_blocked(this()),
-                becomes_the_target_of(this(), TargetedBy::SpellOrAbility, None),
-                player_becomes_the_target_of(Whose::Yours, TargetedBy::SpellOrAbility, None),
+                becomes_the_target_of(this(), TargetedBy::SpellOrAbility, PlayerSet::Everyone),
+                player_becomes_the_target_of(Whose::Yours, TargetedBy::SpellOrAbility, PlayerSet::Everyone),
             ]
         };
         for event in countable() {

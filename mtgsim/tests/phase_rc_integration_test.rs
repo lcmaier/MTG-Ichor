@@ -801,7 +801,7 @@ fn kismet_shaped() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::ByController(
-                        mtgsim::types::effects::PlayerRef::Opponent,
+                        mtgsim::types::effects::PlayerSet::Opponents,
                     )),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),

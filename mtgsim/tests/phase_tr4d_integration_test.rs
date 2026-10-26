@@ -51,7 +51,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
-    Antecedent, AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    PlayerSet, Antecedent, AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -168,7 +168,7 @@ fn white_card() -> Arc<CardData> {
 #[test]
 fn a_spell_being_countered_triggers_a_watcher() {
     let mut game = setup_two_player_game();
-    let arm = TriggerEvent::IsCountered { spell: None, caster: None };
+    let arm = TriggerEvent::IsCountered { spell: None, caster: PlayerSet::Everyone };
     let watching = put_on_battlefield(&mut game, watcher("Fixture Counter Watcher", arm), 0);
     let spell = put_spell_on_stack(&mut game, grizzly_bears(), 1);
 
@@ -185,7 +185,7 @@ fn a_spell_being_countered_triggers_a_watcher() {
 fn a_countered_spell_is_read_as_it_was_on_the_stack() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, painted_black(ZoneSet::of(Zone::Stack)), 0);
-    let arm = TriggerEvent::IsCountered { spell: Some(ObjectFilter::ByColor(Color::Black)), caster: None };
+    let arm = TriggerEvent::IsCountered { spell: Some(ObjectFilter::ByColor(Color::Black)), caster: PlayerSet::Everyone };
     let watching = put_on_battlefield(&mut game, watcher("Fixture Black Spell Watcher", arm), 0);
     let spell = put_spell_on_stack(&mut game, white_card(), 1);
 
@@ -327,7 +327,7 @@ fn mill(game: &mut GameState, player: PlayerId, n: u64) {
 }
 
 /// A zone-change arm on `subject` leaving a library by `act`.
-fn from_library(subject: TriggerSubject, act: Option<ZoneChangeAct>, owner: Option<PlayerRef>, multiplicity: Multiplicity) -> TriggerEvent {
+fn from_library(subject: TriggerSubject, act: Option<ZoneChangeAct>, owner: PlayerSet, multiplicity: Multiplicity) -> TriggerEvent {
     let change = ZoneChangePattern { from: Some(Zone::Library), to: None, act };
     TriggerEvent::ZoneChange { subject, change, by: None, owner, multiplicity }
 }
@@ -350,7 +350,7 @@ fn colossus_among_three(game: &mut GameState, player: PlayerId) -> ObjectId {
 #[test]
 fn the_number_milled_counts_a_colossus_shuffled_back() {
     let mut game = setup_two_player_game();
-    let arm = from_library(TriggerSubject::Filter(ObjectFilter::All), Some(ZoneChangeAct::Milled), Some(PlayerRef::Opponent), Multiplicity::OncePerEvent);
+    let arm = from_library(TriggerSubject::Filter(ObjectFilter::All), Some(ZoneChangeAct::Milled), PlayerSet::Opponents, Multiplicity::OncePerEvent);
     let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Player(PlayerRef::You));
     let counter = CardDataBuilder::new("Fixture Mill Counter")
         .card_type(CardType::Enchantment)
@@ -372,7 +372,7 @@ fn the_number_milled_counts_a_colossus_shuffled_back() {
 fn a_creature_card_kept_in_the_library_was_still_milled() {
     let mut game = setup_two_player_game();
     let creature_cards = TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature));
-    let arm = from_library(creature_cards, Some(ZoneChangeAct::Milled), None, Multiplicity::OncePerEvent);
+    let arm = from_library(creature_cards, Some(ZoneChangeAct::Milled), PlayerSet::Everyone, Multiplicity::OncePerEvent);
     let watching = put_on_battlefield(&mut game, watcher("Fixture Creature Mill Watcher", arm), 0);
     colossus_among_three(&mut game, 1);
 
@@ -386,7 +386,7 @@ fn a_creature_card_kept_in_the_library_was_still_milled() {
 #[test]
 fn an_arm_naming_no_act_ignores_a_card_kept_in_its_zone() {
     let mut game = setup_two_player_game();
-    let arm = from_library(TriggerSubject::Filter(ObjectFilter::All), None, Some(PlayerRef::You), Multiplicity::PerOccurrence);
+    let arm = from_library(TriggerSubject::Filter(ObjectFilter::All), None, PlayerSet::You, Multiplicity::PerOccurrence);
     let watching = put_on_battlefield(&mut game, watcher("Fixture Library Leaver Watcher", arm), 1);
     colossus_among_three(&mut game, 1);
 
@@ -499,7 +499,7 @@ fn a_trigger_does_not_find_what_moved_into_a_hand() {
         subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
         change,
         by: None,
-        owner: Some(PlayerRef::You),
+        owner: PlayerSet::You,
         multiplicity: Multiplicity::PerOccurrence,
     };
     let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object)));
@@ -670,9 +670,9 @@ fn the_thief_leaving_returns_control_and_drops_the_thiefs_trigger() {
 fn an_opponent_gaining_control_of_a_permanent_you_own_triggers() {
     let mut game = stocked(2);
     let arm = TriggerEvent::ControlChanges {
-        subject: TriggerSubject::Filter(ObjectFilter::ByOwner(PlayerRef::You)),
-        from: None,
-        to: Some(PlayerRef::Opponent),
+        subject: TriggerSubject::Filter(ObjectFilter::ByOwner(PlayerSet::You)),
+        from: PlayerSet::Everyone,
+        to: PlayerSet::Opponents,
     };
     let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let card = CardDataBuilder::new("Fixture Owner's Watch").card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, draw))).build();
@@ -704,7 +704,7 @@ fn a_watcher_stolen_with_another_permanent_triggers_for_each() {
         Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
         EffectRecipient::FilteredPermanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+            Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
         )),
     );
     let source = put_in_hand(&mut game, grizzly_bears(), 1);
@@ -728,7 +728,7 @@ fn the_first_steal_on_a_board_reads_the_frame_from_before() {
     let mut granted = triggered_ability("", whenever(you_lose_control_of(TriggerSubject::Object(Antecedent::ThisObject)), draw));
     granted.id = new_ability_id();
     let granter = put_on_battlefield(&mut game, card_of_type("Fixture Banner", CardType::Enchantment), 0);
-    let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerSet::You)));
     game.continuous_effects.add(ContinuousEffect {
         duration: Duration::WhileSourceOnBattlefield,
         affected_objects: ObjectSet::Filter { filter: yours, zones: ZoneSet::of(Zone::Battlefield) },
@@ -767,7 +767,7 @@ fn a_permanent_that_arrives_stolen_announces_no_change() {
 fn silencer() -> Arc<CardData> {
     let theirs = EffectRecipient::FilteredPermanents(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+        Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
     ));
     CardDataBuilder::new("Fixture Silencer")
         .card_type(CardType::Enchantment)
@@ -801,7 +801,7 @@ fn a_trigger_on_any_change_the_creature_lacked_before_does_not_trigger() {
     let mut game = stocked(2);
     put_on_battlefield(&mut game, silencer(), 0);
     let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
-    let any_change = TriggerEvent::ControlChanges { subject: TriggerSubject::Object(Antecedent::ThisObject), from: None, to: None };
+    let any_change = TriggerEvent::ControlChanges { subject: TriggerSubject::Object(Antecedent::ThisObject), from: PlayerSet::Everyone, to: PlayerSet::Everyone };
     let watcher = CardDataBuilder::new("Fixture Turncoat")
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
@@ -841,7 +841,7 @@ fn a_grant_the_steal_moves_still_triggers_the_creatures_left_behind() {
     let watcher = triggered_ability("", whenever(an_opponent_gains_control_of(TriggerSubject::Filter(ObjectFilter::All)), gain));
     let yours = EffectRecipient::FilteredPermanents(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ));
     let banner_bearer = CardDataBuilder::new("Fixture Banner-Bearer")
         .card_type(CardType::Creature)
@@ -962,15 +962,15 @@ fn two_control_changes_in_one_resolution_are_two_events() {
     let hands = |game: &GameState| (hand_size(game, 0), hand_size(game, 1), hand_size(game, 2));
     let before = hands(&game);
 
-    let enchantments = |whose: PlayerRef| {
+    let enchantments = |whose: PlayerSet| {
         EffectRecipient::FilteredPermanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Enchantment)),
             Box::new(ObjectFilter::ByController(whose)),
         ))
     };
     let verse = Effect::Sequence(vec![
-        Effect::Atom(Primitive::Destroy, enchantments(PlayerRef::Opponent)),
-        Effect::Atom(Primitive::Destroy, enchantments(PlayerRef::You)),
+        Effect::Atom(Primitive::Destroy, enchantments(PlayerSet::Opponents)),
+        Effect::Atom(Primitive::Destroy, enchantments(PlayerSet::You)),
     ]);
     let source = put_in_graveyard(&mut game, card_of_type("Fixture Calming Verse", CardType::Sorcery), 1);
     let ctx = ResolutionContext {
@@ -1000,7 +1000,7 @@ fn gives_the_betrayers_trigger() -> Arc<CardData> {
             Primitive::GrantAbility(Arc::new(betrayal), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
         )))
         .build()
@@ -1024,7 +1024,7 @@ fn a_second_steal_looks_back_to_the_board_the_first_left() {
     let an_opponents = |kind: CardType| {
         EffectRecipient::FilteredPermanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(kind)),
-            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+            Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
         ))
     };
     let thefts = Effect::Sequence(vec![

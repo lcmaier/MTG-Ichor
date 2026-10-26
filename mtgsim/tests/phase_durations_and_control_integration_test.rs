@@ -36,7 +36,7 @@ fn an_opponents_creature() -> EffectRecipient {
     EffectRecipient::Target(
         SelectionFilter::Permanent(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+            Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
         )),
         TargetCount::Exactly(1),
     )
@@ -281,7 +281,7 @@ fn rule_does_not_apply(name: &str, rule: RuleAction, affected: AffectedSet) -> A
 fn creatures_you_control() -> AffectedSet {
     AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     )))
 }
 

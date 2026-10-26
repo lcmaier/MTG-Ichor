@@ -15,7 +15,7 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, AmountExpr, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef, Primitive,
+    PlayerSet, Antecedent, AmountExpr, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::mana::{ManaCost, ManaType};
@@ -50,7 +50,7 @@ pub fn cornered_crook() -> Arc<CardData> {
     // Checked once, against the sacrifice the line before it made; it never
     // waits for another.
     let deals_3 = when_you_do(
-        is_sacrificed(ObjectFilter::ByController(PlayerRef::You)),
+        is_sacrificed(ObjectFilter::ByController(PlayerSet::You)),
         Effect::Atom(
             Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
             EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),

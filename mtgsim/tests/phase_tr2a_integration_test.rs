@@ -329,7 +329,7 @@ fn pending_triggers(game: &GameState) -> usize {
 #[test]
 fn loses_life_triggers_once_per_loss_and_never_on_a_gain() {
     let mut game = setup_two_player_game();
-    let grudge = TriggerEvent::LosesLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
+    let grudge = TriggerEvent::LosesLife { player: PlayerSet::You, multiplicity: Multiplicity::PerOccurrence };
     let keeper = put_on_battlefield(&mut game, watcher("Grudge Keeper", grudge, counter_on(EffectRecipient::Object(Antecedent::ThisObject))), 0);
     let ctx = test_ctx();
     game.execute_action(GameAction::LoseLife { player: 0, amount: 2, damage_source: None }, &ctx).unwrap();
@@ -358,7 +358,7 @@ fn loses_life_triggers_once_per_loss_and_never_on_a_gain() {
 #[test]
 fn casts_spell_reads_the_spell_as_it_is_cast() {
     let mut game = setup_two_player_game();
-    let cast = TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(ObjectFilter::ByType(CardType::Creature)) };
+    let cast = TriggerEvent::CastsSpell { caster: PlayerSet::You, spell: Some(ObjectFilter::ByType(CardType::Creature)) };
     put_on_battlefield(&mut game, watcher("Beast Caller's Drum", cast, gain_one()), 0);
     let dp = ManaWindowStop::new(ScriptedDecisionProvider::new());
 
@@ -526,7 +526,7 @@ fn the_first_time_each_turn_is_the_records_place_in_its_turn() {
     let mut game = setup_two_player_game();
     stock_libraries(&mut game, 10);
     let first_loss =
-        TriggerEvent::LosesLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
+        TriggerEvent::LosesLife { player: PlayerSet::You, multiplicity: Multiplicity::PerOccurrence };
     let brooder = put_on_battlefield(
         &mut game,
         creature_with_ability(
@@ -708,7 +708,7 @@ fn a_filtered_one_shot_applies_to_the_permanents_it_matched_as_it_resolved() {
     let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let yours = EffectRecipient::FilteredPermanents(ObjectFilter::And(
         Box::new(a_creature()),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ));
     let rally = Effect::Sequence(vec![
         Effect::Atom(
@@ -741,7 +741,7 @@ fn a_filtered_one_shot_reads_you_as_its_spell_resolves() {
     let new_controllers = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let yours = EffectRecipient::FilteredPermanents(ObjectFilter::And(
         Box::new(a_creature()),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ));
     let pump = Effect::Atom(
         Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::UntilEndOfTurn),
@@ -850,7 +850,7 @@ fn each_player_draws_three_and_the_active_player_draws_all_of_theirs_first() {
 
 /// "Whenever you gain life, put that many +1/+1 counters on this creature."
 fn gain_counter() -> Arc<CardData> {
-    let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
+    let gains = TriggerEvent::GainsLife { player: PlayerSet::You, multiplicity: Multiplicity::PerOccurrence };
     let that_many = Effect::Atom(
         Primitive::AddCounters {
             counter: CounterType::PlusOnePlusOne,
@@ -977,8 +977,8 @@ fn all_of_several_conditions_this_turn_reads_the_whole_turn() {
         "Tinker's Accord",
         triggered_ability("", TriggerDef {
             condition: TriggerCondition::AnyOf(vec![
-                TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(spell_type(CardType::Creature)) },
-                TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(spell_type(CardType::Artifact)) },
+                TriggerEvent::CastsSpell { caster: PlayerSet::You, spell: Some(spell_type(CardType::Creature)) },
+                TriggerEvent::CastsSpell { caster: PlayerSet::You, spell: Some(spell_type(CardType::Artifact)) },
             ]),
             intervening_if: Some(both_this_turn),
             limit: None,
@@ -1011,7 +1011,7 @@ fn a_trigger_reads_how_many_times_it_has_resolved_this_turn() {
     };
     let opponents_creatures = EffectRecipient::FilteredPermanents(ObjectFilter::And(
         Box::new(a_creature()),
-        Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+        Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
     ));
     let magecraft = Effect::Sequence(vec![
         Effect::Atom(Primitive::Discard(AmountExpr::Fixed(1), DiscardChooser::Affected), EffectRecipient::Player(PlayerRef::You)),
@@ -1037,7 +1037,7 @@ fn a_trigger_reads_how_many_times_it_has_resolved_this_turn() {
         &mut game,
         watcher(
             "Flame Dancer's Echo",
-            TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(instant_or_sorcery) },
+            TriggerEvent::CastsSpell { caster: PlayerSet::You, spell: Some(instant_or_sorcery) },
             magecraft,
         ),
         0,

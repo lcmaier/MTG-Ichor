@@ -69,7 +69,7 @@ fn exiles_your_creatures_after_they_die() -> Arc<CardData> {
         },
         ObjectSet::battlefield_filter(ObjectFilter::And(
             Box::new(a_creature()),
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            Box::new(ObjectFilter::ByController(PlayerSet::You)),
         )),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Graveyard }),
     )
@@ -180,7 +180,7 @@ fn shuffles_in_from_anywhere() -> Arc<CardData> {
                     subject: TriggerSubject::Object(Antecedent::ThisObject),
                     change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     by: None,
-                    owner: None,
+                    owner: PlayerSet::Everyone,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
                 Effect::Atom(Primitive::ShuffleIntoLibrary, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))),
@@ -223,7 +223,7 @@ fn returns_milled_cards() -> Arc<CardData> {
                     subject: TriggerSubject::Filter(ObjectFilter::All),
                     change: ZoneChangePattern { from: Some(Zone::Library), to: Some(Zone::Graveyard), act: None },
                     by: None,
-                    owner: Some(PlayerRef::You),
+                    owner: PlayerSet::You,
                     multiplicity: Multiplicity::OncePerEvent,
                 },
                 Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))),
@@ -336,8 +336,8 @@ fn exile_watcher() -> Arc<CardData> {
                 TriggerEvent::ZoneChange {
                     subject: TriggerSubject::Filter(ObjectFilter::All),
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Exile), act: None },
-                    by: Some(SourceFilter::ControlledBy(PlayerRef::You)),
-                    owner: None,
+                    by: Some(SourceFilter::ControlledBy(PlayerSet::You)),
+                    owner: PlayerSet::Everyone,
                     multiplicity: Multiplicity::OncePerEvent,
                 },
                 Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
@@ -436,7 +436,7 @@ fn exiler_making(token: TokenDef) -> Arc<CardData> {
         },
         ObjectSet::battlefield_filter(ObjectFilter::And(
             Box::new(a_creature()),
-            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+            Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
         )),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
     )
@@ -511,7 +511,7 @@ fn a_permanent_a_rider_makes_does_not_see_the_event_before_it() {
                 subject: TriggerSubject::Filter(ObjectFilter::All),
                 change: ZoneChangePattern { from: None, to: Some(Zone::Exile), act: None },
                 by: None,
-                owner: None,
+                owner: PlayerSet::Everyone,
                 multiplicity: Multiplicity::PerOccurrence,
             },
             gain_one(),
@@ -583,7 +583,7 @@ fn the_intervening_if_is_checked_when_the_event_occurs() {
     let mut def = whenever(
         leaves_the_battlefield(ObjectFilter::And(
             Box::new(a_creature()),
-            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+            Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
         )),
         gain_one(),
     );
@@ -635,7 +635,7 @@ fn was_it_cast_reads_the_permanent_as_it_entered() {
                 whenever(
                     TriggerEvent::EntersBattlefield {
                         subject: TriggerSubject::Filter(a_creature()),
-                        controller: None,
+                        controller: PlayerSet::Everyone,
                         from: None,
                         was_cast: Some(true),
                         multiplicity: Multiplicity::PerOccurrence,
@@ -700,7 +700,7 @@ fn gains_when_put_into_a_graveyard() -> Arc<CardData> {
                     subject: TriggerSubject::Object(Antecedent::ThisObject),
                     change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     by: None,
-                    owner: None,
+                    owner: PlayerSet::Everyone,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
                 gain_one(),

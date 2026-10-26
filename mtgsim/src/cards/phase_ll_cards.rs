@@ -12,7 +12,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, PlaneswalkerType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, TypeChange,
+    PlayerSet, Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, TypeChange,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -166,7 +166,7 @@ pub fn pocket_griffin() -> Arc<CardData> {
                 Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
                 EffectRecipient::FilteredPermanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             )),
         )))
@@ -198,7 +198,7 @@ pub fn arcane_adaptation_elf_clause() -> Arc<CardData> {
             EffectRecipient::FilteredObjectsIn(
                 ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByOwner(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByOwner(PlayerSet::You)),
                 ),
                 ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
             ),

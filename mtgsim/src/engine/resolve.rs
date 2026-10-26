@@ -322,8 +322,7 @@ impl GameState {
                     who @ (PlayerRef::Opponent
                     | PlayerRef::OwnerOf(_)
                     | PlayerRef::Owner
-                    | PlayerRef::Player(_)
-                    | PlayerRef::AnyDefendingPlayer),
+                    | PlayerRef::Player(_)),
                 ),
             ) => {
                 let player = self.player_the_instruction_names(who, &[], ctx, dp)?;
@@ -1361,7 +1360,6 @@ impl GameState {
                         | PlayerRef::Owner
                         | PlayerRef::Player(_)
                         | PlayerRef::DefendingPlayer(_)
-                        | PlayerRef::AnyDefendingPlayer
                         | PlayerRef::TheEventsPlayer
                         | PlayerRef::ReferredPlayer,
                     ) => {
@@ -2601,7 +2599,11 @@ impl GameState {
             // your hand" is a discard of this many.
             AmountExpr::CountOf(set) => {
                 if let Some(whose) = set.whose_hand() {
-                    let player = self.resolve_player_ref(whose, _ctx.targets.all(), _ctx)?;
+                    let player = match whose {
+                        PlayerSet::You => _ctx.controller,
+                        PlayerSet::Player(who) => self.resolve_player_ref(who, _ctx.targets.all(), _ctx)?,
+                        several => return Err(format!("CountOf({several:?}'s hands) counts one player's hand, on {:?}", _ctx.source)),
+                    };
                     return Ok(self.get_player(player)?.hand.len() as u64);
                 }
                 let filter = match set {
@@ -2868,24 +2870,21 @@ impl GameState {
             PlayerRef::DefendingPlayer(creature) => self.defending_player_of(*creature, ctx).ok_or_else(|| {
                 format!("{:?} on {:?} names \"defending player\", and its creature attacks nothing", by, ctx.source)
             })?,
-            // CR 802.2a: with two or more, which one is the controller's choice.
-            PlayerRef::AnyDefendingPlayer => {
-                let defending: Vec<PlayerId> =
-                    self.players_in_game_apnap().into_iter().filter(|&player| self.is_defending_player(player)).collect();
-                match defending.as_slice() {
-                    [only] => *only,
-                    others => {
-                        return Err(format!(
-                            "{:?} on {:?} names \"defending player\" with no creature to settle which, and \
-                             there are {} defending players: the controller's choice (CR 802.2a) is not asked here",
-                            by,
-                            ctx.source,
-                            others.len()
-                        ))
-                    }
-                }
-            }
         })
+    }
+
+    /// Is `player` in `set`, for this resolution: its "you" the controller,
+    /// and a word for one player read as [`Self::resolve_player_ref`] reads it.
+    fn player_set_has(&self, set: &PlayerSet, player: PlayerId, ctx: &ResolutionContext) -> bool {
+        match set {
+            PlayerSet::Nobody => false,
+            PlayerSet::You => player == ctx.controller,
+            PlayerSet::Opponents => player != ctx.controller,
+            PlayerSet::Everyone => true,
+            PlayerSet::DefendingPlayers => self.is_defending_player(player),
+            PlayerSet::Fixed(ids) => ids.contains(&player),
+            PlayerSet::Player(who) => self.resolve_player_ref(who, &[], ctx).ok() == Some(player),
+        }
     }
 
     /// "That player" (`PlayerRef::TheEventsPlayer`): a trigger's event's
@@ -2967,7 +2966,7 @@ impl GameState {
             // each filter read from the source.
             EntersAttacking::Player { player, among } => match self.named_player(player, ctx)? {
                 Some(named) => {
-                    let names_player = |who: &PlayerRef, player: PlayerId| self.resolve_player_ref(who, &[], ctx).ok() == Some(player);
+                    let names_player = |who: &PlayerSet, player: PlayerId| self.player_set_has(who, player, ctx);
                     let matches_permanent = |filter: &ObjectFilter, id: ObjectId| {
                         self.object_matches_filter_of_source(ObjectInformation::Current(id), filter, ctx.controller, ctx.effect_source())
                     };

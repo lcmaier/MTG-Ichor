@@ -145,7 +145,7 @@ fn gandalf_the_white() -> Arc<CardData> {
         caused_by: Some(TriggerCondition::AnyOf(vec![
             TriggerEvent::EntersBattlefield {
                 subject: legendary_or_artifact(),
-                controller: None,
+                controller: PlayerSet::Everyone,
                 from: None,
                 was_cast: None,
                 multiplicity: Multiplicity::PerOccurrence,
@@ -154,11 +154,11 @@ fn gandalf_the_white() -> Arc<CardData> {
                 subject: legendary_or_artifact(),
                 change: ZoneChangePattern { from: Some(Zone::Battlefield), to: None, act: None },
                 by: None,
-                owner: None,
+                owner: PlayerSet::Everyone,
                 multiplicity: Multiplicity::PerOccurrence,
             },
         ])),
-        abilities_of: ObjectFilter::ByController(PlayerRef::You),
+        abilities_of: ObjectFilter::ByController(PlayerSet::You),
         additional: 1,
     };
     CardDataBuilder::new("Gandalf the White")
@@ -173,7 +173,7 @@ fn gandalf_the_white() -> Arc<CardData> {
 /// chosen type: "a triggered ability of a permanent you control triggers
 /// an additional time".
 fn every_trigger_twice() -> Arc<CardData> {
-    let multiplier = TriggerMultiplierDef { caused_by: None, abilities_of: ObjectFilter::ByController(PlayerRef::You), additional: 1 };
+    let multiplier = TriggerMultiplierDef { caused_by: None, abilities_of: ObjectFilter::ByController(PlayerSet::You), additional: 1 };
     CardDataBuilder::new("Echo Throne").card_type(CardType::Artifact).ability(multiplier.into_ability("")).build()
 }
 
@@ -458,7 +458,7 @@ fn gandalf_doubles_a_from_anywhere_trigger_on_a_legendary_creature_dying() {
         subject: TriggerSubject::Filter(a_creature()),
         change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
         by: None,
-        owner: None,
+        owner: PlayerSet::Everyone,
         multiplicity: Multiplicity::PerOccurrence,
     };
     let watcher = put_on_battlefield(&mut game, watcher("Gravewatcher", whenever(from_anywhere, gain_one())), 0);
@@ -534,7 +534,7 @@ fn cat_warrior() -> TokenDef {
 /// equal to the number of creatures you control to any target."
 fn ajanis_zero() -> Effect {
     let damage = Effect::Atom(
-        Primitive::DealDamage { amount: AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You))))), unpreventable: false },
+        Primitive::DealDamage { amount: AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerSet::You))))), unpreventable: false },
         EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
     );
     let mut when_you_do = when_you_do(creates_a_token(Whose::Yours, Some(cat_warrior())), damage, "");
@@ -660,14 +660,14 @@ fn elrond_master_of_healing() -> Arc<CardData> {
     let up_to_x = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpToAmount(AmountExpr::TriggeringAmount));
     let counter = Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You };
     let yours_with_a_counter = ObjectFilter::And(
-        Box::new(ObjectFilter::And(Box::new(a_creature()), Box::new(ObjectFilter::ByController(PlayerRef::You)))),
+        Box::new(ObjectFilter::And(Box::new(a_creature()), Box::new(ObjectFilter::ByController(PlayerSet::You)))),
         Box::new(ObjectFilter::WithCounters { kind: Some(CounterType::PlusOnePlusOne), count: CountIs::AtLeast(1) }),
     );
     let draw = Effect::Optional {
         chooser: PlayerRef::You,
         effect: Box::new(Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))),
     };
-    let targeted = becomes_the_target_of(TriggerSubject::Filter(yours_with_a_counter), TargetedBy::SpellOrAbility, Some(PlayerRef::Opponent));
+    let targeted = becomes_the_target_of(TriggerSubject::Filter(yours_with_a_counter), TargetedBy::SpellOrAbility, PlayerSet::Opponents);
     CardDataBuilder::new("Elrond, Master of Healing")
         .card_type(CardType::Creature)
         .supertype(Supertype::Legendary)
@@ -828,7 +828,7 @@ fn a_count_of_other_creatures_leaves_out_the_abilitys_own_permanent() {
     let mut game = audited_game();
     let others = AmountExpr::CountOf(ObjectSet::battlefield_filter(another(ObjectFilter::And(
         Box::new(a_creature()),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ))));
     let ping = AbilityDef {
         rules_text: "".into(),
@@ -892,7 +892,7 @@ fn a_game_that_ends_drops_the_triggers_still_waiting() {
     let mut game = audited_game();
     let damage_to_a_player = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(a_creature()),
-        recipient: DamageRecipient::Player(None),
+        recipient: DamageRecipient::Player(PlayerSet::Everyone),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,
@@ -921,7 +921,7 @@ fn a_game_that_ends_drops_the_triggers_still_waiting() {
 fn teysa_karlov() -> Arc<CardData> {
     let multiplier = TriggerMultiplierDef {
         caused_by: Some(TriggerCondition::Event(dies(a_creature()).into())),
-        abilities_of: ObjectFilter::ByController(PlayerRef::You),
+        abilities_of: ObjectFilter::ByController(PlayerSet::You),
         additional: 1,
     };
     CardDataBuilder::new("Teysa Karlov")

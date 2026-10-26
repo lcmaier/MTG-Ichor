@@ -274,7 +274,7 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::card_types::CardType;
     use crate::types::effects::{
-        AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+        PlayerSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
     };
     use crate::types::triggers::{TriggerEvent, TriggerSubject};
 
@@ -290,7 +290,7 @@ mod tests {
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
                 EffectRecipient::FilteredPermanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             )))
             .build();
@@ -318,7 +318,7 @@ mod tests {
 
         let recorded = game.recorded_events();
         let record = recorded.records().iter().rev().find(|r| matches!(r.event, GameEvent::ControlChanged { .. })).expect("announced");
-        let arm = TriggerEvent::ControlChanges { subject: TriggerSubject::Filter(ObjectFilter::All), from: Some(PlayerRef::You), to: None };
+        let arm = TriggerEvent::ControlChanges { subject: TriggerSubject::Filter(ObjectFilter::All), from: PlayerSet::You, to: PlayerSet::Everyone };
         let read = read_at_trigger(&game, &arm, record, creature).characteristics(&game).expect("it exists");
         assert_eq!(read.power, Some(3));
     }

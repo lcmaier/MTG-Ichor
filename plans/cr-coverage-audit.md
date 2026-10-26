@@ -1096,7 +1096,6 @@ route by which item 342's twenty arrived.
 
 #### `Condition`
 - `Player` — **holds** a `PlayerSet` and the fact asked of each player in it.
-- `DefendingPlayer` — **folds** into `Player` over `PlayerSet::Player(DefendingPlayer(of))` (item 342).
 - `SpellWasKicked` — **not a word**: a fact about the source's costs (CR 702.33d).
 - `ModeChosen` — **not a word**: a fact about the modes chosen (CR 700.2).
 - `All` — **not a word**: a conjunction of conditions.
@@ -1192,13 +1191,13 @@ route by which item 342's twenty arrived.
 - `BySubtype` — **not a word**: a criterion on a subtype.
 - `BySupertype` — **not a word**: a criterion on a supertype.
 - `ByColor` — **not a word**: a criterion on a color.
-- `ByController` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).
+- `ByController` — **holds** a `PlayerSet`: "you control", "an opponent controls", "defending player controls".
 - `PowerLE` — **not a word**: a criterion on power.
 - `WithCounters` — **not a word**: a criterion on counters.
 - `Token` — **not a word**: a criterion, CR 111.1.
 - `ThisTurn` — **not a word**: a criterion on what the object did this turn.
 - `ThisCombat` — **not a word**: a criterion on what it did this combat.
-- `ByOwner` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).
+- `ByOwner` — **holds** a `PlayerSet`.
 - `NotSource` — **kept** "other than this object": a relation to an object ("another"), not a word for one.
 - `OtherThanInstance` — **kept** "another target" (CR 601.2c): a relation to an earlier instance.
 - `And` — **not a word**: an intersection of criteria.
@@ -1221,20 +1220,21 @@ route by which item 342's twenty arrived.
 
 #### `PlayerRef`
 - `You` — **owns** "you" (CR 109.5).
-- `Opponent` — **owns** "an opponent", one chosen as the instruction applies (CR 608.2d); its reading as any opponent in a filter moves to `PlayerSet::Opponents` (item 342).
+- `Opponent` — **owns** "an opponent", one chosen as the instruction applies (CR 608.2d); a filter's "an opponent" is any, `PlayerSet::Opponents`.
 - `OwnerOf` — **owns** "its owner" (CR 108.3), holding an `Antecedent`.
 - `Owner` — **folds** into `OwnerOf(Antecedent::Affected)`, the owner of each object an instruction acts on (item 348).
 - `Player` — **owns** a player captured by id.
 - `DefendingPlayer` — **owns** "defending player" (CR 508.5), holding an `Antecedent`.
-- `AnyDefendingPlayer` — **folds** into `PlayerSet::DefendingPlayers` (item 342).
 - `TheEventsPlayer` — **owns** "that player" of a triggering event, or of a rider's replaced event (CR 615.5).
 - `ReferredPlayer` — **owns** "that player" on a delayed trigger, a player it refers to (CR 603.7c).
 
 #### `PlayerSet`
 - `Nobody` — **not a word**: no player.
-- `You` — **kept** "you" as a set of one, beside `PlayerRef::You`: a relation in the family of `Opponents` and `Everyone`, and `Player(PlayerRef::You)` is refused (item 342).
+- `You` — **kept** "you" as a set of one, beside `PlayerRef::You`: a relation in the family of `Opponents` and `Everyone`, and `Player(PlayerRef::You)` is refused.
 - `Opponents` — **owns** "every opponent" (CR 102.2, 102.3).
 - `Everyone` — **owns** "every player".
+- `DefendingPlayers` — **owns** "defending player" where no creature settles which (CR 802.2a): every player attacked.
+- `Player` — **holds** a `PlayerRef`: the one player a filter names, "defending player controls", "that player controls".
 - `Fixed` — **owns** "the players fixed as the effect began".
 
 #### `RetargetSpec`
@@ -1255,7 +1255,7 @@ route by which item 342's twenty arrived.
 - `DamageSource` — **owns** "a source of damage", CR 609.7a's choice.
 
 #### `SourceFilter`
-- `ControlledBy` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).
+- `ControlledBy` — **holds** a `PlayerSet`.
 
 #### `TargetCount`
 - `Exactly` — **kept** "a number printed on the card", beside `ExactlyAmount(Fixed(n))`: castability's `fewest()` reads it with no evaluator, at every priority.
@@ -1309,27 +1309,27 @@ through a field rather than an arm (widened at #296's handover, the owner,
 - `Rewrite::EnterUnderControlOf.0` — **holds** a `PlayerRef`: the one player it enters under.
 - `EntryCountersTemplate.by` — **holds** a `PlayerRef`: the one player who puts them on.
 - `GameActionTemplate::DrawCards.player` — **holds** a `PlayerRef`: the one player who draws.
-- `ObjectFact::DealtDamageTo.player` — **folds**: a filter, its `PlayerRef` becomes a `PlayerSet` (item 342).
-- `TriggerEvent::ZoneChange.owner` — **folds**: a filter, its `PlayerRef` becomes a `PlayerSet` (item 342).
-- `TriggerEvent::DrawsCard.player` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::PhaseBegins.whose` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::StepBegins.whose` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::TurnBegins.whose` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::GainsLife.player` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::LosesLife.player` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::EntersBattlefield.controller` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::BecomesTarget.controller` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::ActivatesAbility.player` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::CastsSpell.caster` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::IsCountered.caster` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::PlayerLoses.player` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::ShufflesLibrary.player` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::CountersPutOn.by` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::CountersRemovedFrom.by` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::ControlChanges.from` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::ControlChanges.to` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::CreatesToken.owner` — **folds**: a filter, as above (item 342).
-- `TriggerEvent::Scries.player` — **folds**: a filter, as above (item 342).
+- `ObjectFact::DealtDamageTo.player` — **holds** a `PlayerSet`: a filter, `Everyone` being any player.
+- `TriggerEvent::ZoneChange.owner` — **holds** a `PlayerSet`: a filter, `Everyone` asking nothing.
+- `TriggerEvent::DrawsCard.player` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::PhaseBegins.whose` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::StepBegins.whose` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::TurnBegins.whose` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::GainsLife.player` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::LosesLife.player` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::EntersBattlefield.controller` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::BecomesTarget.controller` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::ActivatesAbility.player` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::CastsSpell.caster` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::IsCountered.caster` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::PlayerLoses.player` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::ShufflesLibrary.player` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::CountersPutOn.by` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::CountersRemovedFrom.by` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::ControlChanges.from` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::ControlChanges.to` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::CreatesToken.owner` — **holds** a `PlayerSet`, as above.
+- `TriggerEvent::Scries.player` — **holds** a `PlayerSet`, as above.
 
 ---
 

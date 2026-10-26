@@ -37,7 +37,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
-    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
+    PlayerSet, Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
     TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
@@ -663,7 +663,7 @@ fn an_equipment_that_leaves_triggers_its_own_unattach() {
 /// life where she makes a Soldier: "Whenever an Aura you control becomes
 /// attached to a creature you control".
 fn siona_shape() -> Arc<CardData> {
-    let yours = |filter: ObjectFilter| ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    let yours = |filter: ObjectFilter| ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::ByController(PlayerSet::You)));
     let aura = ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura));
     CardDataBuilder::new("Probe Siona")
         .card_type(CardType::Creature)

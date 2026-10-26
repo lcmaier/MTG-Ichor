@@ -705,7 +705,7 @@ fn delayed_trigger_if_its_source_was_tapped_reads_the_creature_that_made_it() {
     tap_it(&mut game, source);
     let def = TriggerDef {
         condition: TriggerCondition::Event(TriggerEvent::GainsLife {
-            player: Some(PlayerRef::You),
+            player: PlayerSet::You,
             multiplicity: Multiplicity::PerOccurrence,
         }),
         intervening_if: Some(Condition::SourceTapped),
@@ -831,7 +831,7 @@ fn a_leaves_trigger_reads_the_owner_of_an_object_that_left_the_game() {
     let text = "Whenever a creature an opponent owns leaves the battlefield, you gain 1 life.";
     let theirs = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByOwner(PlayerRef::Opponent)),
+        Box::new(ObjectFilter::ByOwner(PlayerSet::Opponents)),
     );
     let watcher = CardDataBuilder::new("Owner Watcher")
         .card_type(CardType::Enchantment)
@@ -855,7 +855,7 @@ fn a_leaves_trigger_reads_the_owner_of_an_object_that_left_the_game() {
 #[test]
 fn a_delayed_trigger_made_after_its_source_is_gone_knows_its_owner() {
     let mut game = setup_two_player_game();
-    let owner_gains = TriggerEvent::GainsLife { player: Some(PlayerRef::OwnerOf(Antecedent::ThisObject)), multiplicity: Multiplicity::PerOccurrence };
+    let owner_gains = TriggerEvent::GainsLife { player: PlayerSet::Player(PlayerRef::OwnerOf(Antecedent::ThisObject)), multiplicity: Multiplicity::PerOccurrence };
     let template = DelayedTriggerTemplate {
         def: Arc::new(whenever(owner_gains, Effect::Sequence(Vec::new()))),
         duration: DelayedDuration::Once,
@@ -895,7 +895,7 @@ fn attack_trigger_if_it_had_no_counters_checks_each_attacker_separately() {
     let mut game = setup_two_player_game();
     let text = "Whenever a creature you control attacks, if it had no +1/+1 counters on it, you gain 1 life.";
     let def = TriggerDef {
-        condition: TriggerCondition::Event(attacks(TriggerSubject::Filter(ObjectFilter::ByController(PlayerRef::You))).into()),
+        condition: TriggerCondition::Event(attacks(TriggerSubject::Filter(ObjectFilter::ByController(PlayerSet::You))).into()),
         intervening_if: Some(Condition::CounterCount {
             object: Antecedent::Triggering(EventRole::Attacker),
             kind: Some(CounterType::PlusOnePlusOne),
@@ -926,7 +926,7 @@ fn delayed_trigger_if_its_spell_was_kicked_holds_after_the_spell_resolved() {
     let mut game = setup_two_player_game();
     let def = TriggerDef {
         condition: TriggerCondition::Event(TriggerEvent::GainsLife {
-            player: Some(PlayerRef::You),
+            player: PlayerSet::You,
             multiplicity: Multiplicity::PerOccurrence,
         }),
         intervening_if: Some(Condition::SpellWasKicked),
@@ -961,7 +961,7 @@ fn token_aura_leaves_trigger_if_its_owner_controls_the_host_holds_after_the_toke
     let text = "When this Aura leaves the battlefield, if enchanted creature is controlled by this Aura's owner, you gain 1 life.";
     let def = TriggerDef {
         condition: TriggerCondition::Event(leaves_the_battlefield(TriggerSubject::Object(Antecedent::ThisObject)).into()),
-        intervening_if: Some(Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::ByController(PlayerRef::OwnerOf(Antecedent::ThisObject)))),
+        intervening_if: Some(Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::ByController(PlayerSet::Player(PlayerRef::OwnerOf(Antecedent::ThisObject))))),
         limit: None,
         effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
     };
@@ -1025,7 +1025,7 @@ fn enchanted_creature_deals_damage_does_not_see_the_creature_it_was_before_a_fli
     );
     let template = DelayedTriggerTemplate {
         def: Arc::new(whenever(
-            TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
+            TriggerEvent::GainsLife { player: PlayerSet::You, multiplicity: Multiplicity::PerOccurrence },
             deals_2,
         )),
         duration: DelayedDuration::Once,

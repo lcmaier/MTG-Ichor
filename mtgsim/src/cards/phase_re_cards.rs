@@ -1954,7 +1954,7 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
 fn doubles_counters_on_your_permanents() -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::AddCounters { counter: None, by: None },
-        ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+        ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You)),
         Rewrite::Amount(AmountRewrite::Multiplier(2)),
     )
 }
@@ -2072,7 +2072,7 @@ pub fn hardened_scales() -> Arc<CardData> {
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             Rewrite::Amount(AmountRewrite::Plus(1)),
         )))
@@ -2229,7 +2229,7 @@ pub fn winding_constrictor() -> Arc<CardData> {
                         Box::new(ObjectFilter::ByType(CardType::Artifact)),
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                     )),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             Rewrite::Amount(AmountRewrite::Plus(1)),
         )))

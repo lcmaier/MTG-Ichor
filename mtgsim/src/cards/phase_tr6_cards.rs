@@ -113,7 +113,7 @@ pub fn discard_your_hand_then_draw_that_many() -> Arc<CardData> {
         "Fixture: discard your hand, then draw that many cards",
         "Discard your hand, then draw that many cards.",
         Effect::Sequence(vec![
-            Effect::Atom(Primitive::Discard(AmountExpr::CountOf(ObjectSet::hand(PlayerRef::You)), DiscardChooser::Affected), EffectRecipient::Player(PlayerRef::You)),
+            Effect::Atom(Primitive::Discard(AmountExpr::CountOf(ObjectSet::hand(PlayerSet::You)), DiscardChooser::Affected), EffectRecipient::Player(PlayerRef::You)),
             Effect::Atom(Primitive::DrawCards(AmountExpr::DiscardedThisWay), EffectRecipient::Player(PlayerRef::You)),
         ]),
     )
@@ -127,7 +127,7 @@ pub fn destroy_your_others_then_a_token() -> Arc<CardData> {
     let your_non_crocodiles = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::And(
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            Box::new(ObjectFilter::ByController(PlayerSet::You)),
             Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Crocodile))))),
         )),
     );

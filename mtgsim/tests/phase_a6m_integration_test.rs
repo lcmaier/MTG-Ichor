@@ -22,7 +22,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    Antecedent, AffectedSet, AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    PlayerSet, Antecedent, AffectedSet, AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -45,7 +45,7 @@ use mtgsim::ui::decision::ScriptedDecisionProvider;
 fn opponents_creatures() -> EffectRecipient {
     EffectRecipient::FilteredPermanents(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+        Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
     ))
 }
 
@@ -278,7 +278,7 @@ fn test_regenerate_each_creature_you_control_shields_each_one() {
         Primitive::Regenerate,
         EffectRecipient::FilteredPermanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            Box::new(ObjectFilter::ByController(PlayerSet::You)),
         )),
     );
     resolve(&mut game, 0, &effect, Vec::new());
@@ -487,7 +487,7 @@ fn test_an_or_with_a_powerless_arm_beside_a_true_one_is_true() {
 #[test]
 fn test_owner_in_an_affected_set_is_the_sources_owner() {
     // Player 0 owns each effect's source; player 1 controls it.
-    let controlled_by_its_owner = creature_and(ObjectFilter::ByController(PlayerRef::OwnerOf(Antecedent::ThisObject)));
+    let controlled_by_its_owner = creature_and(ObjectFilter::ByController(PlayerSet::Player(PlayerRef::OwnerOf(Antecedent::ThisObject))));
     let mut game = setup_two_player_game();
     put_on_battlefield_under(&mut game, exiler(controlled_by_its_owner, None, None), 0, 1);
     let stolen = put_on_battlefield_under(&mut game, vanilla_creature(2, 2, &[]), 1, 0);
@@ -496,7 +496,7 @@ fn test_owner_in_an_affected_set_is_the_sources_owner() {
     assert_eq!(sacrifice(&mut game, stolen), Zone::Exile, "player 0 controls it");
     assert_eq!(sacrifice(&mut game, theirs), Zone::Graveyard, "its own owner controls it, and that is not player 0");
 
-    let owned_by_its_owner = creature_and(ObjectFilter::ByOwner(PlayerRef::OwnerOf(Antecedent::ThisObject)));
+    let owned_by_its_owner = creature_and(ObjectFilter::ByOwner(PlayerSet::Player(PlayerRef::OwnerOf(Antecedent::ThisObject))));
     let mut game = setup_two_player_game();
     put_on_battlefield_under(&mut game, exiler(owned_by_its_owner, None, None), 0, 1);
     let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -511,7 +511,7 @@ fn test_owner_in_an_affected_set_is_the_sources_owner() {
 #[test]
 fn test_a_cause_its_owner_controls_is_the_sources_owner() {
     let mut game = setup_two_player_game();
-    let by_its_owner = Some(SourceFilter::ControlledBy(PlayerRef::OwnerOf(Antecedent::ThisObject)));
+    let by_its_owner = Some(SourceFilter::ControlledBy(PlayerSet::Player(PlayerRef::OwnerOf(Antecedent::ThisObject))));
     put_on_battlefield_under(&mut game, exiler(creature_and(ObjectFilter::All), None, by_its_owner), 0, 1);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
@@ -549,7 +549,7 @@ fn test_a_pattern_filter_knows_its_effects_source() {
 fn small_artifact_copier() -> Arc<CardData> {
     let artifact_you_control = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Artifact)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     );
     let counter = CopyException::Additionally(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1));
     let copy = Rewrite::EnterAsCopy(EntryCopyTemplate {

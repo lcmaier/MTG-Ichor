@@ -428,7 +428,7 @@ fn a_creature_that_died_with_deathtouch_deals_its_ability_damage_with_deathtouch
     let mut game = setup_two_player_game();
     let their_creatures = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+        Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
     );
     let myr = put_on_battlefield(&mut game, perilous(2, EffectRecipient::FilteredPermanents(their_creatures)), 0);
     let giant = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
@@ -504,7 +504,7 @@ fn a_trigger_on_the_damage_reads_a_source_that_left_as_it_last_was() {
     make_red(&mut game, hawk);
     let red_damage_to_you = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(ObjectFilter::ByColor(Color::Red)),
-        recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+        recipient: DamageRecipient::Player(PlayerSet::You),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,

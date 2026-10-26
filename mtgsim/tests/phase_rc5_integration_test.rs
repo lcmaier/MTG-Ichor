@@ -32,8 +32,8 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    PlayerRef, Primitive,
+    PlayerSet, AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    Primitive,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -110,7 +110,7 @@ fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
             from: Zone::Battlefield,
             filter: ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             ),
             to: Zone::Graveyard,
             act: ZoneChangeAct::Sacrificed,
@@ -143,7 +143,7 @@ fn creatures_enter_tapped(name: &str) -> Arc<CardData> {
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             Rewrite::EnterWith(EnterModsTemplate::tapped()),
         )))))
@@ -188,7 +188,7 @@ fn elf_lord(name: &str) -> Arc<CardData> {
             ),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Elf))),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
         )))
         .build()
@@ -243,7 +243,7 @@ fn prevents_your_creatures_dying(name: &str) -> Arc<CardData> {
                 change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
-            ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+            ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You)),
             Rewrite::Prevent,
         )))))
         .build()
@@ -269,8 +269,8 @@ fn your_own_abilities_cant_sacrifice(name: &str) -> Arc<CardData> {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
-                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
-                by: Some(mtgsim::types::restriction::SourceFilter::ControlledBy(PlayerRef::You)),
+                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You))),
+                by: Some(mtgsim::types::restriction::SourceFilter::ControlledBy(PlayerSet::You)),
             },
         )))))
         .build()
@@ -291,7 +291,7 @@ fn cant_sacrifice_your_creatures(name: &str) -> Arc<CardData> {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
-                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
+                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You))),
                 by: None,
             },
         )))))
@@ -314,7 +314,7 @@ fn anthem(name: &str) -> Arc<CardData> {
             ),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
         )))
         .build()
@@ -757,7 +757,7 @@ fn test_a_cant_be_sacrificed_effect_removes_devour_candidates() {
 /// card rather than a gap.
 ///
 /// "Spells and abilities **your opponents control** can't cause you to sacrifice
-/// permanents" is a `SourceFilter::ControlledBy(Opponent)` on the restriction,
+/// permanents" is a `SourceFilter::ControlledBy(Opponents)` on the restriction,
 /// and devour is your own creature's ability. So this is the test that the
 /// `cause` threaded into the candidate filter is the *effect's* controller and
 /// not something convenient: get that wrong and Sigarda silently switches devour
@@ -1119,7 +1119,7 @@ fn test_a_prevented_sacrifice_is_not_counted() {
 ///
 /// Sigarda above proves the `by` filter can decline; this proves it can fire.
 /// Between them they pin the value: with `cause: None` neither
-/// `ControlledBy(Opponent)` nor `ControlledBy(You)` matches, so Sigarda's test
+/// `ControlledBy(Opponents)` nor `ControlledBy(You)` matches, so Sigarda's test
 /// passes either way and this one does not.
 ///
 /// The effect's controller is the entering permanent's for devour, printed or

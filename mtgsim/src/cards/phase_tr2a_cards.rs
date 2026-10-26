@@ -122,7 +122,7 @@ pub fn vengeful_warchief() -> Arc<CardData> {
         .rules_text("Whenever you lose life for the first time each turn, put a +1/+1 counter on this creature.")
         .ability(triggered_ability("Whenever you lose life for the first time each turn, put a +1/+1 counter on this creature.", TriggerDef {
             condition: TriggerCondition::Event(TriggerEvent::LosesLife {
-                player: Some(PlayerRef::You),
+                player: PlayerSet::You,
                 multiplicity: Multiplicity::PerOccurrence,
             }),
             intervening_if: None,
@@ -154,7 +154,7 @@ pub fn elf_warrior_token() -> TokenDef {
 fn elves_you_control() -> ObjectFilter {
     ObjectFilter::And(
         Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Elf))),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     )
 }
 
@@ -183,7 +183,7 @@ fn elves_you_control() -> ObjectFilter {
 pub fn elvish_warmaster() -> Arc<CardData> {
     let other_elves_you_control = TriggerEvent::EntersBattlefield {
         subject: TriggerSubject::Filter(another(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Elf)))),
-        controller: Some(PlayerRef::You),
+        controller: PlayerSet::You,
         from: None,
         was_cast: None,
         multiplicity: Multiplicity::OncePerEvent,

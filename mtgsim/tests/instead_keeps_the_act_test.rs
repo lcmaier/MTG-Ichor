@@ -37,7 +37,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    PlayerSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
@@ -328,7 +328,7 @@ fn fixture_draw_exiler() -> Arc<CardData> {
             change: ZoneChangePattern { from: Some(Zone::Library), to: Some(Zone::Hand), act: None },
             object: None,
         },
-        ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::Opponent), ZoneSet::LIBRARY),
+        ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerSet::Opponents), ZoneSet::LIBRARY),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
     );
     CardDataBuilder::new("Fixture Draw Exiler")

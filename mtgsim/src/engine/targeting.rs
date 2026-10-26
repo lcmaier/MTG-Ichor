@@ -318,7 +318,7 @@ impl GameState {
     ///
     /// Called at cast/activation time (rule 601.2c) and again at resolution
     /// time (rule 608.2b) to check if targets are still legal.
-    /// `you` is CR 109.5's "you" for any `ByController(PlayerRef::You)` node
+    /// `you` is CR 109.5's "you" for any `ByController(PlayerSet::You)` node
     /// inside the filter — "the controller of the object the ability is on",
     /// which for a spell or activated ability being cast is the player casting
     /// it, and for an Aura's enchant clause is the Aura's controller.
@@ -423,7 +423,7 @@ impl GameState {
 
     /// Validate a single selected object/player against a SelectionFilter.
     ///
-    /// `you` resolves an `ObjectFilter::ByController(PlayerRef::You)` node
+    /// `you` resolves an `ObjectFilter::ByController(PlayerSet::You)` node
     /// (CR 109.5). Only the `Permanent` arm can contain one; the others ignore
     /// it.
     pub(crate) fn validate_selection(

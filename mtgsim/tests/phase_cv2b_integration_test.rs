@@ -54,7 +54,7 @@ use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, PlaneswalkerT
 use mtgsim::types::colors::Color;
 use mtgsim::types::history::CountIs;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, Antecedent, Characteristic, CharacteristicEdit, Condition, CopyException, CounterType,
+    PlayerSet, AffectedSet, AmountExpr, Antecedent, Characteristic, CharacteristicEdit, Condition, CopyException, CounterType,
     Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
     SelectionFilter, TokenDef, TypeChange,
 };
@@ -273,7 +273,7 @@ fn and(a: ObjectFilter, b: ObjectFilter) -> ObjectFilter {
 }
 
 fn creatures_you_control() -> ObjectFilter {
-    and(ObjectFilter::ByType(CardType::Creature), ObjectFilter::ByController(PlayerRef::You))
+    and(ObjectFilter::ByType(CardType::Creature), ObjectFilter::ByController(PlayerSet::You))
 }
 
 fn enters_with(template: EnterModsTemplate) -> AbilityDef {
@@ -365,7 +365,7 @@ fn oath_of_gideon_shaped() -> Arc<CardData> {
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(and(
                 ObjectFilter::ByType(CardType::Planeswalker),
-                ObjectFilter::ByController(PlayerRef::You),
+                ObjectFilter::ByController(PlayerSet::You),
             )),
             Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::Loyalty, 1)),
         )))))

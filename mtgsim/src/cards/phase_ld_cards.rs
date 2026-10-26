@@ -483,7 +483,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
 ///
 /// Not "creatures you control" — the filter is a bare `ByType(Creature)` with
 /// no controller constraint, and the text says what the filter does. Adding
-/// `ByController(PlayerRef::You)` would work (`compute::object_matches_filter`
+/// `ByController(PlayerSet::You)` would work (`compute::object_matches_filter`
 /// resolves it), but controller scoping is not what this card is here to
 /// exercise.
 ///

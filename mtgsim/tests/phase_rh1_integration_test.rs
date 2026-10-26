@@ -26,7 +26,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::Cost;
-use mtgsim::types::effects::{AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive};
+use mtgsim::types::effects::{PlayerSet, AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
@@ -76,8 +76,8 @@ fn ability(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> Abili
 /// Tactics'). The `match` is how one board runs under all three readers of
 /// the cause; a printed card has one shape and writes it directly.
 fn watcher(shape: Shape, change: ZoneChangePattern) -> Arc<CardData> {
-    let by = SourceFilter::ControlledBy(PlayerRef::Opponent);
-    let yours = ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::ALL);
+    let by = SourceFilter::ControlledBy(PlayerSet::Opponents);
+    let yours = ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerSet::You), ZoneSet::ALL);
     let pattern = EventPattern::ZoneChange { change, object: None };
     let ability = match shape {
         Shape::Cant => ability(
@@ -104,7 +104,7 @@ fn watcher(shape: Shape, change: ZoneChangePattern) -> Arc<CardData> {
                     subject: TriggerSubject::Filter(ObjectFilter::All),
                     change,
                     by: Some(by),
-                    owner: Some(PlayerRef::You),
+                    owner: PlayerSet::You,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
                 gain_one(),
@@ -326,7 +326,7 @@ fn move_watcher(change: ZoneChangePattern) -> Arc<CardData> {
             subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
             change,
             by: None,
-            owner: Some(PlayerRef::Opponent),
+            owner: PlayerSet::Opponents,
             multiplicity: Multiplicity::PerOccurrence,
         },
         gain_one(),

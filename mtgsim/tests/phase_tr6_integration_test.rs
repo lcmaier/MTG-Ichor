@@ -127,7 +127,7 @@ fn a_tier_two_trigger_reads_its_cause_as_the_arm_it_names() {
         subject: TriggerSubject::Filter(ObjectFilter::All),
         change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
         by: None,
-        owner: None,
+        owner: PlayerSet::Everyone,
         multiplicity: Multiplicity::PerOccurrence,
     };
     let mut gains = triggered_ability("", whenever(to_a_graveyard, gain_one()));
@@ -427,7 +427,7 @@ fn each_creature_you_control(game: &mut GameState, primitive: Primitive) -> (Vec
     let theirs = put_on_battlefield(game, grizzly_bears(), 1);
     let yours_filter = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(mtgsim::types::effects::PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(mtgsim::types::effects::PlayerSet::You)),
     );
     let source = put_in_hand(game, grizzly_bears(), 0);
     let ctx = ResolutionContext::untargeted(source, 0, GeneratedBy::Spell);

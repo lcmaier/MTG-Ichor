@@ -3371,7 +3371,7 @@ fn named_for_an_entry(
             }
             opponents => among_opponents(opponents)?,
         },
-        PlayerRef::DefendingPlayer(_) | PlayerRef::AnyDefendingPlayer => {
+        PlayerRef::DefendingPlayer(_) => {
             return Err(format!(
                 "replacement {:?} names \"defending player\" {role} {entering}, which an entering object's replacement has no attacking creature to name",
                 chosen.id

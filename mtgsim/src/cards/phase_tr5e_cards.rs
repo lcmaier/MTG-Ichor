@@ -14,7 +14,7 @@ use crate::cards::authoring::{attacks, triggered_ability, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Antecedent, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
+use crate::types::effects::{PlayerSet, AmountExpr, Antecedent, Effect, EffectRecipient, ObjectFilter, Primitive};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::EventRole;
@@ -44,7 +44,7 @@ pub fn hellrider() -> Arc<CardData> {
     let text = "Whenever a creature you control attacks, this creature deals 1 damage to the player or planeswalker it's attacking.";
     let creature_you_control = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     );
     let one_damage = Effect::Atom(
         Primitive::DealDamage { amount: AmountExpr::Fixed(1), unpreventable: false },

@@ -23,7 +23,7 @@ use mtgsim::engine::layers::types::{
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
 use mtgsim::test_support::{put_land_on_battlefield, put_on_battlefield, setup_two_player_game};
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{Antecedent, Duration, ObjectFilter, PlayerRef};
+use mtgsim::types::effects::{PlayerSet, Antecedent, Duration, ObjectFilter, PlayerRef};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::state::game_state::GameState;
 
@@ -57,7 +57,7 @@ fn register_anthem(
     });
 }
 
-fn creature_and(inner: PlayerRef) -> ObjectFilter {
+fn creature_and(inner: PlayerSet) -> ObjectFilter {
     ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::ByController(inner)),
@@ -135,7 +135,7 @@ fn test_resolution_effect_keeps_its_you_when_the_source_changes_hands() {
     // of one — a Forest's mana ability is activated, so nothing registers.
     let source = put_land_on_battlefield(&mut game, mtgsim::cards::basic_lands::forest, 0);
 
-    register_anthem(&mut game, source, 0, creature_and(PlayerRef::You));
+    register_anthem(&mut game, source, 0, creature_and(PlayerSet::You));
     assert_eq!(get_effective_power(&game, my_bears), Some(3));
     assert_eq!(get_effective_power(&game, opp_bears), Some(2));
 
@@ -158,7 +158,7 @@ fn test_opponent_matches_every_controller_that_is_not_you() {
     let opp_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
     let source = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
 
-    register_anthem(&mut game, source, 0, creature_and(PlayerRef::Opponent));
+    register_anthem(&mut game, source, 0, creature_and(PlayerSet::Opponents));
 
     assert_eq!(get_effective_power(&game, opp_bears), Some(3));
     assert_eq!(get_effective_power(&game, my_bears), Some(2));
@@ -178,7 +178,7 @@ fn test_owner_is_the_sources_owner_not_its_controller() {
     // Owned by player 1; the effect's "you" is player 0, so the two differ.
     let source = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
 
-    register_anthem(&mut game, source, 0, creature_and(PlayerRef::OwnerOf(Antecedent::ThisObject)));
+    register_anthem(&mut game, source, 0, creature_and(PlayerSet::Player(PlayerRef::OwnerOf(Antecedent::ThisObject))));
 
     assert_eq!(get_effective_power(&game, p1_bears), Some(3));
     assert_eq!(get_effective_power(&game, source), Some(3));
@@ -195,7 +195,7 @@ fn test_explicit_player_ignores_the_source() {
     let p1_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
     let source = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
 
-    register_anthem(&mut game, source, 0, creature_and(PlayerRef::Player(1)));
+    register_anthem(&mut game, source, 0, creature_and(PlayerSet::Player(PlayerRef::Player(1))));
 
     assert_eq!(get_effective_power(&game, p1_bears), Some(3));
     assert_eq!(get_effective_power(&game, p0_bears), Some(2));
@@ -218,7 +218,7 @@ fn test_negated_controller_filter_is_honored() {
         &mut game,
         source,
         0,
-        ObjectFilter::Not(Box::new(ObjectFilter::ByController(PlayerRef::You))),
+        ObjectFilter::Not(Box::new(ObjectFilter::ByController(PlayerSet::You))),
     );
 
     assert_eq!(get_effective_power(&game, p1_bears), Some(3));

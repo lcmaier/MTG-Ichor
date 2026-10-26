@@ -89,7 +89,7 @@ pub enum CostSubject {
     /// frame — on the stack at CR 601.2f, in hand for the castability
     /// preview — with "you" resolved to the source's *current* controller
     /// (CR 109.5). The spell's own controller is its caster (CR 601.2a), which
-    /// is what `ByController(PlayerRef::You)` compares against: "spells you
+    /// is what `ByController(PlayerSet::You)` compares against: "spells you
     /// cast" is the source's controller casting.
     ///
     /// `ObjectFilter` rather than a spell-specific filter because the leaves

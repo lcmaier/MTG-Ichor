@@ -27,7 +27,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    Antecedent, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
+    PlayerSet, Antecedent, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
@@ -301,7 +301,7 @@ fn your_creatures_enter_with_a_counter_put_by(putter: Option<PlayerRef>) -> Arc<
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
             Rewrite::EnterWith(template),
         ),
@@ -375,7 +375,7 @@ fn enchantment_that_gains(name: &'static str, event: impl Into<TriggerEvent>, am
 
 /// "A creature you control".
 fn a_creature_you_control() -> ObjectFilter {
-    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))
+    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerSet::You)))
 }
 
 /// Resolve "put `n` `kind` counters on each creature you control" for `player`.
@@ -505,7 +505,7 @@ fn a_once_per_event_arm_triggers_once_for_the_event() {
 fn a_put_arms_by_reads_who_put_the_counters_on() {
     let mut game = setup_two_player_game();
     let arm = counters_put_on(ObjectFilter::ByType(CardType::Creature), CounterType::MinusOneMinusOne)
-        .by(PlayerRef::You)
+        .by(PlayerSet::You)
         .once_per_object();
     let hapatra = put_on_battlefield(&mut game, enchantment_that_gains("Fixture Hapatra", arm, AmountExpr::Fixed(1)), 0);
     let bears = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[]), 1);
@@ -525,9 +525,9 @@ fn a_put_arms_by_reads_who_put_the_counters_on() {
 fn a_put_arm_reads_counters_a_player_gets() {
     let mut game = setup_two_player_game();
     let arm = TriggerEvent::CountersPutOn {
-        subject: ObjectOrPlayerSubject::Player(Some(PlayerRef::You)),
+        subject: ObjectOrPlayerSubject::Player(PlayerSet::You),
         counter_type: Some(CounterType::Energy),
-        by: None,
+        by: PlayerSet::Everyone,
         multiplicity: Multiplicity::OncePerSubject,
     };
     let gorger = put_on_battlefield(&mut game, enchantment_that_gains("Fixture Gorger", arm, AmountExpr::TriggeringAmount), 0);
@@ -653,7 +653,7 @@ fn a_trigger_asking_a_reading_its_arm_cannot_give_is_refused() {
             subject: TriggerSubject::Filter(ObjectFilter::All),
             change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
             by: None,
-            owner: None,
+            owner: PlayerSet::Everyone,
             multiplicity: Multiplicity::OncePerSubject,
         }),
         intervening_if: None,

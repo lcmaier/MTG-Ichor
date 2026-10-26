@@ -23,8 +23,8 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AffectedSet, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick,
-    PlayerRef, Primitive, SelectionFilter, TargetCount,
+    PlayerSet, AffectedSet, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick,
+    Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -262,7 +262,7 @@ fn test_without_sigarda_the_same_edict_prompts_once_and_takes_a_creature() {
 #[test]
 fn test_sigarda_does_not_protect_a_player_whose_permanents_she_is_not_on() {
     // The `ObjectSet` half. "…can't cause **you** to sacrifice permanents" is
-    // `ByController(PlayerRef::You)`, resolved against Sigarda's controller —
+    // `ByController(PlayerSet::You)`, resolved against Sigarda's controller —
     // so P1's own creatures are untouched by P0's Sigarda.
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, sigarda_host_of_herons(), 0);
@@ -680,8 +680,8 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
 
     let effect = Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
         pattern: EventPattern::Destroy { source: None },
-        affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
-        by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
+        affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You))),
+        by: Some(SourceFilter::ControlledBy(PlayerSet::Opponents)),
     })));
     let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
 

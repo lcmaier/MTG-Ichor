@@ -33,7 +33,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, SelectionFilter, TypeChange,
+    PlayerSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive, SelectionFilter, TypeChange,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -107,7 +107,7 @@ fn human_clone() -> Arc<CardData> {
 /// "Creatures you control have persist": a second instance beside the
 /// Scarecrow's own, for its third ruling.
 fn persist_anthem() -> Arc<CardData> {
-    let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerSet::You)));
     CardDataBuilder::new("Fixture: creatures you control have persist")
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(

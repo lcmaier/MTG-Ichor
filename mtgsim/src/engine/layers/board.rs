@@ -59,7 +59,7 @@ use crate::state::battlefield::{EnteredAs, PermanentState};
 use crate::state::game_state::GameState;
 use crate::types::card_types::Subtype;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CharacteristicEdit, Condition, CounterType, ObjectFilter, PlayerFact, PlayerRef,
+    PlayerSet, ObjectSet, AmountExpr, CharacteristicEdit, Condition, CounterType, ObjectFilter, PlayerFact, PlayerRef,
     };
 use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
@@ -751,7 +751,7 @@ fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
         // What an object did is the log's, gated by its rows; a player the
         // fact names resolves "you" off the source.
         ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => {
-            if let ObjectFact::DealtDamageTo { player: Some(PlayerRef::You | PlayerRef::Opponent), .. } = fact {
+            if let ObjectFact::DealtDamageTo { player: PlayerSet::You | PlayerSet::Opponents, .. } = fact {
                 out.source |= you_channel;
             }
         }
@@ -761,13 +761,13 @@ fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
         ObjectFilter::ByColor(_) => out.members |= Channels::COLORS,
         ObjectFilter::ByController(player) => {
             out.members |= Channels::CONTROLLER;
-            if matches!(player, PlayerRef::You | PlayerRef::Opponent) {
+            if matches!(player, PlayerSet::You | PlayerSet::Opponents) {
                 out.source |= you_channel;
             }
         }
         // Ownership is off the object, but "you" still resolves off the source.
         ObjectFilter::ByOwner(player) => {
-            if matches!(player, PlayerRef::You | PlayerRef::Opponent) {
+            if matches!(player, PlayerSet::You | PlayerSet::Opponents) {
                 out.source |= you_channel;
             }
         }
@@ -855,11 +855,12 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
 /// static conditioned on controlling a Forest).
 fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels) {
     match condition {
-        Condition::Player { fact, .. } => player_fact_reads(fact, out, you_channel),
-        // Which player is off combat state, which no layer writes, but a
-        // planeswalker attacked is answered by its controller.
-        Condition::DefendingPlayer { fact, .. } => {
-            out.members |= Channels::CONTROLLER;
+        // Which defending player is off combat state, which no layer writes,
+        // but a planeswalker attacked is answered by its controller.
+        Condition::Player { players, fact } => {
+            if matches!(players, PlayerSet::Player(PlayerRef::DefendingPlayer(_))) {
+                out.members |= Channels::CONTROLLER;
+            }
             player_fact_reads(fact, out, you_channel);
         }
         // The object is read through the filter; *which* object it is is

@@ -20,7 +20,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    PlayerSet, Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
@@ -33,12 +33,12 @@ use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 /// "Whenever [subject] is put into [whose] graveyard from the battlefield":
 /// the graveyard named by its owner, whoever controlled the creature
 /// (Bridge from Below's second ruling).
-fn put_into_a_graveyard_from_the_battlefield(subject: ObjectFilter, whose: PlayerRef) -> TriggerEvent {
+fn put_into_a_graveyard_from_the_battlefield(subject: ObjectFilter, whose: PlayerSet) -> TriggerEvent {
     TriggerEvent::ZoneChange {
         subject: TriggerSubject::Filter(subject),
         change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
         by: None,
-        owner: Some(whose),
+        owner: whose,
         multiplicity: Multiplicity::PerOccurrence,
     }
 }
@@ -83,8 +83,8 @@ pub fn guerrilla_tactics() -> Arc<CardData> {
     let discarded = TriggerEvent::ZoneChange {
         subject: TriggerSubject::Object(Antecedent::ThisObject),
         change: ZoneChangePattern { from: Some(Zone::Hand), to: None, act: Some(ZoneChangeAct::Discarded) },
-        by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
-        owner: None,
+        by: Some(SourceFilter::ControlledBy(PlayerSet::Opponents)),
+        owner: PlayerSet::Everyone,
         multiplicity: Multiplicity::PerOccurrence,
     };
     CardDataBuilder::new("Guerrilla Tactics")
@@ -283,7 +283,7 @@ pub fn bridge_from_below() -> Arc<CardData> {
             triggered_ability(
                 zombie,
                 whenever(
-                    put_into_a_graveyard_from_the_battlefield(nontoken_creature, PlayerRef::You),
+                    put_into_a_graveyard_from_the_battlefield(nontoken_creature, PlayerSet::You),
                     Effect::Atom(Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
                 ),
             ),
@@ -293,7 +293,7 @@ pub fn bridge_from_below() -> Arc<CardData> {
             triggered_ability(
                 exile,
                 whenever(
-                    put_into_a_graveyard_from_the_battlefield(ObjectFilter::ByType(CardType::Creature), PlayerRef::Opponent),
+                    put_into_a_graveyard_from_the_battlefield(ObjectFilter::ByType(CardType::Creature), PlayerSet::Opponents),
                     Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::ThisObject)),
                 ),
             ),

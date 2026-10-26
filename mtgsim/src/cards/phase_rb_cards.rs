@@ -21,7 +21,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    PlayerSet, ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     TokenDef,
 };
 use crate::types::ids::AbilityId;
@@ -114,7 +114,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                             Box::new(ObjectFilter::ByType(CardType::Creature)),
                             Box::new(ObjectFilter::And(
                                 Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
-                                Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+                                Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
                             )),
                         )),
                     Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
@@ -293,7 +293,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
                         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
                         // "an opponent's graveyard" — CR 400.3 sends it to the
                         // owner's, so this is ownership and not control.
-                        Box::new(ObjectFilter::ByOwner(PlayerRef::Opponent)),
+                        Box::new(ObjectFilter::ByOwner(PlayerSet::Opponents)),
                     ),
                     // "from anywhere".
                     ZoneSet::ALL,

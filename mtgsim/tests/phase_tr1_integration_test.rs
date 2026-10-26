@@ -809,7 +809,7 @@ fn prevented_damage_triggers_nothing() {
             triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
                     source: TriggerSubject::Filter(ObjectFilter::All),
-                    recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+                    recipient: DamageRecipient::Player(PlayerSet::You),
                     combat: None,
                     excess: false,
                     multiplicity: Multiplicity::PerOccurrence,
@@ -837,7 +837,7 @@ fn prevented_damage_triggers_nothing() {
             triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
                     source: TriggerSubject::Filter(ObjectFilter::All),
-                    recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+                    recipient: DamageRecipient::Player(PlayerSet::You),
                     combat: None,
                     excess: false,
                     multiplicity: Multiplicity::PerOccurrence,
@@ -870,7 +870,7 @@ fn a_replaced_death_triggers_the_exile_and_not_the_death() {
                     subject: TriggerSubject::Filter(a_creature()),
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Exile), act: None },
                     by: None,
-                    owner: None,
+                    owner: PlayerSet::Everyone,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
                 gain_one(),
@@ -1474,7 +1474,7 @@ fn each_source_of_simultaneous_life_gain_triggers_separately() {
         enchantment_watcher(
             "Vital Ledger",
             triggered_ability("", whenever(
-                TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
+                TriggerEvent::GainsLife { player: PlayerSet::You, multiplicity: Multiplicity::PerOccurrence },
                 draw_one(),
             )),
         ),
@@ -1506,7 +1506,7 @@ fn gaining_zero_life_triggers_nothing() {
         enchantment_watcher(
             "Vital Ledger",
             triggered_ability("", whenever(
-                TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
+                TriggerEvent::GainsLife { player: PlayerSet::You, multiplicity: Multiplicity::PerOccurrence },
                 draw_one(),
             )),
         ),
@@ -1575,7 +1575,7 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
                     subject: TriggerSubject::Filter(ObjectFilter::All),
                     change: ZoneChangePattern { from: Some(Zone::Hand), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Discarded) },
                     by: None,
-                    owner: Some(PlayerRef::You),
+                    owner: PlayerSet::You,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
                 gain_one(),
@@ -1682,7 +1682,7 @@ fn guile_shaped() -> Arc<CardData> {
             subject: TriggerSubject::Object(Antecedent::ThisObject),
             change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
             by: None,
-            owner: None,
+            owner: PlayerSet::Everyone,
             multiplicity: Multiplicity::PerOccurrence,
         },
         gain_one(),
@@ -1767,7 +1767,7 @@ fn dread_shaped() -> Arc<CardData> {
         .ability(triggered_ability("", whenever(
             TriggerEvent::DamageDealt {
                 source: a_creature().into(),
-                recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+                recipient: DamageRecipient::Player(PlayerSet::You),
                 combat: None,
                 excess: false,
                 multiplicity: Multiplicity::PerOccurrence,
@@ -1779,7 +1779,7 @@ fn dread_shaped() -> Arc<CardData> {
                 subject: TriggerSubject::Object(Antecedent::ThisObject),
                 change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                 by: None,
-                owner: None,
+                owner: PlayerSet::Everyone,
                 multiplicity: Multiplicity::PerOccurrence,
             },
             gain_one(),
@@ -1843,12 +1843,12 @@ fn one_ability_two_zones() -> Arc<CardData> {
                     subject: TriggerSubject::Object(Antecedent::ThisObject),
                     change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     by: None,
-                    owner: None,
+                    owner: PlayerSet::Everyone,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
                 TriggerEvent::DamageDealt {
                     source: a_creature().into(),
-                    recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+                    recipient: DamageRecipient::Player(PlayerSet::You),
                     combat: None,
                     excess: false,
                     multiplicity: Multiplicity::PerOccurrence,

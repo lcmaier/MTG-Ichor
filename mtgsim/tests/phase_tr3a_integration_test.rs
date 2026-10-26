@@ -510,7 +510,7 @@ fn a_delayed_trigger_fires_once_unless_it_states_a_duration() {
 /// "The next time a creature you control dies, you gain life equal to its
 /// power." A wipe takes a 1/1 and a 3/3 at once.
 fn next_death() -> Arc<CardData> {
-    let you_control = ObjectFilter::And(Box::new(a_creature()), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    let you_control = ObjectFilter::And(Box::new(a_creature()), Box::new(ObjectFilter::ByController(PlayerSet::You)));
     instant(
         "Next Death",
         ManaCost::build(&[ManaType::Black], 0),
@@ -563,7 +563,7 @@ fn two_attackers_declared_at_once_ask_a_once_delayed_trigger_s_controller() {
     let mut game = setup_two_player_game();
     let small = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
     let big = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
-    let you_control = ObjectFilter::And(Box::new(a_creature()), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    let you_control = ObjectFilter::And(Box::new(a_creature()), Box::new(ObjectFilter::ByController(PlayerSet::You)));
     let spell = resolve_spell(
         &mut game,
         instant(
@@ -746,7 +746,7 @@ fn archivist_whose_rider(rider: Effect) -> Arc<CardData> {
         Box::new(a_creature()),
         Box::new(ObjectFilter::And(
             Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
-            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+            Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
         )),
     );
     let replacement = ReplacementDef::new(

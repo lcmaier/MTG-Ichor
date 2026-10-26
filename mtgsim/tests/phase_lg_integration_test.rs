@@ -28,7 +28,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    PlayerSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_object_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -631,7 +631,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let filter = SelectionFilter::Permanent(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ));
 
     assert!(

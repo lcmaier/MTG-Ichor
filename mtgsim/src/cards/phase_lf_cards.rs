@@ -6,7 +6,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerRef,
+    PlayerSet, AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
     Primitive,
 };
 use crate::types::costs::Cost;
@@ -141,7 +141,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
                 ),
                 EffectRecipient::FilteredPermanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             ),
         })

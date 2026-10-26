@@ -13,7 +13,7 @@ use std::ops::BitOr;
 
 use crate::types::history::{HistoryCount, ObjectFact};
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
+    PlayerSet, ObjectSet, AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, };
 use crate::types::triggers::{
     BlockOccurrence, DamageRecipient, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
@@ -330,9 +330,23 @@ fn object_set_reads(set: &ObjectSet) -> TriggerBindingReads {
     }
 }
 
+/// What a set names its players by: a word for one, or nothing the binding
+/// keeps.
+fn player_set_reads(set: &PlayerSet) -> TriggerBindingReads {
+    match set {
+        PlayerSet::Player(who) => player_ref_reads(who),
+        PlayerSet::Nobody
+        | PlayerSet::You
+        | PlayerSet::Opponents
+        | PlayerSet::Everyone
+        | PlayerSet::DefendingPlayers
+        | PlayerSet::Fixed(_) => TriggerBindingReads::NONE,
+    }
+}
+
 fn player_ref_reads(p: &PlayerRef) -> TriggerBindingReads {
     match p {
-        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) | PlayerRef::AnyDefendingPlayer => TriggerBindingReads::NONE,
+        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) => TriggerBindingReads::NONE,
         PlayerRef::Owner => TriggerBindingReads::SOURCE,
         PlayerRef::DefendingPlayer(creature) | PlayerRef::OwnerOf(creature) => creature_reads(*creature),
         PlayerRef::TheEventsPlayer => TriggerBindingReads::PLAYER,
@@ -352,7 +366,7 @@ fn filter_reads(f: &ObjectFilter) -> TriggerBindingReads {
         | ObjectFilter::Token
         | ObjectFilter::OtherThanInstance(_) => TriggerBindingReads::NONE,
         ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => object_fact_reads(fact),
-        ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref_reads(whose),
+        ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_set_reads(whose),
         ObjectFilter::NotSource => TriggerBindingReads::SOURCE,
         ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => filter_reads(a) | filter_reads(b),
         ObjectFilter::Not(inner) => filter_reads(inner),
@@ -361,8 +375,7 @@ fn filter_reads(f: &ObjectFilter) -> TriggerBindingReads {
 
 fn condition_reads(c: &Condition) -> TriggerBindingReads {
     match c {
-        Condition::Player { fact, .. } => player_fact_reads(fact),
-        Condition::DefendingPlayer { of, fact } => creature_reads(*of) | player_fact_reads(fact),
+        Condition::Player { players, fact } => player_set_reads(players) | player_fact_reads(fact),
         Condition::SpellWasKicked
         | Condition::SourceUntapped
         | Condition::SourceTapped
@@ -410,7 +423,7 @@ fn object_fact_reads(f: &ObjectFact) -> TriggerBindingReads {
         | ObjectFact::CameUnderControl => {
             TriggerBindingReads::NONE
         }
-        ObjectFact::DealtDamageTo { player, .. } => player.as_ref().map_or(TriggerBindingReads::NONE, player_ref_reads),
+        ObjectFact::DealtDamageTo { player, .. } => player_set_reads(player),
     }
 }
 

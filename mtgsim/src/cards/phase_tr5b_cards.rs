@@ -18,7 +18,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    Antecedent, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
+    PlayerSet, Antecedent, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::history::CountIs;
@@ -42,7 +42,7 @@ fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityD
 }
 
 fn a_creature_you_control() -> ObjectFilter {
-    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))
+    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerSet::You)))
 }
 
 /// Simic Ascendancy — {G}{U}

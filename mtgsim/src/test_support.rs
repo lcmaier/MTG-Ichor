@@ -37,7 +37,7 @@ use crate::state::game_state::{GameState, Phase, PhaseType};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    PlayerSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
     TargetCount,
 };
 use crate::types::ids::{AbilityId, ObjectId, PlayerId, new_ability_id};
@@ -202,7 +202,7 @@ pub fn pacifism() -> Arc<CardData> {
 
 /// An Aura named `name` that can only enchant a creature **you** control.
 ///
-/// CR 303.4a's enchant restriction, with a `ByController(PlayerRef::You)` node
+/// CR 303.4a's enchant restriction, with a `ByController(PlayerSet::You)` node
 /// in it — which SBA 704.5n resolves against the Aura's own controller
 /// (CR 109.5), independently of the enchanted creature's (CR 303.4e). Real
 /// cards with this text include Aura of Silence's cousins and the whole
@@ -216,7 +216,7 @@ pub fn aura_enchanting_your_creature(name: &str) -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .enchant_filter(SelectionFilter::Permanent(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            Box::new(ObjectFilter::ByController(PlayerSet::You)),
         )))
         .build()
 }

@@ -155,7 +155,9 @@ pub enum AmountExpr {
 pub enum PlayerRef {
     /// The controller of the spell/ability
     You,
-    /// A targeted or otherwise identified opponent
+    /// "An opponent", one: the opponent among an instruction's recipients,
+    /// or one chosen as the instruction applies (CR 608.2d). A filter's
+    /// "an opponent" is any of them, `PlayerSet::Opponents`.
     Opponent,
     /// "Its owner": the owner of the object the antecedent names (CR 108.3),
     /// "this object" for Xantcha's "planeswalkers its owner controls".
@@ -174,11 +176,6 @@ pub enum PlayerRef {
     /// a trigger's attacker. The player it is attacking, or the controller of
     /// the planeswalker it is attacking.
     DefendingPlayer(Antecedent),
-    /// "Defending player" where no creature settles which (CR 802.2a's last
-    /// sentence): any of the attacking player's opponents during combat (CR
-    /// 506.2, 802.2), for one target's filter or an activation's restriction,
-    /// where what the controller picks is the choice. Nobody outside combat.
-    AnyDefendingPlayer,
     /// "That player": on a triggered ability, the player of its triggering
     /// event (the arm's `player_of` on the matched records); on a CR 615.5
     /// rider, the player its replaced event was about.
@@ -226,7 +223,9 @@ pub enum ObjectFilter {
     BySubtype(crate::types::card_types::Subtype),
     BySupertype(crate::types::card_types::Supertype),
     ByColor(Color),
-    ByController(PlayerRef),
+    /// "You control", "an opponent controls", "defending player controls":
+    /// the object's controller is in the set.
+    ByController(PlayerSet),
     /// Power less than or equal to N (for "creature with power N or less")
     PowerLE(i32),
     /// "With a +1/+1 counter on it", "with three or more counters on it",
@@ -271,7 +270,7 @@ pub enum ObjectFilter {
     /// Read off the `GameObject` rather than the layer frame, for the reason
     /// `Token` gives — ownership is not a characteristic, so no layer can
     /// change the answer and there is nothing on `chars` to consult.
-    ByOwner(PlayerRef),
+    ByOwner(PlayerSet),
     /// "Each **other** ..." — every permanent but the effect's own source.
     ///
     /// Opalescence's "each other non-Aura enchantment", and the word on
@@ -414,13 +413,13 @@ impl ObjectSet {
     }
 
     /// The cards in `whose` hand, every one its owner's (CR 400.3).
-    pub fn hand(whose: PlayerRef) -> ObjectSet {
+    pub fn hand(whose: PlayerSet) -> ObjectSet {
         ObjectSet::Filter { filter: ObjectFilter::ByOwner(whose), zones: ZoneSet::HAND }
     }
 
     /// Whose whole hand this is, when it is [`Self::hand`]'s set: a hand any
     /// player may count, by its size and reading no card (CR 402.3).
-    pub fn whose_hand(&self) -> Option<&PlayerRef> {
+    pub fn whose_hand(&self) -> Option<&PlayerSet> {
         match self {
             ObjectSet::Filter { filter: ObjectFilter::ByOwner(whose), zones } if *zones == ZoneSet::HAND => Some(whose),
             ObjectSet::Filter { .. } | ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => None,
@@ -493,6 +492,18 @@ pub enum PlayerSet {
     Opponents,
     /// Every player, including the controller — Furnace of Rath, Fog.
     Everyone,
+    /// "Defending player" where no creature settles which (CR 802.2a's last
+    /// sentence): every player a creature is attacking during combat (CR
+    /// 506.2, 802.2), for a target's filter or an activation's restriction,
+    /// where which one is the controller's choice. Nobody outside combat.
+    /// Asked with the game, by a filter's reader.
+    DefendingPlayers,
+    /// The one player a word names: "a creature defending player controls"
+    /// (53 printed), "creatures that player controls" (223). Asked with the
+    /// game and the text's referents, by a filter's or a condition's reader.
+    /// Never `PlayerRef::You`, which is [`Self::You`], nor `PlayerRef::Opponent`,
+    /// which is one chosen opponent no filter can choose.
+    Player(PlayerRef),
     /// A set captured when the effect was created, the way
     /// [`ObjectSet::Fixed`] captures objects: a resolution filling in the
     /// player it targeted, or an empty set for a static ability that scopes by
@@ -503,8 +514,11 @@ pub enum PlayerSet {
 impl PlayerSet {
     /// Is `player` in this set, for an effect controlled by `controller`?
     ///
-    /// Needs no board: every arm is answerable from the two ids, which is what
-    /// keeps this on the data type rather than in the pipeline.
+    /// Needs no board: every arm a replacement's, a group's or a history's
+    /// set holds is answerable from the two ids, which is what keeps this on
+    /// the data type rather than in the pipeline. A word for a player needs
+    /// the game and the text's referents, which a filter's and a condition's
+    /// readers have and this does not.
     pub fn contains(&self, controller: PlayerId, player: PlayerId) -> bool {
         match self {
             PlayerSet::Nobody => false,
@@ -512,6 +526,11 @@ impl PlayerSet {
             PlayerSet::Opponents => player != controller,
             PlayerSet::Everyone => true,
             PlayerSet::Fixed(ids) => ids.contains(&player),
+            PlayerSet::Player(PlayerRef::Player(id)) => player == *id,
+            PlayerSet::DefendingPlayers | PlayerSet::Player(_) => {
+                debug_assert!(false, "{self:?} names its players with the game, which a set asked by ids has not");
+                false
+            }
         }
     }
 
@@ -522,7 +541,7 @@ impl PlayerSet {
         match self {
             PlayerSet::Nobody => false,
             PlayerSet::Fixed(ids) => !ids.is_empty(),
-            PlayerSet::You | PlayerSet::Opponents | PlayerSet::Everyone => true,
+            PlayerSet::You | PlayerSet::Opponents | PlayerSet::Everyone | PlayerSet::DefendingPlayers | PlayerSet::Player(_) => true,
         }
     }
 }
@@ -676,10 +695,6 @@ pub enum Condition {
     /// died this turn" is every row added up, while a life total is not a
     /// count and "an opponent controls three artifacts" is one opponent's three.
     Player { players: PlayerSet, fact: PlayerFact },
-    /// "If defending player controls an artifact" (CR 508.5): the fact about
-    /// the defending player of the creature `of` names, and false while it
-    /// attacks nothing.
-    DefendingPlayer { of: Antecedent, fact: PlayerFact },
     SpellWasKicked,
     ModeChosen(usize),
     /// Every clause holds — Wonder's "in your graveyard **and** you control an
@@ -812,7 +827,6 @@ impl Condition {
             // The rest read players, histories, the host, a trigger, or a
             // resolution.
             Condition::Player { .. }
-            | Condition::DefendingPlayer { .. }
             | Condition::SpellWasKicked
             | Condition::ModeChosen(_)
             | Condition::ObjectMatches(..)
@@ -1013,7 +1027,7 @@ pub enum EffectRecipient {
     /// spell is cast), and filling the targets would change what this variant
     /// means to the static-ability path that shares it.
     ///
-    /// Use `ByController(PlayerRef::You)` in the filter to express "you control".
+    /// Use `ByController(PlayerSet::You)` in the filter to express "you control".
     /// The filter is stored verbatim; `compute::object_matches_filter`
     /// resolves the `PlayerRef` during the layer walk (CR 109.5).
     FilteredPermanents(ObjectFilter),

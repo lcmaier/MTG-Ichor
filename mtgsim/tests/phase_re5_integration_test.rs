@@ -137,7 +137,7 @@ fn fixture_doubler() -> Arc<CardData> {
         "Fixture Counter Doubler",
         ReplacementDef::new(
             EventPattern::AddCounters { counter: None, by: None },
-            ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+            ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You)),
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         ),
     )
@@ -191,7 +191,7 @@ fn your_creatures_enter_with_a_counter() -> Arc<CardData> {
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1)),
         ),
@@ -204,7 +204,7 @@ fn your_permanents_enter_with_a_charge_counter() -> Arc<CardData> {
         "Fixture Charger",
         ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+            ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You)),
             Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::Charge, 1)),
         ),
     )
@@ -864,7 +864,7 @@ fn winding_constrictor_adds_one_of_each_kind_an_entry_carries() {
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
-                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                        Box::new(ObjectFilter::ByController(PlayerSet::You)),
                     )),
                 Rewrite::EnterWith(EnterModsTemplate {
                     status: None,
@@ -975,7 +975,7 @@ fn opponents_creatures_enter_with(counter: CounterType, by: Option<PlayerRef>) -
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
                 )),
             Rewrite::EnterWith(EnterModsTemplate {
                 status: None,
@@ -1066,7 +1066,7 @@ fn a_prevention_over_a_removal_watches_counters_removed() {
             "Fixture Keeper",
             ReplacementDef::new(
                 EventPattern::RemoveCounters { counter: Some(CounterType::PlusOnePlusOne) },
-                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You)),
                 Rewrite::Prevent,
             ),
         ),
@@ -1149,7 +1149,7 @@ fn arithmetic_on_disjoint_kinds_asks_nothing() {
             "Fixture Loyalty Doubler",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: Some(CounterType::Loyalty), by: None },
-                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You)),
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             ),
         ),
@@ -1161,7 +1161,7 @@ fn arithmetic_on_disjoint_kinds_asks_nothing() {
             "Fixture Plus One",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
-                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You)),
                 Rewrite::Amount(AmountRewrite::Plus(1)),
             ),
         ),
@@ -1173,7 +1173,7 @@ fn arithmetic_on_disjoint_kinds_asks_nothing() {
             "Fixture Anthem of Permanents",
             ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+                ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You)),
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1)),
             ),
         ),

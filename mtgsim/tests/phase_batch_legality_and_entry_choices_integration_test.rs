@@ -19,7 +19,7 @@ use mtgsim::test_support::{
 use mtgsim::types::costs::Cost;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, TokenDef,
+    PlayerSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, TokenDef,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
@@ -64,7 +64,7 @@ fn devour(per: PerChosen) -> Effect {
             from: Zone::Battlefield,
             filter: ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             ),
             to: Zone::Graveyard,
             act: ZoneChangeAct::Sacrificed,
@@ -133,7 +133,7 @@ fn doubles_your_plus_one_counters() -> Arc<CardData> {
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         )))))
@@ -609,7 +609,7 @@ fn devour_by_the_count_reads_this_entrys_count() {
 /// "Whenever one or more counters are removed from a permanent you control,
 /// you gain 1 life", Cloudsculpt Armorer's trigger with a gain for its seek.
 fn gains_when_counters_leave_your_permanent() -> Arc<CardData> {
-    let arm = counters_removed_from(TriggerSubject::Filter(ObjectFilter::ByController(PlayerRef::You)), None).once_per_object();
+    let arm = counters_removed_from(TriggerSubject::Filter(ObjectFilter::ByController(PlayerSet::You)), None).once_per_object();
     CardDataBuilder::new("Fixture Counter Warden")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(arm, Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)))))

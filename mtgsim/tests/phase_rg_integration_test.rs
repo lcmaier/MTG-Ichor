@@ -55,8 +55,8 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, Subtype, Subtypes, Supertype};
 use mtgsim::types::history::CountIs;
 use mtgsim::types::effects::{
-    AmountExpr, Antecedent, CharacteristicEdit, Condition, CounterType, Duration, Effect, EffectRecipient,
-    ObjectFilter, ObjectSet, PlayerRef, Primitive, TokenDef, TypeChange,
+    PlayerSet, AmountExpr, Antecedent, CharacteristicEdit, Condition, CounterType, Duration, Effect, EffectRecipient,
+    ObjectFilter, ObjectSet, Primitive, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -106,7 +106,7 @@ fn entry_effect(name: &str, filter: ObjectFilter, template: EnterModsTemplate) -
 fn creatures_enter_as_mutants() -> Arc<CardData> {
     entry_effect(
         "Creatures enter as Mutants",
-        and(creatures(), ObjectFilter::ByController(PlayerRef::You)),
+        and(creatures(), ObjectFilter::ByController(PlayerSet::You)),
         EnterModsTemplate { status: None, counters: Vec::new(), edits: vec![as_a_mutant()], unless_paid: None },
     )
 }
@@ -636,7 +636,7 @@ fn kaito_shaped() -> Arc<CardData> {
 fn oath_of_gideon_shaped() -> Arc<CardData> {
     entry_effect(
         "Oath of Gideon-shaped",
-        and(ObjectFilter::ByType(CardType::Planeswalker), ObjectFilter::ByController(PlayerRef::You)),
+        and(ObjectFilter::ByType(CardType::Planeswalker), ObjectFilter::ByController(PlayerSet::You)),
         EnterModsTemplate::with_counters(CounterType::Loyalty, 1),
     )
 }
@@ -722,7 +722,7 @@ fn kaito_cast_beside_oath_of_gideon_is_its_controllers_order() {
 #[test]
 fn kaito_enters_tapped_under_an_opponents_creatures_enter_tapped() {
     let mut game = setup_two_player_game();
-    let opponents_creatures = and(ObjectFilter::ByType(CardType::Creature), ObjectFilter::ByController(PlayerRef::Opponent));
+    let opponents_creatures = and(ObjectFilter::ByType(CardType::Creature), ObjectFilter::ByController(PlayerSet::Opponents));
     put_on_battlefield(&mut game, entry_effect("Authority-shaped", opponents_creatures, EnterModsTemplate::tapped()), 1);
     let kaito = return_asking(&mut game, kaito_shaped(), 0, &[]);
     assert_eq!(game.battlefield[&kaito].counter_count(CounterType::Loyalty), 4);

@@ -5,7 +5,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
+    PlayerSet, AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
@@ -163,7 +163,7 @@ pub fn chromatic_ward() -> Arc<CardData> {
                 ),
                 EffectRecipient::FilteredPermanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
             ),
         })

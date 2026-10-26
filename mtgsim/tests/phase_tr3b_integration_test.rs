@@ -40,7 +40,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
-    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
+    PlayerSet, Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
     TargetCount, TokenDef,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId, UntilReturnId};
@@ -186,7 +186,7 @@ fn target_your_creature() -> EffectRecipient {
     EffectRecipient::Target(
         SelectionFilter::Permanent(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            Box::new(ObjectFilter::ByController(PlayerSet::You)),
         )),
         TargetCount::Exactly(1),
     )
@@ -224,7 +224,7 @@ fn tempter() -> Arc<CardData> {
                     EffectRecipient::Target(
                         SelectionFilter::Permanent(ObjectFilter::And(
                             Box::new(ObjectFilter::ByType(CardType::Creature)),
-                            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+                            Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
                         )),
                         TargetCount::Exactly(1),
                     ),
@@ -734,7 +734,7 @@ fn banisher(under: ReturnUnder) -> Arc<CardData> {
 fn calix_instant() -> Arc<CardData> {
     let yours = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Enchantment)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     );
     let text = "Exile target creature until target enchantment you control leaves the battlefield.";
     CardDataBuilder::new("Calix's Edict")
@@ -1105,7 +1105,7 @@ fn an_until_that_cannot_answer_610_3b_is_refused() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, grizzly_bears(), 1);
     let gains = mtgsim::types::triggers::TriggerEvent::GainsLife {
-        player: Some(PlayerRef::You),
+        player: PlayerSet::You,
         multiplicity: mtgsim::types::triggers::Multiplicity::PerOccurrence,
     };
     let jailer = CardDataBuilder::new("Life Jailer")
@@ -1146,7 +1146,7 @@ fn an_instant_or_sorcery_card_returned_to_the_battlefield_stays_in_the_graveyard
         subject: TriggerSubject::Filter(ObjectFilter::All),
         change: ZoneChangePattern { from: Some(Zone::Hand), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Discarded) },
         by: None,
-        owner: Some(PlayerRef::You),
+        owner: PlayerSet::You,
         multiplicity: Multiplicity::PerOccurrence,
     };
     let returns = Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None };

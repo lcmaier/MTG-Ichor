@@ -58,7 +58,7 @@ fn you_control_a_creature_of(color: Color) -> Condition {
 pub fn grumgully_the_generous() -> Arc<CardData> {
     let text = "Each other non-Human creature you control enters with an additional +1/+1 counter on it.";
     let non_human_creature_you_control = ObjectFilter::And(
-        Box::new(ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))),
+        Box::new(ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerSet::You)))),
         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Human))))),
     );
     CardDataBuilder::new("Grumgully, the Generous")

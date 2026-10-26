@@ -557,7 +557,7 @@ fn excess_read_per_record_or_of_a_player_is_refused() {
         multiplicity: Multiplicity::PerOccurrence,
     };
     assert_eq!(refused(per_record), 1);
-    assert_eq!(refused(excess_arm(DamageRecipient::Player(None), None)), 1);
+    assert_eq!(refused(excess_arm(DamageRecipient::Player(PlayerSet::Everyone), None)), 1);
     assert_eq!(refused(excess_arm(a_creature(), None)), 0);
 }
 

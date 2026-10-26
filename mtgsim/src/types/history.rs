@@ -5,7 +5,7 @@
 //! record by record as the dispatcher reads each window. This file is the
 //! vocabulary a `Condition` leaf, an amount and a filter use to ask it.
 
-use crate::types::effects::{ObjectFilter, PlayerRef, PlayerSet};
+use crate::types::effects::{ObjectFilter, PlayerSet};
 use crate::types::zones::{Zone, ZoneChangeAct};
 
 /// Which turns a count spans. A `Condition` leaf and an amount read any of
@@ -82,8 +82,8 @@ pub enum ObjectFact {
     /// sources together.
     WasDealtExcessDamage,
     /// Dealt damage to a player (CR 120.1), only combat damage when `combat`
-    /// (CR 510.2). `None` is any player, `Some(You)` the asker's "you".
-    DealtDamageTo { player: Option<PlayerRef>, combat: bool },
+    /// (CR 510.2). `Everyone` is any player, `You` the asker's "you".
+    DealtDamageTo { player: PlayerSet, combat: bool },
     /// Died (CR 700.4): put into a graveyard from the battlefield as a
     /// creature, as it left. Asked of the card the move made (CR 400.7), "a
     /// creature card in your graveyard that died this turn".

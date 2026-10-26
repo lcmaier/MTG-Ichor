@@ -40,7 +40,7 @@ use mtgsim::cards::phase_re9_cards::deep_water;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    Antecedent, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    PlayerSet, Antecedent, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::colors::Color;
 use mtgsim::types::history::{CountIs, ObjectFact};
@@ -666,7 +666,7 @@ fn frost_titan_fixture() -> Arc<CardData> {
         .power_toughness(6, 6)
         .ability(triggered_ability(
             "",
-            whenever(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, Some(PlayerRef::Opponent)), counter),
+            whenever(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, PlayerSet::Opponents), counter),
         ))
         .build()
 }
@@ -816,7 +816,7 @@ fn you_becoming_the_target_of_an_opponents_spell_triggers_it() {
     let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     let amulet = CardDataBuilder::new("Fixture Amulet")
         .card_type(CardType::Artifact)
-        .ability(triggered_ability("", whenever(player_becomes_the_target_of(Whose::Yours, TargetedBy::SpellOrAbility, Some(PlayerRef::Opponent)), gain)))
+        .ability(triggered_ability("", whenever(player_becomes_the_target_of(Whose::Yours, TargetedBy::SpellOrAbility, PlayerSet::Opponents), gain)))
         .build();
     put_on_battlefield(&mut game, amulet, 0);
     set_active_player(&mut game, 1);
@@ -835,11 +835,11 @@ fn you_becoming_the_target_of_an_opponents_spell_triggers_it() {
 fn one_spells_targets_are_one_event() {
     let yours = TriggerSubject::Filter(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ));
     for (arm, gained) in [
-        (becomes_the_target_of(yours.clone(), TargetedBy::SpellOrAbility, None).once_per_event(), 1),
-        (becomes_the_target_of(yours.clone(), TargetedBy::SpellOrAbility, None).into(), 2),
+        (becomes_the_target_of(yours.clone(), TargetedBy::SpellOrAbility, PlayerSet::Everyone).once_per_event(), 1),
+        (becomes_the_target_of(yours.clone(), TargetedBy::SpellOrAbility, PlayerSet::Everyone).into(), 2),
     ] {
         let mut game = stocked(2);
         put_on_battlefield(&mut game, life_on("Fixture Guardian", arm), 0);
@@ -857,7 +857,7 @@ fn valiant_fixture() -> Arc<CardData> {
     let counter = Effect::Atom(Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You }, EffectRecipient::Object(Antecedent::ThisObject));
     let def = TriggerDef {
         limit: Some(TriggerLimit::FirstTimeEachTurn),
-        ..whenever(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, Some(PlayerRef::You)), counter)
+        ..whenever(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, PlayerSet::You), counter)
     };
     CardDataBuilder::new("Fixture Valiant Mouse").card_type(CardType::Creature).power_toughness(1, 1).ability(triggered_ability("", def)).build()
 }
@@ -912,7 +912,7 @@ fn a_first_time_for_any_controller_counts_every_targeting() {
     let counter = Effect::Atom(Primitive::Counter, EffectRecipient::Object(Antecedent::Triggering(EventRole::SpellOrAbility)));
     let def = TriggerDef {
         limit: Some(TriggerLimit::FirstTimeEachTurn),
-        ..whenever(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, None), counter)
+        ..whenever(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, PlayerSet::Everyone), counter)
     };
     let spinner = CardDataBuilder::new("Fixture Glass Spinner").card_type(CardType::Creature).power_toughness(2, 2).ability(triggered_ability("", def)).build();
     let spinner = put_on_battlefield(&mut game, spinner, 0);
@@ -937,8 +937,8 @@ fn first_time_each_turn_is_refused_where_nothing_can_tell_a_first() {
     let first = |arm: TriggerEvent| TriggerDef { limit: Some(TriggerLimit::FirstTimeEachTurn), ..whenever(arm, gain.clone()) };
     assert_eq!(first(dies(TriggerSubject::Filter(ObjectFilter::All)).into()).readings_its_arms_cannot_give().len(), 1);
     let aura = TargetedBy::Spell(Some(ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura))));
-    assert_eq!(first(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), aura, None).into()).readings_its_arms_cannot_give().len(), 1);
-    assert!(first(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::Spell(None), None).into())
+    assert_eq!(first(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), aura, PlayerSet::Everyone).into()).readings_its_arms_cannot_give().len(), 1);
+    assert!(first(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::Spell(None), PlayerSet::Everyone).into())
         .readings_its_arms_cannot_give()
         .is_empty());
 }
@@ -1135,7 +1135,7 @@ fn a_stolen_vein(game: &mut GameState) -> ObjectId {
 #[test]
 fn a_source_its_cost_moved_is_read_as_it_was_when_its_mana_is_added() {
     let mut game = stocked(2);
-    let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Land)), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Land)), Box::new(ObjectFilter::ByController(PlayerSet::You)));
     let watcher = life_on("Fixture Land Watcher", TriggerEvent::ManaAdded { source: TriggerSubject::Filter(yours), tapped_for_mana: Some(true), mana: None });
     put_on_battlefield(&mut game, watcher, 0);
     let vein = a_stolen_vein(&mut game);

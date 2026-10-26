@@ -5,7 +5,7 @@
 //! field it could be asked about, and `None` on one means "this arm does not
 //! ask". That convention is right where it is and wrong in a card file,
 //! where it leaves the reader to recognize `ZoneChange { from:
-//! Some(Battlefield), to: Some(Graveyard), cause: None, owner: None,
+//! Some(Battlefield), to: Some(Graveyard), cause: None, owner: Everyone,
 //! multiplicity: PerOccurrence }` as the word *dies*. The constructors here
 //! are that word. **The `Option`s stay at the type level**:
 //! `types/replacement.rs`'s patterns share the convention

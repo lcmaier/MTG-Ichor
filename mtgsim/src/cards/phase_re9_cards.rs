@@ -71,7 +71,7 @@ use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
-    PatternFill, PlayerRef, PlayerSet, Primitive,
+    PatternFill, PlayerSet, Primitive,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -253,7 +253,7 @@ pub fn deep_water() -> Arc<CardData> {
                         ReplacementDef::new(
                             tapped_for_mana(Some(ObjectFilter::And(
                                 Box::new(ObjectFilter::ByType(CardType::Land)),
-                                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                                Box::new(ObjectFilter::ByController(PlayerSet::You)),
                             ))),
                             PlayerSet::You,
                             Rewrite::Instead(GameActionTemplate::ProduceMana {

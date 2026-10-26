@@ -22,7 +22,7 @@ use crate::events::event::{CreatedAt, EventRecord, EventId, GameEvent, LifeChang
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
-use crate::types::effects::{Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, TokenDef};
+use crate::types::effects::{Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet, TokenDef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::history::TurnFact;
 use crate::types::mana::ManaType;
@@ -227,8 +227,8 @@ pub enum ObjectOrPlayerSubject {
     /// "On this creature", "a permanent you control".
     Object(TriggerSubject),
     /// "Whenever you get one or more counters", "becomes the target": a
-    /// player, or any player for `None`.
-    Player(Option<PlayerRef>),
+    /// player in the set, `Everyone` being any player.
+    Player(PlayerSet),
 }
 
 /// "Which object" an arm is about, read against the ability's own source.
@@ -287,8 +287,9 @@ impl TargetedBy {
 /// 508.3b's "is attacked" and 508.3e's "attacks [another player]".
 #[derive(Debug, Clone, PartialEq)]
 pub enum DefenderFilter {
-    /// A player; `None` is any player, `Some(You)` the ability's controller.
-    Player(Option<PlayerRef>),
+    /// A player in the set: `Everyone` is any player, `You` the ability's
+    /// controller.
+    Player(PlayerSet),
     /// A planeswalker or a battle: "attacks a planeswalker you control".
     Permanent(ObjectFilter),
     /// Either: "attacks you or a planeswalker you control" (17 cards) is a
@@ -300,7 +301,7 @@ pub enum DefenderFilter {
 impl DefenderFilter {
     /// Whether `target`, a player, planeswalker or battle, is one this names.
     /// The asker answers the two leaves, since who "you" is and what a filter
-    /// reads are the asker's: `names_player` whether a `PlayerRef` names that
+    /// reads are the asker's: `names_player` whether a `PlayerSet` holds that
     /// player, `matches_permanent` whether a planeswalker or battle matches a
     /// filter. A trigger asks with its referents (CR 508.3a, 508.3b, 508.3e),
     /// a resolution putting a creature onto the battlefield attacking with
@@ -308,13 +309,11 @@ impl DefenderFilter {
     pub fn admits(
         &self,
         target: AttackTarget,
-        names_player: &dyn Fn(&PlayerRef, PlayerId) -> bool,
+        names_player: &dyn Fn(&PlayerSet, PlayerId) -> bool,
         matches_permanent: &dyn Fn(&ObjectFilter, ObjectId) -> bool,
     ) -> bool {
         match (self, target) {
-            (DefenderFilter::Player(who), AttackTarget::Player(player)) => {
-                who.as_ref().is_none_or(|who| names_player(who, player))
-            }
+            (DefenderFilter::Player(who), AttackTarget::Player(player)) => names_player(who, player),
             (DefenderFilter::Permanent(filter), AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
                 matches_permanent(filter, id)
             }
@@ -363,8 +362,9 @@ pub enum BlockOccurrence {
 #[derive(Debug, Clone, PartialEq)]
 pub enum DamageRecipient {
     Any,
-    /// A player; `None` is any player, `Some(You)` the ability's controller.
-    Player(Option<PlayerRef>),
+    /// A player in the set: `Everyone` is any player, `You` the ability's
+    /// controller.
+    Player(PlayerSet),
     /// A permanent; `None` is any permanent.
     Object(Option<ObjectFilter>),
 }
@@ -736,7 +736,8 @@ impl TriggerDef {
 
 /// One arm per performed event kind, in `GameEvent`'s declaration order
 /// (`triggers-architecture.md` §3.3). `None` on a field means the arm does
-/// not ask. The arms the registered cards and fixtures read; the rest land
+/// not ask, and so does `PlayerSet::Everyone` on a player's, which matches a
+/// record that names no player too. The arms the registered cards and fixtures read; the rest land
 /// with their phase, listed in §3.3's table.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TriggerEvent {
@@ -751,7 +752,7 @@ pub enum TriggerEvent {
         /// arm names, its act's or its destination's
         /// (`replacement-architecture.md` §2b.7).
         by: Option<SourceFilter>,
-        owner: Option<PlayerRef>,
+        owner: PlayerSet,
         multiplicity: Multiplicity,
     },
     /// Transition-only by the record's own contract (CR 603.2e).
@@ -763,7 +764,7 @@ pub enum TriggerEvent {
     /// the word "draw" is not drawn (CR 121.5); it is a `ZoneChange`, and never
     /// this. `place` is which of the player's draws it watches ("your second
     /// card each turn"), read off the record, which took it as it was drawn.
-    DrawsCard { player: Option<PlayerRef>, multiplicity: Multiplicity, place: Option<DrawFilter> },
+    DrawsCard { player: PlayerSet, multiplicity: Multiplicity, place: Option<DrawFilter> },
     /// CR 106.12a's "tapped for mana" reads `tapped_for_mana`.
     ManaAdded {
         source: TriggerSubject,
@@ -787,26 +788,26 @@ pub enum TriggerEvent {
     /// damage in a batch, however many sources it came from. "That many" is
     /// the damage that application prevented.
     DamageIsPrevented { recipient: DamageRecipient, multiplicity: Multiplicity },
-    /// "At the beginning of [your/each] [phase]". `whose: None` is each.
-    PhaseBegins { phase: PhaseType, whose: Option<PlayerRef> },
+    /// "At the beginning of [your/each] [phase]". `whose: Everyone` is each.
+    PhaseBegins { phase: PhaseType, whose: PlayerSet },
     /// "At the beginning of [your/each] upkeep"; "at end of combat" is
     /// `EndCombat` (CR 511.2) and "at the beginning of the end step" `End`.
-    StepBegins { step: StepType, whose: Option<PlayerRef> },
-    TurnBegins { whose: Option<PlayerRef> },
+    StepBegins { step: StepType, whose: PlayerSet },
+    TurnBegins { whose: PlayerSet },
     /// "Whenever [you/a player] gain[s] life" — CR 119.9 makes each source's
     /// gain its own event, and the record is per source; a 0 gain is no event
     /// (119.10) and never reaches the log. One of two arms over `LifeChanged`,
     /// split by the sign; the loss is [`Self::LosesLife`]'s.
-    GainsLife { player: Option<PlayerRef>, multiplicity: Multiplicity },
+    GainsLife { player: PlayerSet, multiplicity: Multiplicity },
     /// "Whenever [you/a player] lose[s] life": the loss half of the sign
     /// split, one occurrence per record (§14 question 3). Damage, a payment
     /// and an effect all lose life (Vengeful Warchief's first ruling).
-    LosesLife { player: Option<PlayerRef>, multiplicity: Multiplicity },
+    LosesLife { player: PlayerSet, multiplicity: Multiplicity },
     /// CR 603.6a. `from` and `cast` are joined from the same object's zone
     /// change in the window and from `PermanentState.cast` (§4.4).
     EntersBattlefield {
         subject: TriggerSubject,
-        controller: Option<PlayerRef>,
+        controller: PlayerSet,
         from: Option<Zone>,
         was_cast: Option<bool>,
         multiplicity: Multiplicity,
@@ -846,7 +847,7 @@ pub enum TriggerEvent {
     /// (Frost Titan's ruling). `controller` is whose spell or ability it is.
     /// "For the first time each turn" (valiant) is the def's limit, read off
     /// the turn's targeting rows.
-    BecomesTarget { target: ObjectOrPlayerSubject, by: TargetedBy, controller: Option<PlayerRef>, multiplicity: Multiplicity },
+    BecomesTarget { target: ObjectOrPlayerSubject, by: TargetedBy, controller: PlayerSet, multiplicity: Multiplicity },
     /// "Whenever [a player] activates an ability of [a permanent] [that isn't
     /// a mana ability]" (CR 602.2), off the record its costs announce: a
     /// mana ability's included (CR 605.3a), which Harsh Mentor's intervening
@@ -854,29 +855,29 @@ pub enum TriggerEvent {
     /// The source is read as it was on the battlefield (Harsh Mentor's second
     /// ruling): off its frame when a cost moved it. Loyalty abilities are
     /// `remaining-costs`'s, and the arm asks nothing of them yet.
-    ActivatesAbility { player: Option<PlayerRef>, source: TriggerSubject, mana_ability: Option<bool> },
+    ActivatesAbility { player: PlayerSet, source: TriggerSubject, mana_ability: Option<bool> },
     /// "Whenever [you/a player] cast[s] a [filter] spell" (CR 601.2i). The
     /// spell is on the stack as its record is dispatched, so the filter reads
     /// it through the layer walk.
-    CastsSpell { caster: Option<PlayerRef>, spell: Option<ObjectFilter> },
+    CastsSpell { caster: PlayerSet, spell: Option<ObjectFilter> },
     /// "Whenever a [filter] spell [you've cast] is countered" (CR 701.6a),
     /// looking back (CR 603.10e): the filter reads the spell as it was on the
     /// stack, and `caster` is who cast it, which an effect that took control
     /// of the spell does not change. A spell that doesn't resolve because its
     /// targets are illegal isn't countered (Multani's Presence's ruling), and
     /// no printed trigger reads an ability being countered.
-    IsCountered { spell: Option<ObjectFilter>, caster: Option<PlayerRef> },
+    IsCountered { spell: Option<ObjectFilter>, caster: PlayerSet },
     /// "Whenever [a player/an opponent] loses the game" (CR 603.9), for any
     /// reason, looking back (CR 603.10f): the loser's permanents leave in
     /// the same event and are asked as they were, so one the loser owned and
     /// another player controlled triggers for that player. A draw is no loss
     /// (CR 104.4a).
-    PlayerLoses { player: Option<PlayerRef> },
+    PlayerLoses { player: PlayerSet },
     /// "Whenever [you/an opponent] shuffle[s] [your/their] library" (CR
     /// 701.24): one record per shuffle, a library of zero or one cards
     /// included (CR 701.24e). Cascade's random bottom is no shuffle, and emits
     /// no record (Cosi's Trickster's rulings).
-    ShufflesLibrary { player: Option<PlayerRef> },
+    ShufflesLibrary { player: PlayerSet },
     /// "Whenever a +1/+1 counter is put on this creature" (`PerOccurrence`,
     /// one trigger per counter: Fathom Mage's ninth ruling), "one or more
     /// ... on a creature you control" (`OncePerSubject`), "one or more ... on
@@ -888,7 +889,7 @@ pub enum TriggerEvent {
     CountersPutOn {
         subject: ObjectOrPlayerSubject,
         counter_type: Option<CounterType>,
-        by: Option<PlayerRef>,
+        by: PlayerSet,
         multiplicity: Multiplicity,
     },
     /// "Whenever a +1/+1 counter is removed from this creature" (one per
@@ -898,7 +899,7 @@ pub enum TriggerEvent {
     CountersRemovedFrom {
         subject: ObjectOrPlayerSubject,
         counter_type: Option<CounterType>,
-        by: Option<PlayerRef>,
+        by: PlayerSet,
         multiplicity: Multiplicity,
     },
     /// "Whenever [an Aura] becomes attached to [this creature]" (CR 701.3a),
@@ -922,7 +923,7 @@ pub enum TriggerEvent {
     /// leaving the battlefield (Khârn the Betrayer's first ruling), so an arm
     /// with `to: None` reads a battlefield departure too, controlled by `from`
     /// as it left; another player gaining control does not.
-    ControlChanges { subject: TriggerSubject, from: Option<PlayerRef>, to: Option<PlayerRef> },
+    ControlChanges { subject: TriggerSubject, from: PlayerSet, to: PlayerSet },
     /// CR 603.3b's second tier, by construction: the event the dispatcher
     /// emits per queued trigger (§4.8).
     AbilityTriggers { caused_by: Option<Box<TriggerEvent>>, source: Option<ObjectFilter> },
@@ -938,12 +939,12 @@ pub enum TriggerEvent {
     /// names its definition, so a creation a replacement changed to another
     /// is not "that action" (Ajani, Nacatl Avenger's eighth ruling). A copy
     /// of a permanent spell is no creation (CR 111.13) and writes no record.
-    CreatesToken { owner: Option<PlayerRef>, definition: Option<Box<TokenDef>>, multiplicity: Multiplicity },
+    CreatesToken { owner: PlayerSet, definition: Option<Box<TokenDef>>, multiplicity: Multiplicity },
     /// "Whenever you scry" (CR 701.22): one record per scry, and none for a
     /// scry 0 (CR 701.22b). "The number of cards looked at while scrying this
     /// way" is the record's `looked_at` (Elrond, Master of Healing's first
     /// ruling).
-    Scries { player: Option<PlayerRef> },
+    Scries { player: PlayerSet },
 }
 
 /// Which ability an `AbilityResolves` arm watches.
@@ -1093,7 +1094,7 @@ impl TriggerEvent {
             TriggerEvent::BecomesUnattached { .. } => EventKindMask::of(EventKind::Unattached),
             TriggerEvent::ControlChanges { to, .. } => {
                 let changed = EventKindMask::of(EventKind::ControlChanged);
-                if to.is_none() { changed.with(EventKind::ZoneChange).with(EventKind::LeftTheGame) } else { changed }
+                if *to == PlayerSet::Everyone { changed.with(EventKind::ZoneChange).with(EventKind::LeftTheGame) } else { changed }
             }
             TriggerEvent::AbilityTriggers { .. } => EventKindMask::of(EventKind::AbilityTriggered),
             TriggerEvent::AbilityResolves { .. } => EventKindMask::of(EventKind::AbilityResolved),
@@ -2356,7 +2357,7 @@ pub(crate) mod samples {
         let anywhere = ZoneChangePattern { from: None, to: None, act: None };
         vec![
             (
-                TriggerEvent::ZoneChange { subject: this.clone(), change: anywhere, by: None, owner: None, multiplicity: each },
+                TriggerEvent::ZoneChange { subject: this.clone(), change: anywhere, by: None, owner: PlayerSet::Everyone, multiplicity: each },
                 &["ZoneChange", "LeftTheGame"],
             ),
             (
@@ -2364,27 +2365,27 @@ pub(crate) mod samples {
                     subject: this.clone(),
                     change: ZoneChangePattern { act: Some(ZoneChangeAct::Milled), ..anywhere },
                     by: None,
-                    owner: None,
+                    owner: PlayerSet::Everyone,
                     multiplicity: each,
                 },
                 &["ZoneChange", "LeftTheGame", "SameZoneMove"],
             ),
             (TriggerEvent::BecomesTapped { subject: this.clone() }, &["Tapped"]),
             (TriggerEvent::BecomesUntapped { subject: this.clone() }, &["Untapped"]),
-            (TriggerEvent::DrawsCard { player: None, multiplicity: each, place: None }, &["CardDrawn"]),
+            (TriggerEvent::DrawsCard { player: PlayerSet::Everyone, multiplicity: each, place: None }, &["CardDrawn"]),
             (TriggerEvent::ManaAdded { source: this.clone(), tapped_for_mana: None, mana: None }, &["ManaAdded"]),
             (
                 TriggerEvent::DamageDealt { source: this.clone(), recipient: DamageRecipient::Any, combat: None, excess: false, multiplicity: each },
                 &["DamageDealt"],
             ),
             (TriggerEvent::DamageIsPrevented { recipient: DamageRecipient::Any, multiplicity: each }, &["DamagePrevented"]),
-            (TriggerEvent::PhaseBegins { phase: PhaseType::Precombat, whose: None }, &["PhaseBegin"]),
-            (TriggerEvent::StepBegins { step: StepType::Upkeep, whose: None }, &["StepBegin"]),
-            (TriggerEvent::TurnBegins { whose: None }, &["TurnBegin"]),
-            (TriggerEvent::GainsLife { player: None, multiplicity: each }, &["LifeChanged"]),
-            (TriggerEvent::LosesLife { player: None, multiplicity: each }, &["LifeChanged"]),
+            (TriggerEvent::PhaseBegins { phase: PhaseType::Precombat, whose: PlayerSet::Everyone }, &["PhaseBegin"]),
+            (TriggerEvent::StepBegins { step: StepType::Upkeep, whose: PlayerSet::Everyone }, &["StepBegin"]),
+            (TriggerEvent::TurnBegins { whose: PlayerSet::Everyone }, &["TurnBegin"]),
+            (TriggerEvent::GainsLife { player: PlayerSet::Everyone, multiplicity: each }, &["LifeChanged"]),
+            (TriggerEvent::LosesLife { player: PlayerSet::Everyone, multiplicity: each }, &["LifeChanged"]),
             (
-                TriggerEvent::EntersBattlefield { subject: this.clone(), controller: None, from: None, was_cast: None, multiplicity: each },
+                TriggerEvent::EntersBattlefield { subject: this.clone(), controller: PlayerSet::Everyone, from: None, was_cast: None, multiplicity: each },
                 &["PermanentEnteredBattlefield"],
             ),
             (
@@ -2406,22 +2407,22 @@ pub(crate) mod samples {
                 TriggerEvent::BecomesTarget {
                     target: ObjectOrPlayerSubject::Object(this.clone()),
                     by: TargetedBy::SpellOrAbility,
-                    controller: None,
+                    controller: PlayerSet::Everyone,
                     multiplicity: each,
                 },
                 &["Targeted"],
             ),
-            (TriggerEvent::ActivatesAbility { player: None, source: this.clone(), mana_ability: None }, &["AbilityActivated"]),
-            (TriggerEvent::CastsSpell { caster: None, spell: None }, &["SpellCast"]),
-            (TriggerEvent::IsCountered { spell: None, caster: None }, &["SpellCountered"]),
-            (TriggerEvent::PlayerLoses { player: None }, &["PlayerLost"]),
-            (TriggerEvent::ShufflesLibrary { player: None }, &["LibraryShuffled"]),
+            (TriggerEvent::ActivatesAbility { player: PlayerSet::Everyone, source: this.clone(), mana_ability: None }, &["AbilityActivated"]),
+            (TriggerEvent::CastsSpell { caster: PlayerSet::Everyone, spell: None }, &["SpellCast"]),
+            (TriggerEvent::IsCountered { spell: None, caster: PlayerSet::Everyone }, &["SpellCountered"]),
+            (TriggerEvent::PlayerLoses { player: PlayerSet::Everyone }, &["PlayerLost"]),
+            (TriggerEvent::ShufflesLibrary { player: PlayerSet::Everyone }, &["LibraryShuffled"]),
             (
-                TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Object(this.clone()), counter_type: None, by: None, multiplicity: each },
+                TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Object(this.clone()), counter_type: None, by: PlayerSet::Everyone, multiplicity: each },
                 &["CountersPutOn"],
             ),
             (
-                TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(this.clone()), counter_type: None, by: None, multiplicity: each },
+                TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(this.clone()), counter_type: None, by: PlayerSet::Everyone, multiplicity: each },
                 &["CountersRemovedFrom"],
             ),
             (TriggerEvent::BecomesAttached { attachment: TriggerSubject::Filter(ObjectFilter::All), host: TriggerSubject::Filter(ObjectFilter::All) }, &["Attached"]),
@@ -2429,12 +2430,12 @@ pub(crate) mod samples {
                 TriggerEvent::BecomesUnattached { attachment: TriggerSubject::Filter(ObjectFilter::All), former_host: TriggerSubject::Filter(ObjectFilter::All) },
                 &["Unattached"],
             ),
-            (TriggerEvent::ControlChanges { subject: this.clone(), from: None, to: None }, &["ControlChanged", "ZoneChange", "LeftTheGame"]),
-            (TriggerEvent::ControlChanges { subject: this, from: None, to: Some(PlayerRef::You) }, &["ControlChanged"]),
+            (TriggerEvent::ControlChanges { subject: this.clone(), from: PlayerSet::Everyone, to: PlayerSet::Everyone }, &["ControlChanged", "ZoneChange", "LeftTheGame"]),
+            (TriggerEvent::ControlChanges { subject: this, from: PlayerSet::Everyone, to: PlayerSet::You }, &["ControlChanged"]),
             (TriggerEvent::AbilityTriggers { caused_by: None, source: None }, &["AbilityTriggered"]),
             (TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility }, &["AbilityResolved"]),
-            (TriggerEvent::CreatesToken { owner: None, definition: None, multiplicity: each }, &["TokenCreated"]),
-            (TriggerEvent::Scries { player: None }, &["Scried"]),
+            (TriggerEvent::CreatesToken { owner: PlayerSet::Everyone, definition: None, multiplicity: each }, &["TokenCreated"]),
+            (TriggerEvent::Scries { player: PlayerSet::Everyone }, &["Scried"]),
         ]
     }
 }
@@ -2484,7 +2485,7 @@ mod tests {
     #[test]
     fn an_arm_that_watches_a_player_declares_no_object_in_its_place() {
         let each = Multiplicity::PerOccurrence;
-        let you = || Some(PlayerRef::You);
+        let you = || PlayerSet::You;
         let to_you = TriggerEvent::DamageDealt {
             source: TriggerSubject::Filter(ObjectFilter::All),
             recipient: DamageRecipient::Player(you()),
@@ -2524,7 +2525,7 @@ mod tests {
                     subject: TriggerSubject::Filter(ObjectFilter::All),
                     change: ZoneChangePattern { from: Some(from), to: Some(to), act: None },
                     by: None,
-                    owner: None,
+                    owner: PlayerSet::Everyone,
                     multiplicity: Multiplicity::PerOccurrence,
                 };
                 assert_eq!(arm.looks_back(), zone_change_looks_back(from, Some(to)), "{from:?} to {to:?}");

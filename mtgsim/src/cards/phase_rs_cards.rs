@@ -18,7 +18,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AffectedSet, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    PlayerSet, AffectedSet, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -54,7 +54,7 @@ use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 ///   is why the act is its own variant and why Sigarda stops none of the
 ///   CR 704.5 state-based actions.
 /// - **"permanents"**, scoped to *yours*, is the `ObjectSet`:
-///   `ByController(PlayerRef::You)`, resolved against Sigarda's **current**
+///   `ByController(PlayerSet::You)`, resolved against Sigarda's **current**
 ///   controller at the instant the question is asked (CR 109.5). Stealing
 ///   Sigarda moves the protection, and the filter being stored unresolved is
 ///   what makes that free.
@@ -111,8 +111,8 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
-                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
-                by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
+                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You))),
+                by: Some(SourceFilter::ControlledBy(PlayerSet::Opponents)),
             }))),
         })
         .build()

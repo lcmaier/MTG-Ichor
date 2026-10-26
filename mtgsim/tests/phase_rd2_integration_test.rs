@@ -37,7 +37,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::{
     AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    PatternFill, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{
@@ -439,7 +439,7 @@ fn a_count_spanning_you_and_your_permanents_is_allocated_once_divine_deflection_
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)), players: PlayerSet::You },
+            AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerSet::You)), players: PlayerSet::You },
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
         .next_damage(3),

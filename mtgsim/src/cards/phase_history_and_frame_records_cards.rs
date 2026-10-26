@@ -123,7 +123,7 @@ pub fn fixture_first_creature_tithe() -> Arc<CardData> {
     let text = "Whenever you cast your first creature spell each turn, you gain 1 life.";
     let first_creature = TriggerDef {
         condition: TriggerCondition::Event(TriggerEvent::CastsSpell {
-            caster: Some(PlayerRef::You),
+            caster: PlayerSet::You,
             spell: Some(ObjectFilter::ByType(CardType::Creature)),
         }),
         intervening_if: None,

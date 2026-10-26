@@ -548,7 +548,6 @@ fn a_blocker_that_dies_before_damage_is_out_of_the_division() {
 /// the donor whose copied static ability makes a re-copy observable.
 fn anthem_bearer() -> Arc<CardData> {
     use mtgsim::types::effects::ObjectFilter;
-    use mtgsim::types::effects::PlayerRef;
     CardDataBuilder::new("Anthem Bearer")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .color(Color::White)
@@ -558,7 +557,7 @@ fn anthem_bearer() -> Arc<CardData> {
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
         )))
         .build()
@@ -1243,12 +1242,12 @@ fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
 /// printed copy has: the gate is what lets a counter written during the entry
 /// make the copy applicable (CR 616.2).
 fn essence_of_might() -> Arc<CardData> {
-    use mtgsim::types::effects::{ObjectFilter, PlayerRef};
+    use mtgsim::types::effects::{ObjectFilter};
     use mtgsim::types::replacement::{CopyDonor, EntryCopyTemplate};
     let big_creatures_you_control = ObjectFilter::And(
         Box::new(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            Box::new(ObjectFilter::ByController(PlayerSet::You)),
         )),
         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::PowerLE(3)))),
     );
@@ -1299,7 +1298,7 @@ fn a_later_copy_takes_back_the_counters_a_doubler_made_of_the_exception() {
 /// color." CR 707.9c keeps each copying creature's own color, so the copy is
 /// a row per creature (item 221, from the review round).
 fn shared_shape() -> Arc<CardData> {
-    use mtgsim::types::effects::{Characteristic, CopyException, CopyRoles, ObjectFilter, PlayerRef};
+    use mtgsim::types::effects::{Characteristic, CopyException, CopyRoles, ObjectFilter};
     CardDataBuilder::new("Shared Shape")
         .card_type(CardType::Sorcery)
         .ability(AbilityDef {
@@ -1315,7 +1314,7 @@ fn shared_shape() -> Arc<CardData> {
                     roles: CopyRoles::FilteredCopyRecipient {
                         filter: ObjectFilter::And(
                             Box::new(ObjectFilter::ByType(CardType::Creature)),
-                            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                            Box::new(ObjectFilter::ByController(PlayerSet::You)),
                         ),
                         exclude_donor: true,
                     },

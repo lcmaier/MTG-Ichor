@@ -19,7 +19,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     Antecedent, AmountExpr, ColorChange, Condition, Duration, Effect, EffectRecipient, ObjectFilter,
-    PlayerFact, PlayerRef, PlayerSet, Primitive,
+    PlayerFact, PlayerSet, Primitive,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -250,7 +250,7 @@ pub fn teferi_flash_clause() -> Arc<CardData> {
             EffectRecipient::FilteredObjectsIn(
                 ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByOwner(PlayerRef::You)),
+                    Box::new(ObjectFilter::ByOwner(PlayerSet::You)),
                 ),
                 ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
             ),
