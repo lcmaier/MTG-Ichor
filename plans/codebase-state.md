@@ -9753,52 +9753,15 @@ keyed by its event.
 
 ### Found by `record-existences` (2026-10-25)
 
-330. **A trigger's filter reads an object its own event moved as the card it
-     became.** Since #290 a record names the existence its event was about,
-     and "this object" and "that creature" compare it, but a filter reads the
-     object by id as it is after the event (`named_subject_matches`,
-     `engine/triggers/dispatch.rs`). Where one event both changes an object and
-     moves it, that is the new object: "whenever one or more counters are
-     removed from a permanent you control" asks the card in the graveyard,
-     which no player controls. A damage source is read as it dealt the
-     damage since #290's review, on CR 608.2h's side, as the judges' Dragonhawk
-     ruling reads lifelink. For every other arm the rule is CR 603.10's, which
-     reads objects "immediately after the event" and names only 603.10a's
-     zone-change triggers as looking back; it says nothing of an object the
-     event ended. Raised by the owner (2026-10-25), with two questions, the
-     first since answered:
-     - **Answered: no** (the owner, at #293's review, 2026-10-25), paying
-       "{T}, Sacrifice this" is not one event to a trigger on the tap. CR
-       601.2h pays a cost's parts "in any order", one after another, and
-       Relic Putrescence's second ruling reads an artifact that "is no longer
-       on the battlefield" after it became tapped: a Treasure tapped and then
-       sacrificed. The engine pays each part as its own event
-       (`pay_single_cost`), so "whenever an artifact you control becomes
-       tapped" matches the Treasure as it is tapped on the battlefield, which
-       is right.
-     - **Answered: as the event found it** (the owner, at #293's review,
-       2026-10-25): the check's actions are simultaneous (CR 704.3), so the
-       counters come off the creature that dies, and Cloudsculpt Armorer
-       triggers. The question as it was put: where one event changes an
-       object and moves it, does a
-       trigger's filter read the object as the event found it (its last known
-       information, which CR 704.8 derives from before the check), as the
-       damage source is read, or as it is after the event? The board is a
-       state-based check: Black Sun's Zenith for 2 puts two -1/-1 counters on
-       a 1/1 with a +1/+1 counter, and the next check removes one of each (CR
-       704.5q) and puts the 0/0 into its graveyard (704.5f) as one event (CR
-       704.3). Cloudsculpt Armorer's "whenever one or more counters are
-       removed from a permanent you control" triggers if its filter reads the
-       creature as the event found it, and doesn't if it reads the card in
-       the graveyard.
-     **Reachability (2026-10-25):** unreachable — no registered card puts a
-     change to an object and its move in one event (#290's A/B), and the only
-     registered counter-removal trigger is Protean Hydra's on itself.
-     **Sized:** ~10–20 lines: `named_subject_matches` reads
-     `ObjectInformation::of(named.id, self.lki(named))`, as the damage arm
-     does; ~40–60 of fixtures, the counter removal above shown failing first.
-     **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`: a
-     state-based check's one event is that PR's batch.
+330. **~~A trigger's filter reads an object its own event moved as the card it
+     became.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+     archived.
+     A filter reads the object a record names as the event found it: as it
+     is while that existence lasts, and as its last known information once
+     the existence has ended (`named_subject_matches`), so counters a
+     state-based check removes come off the creature the same check kills.
+     **Reachability (2026-10-26):** closed — PR #294.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 330".
 
 ### Found by `one-fact-one-type` (2026-10-25)
 

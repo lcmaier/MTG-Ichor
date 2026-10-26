@@ -2401,7 +2401,7 @@ impl GameState {
     /// the record's fact. "This creature"
     /// or "a creature you control" (`ObjectOrPlayerSubject::Object`) asks the
     /// object `it` names the question every object arm asks, of the object as
-    /// it is after the event (CR 603.10). "You" or "a player"
+    /// the event found it (CR 603.10). "You" or "a player"
     /// (`ObjectOrPlayerSubject::Player`) asks the player `it` names, any
     /// player for `None`. A player never matches an object arm, nor the
     /// reverse.
@@ -2502,9 +2502,12 @@ impl GameState {
     /// [`Self::subject_matches`] for an object a record names, `named` being
     /// the existence the event was about (CR 400.7): "this object" and "that
     /// creature" compare it, though the object may have moved since in the
-    /// same event, and a filter reads the object as it is now.
+    /// same event, and a filter reads the object as the event found it. That
+    /// is the object as it is now while the existence lasts, and its last
+    /// known information once it has ended: counters a state-based check
+    /// removes come off the creature the same check kills (CR 704.3).
     fn named_subject_matches(&self, subject: &TriggerSubject, named: ObjectRef, referents: &TriggerReferents<'_>, event_id: EventId) -> bool {
-        self.subject_matches_existence(subject, ObjectInformation::Current(named.id), Some(named), referents, event_id)
+        self.subject_matches_existence(subject, ObjectInformation::of(named.id, self.lki(named)), Some(named), referents, event_id)
     }
 
     /// [`Self::subject_matches`] for the object a move moved, `left` being
