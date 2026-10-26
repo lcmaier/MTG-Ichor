@@ -3075,7 +3075,7 @@ fn pays_as_it_enters(
         .costs_chosen
         .iter()
         .filter(|(player, _)| *player == payer)
-        .map(|(_, chosen)| match chosen {
+        .map(|(_, cost)| match cost {
             Cost::PayLife(n) => *n,
             _ => 0,
         })

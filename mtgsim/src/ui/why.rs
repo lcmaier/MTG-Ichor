@@ -270,6 +270,16 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
 /// abilities asked about the events an ordering's abilities triggered on.
 /// The other filtered kinds' reasons are their owners': a target's `cant-be-targeted`'s, a
 /// sacrifice's `remaining-costs`'s (`setup-architecture.md` §8).
+/// Why `player` is not among the opponents `chooser` may name, `to` saying
+/// what the player would have been for.
+fn not_an_opponent_refusal(game: &GameState, chooser: PlayerId, player: PlayerId, to: &str) -> Vec<WhyLine> {
+    let reason = game.not_an_opponent(chooser, player).map(|reason| match reason {
+        NotAnOpponent::Yourself => (format!("{} is choosing, and an opponent is another player", player_name(player)), Some("102.2")),
+        NotAnOpponent::LeftTheGame => (format!("{} has left the game", player_name(player)), Some("800.4a")),
+    });
+    reason.map(|reason| refusal(to, reason)).into_iter().collect()
+}
+
 fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: Option<&[TraceRecord]>) -> Vec<WhyLine> {
     let offered = question.options.iter().any(|option| names(option, about));
     match (&question.context.kind, about) {
@@ -300,16 +310,15 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
         {
             generic_split_refusals(game, question.player, mana_cost)
         }
-        (kind @ (ChoiceKind::ChoosePlayerAsItEnters { .. } | ChoiceKind::ChooseOpponent { .. }), WhyAbout::Player(player)) => {
-            let reason = game.not_an_opponent(question.player, player).map(|reason| match reason {
-                NotAnOpponent::Yourself => (format!("{} is choosing, and an opponent is another player", player_name(player)), Some("102.2")),
-                NotAnOpponent::LeftTheGame => (format!("{} has left the game", player_name(player)), Some("800.4a")),
-            });
-            let to = match kind {
-                ChoiceKind::ChoosePlayerAsItEnters { role: EntryRole::CounterPutter, .. } => "To put its counters on",
-                _ => "To control it",
+        (ChoiceKind::ChoosePlayerAsItEnters { role, .. }, WhyAbout::Player(player)) => {
+            let to = match role {
+                EntryRole::Controller => "To control it",
+                EntryRole::CounterPutter => "To put its counters on",
             };
-            reason.map(|reason| refusal(to, reason)).into_iter().collect()
+            not_an_opponent_refusal(game, question.player, player, to)
+        }
+        (ChoiceKind::ChooseOpponent { .. }, WhyAbout::Player(player)) => {
+            not_an_opponent_refusal(game, question.player, player, "To control it")
         }
         (ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to }, WhyAbout::Object(id)) if !offered => {
             auxiliary_refusal(game, question.player, (*entering, *source, *to), id).into_iter().collect()

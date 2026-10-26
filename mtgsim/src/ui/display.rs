@@ -774,7 +774,7 @@ pub(crate) fn entry_offer_words(offer: &EntryOffer) -> String {
             Cost::RemoveCounters(_, n) => format!("remove {n} counters"),
             Cost::AddCounters(_, n) => format!("put {n} counters"),
         },
-        EntryOffer::PutCounters { counter, n } => format!("put {n} {counter:?} counters on it"),
+        EntryOffer::PutCounters { counter, n } => format!("put {n} {} counters on it", counter.name()),
     }
 }
 

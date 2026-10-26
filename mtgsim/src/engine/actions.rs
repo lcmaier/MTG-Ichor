@@ -43,7 +43,7 @@ const BATCH_NESTING_LIMIT: usize = 32;
 
 /// Phase 1's answer: the members as decided, in batch order, and what phase
 /// 2 needs besides them.
-struct Decided {
+struct DecidedBatch {
     members: Vec<BatchMember>,
     /// The riders their replacements queued (CR 615.5).
     riders: Vec<crate::engine::replacement::Rider>,
@@ -1012,7 +1012,7 @@ impl GameState {
     /// first, so every entry's moves are one event (Thunder-Thrash Elder's
     /// ruling) and the CR 616.1 loops that decided them are traced with it.
     /// Each move is contained in the entry, not a finer grain of it, so it
-    /// starts a fresh applied set (§3.2d).
+    /// starts a fresh applied set.
     pub(crate) fn decide_before_entering(&mut self, moves: Vec<GameAction>, ctx: &ActionContext) -> Result<u32, String> {
         // AUXILIARY-MOVE: CR 614.13's moves are no result of the entry; they
         // happen right before it, so they are an event of their own
@@ -1032,7 +1032,7 @@ impl GameState {
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
-        let Some(Decided { members, riders, .. }) = decided? else { return Ok(0) };
+        let Some(DecidedBatch { members, riders, .. }) = decided? else { return Ok(0) };
         let moved = members.iter().filter(|m| m.event.is_some()).count() as u32;
         self.entry_selection.before_entering.absorb(BeforeEntering { members, riders });
         Ok(moved)
@@ -1052,20 +1052,18 @@ impl GameState {
         let mark = self.events.next_seq();
         let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
-        #[cfg(debug_assertions)]
         let counted = before.members.iter().filter(|m| m.event.is_some()).count();
         let result = self.perform_members(before.members, before.riders.len(), ctx);
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
-        let _performed = result?;
+        let performed = result?;
         // What devour counted is what was performed, as one event.
-        #[cfg(debug_assertions)]
         debug_assert!(
-            _performed.len() == counted && self.events.records_since(mark).iter().all(|r| r.stamp.batch == Some(window)),
+            performed.len() == counted && self.events.records_since(mark).iter().all(|r| r.stamp.batch == Some(window)),
             "the moves and payments a batch's entries decided on perform as one event, each one counted: \
              {} performed of {counted}",
-            _performed.len()
+            performed.len()
         );
         self.dispatch_batch(mark, Some(window), ctx)?;
         self.execute_riders(before.riders, ctx)
@@ -1099,7 +1097,7 @@ impl GameState {
         ctx: &ActionContext,
         inherited: &AppliedReplacements,
     ) -> Result<(Vec<GameAction>, Vec<crate::engine::replacement::Rider>), String> {
-        let Some(Decided { members: mut decided, riders, before_entering_window }) =
+        let Some(DecidedBatch { members: mut decided, riders, before_entering_window }) =
             self.decide_members(proposals, ctx, inherited)?
         else {
             return Ok((Vec::new(), Vec::new()));
@@ -1126,7 +1124,7 @@ impl GameState {
         proposals: Vec<(GameAction, EventCause)>,
         ctx: &ActionContext,
         inherited: &AppliedReplacements,
-    ) -> Result<Option<Decided>, String> {
+    ) -> Result<Option<DecidedBatch>, String> {
         use crate::engine::replacement::{apply_replacements, Rider};
         use crate::engine::trace_records;
 
@@ -1229,7 +1227,7 @@ impl GameState {
         // are simultaneous, though observable (a graveyard is ordered).
         let mut members: Vec<BatchMember> = groups.into_iter().flat_map(|g| g.members).collect();
         members.sort_by_key(|m| m.place);
-        Ok(Some(Decided { members, riders, before_entering_window }))
+        Ok(Some(DecidedBatch { members, riders, before_entering_window }))
     }
 
     /// What `group`'s CR 616.1 loop decided to happen right before its entry,
@@ -1246,12 +1244,12 @@ impl GameState {
     }
 
     /// Phase 2: `decided` performed in batch order, as one event, returning
-    /// what was performed. `riders` is how many riders the batch queued, for
-    /// the trace.
+    /// what was performed. `rider_count` is how many riders the batch
+    /// queued, for the trace.
     fn perform_members(
         &mut self,
         decided: Vec<BatchMember>,
-        riders: usize,
+        rider_count: usize,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         use crate::engine::trace_records;
@@ -1337,7 +1335,7 @@ impl GameState {
         self.lki_captures.truncate(frames_from);
         self.lethal_damage_left = outer_lethal_damage;
         performed_ok?;
-        self.trace(|| trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders));
+        self.trace(|| trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), rider_count));
         let window = self.events.current_batch();
         let performed_range = performed_from..self.events.next_seq().0;
         if let Some(frames) = snapshot {

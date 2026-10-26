@@ -1,5 +1,7 @@
-//! A6e's cleanup, `batch-legality-and-entry-choices`: what one event does to
-//! the objects it names, and the choices a permanent's entry makes.
+//! What one event does to the objects it names, and the choices a
+//! permanent's entry makes: devour's sacrifices, a shockland's cost (CR
+//! 614.12b), tribute's opponent, and a trigger reading a creature its own
+//! event killed.
 
 use std::sync::Arc;
 
@@ -236,7 +238,7 @@ fn shockland() -> Arc<CardData> {
 }
 
 /// A land token with the shockland's replacement, so two can enter at once
-/// (the plural creation RE-4 built).
+/// (one creation, two entries).
 fn shockland_token() -> TokenDef {
     let mut token = soldier_token();
     token.name = Some("Fixture Shock Land".into());
