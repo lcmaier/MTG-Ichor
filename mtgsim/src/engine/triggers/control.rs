@@ -81,8 +81,9 @@ impl GameState {
             if kept.is_none_or(|kept| kept == frame.as_deref()) {
                 continue;
             }
-            // Every frame's controller is the announced one here, so a frame
-            // replaces the record and none keeps its controller.
+            // Every frame's controller is the announced one here, so a kept
+            // frame replaces the record, and with no frame the record keeps
+            // its controller.
             if let Some(entry) = self.battlefield.get_mut(&id) {
                 entry.announced_control = match frame {
                     Some(frame) => AnnouncedControl::Frame(frame),
@@ -148,11 +149,11 @@ impl GameState {
                 continue;
             }
             let Some(entry) = self.battlefield.get_mut(&id) else { continue };
-            let read = match frame {
+            let record = match frame {
                 Some(frame) => AnnouncedControl::Frame(frame),
                 None => AnnouncedControl::Controller(now),
             };
-            if let AnnouncedControl::Frame(before) = std::mem::replace(&mut entry.announced_control, read) {
+            if let AnnouncedControl::Frame(before) = std::mem::replace(&mut entry.announced_control, record) {
                 sweep.frames_before.push((id, before));
             }
             if now != announced {

@@ -418,12 +418,12 @@ impl GameState {
                 .iter()
                 .filter(|(_, ids)| ids.len() > 1)
                 .map(|(key, ids)| {
-                    let ruled: Vec<ObjectId> = ids
+                    let subject_to_rule: Vec<ObjectId> = ids
                         .iter()
                         .copied()
                         .filter(|&id| self.state_based_action_applies(StateBasedAction::LegendRule, ObjectOrPlayerId::Object(id)))
                         .collect();
-                    (key, ruled)
+                    (key, subject_to_rule)
                 })
                 .filter(|(_, ids)| ids.len() > 1)
                 .collect();

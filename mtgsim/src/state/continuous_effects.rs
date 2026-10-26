@@ -539,12 +539,14 @@ impl ContinuousEffectRegistry {
     /// [`DurationRegistry::remove_rows_ending_with_control_of`], through
     /// [`Self::mutating`] only when a row would end, since every control
     /// sweep asks it of every change.
-    pub fn remove_rows_ending_with_control_of(&mut self, source: ObjectId, now: PlayerId) -> Vec<Arc<ContinuousEffect>> {
-        let ends = |row: &ContinuousEffect| row.source == source && row.duration.ends_with_control_of_its_source() && row.controller != now;
+    pub fn remove_rows_ending_with_control_of(&mut self, source: ObjectId, new_controller: PlayerId) -> Vec<Arc<ContinuousEffect>> {
+        let ends = |row: &ContinuousEffect| {
+            row.source == source && row.duration.ends_with_control_of_its_source() && row.controller != new_controller
+        };
         if !self.effects.iter().any(ends) {
             return Vec::new();
         }
-        self.mutating(|rows| rows.remove_rows_ending_with_control_of(source, now))
+        self.mutating(|rows| rows.remove_rows_ending_with_control_of(source, new_controller))
     }
 
     /// CR 400.7 — [`DurationRegistry::remove_references_to`], through

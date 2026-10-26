@@ -258,9 +258,12 @@ impl<T: DurationRow> DurationRegistry<T> {
     }
 
     /// CR 611.2b — the "for as long as you control" rows that end as `source`
-    /// comes under `now`'s control: every one whose controller is not `now`.
-    pub fn remove_rows_ending_with_control_of(&mut self, source: ObjectId, now: PlayerId) -> Vec<Arc<T>> {
-        self.retain(|r| !(r.source() == source && r.duration().ends_with_control_of_its_source() && r.controller() != now))
+    /// comes under `new_controller`'s control: every one whose controller is
+    /// someone else.
+    pub fn remove_rows_ending_with_control_of(&mut self, source: ObjectId, new_controller: PlayerId) -> Vec<Arc<T>> {
+        self.retain(|r| {
+            !(r.source() == source && r.duration().ends_with_control_of_its_source() && r.controller() != new_controller)
+        })
     }
 
     /// Remove rows that expire during the cleanup step (CR 514.2).

@@ -2754,8 +2754,7 @@ impl GameState {
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<PlayerId, String> {
-        let targeted = targets.iter().any(|t| matches!(t, ObjectOrPlayerId::Player(pid) if *pid != ctx.controller));
-        if matches!(who, PlayerRef::Opponent) && !targeted {
+        if matches!(who, PlayerRef::Opponent) && targeted_opponent(targets, ctx).is_none() {
             let opponents = self.opponents_of(ctx.controller);
             if opponents.len() > 1 {
                 return Ok(crate::ui::ask::ask_choose_opponent(dp, self, ctx.controller, ctx.effect_source(), &opponents));
@@ -2782,11 +2781,7 @@ impl GameState {
             PlayerRef::Player(pid) => *pid,
             PlayerRef::Owner => self.source_owner_of(ctx)?,
             PlayerRef::Opponent => {
-                let targeted = targets.iter().find_map(|t| match t {
-                    ObjectOrPlayerId::Player(pid) if *pid != ctx.controller => Some(*pid),
-                    _ => None,
-                });
-                match targeted {
+                match targeted_opponent(targets, ctx) {
                     Some(pid) => pid,
                     None => {
                         let opponents = self.opponents_of(ctx.controller);
@@ -3133,6 +3128,15 @@ impl GameState {
 /// never a back-reference to it — `targeting::instance_of` resolves
 /// `EffectRecipient::SameInstanceAs` before the primitive sees it. Reaching one here
 /// means the walk was bypassed, which is a wiring error rather than a card's.
+/// "An opponent" the resolution targets, when it targets one: a player
+/// target who is not its controller.
+fn targeted_opponent(targets: &[ObjectOrPlayerId], ctx: &ResolutionContext) -> Option<PlayerId> {
+    targets.iter().find_map(|t| match t {
+        ObjectOrPlayerId::Player(pid) if *pid != ctx.controller => Some(*pid),
+        _ => None,
+    })
+}
+
 fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> String {
     format!(
         "a primitive on {:?} was handed {:?}, a back-reference to an instance of \"target\" rather than the clause that declared it (CR 115.3). Resolve it through `targeting::instance_of`.",
