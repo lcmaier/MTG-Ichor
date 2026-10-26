@@ -481,8 +481,28 @@ opponent" body is a target per opponent, 57 cards (decision 5).
    names it as its `ability_source`: the object for a static ability, the
    row's source for a registry row.
 
-   **The choice is where a rider finds the target chosen at cast**: in a
-   place of its own, or appended to the rider's existing target list.
+   **Why not just read `RegisteredReplacementEffect.targets`?** (asked at the
+   second round). That is where the targets come from, under either option.
+   Two things stand between the row and the rider:
+   - **The row is gone by then.** A shield is spent while the replacement
+     pipeline decides the damage event (CR 609.7b, 615.7): `consume_use`
+     removes a used-up one-shot row, and `spend_next_damage` one counted
+     down to zero, inside the CR 616.1 loop (`pipeline.rs`, just after the
+     rider is queued). The rider runs after the damage is dealt. Divine
+     Deflection usually prevents its whole X at once, so its row no longer
+     exists when "deals that much damage" happens. The targets are copied
+     off the row when the rider is queued, while it still exists. Keeping
+     the row until its riders run is no answer: a later group of the same
+     batch must see the shield spent.
+   - **The rider can't see the registry.** A rider's instructions resolve
+     through the same walk as a spell's, which reads only its
+     `ResolutionContext`. Nothing in that points at the row, so the copy has
+     to be put in the context, and the card needs a recipient word that
+     reads it, since a rider's `Target` already means the damaged thing.
+
+   The redirect (General's Regalia, item 106) has neither problem: it
+   applies while the row is in hand, so it reads the row's targets directly.
+   **So the choice is only where the copy sits in the rider's context.**
 
    - (a) **A holder for what only a rider has, and one recipient that reads
      it.** `ResolutionContext.replaced_event: Option<ReplacedEvent>` becomes
