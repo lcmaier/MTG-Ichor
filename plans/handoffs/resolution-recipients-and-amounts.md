@@ -135,7 +135,7 @@ opponent" body is a target per opponent, 57 cards (decision 5).
      *Upkeep*: a rider or a bare effect has no announcement, so its targets
      are never checked; the narrow key stays, a register finding with no fix.
 
-   **Recommended: (a).**
+   **Settled: (a)** (the owner, at #295's first review round, 2026-10-26).
 
 2. **Items 269 and 299: the object word, and one `AmountExpr::ValueOf`.**
 
@@ -234,7 +234,7 @@ opponent" body is a target per opponent, 57 cards (decision 5).
 
    - (a) **By the act, as the card's text names it**: `PaymentAct`, whose
      arms are `Sacrificed`, `Exiled`, `Discarded`, `Revealed`, `Tapped`,
-     `Convoked`, `Beheld` and `Promised` (a gift's player). Printed text names
+     `Convoked`, `Beheld` and `GiftPromised` (a gift's player). Printed text names
      the cost by its verb ("the sacrificed creature") and no card reads back
      two costs of one verb. Only `Sacrificed` is built; each other arm lands
      with its cost: discard and exile from a graveyard at `remaining-costs`
@@ -250,7 +250,8 @@ opponent" body is a target per opponent, 57 cards (decision 5).
      nothing prints. *Upkeep*: an index the author counts, and a cost list
      reordered silently re-points every reader.
 
-   **Recommended: (a).**
+   **Settled: (a)**, the gift's arm named `GiftPromised` (the owner, at
+   #295's first review round, 2026-10-26).
 
 4. **Item 268: "that player" names its participant.**
 
@@ -307,7 +308,7 @@ opponent" body is a target per opponent, 57 cards (decision 5).
      table's three fold-ins stay as they are. *Upkeep*: four arms every reader
      matches, and four places for item 292's "nobody".
 
-   **Recommended: (a).**
+   **Settled: (a)** (the owner, at #295's first review round, 2026-10-26).
 
 5. **Item 272: what `ForEach` iterates, and the target per player.**
 
@@ -348,7 +349,7 @@ opponent" body is a target per opponent, 57 cards (decision 5).
    attack candidates read for that player, and hands back one
    `GameAction::CreateTokens`.
 
-   - (a) **`Effect::ForEach(Iteration, body)`**, `Iteration` being
+   - (a) **`Effect::ForEach(Each, body)`**, `Each` being
      `Players(PlayerGroup)` or `Objects(ObjectSet)`. Players are built for a
      `CreateToken` body: the 13. Every other body is refused when the card is
      built, and filed: the choices (a `ChoiceScope` arm for that player's
@@ -364,9 +365,24 @@ opponent" body is a target per opponent, 57 cards (decision 5).
      with no legal target blocks the cast is a ruling to read first. About
      250–400 more lines, so the PR splits at decision 6's line.
 
-   **Recommended: (a).** v1 is four-player Commander, where the 57 are
-   staples (Hapatra, Grasp of Fate, Elminster's Simulacrum), so their item's
-   slot is on the route before Phase 8, not after it.
+   **Settled: (a)**, with the iteration's type named `Each` rather than
+   `Iteration` (the owner, at #295's first review round, 2026-10-26). v1 is
+   four-player Commander, where the 57 are staples (Hapatra, Grasp of Fate,
+   Elminster's Simulacrum), so their item's slot is on the route before
+   Phase 8, not after it.
+
+   **Voting meets it in one place: what is iterated** (asked at the same
+   round). Council's dilemma cards iterate over votes: Expropriate's "for
+   each money vote, choose a permanent owned by the voter and gain control
+   of it", 13 cards
+   (`o:/for each [a-z]+ vote|each player who voted|voted for/`, of 41 that
+   say `o:vote`). Each vote names a player, the voter, which is the player
+   `PlayerAntecedent::ForEachPlayer` already names. So voting would add an
+   `Each::Votes(..)` arm and reuse the player word; nothing here blocks it.
+   The vote itself is not built: CR 701.38's prompt, which starts at a named
+   player and goes in turn order (Expropriate's ruling: each player knows
+   the earlier votes), is `backlog.md#24-voting-and-the-decisionprovider-choice-shapes`,
+   which has no owner yet.
 
 6. **Items 90, 106 and 329: a rider's view of the resolution that made its
    row.**
