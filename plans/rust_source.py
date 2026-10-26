@@ -9,6 +9,10 @@ a match's line is the source's:
 - `test_items` finds the items under `#[cfg(test)]`, which a gate about the
   engine's behavior reads past: a test builds and inspects a board directly,
   which is what a test is for.
+
+On top of them, `holders` lists every struct field and enum payload (what a
+value is stored in), and `type_declarations` every struct and enum with all
+its members, unit variants included (what a card's text can say).
 """
 
 import re
@@ -220,6 +224,50 @@ def holders(path: str, text: str) -> list[Holder]:
                 line = line_of(field_offset)
                 doc = variant_doc if field.startswith(".") else _doc_above(lines, line)
                 out.append(Holder(path, line, owner, variant.group(1), field, ty, doc))
+    return out
+
+
+class TypeDecl:
+    """One struct or enum outside test code: its kind, name, file and line,
+    and its members in order, as (name, payload or type, first sentence of
+    its doc). An enum's unit variant has an empty payload; `holders` skips
+    it, since nothing is stored in it, and this lists it, since a card's text
+    can say it."""
+
+    def __init__(self, kind, name, path, line):
+        self.kind, self.name, self.path, self.line = kind, name, path, line
+        self.members: list[tuple[str, str, str]] = []
+
+    def mentions(self) -> set[str]:
+        """The type names its members' payloads and types mention."""
+        return {t for _, payload, _ in self.members for t in TYPE_NAME.findall(payload)}
+
+
+def type_declarations(path: str, text: str) -> list[TypeDecl]:
+    """Every struct and enum `text` declares outside `#[cfg(test)]`."""
+    code, lines = code_only(text), text.splitlines()
+    tests = test_items(code)
+    line_of = lambda offset: code.count("\n", 0, offset) + 1
+    out = []
+    for m in ITEM.finditer(code):
+        if any(a <= m.start() < b for a, b in tests):
+            continue
+        kind, name = m.groups()
+        k = _body_start(code, m.end())
+        if k is None or code[k] == ";":
+            continue
+        item = TypeDecl(kind, name, path, line_of(m.start()))
+        body = ATTRIBUTE.sub(lambda a: " " * len(a.group(0)), code[k + 1 : _closing(code, k)])
+        for offset, part in _split_top(body):
+            doc = _doc_above(lines, line_of(k + 1 + offset)).split(". ")[0]
+            if kind == "enum":
+                arm = re.match(r"([A-Z][A-Za-z0-9_]*)\s*(.*)", part, re.S)
+                if arm:
+                    item.members.append((arm.group(1), " ".join(arm.group(2).split()), doc))
+            elif code[k] == "{" and ":" in part:
+                field, ty = part.split(":", 1)
+                item.members.append((VISIBILITY.sub("", field).strip(), " ".join(ty.split()), doc))
+        out.append(item)
     return out
 
 
