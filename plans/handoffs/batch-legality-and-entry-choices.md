@@ -6,9 +6,9 @@ design note, reviewed before the build. It holds only what #293 left open:
 the decisions #293 settled for this PR are in
 `plans/handoffs/batches-durations-and-control.md` (its decisions 2 and 3,
 and item 330's answer), and the landing deletes both files. Every size below
-was read against `384f2243` (#293's merge). **Revised at #294's first review
-round (2026-10-26)**: decisions 1, 3 and 5 are rewritten, 2 is folded into
-1, and 4, 6 and 7 are settled.
+was read against `384f2243` (#293's merge). **Revised at #294's review
+rounds (2026-10-26)**: decisions 1 and 3 are rewritten, 2 is folded into 1,
+4, 5 and 6 are settled, and 7 covers all three `Query` names.
 
 ## Where the work sits
 
@@ -132,8 +132,9 @@ floor, which the owner accepted for the split.
    `EventCause::Cost { player, paying_for }`, riding on its entry
    (decision 3).
 
-5. **How an entry's choices are asked.** The first draft designed three
-   prompts for the three cards this PR has. Every printed "as this enters"
+5. **How an entry's choices are asked.** **Settled: (a), by answer shape**
+   (the owner, at #294's second review round, 2026-10-26). The first draft
+   designed three prompts for the three cards this PR has. Every printed "as this enters"
    choice is CR 614.12a's, made before the permanent enters, and the cards
    group by what the player answers:
 
@@ -167,7 +168,7 @@ floor, which the owner accepted for the split.
      each. Two arms would already ask "which opponent" as a permanent enters.
 
    Both bring in the dev GUI gate, and neither costs anything at run time:
-   a prompt is asked only when a card asks it. **Recommended: (a).**
+   a prompt is asked only when a card asks it.
 
 ### #293's two open questions
 
@@ -176,12 +177,27 @@ floor, which the owner accepted for the split.
    board script no longer reads it as a home, the practices page and
    `codebase-state.md`'s header drop it, the two lines that named it beside a
    phase name the phase only, and item 284 closes as moot.
-7. **`Query::Event`'s name.** **Settled: renamed** (the owner, at #294's
-   review, 2026-10-26); `Try` is the wrong prefix. The name to confirm:
-   `Query::EventHappens`, over `CheckEventHappens`, since the query is already
-   the argument of a check. `is_prohibited(game, &Query::EventHappens { .. })`
-   reads "is it prohibited that the event happens". 15 sites in 4 files and
-   8 doc lines, the build's first commit.
+7. **The three `Query` names.** `is_prohibited` asks one question three
+   ways: may this event happen (`Event`, CR 614.17's "can't be destroyed"),
+   may this replacement effect be applied (`TryApplyReplacement`, CR
+   701.19c's "can't be regenerated"), and does this rule's action apply
+   (`TryApplyRule`, CR 101.1's "you don't lose the game for having 0 or less
+   life"). `Try` went on the second two at #293's review because each can
+   come back "no", so the name says the application is asked about, not
+   done. `Event` can come back "no" just as well (the owner, at #294's second
+   round), so the first draft's reason for leaving it alone doesn't hold. The
+   three should read alike.
+   - (a) **Each named for what might be prohibited, said as a clause:**
+     `EventHappens`, `ReplacementApplies`, `RuleApplies`.
+     `is_prohibited(game, &Query::RuleApplies { .. })` reads "is it
+     prohibited that the rule applies", a question, so nothing reads as done.
+   - (b) **`Try` on all three:** `TryEvent`, `TryApplyReplacement`,
+     `TryApplyRule`. `TryEvent` names no verb.
+   - (c) **`Check` on all three**, your `CheckEventHappens`: it repeats what
+     `is_prohibited` already says.
+
+   **Recommended: (a).** 15 sites for `Event` and 11 for the other two, in
+   the build's first commit.
 
 ## What the build checks
 
