@@ -72,34 +72,34 @@ fn dragonlord() -> Arc<CardData> {
     )
 }
 
-/// **Fixture**, a "can't" and a shield that last as long as their source:
-/// "When this creature enters, target creature an opponent controls can't be
-/// destroyed, and if it would be destroyed, prevent that, for as long as this
-/// creature remains on the battlefield."
-fn warden() -> Arc<CardData> {
+/// **Fixture**, Suncleanser's first mode without its first sentence: "When
+/// this creature enters, target creature an opponent controls can't have
+/// counters put on it for as long as this creature remains on the
+/// battlefield." A resolution's "can't".
+fn cleanser() -> Arc<CardData> {
     let cant = RestrictionDef::new(Restriction::Event {
-        pattern: EventPattern::Destroy { source: None },
+        pattern: EventPattern::AddCounters { counter: None, by: None },
         affected: AffectedSet::NOTHING,
         by: None,
     });
-    let shield = ReplacementDef::new(EventPattern::Destroy { source: None }, ObjectSet::NO_OBJECTS, Rewrite::Prevent);
-    CardDataBuilder::new("Fixture Warden")
-        .card_type(CardType::Creature)
-        .power_toughness(2, 2)
-        .ability(triggered_ability(
-            "When this creature enters, target creature an opponent controls can't be destroyed, and if it would be destroyed, prevent that, for as long as this creature remains on the battlefield.",
-            whenever(
-                enters(TriggerSubject::ThisObject),
-                Effect::Sequence(vec![
-                    Effect::Atom(Primitive::Restrict(cant, Duration::WhileSourceOnBattlefield), an_opponents_creature()),
-                    Effect::Atom(
-                        Primitive::CreateReplacement(Box::new(shield), Duration::WhileSourceOnBattlefield, PatternFill::Authored),
-                        EffectRecipient::SameInstanceAs(0),
-                    ),
-                ]),
-            ),
-        ))
-        .build()
+    on_entry(
+        "Fixture Cleanser",
+        "When this creature enters, target creature an opponent controls can't have counters put on it for as long as this creature remains on the battlefield.",
+        Primitive::Restrict(cant, Duration::WhileSourceOnBattlefield),
+    )
+}
+
+/// **Fixture**, a prevention shield with Sower of Temptation's duration:
+/// "When this creature enters, prevent all damage that would be dealt to
+/// target creature an opponent controls for as long as this creature
+/// remains on the battlefield." A resolution's replacement effect.
+fn guardian() -> Arc<CardData> {
+    let shield = ReplacementDef::new(EventPattern::DealDamage { source: None, combat: None }, ObjectSet::NO_OBJECTS, Rewrite::Prevent);
+    on_entry(
+        "Fixture Guardian",
+        "When this creature enters, prevent all damage that would be dealt to target creature an opponent controls for as long as this creature remains on the battlefield.",
+        Primitive::CreateReplacement(Box::new(shield), Duration::WhileSourceOnBattlefield, PatternFill::Authored),
+    )
 }
 
 fn controller(game: &GameState, id: ObjectId) -> Option<PlayerId> {
@@ -155,17 +155,23 @@ fn a_steal_whose_source_was_flickered_in_response_never_starts() {
 }
 
 /// CR 611.2b in the other two registries: a resolution's "can't" and its
-/// replacement effect "for as long as" their source remains end as it leaves.
+/// replacement effect "for as long as" their sources remain each end as
+/// their own source leaves.
 #[test]
 fn a_cant_and_a_shield_for_as_long_as_their_source_remains_end_as_it_leaves() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let warden = put_on_battlefield(&mut game, warden(), 0);
+    let cleanser = put_on_battlefield(&mut game, cleanser(), 0);
     resolve_its_entry(&mut game);
-    assert_eq!((game.restrictions.len(), game.replacement_effects.len()), (1, 1), "a row in each");
+    let guardian = put_on_battlefield(&mut game, guardian(), 0);
+    resolve_its_entry(&mut game);
+    let rows = |game: &GameState| (game.restrictions.len(), game.replacement_effects.len());
+    assert_eq!(rows(&game), (1, 1), "a row in each");
 
-    game.change_zone(warden, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
-    assert_eq!((game.restrictions.len(), game.replacement_effects.len()), (0, 0), "both ended with their source");
+    game.change_zone(cleanser, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
+    assert_eq!(rows(&game), (0, 1), "the \"can't\" ended with its source, and only it");
+    game.change_zone(guardian, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
+    assert_eq!(rows(&game), (0, 0), "the shield ended with its own");
 }
 
 // RULING: Dragonlord Silumgar #3 - "If another player gains control of Dragonlord Silumgar, its control-change effect ends. Regaining control of Dragonlord Silumgar won't cause you to regain control of the creature or planeswalker."
@@ -235,6 +241,10 @@ fn an_opponent_gains_control_is_chosen_as_it_resolves_among_two_opponents() {
     let mut game = setup_game(3);
     let horse = put_on_battlefield(&mut game, trojan_horse(), 0);
     game.perform_sba_and_triggers(&test_dp()).unwrap();
+    // The ability on the stack holds no target (CR 115.1): the opponent is
+    // no choice made as it was put there.
+    let ability = *game.stack.iter().last().unwrap();
+    assert!(game.stack_entries[&ability].chosen_targets.iter().all(|instance| !instance.is_targeted()));
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(ChoiceKind::ChooseOpponent { source: horse }, vec![ChoiceOption::Player(2)]);
 
