@@ -87,7 +87,7 @@ pub fn immortal_coils_state_trigger() -> Arc<CardData> {
             "When there are no cards in your graveyard, you lose the game.",
             when_state(
                 Condition::Not(Box::new(you(PlayerFact::CardInGraveyard(ObjectFilter::All)))),
-                Effect::Atom(Primitive::LoseGame, EffectRecipient::Controller),
+                Effect::Atom(Primitive::LoseGame, EffectRecipient::Player(PlayerRef::You)),
             ),
         ))
         .build()
@@ -101,7 +101,7 @@ pub fn draws_on_an_empty_hand() -> Arc<CardData> {
         .rules_text("Whenever you have no cards in hand, draw a card.")
         .ability(triggered_ability(
             "Whenever you have no cards in hand, draw a card.",
-            when_state(you(PlayerFact::HandEmpty), Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller)),
+            when_state(you(PlayerFact::HandEmpty), Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))),
         ))
         .build()
 }
@@ -113,8 +113,8 @@ pub fn discard_your_hand_then_draw_that_many() -> Arc<CardData> {
         "Fixture: discard your hand, then draw that many cards",
         "Discard your hand, then draw that many cards.",
         Effect::Sequence(vec![
-            Effect::Atom(Primitive::Discard(AmountExpr::CountOf(ObjectSet::hand(PlayerRef::You)), DiscardChooser::Affected), EffectRecipient::Controller),
-            Effect::Atom(Primitive::DrawCards(AmountExpr::DiscardedThisWay), EffectRecipient::Controller),
+            Effect::Atom(Primitive::Discard(AmountExpr::CountOf(ObjectSet::hand(PlayerRef::You)), DiscardChooser::Affected), EffectRecipient::Player(PlayerRef::You)),
+            Effect::Atom(Primitive::DrawCards(AmountExpr::DiscardedThisWay), EffectRecipient::Player(PlayerRef::You)),
         ]),
     )
 }
@@ -136,7 +136,7 @@ pub fn destroy_your_others_then_a_token() -> Arc<CardData> {
         "Destroy each non-Crocodile creature you control, then create a 1/1 white Soldier creature token.",
         Effect::Sequence(vec![
             Effect::Atom(Primitive::Destroy, EffectRecipient::FilteredPermanents(your_non_crocodiles)),
-            Effect::Atom(Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         ]),
     )
 }

@@ -504,7 +504,7 @@ fn an_equip_ability_does_not_attach_its_equipment_once_it_has_left_and_returned(
 // ---------------------------------------------------------------------------
 
 fn gain(n: u64) -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(n)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(n)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn a_creature() -> ObjectFilter {

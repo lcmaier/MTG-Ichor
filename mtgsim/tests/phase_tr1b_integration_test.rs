@@ -51,7 +51,7 @@ use mtgsim::ui::random::RandomDecisionProvider;
 // ---------------------------------------------------------------------------
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn pending(game: &GameState) -> usize {

@@ -83,7 +83,7 @@ pub fn paladin_of_atonement() -> Arc<CardData> {
             condition: TriggerCondition::Event(dies(TriggerSubject::Object(Antecedent::ThisObject)).into()),
             intervening_if: None,
             limit: None,
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringToughness(EventRole::Object)), EffectRecipient::Controller),
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringToughness(EventRole::Object)), EffectRecipient::Player(PlayerRef::You)),
         }))
         .build()
 }
@@ -225,7 +225,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
             limit: Some(TriggerLimit::TriggersOnlyOnceEachTurn),
             effect: Effect::Atom(
                 Primitive::CreateToken(elf_warrior_token(), AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         }))
         .ability(pump)

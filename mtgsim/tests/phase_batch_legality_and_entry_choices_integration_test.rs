@@ -119,7 +119,7 @@ fn gains_when_creatures_die() -> Arc<CardData> {
     let arm = dies(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))).once_per_event();
     CardDataBuilder::new("Fixture Mourning Bell")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", whenever(arm, Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller))))
+        .ability(triggered_ability("", whenever(arm, Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)))))
         .build()
 }
 
@@ -612,7 +612,7 @@ fn gains_when_counters_leave_your_permanent() -> Arc<CardData> {
     let arm = counters_removed_from(TriggerSubject::Filter(ObjectFilter::ByController(PlayerRef::You)), None).once_per_object();
     CardDataBuilder::new("Fixture Counter Warden")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", whenever(arm, Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller))))
+        .ability(triggered_ability("", whenever(arm, Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)))))
         .build()
 }
 

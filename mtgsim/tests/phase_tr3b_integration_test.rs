@@ -129,12 +129,12 @@ fn at_the_next_end_step(effect: Effect) -> Effect {
 
 /// The instruction that creates `template`.
 fn delayed(template: DelayedTriggerTemplate) -> Effect {
-    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Player(PlayerRef::You))
 }
 
 /// `effect` on what the delayed trigger refers to.
 fn on_referred(primitive: Primitive) -> Effect {
-    Effect::Atom(primitive, EffectRecipient::Referred)
+    Effect::Atom(primitive, EffectRecipient::Object(Antecedent::Referred))
 }
 
 fn remember(effect: Effect) -> Effect {
@@ -167,7 +167,7 @@ fn token(name: &str, power: i32) -> TokenDef {
 }
 
 fn create_one(def: TokenDef) -> Effect {
-    Effect::Atom(Primitive::CreateToken(def, AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::CreateToken(def, AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn tokens_named(game: &GameState, name: &str) -> Vec<ObjectId> {
@@ -338,7 +338,7 @@ fn a_delayed_trigger_refers_to_every_token_a_doubled_creation_made() {
 fn a_delayed_trigger_watching_two_tokens_that_die_at_once_triggers_once() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, parallel_lives(), 0);
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(5)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(5)), EffectRecipient::Player(PlayerRef::You));
     let when_it_dies = DelayedTriggerTemplate {
         def: Arc::new(whenever(dies(TriggerSubject::Object(Antecedent::Referred)), gain)),
         duration: DelayedDuration::Once,
@@ -451,7 +451,7 @@ fn a_delayed_trigger_refers_to_the_player_its_creator_named() {
                     Primitive::GainLife(AmountExpr::Fixed(1)),
                     EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 )),
-                at_the_next_end_step(on_referred(Primitive::GainLife(AmountExpr::Fixed(3)))),
+                at_the_next_end_step(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Player(PlayerRef::ReferredPlayer))),
             ]),
         ),
         0,
@@ -577,7 +577,7 @@ fn end_step_creature() -> Arc<CardData> {
             "At the beginning of the end step, you gain 1 life.",
             whenever(
                 at_beginning_of(StepType::End, Whose::Each),
-                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
             ),
         ))
         .build()

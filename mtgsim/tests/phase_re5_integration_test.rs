@@ -481,7 +481,7 @@ fn a_player_gets_counters_through_the_same_event() {
     let start = game.recorded_events().records().len();
     let effect = Effect::Atom(
         Primitive::GetCounters { counter: CounterType::Energy, amount: AmountExpr::Fixed(2), by: PlayerRef::You },
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
 
     resolve_targeting(&mut game, 0, vec![], &effect, &test_dp());

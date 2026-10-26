@@ -352,7 +352,7 @@ fn an_entrys_rows_are_one_record_per_kind_and_putter_each_with_its_count() {
 // ---------------------------------------------------------------------------
 
 fn gain(amount: AmountExpr) -> Effect {
-    Effect::Atom(Primitive::GainLife(amount), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(amount), EffectRecipient::Player(PlayerRef::You))
 }
 
 /// A 2/2 with one triggered ability, `event` gaining its controller `amount`.
@@ -602,7 +602,7 @@ fn third_charge_counter() -> Arc<CardData> {
                 condition: TriggerCondition::Event(arm),
                 intervening_if: Some(Condition::CounterCountReached { counter_type: CounterType::Charge, n: 3 }),
                 limit: None,
-                effect: Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                effect: Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
             },
         ))
         .build()

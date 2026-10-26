@@ -340,7 +340,7 @@ fn exile_watcher() -> Arc<CardData> {
                     owner: None,
                     multiplicity: Multiplicity::OncePerEvent,
                 },
-                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
             ),
         ),
     )
@@ -398,7 +398,7 @@ fn the_event_stays_under_its_ceiling() {
 // ---------------------------------------------------------------------------
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 /// The triggers `source` has waiting to be put on the stack.
@@ -440,7 +440,7 @@ fn exiler_making(token: TokenDef) -> Arc<CardData> {
         )),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
     )
-    .with_then(Effect::Atom(Primitive::CreateToken(token, AmountExpr::Fixed(1)), EffectRecipient::Controller));
+    .with_then(Effect::Atom(Primitive::CreateToken(token, AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)));
     card_of_type_with(
         "Fixture: exiles and makes a token",
         CardType::Enchantment,

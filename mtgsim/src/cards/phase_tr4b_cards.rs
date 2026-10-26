@@ -17,7 +17,7 @@ use crate::cards::phase_tr1_cards::saproling_token;
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive};
+use crate::types::effects::{PlayerRef, Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive};
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, TriggerSubject};
@@ -135,7 +135,7 @@ pub fn bramble_elemental() -> Arc<CardData> {
                     ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura)),
                     TriggerSubject::Object(Antecedent::ThisObject),
                 ),
-                Effect::Atom(Primitive::CreateToken(saproling_token(), AmountExpr::Fixed(2)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::CreateToken(saproling_token(), AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You)),
             ),
         ))
         .build()

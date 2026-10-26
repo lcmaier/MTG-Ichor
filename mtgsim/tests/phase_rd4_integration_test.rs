@@ -32,7 +32,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    PlayerRef, AffectedSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -240,7 +240,7 @@ fn a_static_players_cant_gain_life_refuses_the_gain_while_its_source_is_there() 
 
     let gain = Effect::Atom(
         Primitive::GainLife(AmountExpr::Fixed(4)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     let ctx = ResolutionContext::untargeted(source, 1, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&gain, &ctx, &ScriptedDecisionProvider::new()).unwrap();

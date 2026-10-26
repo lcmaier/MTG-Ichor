@@ -37,7 +37,7 @@ use mtgsim::test_support::{
     fill_library, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_ctx,
     test_dp,
 };
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
+use mtgsim::types::effects::{PlayerRef, AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -75,7 +75,7 @@ fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn Dec
     let ctx = ResolutionContext::untargeted(source, player, mtgsim::events::cause::GeneratedBy::Spell);
     let effect = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(n)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     game.resolve_effect(&effect, &ctx, dp).expect("drawing");
 }
@@ -207,11 +207,11 @@ fn one_instruction_of_two_is_a_different_event_from_two_instructions_of_one() {
     let twice = Effect::Sequence(vec![
         Effect::Atom(
             Primitive::DrawCards(AmountExpr::Fixed(1)),
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         ),
         Effect::Atom(
             Primitive::DrawCards(AmountExpr::Fixed(1)),
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         ),
     ]);
     resolve_for(&mut two_of_one, 1, &twice, &dp);
@@ -556,11 +556,11 @@ fn a_riders_draws_resolve_before_the_next_instruction_begins() {
     let twice = Effect::Sequence(vec![
         Effect::Atom(
             Primitive::DrawCards(AmountExpr::Fixed(2)),
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         ),
         Effect::Atom(
             Primitive::DrawCards(AmountExpr::Fixed(2)),
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         ),
     ]);
     resolve_for(&mut game, 1, &twice, &test_dp());
@@ -625,11 +625,11 @@ fn the_opponents_other_instructions_still_happen() {
     let draw_then_pay = Effect::Sequence(vec![
         Effect::Atom(
             Primitive::DrawCards(AmountExpr::Fixed(1)),
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         ),
         Effect::Atom(
             Primitive::LoseLife(AmountExpr::Fixed(2)),
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         ),
     ]);
     resolve_for(&mut game, 1, &draw_then_pay, &test_dp());

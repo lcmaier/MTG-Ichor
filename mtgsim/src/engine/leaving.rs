@@ -167,6 +167,9 @@ impl GameState {
                         }
                     },
                     PlayerRef::Owner
+                    | PlayerRef::OwnerOf(_)
+                    | PlayerRef::TheEventsPlayer
+                    | PlayerRef::ReferredPlayer
                     | PlayerRef::Opponent
                     | PlayerRef::DefendingPlayer(_)
                     | PlayerRef::AnyDefendingPlayer => None,

@@ -2451,7 +2451,7 @@ impl GameState {
             EffectRecipient::Object(Antecedent::ThisObjectsHost) => Some(ObjectSet::Host),
 
             // `Target` and `Choose` need a resolution to pick with, and
-            // `Controller` names a player where an `ObjectSet` names objects.
+            // a player word names a player where an `ObjectSet` names objects.
             // A static ability has none of the three.
             _ => {
                 debug_assert!(
@@ -2459,7 +2459,7 @@ impl GameState {
                     "static ability on {} has recipient {:?}, which cannot \
                      become an `ObjectSet`. `Target`/`Choose` require a \
                      resolution to select with, and a static ability never \
-                     resolves; `Controller` names a player, not a set of \
+                     resolves; a `Player` recipient names a player, not a set of \
                      objects. Use `FilteredPermanents` for \"permanents you \
                      control\", or `Object(Antecedent::ThisObject)` for \"this permanent\".",
                     label, recipient
@@ -2657,6 +2657,7 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use crate::test_support::place_on_battlefield;
+    use crate::types::effects::{PlayerRef};
     use super::*;
 
     // -----------------------------------------------------------------------
@@ -2802,7 +2803,7 @@ mod tests {
         #[test]
         #[should_panic(expected = "cannot become an `ObjectSet`")]
         fn test_controller_recipient_on_a_static_is_loud() {
-            let _ = GameState::static_object_set(&EffectRecipient::Controller, "Test Card");
+            let _ = GameState::static_object_set(&EffectRecipient::Player(PlayerRef::You), "Test Card");
         }
 
         /// A primitive with no arm in `static_primitive_rows`. This one is

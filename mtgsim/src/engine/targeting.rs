@@ -5,7 +5,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{Antecedent, Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
+use crate::types::effects::{PlayerRef, Antecedent, Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 
@@ -284,7 +284,7 @@ impl<'a> DeclaredInstances<'a> {
 /// `cursor` is the count of instances *declared* so far by the walk, which is
 /// how a declaring atom learns its own index without the tree being numbered.
 /// Returns `None` for a recipient that names no instance — `Implicit`,
-/// `Controller`, the filtered sweeps and the host, none of which reads a
+/// a player word, the filtered sweeps and the host, none of which reads a
 /// chosen target.
 pub(crate) fn instance_of<'a>(
     recipient: &'a EffectRecipient,
@@ -350,7 +350,7 @@ impl GameState {
                 Ok(())
             }
 
-            EffectRecipient::Controller => {
+            EffectRecipient::Player(PlayerRef::You) => {
                 // "You" doesn't use the targets list — the controller is implicit
                 Ok(())
             }
@@ -361,14 +361,14 @@ impl GameState {
             // A trigger's bound fact is announced by nothing (CR 608.2k — it is
             // "a specific untargeted object"), so there is no clause here.
             EffectRecipient::Object(Antecedent::Triggering(_))
-            | EffectRecipient::TriggeringPlayer
-            | EffectRecipient::Referred
+            | EffectRecipient::Player(PlayerRef::TheEventsPlayer)
+            | EffectRecipient::Player(PlayerRef::ReferredPlayer)
             | EffectRecipient::Object(Antecedent::Referred) => Err(format!(
                 "{recipient:?} is a triggered ability's bound fact, not an instance of \"target\" to validate"
             )),
             // What a creature attacks, and whom, is read as the instruction
             // applies, and so is what a join's parts find.
-            EffectRecipient::AttackedBy(_) | EffectRecipient::DefendingPlayer(_) | EffectRecipient::Group(_) => Err(format!(
+            EffectRecipient::AttackedBy(_) | EffectRecipient::Player(_) | EffectRecipient::Group(_) => Err(format!(
                 "{recipient:?} is read as the effect applies, not an instance of \"target\" to validate"
             )),
             // A choice is made as the effect applies (CR 608.2d); only its

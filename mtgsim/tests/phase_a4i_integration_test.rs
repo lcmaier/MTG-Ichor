@@ -636,7 +636,7 @@ fn incremental_growth_does_not_resolve_with_every_creature_gone() {
 ///
 /// *"Players can't gain life this turn. Damage can't be prevented this turn.
 /// Skullcrack deals 3 damage to target player or planeswalker."* Three atoms,
-/// and the first two are `EffectRecipient::Controller`. The pre-A4i rule took a
+/// and the first two are `EffectRecipient::Player(PlayerRef::You)`. The pre-A4i rule took a
 /// `Sequence`'s **first** atom's recipient as the whole spell's, so the spell
 /// announced no target at all, `chosen_targets` was empty, and the damage atom
 /// read an empty list.

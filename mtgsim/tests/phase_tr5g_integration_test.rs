@@ -63,7 +63,7 @@ fn audited_game() -> GameState {
 }
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn life(game: &GameState, player: PlayerId) -> i64 {
@@ -377,7 +377,7 @@ fn a_delayed_trigger_is_never_doubled() {
         turn: DelayedTurn::NoneNamed,
         rules_text: "".into(),
     };
-    let create = Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller);
+    let create = Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Player(PlayerRef::You));
     let ctx = ResolutionContext::untargeted(creator, 0, GeneratedBy::ActivatedAbility);
     game.resolve_effect(&create, &ctx, &test_dp()).unwrap();
     reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -542,8 +542,8 @@ fn ajanis_zero() -> Effect {
     Arc::make_mut(&mut when_you_do.def).intervening_if =
         Some(Condition::Player { players: PlayerSet::You, fact: PlayerFact::ControlsPermanent(red_other) });
     Effect::Sequence(vec![
-        Effect::Atom(Primitive::CreateToken(cat_warrior(), AmountExpr::Fixed(1)), EffectRecipient::Controller),
-        Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(when_you_do)), EffectRecipient::Controller),
+        Effect::Atom(Primitive::CreateToken(cat_warrior(), AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
+        Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(when_you_do)), EffectRecipient::Player(PlayerRef::You)),
     ])
 }
 
@@ -639,7 +639,7 @@ fn one_or_more_tokens_triggers_once_for_a_creation_of_several() {
     let once = put_on_battlefield(&mut game, watcher("Once", once), 0);
     let each = put_on_battlefield(&mut game, watcher("Each", whenever(creates_a_token(Whose::Yours, None), gain_one())), 0);
     resolve_all(&mut game, &test_dp());
-    let three = Effect::Atom(Primitive::CreateToken(cat_warrior(), AmountExpr::Fixed(3)), EffectRecipient::Controller);
+    let three = Effect::Atom(Primitive::CreateToken(cat_warrior(), AmountExpr::Fixed(3)), EffectRecipient::Player(PlayerRef::You));
     game.resolve_effect(&three, &ResolutionContext::untargeted(once, 0, GeneratedBy::Spell), &test_dp()).unwrap();
     assert_eq!((waiting_from(&game, once), waiting_from(&game, each)), (1, 3));
     game.pending_triggers.clear();
@@ -665,7 +665,7 @@ fn elrond_master_of_healing() -> Arc<CardData> {
     );
     let draw = Effect::Optional {
         chooser: PlayerRef::You,
-        effect: Box::new(Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller)),
+        effect: Box::new(Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))),
     };
     let targeted = becomes_the_target_of(TriggerSubject::Filter(yours_with_a_counter), TargetedBy::SpellOrAbility, Some(PlayerRef::Opponent));
     CardDataBuilder::new("Elrond, Master of Healing")
@@ -772,7 +772,7 @@ fn a_scry_zero_triggers_nothing() {
     let mut game = audited_game();
     let elrond = put_on_battlefield(&mut game, elrond_master_of_healing(), 0);
     fill_library(&mut game, 0, 3);
-    let effect = Effect::Atom(Primitive::Scry(AmountExpr::Fixed(0)), EffectRecipient::Controller);
+    let effect = Effect::Atom(Primitive::Scry(AmountExpr::Fixed(0)), EffectRecipient::Player(PlayerRef::You));
     game.resolve_effect(&effect, &ResolutionContext::untargeted(elrond, 0, GeneratedBy::Spell), &test_dp()).unwrap();
     assert_eq!(waiting_from(&game, elrond), 0);
 }

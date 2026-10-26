@@ -136,7 +136,7 @@ pub fn aggravated_assault() -> Arc<CardData> {
                         phases: vec![PhaseType::Combat, PhaseType::Postcombat],
                         after: ExtraPhasesAfter::ThisMainPhase,
                     },
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
             ]),
         })

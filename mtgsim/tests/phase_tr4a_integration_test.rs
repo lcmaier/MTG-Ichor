@@ -598,7 +598,7 @@ fn creature_with_a_dies_trigger_if(condition: Condition) -> Arc<CardData> {
         condition: TriggerCondition::Event(dies(TriggerSubject::Object(Antecedent::ThisObject)).into()),
         intervening_if: Some(condition),
         limit: None,
-        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
     };
     CardDataBuilder::new("Conditional Dier")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
@@ -676,7 +676,7 @@ fn aura_leaves_trigger_if_it_enchanted_a_creature_reads_its_last_host() {
             condition: TriggerCondition::Event(leaves_the_battlefield(TriggerSubject::Object(Antecedent::ThisObject)).into()),
             intervening_if: Some(Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::ByType(CardType::Creature))),
             limit: None,
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         };
         let aura_card = CardDataBuilder::new("Leaving Aura")
             .card_type(CardType::Enchantment)
@@ -710,7 +710,7 @@ fn delayed_trigger_if_its_source_was_tapped_reads_the_creature_that_made_it() {
         }),
         intervening_if: Some(Condition::SourceTapped),
         limit: None,
-        effect: Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(5)), EffectRecipient::Controller),
+        effect: Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(5)), EffectRecipient::Player(PlayerRef::You)),
     };
     let template = DelayedTriggerTemplate {
         def: Arc::new(def),
@@ -837,7 +837,7 @@ fn a_leaves_trigger_reads_the_owner_of_an_object_that_left_the_game() {
         .card_type(CardType::Enchantment)
         .ability(triggered_ability(text, whenever(leaves_the_battlefield(theirs), Effect::Atom(
             Primitive::GainLife(AmountExpr::Fixed(1)),
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         ))))
         .build();
     let watcher = put_on_battlefield(&mut game, watcher, 0);
@@ -855,7 +855,7 @@ fn a_leaves_trigger_reads_the_owner_of_an_object_that_left_the_game() {
 #[test]
 fn a_delayed_trigger_made_after_its_source_is_gone_knows_its_owner() {
     let mut game = setup_two_player_game();
-    let owner_gains = TriggerEvent::GainsLife { player: Some(PlayerRef::Owner), multiplicity: Multiplicity::PerOccurrence };
+    let owner_gains = TriggerEvent::GainsLife { player: Some(PlayerRef::OwnerOf(Antecedent::ThisObject)), multiplicity: Multiplicity::PerOccurrence };
     let template = DelayedTriggerTemplate {
         def: Arc::new(whenever(owner_gains, Effect::Sequence(Vec::new()))),
         duration: DelayedDuration::Once,
@@ -902,7 +902,7 @@ fn attack_trigger_if_it_had_no_counters_checks_each_attacker_separately() {
             count: CountIs::AtMost(0),
         }),
         limit: None,
-        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
     };
     let watcher = CardDataBuilder::new("Attack Watcher").card_type(CardType::Enchantment).ability(triggered_ability(text, def)).build();
     put_on_battlefield(&mut game, watcher, 0);
@@ -931,7 +931,7 @@ fn delayed_trigger_if_its_spell_was_kicked_holds_after_the_spell_resolved() {
         }),
         intervening_if: Some(Condition::SpellWasKicked),
         limit: None,
-        effect: Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(5)), EffectRecipient::Controller),
+        effect: Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(5)), EffectRecipient::Player(PlayerRef::You)),
     };
     let template = DelayedTriggerTemplate {
         def: Arc::new(def),
@@ -942,7 +942,7 @@ fn delayed_trigger_if_its_spell_was_kicked_holds_after_the_spell_resolved() {
     let spell = CardDataBuilder::new("Kicked Spell").card_type(CardType::Instant).build();
     let id = put_spell_on_stack(&mut game, spell, 0);
     let entry = game.stack_entries.get_mut(&id).unwrap();
-    entry.effect = Arc::new(Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller));
+    entry.effect = Arc::new(Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Player(PlayerRef::You)));
     entry.cost_choices.additional = vec![AdditionalCost::Kicker(Vec::new())];
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(zone(&game, id), Some(Zone::Graveyard));
@@ -961,9 +961,9 @@ fn token_aura_leaves_trigger_if_its_owner_controls_the_host_holds_after_the_toke
     let text = "When this Aura leaves the battlefield, if enchanted creature is controlled by this Aura's owner, you gain 1 life.";
     let def = TriggerDef {
         condition: TriggerCondition::Event(leaves_the_battlefield(TriggerSubject::Object(Antecedent::ThisObject)).into()),
-        intervening_if: Some(Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::ByController(PlayerRef::Owner))),
+        intervening_if: Some(Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::ByController(PlayerRef::OwnerOf(Antecedent::ThisObject)))),
         limit: None,
-        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
     };
     let aura_card = CardDataBuilder::new("Token Aura")
         .card_type(CardType::Enchantment)
@@ -1004,7 +1004,7 @@ fn spirit_link_fixture() -> Arc<CardData> {
         .rules_text(text)
         .ability(triggered_ability(
             text,
-            whenever(deals_damage, Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Controller)),
+            whenever(deals_damage, Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Player(PlayerRef::You))),
         ))
         .build()
 }

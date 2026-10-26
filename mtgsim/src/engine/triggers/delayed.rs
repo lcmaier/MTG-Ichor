@@ -474,7 +474,7 @@ mod tests {
     use crate::cards::creatures::grizzly_bears;
     use crate::engine::actions::GameAction;
     use crate::test_support::{put_on_battlefield_under, setup_two_player_game, test_ctx};
-    use crate::types::effects::{Effect, PlayerRef};
+    use crate::types::effects::{Antecedent, Effect, PlayerRef};
     use crate::types::triggers::{
         DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, Multiplicity, Referred,
         TriggerEvent, TriggerTurn,
@@ -489,7 +489,7 @@ mod tests {
         let mut game = setup_two_player_game();
         let card = grizzly_bears();
         let source = put_on_battlefield_under(&mut game, Arc::clone(&card), 0, 1);
-        let owner_gains = TriggerEvent::GainsLife { player: Some(PlayerRef::Owner), multiplicity: Multiplicity::PerOccurrence };
+        let owner_gains = TriggerEvent::GainsLife { player: Some(PlayerRef::OwnerOf(Antecedent::ThisObject)), multiplicity: Multiplicity::PerOccurrence };
         let template = DelayedTriggerTemplate {
             def: Arc::new(whenever(owner_gains, Effect::Sequence(Vec::new()))),
             duration: DelayedDuration::Once,

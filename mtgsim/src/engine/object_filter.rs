@@ -161,8 +161,8 @@ enum FilterRefusal {
     /// does not carry, its owner without that information, or any leaf asked
     /// with no frame at all.
     ObjectGone(ObjectId),
-    /// `NotSource`, or a `PlayerRef::Owner`, asked where nothing names a
-    /// source.
+    /// `NotSource`, or "its owner" (`PlayerRef::OwnerOf`), asked where nothing
+    /// names a source, or a player word no filter can answer.
     NoSource(ObjectId),
     /// `OtherThanInstance` naming an instance of "target" not yet announced.
     InstanceNotAnnounced { object: ObjectId, instance: usize },
@@ -420,13 +420,13 @@ fn existence_of(game: &GameState, id: ObjectId, object: &ObjectInformation<'_>) 
 }
 
 /// Does `who` name `player`, for text whose words mean `referents`? `None`
-/// when it names the source's owner and nothing names a source.
+/// when it names the source's owner and nothing names a source, and for a
+/// word no filter answers: the owner of the object an instruction acts on,
+/// and an event's or a remembered player.
 ///
 /// `Opponent` is a predicate, not an id: CR 102.3 makes "your opponents" a set
-/// above two players. `Owner` is the source's owner, what "its owner" names in
-/// a predicate (Xantcha's "planeswalkers its owner controls"); an action's
-/// `Owner` is the owner of the object acted on, and its readers' own
-/// (`compute::resolve_set_controller`).
+/// above two players. `OwnerOf(ThisObject)` is the source's owner, what "its
+/// owner" names in a predicate (Xantcha's "planeswalkers its owner controls").
 pub(crate) fn player_ref_names(
     game: &GameState,
     who: &PlayerRef,
@@ -436,7 +436,13 @@ pub(crate) fn player_ref_names(
     Some(match who {
         PlayerRef::You => player == referents.you(),
         PlayerRef::Opponent => player != referents.you(),
-        PlayerRef::Owner => player == referents.source_owner()?,
+        PlayerRef::OwnerOf(Antecedent::ThisObject) => player == referents.source_owner()?,
+        // A filter names no object acted on, and no other object's owner is
+        // built; an event's or a remembered player is no filter's.
+        PlayerRef::Owner
+        | PlayerRef::OwnerOf(_)
+        | PlayerRef::TheEventsPlayer
+        | PlayerRef::ReferredPlayer => return None,
         PlayerRef::Player(pid) => player == *pid,
         PlayerRef::DefendingPlayer(creature) => referents.defending_player(game, *creature) == Some(player),
         PlayerRef::AnyDefendingPlayer => game.is_defending_player(player),

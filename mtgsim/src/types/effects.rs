@@ -149,14 +149,23 @@ pub enum AmountExpr {
     StartingLifeTotal,
 }
 
-/// Reference to a player in an effect context
+/// The word for one player in an ability's text: the player an instruction
+/// acts on, who puts counters or gains control, whose a filter asks.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlayerRef {
     /// The controller of the spell/ability
     You,
     /// A targeted or otherwise identified opponent
     Opponent,
-    /// Owner of the source object
+    /// "Its owner": the owner of the object the antecedent names (CR 108.3),
+    /// "this object" for Xantcha's "planeswalkers its owner controls".
+    OwnerOf(Antecedent),
+    /// The owner of each object the instruction acts on, read object by
+    /// object: Homeward Path's "each player gains control of all creatures
+    /// they own" hands each creature to its own owner (CR 108.3), and an
+    /// entering object's counters are put by its owner. Nothing names that
+    /// object yet; its antecedent is the affected object's, which lands with
+    /// `resolution-recipients-and-amounts`.
     Owner,
     /// A specific player
     Player(PlayerId),
@@ -170,6 +179,13 @@ pub enum PlayerRef {
     /// 506.2, 802.2), for one target's filter or an activation's restriction,
     /// where what the controller picks is the choice. Nobody outside combat.
     AnyDefendingPlayer,
+    /// "That player": on a triggered ability, the player of its triggering
+    /// event (the arm's `player_of` on the matched records); on a CR 615.5
+    /// rider, the player its replaced event was about.
+    TheEventsPlayer,
+    /// CR 603.7c — "that player" on a delayed triggered ability: a player the
+    /// instruction its creator remembered acted on ([`Effect::Remember`]).
+    ReferredPlayer,
 }
 
 /// CR 701.9b — who picks which card is discarded.
@@ -566,36 +582,28 @@ impl From<PlayerSet> for AffectedSet {
 }
 
 /// The players an instruction to several players names: those standing in
-/// `relation` to "you", together with those the effect's context names. A
-/// new printed phrase is a new `NamedPlayers` arm, not a new recipient:
+/// `relation` to "you", together with the one the effect's context names.
 /// Zurzoth's "you and those players" is `You` with the players its trigger
 /// names.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlayerGroup {
     pub relation: PlayerSet,
-    pub named: NamedPlayers,
+    /// A player the text names beside the relation: "you and that player".
+    pub named: Option<PlayerRef>,
 }
 
 impl PlayerGroup {
     /// "Each player", "each opponent": the players `relation` names, and no
     /// others.
     pub fn set(relation: PlayerSet) -> Self {
-        PlayerGroup { relation, named: NamedPlayers::Nobody }
+        PlayerGroup { relation, named: None }
     }
 
-    /// "You and that player" (Alms Collector's rider).
+    /// "You and that player" (Alms Collector's rider), "that player" being
+    /// its replaced event's.
     pub fn you_and_that_player() -> Self {
-        PlayerGroup { relation: PlayerSet::You, named: NamedPlayers::FirstInstance }
+        PlayerGroup { relation: PlayerSet::You, named: Some(PlayerRef::TheEventsPlayer) }
     }
-}
-
-/// Players an effect's context names, rather than their relation to "you".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NamedPlayers {
-    Nobody,
-    /// "That player": the player the effect's first instance names, which for
-    /// a CR 615.5 rider is the replaced event's subject.
-    FirstInstance,
 }
 
 /// Duration for continuous effects (rule 611)
@@ -919,9 +927,14 @@ pub enum EffectRecipient {
     ///   remembered acted on ([`Effect::Remember`]), each object found only
     ///   while it is the same object (CR 400.7).
     Object(Antecedent),
-    /// The controller of this spell/ability (e.g. Night's Whisper "you draw",
-    /// Angel's Mercy "you gain"). Not targeting.
-    Controller,
+    /// The one player a word in the text names, and no instance of "target":
+    /// `You`, the controller (Night's Whisper's "you draw", Angel's Mercy's
+    /// "you gain"); `TheEventsPlayer`, "that player" on a triggered ability;
+    /// `ReferredPlayer`, "that player" on a delayed one (CR 603.7c); and
+    /// `DefendingPlayer`, "defending player loses 2 life" (CR 508.5), for the
+    /// creature named, read as `AttackedBy` reads it and nobody while it
+    /// attacks nothing.
+    Player(PlayerRef),
     /// Select with targeting rules — hexproof/shroud/protection apply,
     /// fizzles if all targets become illegal (rule 608.2b).
     Target(SelectionFilter, TargetCount),
@@ -971,24 +984,12 @@ pub enum EffectRecipient {
     /// the instance declared at 0", which is what a card author needs to see
     /// without opening this file.
     SameInstanceAs(usize),
-    /// "That player" on a triggered ability — the arm's `player_of` on the
-    /// matched records.
-    TriggeringPlayer,
-    /// CR 603.7c — "that player" on a delayed triggered ability, or what the
-    /// instruction its creator remembered acted on, players and objects
-    /// alike ([`Effect::Remember`]). Never an instance of "target". Its
-    /// objects alone are `Object(Antecedent::Referred)`.
-    Referred,
     /// "The player or planeswalker it's attacking" (CR 506.3): what the
     /// creature named is attacking, read as CR 608.2h reads that creature.
     /// While it is on the battlefield it is its attack now, and nothing once
     /// it has left combat; once it has left the battlefield, the attack its
     /// last known information kept (Fathom Fleet Swordjack's ruling).
     AttackedBy(Antecedent),
-    /// "Defending player" as the player acted on: "defending player loses 2
-    /// life" (CR 508.5), for the creature named, read as `AttackedBy` reads
-    /// it. Nobody while it attacks nothing.
-    DefendingPlayer(Antecedent),
     /// "Each player", "each opponent", "you and that player": every player the
     /// group names, over the seats still in the game, each once, in CR 101.4's
     /// APNAP order at resolution. A draw instruction to several players is
@@ -1051,7 +1052,7 @@ pub enum EffectRecipient {
 /// A choice made as an effect applies ([`EffectRecipient::ChosenBy`]).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Choice {
-    /// Who picks: `Controller`, a target player, or `EachOf` a group.
+    /// Who picks: "you" (`Player(PlayerRef::You)`), a target player, or `EachOf` a group.
     pub chooser: EffectRecipient,
     /// Whose objects are picked from, and where.
     pub among: ChoiceScope,
@@ -1905,7 +1906,7 @@ pub enum Primitive {
     PutOnBottomOfLibrary,
     /// Shuffle into owner's library
     ShuffleIntoLibrary,
-    /// Shuffle a library (CR 701.24a). Whose is the recipient's: `Controller`
+    /// Shuffle a library (CR 701.24a). Whose is the recipient's: "you"
     /// is "shuffle your library", `Implicit` the source's **owner's** — the
     /// rider of "shuffle it into its owner's library" once the substitute
     /// has made the move (Darksteel Colossus), where "it" is the source — and
@@ -1986,7 +1987,7 @@ pub enum Primitive {
     /// queue is a stack, so two of these resolving in one turn are taken in
     /// the reverse of the order they resolved, which is Time Walk's own ruling.
     ///
-    /// The recipient names the player, which is `Controller` for every printed
+    /// The recipient names the player, which is "you" for every printed
     /// card in reach ("take an extra turn"). CR 500.7's other sentence — extra
     /// turns for *several* players are added in APNAP order — has no producer,
     /// because no recipient this primitive accepts resolves to more than one
@@ -2026,7 +2027,7 @@ pub enum Primitive {
     /// creating instant's (CR 603.7d–f, 107.3n), read off the resolution:
     /// an ability's source (`ResolutionContext::ability_source`), else the
     /// resolving spell or the replacement's object. The recipient is
-    /// `Controller`, and names nothing the trigger reads.
+    /// "you", and names nothing the trigger reads.
     CreateDelayedTrigger(Box<crate::types::triggers::DelayedTriggerTemplate>),
 
     // === Mana ===
@@ -2058,7 +2059,7 @@ pub enum Primitive {
     /// ("you get {E}{E}", "that player gets a poison counter"), and its own
     /// primitive because [`Self::AddCounters`] resolves its recipient as
     /// permanents and one primitive answering for both would make
-    /// `EffectRecipient::Controller` mean two things. The recipient is
+    /// `EffectRecipient::Player(PlayerRef::You)` mean two things. The recipient is
     /// resolved as `GainLife`'s is; `by` as [`Self::AddCounters`]'s.
     GetCounters {
         counter: CounterType,
@@ -2399,8 +2400,8 @@ pub enum Effect {
     /// dies". The resolution remembers each object the instruction moved or
     /// made as the move left it (CR 400.7), so long as it went where the
     /// instruction put it, each object it acted on without moving it, and
-    /// each player it named; [`EffectRecipient::Referred`] and
-    /// `TriggerSubject::Object(Antecedent::Referred)` read them back. One instruction per
+    /// each player it named; `Antecedent::Referred` and
+    /// `PlayerRef::ReferredPlayer` read them back. One instruction per
     /// resolution.
     Remember(Box<Effect>),
 

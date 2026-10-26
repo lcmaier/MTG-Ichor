@@ -325,7 +325,7 @@ fn gains_that_much(arm: TriggerEvent) -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(triggered_ability(
             "",
-            whenever(arm, Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Controller)),
+            whenever(arm, Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Player(PlayerRef::You))),
         ))
         .build()
 }
@@ -546,7 +546,7 @@ fn was_dealt_excess_damage_this_turn_reads_the_rows_excess() {
 #[test]
 fn excess_read_per_record_or_of_a_player_is_refused() {
     let refused = |arm: TriggerEvent| {
-        let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Controller);
+        let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Player(PlayerRef::You));
         whenever(arm, gain).readings_its_arms_cannot_give().len()
     };
     let per_record = TriggerEvent::DamageDealt {
@@ -623,7 +623,7 @@ fn delayed_draws_of_two_xs_still_ask_their_order() {
     let card = vanilla_creature(1, 1, &[]);
     let source = put_on_battlefield(&mut game, Arc::clone(&card), 0);
     let source = game.object_ref(source).expect("it is there");
-    let draw_x = at_the_next_end_step(Effect::Atom(Primitive::DrawCards(AmountExpr::X), EffectRecipient::Controller));
+    let draw_x = at_the_next_end_step(Effect::Atom(Primitive::DrawCards(AmountExpr::X), EffectRecipient::Player(PlayerRef::You)));
     make_delayed(&mut game, &draw_x, source, Arc::clone(&card), Some(2));
     make_delayed(&mut game, &draw_x, source, card, Some(5));
     let hand = game.players[0].hand.len();
@@ -677,7 +677,7 @@ fn a_delayed_trigger_made_after_its_source_left_reads_it_as_it_left() {
     game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&test_dp())).expect("it dies");
     let gain = at_the_next_end_step(Effect::Atom(
         Primitive::GainLife(AmountExpr::SourceCounters(CounterType::PlusOnePlusOne)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     ));
     make_delayed(&mut game, &gain, source, card, None);
     let before = life(&game, 0);
@@ -784,7 +784,7 @@ fn the_damage_dealt_this_way_is_what_prevention_left() {
             Primitive::DealDamage { amount: AmountExpr::Fixed(6), unpreventable: false },
             EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
         ),
-        Effect::Atom(Primitive::GainLife(AmountExpr::DamageDealtThisWay), EffectRecipient::Controller),
+        Effect::Atom(Primitive::GainLife(AmountExpr::DamageDealtThisWay), EffectRecipient::Player(PlayerRef::You)),
     ]);
     let fixture = fixture_sorcery(siphon);
     let mut game = setup_two_player_game();
@@ -806,7 +806,7 @@ fn the_damage_dealt_this_way_is_what_prevention_left() {
 fn damage_to_you_is_dealt_to_the_controller() {
     let hurt_me = Effect::Atom(
         Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     let mut game = setup_two_player_game();
     let id = put_in_hand(&mut game, fixture_sorcery(hurt_me), 0);
@@ -826,7 +826,7 @@ fn a_riders_damage_during_the_resolution_is_not_dealt_this_way() {
     let at_a_player = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
     let siphon = Effect::Sequence(vec![
         Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false }, at_a_player.clone()),
-        Effect::Atom(Primitive::GainLife(AmountExpr::DamageDealtThisWay), EffectRecipient::Controller),
+        Effect::Atom(Primitive::GainLife(AmountExpr::DamageDealtThisWay), EffectRecipient::Player(PlayerRef::You)),
     ]);
     let mut game = setup_two_player_game();
     let shield = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
@@ -894,7 +894,7 @@ fn an_unattach_from_a_creature_that_died_reads_it_as_it_left() {
     ));
     let gain = whenever(
         TriggerEvent::BecomesUnattached { attachment: TriggerSubject::Object(Antecedent::ThisObject), former_host: TriggerSubject::Filter(ObjectFilter::All) },
-        Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Host)), EffectRecipient::Controller),
+        Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Host)), EffectRecipient::Player(PlayerRef::You)),
     );
     let sword = CardDataBuilder::new("Fixture Sword")
         .card_type(CardType::Artifact)

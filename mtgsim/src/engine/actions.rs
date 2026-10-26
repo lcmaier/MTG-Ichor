@@ -1497,7 +1497,7 @@ impl GameState {
     /// Each one's `ResolutionContext` names the event's subject as the single resolved
     /// target, so a `then` written with `EffectRecipient::Target` acts on the
     /// object *or the player* the replacement was about and one written with
-    /// `EffectRecipient::Controller` acts for the effect's own controller. The
+    /// `EffectRecipient::Player(PlayerRef::You)` acts for the effect's own controller. The
     /// actions it proposes **carry the replaced event's applied set**
     /// (`Rider::lineage`, CR 614.5): they are the rest of the replacement's
     /// effect. Events nested inside them are contained and start fresh.

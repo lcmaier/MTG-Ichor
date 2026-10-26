@@ -95,7 +95,7 @@ pub fn simic_ascendancy() -> Arc<CardData> {
             count: CountIs::AtLeast(20),
         }),
         limit: None,
-        effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Controller),
+        effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Player(PlayerRef::You)),
     };
     CardDataBuilder::new("Simic Ascendancy")
         .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Blue], 0))
@@ -213,7 +213,7 @@ pub fn protean_hydra() -> Arc<CardData> {
             grow_text,
             whenever(
                 counters_removed_from(TriggerSubject::Object(Antecedent::ThisObject), CounterType::PlusOnePlusOne),
-                Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(two_more)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(two_more)), EffectRecipient::Player(PlayerRef::You)),
             ),
         ))
         .build()

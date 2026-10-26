@@ -59,7 +59,7 @@ use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 ///   battlefield.
 /// - **"and create a 2/2 black Zombie"** is the `then` rider (CR 615.5), and it
 ///   belongs to the *application* rather than to the event's survival: CR
-///   615.12 keeps it once queued. Its `EffectRecipient::Controller` names
+///   615.12 keeps it once queued. Its `EffectRecipient::Player(PlayerRef::You)` names
 ///   Kalitas's controller, not the dying creature's — the rider resolves
 ///   against a `ResolutionContext` whose source is Kalitas.
 ///
@@ -123,8 +123,8 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                     Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)),
                     // Kalitas's controller, not the dying creature's. The rider
                     // resolves against a context whose source is Kalitas, so
-                    // `Controller` is CR 109.5's "you" for this ability.
-                    EffectRecipient::Controller,
+                    // "you" is CR 109.5's for this ability.
+                    EffectRecipient::Player(PlayerRef::You),
                 )),
             )),
         })

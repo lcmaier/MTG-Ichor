@@ -13,7 +13,7 @@ use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{put_in_hand, setup_game, setup_two_player_game, stock_libraries, test_ctx, test_dp};
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
+use mtgsim::types::effects::{PlayerRef, AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn};
 use mtgsim::ui::waiting::{what_is_waiting, TriggersIn, WaitingTurn};
@@ -82,13 +82,13 @@ fn a_this_turn_delayed_trigger_is_gone_after_the_cleanup() {
     let template = DelayedTriggerTemplate {
         def: Arc::new(whenever(
             at_beginning_of(StepType::Upkeep, Whose::Each),
-            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         )),
         duration: DelayedDuration::ThisTurn,
         turn: DelayedTurn::NoneNamed,
         rules_text: "This turn, whenever an upkeep begins, you gain 1 life.".into(),
     };
-    let create = Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller);
+    let create = Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Player(PlayerRef::You));
     let source = put_in_hand(&mut game, blessed_wine(), 0);
     game.resolve_effect(&create, &ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell), &test_dp()).unwrap();
     let rows = what_is_waiting(&game).delayed_triggers;

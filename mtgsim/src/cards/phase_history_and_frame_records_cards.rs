@@ -76,7 +76,7 @@ pub fn fixture_token_tally() -> Arc<CardData> {
         .rules_text(text)
         .ability(spell(text, Effect::Atom(
             Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(died))),
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         )))
         .build()
 }
@@ -107,7 +107,7 @@ pub fn fixture_mourning_ink() -> Arc<CardData> {
 pub fn fixture_mourners_tithe() -> Arc<CardData> {
     let text = "Whenever a creature leaves the battlefield, you gain life equal to its power.";
     let creature = TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature));
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Fixture Mourner's Tithe")
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Enchantment)
@@ -128,7 +128,7 @@ pub fn fixture_first_creature_tithe() -> Arc<CardData> {
         }),
         intervening_if: None,
         limit: Some(TriggerLimit::FirstTimeEachTurn),
-        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
     };
     CardDataBuilder::new("Fixture First Creature's Tithe")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))

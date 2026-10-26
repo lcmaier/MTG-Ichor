@@ -291,7 +291,7 @@ fn leaving_the_battlefield_removes_it_with_no_removal_record() {
 fn warcaller() -> Arc<CardData> {
     on_its_attack(
         "Fixture Warcaller",
-        Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(1)), EffectRecipient::DefendingPlayer(Antecedent::ThisObject)),
+        Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::DefendingPlayer(Antecedent::ThisObject))),
     )
 }
 
@@ -476,7 +476,7 @@ fn a_human(entering: EntersAttacking) -> TokenDef {
 
 /// `n` of `def` created by `player`'s effect, its prompts answered by `dp`.
 fn create(game: &mut GameState, player: PlayerId, def: TokenDef, n: u64, dp: &dyn DecisionProvider) {
-    let effect = Effect::Atom(Primitive::CreateToken(def, AmountExpr::Fixed(n)), EffectRecipient::Controller);
+    let effect = Effect::Atom(Primitive::CreateToken(def, AmountExpr::Fixed(n)), EffectRecipient::Player(PlayerRef::You));
     let source = put_in_graveyard(game, act_of_treason(), player);
     let ctx = ResolutionContext::untargeted(source, player, GeneratedBy::Spell);
     game.resolve_effect(&effect, &ctx, dp).unwrap();
@@ -487,7 +487,7 @@ fn at(game: &mut GameState, step: StepType) {
 }
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 /// A 1/1 token created tapped and attacking under `player`, and its id.
@@ -669,7 +669,7 @@ fn a_token_whose_player_has_left_the_game_does_not_attack() {
 
     let effect = Effect::Atom(
         Primitive::CreateToken(a_human(EntersAttacking::SameAs(Antecedent::ThisObject)), AmountExpr::Fixed(1)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     let ctx = ResolutionContext {
         ability_source: game.object_ref(bears),
@@ -728,14 +728,14 @@ fn a_creature_put_onto_the_battlefield_attacking_makes_combat_happen() {
 #[test]
 fn a_token_attacking_that_player_attacks_the_player_named() {
     let defending = EntersAttacking::Player {
-        player: EffectRecipient::DefendingPlayer(Antecedent::ThisObject),
+        player: EffectRecipient::Player(PlayerRef::DefendingPlayer(Antecedent::ThisObject)),
         among: DefenderFilter::Player(None),
     };
     let same = EntersAttacking::SameAs(Antecedent::ThisObject);
     for entering in [defending, same] {
         let mut game = stocked(4);
         let effect =
-            Effect::Atom(Primitive::CreateToken(a_human(entering.clone()), AmountExpr::Fixed(1)), EffectRecipient::Controller);
+            Effect::Atom(Primitive::CreateToken(a_human(entering.clone()), AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
         let leader = put_on_battlefield(&mut game, on_its_attack("Fixture Vanguard", effect), 0);
         declare(&mut game, &[leader], &[(leader, 2)]);
         resolve_all(&mut game, &test_dp());

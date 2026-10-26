@@ -36,7 +36,7 @@ use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_in_hand, put_on_battlefield, setup_game,
     setup_two_player_game, test_dp,
 };
-use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
+use mtgsim::types::effects::{PlayerRef, AmountExpr, Duration, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -621,7 +621,7 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
                 is_characteristic_defining: false,
                 activation_restriction:

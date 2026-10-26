@@ -251,7 +251,7 @@ pub fn opt() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::Scry(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         })
         .ability(AbilityDef {
@@ -264,7 +264,7 @@ pub fn opt() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         })
         .build()

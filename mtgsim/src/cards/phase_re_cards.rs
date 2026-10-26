@@ -438,7 +438,7 @@ pub fn yawgmoths_bargain() -> Arc<CardData> {
         .ability(one_shot("Pay 1 life: Draw a card.",
             AbilityType::Activated,
             vec![Cost::PayLife(1)],
-            Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         ))
         .build()
 }
@@ -518,10 +518,10 @@ pub fn meditate() -> Arc<CardData> {
             Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(4)),
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
                 Effect::Atom(
-                    // `PlayerSet::You` and a `Controller` recipient: the row is
+                    // `PlayerSet::You` and a "you" recipient: the row is
                     // the def as authored, and CR 109.5 resolves "you" against
                     // the row's controller at each event rather than at
                     // resolution.
@@ -530,7 +530,7 @@ pub fn meditate() -> Arc<CardData> {
                         Duration::Indefinite,
                         PatternFill::Authored,
                     ),
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
             ]),
         ))
@@ -564,7 +564,7 @@ pub fn time_walk() -> Arc<CardData> {
         .ability(one_shot("Take an extra turn after this one.",
             AbilityType::Spell,
             Vec::new(),
-            Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller),
+            Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Player(PlayerRef::You)),
         ))
         .build()
 }
@@ -1037,7 +1037,7 @@ pub fn words_of_worship() -> Arc<CardData> {
                     Duration::UntilEndOfTurn,
                     PatternFill::Authored,
                 ),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         ))
         .build()
@@ -1226,7 +1226,7 @@ pub fn skullcrack() -> Arc<CardData> {
                         }),
                         Duration::UntilEndOfTurn,
                     ),
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
                 // "Damage can't be prevented this turn." CR 615.12's row, whose
                 // two halves are a union: every object and every player.
@@ -1238,7 +1238,7 @@ pub fn skullcrack() -> Arc<CardData> {
                         }),
                         Duration::UntilEndOfTurn,
                     ),
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
                 Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
@@ -1400,7 +1400,7 @@ pub fn exquisite_archangel() -> Arc<CardData> {
                 Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::ThisObject)),
                 Effect::Atom(
                     Primitive::SetLifeTotal(AmountExpr::StartingLifeTotal),
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
             ])),
         ))
@@ -1487,18 +1487,18 @@ pub fn stunning_reversal() -> Arc<CardData> {
                         .with_then(Effect::Sequence(vec![
                             Effect::Atom(
                                 Primitive::DrawCards(AmountExpr::Fixed(7)),
-                                EffectRecipient::Controller,
+                                EffectRecipient::Player(PlayerRef::You),
                             ),
                             Effect::Atom(
                                 Primitive::SetLifeTotal(AmountExpr::Fixed(1)),
-                                EffectRecipient::Controller,
+                                EffectRecipient::Player(PlayerRef::You),
                             ),
                         ])),
                     ),
                     Duration::UntilEndOfTurn,
                     PatternFill::Authored,
                 ),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         ))
         // CR 608.2c's second instruction, on the spell itself.
@@ -1641,7 +1641,7 @@ pub fn raise_the_alarm() -> Arc<CardData> {
             Vec::new(),
             Effect::Atom(
                 Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(2)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         ))
         .build()
@@ -1670,7 +1670,7 @@ pub fn hordeling_outburst() -> Arc<CardData> {
             Vec::new(),
             Effect::Atom(
                 Primitive::CreateToken(goblin_token(), AmountExpr::Fixed(3)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         ))
         .build()
@@ -1796,7 +1796,7 @@ pub fn hallowed_moonlight() -> Arc<CardData> {
             "Draw a card.",
             AbilityType::Spell,
             Vec::new(),
-            Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         ))
         .build()
 }
@@ -2282,14 +2282,14 @@ pub fn live_fast() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
-                Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller),
-                Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You)),
+                Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You)),
                 Effect::Atom(
                     Primitive::GetCounters {
                         counter: CounterType::Energy,
                         amount: AmountExpr::Fixed(2),
                         by: PlayerRef::You },
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
             ]),
             is_characteristic_defining: false,

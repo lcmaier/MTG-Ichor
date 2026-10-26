@@ -28,7 +28,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter,
+    PlayerRef, AffectedSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter,
     Primitive, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
@@ -215,7 +215,7 @@ fn create_zombie(game: &mut GameState, controller: usize, source: ObjectId) -> R
     };
     let effect = Effect::Atom(
         Primitive::CreateToken(def, AmountExpr::Fixed(1)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     let ctx = ResolutionContext::untargeted(source, controller, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&effect, &ctx, &test_dp())

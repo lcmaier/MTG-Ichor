@@ -61,7 +61,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    Antecedent, AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
+    PlayerRef, Antecedent, AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -734,7 +734,7 @@ fn counters(game: &GameState, id: ObjectId, counter: CounterType) -> u32 {
 
 /// Wall of Omens: "When this creature enters, draw a card."
 fn wall_of_omens() -> Arc<CardData> {
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Wall of Omens")
         .card_type(CardType::Creature)
         .color(Color::White)

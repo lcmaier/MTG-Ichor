@@ -30,7 +30,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive,
+    PlayerRef, Antecedent, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -175,7 +175,7 @@ pub fn nexus_of_fate() -> Arc<CardData> {
         )
         .ability(spell_ability("Take an extra turn after this one.", Effect::Atom(
             Primitive::ExtraTurn,
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         )))
         .ability(shuffles_into_library_from_anywhere("If Nexus of Fate would be put into a graveyard from anywhere, reveal Nexus of Fate and shuffle it into its owner's library instead.", ))
         .build()

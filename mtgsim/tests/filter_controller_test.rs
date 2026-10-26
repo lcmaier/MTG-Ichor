@@ -23,7 +23,7 @@ use mtgsim::engine::layers::types::{
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
 use mtgsim::test_support::{put_land_on_battlefield, put_on_battlefield, setup_two_player_game};
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{Duration, ObjectFilter, PlayerRef};
+use mtgsim::types::effects::{Antecedent, Duration, ObjectFilter, PlayerRef};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::state::game_state::GameState;
 
@@ -165,7 +165,7 @@ fn test_opponent_matches_every_controller_that_is_not_you() {
     assert_eq!(get_effective_power(&game, source), Some(2));
 }
 
-/// `PlayerRef::Owner` means the *source's* owner (CR 108.3 / 110.2), which is
+/// `PlayerRef::OwnerOf(ThisObject)` means the *source's* owner (CR 108.3 / 110.2), which is
 /// not the same player as "you" once a permanent has changed hands. No card
 /// says this yet; the arm resolves rather than asserting because owner is
 /// exactly determined, so there is nothing to guess at.
@@ -178,7 +178,7 @@ fn test_owner_is_the_sources_owner_not_its_controller() {
     // Owned by player 1; the effect's "you" is player 0, so the two differ.
     let source = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
 
-    register_anthem(&mut game, source, 0, creature_and(PlayerRef::Owner));
+    register_anthem(&mut game, source, 0, creature_and(PlayerRef::OwnerOf(Antecedent::ThisObject)));
 
     assert_eq!(get_effective_power(&game, p1_bears), Some(3));
     assert_eq!(get_effective_power(&game, source), Some(3));

@@ -56,7 +56,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 // ---------------------------------------------------------------------------
 
 fn gain(n: u64) -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(n)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(n)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn gain_one() -> Effect {
@@ -79,7 +79,7 @@ fn template(event: impl Into<TriggerEvent>, effect: Effect, duration: DelayedDur
 
 /// The instruction that creates `template`.
 fn create(template: DelayedTriggerTemplate) -> Effect {
-    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Player(PlayerRef::You))
 }
 
 /// "At the beginning of the next end step, [effect]."
@@ -479,7 +479,7 @@ fn a_spells_delayed_trigger_keeps_the_spell_as_it_left_the_stack() {
 fn a_delayed_trigger_fires_once_unless_it_states_a_duration() {
     let mut game = setup_two_player_game();
     stock_libraries(&mut game, 10);
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     resolve_spell(
         &mut game,
         instant("Next Arrival", ManaCost::build(&[ManaType::Blue], 0), create(template(enters(a_creature()), draw, DelayedDuration::Once))),
@@ -516,7 +516,7 @@ fn next_death() -> Arc<CardData> {
         ManaCost::build(&[ManaType::Black], 0),
         create(template(
             dies(you_control),
-            Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Player(PlayerRef::You)),
             DelayedDuration::Once,
         )),
     )
@@ -571,7 +571,7 @@ fn two_attackers_declared_at_once_ask_a_once_delayed_trigger_s_controller() {
             ManaCost::build(&[ManaType::Red], 0),
             create(template(
                 attacks(TriggerSubject::Filter(you_control)),
-                Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Attacker)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Attacker)), EffectRecipient::Player(PlayerRef::You)),
                 DelayedDuration::Once,
             )),
         ),
@@ -599,7 +599,7 @@ fn simultaneous_events_that_agree_on_everything_read_ask_nothing() {
     stock_libraries(&mut game, 10);
     let one = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
     let two = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     resolve_spell(&mut game, instant("Next Loss", ManaCost::zero(), create(template(dies(a_creature()), draw, DelayedDuration::Once))), 0);
 
     let dp = RecordingDecisionProvider::picking(0);
@@ -876,7 +876,7 @@ fn a_delayed_trigger_on_the_nth_resolution_is_created_by_that_resolution_alone()
 
 /// "{X}{G}: At the beginning of the next end step, you gain X life."
 fn deferred_bounty() -> Arc<CardData> {
-    let gain_x = Effect::Atom(Primitive::GainLife(AmountExpr::X), EffectRecipient::Controller);
+    let gain_x = Effect::Atom(Primitive::GainLife(AmountExpr::X), EffectRecipient::Player(PlayerRef::You));
     instant(
         "Deferred Bounty",
         ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Green)]),

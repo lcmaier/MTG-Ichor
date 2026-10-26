@@ -26,7 +26,7 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, AmountExpr, Condition, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerFact, PlayerSet,
+    PlayerRef, Antecedent, AmountExpr, Condition, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerFact, PlayerSet,
     Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use crate::types::keywords::KeywordFlag;
@@ -59,7 +59,7 @@ pub fn soul_warden() -> Arc<CardData> {
         .rules_text("Whenever another creature enters, you gain 1 life.")
         .ability(triggered_ability("Whenever another creature enters, you gain 1 life.", whenever(
             enters(another(ObjectFilter::ByType(CardType::Creature))),
-            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         )))
         .build()
 }
@@ -95,7 +95,7 @@ pub fn blood_artist() -> Arc<CardData> {
                     Primitive::LoseLife(AmountExpr::Fixed(1)),
                     EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
-                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
             ]),
         )))
         .build()
@@ -147,7 +147,7 @@ pub fn verdant_force() -> Arc<CardData> {
             at_beginning_of(StepType::Upkeep, Whose::Each),
             Effect::Atom(
                 Primitive::CreateToken(saproling_token(), AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         )))
         .build()
@@ -234,7 +234,7 @@ pub fn felidar_sovereign() -> Arc<CardData> {
                 fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(40)),
             }),
             limit: None,
-            effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Controller),
+            effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Player(PlayerRef::You)),
         }))
         .build()
 }

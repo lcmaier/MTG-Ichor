@@ -6,7 +6,7 @@
 //! projection, and each instruction names the event role it reads.
 
 use std::sync::Arc;
-use crate::types::effects::{Antecedent};
+use crate::types::effects::{PlayerRef, Antecedent};
 
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::layers::types::EffectiveCharacteristics;
@@ -222,7 +222,7 @@ impl GameState {
         }
     }
 
-    /// The bound fact a `Triggering`, `TriggeringPlayer` or `Referred` atom
+    /// The bound fact a trigger's object or player, or a delayed trigger's, atom
     /// acts on, as the target slice every primitive already reads — empty when
     /// the object can no longer be found (CR 603.6, 603.7c), which is the
     /// primitive doing nothing. `Err` outside a trigger's resolution: a spell
@@ -243,7 +243,7 @@ impl GameState {
                 self.note_binding_read(ctx, TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*role));
                 self.bound_objects(binding, *role).into_iter().map(ObjectOrPlayerId::Object).collect()
             }
-            EffectRecipient::TriggeringPlayer => {
+            EffectRecipient::Player(PlayerRef::TheEventsPlayer) => {
                 self.note_binding_read(ctx, TriggerBindingReads::PLAYER);
                 self.bound_player(binding).map(ObjectOrPlayerId::Player).into_iter().collect()
             }
@@ -251,10 +251,9 @@ impl GameState {
                 self.note_binding_read(ctx, TriggerBindingReads::REFERRED);
                 binding.referred.objects.iter().filter_map(|r| r.found(self)).map(ObjectOrPlayerId::Object).collect()
             }
-            EffectRecipient::Referred => {
+            EffectRecipient::Player(PlayerRef::ReferredPlayer) => {
                 self.note_binding_read(ctx, TriggerBindingReads::REFERRED);
-                let objects = binding.referred.objects.iter().filter_map(|r| r.found(self)).map(ObjectOrPlayerId::Object);
-                objects.chain(binding.referred.players.iter().map(|&p| ObjectOrPlayerId::Player(p))).collect()
+                binding.referred.players.iter().map(|&p| ObjectOrPlayerId::Player(p)).collect()
             }
             other => {
                 return Err(format!("{:?} is not a bound fact of a trigger", other));

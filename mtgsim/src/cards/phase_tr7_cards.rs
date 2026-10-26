@@ -186,7 +186,7 @@ pub fn viscera_seer() -> Arc<CardData> {
             instances: Vec::new(),
             ability_type: AbilityType::Activated,
             costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
-            effect: Effect::Atom(Primitive::Scry(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            effect: Effect::Atom(Primitive::Scry(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         })
         .build()
 }

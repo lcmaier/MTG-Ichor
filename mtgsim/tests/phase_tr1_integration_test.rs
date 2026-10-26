@@ -73,11 +73,11 @@ use mtgsim::ui::random::RandomDecisionProvider;
 // ---------------------------------------------------------------------------
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn draw_one() -> Effect {
-    Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn a_creature() -> ObjectFilter {
@@ -1436,7 +1436,7 @@ fn wild_growth_adds_to_the_lands_controllers_pool() {
 fn a_mana_producing_trigger_from_another_event_uses_the_stack() {
     let produce = Effect::Atom(
         Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Green, AmountExpr::Fixed(1))], special: vec![] }),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     let from_entry = whenever(enters(a_creature()), produce.clone());
     assert!(!could_be_a_mana_ability(&from_entry), "triggers from a creature entering");

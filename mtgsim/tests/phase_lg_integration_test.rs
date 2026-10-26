@@ -324,7 +324,7 @@ fn test_gaining_control_of_an_instant_does_not_move_its_graveyard() {
             0,
             Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         ),
     );

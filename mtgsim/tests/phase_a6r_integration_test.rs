@@ -82,7 +82,7 @@ fn resolve_opt(game: &mut GameState, caster: PlayerId) {
 /// "Draw `n` cards" for `player`, one instruction.
 fn draw(game: &mut GameState, player: PlayerId, n: u64) {
     let source = put_in_hand(game, CardDataBuilder::new("Fixture: a draw").build(), player);
-    resolve_as(game, source, player, &Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(n)), EffectRecipient::Controller), &test_dp());
+    resolve_as(game, source, player, &Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(n)), EffectRecipient::Player(PlayerRef::You)), &test_dp());
 }
 
 fn drawn_by(game: &GameState, player: PlayerId) -> usize {
@@ -93,7 +93,7 @@ fn drawn_by(game: &GameState, player: PlayerId) -> usize {
 }
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 /// A creature whose one ability triggers "whenever `who` draws" the card at

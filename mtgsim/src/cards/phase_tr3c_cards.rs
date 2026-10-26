@@ -75,14 +75,14 @@ pub fn cornered_crook() -> Arc<CardData> {
                         effect: Box::new(Effect::Atom(
                             Primitive::Sacrifice,
                             EffectRecipient::ChosenBy(Box::new(Choice {
-                                chooser: EffectRecipient::Controller,
+                                chooser: EffectRecipient::Player(PlayerRef::You),
                                 among: ChoiceScope::ChoosersPermanents,
                                 picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Artifact))],
                                 acts_on: ChoiceSide::Chosen,
                             })),
                         )),
                     },
-                    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(deals_3)), EffectRecipient::Controller),
+                    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(deals_3)), EffectRecipient::Player(PlayerRef::You)),
                 ]),
             ),
         ))

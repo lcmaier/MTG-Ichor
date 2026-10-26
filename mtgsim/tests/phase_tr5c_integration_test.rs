@@ -240,7 +240,7 @@ fn entered_this_turn_reads_a_departed_creatures_frame() {
     let mut game = stocked(2);
     let entered_this_turn =
         TriggerSubject::Filter(ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ThisTurn(ObjectFact::Entered))));
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let watcher = CardDataBuilder::new("Fixture Mourner")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(dies(entered_this_turn), draw)))
@@ -276,7 +276,7 @@ fn resolve_all(game: &mut GameState) {
 
 /// An enchantment whose controller gains 1 life on each `arm`.
 fn life_on(name: &str, arm: impl Into<TriggerEvent>) -> Arc<CardData> {
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, gain))).build()
 }
 
@@ -480,7 +480,7 @@ fn the_other_creature_in_a_block_is_read_through_the_arm_that_matched() {
 /// the source, and the other creature on an arm with no side of its own.
 #[test]
 fn the_registry_refuses_block_readings_no_rule_gives() {
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let unblocked_by = TriggerEvent::Blocks {
         blocker: TriggerSubject::Object(Antecedent::ThisObject),
         attacker: TriggerSubject::Filter(ObjectFilter::All),
@@ -813,7 +813,7 @@ fn that_spell_or_ability_is_the_one_that_targeted_it() {
 #[test]
 fn you_becoming_the_target_of_an_opponents_spell_triggers_it() {
     let mut game = stocked(2);
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     let amulet = CardDataBuilder::new("Fixture Amulet")
         .card_type(CardType::Artifact)
         .ability(triggered_ability("", whenever(player_becomes_the_target_of(Whose::Yours, TargetedBy::SpellOrAbility, Some(PlayerRef::Opponent)), gain)))
@@ -933,7 +933,7 @@ fn a_first_time_for_any_controller_counts_every_targeting() {
 /// spell" is accepted.
 #[test]
 fn first_time_each_turn_is_refused_where_nothing_can_tell_a_first() {
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let first = |arm: TriggerEvent| TriggerDef { limit: Some(TriggerLimit::FirstTimeEachTurn), ..whenever(arm, gain.clone()) };
     assert_eq!(first(dies(TriggerSubject::Filter(ObjectFilter::All)).into()).readings_its_arms_cannot_give().len(), 1);
     let aura = TargetedBy::Spell(Some(ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura))));
@@ -958,7 +958,7 @@ fn of_type(types: &[CardType]) -> TriggerSubject {
 /// ability of an artifact, creature, or land on the battlefield, if it isn't a
 /// mana ability, this creature deals 2 damage to that player."
 fn mentor_fixture() -> Arc<CardData> {
-    let two = Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false }, EffectRecipient::TriggeringPlayer);
+    let two = Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false }, EffectRecipient::Player(PlayerRef::TheEventsPlayer));
     let arm = activates_an_ability_of(Whose::AnOpponents, of_type(&[CardType::Artifact, CardType::Creature, CardType::Land]), Some(false));
     CardDataBuilder::new("Fixture Mentor").card_type(CardType::Creature).power_toughness(2, 2).ability(triggered_ability("", whenever(arm, two))).build()
 }
@@ -1002,7 +1002,7 @@ fn shaman_fixture() -> Arc<CardData> {
     );
     let add = Effect::Atom(
         Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     CardDataBuilder::new("Fixture Shaman")
         .card_type(CardType::Creature)
@@ -1106,7 +1106,7 @@ fn with_a_sacrifice_for_mana(card: CardDataBuilder, costs: &[Cost]) -> Arc<CardD
 #[test]
 fn a_source_sacrificed_as_a_cost_is_read_as_it_was_at_resolution() {
     let mut game = stocked(2);
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Player(PlayerRef::You));
     let reader = CardDataBuilder::new("Fixture Artifact Reader")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(activates_an_ability_of(Whose::Yours, of_type(&[CardType::Artifact]), None), gain)))
@@ -1169,7 +1169,7 @@ fn a_trigger_on_a_mana_abilitys_activation_that_adds_mana_resolves_at_once() {
     let mut game = stocked(2);
     let add_one = Effect::Atom(
         Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     let echo = CardDataBuilder::new("Fixture Mana Echo")
         .card_type(CardType::Enchantment)
@@ -1192,7 +1192,7 @@ fn a_trigger_is_a_mana_ability_by_the_activation_that_triggered_it() {
     let mut game = stocked(2);
     let add_one = Effect::Atom(
         Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     let echo = CardDataBuilder::new("Fixture Any Echo")
         .card_type(CardType::Enchantment)

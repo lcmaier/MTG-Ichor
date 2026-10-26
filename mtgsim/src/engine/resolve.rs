@@ -16,7 +16,7 @@ use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Antecedent, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
-    EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
+    EffectRecipient, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
@@ -73,7 +73,7 @@ pub struct ResolutionContext {
     pub replaced_event: Option<ReplacedEvent>,
     /// A triggered ability's bound facts, for the resolution of one and for
     /// nothing else (`triggers-architecture.md` §6.3): `Antecedent::Triggering`,
-    /// `TriggeringPlayer` and `TriggeringAmount` read it, and refuse outside
+    /// `PlayerRef::TheEventsPlayer` and `TriggeringAmount` read it, and refuse outside
     /// a trigger rather than reading a default.
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
 }
@@ -292,8 +292,8 @@ impl GameState {
             Effect::Atom(
                 primitive,
                 recipient @ (EffectRecipient::Object(Antecedent::Triggering(_) | Antecedent::Referred)
-                | EffectRecipient::TriggeringPlayer
-                | EffectRecipient::Referred),
+                | EffectRecipient::Player(PlayerRef::TheEventsPlayer)
+                | EffectRecipient::Player(PlayerRef::ReferredPlayer)),
             ) => {
                 let bound = self.bound_targets(recipient, ctx)?;
                 self.resolve_primitive(primitive, recipient, &bound, ctx, dp, walk)
@@ -309,9 +309,25 @@ impl GameState {
                 }
                 self.resolve_primitive(primitive, recipient, &attacked, ctx, dp, walk)
             }
-            Effect::Atom(primitive, recipient @ EffectRecipient::DefendingPlayer(creature)) => {
+            Effect::Atom(primitive, recipient @ EffectRecipient::Player(PlayerRef::DefendingPlayer(creature))) => {
                 let Some(defending) = self.defending_player_of(*creature, ctx) else { return Ok(()) };
                 self.resolve_primitive(primitive, recipient, &[ObjectOrPlayerId::Player(defending)], ctx, dp, walk)
+            }
+            // "An opponent loses 2 life", "its owner draws a card": the one
+            // player the instruction names as it applies (CR 608.2d). "You"
+            // is the controller every primitive defaults to, below.
+            Effect::Atom(
+                primitive,
+                recipient @ EffectRecipient::Player(
+                    who @ (PlayerRef::Opponent
+                    | PlayerRef::OwnerOf(_)
+                    | PlayerRef::Owner
+                    | PlayerRef::Player(_)
+                    | PlayerRef::AnyDefendingPlayer),
+                ),
+            ) => {
+                let player = self.player_the_instruction_names(who, &[], ctx, dp)?;
+                self.resolve_primitive(primitive, recipient, &[ObjectOrPlayerId::Player(player)], ctx, dp, walk)
             }
             // "Each player", "you and that player": every player the group names,
             // in APNAP order (CR 101.4), handed to the primitive as its players.
@@ -580,11 +596,11 @@ impl GameState {
                         .map(ObjectOrPlayerId::Object)
                         .collect(),
                     // "Deals 2 damage to you": Char, a painland.
-                    EffectRecipient::Controller => vec![ObjectOrPlayerId::Player(ctx.controller)],
+                    EffectRecipient::Player(PlayerRef::You) => vec![ObjectOrPlayerId::Player(ctx.controller)],
                     EffectRecipient::Implicit => {
                         return Err(format!(
                             "a `Primitive::DealDamage` on {:?} names no recipient; damage is dealt to \
-                             a permanent or a player (CR 120.1), and \"you\" is `Controller`",
+                             a permanent or a player (CR 120.1), and \"you\" is `Player(PlayerRef::You)`",
                             ctx.source
                         ));
                     }
@@ -601,11 +617,9 @@ impl GameState {
                     | EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::Object(Antecedent::Triggering(_))
-                    | EffectRecipient::TriggeringPlayer
-                    | EffectRecipient::Referred
                     | EffectRecipient::Object(Antecedent::Referred)
+                    | EffectRecipient::Player(_)
                     | EffectRecipient::AttackedBy(_)
-                    | EffectRecipient::DefendingPlayer(_)
                     | EffectRecipient::EachOf(_)
                     | EffectRecipient::Group(_)
                     | EffectRecipient::ChosenBy(_) => targets.to_vec(),
@@ -1338,11 +1352,19 @@ impl GameState {
                     | EffectRecipient::Group(_)
                     | EffectRecipient::Object(Antecedent::ThisObject)
                     | EffectRecipient::Object(Antecedent::Triggering(_))
-                    | EffectRecipient::TriggeringPlayer
-                    | EffectRecipient::Referred
                     | EffectRecipient::Object(Antecedent::Referred)
                     | EffectRecipient::AttackedBy(_)
-                    | EffectRecipient::DefendingPlayer(_) => {
+                    // Every player but "you", which is authored below.
+                    | EffectRecipient::Player(
+                        PlayerRef::Opponent
+                        | PlayerRef::OwnerOf(_)
+                        | PlayerRef::Owner
+                        | PlayerRef::Player(_)
+                        | PlayerRef::DefendingPlayer(_)
+                        | PlayerRef::AnyDefendingPlayer
+                        | PlayerRef::TheEventsPlayer
+                        | PlayerRef::ReferredPlayer,
+                    ) => {
                         debug_assert!(
                             authored_empty,
                             "a `Primitive::CreateReplacement` on {:?} with a targeting \
@@ -1404,7 +1426,7 @@ impl GameState {
                     // As authored — a `Filter` and/or a `PlayerSet`, asked at
                     // each event. "You" is `PlayerSet::You`, resolved against
                     // the row's controller; there is no second way to say it.
-                    EffectRecipient::Implicit | EffectRecipient::Controller => {
+                    EffectRecipient::Implicit | EffectRecipient::Player(PlayerRef::You) => {
                         if authored_empty {
                             return Err(format!(
                                 "a `Primitive::CreateReplacement` on {:?} names no target, \
@@ -1655,11 +1677,11 @@ impl GameState {
             // (CR 701.24c). No card shuffles per matching object, so filters are refused.
             Primitive::ShuffleLibrary => {
                 let players: Vec<PlayerId> = match recipient {
-                    EffectRecipient::Controller => vec![ctx.controller],
+                    EffectRecipient::Player(PlayerRef::You) => vec![ctx.controller],
                     EffectRecipient::Object(Antecedent::ThisObject) => vec![self.source_owner_of(ctx)?],
                     EffectRecipient::Implicit => {
                         return Err(format!(
-                            "a `Primitive::ShuffleLibrary` on {:?} names no library; use `Controller` or `Object(Antecedent::ThisObject)`",
+                            "a `Primitive::ShuffleLibrary` on {:?} names no library; use `Player(PlayerRef::You)` or `Object(Antecedent::ThisObject)`",
                             ctx.source
                         ));
                     }
@@ -1667,11 +1689,9 @@ impl GameState {
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::Group(_)
                     | EffectRecipient::Object(Antecedent::Triggering(_))
-                    | EffectRecipient::TriggeringPlayer
-                    | EffectRecipient::Referred
                     | EffectRecipient::Object(Antecedent::Referred)
-                    | EffectRecipient::AttackedBy(_)
-                    | EffectRecipient::DefendingPlayer(_) => targets
+                    | EffectRecipient::Player(_)
+                    | EffectRecipient::AttackedBy(_) => targets
                         .iter()
                         .filter_map(|t| match t {
                             ObjectOrPlayerId::Player(pid) => Some(*pid),
@@ -2463,8 +2483,8 @@ impl GameState {
         Ok(match member {
             EffectRecipient::Object(Antecedent::ThisObject) => self.this_object(ctx).map(ObjectOrPlayerId::Object).into_iter().collect(),
             EffectRecipient::Object(Antecedent::Triggering(_) | Antecedent::Referred)
-            | EffectRecipient::TriggeringPlayer
-            | EffectRecipient::Referred => self.bound_targets(member, ctx)?,
+            | EffectRecipient::Player(PlayerRef::TheEventsPlayer)
+            | EffectRecipient::Player(PlayerRef::ReferredPlayer) => self.bound_targets(member, ctx)?,
             EffectRecipient::FilteredPermanents(_) => {
                 self.affected_permanents(member, &[], ctx).into_iter().map(ObjectOrPlayerId::Object).collect()
             }
@@ -2792,7 +2812,39 @@ impl GameState {
         Ok(match by {
             PlayerRef::You => ctx.controller,
             PlayerRef::Player(pid) => *pid,
-            PlayerRef::Owner => self.source_owner_of(ctx)?,
+            PlayerRef::OwnerOf(Antecedent::ThisObject) => self.source_owner_of(ctx)?,
+            PlayerRef::OwnerOf(object) => {
+                let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+                let it = objects
+                    .object_for(self, *object, ctx.effect_source())
+                    .ok_or_else(|| format!("{by:?} on {:?} names an object there is none of", ctx.source))?;
+                match it.lki() {
+                    Some(lki) => lki.owner(),
+                    None => self.owner_of(it.id()).ok_or_else(|| format!("{by:?} on {:?}: object {} is gone", ctx.source, it.id()))?,
+                }
+            }
+            PlayerRef::Owner => {
+                return Err(format!(
+                    "{by:?} on {:?} names the owner of each object an instruction acts on, which no read of one player gives",
+                    ctx.source
+                ))
+            }
+            PlayerRef::TheEventsPlayer => self
+                .the_events_player(ctx)
+                .ok_or_else(|| format!("{by:?} on {:?} names \"that player\", and its event names none", ctx.source))?,
+            PlayerRef::ReferredPlayer => {
+                let referred = ctx.trigger.as_ref().map(|binding| binding.referred.players.as_slice()).unwrap_or(&[]);
+                match referred {
+                    [only] => *only,
+                    others => {
+                        return Err(format!(
+                            "{by:?} on {:?} names one player its creator remembered, and it remembered {}",
+                            ctx.source,
+                            others.len()
+                        ))
+                    }
+                }
+            }
             PlayerRef::Opponent => {
                 match Self::opponent_among(recipients, ctx) {
                     Some(pid) => pid,
@@ -2836,17 +2888,28 @@ impl GameState {
         })
     }
 
+    /// "That player" (`PlayerRef::TheEventsPlayer`): a trigger's event's
+    /// player, or a CR 615.5 rider's replaced event's, which `resolve_rider`
+    /// hands the rider as its one instance.
+    fn the_events_player(&self, ctx: &ResolutionContext) -> Option<PlayerId> {
+        match &ctx.trigger {
+            Some(binding) => {
+                self.note_binding_read(ctx, TriggerBindingReads::PLAYER);
+                self.bound_player(binding)
+            }
+            None if ctx.replaced_event.is_some() => ctx.targets.instance(0).iter().find_map(|t| match t {
+                ObjectOrPlayerId::Player(pid) => Some(*pid),
+                ObjectOrPlayerId::Object(_) => None,
+            }),
+            None => None,
+        }
+    }
+
     /// The players `group` names, over the seats still in the game, each once,
     /// in APNAP order (CR 101.4): the active player first, then the rest in
     /// turn order.
     fn players_in(&self, group: &PlayerGroup, ctx: &ResolutionContext) -> Vec<PlayerId> {
-        let named = match group.named {
-            NamedPlayers::Nobody => None,
-            NamedPlayers::FirstInstance => ctx.targets.instance(0).iter().find_map(|t| match t {
-                ObjectOrPlayerId::Player(pid) => Some(*pid),
-                ObjectOrPlayerId::Object(_) => None,
-            }),
-        };
+        let named = group.named.as_ref().and_then(|who| self.resolve_player_ref(who, &[], ctx).ok());
         let in_group = |player: PlayerId| group.relation.contains(ctx.controller, player) || named == Some(player);
         self.players_in_game_apnap().into_iter().filter(|&p| in_group(p)).collect()
     }
@@ -2944,12 +3007,12 @@ impl GameState {
     /// only through an instance of "target", which the walk reads.
     fn players_named_by(&self, recipient: &EffectRecipient, ctx: &ResolutionContext) -> Result<Option<Vec<PlayerId>>, String> {
         Ok(Some(match recipient {
-            EffectRecipient::Implicit | EffectRecipient::Controller => vec![ctx.controller],
+            EffectRecipient::Implicit | EffectRecipient::Player(PlayerRef::You) => vec![ctx.controller],
             EffectRecipient::EachOf(group) => self.players_in(group, ctx),
-            EffectRecipient::DefendingPlayer(creature) => self.defending_player_of(*creature, ctx).into_iter().collect(),
-            EffectRecipient::TriggeringPlayer
+            EffectRecipient::Player(PlayerRef::DefendingPlayer(creature)) => self.defending_player_of(*creature, ctx).into_iter().collect(),
+            EffectRecipient::Player(PlayerRef::TheEventsPlayer)
             | EffectRecipient::Object(Antecedent::Triggering(_) | Antecedent::Referred)
-            | EffectRecipient::Referred => self
+            | EffectRecipient::Player(PlayerRef::ReferredPlayer) => self
                 .bound_targets(recipient, ctx)?
                 .into_iter()
                 .filter_map(|target| match target {
@@ -2957,6 +3020,7 @@ impl GameState {
                     ObjectOrPlayerId::Object(_) => None,
                 })
                 .collect(),
+            EffectRecipient::Player(who) => vec![self.resolve_player_ref(who, &[], ctx)?],
             EffectRecipient::Object(Antecedent::ThisObject)
             | EffectRecipient::Target(..)
             | EffectRecipient::Choose(..)
@@ -3122,12 +3186,8 @@ impl GameState {
         ctx: &ResolutionContext,
     ) -> PlayerId {
         match recipient {
-            EffectRecipient::Implicit | EffectRecipient::Controller => ctx.controller,
-            EffectRecipient::Target(SelectionFilter::Player, _)
-            | EffectRecipient::TriggeringPlayer
-            | EffectRecipient::Referred
-            | EffectRecipient::Object(Antecedent::Referred)
-            | EffectRecipient::DefendingPlayer(_) => {
+            EffectRecipient::Implicit | EffectRecipient::Player(PlayerRef::You) => ctx.controller,
+            EffectRecipient::Target(SelectionFilter::Player, _) | EffectRecipient::Player(_) => {
                 for t in targets {
                     if let ObjectOrPlayerId::Player(pid) = t {
                         return *pid;
@@ -3275,7 +3335,7 @@ mod tests {
 
         let draw = Effect::Atom(
             Primitive::DrawCards(AmountExpr::Fixed(2)),
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         );
         let ctx = bolt_ctx(bears_id, vec![]);
         game.resolve_effect(&draw, &ctx, &test_dp()).unwrap();
@@ -3290,7 +3350,7 @@ mod tests {
 
         let heal = Effect::Atom(
             Primitive::GainLife(AmountExpr::Fixed(5)),
-            EffectRecipient::Controller,
+            EffectRecipient::Player(PlayerRef::You),
         );
         let ctx = bolt_ctx(bears_id, vec![]);
         game.resolve_effect(&heal, &ctx, &test_dp()).unwrap();
@@ -3319,7 +3379,7 @@ mod tests {
             ),
             Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         ]);
 

@@ -49,7 +49,7 @@ pub fn multanis_presence() -> Arc<CardData> {
             text,
             whenever(
                 spell_is_countered(Whose::Yours),
-                Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
             ),
         ))
         .build()
@@ -124,7 +124,7 @@ pub fn ray_of_command() -> Arc<CardData> {
                     Primitive::GrantKeywordFlag(KeywordFlag::Haste, Duration::UntilEndOfTurn),
                     EffectRecipient::SameInstanceAs(0),
                 ),
-                Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(tap_it)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(tap_it)), EffectRecipient::Player(PlayerRef::You)),
             ]),
         })
         .build()

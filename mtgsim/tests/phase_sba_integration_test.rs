@@ -26,7 +26,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
 };
-use mtgsim::types::effects::{CounterType, EffectRecipient};
+use mtgsim::types::effects::{PlayerRef, CounterType, EffectRecipient};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
@@ -266,7 +266,7 @@ fn test_deathtouch_damage_is_read_by_one_check() {
     let dp = ScriptedDecisionProvider::new();
     // The target, then the creature copied, each out of the three in
     // battlefield order: the Colossus, then the Hill Giant.
-    dp.expect_pick_n(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Controller, spell_id: cytoshape }, vec![1]);
+    dp.expect_pick_n(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Player(PlayerRef::You), spell_id: cytoshape }, vec![1]);
     dp.expect_pick_n(ChoiceKind::ChooseCopySource { source: cytoshape }, vec![0]);
     game.cast_spell(0, cytoshape, &dp).unwrap();
     game.resolve_top_of_stack(&dp).unwrap();

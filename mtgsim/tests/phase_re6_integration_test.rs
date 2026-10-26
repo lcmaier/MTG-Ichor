@@ -34,7 +34,7 @@ use mtgsim::test_support::{
     fill_library, put_in_hand, put_on_battlefield, setup_game, test_ctx, test_dp,
     vanilla_creature, RecordingDecisionProvider,
 };
-use mtgsim::types::effects::{AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PlayerSet, Primitive,
+use mtgsim::types::effects::{PlayerRef, AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -127,7 +127,7 @@ fn stage_spell_with(
 fn draw_one(game: &mut GameState, player: PlayerId, dp: &dyn DecisionProvider) {
     let effect = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(1)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     resolve_with(game, player, &effect, vec![], dp);
 }
@@ -136,7 +136,7 @@ fn draw_one(game: &mut GameState, player: PlayerId, dp: &dyn DecisionProvider) {
 fn set_life(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn DecisionProvider) {
     let effect = Effect::Atom(
         Primitive::SetLifeTotal(AmountExpr::Fixed(n)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     resolve_with(game, player, &effect, vec![], dp);
 }
@@ -245,7 +245,7 @@ fn drawing_more_cards_than_the_library_holds_draws_the_rest_and_then_loses() {
     fill_library(&mut game, 0, 2);
     let effect = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(3)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     resolve_with(&mut game, 0, &effect, vec![], &test_dp());
 
@@ -479,7 +479,7 @@ fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
             )
             .with_then(Effect::Atom(
                 Primitive::GainLife(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             )),
         )),
         is_characteristic_defining: false,
@@ -645,7 +645,7 @@ fn an_effect_may_state_that_a_player_loses_the_game() {
 #[test]
 fn an_effect_may_state_that_a_player_wins_the_game() {
     let mut game = setup_game(2);
-    let effect = Effect::Atom(Primitive::WinGame, EffectRecipient::Controller);
+    let effect = Effect::Atom(Primitive::WinGame, EffectRecipient::Player(PlayerRef::You));
     resolve_with(&mut game, 0, &effect, vec![], &test_dp());
 
     assert_eq!(wins(&game), vec![0]);
@@ -723,7 +723,7 @@ fn setting_a_life_total_higher_under_a_cant_gain_does_nothing() {
             }),
             Duration::UntilEndOfTurn,
         ),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     resolve_with(&mut game, 1, &cant_gain, vec![], &test_dp());
     game.players[0].life_total = 10;
@@ -912,7 +912,7 @@ fn exquisite_archangel_reads_the_games_starting_life_total() {
 fn an_opponents_win_is_not_a_loss_exquisite_archangel_can_replace() {
     let mut game = setup_game(2);
     let archangel = put_on_battlefield(&mut game, exquisite_archangel(), 0);
-    let effect = Effect::Atom(Primitive::WinGame, EffectRecipient::Controller);
+    let effect = Effect::Atom(Primitive::WinGame, EffectRecipient::Player(PlayerRef::You));
     resolve_with(&mut game, 1, &effect, vec![], &test_dp());
 
     assert_eq!(game.result, Some(GameResult::Winner(1)));
@@ -1083,7 +1083,7 @@ fn platinum_angel_leaving_the_battlefield_lets_the_next_check_lose() {
 fn platinum_angels_controller_can_still_win() {
     let mut game = setup_game(2);
     put_on_battlefield(&mut game, platinum_angel(), 0);
-    let effect = Effect::Atom(Primitive::WinGame, EffectRecipient::Controller);
+    let effect = Effect::Atom(Primitive::WinGame, EffectRecipient::Player(PlayerRef::You));
     resolve_with(&mut game, 0, &effect, vec![], &test_dp());
 
     assert_eq!(game.result, Some(GameResult::Winner(0)));
@@ -1186,7 +1186,7 @@ fn a_win_ends_the_game_immediately_and_nothing_after_it_performs() {
     put_on_battlefield(&mut game, laboratory_maniac(), 0);
     let effect = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(3)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     resolve_with(&mut game, 0, &effect, vec![], &test_dp());
 

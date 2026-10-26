@@ -90,7 +90,7 @@ pub fn flickerwisp() -> Arc<CardData> {
                             TargetCount::Exactly(1),
                         ),
                     ))),
-                    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(return_it)), EffectRecipient::Controller),
+                    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(return_it)), EffectRecipient::Player(PlayerRef::You)),
                 ]),
             ),
         ))

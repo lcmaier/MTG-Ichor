@@ -465,7 +465,7 @@ fn marrowgnaw_ghoul() -> Arc<CardData> {
             instances: Vec::new(),
             ability_type: AbilityType::Activated,
             costs: vec![Cost::Sacrifice(another(ObjectFilter::ByType(CardType::Creature)), 1)],
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
         })
@@ -510,7 +510,7 @@ fn sacrifice_now(pick: Pick) -> Effect {
     Effect::Atom(
         Primitive::Sacrifice,
         EffectRecipient::ChosenBy(Box::new(Choice {
-            chooser: EffectRecipient::Controller,
+            chooser: EffectRecipient::Player(PlayerRef::You),
             among: ChoiceScope::ChoosersPermanents,
             picks: vec![pick],
             acts_on: ChoiceSide::Chosen,
@@ -519,7 +519,7 @@ fn sacrifice_now(pick: Pick) -> Effect {
 }
 
 fn create(template: DelayedTriggerTemplate) -> Effect {
-    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Player(PlayerRef::You))
 }
 
 /// "You sacrifice [a permanent]": what "when you do" names after "you may
@@ -576,7 +576,7 @@ fn bonegrinder_altar() -> Arc<CardData> {
             instances: Vec::new(),
             ability_type: AbilityType::Activated,
             costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
         })
@@ -602,7 +602,7 @@ fn venomweave_charm() -> Arc<CardData> {
 ///
 /// > You may sacrifice a creature. When you don't, you lose 2 life.
 fn withheld_tithe() -> Arc<CardData> {
-    let lose_2 = Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let lose_2 = Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Withheld Tithe")
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
         .color(Color::Black)
@@ -620,8 +620,8 @@ fn withheld_tithe() -> Arc<CardData> {
 /// > gain 1 life. When one or more creatures are sacrificed this way, draw
 /// > a card.
 fn bloodtithe_rite() -> Arc<CardData> {
-    let gain_1 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let gain_1 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let each = is_sacrificed(TriggerSubject::Filter(ObjectFilter::All));
     let one_or_more = is_sacrificed(TriggerSubject::Filter(ObjectFilter::All)).once_per_event();
     CardDataBuilder::new("Bloodtithe Rite")
@@ -643,7 +643,7 @@ fn bloodtithe_rite() -> Arc<CardData> {
 /// > Sacrifice a creature. Then you may sacrifice a creature. When you do,
 /// > you gain 3 life.
 fn twofold_tithe() -> Arc<CardData> {
-    let gain_3 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Controller);
+    let gain_3 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Twofold Tithe")
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
         .color(Color::Black)
@@ -666,8 +666,8 @@ fn twofold_tithe() -> Arc<CardData> {
 /// > time this turn, draw a card.
 fn firstlight_lantern() -> Arc<CardData> {
     let text = "{1}: You may gain 1 life. When you gain life this way for the first time this turn, draw a card.";
-    let gain_1 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let gain_1 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let mut first_time = when_you_do(
         TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
         draw,

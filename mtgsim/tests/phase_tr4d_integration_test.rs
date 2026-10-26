@@ -137,7 +137,7 @@ fn watcher(name: &str, arm: TriggerEvent) -> Arc<CardData> {
 
 /// An enchantment with one triggered ability, `arm` → you gain `n` life.
 fn gaining(name: &str, arm: TriggerEvent, n: u64) -> Arc<CardData> {
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(n)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(n)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, gain))).build()
 }
 
@@ -322,7 +322,7 @@ fn the_losers_own_watcher_triggers_and_is_kept_off_the_stack() {
 fn mill(game: &mut GameState, player: PlayerId, n: u64) {
     let source = put_in_graveyard(game, grizzly_bears(), player);
     let ctx = ResolutionContext::untargeted(source, player, GeneratedBy::Spell);
-    let effect = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(n)), EffectRecipient::Controller);
+    let effect = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(n)), EffectRecipient::Player(PlayerRef::You));
     game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
 }
 
@@ -351,7 +351,7 @@ fn colossus_among_three(game: &mut GameState, player: PlayerId) -> ObjectId {
 fn the_number_milled_counts_a_colossus_shuffled_back() {
     let mut game = setup_two_player_game();
     let arm = from_library(TriggerSubject::Filter(ObjectFilter::All), Some(ZoneChangeAct::Milled), Some(PlayerRef::Opponent), Multiplicity::OncePerEvent);
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Player(PlayerRef::You));
     let counter = CardDataBuilder::new("Fixture Mill Counter")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(arm, gain)))
@@ -424,7 +424,7 @@ fn then_return_it_later(instruction: Effect) -> Effect {
     let template = DelayedTriggerTemplate { def, duration: DelayedDuration::Once, turn: DelayedTurn::NoneNamed, rules_text: "".into() };
     Effect::Sequence(vec![
         Effect::Remember(Box::new(instruction)),
-        Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller),
+        Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Player(PlayerRef::You)),
     ])
 }
 
@@ -448,7 +448,7 @@ fn a_milled_card_a_replacement_exiled_is_still_found() {
     put_on_battlefield(&mut game, leyline_of_the_void(), 1);
     let below = put_in_library(&mut game, grizzly_bears(), 0);
     let above = put_in_library(&mut game, grizzly_bears(), 0);
-    let mill_two = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let mill_two = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     let source = put_on_battlefield(&mut game, totem("Fixture Mill Totem", then_return_it_later(mill_two)), 0);
 
     activate_and_resolve(&mut game, 0, source);
@@ -462,7 +462,7 @@ fn a_milled_card_a_replacement_exiled_is_still_found() {
 fn a_milled_card_shuffled_back_is_not_found() {
     let mut game = setup_two_player_game();
     let colossus = colossus_among_three(&mut game, 0);
-    let mill_three = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(3)), EffectRecipient::Controller);
+    let mill_three = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(3)), EffectRecipient::Player(PlayerRef::You));
     let source = put_on_battlefield(&mut game, totem("Fixture Mill Totem", then_return_it_later(mill_three)), 0);
 
     activate_and_resolve(&mut game, 0, source);
@@ -525,7 +525,7 @@ fn a_trigger_does_not_find_what_moved_into_a_hand() {
 /// **Fixture**, Khârn the Betrayer's Sigil of Corruption on a creature: "When
 /// you lose control of this creature, draw two cards."
 fn kharn_shaped() -> Arc<CardData> {
-    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Fixture Betrayer")
         .card_type(CardType::Creature)
         .power_toughness(5, 5)
@@ -674,7 +674,7 @@ fn an_opponent_gaining_control_of_a_permanent_you_own_triggers() {
         from: None,
         to: Some(PlayerRef::Opponent),
     };
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let card = CardDataBuilder::new("Fixture Owner's Watch").card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, draw))).build();
     let watching = put_on_battlefield(&mut game, card, 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
@@ -691,7 +691,7 @@ fn an_opponent_gaining_control_of_a_permanent_you_own_triggers() {
 #[test]
 fn a_watcher_stolen_with_another_permanent_triggers_for_each() {
     let mut game = stocked(2);
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let any_permanent = TriggerSubject::Filter(ObjectFilter::All);
     let zidane = CardDataBuilder::new("Fixture Tantalus Thief")
         .card_type(CardType::Creature)
@@ -724,7 +724,7 @@ fn a_watcher_stolen_with_another_permanent_triggers_for_each() {
 #[test]
 fn the_first_steal_on_a_board_reads_the_frame_from_before() {
     let mut game = stocked(2);
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let mut granted = triggered_ability("", whenever(you_lose_control_of(TriggerSubject::Object(Antecedent::ThisObject)), draw));
     granted.id = new_ability_id();
     let granter = put_on_battlefield(&mut game, card_of_type("Fixture Banner", CardType::Enchantment), 0);
@@ -800,7 +800,7 @@ fn a_trigger_the_creature_lacked_before_the_steal_does_not_trigger() {
 fn a_trigger_on_any_change_the_creature_lacked_before_does_not_trigger() {
     let mut game = stocked(2);
     put_on_battlefield(&mut game, silencer(), 0);
-    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     let any_change = TriggerEvent::ControlChanges { subject: TriggerSubject::Object(Antecedent::ThisObject), from: None, to: None };
     let watcher = CardDataBuilder::new("Fixture Turncoat")
         .card_type(CardType::Creature)
@@ -837,7 +837,7 @@ fn a_trigger_the_steal_takes_away_still_triggers() {
 #[test]
 fn a_grant_the_steal_moves_still_triggers_the_creatures_left_behind() {
     let mut game = stocked(2);
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let watcher = triggered_ability("", whenever(an_opponent_gains_control_of(TriggerSubject::Filter(ObjectFilter::All)), gain));
     let yours = EffectRecipient::FilteredPermanents(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -992,7 +992,7 @@ fn two_control_changes_in_one_resolution_are_two_events() {
 /// **Fixture**: "Creatures you control have 'When you lose control of this
 /// creature, draw two cards.'"
 fn gives_the_betrayers_trigger() -> Arc<CardData> {
-    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     let betrayal = triggered_ability("", whenever(you_lose_control_of(TriggerSubject::Object(Antecedent::ThisObject)), draw_two));
     CardDataBuilder::new("Fixture Sigil of Betrayal")
         .card_type(CardType::Enchantment)

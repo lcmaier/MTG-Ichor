@@ -22,7 +22,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    Antecedent, AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    PlayerRef, Antecedent, AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
@@ -34,7 +34,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::why::{why_from_trace, OpenQuestion, Why, WhyAbout};
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 /// A game whose every dispatch, and every state check, is answered twice:

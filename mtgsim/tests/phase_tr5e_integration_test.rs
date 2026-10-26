@@ -300,7 +300,7 @@ fn attacks_alone_triggers_only_for_a_lone_attacker() {
 /// accepts "them".
 #[test]
 fn its_power_over_a_defenders_attackers_is_refused() {
-    let gain = |amount| Effect::Atom(Primitive::GainLife(amount), EffectRecipient::Controller);
+    let gain = |amount| Effect::Atom(Primitive::GainLife(amount), EffectRecipient::Player(PlayerRef::You));
     let its_power = whenever(is_attacked(DefenderFilter::Player(None)), gain(AmountExpr::TriggeringPower(EventRole::Attacker)));
     assert_eq!(its_power.event_roles_its_arms_lack(), vec![EventRole::Attacker]);
     let them = whenever(is_attacked(DefenderFilter::Player(None)), a_counter_on_the_attackers());
@@ -441,7 +441,7 @@ fn its_attacker() -> Antecedent {
 }
 
 fn loses_one(creature: Antecedent) -> Effect {
-    Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(1)), EffectRecipient::DefendingPlayer(creature))
+    Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::DefendingPlayer(creature)))
 }
 
 /// "Tap target creature [defending player] controls".
@@ -513,7 +513,7 @@ fn a_targets_defending_player_is_read_at_placement() {
 /// off its last known information (CR 508.5, 608.2h).
 #[test]
 fn an_intervening_if_reads_the_defending_player_of_a_creature_that_left() {
-    let mut def = whenever(attacks(TriggerSubject::Object(Antecedent::ThisObject)), Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller));
+    let mut def = whenever(attacks(TriggerSubject::Object(Antecedent::ThisObject)), Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You)));
     let creature = ObjectFilter::ByType(CardType::Creature);
     def.intervening_if =
         Some(Condition::DefendingPlayer { of: Antecedent::ThisObject, fact: PlayerFact::ControlsPermanent(creature) });

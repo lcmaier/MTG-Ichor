@@ -359,7 +359,7 @@ fn lesson(name: &str, cost: ManaCost, color: Color, card_type: CardType) -> Card
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         })
 }
@@ -453,7 +453,7 @@ pub fn altars_reap() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(2)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         })
         .build()
@@ -606,7 +606,7 @@ pub fn mind_stone() -> Arc<CardData> {
             ],
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         })
         .build()
@@ -713,7 +713,7 @@ pub fn self_eating_engine() -> Arc<CardData> {
             ],
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         })
         .build()

@@ -27,7 +27,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter,
+    Antecedent, ObjectSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, HistorySpan, ObjectFact, TurnFact};
@@ -181,7 +181,7 @@ fn an_amount_reads_a_history_count_as_a_spell_resolves() {
     let mut game = setup_two_player_game();
     game.execute_action(GameAction::LoseLife { player: 0, amount: 3, damage_source: None }, &test_ctx()).unwrap();
     let lost = HistoryCount { players: PlayerSet::You, fact: TurnFact::LifeLost, of: None };
-    let second_wind = Effect::Atom(Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(lost))), EffectRecipient::Controller);
+    let second_wind = Effect::Atom(Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(lost))), EffectRecipient::Player(PlayerRef::You));
     cast_and_resolve(&mut game, 0, free_spell("Second Wind", CardType::Sorcery, second_wind));
     assert_eq!(game.players[0].life_total, 20, "lost 3, gained 3");
 
@@ -189,7 +189,7 @@ fn an_amount_reads_a_history_count_as_a_spell_resolves() {
     // this turn", after a creature spell and with the sorcery itself cast.
     cast_and_resolve(&mut game, 0, free_spell("Clockwork Pup", CardType::Creature, Effect::Sequence(Vec::new())));
     let creature_spells = spells_you_cast(Some(ObjectFilter::ByType(CardType::Creature)));
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(creature_spells))), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(creature_spells))), EffectRecipient::Player(PlayerRef::You));
     cast_and_resolve(&mut game, 0, free_spell("Herd Census", CardType::Sorcery, gain));
     assert_eq!(game.players[0].life_total, 21, "one creature spell among three");
 }
@@ -369,7 +369,7 @@ fn a_gone_sources_history_filter_reads_its_owner_off_its_last_known_information(
     );
     game.battlefield.remove(&relic);
     game.objects.remove(&relic);
-    let owners_spells = spells_you_cast(Some(ObjectFilter::ByOwner(PlayerRef::Owner)));
+    let owners_spells = spells_you_cast(Some(ObjectFilter::ByOwner(PlayerRef::OwnerOf(Antecedent::ThisObject))));
     let cast_one = Condition::ThisTurn(owners_spells, CountIs::AtLeast(1));
     let referents = ConditionReferents { source_lki: Some(&lki), ..ConditionReferents::NONE };
     assert!(settled_holds(&cast_one, &game, relic, Some(0), referents), "player 0 owned both");

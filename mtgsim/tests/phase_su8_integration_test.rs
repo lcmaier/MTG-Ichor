@@ -4,6 +4,7 @@
 //! kind's line.
 
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::types::effects::{PlayerRef};
 use mtgsim::cards::phase_rc_cards::{master_biomancer, thunder_thrash_elder};
 use mtgsim::cards::phase_tr1_cards::{felidar_sovereign, soul_warden};
 use mtgsim::cards::registry::CardRegistry;
@@ -210,7 +211,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ChooseXValue { spell_id: object, values: Box::new(LegalXValues::zero_through(1)) },
         ChoiceKind::ChooseAlternativeCost { spell_id: object },
         ChoiceKind::ChooseAdditionalCosts { spell_id: object },
-        ChoiceKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Controller, spell_id: object },
+        ChoiceKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Player(PlayerRef::You), spell_id: object },
         ChoiceKind::GenericManaAllocation { spell_or_ability_id: object, mana_cost: ManaCost::build(&[], 2) },
         ChoiceKind::OrderCostReductions { spell_id: object },
         ChoiceKind::ManaAbilityWindow { spell_or_ability_id: object, remaining_cost: ManaCost::build(&[], 1) },

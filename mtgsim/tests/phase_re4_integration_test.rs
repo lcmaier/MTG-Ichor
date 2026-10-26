@@ -86,7 +86,7 @@ fn resolve_card(game: &mut GameState, player: PlayerId, card: Arc<CardData>, dp:
 fn create(game: &mut GameState, player: PlayerId, def: TokenDef, n: u64, dp: &dyn DecisionProvider) {
     let effect = Effect::Atom(
         Primitive::CreateToken(def, AmountExpr::Fixed(n)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     resolve_for(game, player, &effect, dp);
 }
@@ -913,7 +913,7 @@ fn a_riders_draw_carries_the_replaced_events_applied_set() {
     put_on_battlefield(&mut game, alms_collector(), 1);
     let effect = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(1)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
 
     resolve_for(&mut game, 0, &effect, &test_dp());
@@ -935,7 +935,7 @@ fn one_reflection_beside_one_collector_ends() {
     put_on_battlefield(&mut game, alms_collector(), 1);
     let effect = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(1)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
 
     resolve_for(&mut game, 0, &effect, &test_dp());
@@ -1119,7 +1119,7 @@ fn two_bards_quadruple_both_halves() {
     assert_eq!(tokens(&game).len(), 8, "four times the number of tokens");
 
     let hand_before = game.players[0].hand.len();
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     resolve_for(&mut game, 0, &draw, &dp);
     assert_eq!(game.players[0].hand.len(), hand_before + 1 + 4, "the fixture spell, and one draw made four");
     assert_eq!(dp.prompts(), 0, "two multipliers, and two draw doublers, commute");

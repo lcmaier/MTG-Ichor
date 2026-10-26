@@ -41,11 +41,11 @@ pub fn nights_whisper() -> Arc<CardData> {
             effect: Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(2)), 
-                    EffectRecipient::Controller
+                    EffectRecipient::Player(PlayerRef::You)
                 ),
                 Effect::Atom(
                     Primitive::LoseLife(AmountExpr::Fixed(2)),
-                    EffectRecipient::Controller
+                    EffectRecipient::Player(PlayerRef::You)
                 )
             ])
         })
@@ -97,7 +97,7 @@ pub fn angels_mercy() -> Arc<CardData> {
             instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(7)), EffectRecipient::Controller)
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(7)), EffectRecipient::Player(PlayerRef::You))
         })
         .build()
 }
@@ -162,7 +162,7 @@ pub fn zhalfirin_shapecraft() -> Arc<CardData> {
                 ),
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
             ]),
         })
@@ -199,7 +199,7 @@ pub fn inside_out() -> Arc<CardData> {
                 ),
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
             ]),
         })

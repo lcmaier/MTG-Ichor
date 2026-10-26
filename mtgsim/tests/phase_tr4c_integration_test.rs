@@ -93,7 +93,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 }
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 /// "Whenever [subject] moves `change`, you gain 1 life": an enchantment with
@@ -827,7 +827,7 @@ fn from_anywhere_twin() -> Arc<CardData> {
                         owner: Some(PlayerRef::You),
                         multiplicity: Multiplicity::PerOccurrence,
                     },
-                    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
                 ),
             ),
         ))

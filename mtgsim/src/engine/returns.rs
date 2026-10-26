@@ -247,7 +247,7 @@ mod tests {
     use crate::engine::actions::GameAction;
     use crate::events::cause::EventCause;
     use crate::test_support::{put_in_exile, put_on_battlefield, put_on_battlefield_under, setup_two_player_game, test_ctx};
-    use crate::types::effects::{PlayerRef, ReturnUnder};
+    use crate::types::effects::{Antecedent, PlayerRef, ReturnUnder};
     use crate::types::triggers::{Multiplicity, TriggerEvent};
     use crate::types::zones::Zone;
 
@@ -279,7 +279,7 @@ mod tests {
         let mut game = setup_two_player_game();
         let source = put_on_battlefield_under(&mut game, grizzly_bears(), 0, 1);
         let exiled = put_in_exile(&mut game, grizzly_bears(), 1);
-        let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::Owner), multiplicity: Multiplicity::PerOccurrence };
+        let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::OwnerOf(Antecedent::ThisObject)), multiplicity: Multiplicity::PerOccurrence };
         let (source_ref, card) = (game.object_ref(source).unwrap(), game.object_ref(exiled).unwrap());
         game.wait_to_return(gains, source_ref, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 1, EventCause::Harness).unwrap();
         game.remove_from_game(source).unwrap();

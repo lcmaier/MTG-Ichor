@@ -417,7 +417,7 @@ fn gideon_blackblade_shaped() -> Arc<CardData> {
 fn wall_of_omens() -> Arc<CardData> {
     use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
     use mtgsim::types::triggers::TriggerSubject;
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Wall of Omens")
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Wall))
@@ -807,7 +807,7 @@ fn spark_double_copying_a_token_is_not_a_token() {
         enters_attacking: None,
     };
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
-    let create = Effect::Atom(Primitive::CreateToken(soldier, AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let create = Effect::Atom(Primitive::CreateToken(soldier, AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     game.resolve_effect(&create, &ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell), &Scripted::new()).expect("created");
     let token = game.battlefield_ids_ordered().into_iter().find(|id| game.get_object(*id).unwrap().is_token).unwrap();
 

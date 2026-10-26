@@ -13,7 +13,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp, vanilla_creature};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{Antecedent, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, Primitive};
+use mtgsim::types::effects::{PlayerRef, Antecedent, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
@@ -66,7 +66,7 @@ fn gains_when_red_deals_damage() -> Arc<CardData> {
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Fixture Red Tithe").card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, gain))).build()
 }
 

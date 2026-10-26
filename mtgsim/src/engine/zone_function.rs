@@ -197,7 +197,7 @@ mod tests {
     use crate::types::card_types::{LandType, Subtype};
     use crate::types::cost_modification::{CostChange, CostModificationDef};
     use crate::types::effects::{
-        AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive,
+        PlayerRef, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive,
     };
     use crate::types::ids::new_ability_id;
     use crate::types::mana::ManaCost;
@@ -389,7 +389,7 @@ mod tests {
         };
         ability(Effect::Triggered(std::sync::Arc::new(crate::cards::authoring::whenever(
             arm,
-            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         ))))
     }
 

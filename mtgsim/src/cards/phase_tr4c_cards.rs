@@ -284,7 +284,7 @@ pub fn bridge_from_below() -> Arc<CardData> {
                 zombie,
                 whenever(
                     put_into_a_graveyard_from_the_battlefield(nontoken_creature, PlayerRef::You),
-                    Effect::Atom(Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                    Effect::Atom(Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
                 ),
             ),
         ))

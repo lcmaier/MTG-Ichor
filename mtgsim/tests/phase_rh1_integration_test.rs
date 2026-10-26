@@ -53,7 +53,7 @@ enum Shape {
 }
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn ability(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {

@@ -49,7 +49,7 @@ pub fn cerulean_wisps() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         })
         .build()
@@ -133,7 +133,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         })
         .build()

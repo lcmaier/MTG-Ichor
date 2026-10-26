@@ -215,7 +215,7 @@ fn tempest_fixture(words: &'static str, damage: Effect) -> Arc<CardData> {
         turn: DelayedTurn::NoneNamed,
         rules_text: words.into(),
     };
-    let create = Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(end_step_damage)), EffectRecipient::Controller);
+    let create = Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(end_step_damage)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Tempest Fixture")
         .card_type(CardType::Creature)
         .power_toughness(4, 4)
@@ -509,7 +509,7 @@ fn a_trigger_on_the_damage_reads_a_source_that_left_as_it_last_was() {
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
-    let gain_one = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let gain_one = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let ward = creature_with_ability("Ember Ward", 1, 1, triggered_ability("", whenever(red_damage_to_you, gain_one)));
     put_on_battlefield(&mut game, ward, 1);
     dies(&mut game, hawk);

@@ -20,7 +20,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    PlayerRef, AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
 use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -152,7 +152,7 @@ fn fixture_exiles_tithe() -> std::sync::Arc<mtgsim::objects::card_data::CardData
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     };
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Fixture Exile's Tithe")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(exiled_from_hand, gain)))
@@ -222,7 +222,7 @@ fn one_drop(name: &'static str, card_type: CardType) -> std::sync::Arc<CardData>
                 instances: Vec::new(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
-                effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(0)), EffectRecipient::Controller),
+                effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(0)), EffectRecipient::Player(PlayerRef::You)),
             })
             .build(),
     }
@@ -370,7 +370,7 @@ fn fixture_count_of_the_dead(name: &'static str, of: ObjectFilter) -> std::sync:
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(died))),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             ),
         })
         .build()
@@ -413,7 +413,7 @@ fn a_count_of_tokens_that_died_reads_the_token_the_store_has_lost() {
 
 /// "Whenever `event`, you gain `life` life."
 fn fixture_watcher(name: &'static str, event: impl Into<TriggerEvent>, life: u64) -> std::sync::Arc<CardData> {
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(life)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(life)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(triggered_ability("", whenever(event, gain))).build()
 }
 

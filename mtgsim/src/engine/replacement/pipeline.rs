@@ -3377,6 +3377,11 @@ fn named_for_an_entry(
                 chosen.id
             ))
         }
+        // A static replacement has no event of its own to name a player of,
+        // and remembers nothing; "its owner" is the entering object's, above.
+        PlayerRef::OwnerOf(_) | PlayerRef::TheEventsPlayer | PlayerRef::ReferredPlayer => {
+            return Err(format!("replacement {:?} names {player_ref:?} {role} {entering}, which is not built", chosen.id))
+        }
     })
 }
 

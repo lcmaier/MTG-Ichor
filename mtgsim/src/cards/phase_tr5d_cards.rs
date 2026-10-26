@@ -127,7 +127,7 @@ pub fn goblin_negotiation() -> Arc<CardData> {
                 ),
                 Effect::Atom(
                     Primitive::CreateToken(goblin_token(), AmountExpr::ExcessDamageDealtThisWay),
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
             ]),
         })

@@ -249,7 +249,7 @@ fn cards_milled_under_rest_in_peace_are_recorded_as_milled() {
 
     let source = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 1);
     let ctx = ResolutionContext::untargeted(source, 1, mtgsim::events::cause::GeneratedBy::Spell);
-    let mill_two = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let mill_two = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     game.resolve_effect(&mill_two, &ctx, &test_dp()).expect("resolving");
 
     for card in top_two {
@@ -357,7 +357,7 @@ fn a_card_drawn_into_exile_is_recorded_as_drawn() {
 
     let source = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 1);
     let ctx = ResolutionContext::untargeted(source, 1, GeneratedBy::Spell);
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     game.resolve_effect(&draw, &ctx, &test_dp()).expect("resolving");
 
     let (from, to, act, cause) = the_record_of(&game, top);

@@ -30,7 +30,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter,
+    PlayerRef, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
@@ -156,7 +156,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
 #[test]
 fn a_trigger_reads_the_record_it_bound_after_its_window_has_flushed() {
     let mut game = setup_two_player_game();
-    let gains_its_power = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller);
+    let gains_its_power = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Player(PlayerRef::You));
     let mourner = put_on_battlefield(
         &mut game,
         creature_with_ability(
@@ -222,7 +222,7 @@ fn since_your_last_turn_spans_the_other_seats_turns() {
                 condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
                 intervening_if: Some(quiet.clone()),
                 limit: None,
-                effect: Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                effect: Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
             }))
             .build()
     };
@@ -282,7 +282,7 @@ fn since_your_last_turn_counts_amounts_and_events_around_four_seats() {
                 exactly(TurnFact::LifeLossEvents, 3),
             ])),
             limit: None,
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You)),
         }))
         .build();
     let lose = |game: &mut GameState, player: PlayerId, amount: u64| {
@@ -312,7 +312,7 @@ fn since_your_last_turn_counts_amounts_and_events_around_four_seats() {
     }
 
     let dp = RecordingDecisionProvider::picking(0);
-    let extra_turn = Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller);
+    let extra_turn = Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Player(PlayerRef::You));
     game.resolve_effect(&extra_turn, &ResolutionContext::untargeted(regent, 0, mtgsim::events::cause::GeneratedBy::Spell), &dp).expect("the extra turn");
     lose(&mut game, 0, 4);
     advance_to(&mut game, 0, StepType::Upkeep);

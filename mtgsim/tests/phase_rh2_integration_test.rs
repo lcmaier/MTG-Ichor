@@ -36,7 +36,7 @@ use mtgsim::types::zones::{Zone, ZoneChangePattern};
 // ---------------------------------------------------------------------------
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn a_creature() -> ObjectFilter {

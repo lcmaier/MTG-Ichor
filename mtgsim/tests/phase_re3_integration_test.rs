@@ -28,7 +28,7 @@ use mtgsim::test_support::{
     test_dp,
 };
 use mtgsim::types::costs::Cost;
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
+use mtgsim::types::effects::{PlayerRef, AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -58,7 +58,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
 fn gain_life(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn DecisionProvider) {
     let effect = Effect::Atom(
         Primitive::GainLife(AmountExpr::Fixed(n)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     resolve_for(game, player, &effect, dp);
 }
@@ -81,7 +81,7 @@ fn life_changes(game: &GameState, player: PlayerId) -> Vec<(i64, i64)> {
 fn lose_life(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn DecisionProvider) {
     let effect = Effect::Atom(
         Primitive::LoseLife(AmountExpr::Fixed(n)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     resolve_for(game, player, &effect, dp);
 }
@@ -90,7 +90,7 @@ fn lose_life(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn DecisionPr
 fn draw_one(game: &mut GameState, player: PlayerId, dp: &dyn DecisionProvider) {
     let effect = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(1)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     resolve_for(game, player, &effect, dp);
 }

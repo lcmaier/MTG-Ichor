@@ -53,7 +53,7 @@ fn watcher(name: &str, event: impl Into<TriggerEvent>, effect: Effect) -> Arc<Ca
 }
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn pending(game: &GameState) -> usize {
@@ -67,7 +67,7 @@ fn resolve_as(game: &mut GameState, source: ObjectId, effect: Effect) {
 }
 
 fn put_top_cards_into_hand(n: u64) -> Effect {
-    Effect::Atom(Primitive::PutTopCardsIntoHand(AmountExpr::Fixed(n)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::PutTopCardsIntoHand(AmountExpr::Fixed(n)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn you_may(effect: Effect) -> Effect {
@@ -79,11 +79,11 @@ fn if_you(answer: CostAnswer, effect: Effect) -> Effect {
 }
 
 fn draw_one() -> Effect {
-    Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn lose_one() -> Effect {
-    Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 /// A provider that answers the one "you may" `source` asks.
@@ -243,7 +243,7 @@ fn a_may_whose_damage_is_prevented_still_answers_does() {
 
     let hurt_me = Effect::Atom(
         Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     let guardian = watcher(
         "Grudging Guardian",
@@ -343,11 +343,11 @@ fn a_sacrifice_whose_permanent_has_gone_answers_cant_and_draws_nothing() {
 /// it (CR 701.21a — a player can't sacrifice what they don't control).
 #[test]
 fn if_you_cant_reads_a_sacrifice_that_could_not_start() {
-    let lose_five = Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(5)), EffectRecipient::Controller);
+    let lose_five = Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(5)), EffectRecipient::Player(PlayerRef::You));
 
     let mut game = setup_two_player_game();
     let source = put_on_battlefield(&mut game, card_of_type("Hungry Idol", CardType::Artifact), 0);
-    let effect = Effect::Sequence(vec![sacrifices(EffectRecipient::Controller, 1), if_you(CostAnswer::Cant, lose_five.clone())]);
+    let effect = Effect::Sequence(vec![sacrifices(EffectRecipient::Player(PlayerRef::You), 1), if_you(CostAnswer::Cant, lose_five.clone())]);
     resolve_as(&mut game, source, effect.clone());
     assert_eq!(game.players[0].life_total, 15, "no creature to sacrifice: 5 life");
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -779,7 +779,7 @@ fn one_lifelink_creature_dealing_damage_twice_at_once_is_one_gain() {
 fn cosis_trickster_sees_an_opponents_shuffle_even_of_an_empty_library() {
     let mut game = setup_two_player_game();
     let trickster = put_on_battlefield(&mut game, cosis_trickster(), 0);
-    let shuffle = Effect::Atom(Primitive::ShuffleLibrary, EffectRecipient::Controller);
+    let shuffle = Effect::Atom(Primitive::ShuffleLibrary, EffectRecipient::Player(PlayerRef::You));
     resolve_as(&mut game, trickster, shuffle.clone());
     assert_eq!(pending(&game), 0, "its controller's own shuffle");
 
@@ -809,7 +809,7 @@ fn psychosis_crawler_cast_from_hand_drains_once_per_card_drawn() {
     let size = |game: &GameState| (get_effective_power(game, crawler), get_effective_toughness(game, crawler));
     assert_eq!(size(&game), (Some(1), Some(1)), "one card in hand");
 
-    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     resolve_as(&mut game, crawler, draw_two);
     assert_eq!(pending(&game), 2, "a draw of two triggers twice");
     place(&mut game, &ScriptedDecisionProvider::new());

@@ -25,7 +25,7 @@ use mtgsim::test_support::{
     put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield, put_spell_on_stack,
     setup_two_player_game, test_ctx, test_dp, vanilla_creature,
 };
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
+use mtgsim::types::effects::{PlayerRef, AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -127,7 +127,7 @@ fn test_a_mill_is_one_event_and_the_colossus_replaces_only_its_own_member() {
 
     let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(
-        &Effect::Atom(Primitive::Mill(AmountExpr::Fixed(3)), EffectRecipient::Controller),
+        &Effect::Atom(Primitive::Mill(AmountExpr::Fixed(3)), EffectRecipient::Player(PlayerRef::You)),
         &ctx,
         &test_dp(),
     )
@@ -185,7 +185,7 @@ fn test_a_nexus_of_fate_that_resolves_takes_an_extra_turn_and_returns_to_the_lib
     let nexus = put_spell_on_stack(&mut game, nexus_of_fate(), 0);
     // `put_spell_on_stack` stages an entry with no effect; give it the card's.
     let mut entry = game.stack_entries[&nexus].clone();
-    entry.effect = std::sync::Arc::new(Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller));
+    entry.effect = std::sync::Arc::new(Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Player(PlayerRef::You)));
     game.set_stack_entry(entry);
 
     game.resolve_top_of_stack(&test_dp()).unwrap();

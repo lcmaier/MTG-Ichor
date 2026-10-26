@@ -10031,3 +10031,21 @@ folds and 345–347 the gaps the duplicates hid.
      **Sized:** ~60–100 lines and a fixture for each.
      **Slotted:** `route-review`.
 
+### Found by `card-vocabulary-folds` (2026-10-26)
+
+348. **"Its owner" for each object an instruction acts on has no
+     antecedent.** `PlayerRef::Owner` is read as the owner of each object the
+     instruction acts on: Homeward Path's "each player gains control of all
+     creatures they own", read per moved object by `resolve_set_controller`
+     (CR 108.3), and the putter of an entering object's counters
+     (`named_for_an_entry`). Item 341 folded the other reading, the source's
+     owner, into `OwnerOf(Antecedent::ThisObject)`; this one's antecedent is
+     the object acted on, #295's `Antecedent::Affected`. `Owner` then folds
+     into `OwnerOf(Antecedent::Affected)`, which each reader asks of the
+     object it is acting on.
+     **Reachability (2026-10-26):** unreachable — no registered card names
+     the owner of the objects it acts on.
+     **Sized:** ~20–30 lines: the arm's two readers and one fixture site.
+     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     which adds `Antecedent::Affected`.
+

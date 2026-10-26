@@ -122,7 +122,7 @@ pub struct ReplacementDef {
     ///
     /// It resolves against a `ResolutionContext` whose single target is the
     /// event's subject, so `EffectRecipient::Target`/`Choose` name the
-    /// permanent the event was about and `EffectRecipient::Controller` names
+    /// permanent the event was about and `EffectRecipient::Player(PlayerRef::You)` names
     /// its controller.
     pub then: Option<Effect>,
 

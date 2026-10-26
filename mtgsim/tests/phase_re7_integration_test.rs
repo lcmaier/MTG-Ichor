@@ -636,7 +636,7 @@ fn no_token_is_created_under_the_control_of_a_player_who_has_left() {
 
     let effect = Effect::Atom(
         Primitive::CreateToken(bear_token(), AmountExpr::Fixed(2)),
-        EffectRecipient::Controller,
+        EffectRecipient::Player(PlayerRef::You),
     );
     resolve_with(&mut game, 1, &effect, vec![], &test_dp());
 

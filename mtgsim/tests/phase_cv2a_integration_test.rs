@@ -319,7 +319,7 @@ fn skyshroud_behemoth() -> Arc<CardData> {
 /// Wall of Omens — {1}{W} 0/4 Wall, defender, "When this creature enters,
 /// draw a card."
 fn wall_of_omens() -> Arc<CardData> {
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Wall of Omens")
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Wall))
@@ -644,7 +644,7 @@ fn a_clone_of_a_token_is_not_a_token() {
         enters_attacking: None,
     };
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
-    let create = Effect::Atom(Primitive::CreateToken(soldier, AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let create = Effect::Atom(Primitive::CreateToken(soldier, AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     game.resolve_effect(&create, &ResolutionContext::untargeted(source, 1, mtgsim::events::cause::GeneratedBy::Spell), &ById::new()).expect("created");
     let token = game.battlefield_ids_ordered().into_iter().find(|id| game.get_object(*id).unwrap().is_token).unwrap();
 

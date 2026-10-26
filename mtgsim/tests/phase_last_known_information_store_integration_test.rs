@@ -18,7 +18,7 @@ use mtgsim::test_support::{
     put_in_command_zone, put_in_exile, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield,
     put_spell_on_stack, setup_game, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
 };
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{PlayerRef, AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, Referred, TriggerTurn};
@@ -150,7 +150,7 @@ fn read_by_a_keeper(game: &mut GameState, object: ObjectRef) {
     let template = DelayedTriggerTemplate {
         def: Arc::new(whenever(
             at_beginning_of(StepType::End, Whose::Each),
-            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::NoneNamed,

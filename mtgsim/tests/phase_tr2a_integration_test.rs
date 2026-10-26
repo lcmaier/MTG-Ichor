@@ -316,7 +316,7 @@ fn the_opening_hands_are_drawn_in_no_turn() {
 // ---------------------------------------------------------------------------
 
 fn gain_one() -> Effect {
-    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn pending_triggers(game: &GameState) -> usize {
@@ -390,7 +390,7 @@ fn clockwork_trinket() -> Arc<CardData> {
 // ---------------------------------------------------------------------------
 
 fn draw_one() -> Effect {
-    Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+    Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))
 }
 
 fn a_creature() -> ObjectFilter {
@@ -579,7 +579,7 @@ fn kindling_pilgrim() -> Arc<CardData> {
             counter_on(EffectRecipient::Object(Antecedent::ThisObject)),
             Effect::Conditional(
                 Condition::ResolvedThisTurn(3),
-                Box::new(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Controller)),
+                Box::new(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Player(PlayerRef::You))),
             ),
         ]),
         is_characteristic_defining: false,
@@ -780,7 +780,7 @@ fn draw_order(game: &GameState) -> Vec<PlayerId> {
 
 /// `player` resolves "draw `n` cards" as one instruction.
 fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64) {
-    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(n)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(n)), EffectRecipient::Player(PlayerRef::You));
     let source = put_in_hand(game, grizzly_bears(), player);
     let ctx = ResolutionContext::untargeted(source, player, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&draw, &ctx, &test_dp()).expect("the draw");
@@ -1014,7 +1014,7 @@ fn a_trigger_reads_how_many_times_it_has_resolved_this_turn() {
         Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
     ));
     let magecraft = Effect::Sequence(vec![
-        Effect::Atom(Primitive::Discard(AmountExpr::Fixed(1), DiscardChooser::Affected), EffectRecipient::Controller),
+        Effect::Atom(Primitive::Discard(AmountExpr::Fixed(1), DiscardChooser::Affected), EffectRecipient::Player(PlayerRef::You)),
         draw_one(),
         Effect::Conditional(
             Condition::ResolvedThisTurn(2),
@@ -1027,7 +1027,7 @@ fn a_trigger_reads_how_many_times_it_has_resolved_this_turn() {
             Condition::ResolvedThisTurn(3),
             Box::new(Effect::Atom(
                 Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Red, AmountExpr::Fixed(4))], special: Vec::new() }),
-                EffectRecipient::Controller,
+                EffectRecipient::Player(PlayerRef::You),
             )),
         ),
     ]);
@@ -1112,7 +1112,7 @@ fn this_game_sums_every_turn_so_far() {
                     HistoryCount { players: PlayerSet::You, fact: TurnFact::SpellsCast, of: None },
                     CountIs::AtMost(1),
                 ),
-                Box::new(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller)),
+                Box::new(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You))),
             )))
             .build()
     };

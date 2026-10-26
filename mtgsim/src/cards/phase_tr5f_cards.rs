@@ -19,7 +19,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::history::ObjectFact;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, AmountExpr, Effect, EffectRecipient, EntersAttacking, ExtraPhasesAfter, ObjectFilter, Primitive, TokenDef,
+    PlayerRef, Antecedent, AmountExpr, Effect, EffectRecipient, EntersAttacking, ExtraPhasesAfter, ObjectFilter, Primitive, TokenDef,
 };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
@@ -71,7 +71,7 @@ pub fn attacking_human_token() -> TokenDef {
 pub fn hanweir_garrison() -> Arc<CardData> {
     let text = "Whenever this creature attacks, create two 1/1 red Human creature tokens that are tapped and attacking.";
     let two_humans =
-        Effect::Atom(Primitive::CreateToken(attacking_human_token(), AmountExpr::Fixed(2)), EffectRecipient::Controller);
+        Effect::Atom(Primitive::CreateToken(attacking_human_token(), AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     CardDataBuilder::new("Hanweir Garrison")
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .color(Color::Red)
@@ -133,7 +133,7 @@ pub fn relentless_assault() -> Arc<CardData> {
                         phases: vec![PhaseType::Combat, PhaseType::Postcombat],
                         after: ExtraPhasesAfter::ThisMainPhase,
                     },
-                    EffectRecipient::Controller,
+                    EffectRecipient::Player(PlayerRef::You),
                 ),
             ]),
         })

@@ -1153,14 +1153,11 @@ route by which item 342's twenty arrived.
 #### `EffectRecipient`
 - `Implicit` — **not a word**: an instruction that names nothing.
 - `Object` — **holds** an `Antecedent`: this object, its host, a trigger's participant, a delayed trigger's object.
-- `Controller` — **folds** into `Player(PlayerRef::You)` (item 341).
+- `Player` — **holds** a `PlayerRef`: "you", "that player" of an event or of a delayed trigger, "defending player".
 - `Target` — **owns** "target [something]" (CR 115.1), holding a `SelectionFilter`.
 - `Choose` — **owns** "choose [something]" (CR 608.2d), holding a `SelectionFilter`.
 - `SameInstanceAs` — **owns** "that target", an instance announced earlier (CR 115.3); a recipient refuses `Antecedent::TargetOfInstance`, its value-reading twin.
-- `TriggeringPlayer` — **folds** into `Player(PlayerRef::TheEventsPlayer)` (item 341).
-- `Referred` — **folds** into `Player(PlayerRef::ReferredPlayer)`, its objects being `Object(Antecedent::Referred)` (item 341).
 - `AttackedBy` — **owns** "the player or planeswalker it's attacking" (CR 506.3), holding an `Antecedent`.
-- `DefendingPlayer` — **folds** into `Player(PlayerRef::DefendingPlayer)` (item 341).
 - `EachOf` — **holds** a `PlayerGroup`, whose relation is a `PlayerSet`: "each opponent" acts on every player in it.
 - `FilteredPermanents` — **folds** into a constructor of `FilteredObjectsIn` (item 344).
 - `FilteredObjectsIn` — **owns** "every object matching [a filter] in [zones]".
@@ -1188,9 +1185,6 @@ route by which item 342's twenty arrived.
 #### `IdentityRef`
 - `ThisAbility` — **owns** "this ability" (CR 603.7h's same ability).
 
-#### `NamedPlayers`
-- `Nobody` — **not a word**: no player named.
-- `FirstInstance` — **folds** into `PlayerGroup.named` holding a `PlayerRef::TheEventsPlayer`, a rider's being its replaced event's player (item 341).
 
 #### `ObjectFilter`
 - `All` — **not a word**: no criterion.
@@ -1228,10 +1222,13 @@ route by which item 342's twenty arrived.
 #### `PlayerRef`
 - `You` — **owns** "you" (CR 109.5).
 - `Opponent` — **owns** "an opponent", one chosen as the instruction applies (CR 608.2d); its reading as any opponent in a filter moves to `PlayerSet::Opponents` (item 342).
-- `Owner` — **folds** into `OwnerOf(Antecedent::ThisObject)` (item 341).
+- `OwnerOf` — **owns** "its owner" (CR 108.3), holding an `Antecedent`.
+- `Owner` — **folds** into `OwnerOf(Antecedent::Affected)`, the owner of each object an instruction acts on (item 348).
 - `Player` — **owns** a player captured by id.
 - `DefendingPlayer` — **owns** "defending player" (CR 508.5), holding an `Antecedent`.
 - `AnyDefendingPlayer` — **folds** into `PlayerSet::DefendingPlayers` (item 342).
+- `TheEventsPlayer` — **owns** "that player" of a triggering event, or of a rider's replaced event (CR 615.5).
+- `ReferredPlayer` — **owns** "that player" on a delayed trigger, a player it refers to (CR 603.7c).
 
 #### `PlayerSet`
 - `Nobody` — **not a word**: no player.
@@ -1285,6 +1282,7 @@ through a field rather than an arm (widened at #296's handover, the owner,
 
 - `AffectedSet.players` — **holds** a `PlayerSet`.
 - `PlayerGroup.relation` — **holds** a `PlayerSet`.
+- `PlayerGroup.named` — **holds** a `PlayerRef`: the one player named beside the relation, "you and that player".
 - `HistoryCount.players` — **holds** a `PlayerSet`.
 - `HistoryCount.of` — **holds** an `ObjectFilter`.
 - `Cost::Sacrifice.0` — **holds** an `ObjectFilter`.

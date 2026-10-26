@@ -783,6 +783,10 @@ fn resolve_set_controller(
         PlayerRef::You => Some(players.you()).filter(|&p| still_playing(p)),
         PlayerRef::Player(pid) => Some(*pid).filter(|&p| still_playing(p)),
         PlayerRef::Owner => game.owner_of(object_id).filter(|&p| still_playing(p)),
+        PlayerRef::OwnerOf(Antecedent::ThisObject) => game.owner_of(effect.source).filter(|&p| still_playing(p)),
+        // A resolution settles these to `Player(id)` as the row is written,
+        // and a static names no event's or remembered player.
+        PlayerRef::OwnerOf(_) | PlayerRef::TheEventsPlayer | PlayerRef::ReferredPlayer => None,
         // CR 508.5: an attacking source's defending player. A static has no
         // triggering event, and "defending player" with no creature names no
         // one player.

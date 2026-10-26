@@ -25,7 +25,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::state::game_state::StepType;
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
+use crate::types::effects::{PlayerRef, AmountExpr, Effect, EffectRecipient, Primitive};
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn};
@@ -74,7 +74,7 @@ pub fn final_fortune() -> Arc<CardData> {
     let lose = DelayedTriggerTemplate {
         def: Arc::new(whenever(
             at_beginning_of(StepType::End, Whose::Each),
-            Effect::Atom(Primitive::LoseGame, EffectRecipient::Controller),
+            Effect::Atom(Primitive::LoseGame, EffectRecipient::Player(PlayerRef::You)),
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::ThatExtraTurn,
@@ -88,8 +88,8 @@ pub fn final_fortune() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             Effect::Sequence(vec![
-                Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller),
-                Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(lose)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Player(PlayerRef::You)),
+                Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(lose)), EffectRecipient::Player(PlayerRef::You)),
             ]),
         ))
         .build()
@@ -119,7 +119,7 @@ pub fn blessed_wine() -> Arc<CardData> {
     let draw_next_upkeep = DelayedTriggerTemplate {
         def: Arc::new(whenever(
             at_beginning_of(StepType::Upkeep, Whose::Each),
-            Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::NextTurn,
@@ -132,11 +132,11 @@ pub fn blessed_wine() -> Arc<CardData> {
         .rules_text("You gain 1 life.\nDraw a card at the beginning of the next turn's upkeep.")
         .ability(spell_ability(
             "You gain 1 life.",
-            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         ))
         .ability(spell_ability(
             "Draw a card at the beginning of the next turn's upkeep.",
-            Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(draw_next_upkeep)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(draw_next_upkeep)), EffectRecipient::Player(PlayerRef::You)),
         ))
         .build()
 }

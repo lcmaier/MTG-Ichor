@@ -259,10 +259,8 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
     match r {
         // An instance is never elided, and "you" is one player across the
         // entries the elision compares.
-        EffectRecipient::Implicit
-        | EffectRecipient::Controller
-        | EffectRecipient::SameInstanceAs(_)
-        | EffectRecipient::EachOf(_) => TriggerBindingReads::NONE,
+        EffectRecipient::Implicit | EffectRecipient::SameInstanceAs(_) => TriggerBindingReads::NONE,
+        EffectRecipient::EachOf(group) => group.named.as_ref().map_or(TriggerBindingReads::NONE, player_ref_reads),
         // How many targets, where the text defines it: "where X is the number
         // of cards looked at while scrying this way".
         EffectRecipient::Target(_, count) | EffectRecipient::Choose(_, count) => match count {
@@ -273,9 +271,9 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
         },
         EffectRecipient::Object(Antecedent::ThisObject) | EffectRecipient::Object(Antecedent::ThisObjectsHost) => TriggerBindingReads::SOURCE,
         EffectRecipient::Object(Antecedent::Triggering(p)) => TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*p),
-        EffectRecipient::TriggeringPlayer => TriggerBindingReads::PLAYER,
-        EffectRecipient::AttackedBy(creature) | EffectRecipient::DefendingPlayer(creature) => creature_reads(*creature),
-        EffectRecipient::Referred | EffectRecipient::Object(Antecedent::Referred) => TriggerBindingReads::REFERRED,
+        EffectRecipient::Player(who) => player_ref_reads(who),
+        EffectRecipient::AttackedBy(creature) => creature_reads(*creature),
+        EffectRecipient::Object(Antecedent::Referred) => TriggerBindingReads::REFERRED,
         EffectRecipient::Group(members) => members.iter().fold(TriggerBindingReads::NONE, |reads, member| reads | recipient_reads(member)),
         EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter_reads(among),
         EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient_reads(&choice.chooser), |reads, pick| {
@@ -336,7 +334,9 @@ fn player_ref_reads(p: &PlayerRef) -> TriggerBindingReads {
     match p {
         PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) | PlayerRef::AnyDefendingPlayer => TriggerBindingReads::NONE,
         PlayerRef::Owner => TriggerBindingReads::SOURCE,
-        PlayerRef::DefendingPlayer(creature) => creature_reads(*creature),
+        PlayerRef::DefendingPlayer(creature) | PlayerRef::OwnerOf(creature) => creature_reads(*creature),
+        PlayerRef::TheEventsPlayer => TriggerBindingReads::PLAYER,
+        PlayerRef::ReferredPlayer => TriggerBindingReads::REFERRED,
     }
 }
 

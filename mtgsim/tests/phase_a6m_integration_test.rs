@@ -480,13 +480,14 @@ fn test_an_or_with_a_powerless_arm_beside_a_true_one_is_true() {
     assert_eq!(sacrifice(&mut game, treasure), Zone::Exile);
 }
 
-/// Xantcha's "planeswalkers its owner controls": in a filter, `Owner` is the
-/// source's owner (`PlayerRef::Owner`'s own doc). The selection side read it
-/// as the tested object's owner, and `ByOwner(Owner)` as always true.
+/// Xantcha's "planeswalkers its owner controls": in a filter, "its owner" is
+/// the source's owner (`PlayerRef::OwnerOf`'s own doc). The selection side
+/// once read it as the tested object's owner, and `ByOwner` of it as always
+/// true.
 #[test]
 fn test_owner_in_an_affected_set_is_the_sources_owner() {
     // Player 0 owns each effect's source; player 1 controls it.
-    let controlled_by_its_owner = creature_and(ObjectFilter::ByController(PlayerRef::Owner));
+    let controlled_by_its_owner = creature_and(ObjectFilter::ByController(PlayerRef::OwnerOf(Antecedent::ThisObject)));
     let mut game = setup_two_player_game();
     put_on_battlefield_under(&mut game, exiler(controlled_by_its_owner, None, None), 0, 1);
     let stolen = put_on_battlefield_under(&mut game, vanilla_creature(2, 2, &[]), 1, 0);
@@ -495,7 +496,7 @@ fn test_owner_in_an_affected_set_is_the_sources_owner() {
     assert_eq!(sacrifice(&mut game, stolen), Zone::Exile, "player 0 controls it");
     assert_eq!(sacrifice(&mut game, theirs), Zone::Graveyard, "its own owner controls it, and that is not player 0");
 
-    let owned_by_its_owner = creature_and(ObjectFilter::ByOwner(PlayerRef::Owner));
+    let owned_by_its_owner = creature_and(ObjectFilter::ByOwner(PlayerRef::OwnerOf(Antecedent::ThisObject)));
     let mut game = setup_two_player_game();
     put_on_battlefield_under(&mut game, exiler(owned_by_its_owner, None, None), 0, 1);
     let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -510,7 +511,7 @@ fn test_owner_in_an_affected_set_is_the_sources_owner() {
 #[test]
 fn test_a_cause_its_owner_controls_is_the_sources_owner() {
     let mut game = setup_two_player_game();
-    let by_its_owner = Some(SourceFilter::ControlledBy(PlayerRef::Owner));
+    let by_its_owner = Some(SourceFilter::ControlledBy(PlayerRef::OwnerOf(Antecedent::ThisObject)));
     put_on_battlefield_under(&mut game, exiler(creature_and(ObjectFilter::All), None, by_its_owner), 0, 1);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 

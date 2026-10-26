@@ -295,7 +295,7 @@ fn martyr() -> Arc<CardData> {
 fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
     let mut game = stocked(2);
     let gains_its_power = Effect::Sequence(vec![
-        Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::DamageSource)), EffectRecipient::Controller),
+        Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::DamageSource)), EffectRecipient::Player(PlayerRef::You)),
         a_counter_on(EffectRecipient::Object(Antecedent::Triggering(EventRole::DamageSource))),
     ]);
     let dealt_damage_by_a_creature = TriggerEvent::DamageDealt {
@@ -379,7 +379,7 @@ fn them_over_entries_is_each_creature_still_there() {
         multiplicity: Multiplicity::OncePerEvent,
     };
     put_on_battlefield(&mut game, watcher("Fixture Muster Hall", enters, on_each), 0);
-    let two_soldiers = Effect::Atom(Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let two_soldiers = Effect::Atom(Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You));
     resolve_as(&mut game, 0, &two_soldiers, Vec::new());
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     let soldiers: Vec<ObjectId> = game
@@ -446,7 +446,7 @@ fn a_look_back_filter_counts_the_counters_it_died_with() {
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::WithCounters { kind: Some(CounterType::PlusOnePlusOne), count: CountIs::AtLeast(1) }),
     );
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Controller);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Player(PlayerRef::You));
     put_on_battlefield(&mut game, watcher("Fixture Wake", dies(TriggerSubject::Filter(with_a_counter)).into(), gain), 0);
     let countered = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let bare = put_on_battlefield(&mut game, grizzly_bears(), 0);
@@ -480,7 +480,7 @@ fn an_intervening_if_counts_every_kind_of_counter_it_had() {
         condition: TriggerCondition::Event(leaves.into()),
         intervening_if: Some(had_counters),
         limit: None,
-        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
+        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You)),
     };
     put_on_battlefield(
         &mut game,

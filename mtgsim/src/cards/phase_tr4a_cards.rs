@@ -153,7 +153,7 @@ pub fn compost() -> Arc<CardData> {
     };
     let may_draw = Effect::Optional {
         chooser: PlayerRef::You,
-        effect: Box::new(Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller)),
+        effect: Box::new(Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You))),
     };
     CardDataBuilder::new("Compost")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))

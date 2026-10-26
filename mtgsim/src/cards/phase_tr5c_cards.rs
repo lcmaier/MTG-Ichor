@@ -16,7 +16,7 @@ use crate::cards::authoring::{becomes_the_target_of, blocks_a_creature, triggere
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Antecedent, ObjectFilter, AmountExpr, Effect, EffectRecipient, Primitive};
+use crate::types::effects::{PlayerRef, Antecedent, ObjectFilter, AmountExpr, Effect, EffectRecipient, Primitive};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, TargetedBy, TriggerSubject};
 
@@ -82,7 +82,7 @@ pub fn cephalid_aristocrat() -> Arc<CardData> {
             text,
             whenever(
                 becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, None),
-                Effect::Atom(Primitive::Mill(AmountExpr::Fixed(2)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::Mill(AmountExpr::Fixed(2)), EffectRecipient::Player(PlayerRef::You)),
             ),
         ))
         .build()
