@@ -23,7 +23,8 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
 use mtgsim::types::replacement::{
-    AmountRewrite, AuxiliaryMove, EnterModsTemplate, EntryCountersTemplate, EventPattern, PerChosen, ReplacementDef,
+    AmountRewrite, AuxiliaryMove, EnterModsTemplate, EntryCountersTemplate, EventPattern, GameActionTemplate, PerChosen,
+    ReplacementDef,
     Rewrite,
 };
 use mtgsim::types::triggers::TriggerSubject;
@@ -340,6 +341,45 @@ fn two_shocklands_entering_together_cannot_both_be_paid_for_at_three_life() {
     let entered = batch_of(&|e| matches!(e, GameEvent::PermanentEnteredBattlefield { .. }));
     assert_eq!(paid.len(), 1);
     assert!(entered.iter().all(|b| *b != paid[0]), "the payment is its own event: {paid:?} {entered:?}");
+}
+
+/// A shockland token that also says "if this land would enter, exile it
+/// instead", printed after the choice, so the choice applies first.
+fn vanishing_shockland_token() -> TokenDef {
+    let mut token = shockland_token();
+    token.abilities.push(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        EventPattern::EnterBattlefield { cast: None },
+        ObjectSet::SourceOnly,
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
+    )))));
+    token
+}
+
+/// Two enter at once at 3 life. The first's payment is chosen, then its own
+/// exile replaces its entry: the entry never happens, and neither does the
+/// payment (CR 614.6), so it is no cost chosen for CR 614.12b and the second
+/// land's payment is offered too.
+#[test]
+fn a_payment_whose_entry_never_happens_is_no_cost_chosen() {
+    let mut game = setup_two_player_game();
+    game.players[0].life_total = 3;
+    let placeholder = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let dp = test_dp();
+    dp.expect_pick_n(the_offer(placeholder), vec![0]);
+    dp.expect_pick_n(the_offer(placeholder), vec![0]);
+
+    game.execute_action(
+        GameAction::CreateTokens {
+            defs: vec![vanishing_shockland_token(), vanishing_shockland_token()],
+            controller: 0,
+            attacking: None,
+        },
+        &ActionContext::new(&dp),
+    )
+    .expect("the tokens are created");
+
+    assert!(dp.is_empty(), "both payments were offered: {:?}", dp.asked());
+    assert_eq!(game.players[0].life_total, 3, "neither entry happened, so neither payment did");
 }
 
 /// At exactly 2 life the payment is still payable (CR 119.4), and paying it

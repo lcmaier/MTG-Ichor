@@ -1209,6 +1209,7 @@ impl GameState {
             // CR 704.7's dedupe left one member per subject, so the group's cause
             // is its member's. No group is empty; `ctx.cause` only spares an index.
             let group_ctx = ctx.caused_by(group.first().map_or(ctx.cause, |m| m.cause));
+            let costs_before = self.entry_selection.costs_chosen.len();
             let decided = apply_replacements(self, group, later, &group_ctx, inherited, &mut riders)
                 .and_then(|()| self.decide_destruction_moves(group, later, ctx, &mut riders))
                 .map(|()| self.decide_entry_attacks(group, ctx));
@@ -1216,7 +1217,7 @@ impl GameState {
                 decided_ok = Err(e);
                 break;
             }
-            self.attach_before_entering(group);
+            self.attach_before_entering(group, costs_before);
         }
         let before_entering_window = self.entry_selection.before_entering_window;
         self.entry_selection = outer_selection;
@@ -1232,14 +1233,17 @@ impl GameState {
 
     /// What `group`'s CR 616.1 loop decided to happen right before its entry,
     /// onto that entry. An entry the loop stopped or turned into another
-    /// event never happens as an entry, and neither do they (CR 614.6).
-    fn attach_before_entering(&mut self, group: &mut [BatchMember]) {
+    /// event never happens as an entry, and neither do they (CR 614.6), nor
+    /// is a payment among them a cost chosen for CR 614.12b: the costs the
+    /// loop chose, those after `costs_before`, go with them.
+    fn attach_before_entering(&mut self, group: &mut [BatchMember], costs_before: usize) {
         let before = std::mem::take(&mut self.entry_selection.before_entering);
         if before.is_empty() {
             return;
         }
-        if let Some(entry) = group.iter_mut().find(|m| matches!(m.event, Some(GameAction::EnterBattlefield { .. }))) {
-            entry.before_entering.absorb(before);
+        match group.iter_mut().find(|m| matches!(m.event, Some(GameAction::EnterBattlefield { .. }))) {
+            Some(entry) => entry.before_entering.absorb(before),
+            None => self.entry_selection.costs_chosen.truncate(costs_before),
         }
     }
 
