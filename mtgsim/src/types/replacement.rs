@@ -1285,7 +1285,10 @@ pub struct AuxiliaryMove {
     pub per_chosen: Option<(CounterType, PerChosen)>,
 }
 
-/// How many counters an [`AuxiliaryMove`] gives per object moved.
+/// How many counters any CR 614.13 move ([`AuxiliaryMove`]) gives the
+/// entering permanent per object moved: devour N's N, Shimatsu the
+/// Bloodcloaked's one per permanent sacrificed, Thromok the Insatiable's
+/// count itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PerChosen {
     /// Devour N's N (CR 702.82a).

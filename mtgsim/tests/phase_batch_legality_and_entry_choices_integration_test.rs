@@ -401,10 +401,12 @@ fn vanishing_shockland_token() -> TokenDef {
     token
 }
 
-/// Two enter at once at 3 life. The first's payment is chosen, then its own
-/// exile replaces its entry: the entry never happens, and neither does the
-/// payment (CR 614.6), so it is no cost chosen for CR 614.12b and the second
-/// land's payment is offered too.
+/// Two lands enter in one event at 3 life, and their choices are made one
+/// land at a time before either enters (CR 616.1, 614.12a). The first land's
+/// controller chooses to pay; then that land's own exile replaces its entry,
+/// so it never enters and its payment never happens (CR 614.6). The second
+/// land's choice, made next, has no cost already chosen beside it (CR
+/// 614.12b), so its payment is offered too.
 #[test]
 fn a_payment_whose_entry_never_happens_is_no_cost_chosen() {
     let mut game = setup_two_player_game();

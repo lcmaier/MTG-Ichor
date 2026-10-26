@@ -1989,7 +1989,7 @@ CR 614.6 drops is no sacrifice). The decided moves ride on their entry
 under that id ahead of its entries, then dispatches it. Until then a chosen
 object is where it was, so its own effects still apply to the entry: a
 devoured Master Biomancer still gives the devourer its counters (CR 616.1f;
-the reading the owner was asked to confirm at #294). An entry the loop
+confirmed by the owner at #294's review). An entry the loop
 stopped or replaced never happens, and neither do its moves, nor is its
 payment a cost chosen for CR 614.12b. A second caller
 of the fresh id needs the rule that says its events are not a result of the

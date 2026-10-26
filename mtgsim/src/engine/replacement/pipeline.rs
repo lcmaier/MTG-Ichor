@@ -3024,12 +3024,19 @@ fn redirection_is_legal(game: &GameState, to: ObjectOrPlayerId, from: ObjectOrPl
     destination_ok && origin_ok
 }
 
-/// CR 702.104a's choices as an entry applies, for each counters row that has
-/// one: which opponent puts them, where the effect names "an opponent" among
-/// several (asked of the effect's controller), and whether a putter who may
-/// decline puts them (asked of that putter, once the count is known).
+/// The choices an entry's counters rows can carry (CR 122.6a), made as the
+/// effect applies: which opponent puts a row's counters, where the effect
+/// names "an opponent" and there is more than one (asked of the effect's
+/// controller), and whether a putter who may decline puts them (asked of
+/// that putter, once the count is known). Tribute has both (CR 702.104a);
+/// any effect may write either. A row naming no putter needs no choice: its
+/// counters are put on by the controller the permanent enters under, so
+/// "enters under an opponent's control with two counters" is decided by the
+/// control choice alone.
+///
 /// Returns the template with each such putter named and each declined row
-/// gone; with no row that chooses, the template itself.
+/// gone. Nearly every entry's rows choose nothing, so it borrows the
+/// template then, and only an entry that chooses pays for a copy.
 fn entry_counter_choices<'t>(
     game: &GameState,
     ctx: &ActionContext,

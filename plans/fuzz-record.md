@@ -131,9 +131,9 @@ looked again; here nothing performs until phase 1 ends (#293's decision 2,
 still there and applies. Game 83's divergence reads in the 200-game dump;
 game 145, whose dump loses its names to a player eliminated at its end, was
 replayed alone at seed 12489 under a 28-turn cap. Whether a devoured
-permanent's replacement should still apply is put to the owner in the PR
-(CR 616.1f, 614.13a; Master Biomancer's ruling reads its power "as that
-creature is entering"). The cost rows move by those games and by the devour
+permanent's replacement should still apply was put to the owner, who
+confirmed it at #294's review (CR 616.1f, 614.13a). The cost rows move by
+those games and by the devour
 window's frames.
 
 

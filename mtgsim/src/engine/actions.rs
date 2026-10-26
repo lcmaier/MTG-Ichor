@@ -1001,18 +1001,23 @@ impl GameState {
         self.dispatch_after_batch(result, mark, window, ctx)
     }
 
-    /// CR 614.13's moves, or the life CR 614.12b's payment loses, decided as
-    /// the entry replacement that chose them applies and held for the
-    /// entering batch to perform right before its entries
-    /// ([`JustBeforeEntry`]). Returns how many will be performed: a move a
-    /// replacement drops (CR 614.6) is no creature sacrificed, and one it
-    /// redirects still is, which is devour's count (CR 701.21a, 702.82a).
+    /// The sacrifices devour just chose, or the 2 life a shockland's
+    /// controller just chose to pay: each is put through its own CR 616.1
+    /// loop now, so every replacement that watches it has had its say (a
+    /// finality counter exiling a devoured creature), and held, decided but
+    /// not performed, for the batch to perform immediately before its entries
+    /// ([`JustBeforeEntry`]). Nothing moves and no life is lost here.
     ///
-    /// Decided under the batch id they perform under, opened by the batch's
-    /// first, so every entry's moves are one event (Thunder-Thrash Elder's
-    /// ruling) and the CR 616.1 loops that decided them are traced with it.
-    /// Each move is contained in the entry, not a finer grain of it, so it
-    /// starts a fresh applied set.
+    /// Returns how many of `moves` will happen, which is the count devour
+    /// multiplies: a move a replacement prevented (CR 614.6) sacrifices no
+    /// creature, and one it redirected still sacrifices it (CR 701.21a,
+    /// 702.82a). A payment's count goes unread.
+    ///
+    /// Every entry's held events of one batch are one event (Thunder-Thrash
+    /// Elder's ruling), so they share one batch id: the first opens it and
+    /// the rest use it again, and the loops that decided them are traced
+    /// under the event they make. Each starts a fresh applied set, being
+    /// contained in the entry rather than a finer grain of it.
     pub(crate) fn decide_just_before_entry(&mut self, moves: Vec<GameAction>, ctx: &ActionContext) -> Result<u32, String> {
         // AUXILIARY-MOVE: CR 614.13's moves are no result of the entry; they
         // happen right before it, so they are an event of their own
