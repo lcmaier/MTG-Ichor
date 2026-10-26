@@ -80,7 +80,9 @@ floor, which the owner accepted for the split.
 2. **Folded into 1** at the first review round.
 
 3. **Item 61: devour's moves are their own event, right before the entry,
-   inside the entering batch.** Revised at both review rounds. Nothing
+   inside the entering batch.** **Settled: (a)** (the owner, at #294's
+   fourth round, 2026-10-26), after a revision at each of the first three
+   rounds. Nothing
    moves in phase 1 after this PR. Today `apply_auxiliary_move` performs the
    sacrifices in a nested batch while phase 1 is still deciding (`pipeline.rs`,
    its `execute_actions_new_batch` call). RC-5 did that because the entering
