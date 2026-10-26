@@ -134,7 +134,7 @@ fn anthem_bear() -> Arc<CardData> {
                 AmountExpr::Fixed(1),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            EffectRecipient::filtered_permanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
@@ -233,7 +233,7 @@ fn every_permanent(name: &str, change: TypeChange) -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::ChangeType(change, Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::All),
+            EffectRecipient::filtered_permanents(ObjectFilter::All),
         )))
         .build()
 }

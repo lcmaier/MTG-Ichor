@@ -721,7 +721,7 @@ fn pump_until_your_next_turn(game: &mut GameState, creature: ObjectId, controlle
         // The instance the context below announces. `Implicit` names no
         // instance of "target" and would read nothing (CR 601.2c).
         EffectRecipient::Target(
-            mtgsim::types::effects::SelectionFilter::Creature,
+            mtgsim::types::effects::SelectionFilter::creature(),
             mtgsim::types::effects::TargetCount::Exactly(1),
         ),
     );

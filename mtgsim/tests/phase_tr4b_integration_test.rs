@@ -87,7 +87,7 @@ fn existence(game: &GameState, id: ObjectId) -> ObjectRef {
 /// 2/2 creature, with `keywords` — March of the Machines' shape on a
 /// creature that can die in a state-based check.
 fn animator(subtype: Subtype, keywords: &[KeywordFlag]) -> Arc<CardData> {
-    let animated = EffectRecipient::FilteredPermanents(ObjectFilter::BySubtype(subtype));
+    let animated = EffectRecipient::filtered_permanents(ObjectFilter::BySubtype(subtype));
     let creature = TypeChange { add_types: vec![CardType::Creature], ..TypeChange::NONE };
     let mut effects = vec![
         Effect::Atom(Primitive::ChangeType(creature, Duration::WhileSourceOnBattlefield), animated.clone()),
@@ -706,7 +706,7 @@ fn control_aura() -> Arc<CardData> {
     CardDataBuilder::new("Probe Control Aura")
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .ability(static_ability(Effect::Atom(
             Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
             EffectRecipient::Object(Antecedent::ThisObjectsHost),
@@ -890,7 +890,7 @@ fn grafted_wargear_whose_creature_left_triggers_and_sacrifices_nothing() {
 fn grafted_wargear_does_not_sacrifice_its_creature_after_it_returned() {
     let mut game = setup_two_player_game();
     let (wargear, first, _) = wargear_on_bears(&mut game);
-    let exile_it = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
+    let exile_it = EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1));
     let flicker = Effect::Sequence(vec![
         Effect::Atom(Primitive::Exile, exile_it.clone()),
         Effect::Atom(

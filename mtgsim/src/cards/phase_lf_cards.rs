@@ -43,7 +43,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// including a Tarmogoyf, whose CDA dies in Layer 6 before Layer 7a can read
 /// it — is what the tests here exercise.
 pub fn humility() -> Arc<CardData> {
-    let creatures = EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature));
+    let creatures = EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature));
 
     CardDataBuilder::new("Humility")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 2))
@@ -139,7 +139,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
                     std::sync::Arc::new(granted),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                EffectRecipient::filtered_permanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),

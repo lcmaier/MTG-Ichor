@@ -355,7 +355,7 @@ fn anthem_bear() -> Arc<CardData> {
         .power_toughness(2, 2)
         .ability(static_ability(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(creatures_you_control()),
+            EffectRecipient::filtered_permanents(creatures_you_control()),
         )))
         .build()
 }

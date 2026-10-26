@@ -197,11 +197,11 @@ pub fn elvish_warmaster() -> Arc<CardData> {
         effect: Effect::Sequence(vec![
             Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::UntilEndOfTurn),
-                EffectRecipient::FilteredPermanents(elves_you_control()),
+                EffectRecipient::filtered_permanents(elves_you_control()),
             ),
             Effect::Atom(
                 Primitive::GrantKeywordFlag(KeywordFlag::Deathtouch, Duration::UntilEndOfTurn),
-                EffectRecipient::FilteredPermanents(elves_you_control()),
+                EffectRecipient::filtered_permanents(elves_you_control()),
             ),
         ]),
         is_characteristic_defining: false,

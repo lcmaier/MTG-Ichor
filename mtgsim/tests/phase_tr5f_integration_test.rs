@@ -108,7 +108,7 @@ fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, target: O
 
 /// "[Primitive] target creature".
 fn at_target_creature(primitive: Primitive) -> Effect {
-    Effect::Atom(primitive, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)))
+    Effect::Atom(primitive, EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)))
 }
 
 /// Act of Treason's resolution: `thief` gains control of `victim` until end
@@ -514,7 +514,7 @@ fn a_card_from_hand_tapped_and_attacking(game: &mut GameState, player: PlayerId)
             tapped: true,
             attacking: Some(EntersAttacking::Chosen),
         },
-        EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Choose(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     resolve_as(game, player, &puts, card);
     assert_eq!(game.objects[&card].zone, Zone::Battlefield);
@@ -791,7 +791,7 @@ fn a_card_returned_tapped_and_attacking_is_tapped_and_attacking() {
     at(&mut game, StepType::DeclareAttackers);
     let returns = Effect::Atom(
         Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: true, attacking: Some(EntersAttacking::Chosen) },
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     resolve_as(&mut game, 0, &returns, bears);
     assert_eq!(attack_of(&game, bears), Some(AttackTarget::Player(1)));
@@ -811,7 +811,7 @@ fn an_attack_trigger_beside_it_cannot_target_the_tokens() {
         let mut game = stocked(2);
         let counter_on_target = Effect::Atom(
             Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
         );
         let captain = put_on_battlefield(&mut game, on_its_attack("Fixture Captain", counter_on_target), 0);
         let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
@@ -1064,7 +1064,7 @@ fn a_static_naming_what_attacked_this_turn_answers_anew_as_it_attacks() {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(attacked),
+            EffectRecipient::filtered_permanents(attacked),
         )))
         .build();
     put_on_battlefield(&mut game, banner, 0);

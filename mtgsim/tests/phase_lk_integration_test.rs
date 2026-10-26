@@ -174,7 +174,7 @@ fn test_an_anthem_in_a_graveyard_does_not_apply_it() {
                 AmountExpr::Fixed(1),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            EffectRecipient::filtered_permanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),

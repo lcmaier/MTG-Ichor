@@ -9,7 +9,7 @@
 //! | [`aggravated_assault`] | an effect that creates extra phases | 500.8 |
 //!
 //! It is also the first consumer of `Primitive::Untap` with an
-//! `EffectRecipient::FilteredPermanents` — the arm `DealDamage` and
+//! `EffectRecipient::filtered_permanents` — the arm `DealDamage` and
 //! `CreateReplacement` already had. That arm rides in this PR rather than
 //! waiting for a card of its own because this card's own first sentence is
 //! "Untap all creatures you control", and without it the producer would ship
@@ -129,7 +129,7 @@ pub fn aggravated_assault() -> Arc<CardData> {
             effect: Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::Untap,
-                    EffectRecipient::FilteredPermanents(creatures_you_control()),
+                    EffectRecipient::filtered_permanents(creatures_you_control()),
                 ),
                 Effect::Atom(
                     Primitive::ExtraPhases {

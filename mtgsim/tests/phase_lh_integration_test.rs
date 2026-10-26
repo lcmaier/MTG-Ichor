@@ -352,7 +352,7 @@ fn equip(
     if let Some(pick) = pick {
         decisions.expect_pick_n(
             ChoiceKind::SelectRecipients {
-                recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                recipient: EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 spell_id: equipment,
             },
             vec![pick],

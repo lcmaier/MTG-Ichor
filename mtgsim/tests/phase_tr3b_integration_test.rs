@@ -201,7 +201,7 @@ fn pump_totem() -> Arc<CardData> {
             "{T}: Target creature gets +2/+2 until end of turn.",
             Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::UntilEndOfTurn),
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         ))
         .build()
@@ -722,7 +722,7 @@ fn banisher(under: ReturnUnder) -> Arc<CardData> {
                         refers_to: None,
                         under,
                     },
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 ),
             ),
         ))
@@ -752,7 +752,7 @@ fn calix_instant() -> Arc<CardData> {
                     refers_to: Some(EffectRecipient::Target(SelectionFilter::Permanent(yours), TargetCount::Exactly(1))),
                     under: ReturnUnder::Owner,
                 },
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
@@ -1117,7 +1117,7 @@ fn an_until_that_cannot_answer_610_3b_is_refused() {
                 enters(TriggerSubject::Object(Antecedent::ThisObject)),
                 Effect::Atom(
                     Primitive::ExileUntil { until: Box::new(gains), refers_to: None, under: ReturnUnder::Owner },
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 ),
             ),
         ))

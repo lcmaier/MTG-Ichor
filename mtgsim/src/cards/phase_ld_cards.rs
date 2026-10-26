@@ -155,7 +155,7 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
                         },
                         Duration::UntilEndOfTurn,
                     ),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(
                     Primitive::ModifyPowerToughness(
@@ -209,7 +209,7 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
                         },
                         Duration::UntilEndOfTurn,
                     ),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(
                     Primitive::ModifyPowerToughness(
@@ -274,7 +274,7 @@ pub fn blood_moon() -> Arc<CardData> {
                     },
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(nonbasic_land_filter),
+                EffectRecipient::filtered_permanents(nonbasic_land_filter),
             ),
         })
         .build()
@@ -323,7 +323,7 @@ pub fn urborg_effect() -> Arc<CardData> {
                     },
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
+                EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Land)),
             ),
         })
         .build()
@@ -402,7 +402,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
                     crate::types::keywords::KeywordFlag::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
+                EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Land)),
             ),
         })
         .build()
@@ -462,7 +462,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
                         },
                         Duration::WhileSourceOnBattlefield,
                     ),
-                    EffectRecipient::FilteredPermanents(noncreature_artifact.clone()),
+                    EffectRecipient::filtered_permanents(noncreature_artifact.clone()),
                 ),
                 Effect::Atom(
                     Primitive::SetPowerToughness(
@@ -470,7 +470,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
                         AmountExpr::AffectedManaValue,
                         Duration::WhileSourceOnBattlefield,
                     ),
-                    EffectRecipient::FilteredPermanents(noncreature_artifact),
+                    EffectRecipient::filtered_permanents(noncreature_artifact),
                 ),
             ]),
         })
@@ -517,7 +517,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
                     crate::types::keywords::KeywordFlag::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+                EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature)),
             ),
         })
         .build()
@@ -581,7 +581,7 @@ pub fn self_stripping_land() -> Arc<CardData> {
                     },
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(nonbasic_land_filter),
+                EffectRecipient::filtered_permanents(nonbasic_land_filter),
             ),
         })
         .build()

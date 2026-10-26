@@ -394,7 +394,7 @@ fn bears_attack_beside_hellrider() -> (GameState, ObjectId) {
 #[test]
 fn an_attacker_that_left_the_battlefield_still_names_what_it_attacked() {
     let (mut game, bears) = bears_attack_beside_hellrider();
-    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
+    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)));
     resolve_as(&mut game, 1, &destroy, bears);
     assert!(!game.battlefield.contains_key(&bears));
     let before = life(&game, 1);
@@ -527,7 +527,7 @@ fn an_intervening_if_reads_the_defending_player_of_a_creature_that_left() {
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert_eq!(game.stack.len(), 1, "player 3 controls a creature as it attacks");
 
-    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
+    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)));
     resolve_as(&mut game, 1, &destroy, source);
     let before = life(&game, 0);
     resolve_all(&mut game, &test_dp());

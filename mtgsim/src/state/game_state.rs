@@ -2442,9 +2442,6 @@ impl GameState {
             EffectRecipient::FilteredObjectsIn(filter, zones) => {
                 Some(ObjectSet::filter_in(filter.clone(), *zones))
             }
-            EffectRecipient::FilteredPermanents(filter) => {
-                Some(ObjectSet::battlefield_filter(filter.clone()))
-            }
             EffectRecipient::Object(Antecedent::ThisObject) => Some(ObjectSet::SourceOnly),
             // Likewise unresolved: the host is read during the walk, which is
             // what makes it fine that this runs before the Aura is attached.
@@ -2460,7 +2457,7 @@ impl GameState {
                      become an `ObjectSet`. `Target`/`Choose` require a \
                      resolution to select with, and a static ability never \
                      resolves; a `Player` recipient names a player, not a set of \
-                     objects. Use `FilteredPermanents` for \"permanents you \
+                     objects. Use `filtered_permanents` for \"permanents you \
                      control\", or `Object(Antecedent::ThisObject)` for \"this permanent\".",
                     label, recipient
                 );
@@ -2700,7 +2697,7 @@ mod tests {
                     AmountExpr::Fixed(1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+                EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature)),
             )
         }
 
@@ -2722,7 +2719,7 @@ mod tests {
         #[test]
         fn test_filtered_and_implicit_recipients_lower() {
             assert!(GameState::static_object_set(
-                &EffectRecipient::FilteredPermanents(ObjectFilter::All), "T"
+                &EffectRecipient::filtered_permanents(ObjectFilter::All), "T"
             ).is_some());
             assert!(GameState::static_object_set(&EffectRecipient::Object(Antecedent::ThisObject), "T").is_some());
         }
@@ -2794,7 +2791,7 @@ mod tests {
         #[should_panic(expected = "cannot become an `ObjectSet`")]
         fn test_targeting_recipient_on_a_static_is_loud() {
             let _ = GameState::static_object_set(
-                &EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                &EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 "Test Card",
             );
         }

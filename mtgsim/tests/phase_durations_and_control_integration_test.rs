@@ -376,7 +376,7 @@ fn each_player_gains_control_of_what_they_own_object_by_object() {
     let theirs_with_me = put_on_battlefield_under(&mut game, grizzly_bears(), 1, 0);
     let homecoming = Effect::Atom(
         Primitive::GainControl { to: PlayerRef::Owner, duration: Duration::Indefinite },
-        EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+        EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature)),
     );
     let ctx = ResolutionContext {
         source: path,
@@ -403,7 +403,7 @@ fn an_opponent_putting_counters_on_is_chosen_among_two_opponents() {
     let source = put_in_graveyard(&mut game, card_of_type("Fixture Gift of Growth", CardType::Sorcery), 0);
     let gift = Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::Opponent },
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     let ctx = ResolutionContext {
         source,

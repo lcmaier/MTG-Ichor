@@ -102,7 +102,7 @@ pub fn cytoshape() -> Arc<CardData> {
                     except: Vec::new(),
                     duration: Duration::UntilEndOfTurn,
                 },
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .build()
@@ -341,7 +341,7 @@ pub fn clone() -> Arc<CardData> {
                     EventPattern::EnterBattlefield { cast: None },
                     ObjectSet::SourceOnly,
                     Rewrite::EnterAsCopy(EntryCopyTemplate {
-                        donor: CopyDonor::Chosen(SelectionFilter::Creature),
+                        donor: CopyDonor::Chosen(SelectionFilter::creature()),
                         except: Vec::new(),
                     }),
                 )

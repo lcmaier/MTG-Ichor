@@ -1009,7 +1009,10 @@ pub enum EffectRecipient {
     /// APNAP order at resolution. A draw instruction to several players is
     /// performed one player at a time in that order (CR 121.2c).
     EachOf(PlayerGroup),
-    /// Filter-based recipient: every permanent matching the filter.
+    /// Every object matching the filter, in any of the named zones: "each
+    /// creature", built by [`Self::filtered_permanents`] for the battlefield,
+    /// Yixlid Jailer's "cards in graveyards", Mycosynth Lattice's "all cards
+    /// that aren't on the battlefield".
     ///
     /// Read by the ETB hook to register a static ability's continuous effect,
     /// and at **resolution**, where every primitive receives the permanents the
@@ -1027,24 +1030,15 @@ pub enum EffectRecipient {
     /// spell is cast), and filling the targets would change what this variant
     /// means to the static-ability path that shares it.
     ///
-    /// Use `ByController(PlayerSet::You)` in the filter to express "you control".
-    /// The filter is stored verbatim; `compute::object_matches_filter`
-    /// resolves the `PlayerRef` during the layer walk (CR 109.5).
-    FilteredPermanents(ObjectFilter),
-    /// Every object matching the filter, in any of the named zones — Yixlid
-    /// Jailer's "cards in graveyards", Mycosynth Lattice's "all cards that
-    /// aren't on the battlefield".
+    /// Use `ByController(PlayerSet::You)` in the filter to express "you
+    /// control". The filter is stored verbatim; `compute::object_matches_filter`
+    /// resolves the set during the layer walk (CR 109.5).
     ///
-    /// **The general form; [`Self::FilteredPermanents`] is the battlefield
-    /// spelling and stays the one to use for permanents**, exactly as
-    /// [`ObjectSet::filter`] is the battlefield spelling of
-    /// [`ObjectSet::filter_in`] one layer down. They lower through the same
-    /// function to the same value, so there is nowhere for them to disagree.
-    ///
-    /// **Static abilities only.** A resolution primitive that sweeps this
-    /// would need a zone sweep at resolution time, and no printed card asks
-    /// for one, so `resolve.rs` refuses it by name rather than falling into a
-    /// catch-all — an arm the engine cannot apply is worse than a missing one.
+    /// **Another zone than the battlefield is static abilities' only.** A
+    /// resolution that swept one would need a zone sweep at resolution time,
+    /// and no printed card asks for one, so `resolve.rs` refuses it once,
+    /// before any primitive reads it — an arm the engine cannot apply is
+    /// worse than a missing one.
     FilteredObjectsIn(ObjectFilter, ZoneSet),
     /// "Destroy that creature and this creature" (Loyal Sentry), "destroy it
     /// and all creatures it blocked this turn": each member found as it would
@@ -1061,6 +1055,14 @@ pub enum EffectRecipient {
     /// one slot per axis the printed cards vary on (`triggers-architecture.md`
     /// §12, TR-2b's decision 4).
     ChosenBy(Box<Choice>),
+}
+
+impl EffectRecipient {
+    /// "Each [permanent]": every permanent matching the filter, the
+    /// battlefield's [`Self::FilteredObjectsIn`].
+    pub fn filtered_permanents(filter: ObjectFilter) -> EffectRecipient {
+        EffectRecipient::FilteredObjectsIn(filter, ZoneSet::BATTLEFIELD)
+    }
 }
 
 /// A choice made as an effect applies ([`EffectRecipient::ChosenBy`]).
@@ -1122,13 +1124,12 @@ pub enum PickCount {
 /// Shared by both `Target` and `Choose` variants of `EffectRecipient`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SelectionFilter {
-    /// Creature on the battlefield
-    Creature,
     /// Player
     Player,
     /// "any target" — creature, player, or planeswalker
     Any,
-    /// Permanent matching a filter
+    /// Permanent matching a filter; "target creature" is
+    /// [`Self::creature`].
     Permanent(ObjectFilter),
     /// Spell on the stack
     Spell,
@@ -1156,6 +1157,13 @@ pub enum SelectionFilter {
     /// `game-formats`'s (`codebase-state.md` item 99), and `ATOM-609.7a-001` is
     /// `COVERS-PARTIAL` for it.
     DamageSource,
+}
+
+impl SelectionFilter {
+    /// "Target creature": a permanent that is a creature.
+    pub fn creature() -> SelectionFilter {
+        SelectionFilter::Permanent(ObjectFilter::ByType(crate::types::card_types::CardType::Creature))
+    }
 }
 
 /// Which phase a [`Primitive::ExtraPhases`] run follows (CR 500.8's
@@ -2120,7 +2128,7 @@ pub enum Primitive {
     /// **What the resolution fills in follows [`Self::Regenerate`] and
     /// [`Self::Restrict`].** With a `Target`/`Choose` recipient, one row per
     /// resolved target, the authored empty `Fixed` filled with that object or
-    /// player. With a `FilteredPermanents` recipient, one row per matching
+    /// player. With a `filtered_permanents` recipient, one row per matching
     /// permanent at resolution — CR 615.11's "creates a prevention shield for
     /// each applicable creature when the spell or ability … resolves", so a
     /// creature that enters afterwards has none. With an `Implicit` recipient,

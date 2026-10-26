@@ -141,7 +141,7 @@ pub fn giant_growth() -> Arc<CardData> {
                     AmountExpr::Fixed(3),
                     Duration::UntilEndOfTurn,
                 ),
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .build()

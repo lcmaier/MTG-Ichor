@@ -111,7 +111,7 @@ pub fn wonder() -> Arc<CardData> {
                         KeywordFlag::Flying,
                         Duration::WhileSourceOnBattlefield,
                     ),
-                    EffectRecipient::FilteredPermanents(creatures_you_control()),
+                    EffectRecipient::filtered_permanents(creatures_you_control()),
                 )),
             )),
         )))
@@ -169,7 +169,7 @@ pub fn exiled_ancestor() -> Arc<CardData> {
                     crate::types::effects::AmountExpr::Fixed(1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(creatures_you_control()),
+                EffectRecipient::filtered_permanents(creatures_you_control()),
             )),
         )))
         .build()

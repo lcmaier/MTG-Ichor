@@ -182,7 +182,7 @@ fn a_cast_from_hand_with_exact_mana_replays() {
     let tap = state.objects[&mountain].card_data.abilities[0].id;
     let caster = ScriptedDecisionProvider::new();
     caster.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt))]);
-    let target = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
+    let target = EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1));
     caster.expect_choice(ChoiceKind::SelectRecipients { recipient: target, spell_id: bolt }, vec![ChoiceOption::Object(bears)]);
     let window = ChoiceKind::ManaAbilityWindow { spell_or_ability_id: bolt, remaining_cost: ManaCost::build(&[ManaType::Red], 0) };
     caster.expect_choice(window, vec![ChoiceOption::Action(PriorityAction::ActivateAbility(mountain, tap))]);

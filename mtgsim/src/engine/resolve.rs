@@ -368,11 +368,16 @@ impl GameState {
                     self.this_object(ctx).map(ObjectOrPlayerId::Object).into_iter().collect();
                 self.resolve_primitive(primitive, recipient, &this, ctx, dp, walk)
             }
+            // A zone other than the battlefield is a static ability's: no
+            // resolution sweeps one, so every primitive is spared the refusal.
+            Effect::Atom(_, recipient @ EffectRecipient::FilteredObjectsIn(_, zones)) if *zones != ZoneSet::BATTLEFIELD => {
+                Err(format!("{recipient:?} on {:?} sweeps a zone other than the battlefield, which only a static ability's set reaches", ctx.source))
+            }
             // "Each [permanent]": every permanent the filter matches as the
             // instruction applies (CR 611.2c's set), handed to the primitive as
             // the objects it acts on in one instruction (CR 608.2f), so a
             // primitive that reads only its objects reaches them too.
-            Effect::Atom(primitive, recipient @ EffectRecipient::FilteredPermanents(_)) => {
+            Effect::Atom(primitive, recipient @ EffectRecipient::FilteredObjectsIn(..)) => {
                 let each: Vec<ObjectOrPlayerId> =
                     self.affected_permanents(recipient, &[], ctx).into_iter().map(ObjectOrPlayerId::Object).collect();
                 self.resolve_primitive(primitive, recipient, &each, ctx, dp, walk)
@@ -575,20 +580,12 @@ impl GameState {
 
             // **One batch, however many things it hits**: CR 615.7's "two or more
             // applicable sources" and CR 603.2c's "one or more" read the batch
-            // (`CLAUDE.md`). `FilteredPermanents` is "every permanent matching this
+            // (`CLAUDE.md`). A filtered sweep is "every permanent matching this
             // **now**", resolved here and ordered for the CR 616.1 prompt and the log.
             Primitive::DealDamage { amount: amount_expr, unpreventable } => {
                 let amount = self.evaluate_amount(amount_expr, ctx, None)?;
                 let targets: Vec<ObjectOrPlayerId> = match recipient {
-                    // CR 120.1 — damage is dealt to permanents and players, so
-                    // a zone-reaching recipient has nothing to be dealt to.
-                    EffectRecipient::FilteredObjectsIn(..) => {
-                        return Err(format!(
-                            "a `Primitive::DealDamage` on {:?} has a zone-reaching recipient (CR 120.1)",
-                            ctx.source
-                        ));
-                    }
-                    EffectRecipient::FilteredPermanents(filter) => self
+                    EffectRecipient::FilteredObjectsIn(filter, _) => self
                         .battlefield_ids_ordered()
                         .into_iter()
                         .filter(|&id| self.matches_for_effect(id, filter, ctx))
@@ -1045,11 +1042,11 @@ impl GameState {
             }
 
             Primitive::Untap => {
-                // CR 701.26b. `FilteredPermanents` is resolved now, as `DealDamage`'s
+                // CR 701.26b. A filtered sweep is resolved now, as `DealDamage`'s
                 // is, and ordered: stun counters (CR 122.1d) make two effects want one
                 // untap, so the members reach a CR 616.1 prompt.
                 let ids: Vec<ObjectId> = match recipient {
-                    EffectRecipient::FilteredPermanents(filter) => self
+                    EffectRecipient::FilteredObjectsIn(filter, _) => self
                         .battlefield_ids_ordered()
                         .into_iter()
                         .filter(|&id| self.matches_for_effect(id, filter, ctx))
@@ -1307,7 +1304,7 @@ impl GameState {
             // `Effect::Replacement` with a duration: the card authors the def and the
             // duration, the resolution supplies targets, controller (CR 611.2c) and
             // turn. The recipient says when the set is fixed: `Target`, `Choose` and
-            // `FilteredPermanents` now, one row each (CR 615.11, Samite
+            // `filtered_permanents` now, one row each (CR 615.11, Samite
             // Censer-Bearer's ruling); `Implicit` at each event (Safe Passage's).
             // Per-target shapes author an empty `Fixed`, as `Restrict` does.
             Primitive::CreateReplacement(def, duration, pattern_fill) => {
@@ -1399,15 +1396,8 @@ impl GameState {
                     }
                     // CR 615.11 — one row per applicable *permanent*, fixed at resolution and
                     // ordered because the rows are offered to CR 616.1 prompts in registration
-                    // order. A row on a card in another zone is §3.3 source 2 and needs
-                    // CR 113.6 (`roadmap-v2.md` A5) before it could fire.
-                    EffectRecipient::FilteredObjectsIn(..) => {
-                        return Err(format!(
-                            "a `Primitive::CreateReplacement` on {:?} has a zone-reaching recipient; see roadmap-v2.md A5",
-                            ctx.source
-                        ));
-                    }
-                    EffectRecipient::FilteredPermanents(filter) => {
+                    // order.
+                    EffectRecipient::FilteredObjectsIn(filter, _) => {
                         debug_assert!(
                             authored_empty,
                             "a `Primitive::CreateReplacement` on {:?} with a filter \
@@ -1429,7 +1419,7 @@ impl GameState {
                             return Err(format!(
                                 "a `Primitive::CreateReplacement` on {:?} names no target, \
                                  no filter and no player, so its row could never apply. \
-                                 Give it a `Target` recipient, a `FilteredPermanents` \
+                                 Give it a `Target` recipient, a `FilteredObjectsIn` \
                                  recipient, or an `ObjectSet::Filter`/`PlayerSet` of \
                                  its own.",
                                 ctx.source
@@ -1491,8 +1481,8 @@ impl GameState {
                         // arriving later is in it (Magmatic Chasm's ruling). One
                         // row whose set is the filter, asked of each query with
                         // this row's controller and source.
-                        EffectRecipient::FilteredPermanents(filter) => {
-                            rows.push(fill(ObjectSet::battlefield_filter(filter.clone())));
+                        EffectRecipient::FilteredObjectsIn(filter, zones) => {
+                            rows.push(fill(ObjectSet::filter_in(filter.clone(), *zones)));
                         }
                         _ => {
                             for object in self.affected_permanents(recipient, targets, ctx) {
@@ -1640,7 +1630,7 @@ impl GameState {
                 // A filter names permanents (Mob Rule); a target may also be a
                 // spell, which has a controller too (CR 108.4).
                 let affected = match recipient {
-                    EffectRecipient::FilteredPermanents(_) => self.affected_permanents(recipient, targets, ctx),
+                    EffectRecipient::FilteredObjectsIn(..) => self.affected_permanents(recipient, targets, ctx),
                     _ => self.collect_permanent_or_spell_targets(targets),
                 };
                 // Nothing to take is no choice of who takes it.
@@ -1704,9 +1694,7 @@ impl GameState {
                     EffectRecipient::EachOf(_) | EffectRecipient::ChosenBy(_) => {
                         return Err(format!("{:?} on a `Primitive::ShuffleLibrary` is not built", recipient));
                     }
-                    EffectRecipient::FilteredPermanents(_)
-                    | EffectRecipient::FilteredObjectsIn(..)
-                    | EffectRecipient::Object(Antecedent::ThisObjectsHost) => {
+                    EffectRecipient::FilteredObjectsIn(..) | EffectRecipient::Object(Antecedent::ThisObjectsHost) => {
                         return Err(format!(
                             "a `Primitive::ShuffleLibrary` on {:?} has a filter recipient, \
                              and a library is a player's, not an object's",
@@ -2483,7 +2471,7 @@ impl GameState {
             EffectRecipient::Object(Antecedent::Triggering(_) | Antecedent::Referred)
             | EffectRecipient::Player(PlayerRef::TheEventsPlayer)
             | EffectRecipient::Player(PlayerRef::ReferredPlayer) => self.bound_targets(member, ctx)?,
-            EffectRecipient::FilteredPermanents(_) => {
+            EffectRecipient::FilteredObjectsIn(_, zones) if *zones == ZoneSet::BATTLEFIELD => {
                 self.affected_permanents(member, &[], ctx).into_iter().map(ObjectOrPlayerId::Object).collect()
             }
             other => {
@@ -2507,7 +2495,7 @@ impl GameState {
         ctx: &ResolutionContext,
     ) -> Vec<ObjectId> {
         match recipient {
-            EffectRecipient::FilteredPermanents(filter) => self
+            EffectRecipient::FilteredObjectsIn(filter, _) => self
                 .battlefield_ids_ordered()
                 .into_iter()
                 .filter(|&id| self.matches_for_effect(id, filter, ctx))
@@ -3040,7 +3028,6 @@ impl GameState {
             | EffectRecipient::SameInstanceAs(_)
             | EffectRecipient::Group(_)
             | EffectRecipient::AttackedBy(_)
-            | EffectRecipient::FilteredPermanents(_)
             | EffectRecipient::FilteredObjectsIn(..)
             | EffectRecipient::Object(Antecedent::ThisObjectsHost)
             | EffectRecipient::ChosenBy(_) => return Ok(None),
@@ -3430,7 +3417,7 @@ mod tests {
 
         let destroy = Effect::Atom(
             Primitive::Destroy,
-            EffectRecipient::Target(SelectionFilter::Creature, crate::types::effects::TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::creature(), crate::types::effects::TargetCount::Exactly(1)),
         );
         let ctx = bolt_ctx(source_id, vec![ObjectOrPlayerId::Object(target_id)]);
         game.resolve_effect(&destroy, &ctx, &test_dp()).unwrap();

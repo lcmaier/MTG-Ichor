@@ -51,7 +51,7 @@ pub fn act_of_treason() -> Arc<CardData> {
                 // "it" are back-references to it, not new clauses.
                 Effect::Atom(
                     Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(Primitive::Untap, EffectRecipient::SameInstanceAs(0)),
                 Effect::Atom(
@@ -98,7 +98,7 @@ mod tests {
             .collect();
         assert_eq!(
             *recipients[0],
-            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
+            EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1))
         );
         assert_eq!(*recipients[1], EffectRecipient::SameInstanceAs(0));
         assert_eq!(*recipients[2], EffectRecipient::SameInstanceAs(0));

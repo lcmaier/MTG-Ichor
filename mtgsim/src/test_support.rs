@@ -196,7 +196,7 @@ pub fn pacifism() -> Arc<CardData> {
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .build()
 }
 

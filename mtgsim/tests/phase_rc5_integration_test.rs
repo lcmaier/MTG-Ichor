@@ -126,7 +126,7 @@ fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
         .rules_text("Creatures have devour N.")
         .ability(static_ability(Effect::Atom(
             Primitive::GrantAbility(Arc::new(devour), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+            EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature)),
         )))
         .build()
 }
@@ -186,7 +186,7 @@ fn elf_lord(name: &str) -> Arc<CardData> {
                 AmountExpr::Fixed(1),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            EffectRecipient::filtered_permanents(ObjectFilter::And(
                 Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Elf))),
                 Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
@@ -312,7 +312,7 @@ fn anthem(name: &str) -> Arc<CardData> {
                 AmountExpr::Fixed(1),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            EffectRecipient::filtered_permanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),

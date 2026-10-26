@@ -135,7 +135,7 @@ pub fn destroy_your_others_then_a_token() -> Arc<CardData> {
         "Fixture: destroy your other creatures, then make a Soldier",
         "Destroy each non-Crocodile creature you control, then create a 1/1 white Soldier creature token.",
         Effect::Sequence(vec![
-            Effect::Atom(Primitive::Destroy, EffectRecipient::FilteredPermanents(your_non_crocodiles)),
+            Effect::Atom(Primitive::Destroy, EffectRecipient::filtered_permanents(your_non_crocodiles)),
             Effect::Atom(Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
         ]),
     )

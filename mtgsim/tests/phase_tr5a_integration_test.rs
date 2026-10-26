@@ -137,7 +137,7 @@ fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, targets: 
 }
 
 fn destroy(game: &mut GameState, id: ObjectId) {
-    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
+    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)));
     resolve_as(game, 0, &destroy, vec![ObjectOrPlayerId::Object(id)]);
 }
 
@@ -426,7 +426,7 @@ fn a_filter_with_no_kind_counts_every_kind_of_counter() {
     );
     let flying = Effect::Atom(
         Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
-        EffectRecipient::FilteredPermanents(bare),
+        EffectRecipient::filtered_permanents(bare),
     );
     put_on_battlefield(&mut game, CardDataBuilder::new("Fixture Bare Sky").card_type(CardType::Enchantment).ability(static_ability(flying)).build(), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);

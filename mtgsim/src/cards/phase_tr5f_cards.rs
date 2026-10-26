@@ -127,7 +127,7 @@ pub fn relentless_assault() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
-                Effect::Atom(Primitive::Untap, EffectRecipient::FilteredPermanents(attacked_this_turn)),
+                Effect::Atom(Primitive::Untap, EffectRecipient::filtered_permanents(attacked_this_turn)),
                 Effect::Atom(
                     Primitive::ExtraPhases {
                         phases: vec![PhaseType::Combat, PhaseType::Postcombat],

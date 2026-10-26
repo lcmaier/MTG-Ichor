@@ -275,7 +275,7 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
         EffectRecipient::AttackedBy(creature) => creature_reads(*creature),
         EffectRecipient::Object(Antecedent::Referred) => TriggerBindingReads::REFERRED,
         EffectRecipient::Group(members) => members.iter().fold(TriggerBindingReads::NONE, |reads, member| reads | recipient_reads(member)),
-        EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter_reads(among),
+        EffectRecipient::FilteredObjectsIn(among, _) => filter_reads(among),
         EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient_reads(&choice.chooser), |reads, pick| {
             let count = match &pick.count {
                 PickCount::Exactly(n) => amount_reads(n),
@@ -579,7 +579,7 @@ mod tests {
     #[test]
     fn a_count_of_targets_reads_what_its_amount_reads() {
         use crate::types::effects::{AmountExpr, CounterType, PlayerRef, SelectionFilter, TargetCount};
-        let up_to_x = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpToAmount(AmountExpr::TriggeringAmount));
+        let up_to_x = EffectRecipient::Target(SelectionFilter::creature(), TargetCount::UpToAmount(AmountExpr::TriggeringAmount));
         let counter = Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You };
         let def = whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), Effect::Atom(counter, up_to_x));
         assert!(def.trigger_binding_reads().contains(TriggerBindingReads::AMOUNT));

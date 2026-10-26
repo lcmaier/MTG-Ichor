@@ -100,7 +100,7 @@ fn grants_devour_to_creatures(n: u32) -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::GrantAbility(Arc::new(granted), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+            EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature)),
         )))
         .build()
 }

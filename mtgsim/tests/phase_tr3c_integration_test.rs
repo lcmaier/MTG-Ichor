@@ -589,7 +589,7 @@ fn venomweave_charm() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::GrantKeywordFlag(KeywordFlag::Deathtouch, Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            EffectRecipient::filtered_permanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),

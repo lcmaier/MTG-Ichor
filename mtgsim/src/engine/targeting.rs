@@ -341,7 +341,6 @@ impl GameState {
             EffectRecipient::Implicit
             | EffectRecipient::Object(Antecedent::ThisObject)
             | EffectRecipient::EachOf(_)
-            | EffectRecipient::FilteredPermanents { .. }
             | EffectRecipient::FilteredObjectsIn { .. }
             | EffectRecipient::Object(Antecedent::ThisObjectsHost) => {
                 if !targets.is_empty() {
@@ -434,7 +433,6 @@ impl GameState {
         identity: FilterIdentity<'_>,
     ) -> Result<(), String> {
         match filter {
-            SelectionFilter::Creature => self.validate_creature_target(target),
             SelectionFilter::Player => self.validate_player_target(target),
             SelectionFilter::Any => self.validate_any_target(target),
             SelectionFilter::Permanent(pf) => {
@@ -469,23 +467,6 @@ impl GameState {
             }
             ObjectOrPlayerId::Player(_) => {
                 Err("Expected a source of damage, got a player".to_string())
-            }
-        }
-    }
-
-    /// Validate a target is a creature on the battlefield.
-    fn validate_creature_target(&self, target: &ObjectOrPlayerId) -> Result<(), String> {
-        match target {
-            ObjectOrPlayerId::Object(id) => {
-                self.require_on_battlefield(*id)?;
-                self.get_object(*id)?;
-                if !has_type(self, *id, CardType::Creature) {
-                    return Err(format!("Target {} is not a creature", id));
-                }
-                Ok(())
-            }
-            ObjectOrPlayerId::Player(_) => {
-                Err("Expected a creature target, got a player".to_string())
             }
         }
     }

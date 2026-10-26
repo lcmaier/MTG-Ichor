@@ -109,7 +109,7 @@ fn banner(name: &str, filter: ObjectFilter) -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(creatures),
+            EffectRecipient::filtered_permanents(creatures),
         )))
         .build()
 }
@@ -750,7 +750,7 @@ fn frost_titan_counters_an_opponents_aura_spell() {
 fn frost_titan_counters_an_opponents_triggered_ability() {
     let mut game = stocked(2);
     let titan = put_on_battlefield(&mut game, frost_titan_fixture(), 0);
-    let tap_one = Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
+    let tap_one = Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)));
     let watcher = CardDataBuilder::new("Fixture Grim Watcher")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(dies(TriggerSubject::Filter(ObjectFilter::All)), tap_one)))

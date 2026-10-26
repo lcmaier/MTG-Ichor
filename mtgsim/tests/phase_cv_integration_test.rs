@@ -118,7 +118,7 @@ fn anthem_bear() -> Arc<CardData> {
                 AmountExpr::Fixed(1),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            EffectRecipient::filtered_permanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),

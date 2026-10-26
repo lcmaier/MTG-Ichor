@@ -163,7 +163,7 @@ fn everything_is_a_land() -> Arc<CardData> {
                 },
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::All),
+            EffectRecipient::filtered_permanents(ObjectFilter::All),
         )))
         .build()
 }

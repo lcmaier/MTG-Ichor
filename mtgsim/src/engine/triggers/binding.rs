@@ -288,7 +288,7 @@ mod tests {
             .card_type(CardType::Enchantment)
             .ability(static_ability(Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                EffectRecipient::filtered_permanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
@@ -310,7 +310,7 @@ mod tests {
         };
         let threaten = Effect::Atom(
             Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
-            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
         );
         game.resolve_effect(&threaten, &ctx, &test_dp()).expect("it resolves");
         game.perform_sba_and_triggers(&test_dp()).expect("the settlement");

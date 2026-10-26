@@ -89,7 +89,7 @@ fn darkest_hour() -> Arc<CardData> {
         .rules_text("All creatures are black.")
         .ability(static_ability(Effect::Atom(
             Primitive::ChangeColor(ColorChange::Set(black), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+            EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature)),
         )))
         .build()
 }
@@ -105,7 +105,7 @@ fn abduction_fixture() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .rules_text(text)
         .ability(triggered_ability(text, whenever(dies(TriggerSubject::Object(Antecedent::ThisObjectsHost)), Effect::Atom(returns, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))))))
         .build()
@@ -414,7 +414,7 @@ fn persist_and_undying_still_return_a_permanent_that_stopped_being_a_creature() 
             .card_type(CardType::Enchantment)
             .ability(static_ability(Effect::Atom(
                 Primitive::ChangeType(not_creatures, Duration::WhileSourceOnBattlefield),
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Artifact)),
+                EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Artifact)),
             )))
             .build();
         put_on_battlefield(&mut game, march, 0);
@@ -750,7 +750,7 @@ fn put_as_many_as_it_had() -> Effect {
             amount: AmountExpr::SourceCounters(CounterType::PlusOnePlusOne),
             by: PlayerRef::You,
         },
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     )
 }
 
@@ -968,7 +968,7 @@ fn token_aura_leaves_trigger_if_its_owner_controls_the_host_holds_after_the_toke
     let aura_card = CardDataBuilder::new("Token Aura")
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .ability(triggered_ability(text, def))
         .build();
     let host = put_on_battlefield(&mut game, grizzly_bears(), 0);
@@ -1000,7 +1000,7 @@ fn spirit_link_fixture() -> Arc<CardData> {
     CardDataBuilder::new("Spirit Link Fixture")
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .rules_text(text)
         .ability(triggered_ability(
             text,

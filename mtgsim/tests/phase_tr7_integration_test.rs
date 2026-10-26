@@ -97,7 +97,7 @@ fn human_clone() -> Arc<CardData> {
                 ..ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },
                     ObjectSet::SourceOnly,
-                    Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::Chosen(SelectionFilter::Creature), except: Vec::new() }),
+                    Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::Chosen(SelectionFilter::creature()), except: Vec::new() }),
                 )
             })),
         })
@@ -112,7 +112,7 @@ fn persist_anthem() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::GrantAbility(Arc::new(persist()), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(yours),
+            EffectRecipient::filtered_permanents(yours),
         )))
         .build()
 }
@@ -124,7 +124,7 @@ fn artifacts_are_not_creatures() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::ChangeType(not_creatures, Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Artifact)),
+            EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Artifact)),
         )))
         .build()
 }

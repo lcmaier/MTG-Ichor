@@ -71,7 +71,7 @@ fn granter_while_you_control_a_creature() -> Arc<CardData> {
             Condition::Player { players: PlayerSet::You, fact: PlayerFact::ControlsPermanent(a_creature()) },
             Box::new(Effect::Atom(
                 Primitive::GrantAbility(Arc::new(granted), Duration::WhileSourceOnBattlefield),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                EffectRecipient::filtered_permanents(ObjectFilter::And(
                     Box::new(a_creature()),
                     Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
                 )),

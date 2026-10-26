@@ -525,7 +525,7 @@ fn the_recheck_of_a_stolen_source_reads_the_player_it_triggered_for() {
     let thief = put_on_battlefield(&mut game, card_of_type("Thieving Idol", CardType::Artifact), 1);
     let steal = Effect::Atom(
         Primitive::GainControl { to: PlayerRef::You, duration: Duration::Indefinite },
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     let ctx = ResolutionContext {
         targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(reckoner)]),

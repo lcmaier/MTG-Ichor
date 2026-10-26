@@ -115,7 +115,7 @@ pub fn grist_insect_clause() -> Arc<CardData> {
 /// applies the strip and the P/T to the same set.
 pub fn titanias_song_clause() -> Arc<CardData> {
     let noncreature_artifact = || {
-        EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        EffectRecipient::filtered_permanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Artifact)),
             Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Creature)))),
         ))
@@ -164,7 +164,7 @@ pub fn pocket_griffin() -> Arc<CardData> {
             ZoneSet::HAND,
             Box::new(Effect::Atom(
                 Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                EffectRecipient::filtered_permanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),

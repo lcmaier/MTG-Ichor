@@ -226,7 +226,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ChooseAlternativeCost { spell_id: id },
         ChoiceKind::ChooseAdditionalCosts { spell_id: id },
         ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpTo(2)),
+            recipient: EffectRecipient::Target(SelectionFilter::creature(), TargetCount::UpTo(2)),
             spell_id: id,
         },
         ChoiceKind::GenericManaAllocation { spell_or_ability_id: id, mana_cost: ManaCost::build(&[], 2) },

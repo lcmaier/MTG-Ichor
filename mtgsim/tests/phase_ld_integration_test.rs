@@ -112,7 +112,7 @@ fn test_call_to_serve_adds_angel_subtype() {
 
     let decisions = ScriptedDecisionProvider::new();
     // {1}{W}: pool has [White(2)], allocate 1 generic → [1]
-    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1, // helper uses SelectionFilter::Creature via card, but DP sees All here
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1, // helper uses SelectionFilter::creature() via card, but DP sees All here
         // Forced split: one bucket, so no prompt.
         None,
     );

@@ -115,7 +115,7 @@ fn a_fixed_count_taking_every_legal_recipient_is_answered_unasked() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let spell = put_in_hand(&mut game, card_of_type("Fixture Bolt", CardType::Instant), 0);
-    let target_creature = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
+    let target_creature = EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1));
     let legal = [ObjectOrPlayerId::Object(bears)];
 
     let chosen = ask_select_recipients(&asks_nobody(), &game, 0, &target_creature, spell, &legal, 1, 1);

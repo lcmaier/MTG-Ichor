@@ -1149,8 +1149,7 @@ route by which item 342's twenty arrived.
 - `SameInstanceAs` — **owns** "that target", an instance announced earlier (CR 115.3); a recipient refuses `Antecedent::TargetOfInstance`, its value-reading twin.
 - `AttackedBy` — **owns** "the player or planeswalker it's attacking" (CR 506.3), holding an `Antecedent`.
 - `EachOf` — **holds** a `PlayerGroup`, whose relation is a `PlayerSet`: "each opponent" acts on every player in it.
-- `FilteredPermanents` — **folds** into a constructor of `FilteredObjectsIn` (item 344).
-- `FilteredObjectsIn` — **owns** "every object matching [a filter] in [zones]".
+- `FilteredObjectsIn` — **owns** "every object matching [a filter] in [zones]", "each [permanent]" being its battlefield constructor, `filtered_permanents`.
 - `Group` — **not a word**: a union of recipients, acted on at once (CR 608.2f).
 - `ChosenBy` — **owns** "a [permanent] of their choice" as the effect applies (CR 608.2d), holding a `Choice`.
 
@@ -1240,10 +1239,9 @@ route by which item 342's twenty arrived.
 - `You` — **kept** "under your control": with `Owner`, CR 610.3c's default and its one alternative.
 
 #### `SelectionFilter`
-- `Creature` — **folds** into a constructor of `Permanent` (item 344).
 - `Player` — **owns** "a player" as a candidate (`EffectRecipient::Target` owns "target"); it takes a `PlayerSet` for "target opponent" (item 345).
 - `Any` — **owns** "any target" (CR 115.4), the CR's own name for its candidates.
-- `Permanent` — **holds** an `ObjectFilter`.
+- `Permanent` — **holds** an `ObjectFilter`, "target creature" being its constructor `creature`.
 - `Spell` — **owns** "a spell on the stack" as a candidate.
 - `DamageSource` — **owns** "a source of damage", CR 609.7a's choice.
 

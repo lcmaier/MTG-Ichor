@@ -56,7 +56,7 @@ fn pump(recipient: EffectRecipient) -> Effect {
 }
 
 fn target_creature() -> EffectRecipient {
-    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
+    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1))
 }
 
 /// Seeds of Strength with two of its three clauses taken away — same cost,

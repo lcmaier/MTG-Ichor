@@ -641,7 +641,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
             Duration::UntilEndOfTurn,
         ),
         mtgsim::types::effects::EffectRecipient::Target(
-            SelectionFilter::Creature,
+            SelectionFilter::creature(),
             mtgsim::types::effects::TargetCount::Exactly(2),
         ),
     );

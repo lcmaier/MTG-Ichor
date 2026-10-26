@@ -222,7 +222,7 @@ mod tests {
                 AmountExpr::Fixed(1),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::All),
+            EffectRecipient::filtered_permanents(ObjectFilter::All),
         )
     }
 

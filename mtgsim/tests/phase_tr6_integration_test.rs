@@ -431,7 +431,7 @@ fn each_creature_you_control(game: &mut GameState, primitive: Primitive) -> (Vec
     );
     let source = put_in_hand(game, grizzly_bears(), 0);
     let ctx = ResolutionContext::untargeted(source, 0, GeneratedBy::Spell);
-    let each = Effect::Atom(primitive, EffectRecipient::FilteredPermanents(yours_filter));
+    let each = Effect::Atom(primitive, EffectRecipient::filtered_permanents(yours_filter));
     game.resolve_effect(&each, &ctx, &test_dp()).expect("resolving");
     (yours, theirs)
 }

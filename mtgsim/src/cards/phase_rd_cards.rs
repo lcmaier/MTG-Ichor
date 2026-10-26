@@ -87,7 +87,7 @@
 //! | [`mending_hands`] | `Target(Any)` | one, on the object or player it targeted | `NextDamage(4)` |
 //! | [`samite_healer`] | `Target(Any)`, from a `{T}` ability | one per activation | `NextDamage(1)` |
 //! | [`safe_passage`] | `Implicit` | one, `Filter` + `You`, asked at each event | none — `Uses::Static` |
-//! | [`samite_censer_bearer`] | `FilteredPermanents` | one **per creature** you control then (CR 615.11) | `NextDamage(1)` each |
+//! | [`samite_censer_bearer`] | `filtered_permanents` | one **per creature** you control then (CR 615.11) | `NextDamage(1)` each |
 //!
 //! Mending Hands is the pooled one: the first registry row a damage event in
 //! the pool meets, and the first CR 615.7 `allocate` prompt a fuzz game can
@@ -632,7 +632,7 @@ pub fn safe_passage() -> Arc<CardData> {
 ///
 /// CR 615.11's consumer: "creates a prevention shield for each applicable
 /// creature when the spell or ability … resolves". The recipient is
-/// `FilteredPermanents`, so the resolution makes **one row per creature** it
+/// `filtered_permanents`, so the resolution makes **one row per creature** it
 /// finds, each with its own `NextDamage(1)` — the Censer-Bearer itself is
 /// already in the graveyard, sacrificed as the cost.
 ///
@@ -661,7 +661,7 @@ pub fn samite_censer_bearer() -> Arc<CardData> {
             vec![Cost::Mana(ManaCost::build(&[ManaType::White], 0)), Cost::SacrificeSelf],
             Effect::Atom(
                 prevent_the_next_this_turn(1),
-                EffectRecipient::FilteredPermanents(creatures_you_control()),
+                EffectRecipient::filtered_permanents(creatures_you_control()),
             ),
         ))
         .build()
@@ -973,7 +973,7 @@ pub fn daunting_defender() -> Arc<CardData> {
 ///
 /// CR 615.10's example needs the other half of it, and this is the pool's
 /// first "each creature" damage: one source, every creature, **one event**.
-/// `EffectRecipient::FilteredPermanents` is what names them, and the batch is
+/// `EffectRecipient::filtered_permanents` is what names them, and the batch is
 /// what makes CR 615.7's allocation and CR 704.3's simultaneity reachable at
 /// all — a loop of one-member batches would be a different game.
 ///
@@ -989,7 +989,7 @@ pub fn pyroclasm() -> Arc<CardData> {
             Vec::new(),
             Effect::Atom(
                 Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+                EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature)),
             ),
         ))
         .build()
@@ -1155,7 +1155,7 @@ pub fn pariah() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(crate::types::card_types::EnchantmentType::Aura))
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .rules_text(
             "Enchant creature\nAll damage that would be dealt to you is dealt to enchanted \
              creature instead.",
@@ -1249,7 +1249,7 @@ pub fn pinpoint_avalanche() -> Arc<CardData> {
             Vec::new(),
             Effect::Atom(
                 Primitive::DealDamage { amount: AmountExpr::Fixed(4), unpreventable: true },
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         ))
         .build()
@@ -1312,6 +1312,7 @@ pub fn reflect_damage() -> Arc<CardData> {
 #[cfg(test)]
 mod tests {
     use crate::engine::targeting::ChosenTargets;
+    use crate::types::zones::{ZoneSet};
     use super::*;
     use crate::engine::actions::{ActionContext, GameAction};
     use crate::types::ids::ObjectOrPlayerId;
@@ -1715,7 +1716,7 @@ mod tests {
         );
         assert!(matches!(
             ability.effect,
-            Effect::Atom(_, EffectRecipient::FilteredPermanents(_))
+            Effect::Atom(_, EffectRecipient::FilteredObjectsIn(_, ZoneSet::BATTLEFIELD))
         ));
     }
 

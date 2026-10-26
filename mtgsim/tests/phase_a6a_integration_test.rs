@@ -133,7 +133,7 @@ fn the_window_holds_nothing_at_any_priority_prompt() {
 fn pump(game: &mut GameState, id: ObjectId, n: u64) {
     let giant_growth = Effect::Atom(
         Primitive::ModifyPowerToughness(AmountExpr::Fixed(n), AmountExpr::Fixed(n), Duration::UntilEndOfTurn),
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     let source = put_in_hand(game, grizzly_bears(), 0);
     let ctx = ResolutionContext {

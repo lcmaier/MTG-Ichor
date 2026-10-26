@@ -69,7 +69,7 @@ pub fn sphere_grid() -> Arc<CardData> {
     let grant = |keyword: KeywordFlag| {
         Effect::Atom(
             Primitive::GrantKeywordFlag(keyword, Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(with_a_counter.clone()),
+            EffectRecipient::filtered_permanents(with_a_counter.clone()),
         )
     };
     CardDataBuilder::new("Sphere Grid")

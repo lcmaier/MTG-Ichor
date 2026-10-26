@@ -54,7 +54,7 @@ fn spell(rules_text: &'static str, effect: Effect) -> AbilityDef {
 }
 
 fn target_creature() -> EffectRecipient {
-    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
+    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1))
 }
 
 /// Seeds of Strength — {G}{W}
@@ -205,7 +205,7 @@ pub fn jagged_lightning() -> Arc<CardData> {
         .rules_text("Jagged Lightning deals 3 damage to each of two target creatures.")
         .ability(spell("Jagged Lightning deals 3 damage to each of two target creatures.", Effect::Atom(
             Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
-            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(2)),
+            EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(2)),
         )))
         .build()
 }

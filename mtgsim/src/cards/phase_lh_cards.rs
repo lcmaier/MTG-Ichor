@@ -72,7 +72,7 @@ pub fn holy_strength() -> Arc<CardData> {
         .rules_text("Enchant creature\nEnchanted creature gets +1/+2.")
         // CR 702.5a — "Enchant creature" is the Aura's targeting restriction,
         // and CR 303.4a makes it the spell's target.
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .ability(AbilityDef {
             rules_text: "Enchanted creature gets +1/+2.".into(),
             is_characteristic_defining: false,

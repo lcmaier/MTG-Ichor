@@ -380,7 +380,7 @@ fn a_creature_you_control() -> ObjectFilter {
 
 /// Resolve "put `n` `kind` counters on each creature you control" for `player`.
 fn counters_on_each_creature(game: &mut GameState, player: PlayerId, kind: CounterType, n: u64) {
-    let effect = Effect::Atom(put(kind, n), EffectRecipient::FilteredPermanents(a_creature_you_control()));
+    let effect = Effect::Atom(put(kind, n), EffectRecipient::filtered_permanents(a_creature_you_control()));
     resolve_targeting(game, player, Vec::new(), &effect, &test_dp());
 }
 

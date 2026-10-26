@@ -918,7 +918,7 @@ fn damage_triggers_still_fire_when_the_creature_regenerates() {
         &mut game,
         shaman,
         0,
-        &Effect::Atom(Primitive::Regenerate, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))),
+        &Effect::Atom(Primitive::Regenerate, EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1))),
         vec![ObjectOrPlayerId::Object(troll)],
         &test_dp(),
     );
@@ -1247,7 +1247,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
                 limit: None,
                 effect: Effect::Atom(
                     Primitive::Destroy,
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 ),
             }),
         )
@@ -1261,7 +1261,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     let dp = ScriptedDecisionProvider::new();
     dp.expect_pick_n(
         ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            recipient: EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
         vec![1],
@@ -1288,7 +1288,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     let dp = ScriptedDecisionProvider::new();
     dp.expect_pick_n(
         ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            recipient: EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
         vec![1],

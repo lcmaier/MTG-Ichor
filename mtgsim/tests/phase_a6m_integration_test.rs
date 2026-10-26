@@ -43,7 +43,7 @@ use mtgsim::ui::decision::ScriptedDecisionProvider;
 /// is the one opponent: a filter has no leaf for a targeted player, so the
 /// fixture names the opponent.
 fn opponents_creatures() -> EffectRecipient {
-    EffectRecipient::FilteredPermanents(ObjectFilter::And(
+    EffectRecipient::filtered_permanents(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
     ))
@@ -68,7 +68,7 @@ fn resolve(game: &mut GameState, controller: PlayerId, effect: &Effect, targets:
 fn destroy(game: &mut GameState, creature: ObjectId) {
     let effect = Effect::Atom(
         Primitive::Destroy,
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     resolve(game, 0, &effect, vec![ObjectOrPlayerId::Object(creature)]);
 }
@@ -114,7 +114,7 @@ fn test_a_resolving_set_power_toughness_over_a_filter_affects_each_creature_it_n
     assert_eq!(power_toughness(&game, later), (Some(3), Some(3)));
     let gain_control = Effect::Atom(
         Primitive::GainControl { to: PlayerRef::You, duration: Duration::Indefinite },
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     resolve(&mut game, 1, &gain_control, vec![ObjectOrPlayerId::Object(mine)]);
     assert_eq!(get_effective_controller(&game, mine), Some(1));
@@ -276,7 +276,7 @@ fn test_regenerate_each_creature_you_control_shields_each_one() {
     ];
     let effect = Effect::Atom(
         Primitive::Regenerate,
-        EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        EffectRecipient::filtered_permanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
             Box::new(ObjectFilter::ByController(PlayerSet::You)),
         )),
@@ -375,7 +375,7 @@ fn test_a_granted_conditional_restriction_is_the_boards_only_restriction_and_app
     let tapped = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let grant = Effect::Atom(
         Primitive::GrantAbility(std::sync::Arc::new(cant_be_destroyed_while_untapped), Duration::UntilEndOfTurn),
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(2)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(2)),
     );
     resolve(&mut game, 1, &grant, vec![ObjectOrPlayerId::Object(untapped), ObjectOrPlayerId::Object(tapped)]);
     game.battlefield.get_mut(&tapped).expect("on the battlefield").tapped = true;

@@ -313,7 +313,7 @@ fn banner_over(fact: ObjectFact) -> std::sync::Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ThisTurn(fact)),
+            EffectRecipient::filtered_permanents(ObjectFilter::ThisTurn(fact)),
         )))
         .build()
 }
@@ -430,7 +430,7 @@ fn becomes_blocked_by_an_effect(game: &mut GameState, attacker: ObjectId) {
         replaced_event: None,
         trigger: None,
     };
-    let effect = Effect::Atom(Primitive::BecomeBlocked, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
+    let effect = Effect::Atom(Primitive::BecomeBlocked, EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)));
     game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     while !game.stack.is_empty() {

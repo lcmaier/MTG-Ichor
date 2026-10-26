@@ -125,7 +125,7 @@ pub fn glorious_anthem() -> Arc<CardData> {
                     AmountExpr::Fixed(1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                EffectRecipient::filtered_permanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
@@ -158,7 +158,7 @@ pub fn zhalfirin_shapecraft() -> Arc<CardData> {
                         AmountExpr::Fixed(3),
                         Duration::UntilEndOfTurn,
                     ),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(1)),
@@ -195,7 +195,7 @@ pub fn inside_out() -> Arc<CardData> {
             effect: Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::SwitchPowerToughness(Duration::UntilEndOfTurn),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(1)),
@@ -228,7 +228,7 @@ pub fn bull_rush() -> Arc<CardData> {
                     AmountExpr::Fixed(0),
                     Duration::UntilEndOfTurn,
                 ),
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .build()

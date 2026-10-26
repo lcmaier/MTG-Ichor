@@ -287,7 +287,7 @@ fn enters_with(template: EnterModsTemplate) -> AbilityDef {
 /// A creature that "may enter as a copy of any creature on the battlefield,
 /// except ...": Clone's replacement with `except`.
 fn copier(name: &str, color: Color, except: Vec<CopyException>) -> Arc<CardData> {
-    copier_of(name, color, SelectionFilter::Creature, except)
+    copier_of(name, color, SelectionFilter::creature(), except)
 }
 
 fn copier_of(name: &str, color: Color, donor: SelectionFilter, except: Vec<CopyException>) -> Arc<CardData> {

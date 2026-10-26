@@ -350,7 +350,7 @@ fn thaumaturgist_for_red() -> Arc<CardData> {
             costs: vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 0))],
             effect: Effect::Atom(
                 Primitive::SwitchPowerToughness(Duration::UntilEndOfTurn),
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .build()
@@ -373,7 +373,7 @@ fn chosen_pump() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::UntilEndOfTurn),
-                EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Choose(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .build()

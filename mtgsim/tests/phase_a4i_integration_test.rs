@@ -144,7 +144,7 @@ fn answer_targets(
 }
 
 fn target_creature() -> EffectRecipient {
-    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
+    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1))
 }
 
 /// Incremental Growth's later clauses, as the card writes them: a creature,
@@ -351,7 +351,7 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
     let a = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let b = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let two_creatures =
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(2));
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(2));
 
     assert!(
         game.validate_targets(

@@ -702,7 +702,7 @@ fn a_watcher_stolen_with_another_permanent_triggers_for_each() {
     put_on_battlefield(&mut game, grizzly_bears(), 0);
     let mob_rule = Effect::Atom(
         Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
-        EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        EffectRecipient::filtered_permanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
             Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
         )),
@@ -765,7 +765,7 @@ fn a_permanent_that_arrives_stolen_announces_no_change() {
 /// **Fixture**, a one-sided Humility: "Creatures your opponents control lose
 /// all abilities."
 fn silencer() -> Arc<CardData> {
-    let theirs = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+    let theirs = EffectRecipient::filtered_permanents(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
     ));
@@ -839,7 +839,7 @@ fn a_grant_the_steal_moves_still_triggers_the_creatures_left_behind() {
     let mut game = stocked(2);
     let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You));
     let watcher = triggered_ability("", whenever(an_opponent_gains_control_of(TriggerSubject::Filter(ObjectFilter::All)), gain));
-    let yours = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+    let yours = EffectRecipient::filtered_permanents(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ));
@@ -963,7 +963,7 @@ fn two_control_changes_in_one_resolution_are_two_events() {
     let before = hands(&game);
 
     let enchantments = |whose: PlayerSet| {
-        EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        EffectRecipient::filtered_permanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Enchantment)),
             Box::new(ObjectFilter::ByController(whose)),
         ))
@@ -998,7 +998,7 @@ fn gives_the_betrayers_trigger() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::GrantAbility(Arc::new(betrayal), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            EffectRecipient::filtered_permanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
@@ -1022,7 +1022,7 @@ fn a_second_steal_looks_back_to_the_board_the_first_left() {
     let before = hands(&game);
 
     let an_opponents = |kind: CardType| {
-        EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        EffectRecipient::filtered_permanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(kind)),
             Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
         ))

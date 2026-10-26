@@ -56,7 +56,7 @@ fn type_changer(name: &str, card_type: CardType, change: TypeChange, filter: Obj
         .card_type(card_type)
         .ability(static_ability(Effect::Atom(
             Primitive::ChangeType(change, Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(filter),
+            EffectRecipient::filtered_permanents(filter),
         )))
         .build()
 }

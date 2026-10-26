@@ -68,7 +68,7 @@ fn you_may_put_counters(amount: AmountExpr, recipient: EffectRecipient) -> Effec
 ///   ..., the ability will trigger only once."* (#6)
 ///   → `one_lifelink_creature_dealing_damage_twice_at_once_is_one_gain`.
 pub fn nykthos_paragon() -> Arc<CardData> {
-    let each_creature_you_control = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+    let each_creature_you_control = EffectRecipient::filtered_permanents(ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ));

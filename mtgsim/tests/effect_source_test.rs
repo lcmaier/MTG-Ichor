@@ -430,7 +430,7 @@ fn a_creature_that_died_with_deathtouch_deals_its_ability_damage_with_deathtouch
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
     );
-    let myr = put_on_battlefield(&mut game, perilous(2, EffectRecipient::FilteredPermanents(their_creatures)), 0);
+    let myr = put_on_battlefield(&mut game, perilous(2, EffectRecipient::filtered_permanents(their_creatures)), 0);
     let giant = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
     give(&mut game, myr, Layer::Layer6Ability, EffectModification::GrantKeywordFlag(KeywordFlag::Deathtouch));
 

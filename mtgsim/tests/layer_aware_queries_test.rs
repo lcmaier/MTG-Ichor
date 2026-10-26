@@ -62,7 +62,7 @@ fn test_animated_artifact_is_a_legal_creature_target() {
     );
 
     let recipient =
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1));
     let targets = vec![ObjectOrPlayerId::Object(artifact_id)];
 
     // Before: not a creature, so targeting must fail.
@@ -93,7 +93,7 @@ fn test_detyped_creature_is_not_a_legal_creature_target() {
     );
 
     let recipient =
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1));
     let targets = vec![ObjectOrPlayerId::Object(bears_id)];
     assert!(game.validate_targets(&recipient, &targets, mtgsim::test_support::fixed_target_bounds(&recipient), 0, FilterIdentity::NONE).is_ok());
 

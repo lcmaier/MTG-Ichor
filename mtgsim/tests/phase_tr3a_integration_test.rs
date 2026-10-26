@@ -307,7 +307,7 @@ fn a_spell_creates_a_delayed_trigger_that_fires_at_the_next_end_step() {
         ManaCost::build(&[ManaType::Black], 0),
         at_the_next_end_step(Effect::Atom(
             Primitive::Destroy,
-            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
         )),
     );
     assert!(doom.spell_instances.is_empty(), "the delayed trigger's target is not the spell's");

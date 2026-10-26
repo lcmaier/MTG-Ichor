@@ -163,7 +163,7 @@ pub fn angelic_destiny() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .rules_text("Enchant creature\nEnchanted creature gets +4/+4, has flying and first strike, and is an Angel in addition to its other types.\nWhen enchanted creature dies, return this card to its owner's hand.")
         .ability(enchanted_creature(
             anthem,
@@ -208,7 +208,7 @@ pub fn rancor() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .rules_text("Enchant creature\nEnchanted creature gets +2/+0 and has trample.\nWhen this Aura is put into a graveyard from the battlefield, return it to its owner's hand.")
         .ability(enchanted_creature(
             anthem,

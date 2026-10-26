@@ -92,7 +92,7 @@ pub fn demonic_vigor() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .rules_text("Enchant creature\nEnchanted creature gets +1/+1.\nWhen enchanted creature dies, return that card to its owner's hand.")
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .ability(AbilityDef {
             rules_text: "Enchanted creature gets +1/+1.".into(),
             is_characteristic_defining: false,

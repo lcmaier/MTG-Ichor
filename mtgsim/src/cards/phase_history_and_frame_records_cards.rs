@@ -60,7 +60,7 @@ pub fn fixture_curtain() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(spell(text, Effect::Atom(Primitive::BecomeBlocked, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)))))
+        .ability(spell(text, Effect::Atom(Primitive::BecomeBlocked, EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)))))
         .build()
 }
 

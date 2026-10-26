@@ -49,7 +49,7 @@ pub fn merfolk_thaumaturgist() -> Arc<CardData> {
             costs: vec![Cost::TapSelf],
             effect: Effect::Atom(
                 Primitive::SwitchPowerToughness(Duration::UntilEndOfTurn),
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .build()

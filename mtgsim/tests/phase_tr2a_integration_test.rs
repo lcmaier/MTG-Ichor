@@ -642,7 +642,7 @@ fn a_control_change_does_not_restart_the_count() {
 fn pump(game: &mut GameState, id: ObjectId, n: u64) {
     let giant_growth = Effect::Atom(
         Primitive::ModifyPowerToughness(AmountExpr::Fixed(n), AmountExpr::Fixed(n), Duration::UntilEndOfTurn),
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     let source = put_in_hand(game, grizzly_bears(), 0);
     let ctx = ResolutionContext {
@@ -706,7 +706,7 @@ fn a_filtered_one_shot_applies_to_the_permanents_it_matched_as_it_resolved() {
     let mut game = setup_two_player_game();
     let mine = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let yours = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+    let yours = EffectRecipient::filtered_permanents(ObjectFilter::And(
         Box::new(a_creature()),
         Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ));
@@ -739,7 +739,7 @@ fn a_filtered_one_shot_reads_you_as_its_spell_resolves() {
     let mut game = setup_two_player_game();
     let casters = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let new_controllers = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let yours = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+    let yours = EffectRecipient::filtered_permanents(ObjectFilter::And(
         Box::new(a_creature()),
         Box::new(ObjectFilter::ByController(PlayerSet::You)),
     ));
@@ -1009,7 +1009,7 @@ fn a_trigger_reads_how_many_times_it_has_resolved_this_turn() {
     let two_damage = |recipient| {
         Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false }, recipient)
     };
-    let opponents_creatures = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+    let opponents_creatures = EffectRecipient::filtered_permanents(ObjectFilter::And(
         Box::new(a_creature()),
         Box::new(ObjectFilter::ByController(PlayerSet::Opponents)),
     ));
@@ -1371,7 +1371,7 @@ fn retype(game: &mut GameState, id: ObjectId, add: Vec<Subtype>, remove: Vec<Sub
     };
     let effect = Effect::Atom(
         Primitive::ChangeType(change, Duration::UntilEndOfTurn),
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     let source = put_in_hand(game, grizzly_bears(), 0);
     let ctx = ResolutionContext {

@@ -859,7 +859,7 @@ fn a_token_def_lowers_every_field_it_carries() {
             Rewrite::Prevent,
         ))))],
         rules_text: "Enchanted creature has base power and toughness 1/1.".to_string(),
-        enchant_filter: Some(SelectionFilter::Creature),
+        enchant_filter: Some(SelectionFilter::creature()),
         enters_tapped: false,
         enters_attacking: None,
     };

@@ -289,7 +289,7 @@ fn test_a_conditional_effect_that_has_started_keeps_applying_in_later_layers() {
     /// whether the card is itself the white permanent its condition asks for.
     fn pale_rites(white: bool) -> Arc<CardData> {
         let each_creature =
-            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature));
+            EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature));
         let mut builder = CardDataBuilder::new("Pale Rites").card_type(CardType::Enchantment);
         if white {
             builder = builder.color(Color::White);

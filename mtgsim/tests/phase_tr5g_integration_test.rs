@@ -657,7 +657,7 @@ fn one_or_more_tokens_triggers_once_for_a_creation_of_several() {
 /// control with a +1/+1 counter on it becomes the target of a spell or
 /// ability an opponent controls, you may draw a card."
 fn elrond_master_of_healing() -> Arc<CardData> {
-    let up_to_x = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpToAmount(AmountExpr::TriggeringAmount));
+    let up_to_x = EffectRecipient::Target(SelectionFilter::creature(), TargetCount::UpToAmount(AmountExpr::TriggeringAmount));
     let counter = Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You };
     let yours_with_a_counter = ObjectFilter::And(
         Box::new(ObjectFilter::And(Box::new(a_creature()), Box::new(ObjectFilter::ByController(PlayerSet::You)))),
@@ -805,7 +805,7 @@ fn two_of_elronds_creatures_targeted_by_one_ability_trigger_it_twice() {
         instances: Vec::new(),
         ability_type: AbilityType::Activated,
         costs: Vec::new(),
-        effect: Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpTo(3))),
+        effect: Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::creature(), TargetCount::UpTo(3))),
         is_characteristic_defining: false,
         activation_restriction: ActivationRestriction::None,
     };
@@ -1059,7 +1059,7 @@ fn tap_x() -> Arc<CardData> {
         instances: Vec::new(),
         ability_type: AbilityType::Spell,
         costs: Vec::new(),
-        effect: Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::ExactlyAmount(AmountExpr::X))),
+        effect: Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::creature(), TargetCount::ExactlyAmount(AmountExpr::X))),
         is_characteristic_defining: false,
         activation_restriction: ActivationRestriction::None,
     };

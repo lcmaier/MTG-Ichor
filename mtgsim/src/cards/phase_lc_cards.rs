@@ -36,7 +36,7 @@ pub fn cerulean_wisps() -> Arc<CardData> {
                     ColorChange::Set(blue_set),
                     Duration::UntilEndOfTurn,
                 ),
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .ability(AbilityDef {
@@ -78,7 +78,7 @@ pub fn moonlace() -> Arc<CardData> {
                     ColorChange::RemoveAll,
                     Duration::UntilEndOfTurn,
                 ),
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .build()
@@ -110,7 +110,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
             effect: Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::GrantKeywordFlag(KeywordFlag::Haste, Duration::UntilEndOfTurn),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(
                     Primitive::ChangeColor(
@@ -161,7 +161,7 @@ pub fn chromatic_ward() -> Arc<CardData> {
                     ColorChange::Add(Color::Red),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                EffectRecipient::filtered_permanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),

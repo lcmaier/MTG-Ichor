@@ -469,7 +469,7 @@ fn chosen_pump() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::UntilEndOfTurn),
-                EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Choose(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .build()
@@ -555,7 +555,7 @@ fn anthem_bearer() -> Arc<CardData> {
         .power_toughness(2, 2)
         .ability(mtgsim::test_support::static_ability(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            EffectRecipient::filtered_permanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
@@ -642,11 +642,11 @@ fn lasting_shape() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::Copy {
-                    roles: CopyRoles::RecipientsCopyChosen(SelectionFilter::Creature),
+                    roles: CopyRoles::RecipientsCopyChosen(SelectionFilter::creature()),
                     except: Vec::new(),
                     duration: Duration::Indefinite,
                 },
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .build()
@@ -1205,7 +1205,7 @@ fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
     let pump = |n: u64| {
         Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(n), AmountExpr::Fixed(n), Duration::UntilEndOfTurn),
-            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
         )
     };
     let effect = Effect::Sequence(vec![
@@ -1321,7 +1321,7 @@ fn shared_shape() -> Arc<CardData> {
                     except: vec![CopyException::DoesNotCopy(Characteristic::Color)],
                     duration: Duration::UntilEndOfTurn,
                 },
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             ),
         })
         .build()

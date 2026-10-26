@@ -98,7 +98,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
                 adds(&[], &[Subtype::Land(LandType::Swamp)], &[]),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
+            EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Land)),
         )))
         .build()
 }
@@ -127,7 +127,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
 /// animating every enchantment in a random game would move every
 /// behavioral row of §3's table for a reason that is not the engine's.
 pub fn opalescence() -> Arc<CardData> {
-    let other_non_aura_enchantments = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+    let other_non_aura_enchantments = EffectRecipient::filtered_permanents(ObjectFilter::And(
         Box::new(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Enchantment)),
             Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(
@@ -238,7 +238,7 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
                 adds(&[CardType::Land], &[Subtype::Land(LandType::Forest)], &[]),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(nontoken_creatures_you_control),
+            EffectRecipient::filtered_permanents(nontoken_creatures_you_control),
         )))
         .build()
 }
@@ -276,7 +276,7 @@ pub fn purifier_clause() -> Arc<CardData> {
                 adds(&[], &[], &[Supertype::Basic]),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            EffectRecipient::filtered_permanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Land)),
                 Box::new(ObjectFilter::ByController(PlayerSet::You)),
             )),
@@ -425,7 +425,7 @@ pub fn simian_clause() -> Arc<CardData> {
                     adds(&[], &[Subtype::Creature(CreatureType::Ape)], &[]),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                EffectRecipient::filtered_permanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),

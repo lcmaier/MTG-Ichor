@@ -682,7 +682,7 @@ fn test_merfolk_thaumaturgist_switches_pt_from_an_activated_ability() {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     decisions.expect_pick_n(
         ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            recipient: EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
             spell_id: thaumaturgist,
         },
         vec![0],

@@ -123,7 +123,7 @@ pub fn goblin_negotiation() -> Arc<CardData> {
             effect: Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::X, unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(
                     Primitive::CreateToken(goblin_token(), AmountExpr::ExcessDamageDealtThisWay),

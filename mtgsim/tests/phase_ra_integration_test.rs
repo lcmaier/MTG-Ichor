@@ -66,7 +66,7 @@ fn self_anthem_creature() -> Arc<CardData> {
                     AmountExpr::Fixed(1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                EffectRecipient::filtered_permanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerSet::You)),
                 )),
@@ -808,7 +808,7 @@ fn test_a_multi_target_destroy_is_one_event() {
         &Effect::Atom(
             Primitive::Destroy,
             EffectRecipient::Target(
-                mtgsim::types::effects::SelectionFilter::Creature,
+                mtgsim::types::effects::SelectionFilter::creature(),
                 mtgsim::types::effects::TargetCount::Exactly(3),
             ),
         ),

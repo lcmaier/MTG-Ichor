@@ -102,7 +102,7 @@ fn resolve_with(
 fn steal(game: &mut GameState, creature: ObjectId, thief: PlayerId) -> ObjectId {
     let effect = Effect::Atom(
         Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     resolve_with(game, thief, &effect, vec![ObjectOrPlayerId::Object(creature)], &test_dp())
 }
@@ -113,7 +113,7 @@ fn steal(game: &mut GameState, creature: ObjectId, thief: PlayerId) -> ObjectId 
 fn steal_indefinitely(game: &mut GameState, creature: ObjectId, thief: PlayerId) -> ObjectId {
     let effect = Effect::Atom(
         Primitive::GainControl { to: PlayerRef::You, duration: Duration::Indefinite },
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     resolve_with(game, thief, &effect, vec![ObjectOrPlayerId::Object(creature)], &test_dp())
 }
@@ -124,7 +124,7 @@ fn mind_control() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Mind Control")
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .enchant_filter(SelectionFilter::Creature)
+        .enchant_filter(SelectionFilter::creature())
         .ability(AbilityDef {
             rules_text: "".into(),
             is_characteristic_defining: false,
@@ -329,7 +329,7 @@ fn the_frame_a_permanent_leaves_the_game_with_is_the_one_the_board_made() {
             AmountExpr::Fixed(3),
             Duration::UntilEndOfTurn,
         ),
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     resolve_with(&mut game, 0, &pump, vec![ObjectOrPlayerId::Object(bears)], &test_dp());
 
@@ -786,7 +786,7 @@ fn an_until_your_next_turn_effect_lasts_until_the_departed_players_turn_would_ha
             AmountExpr::Fixed(1),
             Duration::UntilYourNextTurn,
         ),
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     resolve_with(&mut game, 1, &effect, vec![ObjectOrPlayerId::Object(bears)], &test_dp());
     assert_eq!(game.continuous_effects.len(), 1);
@@ -824,7 +824,7 @@ fn a_departed_seat_expires_only_its_own_until_your_next_turn_rows() {
             AmountExpr::Fixed(1),
             Duration::UntilYourNextTurn,
         ),
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     resolve_with(&mut game, 1, &pump, vec![ObjectOrPlayerId::Object(bears)], &test_dp());
     // P3's, whose own turn is two seats further on.

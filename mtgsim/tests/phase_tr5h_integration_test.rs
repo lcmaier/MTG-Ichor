@@ -84,7 +84,7 @@ fn spells_you_cast(of: Option<ObjectFilter>) -> HistoryCount {
 fn pump(game: &mut GameState, id: ObjectId, n: u64) {
     let pump = Effect::Atom(
         Primitive::ModifyPowerToughness(AmountExpr::Fixed(n), AmountExpr::Fixed(0), Duration::UntilEndOfTurn),
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
     );
     let source = put_in_hand(game, quiet_ritual(), 0);
     let ctx = ResolutionContext {
@@ -113,7 +113,7 @@ fn a_rows_frame_sees_the_rows_of_its_own_window() {
             Condition::ThisTurn(HistoryCount { players: PlayerSet::You, fact: TurnFact::LifeGainEvents, of: None }, CountIs::AtLeast(1)),
             Box::new(Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+                EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature)),
             )),
         )))
         .build();
@@ -204,7 +204,7 @@ fn an_amount_reads_a_history_count_in_a_layer() {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::ModifyPowerToughness(spells, AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+            EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature)),
         )))
         .build();
     put_on_battlefield(&mut game, banner, 0);
@@ -260,7 +260,7 @@ fn banner_over(fact: ObjectFact) -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ThisTurn(fact)),
+            EffectRecipient::filtered_permanents(ObjectFilter::ThisTurn(fact)),
         )))
         .build()
 }
@@ -323,7 +323,7 @@ fn anthem_of(amount: AmountExpr) -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .ability(static_ability(Effect::Atom(
             Primitive::ModifyPowerToughness(amount, AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+            EffectRecipient::filtered_permanents(ObjectFilter::ByType(CardType::Creature)),
         )))
         .build()
 }

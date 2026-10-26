@@ -1588,7 +1588,7 @@ mod tests {
         let aura_data = CardDataBuilder::new("Pacifism")
             .card_type(CardType::Enchantment)
             .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-            .enchant_filter(crate::types::effects::SelectionFilter::Creature)
+            .enchant_filter(crate::types::effects::SelectionFilter::creature())
             .build();
         let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
         let aura_id = game.add_object(aura_obj);
@@ -1684,7 +1684,7 @@ mod tests {
 
     #[test]
     fn test_enchant_filter_creature_only() {
-        // Aura with SelectionFilter::Creature attached to a non-creature (a land).
+        // Aura with SelectionFilter::creature() attached to a non-creature (a land).
         // SBA 704.5n should detect the illegal attachment and send the Aura to the graveyard.
         let mut game = GameState::new(2, 20);
 
@@ -1700,7 +1700,7 @@ mod tests {
         let aura_data = CardDataBuilder::new("Pacifism")
             .card_type(CardType::Enchantment)
             .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-            .enchant_filter(crate::types::effects::SelectionFilter::Creature)
+            .enchant_filter(crate::types::effects::SelectionFilter::creature())
             .build();
         let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
         let aura_id = game.add_object(aura_obj);

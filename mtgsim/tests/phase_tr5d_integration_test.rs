@@ -523,7 +523,7 @@ fn was_dealt_excess_damage_this_turn_reads_the_rows_excess() {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(5), AmountExpr::Fixed(5), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ThisTurn(ObjectFact::WasDealtExcessDamage)),
+            EffectRecipient::filtered_permanents(ObjectFilter::ThisTurn(ObjectFact::WasDealtExcessDamage)),
         )))
         .build();
     let source = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
@@ -704,7 +704,7 @@ fn cast_with_x(game: &mut GameState, card: Arc<CardData>, x: u64) {
 
 /// "Target creature", as the card's instruction names it.
 fn target_creature() -> EffectRecipient {
-    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
+    EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1))
 }
 
 /// Player 0's Goblin tokens.
@@ -782,7 +782,7 @@ fn the_damage_dealt_this_way_is_what_prevention_left() {
     let siphon = Effect::Sequence(vec![
         Effect::Atom(
             Primitive::DealDamage { amount: AmountExpr::Fixed(6), unpreventable: false },
-            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::creature(), TargetCount::Exactly(1)),
         ),
         Effect::Atom(Primitive::GainLife(AmountExpr::DamageDealtThisWay), EffectRecipient::Player(PlayerRef::You)),
     ]);
