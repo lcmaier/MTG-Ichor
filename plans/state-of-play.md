@@ -190,8 +190,8 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 385 |
-| …closed, still recorded | 237 |
+| Numbered items | 386 |
+| …closed, still recorded | 238 |
 | …open — unreachable, and says why | 102 |
 | **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 28 |

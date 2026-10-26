@@ -8918,3 +8918,38 @@ The slot it guarded, "with the first registered card that …", was retired at #
      `names-and-hygiene-sweeps` (`plans/handoffs/item-6-audit.md`, pass 3's
      cleanup), the review already scheduled at the end of triggers (the
      owner's slot).
+
+### Item 26 — closed 2026-10-26 by PR #294 (`batch-legality-and-entry-choices`), met at the producers
+
+No producer puts two members on one object in one batch, so phase 2 has no stale member to skip: one instance of "target" cannot repeat an object (CR 115.3), `EffectRecipient::Group` drops a repeated object, two instructions are two batches, the state-based check orders its members (counters off before a death, an unattach after it), and every `Rewrite` arm but `Retarget` acts on its own event's subject, while no producer puts a move beside damage in one batch. Retired at #294's review (the owner, 2026-10-26); `replacement-architecture.md` §3.2b's growth contract now asks a new arm that breaks either premise for the answer. The across-instruction case its slot named is `codebase-state.md` item 334.
+
+*Original entry:*
+
+26. **Batch phase 2 does not re-check member legality, and CR 608.2b says it
+    should (`rb-review.md` H7).** If a batch carries two members naming one
+    object — two `ZoneChange`s, or a `Destroy` and a `ZoneChange` — the first
+    perform moves it and the second returns `Err` ("proposed Battlefield→X,
+    which is in Graveyard"), which fails the whole batch where CR 608.2b's
+    do-as-much-as-possible says to skip that member. Unreachable today: the SBA
+    sweep dedupes per object, combat and untap batches are per-object unique,
+    and no registered spell proposes one object twice. It becomes reachable
+    with the first multi-clause spell ("Destroy target creature. Destroy target
+    creature.") or the first replacement that redirects member 1 into member
+    2's precondition. **Sized:** a `still_legal(&GameAction) -> bool` predicate,
+    one arm per `GameAction` variant (10 today), asked in phase 2's loop before
+    each perform, skipping rather than erroring. It is the *caller's* job by
+    `CLAUDE.md`'s own rule — performers are loud, callers check legality — and
+    the batch is the caller. What it must not become is a `match` on error
+    strings, which would make a real bug indistinguishable from a stale member.
+
+    **Reachability (2026-10-23):** unreachable — re-checked: the SBA sweep
+    dedupes per object, combat and untap batches are per-object unique, RC-5's
+    auxiliary batch names each object once by CR 614.13b, and no registered
+    spell proposes one object twice.
+    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
+    (the card-homed triage, 2026-10-23; the PR split at #293's review): phase 2's `still_legal`, one arm per
+    `GameAction` variant with no wildcard, skipping a stale member rather than
+    failing the batch (CR 608.2b), with a fixture whose one instruction names
+    one creature twice ("exile target creature and target creature", CR
+    115.3). Its check: a member `still_legal` passed performs without `Err`,
+    asserted in debug builds, so a performer's error stays a bug.

@@ -1312,6 +1312,15 @@ A new arm is a claim that CR 614–616 permits an operation this list omits. It
 should arrive with the rule number that says so; absent one, it belongs in
 `Instead` or in `then`.
 
+**An arm that can point an event at another object says what a batch does
+when an earlier member has moved that object.** Every producer names an
+object once per batch, or orders its members so none goes stale (CR 608.2b,
+609.3), and every arm but `Retarget` acts on its own event's subject.
+`Retarget` points damage at another recipient, and no producer puts a move
+beside damage in one batch. A new arm that breaks either premise owes the
+answer phase 2 would need (adopted at #294's review, 2026-10-26, when
+`codebase-state.md` item 26 closed as met at the producers).
+
 **`Instead` carries a template, not a constant.** Several cards build the
 replacement out of the event they are replacing: Chatterfang ("those tokens
 *plus that many* 1/1 Squirrels"), Divine Visitation ("*that many* 4/4 Angels"),

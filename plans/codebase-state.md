@@ -1343,34 +1343,17 @@ registered card returns an object.
     permanent stops being an accident: phase 1 becomes an APNAP round-robin
     over its groups (CR 101.4d).
 
-26. **Batch phase 2 does not re-check member legality, and CR 608.2b says it
-    should (`rb-review.md` H7).** If a batch carries two members naming one
-    object — two `ZoneChange`s, or a `Destroy` and a `ZoneChange` — the first
-    perform moves it and the second returns `Err` ("proposed Battlefield→X,
-    which is in Graveyard"), which fails the whole batch where CR 608.2b's
-    do-as-much-as-possible says to skip that member. Unreachable today: the SBA
-    sweep dedupes per object, combat and untap batches are per-object unique,
-    and no registered spell proposes one object twice. It becomes reachable
-    with the first multi-clause spell ("Destroy target creature. Destroy target
-    creature.") or the first replacement that redirects member 1 into member
-    2's precondition. **Sized:** a `still_legal(&GameAction) -> bool` predicate,
-    one arm per `GameAction` variant (10 today), asked in phase 2's loop before
-    each perform, skipping rather than erroring. It is the *caller's* job by
-    `CLAUDE.md`'s own rule — performers are loud, callers check legality — and
-    the batch is the caller. What it must not become is a `match` on error
-    strings, which would make a real bug indistinguishable from a stale member.
-
-    **Reachability (2026-10-23):** unreachable — re-checked: the SBA sweep
-    dedupes per object, combat and untap batches are per-object unique, RC-5's
-    auxiliary batch names each object once by CR 614.13b, and no registered
-    spell proposes one object twice.
-    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
-    (the card-homed triage, 2026-10-23; the PR split at #293's review): phase 2's `still_legal`, one arm per
-    `GameAction` variant with no wildcard, skipping a stale member rather than
-    failing the batch (CR 608.2b), with a fixture whose one instruction names
-    one creature twice ("exile target creature and target creature", CR
-    115.3). Its check: a member `still_legal` passed performs without `Err`,
-    asserted in debug builds, so a performer's error stays a bug.
+26. **~~Batch phase 2 does not re-check member legality, and CR 608.2b says
+    it should.~~ — ✅ CLOSED 2026-10-26 (PR #294, met at the producers).** —
+    archived.
+    No producer puts two members on one object in one batch: one instance of
+    "target" cannot repeat an object (CR 115.3), `Group` drops a repeat, two
+    instructions are two batches, and the state-based check orders its
+    members. Retired at #294's review (the owner); `replacement-architecture.md`
+    §3.2b's growth contract asks a new `Rewrite` arm for the answer, and the
+    across-instruction case is item 334.
+    **Reachability (2026-10-26):** closed — PR #294.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 26".
 
 ### Found by a rider read-through (2026-08-30)
 
@@ -9913,4 +9896,41 @@ keyed by its event.
      **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
      beside item 292, its player twin: an instruction acting on a target
      that is gone does nothing.
+
+335. **An "as this enters" effect can do anything an instruction can, and the
+     entry replacements are a closed list of payloads.** CR 614.1c makes any
+     "As [this permanent] enters, …" a replacement effect, and CR 614.12 and
+     614.13 say when its choices are made and which objects may move, never
+     what it does. The engine's entry rewrites are a payload per family:
+     `EnterWith` (status, counters and edits on the entering object),
+     `EnterAfterMoving` (CR 614.13's moves), `EnterAsCopy`,
+     `EnterUnderControlOf`, and entering attacking. Printed cards already reach
+     past them: Dermotaxi and The Mimeoplasm exile from any graveyard, Ulamog's
+     Despoiler moves cards out of exile, Phylactery Lich puts a counter on
+     another permanent, and the reveal lands reveal a card. A custom card could
+     print "As this enters, each opponent loses 2 life". The count at #294
+     (Scryfall, 2026-10-26): 287 cards print "As this … enters," in four answer
+     shapes, a value (~175), a player (32), objects (~140) and a yes or no (51).
+
+     The general form mirrors a rider: an entry replacement carrying an
+     instruction, performed in the window #294 gave an entry's own side
+     effects, right before it enters. Two questions make it a design:
+     - **What the entry reads back.** Devour's count, Thromok's X², Sutured
+       Ghoul's power and The Mimeoplasm's copy read what the instruction did,
+       and the CR 616.1 loop needs that answer while it decides (Corpsejack
+       Menace doubles devour's counters in the same loop), while a multi-step
+       instruction needs each step performed before the next (CR 608.2c).
+     - **What the permanent remembers.** Imprint's exiled card, whether a
+       trigger exiles it (Chrome Mox) or a replacement does (Dermotaxi),
+       devour's "it devoured" (CR 702.82b), Sutured Ghoul's exiled cards and
+       every "as this enters, choose" value are CR 607 links.
+
+     Raised by the owner at #294's review (2026-10-26).
+     **Reachability (2026-10-26):** unreachable — every registered entry
+     replacement fits one of the payloads.
+     **Sized:** a design first: the instruction form, the half the entry
+     reads back, and its CR 607 record, decided before `breadth-features`
+     builds on the payloads; the build is sized there.
+     **Slotted:** `route-review`, beside CR 607's linked abilities and the
+     card parser's design.
 
