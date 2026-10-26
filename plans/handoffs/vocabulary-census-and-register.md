@@ -346,7 +346,7 @@ widen `Rewrite`'s closed payloads to arms the pipeline must refuse.
      opponent" can be written. About 40–60 lines, and `Creature`'s 105 sites
      in fold F.
 
-   **Recommended: (b), keeping the name.**
+   **Settled: (b), keeping the name** (the owner, at #296's fourth review round, 2026-10-26): there are values to both, and the retrofit cost is asymmetric, since merging two wrappers over shared leaves later is cheap and splitting a merged type is not.
 
 5. **The gate.**
 
