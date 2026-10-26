@@ -861,7 +861,11 @@ pub struct EventId(pub usize);
 /// once per death inside it.
 ///
 /// The trigger matcher (critical path item 6) is the customer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+///
+/// Not ordered: the moves and payments a batch's entries decide on are
+/// numbered after that batch and performed before it, so a larger id is not a
+/// later event. The stream's order is [`EventId`]'s.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BatchId(pub u64);
 
 /// When something waiting for an event was created, as a position in the
