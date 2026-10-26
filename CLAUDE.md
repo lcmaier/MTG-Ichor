@@ -161,7 +161,7 @@ squash** — the project leans on its per-commit record. **Size a phase before w
 it in the doc, not in the moment** → `engineering-practices.md#sizing-a-phase` owns the 1,500–2,500 band, the
 one-consumer-per-PR rule and where review findings go. `gh` is installed; opening a PR is fine, but
 **merging to main is the user's call** — hand over the URL unless they say otherwise that session.
-A build closes with `/pr-handover`, a review round runs as `/review-round`, and the next PR's brief is `/next-brief`.
+A design stop is `/design-note`, a build closes with `/pr-handover`, a review round runs as `/review-round`, and the next PR's brief is `/next-brief`.
 
 ## Conventions
 

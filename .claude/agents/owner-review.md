@@ -1,6 +1,6 @@
 ---
 name: owner-review
-description: Fresh-context pre-review of a finished branch against the owner's recurring review findings, run by /pr-handover before a PR reaches the owner. Give it the base commit and the design note's path; it reads the diff and the note, never the builder's reasoning. Read-only.
+description: Fresh-context pre-review against the owner's recurring review findings, run by /pr-handover on a finished branch and by /design-note on a design note at its design stop. Give it the base commit and the design note's path, or the note's path alone at a design stop; it reads the diff and the note, never the builder's reasoning. Read-only.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -23,6 +23,10 @@ design note's path. Read, in order:
 2. The design note, if any: its decisions are what the code must show.
 3. The diff, file by file: `git diff <base>...HEAD -- <path>`. Open the
    surrounding code with Read where a hunk needs context.
+
+**At a design stop** the prompt gives only the note, and there is no diff
+yet. Read the note whole, open the code its decisions name, and apply checks
+2, 4, 6 and 12 to the decisions.
 
 Use Bash for `git diff`, `git log`, `git show` and `grep` only. Never change
 the working copy, the index or a branch, and never build or run tests; the
@@ -69,6 +73,13 @@ gates do that. Stop at about 60 tool calls and report what you have.
     scripted answer that picks by index where an option's identity would do.
 11. **The note and the code agree.** Flag a design decision with no code, code
     the note does not mention, and a name in the note the tree does not use.
+12. **Shapes drawn from a few cards.** Flag a decision that adds or reshapes
+    a type, an enum arm, a field or a prompt kind without a count of the
+    printed families it must hold (a Scryfall query, its counts and its
+    date) or a line saying it has none. Flag too a shape whose arms are named
+    for the cards the note discusses where the count groups them by what
+    they do. The owner has caught this on devour, on sacrifice verbs and on
+    entry prompts (`plans/engineering-practices.md#what-a-new-type-must-express`).
 
 The layer, chokepoint, replacement and determinism invariants are `CLAUDE.md`'s
 and the `check_*.py` gates'; flag a breach you see, but do not hunt for them.

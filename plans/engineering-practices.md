@@ -166,8 +166,10 @@ it is, rename it. Every name a PR adds is read against this list:
 
 ### What a new type must express
 
-For a new type, or one a phase grows, three questions, answered where the type
-is designed:
+For a new type, or one a phase grows by an arm or a field (a prompt kind, a
+`Rewrite` arm, a template's field), three questions, answered in the design
+note ahead of its options, with the count's table and query (`/design-note`).
+A shape drawn from the cards the brief names, uncounted, is not ready for review:
 
 1. **What must it express at v1?** List what the CR lets it be, then count the
    cards with a census script over Scryfall's data, calibrated on the
