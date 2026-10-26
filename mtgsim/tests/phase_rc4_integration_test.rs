@@ -626,7 +626,7 @@ fn test_a_control_changing_entry_replacement_applies_first_and_asks_nothing() {
     assert_eq!(entry.counter_count(CounterType::PlusOnePlusOne), 2, "and the counters still came");
     assert_eq!(entries(&game), vec![(id, 1)]);
     // "An opponent" with one opponent: answered unasked, and recorded.
-    mtgsim::test_support::assert_not_asked(&game, 0, "ChoosePlayerAsItEnters", "its one legal answer");
+    mtgsim::test_support::assert_not_asked(&game, 0, "ChoosePlayerAsObjectEnters", "its one legal answer");
 }
 
 /// Why 616.1b goes first: the controller is what the other replacements read.
@@ -665,7 +665,7 @@ fn test_three_player_opponent_of_your_choice_is_asked_before_the_entry() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.cast_spell(0, id, &test_dp()).expect("it is castable");
     dp.expect_choice(
-        ChoiceKind::ChoosePlayerAsItEnters { object: id, source: id, role: EntryRole::Controller },
+        ChoiceKind::ChoosePlayerAsObjectEnters { object: id, source: id, role: EntryRole::Controller },
         vec![ChoiceOption::Player(2)],
     );
     game.resolve_top_of_stack(&dp).expect("it resolves");

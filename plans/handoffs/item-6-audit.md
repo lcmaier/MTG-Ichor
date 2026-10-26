@@ -1061,8 +1061,8 @@ item 124's precedent that a sweep does not ride inside a rules change.
      moves are their own event right before the entries, inside the entering
      batch, after a spot check of "as this enters" rulings (Wood Elemental,
      Overlaid Terrain, Shimatsu), so no decided batch is held across another;
-     an entry's prompts are one arm per answer shape (`AcceptAsItEnters`,
-     `ChoosePlayerAsItEnters`), from a census of 287 printed "as this
+     an entry's prompts are one arm per answer shape (`AcceptAsObjectEnters`,
+     `ChoosePlayerAsObjectEnters`), from a census of 287 printed "as this
      enters" cards; and the three `Query` arms read as clauses. Filed: item
      334 (a target an earlier instruction moved, for PR 6) and item 335 (an
      "as this enters" instruction can be anything, for `route-review`).

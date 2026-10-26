@@ -5828,7 +5828,7 @@ them); and the board's classifier, which had read "not wrong today" as
      `EnterModsTemplate.unless_paid` carries an entry choice's cost: a shockland's
      "you may pay 2 life. If you don't, it enters tapped" is
      `tapped_unless_paid(Cost::PayLife(2))`. The payment is offered through
-     `ChoiceKind::AcceptAsItEnters` only when it is payable beside every cost the
+     `ChoiceKind::AcceptAsObjectEnters` only when it is payable beside every cost the
      batch's entries chose already, and paid as a loss of life right before the
      entries. Two such tokens at once for a player at 3 life: one is paid for.
      **Reachability (2026-10-26):** closed — PR #294.
@@ -9696,9 +9696,9 @@ keyed by its event.
      archived.
      Tribute is a counters row with `by: Some(PlayerRef::Opponent)` and
      `optional: true`: the entering creature's controller chooses the opponent
-     through `ChoiceKind::ChoosePlayerAsItEnters` (role `CounterPutter`, the
+     through `ChoiceKind::ChoosePlayerAsObjectEnters` (role `CounterPutter`, the
      answer-shape prompt Xantcha's choice folds into), and that opponent is
-     offered the counters through `AcceptAsItEnters`, then puts them (CR 122.6a).
+     offered the counters through `AcceptAsObjectEnters`, then puts them (CR 122.6a).
      **Reachability (2026-10-26):** closed — PR #294.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 332".
 
@@ -9816,7 +9816,7 @@ keyed by its event.
      shape, which decides how an option names what it is.
 
 337. **An entry choice's cost is paid only in life.** `EnterModsTemplate`'s
-     `unless_paid` carries any `Cost`, and `pays_as_it_enters` refuses every
+     `unless_paid` carries any `Cost`, and `pays_as_object_enters` refuses every
      arm but `PayLife` as the effect applies, with CR 614.12b's combined
      payability summed for life alone. A mana payment ("as this enters, you
      may pay {2}"), a sacrifice or a discard needs its own combined check,

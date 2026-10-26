@@ -300,7 +300,7 @@ fn tapped(game: &GameState, id: ObjectId) -> bool {
 }
 
 fn the_offer(object: ObjectId) -> ChoiceKind {
-    ChoiceKind::AcceptAsItEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) }
+    ChoiceKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) }
 }
 
 /// Played from hand and paid for: untapped, and 2 life lost (CR 119.4).
@@ -476,11 +476,11 @@ fn tribute_beast() -> Arc<CardData> {
 }
 
 fn the_putter(object: ObjectId) -> ChoiceKind {
-    ChoiceKind::ChoosePlayerAsItEnters { object, source: object, role: EntryRole::CounterPutter }
+    ChoiceKind::ChoosePlayerAsObjectEnters { object, source: object, role: EntryRole::CounterPutter }
 }
 
 fn the_counters(object: ObjectId) -> ChoiceKind {
-    ChoiceKind::AcceptAsItEnters { object, source: object, offer: EntryOffer::PutCounters { counter: CounterType::PlusOnePlusOne, n: 2 } }
+    ChoiceKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::PutCounters { counter: CounterType::PlusOnePlusOne, n: 2 } }
 }
 
 /// Who put the counters `object` entered with (CR 122.6a), off its record.

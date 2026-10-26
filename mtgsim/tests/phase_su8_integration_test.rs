@@ -223,7 +223,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ChooseDamageSource { source: object },
         ChoiceKind::ChooseDelayedTriggerEvent { source: object },
         ChoiceKind::ChooseOpponent { source: object },
-        ChoiceKind::ChoosePlayerAsItEnters { object, source: object, role: EntryRole::Controller },
+        ChoiceKind::ChoosePlayerAsObjectEnters { object, source: object, role: EntryRole::Controller },
         ChoiceKind::ChooseEnteringDefender { object },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: object, source: object, to: Zone::Graveyard },
         ChoiceKind::ChooseCopySource { source: object },
@@ -232,7 +232,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::Scry { source: None, n: 1 },
         ChoiceKind::ScryOrder { source: None, bottom: true },
         ChoiceKind::LegendRule { legend_name: "Grizzly Bears".to_string() },
-        ChoiceKind::AcceptAsItEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) },
+        ChoiceKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) },
     ];
     let place = |kind: &ChoiceKind| match kind {
         ChoiceKind::PriorityAction => 0,
@@ -256,7 +256,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ChooseDamageSource { .. } => 18,
         ChoiceKind::ChooseDelayedTriggerEvent { .. } => 19,
         ChoiceKind::ChooseOpponent { .. } => 20,
-        ChoiceKind::ChoosePlayerAsItEnters { .. } => 21,
+        ChoiceKind::ChoosePlayerAsObjectEnters { .. } => 21,
         ChoiceKind::ChooseEnteringDefender { .. } => 22,
         ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 23,
         ChoiceKind::ChooseCopySource { .. } => 24,
@@ -265,7 +265,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::Scry { .. } => 27,
         ChoiceKind::ScryOrder { .. } => 28,
         ChoiceKind::LegendRule { .. } => 29,
-        ChoiceKind::AcceptAsItEnters { .. } => 30,
+        ChoiceKind::AcceptAsObjectEnters { .. } => 30,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
     assert_eq!(places, (0..31).collect::<Vec<_>>(), "every kind, once, in order");
@@ -301,11 +301,11 @@ fn every_question_kind_answers_a_why() {
 /// and the why says so, as it says the chooser is not their own opponent
 /// (CR 102.2). Four seats, the fourth gone.
 #[test]
-fn a_departed_player_is_named_at_choose_player_as_it_enters() {
+fn a_departed_player_is_named_at_choose_player_as_object_enters() {
     let mut game = setup_game(4);
     let entering = put_in_hand(&mut game, grizzly_bears(), 0);
     game.player_lost[3] = true;
-    let context = ChoiceContext::new(ChoiceKind::ChoosePlayerAsItEnters {
+    let context = ChoiceContext::new(ChoiceKind::ChoosePlayerAsObjectEnters {
         object: entering,
         source: entering,
         role: EntryRole::Controller,

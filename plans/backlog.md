@@ -1846,7 +1846,7 @@ mechanic rather than a migration, which is why it is here and not in
   | `choose_replacement` | `ChooseReplacementEffect` | the affected object's controller, or the affected player (CR 616.1) | **C**, and the **residual** §4 names — it lands on whoever is affected, mid-resolution, and often not on the actor | 1.8 / 4.0 / 12.0 |
   | `apply_optional_replacement` | `ApplyOptionalReplacement` | same (CR 614.1a's "you may") | **C**, residual | 0 / 0.01 / 0.09 |
   | `allocate_next_damage` | `AllocateNextDamage` | the affected player (CR 615.7) | **C**, residual | 0.01 / 0.04 / 0.04 |
-  | `choose_player_as_it_enters` | `ChoosePlayerAsItEnters` | the entering permanent's controller (CR 616.1b, 702.104a) | **P**-shaped but asked at entry, after the action — a policy, or the agent | 0 / 0 / 0 — Xantcha unpooled |
+  | `choose_player_as_object_enters` | `ChoosePlayerAsObjectEnters` | the entering permanent's controller (CR 616.1b, 702.104a) | **P**-shaped but asked at entry, after the action — a policy, or the agent | 0 / 0 / 0 — Xantcha unpooled |
   | `choose_auxiliary_zone_change` | `ChooseAuxiliaryZoneChange` | the entering permanent's controller (CR 614.13a) | **C** or the agent's — devour's count is strategy | 0.49 / 0.33 / 0.48 |
   | `choose_copy_source` | `ChooseCopySource` | the controller (CR 707.4) | **C** or the agent's | 0.49 / 0.22 / 0.32 |
   | `choose_damage_source` | `ChooseDamageSource` | the controller (CR 609.7a) | **C** or the agent's | 0 / 16 / 37 |

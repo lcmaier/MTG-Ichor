@@ -1999,9 +1999,9 @@ enclosing one.
 #294's review, 2026-10-26, from a census of the 287 printed "as this
 enters" cards and their keywords). Every choice is CR 614.12a's, made before
 the permanent enters, and one prompt arm serves each answer shape, its
-question carried as data: a yes or no is `AcceptAsItEnters { offer }` (a
+question carried as data: a yes or no is `AcceptAsObjectEnters { offer }` (a
 shockland's payment, tribute's counters), a player is
-`ChoosePlayerAsItEnters { role }` (Xantcha's controller, tribute's
+`ChoosePlayerAsObjectEnters { role }` (Xantcha's controller, tribute's
 opponent), and a new family adds an offer or a role. The objects shape
 keeps its three arms until `codebase-state.md` item 335's design; a value is CR 607's. Two
 "may"s sit on an entry and ask different players: `ReplacementDef::optional`

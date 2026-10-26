@@ -34,7 +34,7 @@ use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::ask::{
-    ask_allocate_next_damage, ask_choose_copy_source, ask_choose_damage_source, ask_choose_player_as_it_enters,
+    ask_allocate_next_damage, ask_choose_copy_source, ask_choose_damage_source, ask_choose_player_as_object_enters,
     ask_choose_entering_defender, ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost,
     ask_choose_trample_damage_assignment, ask_choose_x_value, ask_discard, ask_select_recipients,
 };
@@ -207,8 +207,8 @@ fn a_source_of_damage_with_one_candidate_is_answered_unasked() {
 fn an_opponent_of_your_choice_with_one_opponent_is_answered_unasked() {
     let mut game = setup_two_player_game();
     let entering = put_in_hand(&mut game, grizzly_bears(), 0);
-    assert_eq!(ask_choose_player_as_it_enters(&asks_nobody(), &game, 0, entering, entering, EntryRole::Controller, &[1]), 1);
-    assert_not_asked(&game, 0, "ChoosePlayerAsItEnters", ONE_LEGAL_ANSWER);
+    assert_eq!(ask_choose_player_as_object_enters(&asks_nobody(), &game, 0, entering, entering, EntryRole::Controller, &[1]), 1);
+    assert_not_asked(&game, 0, "ChoosePlayerAsObjectEnters", ONE_LEGAL_ANSWER);
 }
 
 /// CR 508.4 with one player to attack.

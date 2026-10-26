@@ -163,7 +163,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         | ChoiceKind::ChooseDelayedTriggerEvent { .. }
         | ChoiceKind::ChooseReplacementEffect { .. }
         | ChoiceKind::ApplyOptionalReplacement { .. }
-        | ChoiceKind::AcceptAsItEnters { .. }
+        | ChoiceKind::AcceptAsObjectEnters { .. }
         | ChoiceKind::LegendRule { .. }
         | ChoiceKind::CommanderToCommandZoneSba { .. } => LineAnswer::Unanswered,
         // Never asked while a line plays: each waits for a step to pass
@@ -180,7 +180,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         | ChoiceKind::ApplyOptionalEffect { .. }
         | ChoiceKind::AllocateNextDamage { .. }
         | ChoiceKind::ChooseDamageSource { .. }
-        | ChoiceKind::ChoosePlayerAsItEnters { .. }
+        | ChoiceKind::ChoosePlayerAsObjectEnters { .. }
         | ChoiceKind::ChooseOpponent { .. }
         | ChoiceKind::ChooseEnteringDefender { .. }
         | ChoiceKind::ChooseAuxiliaryZoneChange { .. }

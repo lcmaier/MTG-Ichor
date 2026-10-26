@@ -31,11 +31,11 @@ use crate::types::history::{CountIs, ObjectFact};
 use crate::oracle::characteristics::{get_effective_power, get_effective_types, ObjectInformation};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_take_or_leave;
-use crate::ui::ask::ask_accept_as_it_enters;
+use crate::ui::ask::ask_accept_as_object_enters;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
 use crate::ui::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
-use crate::ui::ask::ask_choose_player_as_it_enters;
+use crate::ui::ask::ask_choose_player_as_object_enters;
 use crate::ui::ask::ask_choose_replacement;
 
 use super::entry_copy::enter_as_copy;
@@ -2163,7 +2163,7 @@ fn apply_rewrite(
                 // CR 614.12: paid, the rest of the template does not apply, and
                 // the effect applied and changed nothing (CR 614.5).
                 if let Some(cost) = &template.unless_paid
-                    && pays_as_it_enters(game, ctx, chosen, object, cost)?
+                    && pays_as_object_enters(game, ctx, chosen, object, cost)?
                 {
                     let event = GameAction::EnterBattlefield { object, from, controller, mods, act };
                     return Ok((Some(event), Applied::CHANGED_NOTHING));
@@ -3055,7 +3055,7 @@ fn entry_counter_choices<'t>(
         let mut row = row.clone();
         if let Some(PlayerRef::Opponent) = row.by {
             let putter = named_for_an_entry(game, chosen, entering, &PlayerRef::Opponent, "as the player putting counters on", |opponents| {
-                Ok(ask_choose_player_as_it_enters(ctx.dp, game, chosen.controller, entering, chosen.source, EntryRole::CounterPutter, opponents))
+                Ok(ask_choose_player_as_object_enters(ctx.dp, game, chosen.controller, entering, chosen.source, EntryRole::CounterPutter, opponents))
             })?;
             row.by = Some(PlayerRef::Player(putter));
         }
@@ -3064,7 +3064,7 @@ fn entry_counter_choices<'t>(
             let offered = evaluate_enter_template(game, &alone, chosen, entering, controller, so_far)?;
             let Some(put) = offered.counters.first() else { continue };
             let offer = EntryOffer::PutCounters { counter: put.counter, n: put.n };
-            if !ask_accept_as_it_enters(ctx.dp, game, put.putter(controller), entering, chosen.source, offer) {
+            if !ask_accept_as_object_enters(ctx.dp, game, put.putter(controller), entering, chosen.source, offer) {
                 continue;
             }
         }
@@ -3080,7 +3080,7 @@ fn entry_counter_choices<'t>(
 /// loss of life CR 119.4 says paying life is. Life is the payment built here
 /// (CR 119.4: no more than the player's life in all; CR 119.8: not while a
 /// "can't" stops them losing it), and any other cost is refused.
-fn pays_as_it_enters(
+fn pays_as_object_enters(
     game: &mut GameState,
     ctx: &ActionContext,
     chosen: &ReplacementInstance,
@@ -3110,7 +3110,7 @@ fn pays_as_it_enters(
     let life_total = game.get_player(payer)?.life_total;
     let payable = life_total >= (chosen_already + life) as i64
         && !is_prohibited(game, &Query::EventHappens { action: &payment, cause, lookahead: None });
-    if !payable || !ask_accept_as_it_enters(ctx.dp, game, payer, entering, chosen.source, EntryOffer::Pay(cost.clone())) {
+    if !payable || !ask_accept_as_object_enters(ctx.dp, game, payer, entering, chosen.source, EntryOffer::Pay(cost.clone())) {
         return Ok(false);
     }
     game.entry_selection.costs_chosen.push(crate::state::replacement_effects::EntryCostChosen { entering, payer, cost: cost.clone() });
@@ -3132,7 +3132,7 @@ fn entering_controller(
     player_ref: &PlayerRef,
 ) -> Result<PlayerId, String> {
     named_for_an_entry(game, chosen, object, player_ref, "as the controller of", |opponents| {
-        Ok(ask_choose_player_as_it_enters(ctx.dp, game, chosen.controller, object, chosen.source, EntryRole::Controller, opponents))
+        Ok(ask_choose_player_as_object_enters(ctx.dp, game, chosen.controller, object, chosen.source, EntryRole::Controller, opponents))
     })
 }
 

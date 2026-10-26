@@ -310,7 +310,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
         {
             generic_split_refusals(game, question.player, mana_cost)
         }
-        (ChoiceKind::ChoosePlayerAsItEnters { role, .. }, WhyAbout::Player(player)) => {
+        (ChoiceKind::ChoosePlayerAsObjectEnters { role, .. }, WhyAbout::Player(player)) => {
             let to = match role {
                 EntryRole::Controller => "To control it",
                 EntryRole::CounterPutter => "To put its counters on",
@@ -351,10 +351,10 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::AllocateNextDamage { .. }
             | ChoiceKind::ChooseDamageSource { .. }
             | ChoiceKind::ChooseDelayedTriggerEvent { .. }
-            | ChoiceKind::ChoosePlayerAsItEnters { .. }
+            | ChoiceKind::ChoosePlayerAsObjectEnters { .. }
             | ChoiceKind::ChooseOpponent { .. }
             | ChoiceKind::ChooseEnteringDefender { .. }
-            | ChoiceKind::AcceptAsItEnters { .. }
+            | ChoiceKind::AcceptAsObjectEnters { .. }
             | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
             | ChoiceKind::ChooseCopySource { .. }
             | ChoiceKind::CommanderToCommandZoneSba { .. }
@@ -485,10 +485,10 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         ChoiceKind::ChooseDelayedTriggerEvent { source } => {
             (format!("the events that happened at once, any of which triggers {}'s delayed ability", n(source)), Some("603.7b"))
         }
-        ChoiceKind::ChoosePlayerAsItEnters { object, role: EntryRole::Controller, .. } => {
+        ChoiceKind::ChoosePlayerAsObjectEnters { object, role: EntryRole::Controller, .. } => {
             (format!("the opponents still in the game, one of whom controls {} as it enters", n(object)), Some("614.12a"))
         }
-        ChoiceKind::ChoosePlayerAsItEnters { object, role: EntryRole::CounterPutter, .. } => {
+        ChoiceKind::ChoosePlayerAsObjectEnters { object, role: EntryRole::CounterPutter, .. } => {
             (format!("the opponents still in the game, one of whom may put counters on {} as it enters", n(object)), Some("702.104a"))
         }
         ChoiceKind::ChooseOpponent { source } => {
@@ -497,7 +497,7 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         ChoiceKind::ChooseEnteringDefender { object } => {
             (format!("what can be attacked that its effect allows, which {} attacks as it enters", n(object)), Some("508.4"))
         }
-        ChoiceKind::AcceptAsItEnters { object, offer, .. } => (
+        ChoiceKind::AcceptAsObjectEnters { object, offer, .. } => (
             format!("whether to {} as {} enters", crate::ui::display::entry_offer_words(offer), n(object)),
             Some("614.12a"),
         ),

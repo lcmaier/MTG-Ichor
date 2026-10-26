@@ -112,7 +112,7 @@ pub enum ChoiceKind {
     ///
     /// Asked only when there are more candidates than the cost needs. With
     /// exactly as many as it needs the payment is forced and nothing is
-    /// asked, as with [`Self::ChoosePlayerAsItEnters`].
+    /// asked, as with [`Self::ChoosePlayerAsObjectEnters`].
     ChooseSacrificeForCost { spell_or_ability_id: ObjectId, count: u32 },
 
     // --- Replacement effects (CR 616.1) ---
@@ -208,7 +208,7 @@ pub enum ChoiceKind {
     /// options are the opponents still in the game; with one, nothing is
     /// asked. `source` is the object whose effect asks, the entering one for
     /// its own ability.
-    ChoosePlayerAsItEnters { object: ObjectId, source: ObjectId, role: EntryRole },
+    ChoosePlayerAsObjectEnters { object: ObjectId, source: ObjectId, role: EntryRole },
 
     /// CR 508.4 — `object` is put onto the battlefield attacking, and its
     /// controller chooses what it attacks as it enters, among two or more of
@@ -223,7 +223,7 @@ pub enum ChoiceKind {
     /// payable beside every cost the event's entries chose already (CR
     /// 614.12b). `source` is the object whose effect offers it, the entering
     /// one for its own ability.
-    AcceptAsItEnters { object: ObjectId, source: ObjectId, offer: EntryOffer },
+    AcceptAsObjectEnters { object: ObjectId, source: ObjectId, offer: EntryOffer },
 
     /// CR 614.13/13a — an entry replacement is being applied and it moves other
     /// objects: devour's "you may sacrifice any number of creatures", Sutured
@@ -327,7 +327,7 @@ pub enum ChoiceKind {
     LegendRule { legend_name: String },
 }
 
-/// What [`ChoiceKind::AcceptAsItEnters`] offers, so a client can tell a cost
+/// What [`ChoiceKind::AcceptAsObjectEnters`] offers, so a client can tell a cost
 /// from a gift without reading the card.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EntryOffer {
@@ -338,7 +338,7 @@ pub enum EntryOffer {
     PutCounters { counter: CounterType, n: u32 },
 }
 
-/// What the player [`ChoiceKind::ChoosePlayerAsItEnters`] asks for will be.
+/// What the player [`ChoiceKind::ChoosePlayerAsObjectEnters`] asks for will be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntryRole {
     /// The opponent the permanent enters under the control of (CR 616.1b).
@@ -398,9 +398,9 @@ impl ChoiceKind {
             ChoiceKind::ChooseDamageSource { source } => Some(*source),
             ChoiceKind::ChooseDelayedTriggerEvent { source } => Some(*source),
             ChoiceKind::ChooseOpponent { source } => Some(*source),
-            ChoiceKind::ChoosePlayerAsItEnters { source, .. } => Some(*source),
+            ChoiceKind::ChoosePlayerAsObjectEnters { source, .. } => Some(*source),
             ChoiceKind::ChooseEnteringDefender { object } => Some(*object),
-            ChoiceKind::AcceptAsItEnters { source, .. } => Some(*source),
+            ChoiceKind::AcceptAsObjectEnters { source, .. } => Some(*source),
             ChoiceKind::ChooseAuxiliaryZoneChange { source, .. } => Some(*source),
             ChoiceKind::ChooseCopySource { source } => Some(*source),
             ChoiceKind::CommanderToCommandZoneSba { commander } => Some(*commander),
@@ -439,9 +439,9 @@ impl ChoiceKind {
             ChoiceKind::ChooseDamageSource { .. } => "ChooseDamageSource",
             ChoiceKind::ChooseDelayedTriggerEvent { .. } => "ChooseDelayedTriggerEvent",
             ChoiceKind::ChooseOpponent { .. } => "ChooseOpponent",
-            ChoiceKind::ChoosePlayerAsItEnters { .. } => "ChoosePlayerAsItEnters",
+            ChoiceKind::ChoosePlayerAsObjectEnters { .. } => "ChoosePlayerAsObjectEnters",
             ChoiceKind::ChooseEnteringDefender { .. } => "ChooseEnteringDefender",
-            ChoiceKind::AcceptAsItEnters { .. } => "AcceptAsItEnters",
+            ChoiceKind::AcceptAsObjectEnters { .. } => "AcceptAsObjectEnters",
             ChoiceKind::ChooseAuxiliaryZoneChange { .. } => "ChooseAuxiliaryZoneChange",
             ChoiceKind::ChooseCopySource { .. } => "ChooseCopySource",
             ChoiceKind::CommanderToCommandZoneSba { .. } => "CommanderToCommandZoneSba",

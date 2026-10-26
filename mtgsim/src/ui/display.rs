@@ -458,14 +458,14 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
             format!("Choose which event triggers {}'s delayed ability", n(source))
         }
         ChoiceKind::ChooseOpponent { source } => format!("Choose the opponent {} names", n(source)),
-        ChoiceKind::ChoosePlayerAsItEnters { object, role, .. } => match role {
+        ChoiceKind::ChoosePlayerAsObjectEnters { object, role, .. } => match role {
             EntryRole::Controller => format!("Choose the opponent who controls {} as it enters", n(object)),
             EntryRole::CounterPutter => format!("Choose the opponent who may put counters on {} as it enters", n(object)),
         },
         ChoiceKind::ChooseEnteringDefender { object } => {
             format!("Choose what {} attacks as it enters", n(object))
         }
-        ChoiceKind::AcceptAsItEnters { object, source, offer } => {
+        ChoiceKind::AcceptAsObjectEnters { object, source, offer } => {
             format!("{}: {} as {} enters?", n(source), entry_offer_words(offer), n(object))
         }
         ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to } => {

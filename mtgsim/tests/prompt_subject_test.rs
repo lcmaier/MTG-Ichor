@@ -240,7 +240,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::AllocateNextDamage { source: id, remaining: 3 },
         ChoiceKind::ChooseDamageSource { source: id },
         ChoiceKind::ChooseOpponent { source: id },
-        ChoiceKind::ChoosePlayerAsItEnters { object: id, source: id, role: EntryRole::CounterPutter },
+        ChoiceKind::ChoosePlayerAsObjectEnters { object: id, source: id, role: EntryRole::CounterPutter },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard },
         ChoiceKind::ChooseCopySource { source: id },
         ChoiceKind::CommanderToCommandZoneSba { commander: id },
@@ -249,7 +249,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ScryOrder { source: Some(id), bottom: true },
         ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
         ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::Second },
-        ChoiceKind::AcceptAsItEnters { object: id, source: id, offer: EntryOffer::Pay(Cost::PayLife(2)) },
+        ChoiceKind::AcceptAsObjectEnters { object: id, source: id, offer: EntryOffer::Pay(Cost::PayLife(2)) },
         ChoiceKind::ChooseDelayedTriggerEvent { source: id },
         ChoiceKind::ChooseEnteringDefender { object: id },
     ];
@@ -285,7 +285,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ChooseDamageSource { .. } => 18,
         ChoiceKind::ChooseDelayedTriggerEvent { .. } => 19,
         ChoiceKind::ChooseOpponent { .. } => 20,
-        ChoiceKind::ChoosePlayerAsItEnters { .. } => 21,
+        ChoiceKind::ChoosePlayerAsObjectEnters { .. } => 21,
         ChoiceKind::ChooseEnteringDefender { .. } => 22,
         ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 23,
         ChoiceKind::ChooseCopySource { .. } => 24,
@@ -294,7 +294,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::Scry { .. } => 27,
         ChoiceKind::ScryOrder { .. } => 28,
         ChoiceKind::LegendRule { .. } => 29,
-        ChoiceKind::AcceptAsItEnters { .. } => 30,
+        ChoiceKind::AcceptAsObjectEnters { .. } => 30,
     };
     let reached: BTreeSet<usize> = kinds.iter().map(place).collect();
     assert_eq!(reached, (0..31).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");

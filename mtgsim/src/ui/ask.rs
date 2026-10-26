@@ -1137,7 +1137,7 @@ pub fn ask_allocate_next_damage(
 /// With one opponent the choice is forced, and answered unasked. CR 614.12a
 /// puts the choice before the permanent enters, which holds here because the
 /// CR 616.1 loop that asks runs ahead of the performer.
-pub fn ask_choose_player_as_it_enters(
+pub fn ask_choose_player_as_object_enters(
     dp: &dyn DecisionProvider,
     game: &GameState,
     chooser: PlayerId,
@@ -1146,17 +1146,17 @@ pub fn ask_choose_player_as_it_enters(
     role: EntryRole,
     candidates: &[PlayerId],
 ) -> PlayerId {
-    assert!(!candidates.is_empty(), "ask_choose_player_as_it_enters: no opponent to choose for {object}");
+    assert!(!candidates.is_empty(), "ask_choose_player_as_object_enters: no opponent to choose for {object}");
     let options: Vec<ChoiceOption> = candidates.iter().map(|p| ChoiceOption::Player(*p)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChoosePlayerAsItEnters { object, source, role });
-    let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_player_as_it_enters");
+    let ctx = ChoiceContext::new(ChoiceKind::ChoosePlayerAsObjectEnters { object, source, role });
+    let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_player_as_object_enters");
     candidates[index[0]]
 }
 
 /// CR 614.12a — whether `chooser` takes what an entry replacement offers as
 /// `object` enters, yes or no: a shockland's 2 life. Asked only of an offer
 /// the player can take; the caller has checked a cost is payable.
-pub fn ask_accept_as_it_enters(
+pub fn ask_accept_as_object_enters(
     dp: &dyn DecisionProvider,
     game: &GameState,
     chooser: PlayerId,
@@ -1164,8 +1164,8 @@ pub fn ask_accept_as_it_enters(
     source: ObjectId,
     offer: EntryOffer,
 ) -> bool {
-    let kind = ChoiceKind::AcceptAsItEnters { object, source, offer };
-    ask_take_or_leave(dp, game, chooser, object, kind, "accept_as_it_enters")
+    let kind = ChoiceKind::AcceptAsObjectEnters { object, source, offer };
+    ask_take_or_leave(dp, game, chooser, object, kind, "accept_as_object_enters")
 }
 
 /// CR 608.2d — choose which of `candidates`, the opponents still in the game,
@@ -1188,7 +1188,7 @@ pub fn ask_choose_opponent(
 /// attacks, as it enters, among `candidates`.
 ///
 /// With one candidate the choice is forced, and answered unasked, as
-/// [`ask_choose_player_as_it_enters`]'s is.
+/// [`ask_choose_player_as_object_enters`]'s is.
 pub fn ask_choose_entering_defender(
     dp: &dyn DecisionProvider,
     game: &GameState,
