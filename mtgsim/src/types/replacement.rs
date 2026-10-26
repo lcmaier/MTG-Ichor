@@ -37,6 +37,7 @@ use crate::types::effects::{
 };
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::costs::Cost;
 use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
 use crate::events::cause::{EventCause, StateBasedAction};
@@ -895,11 +896,10 @@ pub enum Rewrite {
     /// Mimeoplasm Revered One, Frankenstein's Monster. They differ only in the
     /// payload's fields.
     ///
-    /// **Two of the 23 the payload does not reach**, and neither wants a new
-    /// arm: Thromok the Insatiable's "devour X, where X is the number of
-    /// creatures devoured this way" makes the multiplier *be* the count
-    /// (`codebase-state.md` item 63), and Frankenstein's Monster exiles exactly
-    /// X with a "if you can't" failure branch. **Sweep is not one of these** —
+    /// **One of the 23 the payload does not reach**, and it wants no new arm:
+    /// Frankenstein's Monster exiles exactly X with a "if you can't" failure
+    /// branch. Thromok the Insatiable's "devour X, where X is the number of
+    /// creatures devoured this way" is `PerChosen::Count`. **Sweep is not one of these** —
     /// "return any number of Mountains you control to their owner's hand" is an
     /// instruction of a resolving spell, not a modification of an entry, so it
     /// is a `Primitive` and never reaches CR 614.13.
@@ -1242,7 +1242,7 @@ impl AmountRewrite {
 ///
 /// **Where per-mechanic variety lives, so [`Rewrite`] does not grow again.**
 /// Devour N is `(Battlefield, creatures you control) → Graveyard, Sacrificed`
-/// with `per_chosen: Some((PlusOnePlusOne, N))`; Sutured Ghoul is
+/// with `per_chosen: Some((PlusOnePlusOne, PerChosen::Fixed(N)))`; Sutured Ghoul is
 /// `(Graveyard, creature cards) → Exile, Exiled` with `per_chosen: None`. The
 /// ~20 "as ~ enters, choose" cards with a board consequence are the same five
 /// fields.
@@ -1279,15 +1279,34 @@ pub struct AuxiliaryMove {
     pub up_to: Option<u32>,
 
     /// CR 122.6a — what the entering permanent is given per object chosen.
-    /// Devour 3 is `Some((PlusOnePlusOne, 3))`; Sutured Ghoul is `None`,
-    /// because its power and toughness come from a *linked* ability (CR 614.14,
-    /// 607) and not from the entry.
-    ///
-    /// **A constant per object, which Thromok the Insatiable is not**: "devour
-    /// X, where X is the number of creatures devoured this way" makes the
-    /// multiplier the count itself, so X creatures give X² counters. One more
-    /// shape here and no new [`Rewrite`] arm — `codebase-state.md` item 63.
-    pub per_chosen: Option<(CounterType, u32)>,
+    /// Devour 3 is `Some((PlusOnePlusOne, PerChosen::Fixed(3)))`; Sutured
+    /// Ghoul is `None`, because its power and toughness come from a *linked*
+    /// ability (CR 614.14, 607) and not from the entry.
+    pub per_chosen: Option<(CounterType, PerChosen)>,
+}
+
+/// How many counters any CR 614.13 move ([`AuxiliaryMove`]) gives the
+/// entering permanent per object moved: devour N's N, Shimatsu the
+/// Bloodcloaked's one per permanent sacrificed, Thromok the Insatiable's
+/// count itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PerChosen {
+    /// Devour N's N (CR 702.82a).
+    Fixed(u32),
+    /// The number moved: Thromok the Insatiable's "devour X, where X is the
+    /// number of creatures devoured this way", so X creatures give X²
+    /// counters (its ruling).
+    Count,
+}
+
+impl PerChosen {
+    /// The counters for each of `moved` objects.
+    pub fn each(self, moved: u32) -> u32 {
+        match self {
+            PerChosen::Fixed(n) => n,
+            PerChosen::Count => moved,
+        }
+    }
 }
 
 /// What an entry replacement *adds*, before its amounts are evaluated
@@ -1311,6 +1330,13 @@ pub struct EnterModsTemplate {
     /// CR 614.1c — what the permanent enters as: Master Biomancer's "as a
     /// Mutant in addition to its other types".
     pub edits: Vec<CharacteristicEdit>,
+
+    /// CR 614.12 — "you may pay [cost]. If you don't, [the rest of this]": a
+    /// shockland's 2 life. Its controller is offered the payment as the
+    /// effect applies, only when it can pay it beside every cost the
+    /// event's entries chose already (CR 614.12b), and paid, nothing else
+    /// here applies. `None` is an effect with no cost.
+    pub unless_paid: Option<Cost>,
 }
 
 /// One kind of counter an entry replacement gives, before its amount is a
@@ -1324,26 +1350,37 @@ pub struct EntryCountersTemplate {
     /// controller, and is what every printed "enters with" writes; a
     /// `Some` is resolved against the effect when it is applied
     /// (`pipeline::player_putting_counters`): `You` is the effect's controller, `Owner`
-    /// the entering object's owner, `Player` itself, and `Opponent` the only
-    /// one there is. No printed card names one (Scryfall, 2026-09-14), and
-    /// that is why the field exists rather than why it does not: the rule
-    /// states it, a card can print it next set, and a custom card can write
-    /// it — the CR is the customer and a printed card is the test
-    /// (`engineering-practices.md#gaps-a-phase-finds`).
+    /// the entering object's owner, `Player` itself, and `Opponent` the one
+    /// the effect's controller chooses among the opponents still in the game
+    /// as it applies, tribute's "choose an opponent" (CR 702.104a).
     pub by: Option<PlayerRef>,
+    /// "That player **may** put": the putter puts them or declines, asked as
+    /// the effect applies (tribute, CR 702.104a). `false` for every "enters
+    /// with", which no player chooses. **Not `ReplacementDef::optional`**,
+    /// which asks the effect's chooser whether the whole effect applies, its
+    /// decline CR 614.5's one opportunity taken: unleash's "you may have this
+    /// creature enter with a +1/+1 counter" is that one. This asks the player
+    /// putting the counters, inside an effect that applies either way.
+    pub optional: bool,
 }
 
 impl EnterModsTemplate {
     /// CR 110.5b — "this permanent enters tapped".
     pub fn tapped() -> Self {
-        EnterModsTemplate { status: Some(TapStatus::Tapped), counters: Vec::new(), edits: Vec::new() }
+        EnterModsTemplate { status: Some(TapStatus::Tapped), counters: Vec::new(), edits: Vec::new(), unless_paid: None }
+    }
+
+    /// CR 614.12 — "as this enters, you may pay `cost`. If you don't, it
+    /// enters tapped": a shockland's 2 life.
+    pub fn tapped_unless_paid(cost: Cost) -> Self {
+        EnterModsTemplate { unless_paid: Some(cost), ..Self::tapped() }
     }
 
     /// CR 110.5b — "[permanents] enter untapped": Archelos, Spelunking. Over
     /// a seed that is already untapped it changes nothing, and it still
     /// applies (Spelunking's first ruling).
     pub fn untapped() -> Self {
-        EnterModsTemplate { status: Some(TapStatus::Untapped), counters: Vec::new(), edits: Vec::new() }
+        EnterModsTemplate { status: Some(TapStatus::Untapped), counters: Vec::new(), edits: Vec::new(), unless_paid: None }
     }
 
     /// CR 122.6a — "this permanent enters with `n` `counter` counters on it".
@@ -1355,8 +1392,9 @@ impl EnterModsTemplate {
     pub fn with_counter_amount(counter: CounterType, amount: AmountExpr) -> Self {
         EnterModsTemplate {
             status: None,
-            counters: vec![EntryCountersTemplate { counter, amount, by: None }],
+            counters: vec![EntryCountersTemplate { counter, amount, by: None, optional: false }],
             edits: Vec::new(),
+            unless_paid: None,
         }
     }
 
@@ -1371,11 +1409,11 @@ impl EnterModsTemplate {
         // Destructured in full, so that a new field here is a compile error
         // at the one function whose premise assumes every field is a status
         // or a constant amount (`codebase-state.md` item 47's condition (a)).
-        // A putter is neither and reads nothing an application changes; an
-        // edit is a constant.
-        let EnterModsTemplate { status: _, counters, edits: _ } = self;
+        // A putter is neither and reads nothing an application changes, nor
+        // does its choice to decline; an edit is a constant, and so is a cost.
+        let EnterModsTemplate { status: _, counters, edits: _, unless_paid: _ } = self;
         counters.iter().all(|c| {
-            let EntryCountersTemplate { counter: _, amount, by: _ } = c;
+            let EntryCountersTemplate { counter: _, amount, by: _, optional: _ } = c;
             matches!(amount, AmountExpr::Fixed(_))
         })
     }

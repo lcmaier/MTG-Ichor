@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
 use crate::events::cause::{EventCause, GeneratedBy};
+use crate::types::costs::Cost;
 use crate::events::event::{AppliedReplacement, GameEvent, ResolutionStamp};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::types::card_types::{CardType, Subtype, Supertype};
@@ -21,7 +22,7 @@ use crate::types::replacement::{TokenKind, TokenSubstitution};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{
-    AmountRewrite, AuxiliaryMove, CopyDonor, EnterMods, EnterModsTemplate, EntryCounters,
+    AmountRewrite, AuxiliaryMove, CopyDonor, EnterMods, EnterModsTemplate, EntryCounters, EntryCountersTemplate,
     EventPattern, ReplacementDef,
     RetargetSpec, GameActionTemplate, Rewrite, TapStatus, TemplateAmount, Uses,
 };
@@ -30,10 +31,11 @@ use crate::types::history::{CountIs, ObjectFact};
 use crate::oracle::characteristics::{get_effective_power, get_effective_types, ObjectInformation};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_take_or_leave;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::ask::ask_accept_as_object_enters;
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
 use crate::ui::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
-use crate::ui::ask::ask_choose_entering_controller;
+use crate::ui::ask::ask_choose_player_as_object_enters;
 use crate::ui::ask::ask_choose_replacement;
 
 use super::entry_copy::enter_as_copy;
@@ -97,7 +99,7 @@ pub(crate) struct Rider {
 
 /// What applying a rewrite to one event did — what a rider reads, and what a
 /// use is spent by (`replacement-architecture.md` §9, RD decision 7).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 struct Applied {
     /// Did the rewrite change the event? CR 609.7b's "prevents no damage or
     /// replaces no damage" from the other side: a `Uses::Once` effect is spent
@@ -121,10 +123,17 @@ struct Applied {
     prevented: u64,
 }
 
+impl Applied {
+    /// An application that changed nothing and prevented nothing: a declined
+    /// copy, a payment made instead of the rest of an "enters with", the
+    /// start of a loop's tally.
+    const CHANGED_NOTHING: Applied = Applied { took_effect: false, prevented: 0 };
+}
+
 /// One member of a batch, from its proposal to its performance: CR 704.3
 /// decides every member against one board, then performs them all, and these
 /// are the facts that carries between the two.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct BatchMember {
     /// Its place in the batch as proposed, which phase 2 performs in: CR 101.4
     /// orders the choices, and the events are simultaneous but observable (a
@@ -144,11 +153,66 @@ pub(crate) struct BatchMember {
     /// after it. `None` for every other member, and for a destruction that was
     /// replaced or stopped, which no longer moves anything.
     pub inner_move: Option<Box<BatchMember>>,
+    /// What this entry's replacements decided to happen right before it
+    /// enters. Empty for every member but an entry with a CR 614.13 move.
+    pub just_before_entry: JustBeforeEntry,
 }
 
 impl BatchMember {
     pub(crate) fn proposed(place: usize, action: GameAction, cause: EventCause) -> Self {
-        BatchMember { place, event: Some(action), cause, applied: AppliedReplacements::EMPTY, inner_move: None }
+        BatchMember {
+            place,
+            event: Some(action),
+            cause,
+            applied: AppliedReplacements::EMPTY,
+            inner_move: None,
+            just_before_entry: JustBeforeEntry::NONE,
+        }
+    }
+}
+
+/// The events that happen **immediately before** a batch's entries, as one
+/// event of their own: what an entry's replacements chose as they applied,
+/// CR 614.13's other objects that change zones (devour's sacrifices) and the
+/// life a CR 614.12 choice pays. Not "some time before": nothing comes
+/// between them and the entries, which Wood Elemental's, Overlaid Terrain's
+/// and Shimatsu's rulings put "right before" the permanent enters. Every
+/// entry of one batch shares the event: "all creatures devoured this way are
+/// sacrificed at the same time" (Thunder-Thrash Elder's ruling).
+///
+/// Decided in phase 1 with the entry, so a count read in the same CR 616.1
+/// loop is what will happen (CR 614.6 drops a move it prevents), and
+/// performed in phase 2 ahead of the entries. Until then an object chosen to
+/// move is where it was, so its own effects still apply to the entry: a
+/// devoured Master Biomancer still gives the devouring creature its counters
+/// (CR 616.1f, and 614.13a's objects that "will also change zones").
+/// `Default` only for `EntrySelectionScope`'s own derive; code names
+/// [`Self::NONE`].
+#[derive(Debug, Clone, Default)]
+pub(crate) struct JustBeforeEntry {
+    /// Decided, in the order they perform.
+    pub members: Vec<BatchMember>,
+    /// The riders the replacements on them queued (CR 615.5), run once they
+    /// have been performed.
+    pub riders: Vec<Rider>,
+}
+
+impl JustBeforeEntry {
+    /// Nothing to happen before the entry: every member but an entry with a
+    /// CR 614.13 move or a CR 614.12 payment.
+    pub(crate) const NONE: JustBeforeEntry = JustBeforeEntry { members: Vec::new(), riders: Vec::new() };
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.members.is_empty() && self.riders.is_empty()
+    }
+
+    /// Add `more` after these, as later events of the same moment: each
+    /// member's place is renumbered to follow the ones already here, so
+    /// they perform in the order they were decided.
+    pub(crate) fn append(&mut self, more: JustBeforeEntry) {
+        let first = self.members.len();
+        self.members.extend(more.members.into_iter().enumerate().map(|(i, member)| BatchMember { place: first + i, ..member }));
+        self.riders.extend(more.riders);
     }
 }
 
@@ -446,7 +510,7 @@ pub(crate) fn apply_replacements(
             // iteration because CR 614.17c lets a self-replacement change the event's type.
             let prohibited = prohibition(
                 game,
-                &Query::Event {
+                &Query::EventHappens {
                     action: event,
                     // What caused this event, for a "can't" that names a source (Sigarda's
                     // family).
@@ -602,7 +666,7 @@ pub(crate) fn apply_replacements(
         // is about the event the effect replaced, so a later redirect in the same loop
         // does not rename Reverse Damage's player.
         let rider_subject = applicable.first().and_then(|&pos| group[pos].event.as_ref()).map_or(subject, subject_of);
-        let mut outcome = Applied::default();
+        let mut outcome = Applied::CHANGED_NOTHING;
         let mut redirected = false;
         // Whom it prevented damage to, and how much, in member order: a
         // redirect earlier in the loop can leave two members of one group
@@ -1560,8 +1624,10 @@ impl EntryWrites {
             let def = &candidate.instance.def;
             match &def.rewrite {
                 Rewrite::EnterWith(template) => {
-                    // In full: a new field is a new row of the table.
-                    let EnterModsTemplate { status, counters, edits } = template;
+                    // In full: a new field is a new row of the table. A cost
+                    // writes nothing on the entering object; what paying it
+                    // skips is the status, counters and edits beside it.
+                    let EnterModsTemplate { status, counters, edits, unless_paid: _ } = template;
                     writes_state |= status.is_some() || !counters.is_empty();
                     for row in counters {
                         writes.add_counter_kind(row.counter);
@@ -2026,7 +2092,7 @@ fn is_unpreventable(game: &GameState, unpreventable: bool, subject: Option<Objec
     unpreventable
         || is_prohibited(
             game,
-            &Query::TryApplyReplacement { kind: ReplacementKindFilter::Prevention, subject },
+            &Query::ReplacementApplies { kind: ReplacementKindFilter::Prevention, subject },
         )
 }
 
@@ -2048,11 +2114,11 @@ fn is_unpreventable(game: &GameState, unpreventable: bool, subject: Option<Objec
 /// members at once, and `None` for every other arm.
 ///
 /// **`&mut` because of that last one, and only that one.** CR 614.13 is the
-/// rules' own statement that applying an entry replacement may change the
-/// board, so a rewrite is no longer a pure function of the event. Every other
-/// arm still is, and the mutation goes through `execute_actions_new_batch`
-/// rather than a direct write — the chokepoint invariant does not have an
-/// exception here.
+/// rules' own statement that applying an entry replacement may move other
+/// objects, so a rewrite is no longer a pure function of the event. Every
+/// other arm still is. The moves are decided here and held on `GameState`
+/// (`decide_just_before_entry`), and the batch performs them right before its
+/// entries, so nothing here changes the board.
 fn apply_rewrite(
     game: &mut GameState,
     ctx: &ActionContext,
@@ -2076,7 +2142,7 @@ fn apply_rewrite(
                 if is_unpreventable(game, *unpreventable, subject) {
                     // Applied, prevented nothing, event untouched, nothing
                     // spent — and the caller queues the rider anyway.
-                    Ok((Some(event), Applied::default()))
+                    Ok((Some(event), Applied::CHANGED_NOTHING))
                 } else {
                     Ok((None, Applied { took_effect: true, prevented: *amount }))
                 }
@@ -2094,8 +2160,17 @@ fn apply_rewrite(
         // the door: a "can't have counters put on it" refuses the counters (CR 614.17d).
         Rewrite::EnterWith(template) => match event {
             GameAction::EnterBattlefield { object, from, controller, mut mods, act } => {
+                // CR 614.12: paid, the rest of the template does not apply, and
+                // the effect applied and changed nothing (CR 614.5).
+                if let Some(cost) = &template.unless_paid
+                    && pays_as_object_enters(game, ctx, chosen, object, cost)?
+                {
+                    let event = GameAction::EnterBattlefield { object, from, controller, mods, act };
+                    return Ok((Some(event), Applied::CHANGED_NOTHING));
+                }
+                let template = entry_counter_choices(game, ctx, chosen, object, controller, &mods, template)?;
                 let extra = evaluate_enter_template(
-                    game, template, chosen, object, controller, &mods,
+                    game, &template, chosen, object, controller, &mods,
                 )?;
                 let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, caused_by_replacement(game, chosen)?);
                 mods.merge(&extra);
@@ -2112,7 +2187,7 @@ fn apply_rewrite(
         // CR 614.13 — choose, move, and count.
         Rewrite::EnterAfterMoving(aux) => match event {
             GameAction::EnterBattlefield { object, from, controller, mut mods, act } => {
-                let extra = apply_auxiliary_move(game, ctx, chosen, aux, object, controller)?;
+                let extra = apply_auxiliary_move(game, ctx, chosen, aux, object)?;
                 let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, caused_by_replacement(game, chosen)?);
                 mods.merge(&extra);
                 Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, act }), changed))
@@ -2135,7 +2210,7 @@ fn apply_rewrite(
                     // Declined, or nothing to copy (CR 101.3): the effect applied
                     // and changed nothing, which CR 614.5's applied set spends.
                     let event = GameAction::EnterBattlefield { object, from, controller, mods, act };
-                    return Ok((Some(event), Applied::default()));
+                    return Ok((Some(event), Applied::CHANGED_NOTHING));
                 };
                 let values = crate::engine::layers::copiable_values(game, donor).ok_or_else(|| {
                     format!("the donor {donor} of an entry copy has no object to capture")
@@ -2438,7 +2513,7 @@ fn apply_rewrite(
                     .filter(|&to| redirection_is_legal(game, to, target))
                 {
                     Some(to) => (to, Applied { took_effect: true, prevented: 0 }),
-                    None => (target, Applied::default()),
+                    None => (target, Applied::CHANGED_NOTHING),
                 };
                 Ok((
                     Some(GameAction::DealDamage {
@@ -2949,6 +3024,100 @@ fn redirection_is_legal(game: &GameState, to: ObjectOrPlayerId, from: ObjectOrPl
     destination_ok && origin_ok
 }
 
+/// The choices an entry's counters rows can carry (CR 122.6a), made as the
+/// effect applies: which opponent puts a row's counters, where the effect
+/// names "an opponent" and there is more than one (asked of the effect's
+/// controller), and whether a putter who may decline puts them (asked of
+/// that putter, once the count is known). Tribute has both (CR 702.104a);
+/// any effect may write either. A row naming no putter needs no choice: its
+/// counters are put on by the controller the permanent enters under, so
+/// "enters under an opponent's control with two counters" is decided by the
+/// control choice alone.
+///
+/// Returns the template with each such putter named and each declined row
+/// gone. Nearly every entry's rows choose nothing, so it borrows the
+/// template then, and only an entry that chooses pays for a copy.
+fn entry_counter_choices<'t>(
+    game: &GameState,
+    ctx: &ActionContext,
+    chosen: &ReplacementInstance,
+    entering: ObjectId,
+    controller: PlayerId,
+    so_far: &EnterMods,
+    template: &'t EnterModsTemplate,
+) -> Result<std::borrow::Cow<'t, EnterModsTemplate>, String> {
+    let chooses = |row: &EntryCountersTemplate| row.optional || matches!(row.by, Some(PlayerRef::Opponent));
+    if !template.counters.iter().any(chooses) {
+        return Ok(std::borrow::Cow::Borrowed(template));
+    }
+    let mut out = EnterModsTemplate { counters: Vec::with_capacity(template.counters.len()), ..template.clone() };
+    for row in &template.counters {
+        let mut row = row.clone();
+        if let Some(PlayerRef::Opponent) = row.by {
+            let putter = named_for_an_entry(game, chosen, entering, &PlayerRef::Opponent, "as the player putting counters on", |opponents| {
+                Ok(ask_choose_player_as_object_enters(ctx.dp, game, chosen.controller, entering, chosen.source, EntryRole::CounterPutter, opponents))
+            })?;
+            row.by = Some(PlayerRef::Player(putter));
+        }
+        if row.optional {
+            let alone = EnterModsTemplate { counters: vec![row.clone()], status: None, edits: Vec::new(), unless_paid: None };
+            let offered = evaluate_enter_template(game, &alone, chosen, entering, controller, so_far)?;
+            let Some(put) = offered.counters.first() else { continue };
+            let offer = EntryOffer::PutCounters { counter: put.counter, n: put.n };
+            if !ask_accept_as_object_enters(ctx.dp, game, put.putter(controller), entering, chosen.source, offer) {
+                continue;
+            }
+        }
+        out.counters.push(row);
+    }
+    Ok(std::borrow::Cow::Owned(out))
+}
+
+/// CR 614.12's "as this enters, you may pay [cost]", asked of the effect's
+/// controller as it applies: offered only when the cost is payable beside
+/// every cost this event's entries chose already (CR 614.12b), and decided,
+/// once taken, with the entry's other events right before it enters, as the
+/// loss of life CR 119.4 says paying life is. Life is the payment built here
+/// (CR 119.4: no more than the player's life in all; CR 119.8: not while a
+/// "can't" stops them losing it), and any other cost is refused.
+fn pays_as_object_enters(
+    game: &mut GameState,
+    ctx: &ActionContext,
+    chosen: &ReplacementInstance,
+    entering: ObjectId,
+    cost: &Cost,
+) -> Result<bool, String> {
+    let payer = chosen.controller;
+    let Cost::PayLife(life) = cost else {
+        return Err(format!(
+            "an entry replacement on {} asks {cost:?} as the permanent enters, and only paying life \
+             has a payment here (CR 614.12b's combined payability is built for life)",
+            chosen.source
+        ));
+    };
+    let cause = EventCause::Cost { player: payer, paying_for: chosen.source };
+    let payment = GameAction::LoseLife { player: payer, amount: *life, damage_source: None };
+    let chosen_already: u64 = game
+        .entry_selection
+        .costs_chosen
+        .iter()
+        .filter(|chosen| chosen.payer == payer)
+        .map(|chosen| match chosen.cost {
+            Cost::PayLife(n) => n,
+            _ => 0,
+        })
+        .sum();
+    let life_total = game.get_player(payer)?.life_total;
+    let payable = life_total >= (chosen_already + life) as i64
+        && !is_prohibited(game, &Query::EventHappens { action: &payment, cause, lookahead: None });
+    if !payable || !ask_accept_as_object_enters(ctx.dp, game, payer, entering, chosen.source, EntryOffer::Pay(cost.clone())) {
+        return Ok(false);
+    }
+    game.entry_selection.costs_chosen.push(crate::state::replacement_effects::EntryCostChosen { entering, payer, cost: cost.clone() });
+    game.decide_just_before_entry(vec![payment], &ctx.caused_by(cause))?;
+    Ok(true)
+}
+
 /// Who `Rewrite::EnterUnderControlOf(player_ref)` puts the permanent under,
 /// relative to the effect's controller.
 ///
@@ -2963,7 +3132,7 @@ fn entering_controller(
     player_ref: &PlayerRef,
 ) -> Result<PlayerId, String> {
     named_for_an_entry(game, chosen, object, player_ref, "as the controller of", |opponents| {
-        Ok(ask_choose_entering_controller(ctx.dp, game, chosen.controller, object, opponents))
+        Ok(ask_choose_player_as_object_enters(ctx.dp, game, chosen.controller, object, chosen.source, EntryRole::Controller, opponents))
     })
 }
 
@@ -3057,7 +3226,7 @@ pub(super) fn strip_prohibited_counters(
         };
         let refused = is_prohibited(
             game,
-            &Query::Event { action: &action, cause, lookahead: Some(&frame) },
+            &Query::EventHappens { action: &action, cause, lookahead: Some(&frame) },
         );
         if !refused {
             kept.counters.push(*row);
@@ -3148,10 +3317,11 @@ pub(super) fn evaluate_enter_template(
 /// The player who puts an entering object's counters on it, where the effect
 /// names one (CR 122.6a), resolved against the effect applying it.
 ///
-/// "An opponent" names the one opponent there is. Among several it is a
-/// choice, tribute's "choose an opponent. That player may put …" (CR
-/// 702.104a), which is not built: it is refused with an `Err`, which the CR
-/// 616.1b look-ahead reads as no putter.
+/// "An opponent" names the one opponent there is. Among several it is
+/// tribute's choice (CR 702.104a), which the entry makes as the effect
+/// applies (`entry_counter_choices`) and names as a `PlayerRef::Player`; a
+/// read that cannot ask, the CR 616.1b look-ahead, gets an `Err` and reads no
+/// putter.
 fn player_putting_counters(
     game: &GameState,
     chosen: &ReplacementInstance,
@@ -3210,8 +3380,8 @@ fn named_for_an_entry(
     })
 }
 
-/// CR 614.13's application: choose a number of objects, move them, and report
-/// what the entering permanent gets for it.
+/// CR 614.13's application: choose a number of objects, decide their moves,
+/// and report what the entering permanent gets for it.
 ///
 /// The three things §9 said did not exist, in order.
 ///
@@ -3221,31 +3391,31 @@ fn named_for_an_entry(
 ///    creature unsacrificeable removes it from the list rather than letting it
 ///    be chosen and then refusing the move — the count would be wrong either
 ///    way, and only one of them is a *choice* the player was allowed to make.
-/// 2. **The moves.** Proposed, never written: `execute_actions_new_batch` puts
+/// 2. **The moves.** Proposed, never written: `decide_just_before_entry` puts
 ///    them through the whole CR 614 pipeline with fresh applied sets
 ///    (CR 614.5), so a finality counter still exiles a devoured creature and
-///    Kalitas still gets its Zombie.
-/// 3. **The count.** What was *performed*, not what was picked. A move a
-///    replacement dropped entirely never happened (CR 614.6), so it is not a
+///    Kalitas still gets its Zombie. They are decided now and performed right
+///    before the entry, with every other entry's of the batch.
+/// 3. **The count.** What will be performed, not what was picked. A move a
+///    replacement dropped entirely never happens (CR 614.6), so it is not a
 ///    creature that was sacrificed; a move some effect redirected still is one.
 ///
-/// CR 614.13b is recorded **before** the moves, so a nested batch cannot lose
-/// it and the state a fork would need at the next prompt is already in
-/// `GameState` (`codebase-state.md` item 40).
+/// CR 614.13b is recorded **before** the moves are decided, and the decided
+/// moves wait on `GameState::entry_selection`, so the state a fork would need
+/// at the next prompt is already in `GameState` (`codebase-state.md` item 40).
 fn apply_auxiliary_move(
     game: &mut GameState,
     ctx: &ActionContext,
     chosen: &ReplacementInstance,
     aux: &AuxiliaryMove,
     entering: ObjectId,
-    entering_controller: PlayerId,
 ) -> Result<EnterMods, String> {
     // "You" for CR 614.13a's choice. For devour and Sutured Ghoul the effect is
-    // the entering permanent's own, so this is the controller it will enter
-    // under (CR 110.2b, off the proposal); for a filter-scoped effect it is the
-    // other permanent's controller, which is what the card's "you" means.
+    // the entering permanent's own, printed or granted, so this is the
+    // controller it will enter under (CR 110.2b, off the proposal); for a
+    // filter-scoped effect it is the other permanent's controller, which is
+    // what the card's "you" means.
     let you = chosen.controller;
-    let _ = entering_controller;
     // The moves are caused by the replacement effect (CR 614.13), never by
     // whatever caused the entry. Devour sacrifices under the entering
     // creature's own ability, which the player making the sacrifices controls,
@@ -3274,11 +3444,7 @@ fn apply_auxiliary_move(
     }
     game.entry_selection.chosen.extend(picked.iter().copied());
 
-    // AUXILIARY-MOVE: CR 614.13's moves are not a result of the entry — they
-    // are performed while it is still being decided — so they get their own
-    // batch id rather than joining the one this pipeline is inside
-    // (`replacement-architecture.md` §4.2).
-    let batch: Vec<GameAction> = picked
+    let moves: Vec<GameAction> = picked
         .iter()
         .map(|&id| GameAction::ZoneChange {
             object: id,
@@ -3287,10 +3453,10 @@ fn apply_auxiliary_move(
             act: aux.act,
         })
         .collect();
-    let moved = game.execute_actions_new_batch(batch, &ctx.caused_by(cause))?.len() as u32;
+    let moved = game.decide_just_before_entry(moves, &ctx.caused_by(cause))?;
 
     Ok(match aux.per_chosen {
-        Some((counter, per)) if moved > 0 => EnterMods::with_counters(counter, moved * per),
+        Some((counter, per)) if moved > 0 => EnterMods::with_counters(counter, moved * per.each(moved)),
         _ => EnterMods::NONE,
     })
 }
@@ -3362,7 +3528,7 @@ pub(crate) fn not_auxiliary(
     // axis-1 question.
     prohibition(
         game,
-        &Query::Event {
+        &Query::EventHappens {
             action: &GameAction::ZoneChange { object: id, from: aux.from, to: aux.to, act: aux.act },
             cause,
             lookahead: None,

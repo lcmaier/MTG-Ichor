@@ -32,7 +32,7 @@ use crate::types::restriction::{
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Query<'a> {
     /// CR 614.17 — may this proposed event happen?
-    Event {
+    EventHappens {
         action: &'a GameAction,
         /// What caused it — CR 101.2 scoped by cause, which is
         /// [`SourceFilter`]'s whole job. The proposal's `ActionContext::cause`.
@@ -46,12 +46,12 @@ pub(crate) enum Query<'a> {
         lookahead: Option<&'a EntryFrame<'a>>,
     },
     /// CR 701.19c / 615.12 — may this replacement effect be applied?
-    TryApplyReplacement {
+    ReplacementApplies {
         kind: ReplacementKindFilter,
         subject: Option<ObjectOrPlayerId>,
     },
     /// CR 101.1 — does this rule's own action apply to `subject`?
-    TryApplyRule {
+    RuleApplies {
         rule: RuleAction,
         subject: ObjectOrPlayerId,
     },
@@ -100,7 +100,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
 /// card says it does not (`Restriction::RuleDoesNotApply`). The one ask of
 /// axis 4, for every site where a rule acts.
 pub(crate) fn rule_applies(game: &GameState, rule: RuleAction, subject: ObjectOrPlayerId) -> bool {
-    !is_prohibited(game, &Query::TryApplyRule { rule, subject })
+    !is_prohibited(game, &Query::RuleApplies { rule, subject })
 }
 
 /// [`is_prohibited`], naming the restriction it found first, in the order its
@@ -110,11 +110,11 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
     let found = prohibition_sweeping(game, query, Sweep::Gated);
     if game.audit_on() {
         let everything = game.unobserved(|| match *query {
-            Query::Event { action, cause, lookahead } => {
+            Query::EventHappens { action, cause, lookahead } => {
                 let fresh = lookahead.map(EntryFrame::uncomputed);
-                prohibition_sweeping(game, &Query::Event { action, cause, lookahead: fresh.as_ref() }, Sweep::Everything)
+                prohibition_sweeping(game, &Query::EventHappens { action, cause, lookahead: fresh.as_ref() }, Sweep::Everything)
             }
-            Query::TryApplyReplacement { .. } | Query::TryApplyRule { .. } => prohibition_sweeping(game, query, Sweep::Everything),
+            Query::ReplacementApplies { .. } | Query::RuleApplies { .. } => prohibition_sweeping(game, query, Sweep::Everything),
         });
         let named = |found: Option<Prohibition>| found.map(|p| format!("{p:?}")).into_iter().collect();
         assert_shortcut_agrees("the restriction sweep's gate", || format!("{query:?}"), named(found), named(everything));
@@ -131,7 +131,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
     //
     // Ahead of the gate, because `get_effective_abilities` is not how a keyword
     // is found and the gate would skip it (§3.5 commitment 2).
-    if let Query::Event { action, cause, .. } = query
+    if let Query::EventHappens { action, cause, .. } = query
         && let Some(ObjectOrPlayerId::Object(id)) = subject_of(action)
         && let Some(keyword) = keyword_prohibits(game, id, action, *cause) {
         return Some(Prohibition { source: id, by: ProhibitedBy::Keyword(keyword) });
@@ -154,12 +154,12 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
     // share one, and computed only if a `Filter` reaches `set_affects`.
     let derived;
     let frame: Option<&EntryFrame<'_>> = match query {
-        Query::Event { lookahead: Some(frame), .. } => Some(*frame),
-        Query::Event { action, lookahead: None, .. } => {
+        Query::EventHappens { lookahead: Some(frame), .. } => Some(*frame),
+        Query::EventHappens { action, lookahead: None, .. } => {
             derived = EntryFrame::new(game, action);
             Some(&derived)
         }
-        Query::TryApplyReplacement { .. } | Query::TryApplyRule { .. } => None,
+        Query::ReplacementApplies { .. } | Query::RuleApplies { .. } => None,
     };
 
     // --- Source 1: the battlefield sweep ---------------------------------
@@ -216,7 +216,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 ///            by:       Some(ControlledBy(Opponent)),
 ///        }
 /// source     = <Sigarda>          controller = P0   (CR 109.5: hers, now)
-/// query      = Query::Event {
+/// query      = Query::EventHappens {
 ///                  action: ZoneChange { object: <Bear>, Battlefield ->
 ///                                       Graveyard, act: Sacrificed },
 ///                  cause:  Effect { <the edict>, P1, Spell },
@@ -248,7 +248,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 /// "Destroy target creature. It can't be regenerated" registers a
 /// `Restriction::ApplyReplacement { kind: Regeneration, affected: objects(Fixed([creature])) }`.
 /// When `gather` later finds a regeneration shield around that creature it asks
-/// `Query::TryApplyReplacement { kind: Regeneration, subject: <creature> }`, and
+/// `Query::ReplacementApplies { kind: Regeneration, subject: <creature> }`, and
 /// the second arm answers with the *same* `set_affects` call — the kinds agree
 /// and the creature is in the set, so the shield is withheld. The destruction
 /// still happens, which is the whole reason this cannot be an `Event` arm.
@@ -263,7 +263,7 @@ fn matches(
     match (&def.restriction, query) {
         (
             Restriction::Event { pattern, affected, by },
-            Query::Event { action, cause, .. },
+            Query::EventHappens { action, cause, .. },
         ) => {
             pattern_watches(game, pattern, action, cause, source, controller)
                 // The test `ReplacementDef` is asked: `set_affects` asks the object half
@@ -274,19 +274,19 @@ fn matches(
 
         (
             Restriction::ApplyReplacement { kind, affected },
-            Query::TryApplyReplacement { kind: asked, subject },
+            Query::ReplacementApplies { kind: asked, subject },
         ) => {
             kind == asked && set_affects(game, affected, source, controller, *subject, None)
         }
 
         (
             Restriction::RuleDoesNotApply { rule, affected },
-            Query::TryApplyRule { rule: asked, subject },
+            Query::RuleApplies { rule: asked, subject },
         ) => rule == asked && set_affects(game, affected, source, controller, Some(*subject), None),
 
-        (Restriction::Event { .. }, Query::TryApplyReplacement { .. } | Query::TryApplyRule { .. })
-        | (Restriction::ApplyReplacement { .. }, Query::Event { .. } | Query::TryApplyRule { .. })
-        | (Restriction::RuleDoesNotApply { .. }, Query::Event { .. } | Query::TryApplyReplacement { .. }) => false,
+        (Restriction::Event { .. }, Query::ReplacementApplies { .. } | Query::RuleApplies { .. })
+        | (Restriction::ApplyReplacement { .. }, Query::EventHappens { .. } | Query::RuleApplies { .. })
+        | (Restriction::RuleDoesNotApply { .. }, Query::EventHappens { .. } | Query::ReplacementApplies { .. }) => false,
     }
 }
 
@@ -342,7 +342,7 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause:
             controller,
             // A keyword's prohibition is unscoped by cause (its `by` is `None`):
             // CR 702.12b does not care who is destroying the permanent.
-            &Query::Event { action, cause, lookahead: None },
+            &Query::EventHappens { action, cause, lookahead: None },
             // `SourceOnly`, per the assertion above, so no frame is ever read.
             None,
         ) {

@@ -866,7 +866,7 @@ outcome-bearing state on the stack and has to move it onto `GameState`.
 
 **Prompting only with two or more candidates.** With exactly one nonlegendary
 creature the choice is forced, and CV-1 takes it without asking — CR 102.2's
-shape, the same one `ChooseEnteringController` already uses. This is *not* CR
+shape, the same one `ChoosePlayerAsObjectEnters` already uses. This is *not* CR
 616.1's rule (that one is about which of several effects applies); it is the
 same conclusion reached separately, and it is what keeps every scripted test at
 zero new prompts.

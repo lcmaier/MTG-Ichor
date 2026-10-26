@@ -1820,11 +1820,11 @@ your hand, then draw that many" — is two `execute_actions` calls and two
 dispatches; the state trigger sees the empty hand between them (P1). CR
 702.131d's "continuous effects are reapplied before the game checks"
 happens because the batch bumped the layer epoch and the check walks
-fresh. An `execute_actions_new_batch` (the `// AUXILIARY-MOVE:` exception)
-is its own window and dispatches at its own close, mid-phase-1 of the
-enclosing batch — which is what CR 614.13 means by "not a result of" the
-entry: a devoured creature's death triggers before the entry's ETB, and
-both are placed together at the next priority.
+fresh. CR 614.13's moves (the `// AUXILIARY-MOVE:` exception) are a window
+of their own, performed and dispatched at the head of the entering batch's
+phase 2, right before the entries (Wood Elemental's ruling): a devoured
+creature's death triggers before the entry's ETB, and both are placed
+together at the next priority.
 
 **Order within a dispatch.** Records are taken in window order, and for
 each: its place in its turn is counted (§3.10), then the record is matched. So

@@ -35,10 +35,10 @@ use mtgsim::types::effects::{
     AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive,
 };
-use mtgsim::types::ids::ObjectId;
+use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{
-    AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite,
+    AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, PerChosen, ReplacementDef, Rewrite,
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
@@ -94,39 +94,40 @@ fn kinds_and_batches(game: &GameState, start: usize) -> Vec<(&'static str, Optio
 // Fixtures
 // ---------------------------------------------------------------------------
 
-/// An enchantment granting every entering creature a devour-`n` effect, the way
-/// the plane card in CR 614.13b's example grants devour 5.
+/// An enchantment granting every creature devour `n` (Layer 6), the way the
+/// plane card in CR 614.13b's example grants devour 5.
 ///
-/// `ObjectSet::Filter`, so it is a second, *separate* replacement effect on
-/// the same entry — which is the whole point of 614.13b: two effects, one
-/// candidate, one choice.
-///
-/// **It models the granting half and not the "you", and that is `codebase-state.md`
-/// item 62.** A real granted devour is still the *entering creature's* ability,
-/// so CR 614.13a's "you" is that creature's controller; `AuxiliaryMove` has no
-/// chooser field, so the choice here belongs to this enchantment's controller.
-/// Every test below puts both under the same player, so nothing turns on it.
+/// A second, *separate* replacement effect on the same entry — which is the
+/// whole point of 614.13b: two effects, one candidate, one choice. The
+/// granted devour is the entering creature's own ability, found on its CR
+/// 614.12 frame, so CR 614.13a's "you" is that creature's controller and not
+/// this enchantment's (CR 109.5).
 fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
+    let mut devour = static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        EventPattern::EnterBattlefield { cast: None },
+        ObjectSet::SourceOnly,
+        Rewrite::EnterAfterMoving(AuxiliaryMove {
+            from: Zone::Battlefield,
+            filter: ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            ),
+            to: Zone::Graveyard,
+            act: ZoneChangeAct::Sacrificed,
+            up_to: None,
+            per_chosen: Some((CounterType::PlusOnePlusOne, PerChosen::Fixed(n))),
+        }),
+    ))));
+    devour.id = new_ability_id();
     CardDataBuilder::new(name)
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .color(Color::Red)
         .card_type(CardType::Enchantment)
-        .rules_text("Creatures entering have devour N.")
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
-            EventPattern::EnterBattlefield { cast: None },
-            ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
-            Rewrite::EnterAfterMoving(AuxiliaryMove {
-                from: Zone::Battlefield,
-                filter: ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                ),
-                to: Zone::Graveyard,
-                act: ZoneChangeAct::Sacrificed,
-                up_to: None,
-                per_chosen: Some((CounterType::PlusOnePlusOne, n)),
-            }),
-        )))))
+        .rules_text("Creatures have devour N.")
+        .ability(static_ability(Effect::Atom(
+            Primitive::GrantAbility(Arc::new(devour), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+        )))
         .build()
 }
 
@@ -367,11 +368,11 @@ fn test_the_same_creature_cannot_be_devoured_twice() {
 
     let dp = test_dp();
     // CR 616.1: two applicable effects on one entry, and the choice is real —
-    // neither is an `EnterWith`, so nothing suppresses the prompt. Index 1 is
-    // the Elder's own printed devour 3: `gather` splices the entering
-    // permanent's own effects in *after* the battlefield sweep, because
-    // CR 613.7's oldest-first puts the newest object last.
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
+    // neither is an `EnterWith`, so nothing suppresses the prompt. Both are
+    // the Elder's own, one printed and one granted, so they share a source
+    // and only their place tells them apart: index 0 is the printed devour 3,
+    // ahead of the grant in the Elder's effective ability list.
+    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
     dp.expect_pick_n(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: bear, source: bear, to: Zone::Graveyard },
         vec![0],
@@ -414,8 +415,8 @@ fn test_devour_choice_in_a_four_player_game_asks_only_the_entering_controller() 
     let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 3);
 
     let dp = ScriptedDecisionProvider::new();
-    // Index 0 is the granted devour 5 — see the bucket-order note above.
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
+    // Index 1 is the granted devour 5 — see the order note above.
+    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
     dp.expect_pick_n(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: mine, source: mine, to: Zone::Graveyard },
         vec![0],
@@ -1121,12 +1122,10 @@ fn test_a_prevented_sacrifice_is_not_counted() {
 /// `ControlledBy(Opponent)` nor `ControlledBy(You)` matches, so Sigarda's test
 /// passes either way and this one does not.
 ///
-/// **What no test here can separate** is the effect's controller from the
-/// entering permanent's, because on every reachable board they are the same
-/// player: devour is `ObjectSet::SourceOnly`, so `gather` source 1a hands it
-/// the proposal's controller, and no printed entry replacement sacrifices a
-/// creature its own controller does not control. `codebase-state.md` item 62
-/// is where the two come apart, and it is unreachable by construction.
+/// The effect's controller is the entering permanent's for devour, printed or
+/// granted: it is `ObjectSet::SourceOnly`, so `gather` source 1a hands it the
+/// proposal's controller (a granted devour's test is in
+/// `phase_batch_legality_and_entry_choices_integration_test.rs`).
 #[test]
 fn test_the_cr_101_2_cause_is_the_effects_controller() {
     let mut game = setup_two_player_game();

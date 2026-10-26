@@ -219,14 +219,14 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **Every open item names its home on a `**Slotted:**` line (gated 2026-10-09).**
 The line names a phase code or `roadmap-v2.md` §3a row still to come (Phases 9
-and 10 by name, which have no rows yet); or "with the first registered card
-that …" and the card or class; or "none — a record". An item is slotted in the
-commit that files it, a phase reads its list at its first ticket (`python
-plans/check_state_of_play.py --slotted <code>`), and `--check` fails on an open
-item with no home, on one slotted only to phases that have landed, and on a
-number used twice in one run. "The first registered card" is for a fix that is
-mechanical once a card needs it; an item that needs a design decision names a
-phase or a row (`engineering-practices.md#gaps-a-phase-finds`, adopted at TR-5d's review).
+and 10 by name, which have no rows yet); or "none — a record". An item is
+slotted in the commit that files it, a phase reads its list at its first ticket
+(`python plans/check_state_of_play.py --slotted <code>`), and `--check` fails on
+an open item with no home, on one slotted only to phases that have landed, and
+on a number used twice in one run. A mechanical fix takes a phase or a row as
+much as a design does (`engineering-practices.md#gaps-a-phase-finds`): the slot
+"with the first registered card that …" was retired at #294's review (the
+owner, 2026-10-26), since a gap with printed customers takes a route row.
 
 **What does not belong here (adopted 2026-09-12, RE-6's review).** A wrong
 answer sized under about thirty lines, with a fixture that can prove it, is
@@ -1343,34 +1343,17 @@ registered card returns an object.
     permanent stops being an accident: phase 1 becomes an APNAP round-robin
     over its groups (CR 101.4d).
 
-26. **Batch phase 2 does not re-check member legality, and CR 608.2b says it
-    should (`rb-review.md` H7).** If a batch carries two members naming one
-    object — two `ZoneChange`s, or a `Destroy` and a `ZoneChange` — the first
-    perform moves it and the second returns `Err` ("proposed Battlefield→X,
-    which is in Graveyard"), which fails the whole batch where CR 608.2b's
-    do-as-much-as-possible says to skip that member. Unreachable today: the SBA
-    sweep dedupes per object, combat and untap batches are per-object unique,
-    and no registered spell proposes one object twice. It becomes reachable
-    with the first multi-clause spell ("Destroy target creature. Destroy target
-    creature.") or the first replacement that redirects member 1 into member
-    2's precondition. **Sized:** a `still_legal(&GameAction) -> bool` predicate,
-    one arm per `GameAction` variant (10 today), asked in phase 2's loop before
-    each perform, skipping rather than erroring. It is the *caller's* job by
-    `CLAUDE.md`'s own rule — performers are loud, callers check legality — and
-    the batch is the caller. What it must not become is a `match` on error
-    strings, which would make a real bug indistinguishable from a stale member.
-
-    **Reachability (2026-10-23):** unreachable — re-checked: the SBA sweep
-    dedupes per object, combat and untap batches are per-object unique, RC-5's
-    auxiliary batch names each object once by CR 614.13b, and no registered
-    spell proposes one object twice.
-    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
-    (the card-homed triage, 2026-10-23; the PR split at #293's review): phase 2's `still_legal`, one arm per
-    `GameAction` variant with no wildcard, skipping a stale member rather than
-    failing the batch (CR 608.2b), with a fixture whose one instruction names
-    one creature twice ("exile target creature and target creature", CR
-    115.3). Its check: a member `still_legal` passed performs without `Err`,
-    asserted in debug builds, so a performer's error stays a bug.
+26. **~~Batch phase 2 does not re-check member legality, and CR 608.2b says
+    it should.~~ — ✅ CLOSED 2026-10-26 (PR #294, met at the producers).** —
+    archived.
+    No producer puts two members on one object in one batch: one instance of
+    "target" cannot repeat an object (CR 115.3), `Group` drops a repeat, two
+    instructions are two batches, and the state-based check orders its
+    members. Retired at #294's review (the owner); `replacement-architecture.md`
+    §3.2b's growth contract asks a new `Rewrite` arm for the answer, and the
+    across-instruction case is item 334.
+    **Reachability (2026-10-26):** closed — PR #294.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 26".
 
 ### Found by a rider read-through (2026-08-30)
 
@@ -1856,7 +1839,7 @@ section never asked.
     with a color-indicator override, before Phase 8; (b) done; (c) none — a
     card.
     **Slotted:** `breadth-features`, whose `backlog.md` §2.10 derives colors in `build()`; (c)
-    with the first registered card that gains control by an Aura.
+    there too, with an Aura that gains control (Control Magic).
 
 ### Found by the RS-1 spine (2026-08-31)
 
@@ -2319,9 +2302,9 @@ measurement; what follows is what a later phase has to know.
 53. **`apply_rewrite` takes `&mut GameState`, and exactly one arm needs it.**
     CR 614.13 is the rules' own statement that applying an entry replacement may
     change the board, so a `Rewrite` is no longer a pure function of the event.
-    Every other arm still is. The mutation goes through
-    `execute_actions_new_batch`, never a direct write — the chokepoint invariant
-    has no exception here — and the loop's termination argument is untouched,
+    Every other arm still is. The moves are decided through
+    `decide_just_before_entry` and performed by the batch right before its
+    entries (since #294), never written directly — and the loop's termination argument is untouched,
     because `apply_auxiliary_move` cannot create a replacement effect and the
     applied set still bounds the iterations.
 
@@ -2442,95 +2425,33 @@ measurement; what follows is what a later phase has to know.
     **Reachability (2026-09-28):** closed — RG.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 60".
 
-61. **Every auxiliary move of one entry event should be one batch, and RC-5
-    ships one per application.** Thunder-Thrash Elder's own ruling
-    (Gatherer, 2008-10-01): "If multiple creatures with devour are entering
-    under your control at the same time, you may use each one's devour ability.
-    A creature you already control can be devoured by only one of them, however.
-    **All creatures devoured this way are sacrificed at the same time.**" The
-    same ruling is where CR 614.13a and 614.13b came from, and RC-5 got those
-    two right and the simultaneity wrong. `apply_auxiliary_move` performs its
-    picks through `execute_actions_new_batch` immediately, so two applications
-    are two batches at two moments; a CR 603.2c "whenever one or more creatures
-    die" would fire twice where the rules fire once.
+61. **~~Every auxiliary move of one entry event should be one batch, and RC-5 ships one per application.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+    archived.
+    Devour's moves are decided as its replacement applies, under a batch id the
+    batch's first opens, and ride on their entry (`BatchMember::just_before_entry`);
+    phase 2 performs every entry's moves as that one event, right before the
+    entries (Wood Elemental's, Overlaid Terrain's and Shimatsu's rulings), and
+    devour counts what will be performed. An entry replaced after devour chose
+    sacrifices nothing (CR 614.6).
+    **Reachability (2026-10-26):** closed — PR #294.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 61".
 
-    **Unreachable today**, and it takes two things that do not exist to reach:
-    a multi-entry batch (item 46) or a second devour ability on one entry
-    (nothing grants devour; the plane in CR 614.13b's example is not a card
-    type this engine has). The fixture in
-    `phase_rc5_integration_test::grants_devour` is the only board that gets
-    there.
+62. **~~`AuxiliaryMove` has no chooser field, so "you" is the effect's controller — and the two printed shapes disagree.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+    archived.
+    No field was needed: a granted devour is the entering creature's own
+    ability, found on its CR 614.12 frame by the gather's entering leg, which
+    hands it the controller the creature enters under. `grants_devour` is now a
+    real Layer 6 grant, and a test has another player's enchantment grant it.
+    **Reachability (2026-10-26):** closed — PR #294.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 62".
 
-    **Not a batch-id relabelling — a deferral, and it has a real cost.** The
-    moves would be collected across phase 1 and performed once, before phase 2
-    performs the entries. But the counters devour arrives with are computed
-    *while applying*, and RC-5 counts what the nested batch actually performed
-    (a dropped move is not a sacrifice, CR 701.21a). Deferred, there is nothing
-    performed yet to count, so the count reverts to what was chosen and the
-    prevented-move case (`test_a_prevented_sacrifice_is_not_counted`) inverts.
-    **Whoever builds this owes an answer to that**, and the CR's own wording —
-    "for each creature sacrificed this way" — is on the side of counting the
-    performed moves, which argues for performing the batch *before* the mods
-    are finalised rather than after. **Sized:** ~150 in `execute_batch_inner`
-    and `apply_auxiliary_move`, plus the count question. Lands with item 46's
-    producer, since neither is testable in a game without the other.
-
-    **Reachability (2026-10-23):** unreachable — a plural entry exists since
-    RE-4 closed item 46 (`GameAction::CreateTokens` proposes every token's
-    entry as one batch), but no registered card creates two creatures with
-    devour at once or grants devour; `grants_devour` in
-    `phase_rc5_integration_test.rs` is the only board.
-    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
-    (the card-homed triage, 2026-10-23; the PR split at #293's review): one entry event's auxiliary moves
-    performed as one batch and counted by what was performed (CR 701.21a; the
-    card's "for each creature sacrificed this way"), with a fixture that
-    creates two creature tokens with devour at once, the plural entry RE-4
-    built, and `grants_devour`. Its check, in debug builds: every auxiliary
-    move of one entry event writes its record into one batch.
-
-62. **`AuxiliaryMove` has no chooser field, so "you" is the effect's
-    controller — and the two printed shapes disagree.** CR 614.13a says "**you**
-    may have to choose a number of objects", and who "you" is depends on where
-    the ability came from: devour is the entering creature's own ability, so the
-    choice is the *entering permanent's* controller's, while a filter-scoped
-    effect ("each other creature **you** control enters …") means its own
-    controller. RC-5 uses `ReplacementInstance::controller` for both, which is
-    exact for every registered card — devour is `ObjectSet::SourceOnly`, and
-    `gather` source 1a hands it the proposal's controller — and wrong for a
-    *granted* devour, where the granting permanent's controller would choose and
-    sacrifice their own creatures instead of the entering creature's controller
-    doing it. **Sized:** one field on `AuxiliaryMove`
-    (`EffectController | EnteringController`) read in one place, ~15 lines.
-    Deliberately not built: no registered card takes the second road, and a
-    field with one used value is the shape §3.2's growth contract warns about.
-    The test fixture `grants_devour` takes it and says so.
-
-    **Reachability (2026-10-23):** unreachable — no registered card takes the
-    granted-devour road; `grants_devour` is the only board.
-    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
-    (the card-homed triage, 2026-10-23; the PR split at #293's review): a granted devour is the entering
-    creature's own ability, so that creature's controller chooses and
-    sacrifices (CR 614.13a's "you", CR 109.5), and `grants_devour` asserts it;
-    the chooser field only if the gather cannot give the instance that
-    controller.
-
-63. **`per_chosen` is a constant per object, and Thromok the Insatiable's is
-    not.** "Devour X, where X is the number of creatures devoured this way" —
-    X creatures give X² counters, so the multiplier *is* the count. One more
-    shape in the payload (`per_chosen: PerChosen::Fixed(n) | PerChosen::Count`)
-    and no new `Rewrite` arm, which is the growth contract working as intended.
-    ~20 lines with the card. It is one of the 23 printed devour cards; the other
-    22 are `Fixed`, and CR 702.82c's devour-[quality] variants are covered
-    already by the payload's `filter`.
-
-    **Reachability (2026-10-23):** unreachable — Thromok the Insatiable is not
-    registered.
-
-    **Sized:** ~20 lines with the card, as the entry says.
-    **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`, beside
-    items 61 and 62's devour: `PerChosen::Count` with Thromok the Insatiable's
-    fixture, ~20 lines (the owner, at #293's review, 2026-10-25: a filed gap
-    with printed customers takes a route row).
+63. **~~`per_chosen` is a constant per object, and Thromok the Insatiable's is not.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+    archived.
+    `AuxiliaryMove.per_chosen` carries a `PerChosen`: `Fixed(n)` for devour N,
+    `Count` for "devour X, where X is the number of creatures devoured this
+    way", so three creatures give nine counters (Thromok's ruling).
+    **Reachability (2026-10-26):** closed — PR #294.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 63".
 
 64. **~~`PermanentFilter` filters objects in zones where nothing is a
     permanent, and the name now lies.~~ ✅ Renamed to `ObjectFilter` 2026-09-07
@@ -5902,47 +5823,16 @@ surface); this file's items 59, 60, 122 and 131 (scheduled), 88 and 118
 them); and the board's classifier, which had read "not wrong today" as
 "wrong today". One migration was found that no doc owned:
 
-134. **CR 614.12b — the combined costs of several entry choices, across
-     permanents entering simultaneously.** "If multiple replacement effects
-     that require choices from a player would modify how multiple permanents
-     enter the battlefield simultaneously, that player may not make choices
-     for those effects that would cause the combined costs of those effects
-     to not be payable." `replacement-architecture.md` §12 parked it on cost
-     modification; CM-1–CM-4 landed and it is still out, because the
-     prerequisite was misnamed. It needs an entry replacement whose *choice
-     has a cost* — the printed shape is a shockland's "As this enters, you
-     may pay 2 life. If you don't, it enters tapped", and `EnterModsTemplate`
-     carries `tapped` and `counters` only — and a plural entry of *cards*
-     (RE-4's plural batch is tokens'; a Scapeshift, a mass reanimation), and
-     the rule bites only with both at once and a player who cannot pay for
-     all of them.
-
-     **Reachability (2026-10-23):** unreachable — no registered entry
-     replacement has a cost, and no registered producer enters two permanents
-     with one at once.
-
-     **Sized:** a `cost: Option<Cost>` on `EnterModsTemplate`, paid at
-     application, ~60 lines with the first shockland; then the 614.12b check
-     itself — the CR 616.1 loop's decide phase already sees the whole batch
-     (CR 704.3's shape), so it is a payability sweep over the batch's chosen
-     costs before any is performed, ~40 lines, with the second customer.
-     Two customers before a leaf (`replacement-architecture.md` §8c).
-
-What is *not* a ledger line, and where each waits: the four §8a event kinds
-are dispositioned in `replacement-architecture.md` §8a itself (turned face
-up → `face-down-and-morph`; dice → `backlog.md` §2.31; search → `backlog.md` §2.5's producer;
-countering → closed, a zone change with a cause); Master Biomancer's type
-(item 60) is `backlog.md` §2.30's, a mechanic with no surface; the
-self-replacement producer is `replacement-architecture.md` §11 item 3's,
-with its reachability line there; and the eviction of that document's
-pre-build reasoning is planned section by section in the handoff and opens
-as its own PR after this one merges.
-     **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
-     (the card-homed triage, 2026-10-23; the PR split at #293's review): an entry choice's cost on
-     `EnterModsTemplate`, paid as the replacement applies (CR 614.12, a
-     shockland as the fixture), and CR 614.12b's payability sweep over a
-     batch's chosen costs, with a fixture plural entry, two such tokens
-     created at once (RE-4's plural batch), for a player who can pay for one.
+134. **~~CR 614.12b — the combined costs of several entry choices, across permanents entering simultaneously.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+     archived.
+     `EnterModsTemplate.unless_paid` carries an entry choice's cost: a shockland's
+     "you may pay 2 life. If you don't, it enters tapped" is
+     `tapped_unless_paid(Cost::PayLife(2))`. The payment is offered through
+     `ChoiceKind::AcceptAsObjectEnters` only when it is payable beside every cost the
+     batch's entries chose already, and paid as a loss of life right before the
+     entries. Two such tokens at once for a player at 3 life: one is paid for.
+     **Reachability (2026-10-26):** closed — PR #294.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 134".
 
 ### Found by the post-RE audit, pass 3 — parallel-play readiness (2026-09-15)
 
@@ -8412,8 +8302,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      ability has "this ability"; Dimir Doppelganger and Lazav are
      unregistered.
      **Sized:** ~20 lines, the activated def carried on the stack entry.
-     **Slotted:** the first registered activated "this ability" copy, Dimir
-     Doppelganger, which waits on `ironworks-loop`'s graveyard targets (the Ironworks
+     **Slotted:** `ironworks-loop`, beside its graveyard targets, with Dimir
+     Doppelganger's activated "this ability" copy as the fixture (the Ironworks
      loop, moved off TR-7 on 2026-10-13).
 
 222. **~~A copy row that carries a triggered ability opens the dispatcher's
@@ -9196,28 +9086,14 @@ Number 277 was withdrawn in #260 and is not reused.
      that makes the first writes on the activation's record whether it is one,
      and the arm reads it.
 
-284. **Nothing flags an item slotted with its first registered card when the
-     card arrives.** 53 open items are slotted "with the first registered card"
-     that needs them (the board's count, 2026-10-22), and registering that card
-     does not lead back to them. A gap the engine refuses loudly finds its
-     author (no field, no variant, an error at resolution); a silent one does
-     not: item 278's effects that make blocks would write no record and block
-     triggers would never see them. TR-5c's review (the owner, 2026-10-18). The
-     check, one of the family: each such item names at least one example card
-     where it is slotted (44 of 55 did at TR-5c's review), and the check fails
-     when a card it names is registered while the item is open, so registering
-     Caller of the Claw fails on item 287 until it is closed or re-slotted.
-     Each of the 53 is re-read beside it against
-     `engineering-practices.md#gaps-a-phase-finds`'s rule (TR-5d's review, 2026-10-20): one that needs a design decision
-     moves to a phase or a row.
-     **Reachability (2026-10-22):** reachable — not wrong: a process gap; no
-     game answers differently.
-     **Sized:** ~80 lines of Python over this file and the registry's names,
-     a CI step, and a named card for each item that names none.
-     **Slotted:** A6e, item 6's close audit, in its cleanup's
-     `names-and-hygiene-sweeps` (`plans/handoffs/item-6-audit.md`, pass 3's
-     cleanup), the review already scheduled at the end of triggers (the
-     owner's slot).
+284. **~~Nothing flags an item slotted with its first registered card when the
+     card arrives.~~ — ✅ CLOSED 2026-10-26 (PR #294, moot).** — archived.
+     The slot it guarded was retired at #294's review (the owner,
+     2026-10-26): every open item names a phase or a row, so none waits on a
+     card's registration, and `check_state_of_play.py --check` fails one that
+     does.
+     **Reachability (2026-10-26):** closed — PR #294.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 284".
 
 285. **Nearly 90 engine functions return tuples whose parts only their docs
      name.** 69 pairs, 9 triples and 2 four-tuples outside the card
@@ -9784,52 +9660,15 @@ keyed by its event.
 
 ### Found by `record-existences` (2026-10-25)
 
-330. **A trigger's filter reads an object its own event moved as the card it
-     became.** Since #290 a record names the existence its event was about,
-     and "this object" and "that creature" compare it, but a filter reads the
-     object by id as it is after the event (`named_subject_matches`,
-     `engine/triggers/dispatch.rs`). Where one event both changes an object and
-     moves it, that is the new object: "whenever one or more counters are
-     removed from a permanent you control" asks the card in the graveyard,
-     which no player controls. A damage source is read as it dealt the
-     damage since #290's review, on CR 608.2h's side, as the judges' Dragonhawk
-     ruling reads lifelink. For every other arm the rule is CR 603.10's, which
-     reads objects "immediately after the event" and names only 603.10a's
-     zone-change triggers as looking back; it says nothing of an object the
-     event ended. Raised by the owner (2026-10-25), with two questions, the
-     first since answered:
-     - **Answered: no** (the owner, at #293's review, 2026-10-25), paying
-       "{T}, Sacrifice this" is not one event to a trigger on the tap. CR
-       601.2h pays a cost's parts "in any order", one after another, and
-       Relic Putrescence's second ruling reads an artifact that "is no longer
-       on the battlefield" after it became tapped: a Treasure tapped and then
-       sacrificed. The engine pays each part as its own event
-       (`pay_single_cost`), so "whenever an artifact you control becomes
-       tapped" matches the Treasure as it is tapped on the battlefield, which
-       is right.
-     - **Answered: as the event found it** (the owner, at #293's review,
-       2026-10-25): the check's actions are simultaneous (CR 704.3), so the
-       counters come off the creature that dies, and Cloudsculpt Armorer
-       triggers. The question as it was put: where one event changes an
-       object and moves it, does a
-       trigger's filter read the object as the event found it (its last known
-       information, which CR 704.8 derives from before the check), as the
-       damage source is read, or as it is after the event? The board is a
-       state-based check: Black Sun's Zenith for 2 puts two -1/-1 counters on
-       a 1/1 with a +1/+1 counter, and the next check removes one of each (CR
-       704.5q) and puts the 0/0 into its graveyard (704.5f) as one event (CR
-       704.3). Cloudsculpt Armorer's "whenever one or more counters are
-       removed from a permanent you control" triggers if its filter reads the
-       creature as the event found it, and doesn't if it reads the card in
-       the graveyard.
-     **Reachability (2026-10-25):** unreachable — no registered card puts a
-     change to an object and its move in one event (#290's A/B), and the only
-     registered counter-removal trigger is Protean Hydra's on itself.
-     **Sized:** ~10–20 lines: `named_subject_matches` reads
-     `ObjectInformation::of(named.id, self.lki(named))`, as the damage arm
-     does; ~40–60 of fixtures, the counter removal above shown failing first.
-     **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`: a
-     state-based check's one event is that PR's batch.
+330. **~~A trigger's filter reads an object its own event moved as the card it
+     became.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+     archived.
+     A filter reads the object a record names as the event found it: as it
+     is while that existence lasts, and as its last known information once
+     the existence has ended (`named_subject_matches`), so counters a
+     state-based check removes come off the creature the same check kills.
+     **Reachability (2026-10-26):** closed — PR #294.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 330".
 
 ### Found by `one-fact-one-type` (2026-10-25)
 
@@ -9853,27 +9692,15 @@ keyed by its event.
      lines, most in card files.
      **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`.
 
-332. **"An opponent" as the player putting an entering object's counters is
-     refused among several opponents, where CR 702.104a makes it a choice.**
-     `player_putting_counters` (`engine/replacement/pipeline.rs`) names the
-     one opponent there is and returns an `Err` among several, which the entry
-     refuses and the CR 616.1b look-ahead reads as no putter. Tribute is the
-     choice: "As this creature enters, choose an opponent. That player may put
-     an additional N +1/+1 counters on it as it enters" (CR 702.104a). The
-     entering creature's controller chooses before it enters, as CR 614.12a
-     times Xantcha's choice of controller (`entering_controller`), and the
-     chosen player may decline. Its old doc comment called the case an
-     authoring error (the owner, at #291's review, 2026-10-25).
-     **Reachability (2026-10-25):** unreachable — no registered card names an
-     opponent as the putter.
-     **Sized:** a prompt for the choice beside
-     `ask_choose_entering_controller`, the entry asking it where the
-     look-ahead keeps refusing, and the "may": ~40–60 lines and a fixture.
-     CR 702.104b's "if tribute wasn't paid" is the card's.
-     **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`, beside its entry
-     choices: the tribute choice asked through the entry's prompt for an
-     opponent, with a three-seat fixture (the owner, at #293's review,
-     2026-10-25: a filed gap with printed customers takes a route row).
+332. **~~"An opponent" as the player putting an entering object's counters is refused among several opponents, where CR 702.104a makes it a choice.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+     archived.
+     Tribute is a counters row with `by: Some(PlayerRef::Opponent)` and
+     `optional: true`: the entering creature's controller chooses the opponent
+     through `ChoiceKind::ChoosePlayerAsObjectEnters` (role `CounterPutter`, the
+     answer-shape prompt Xantcha's choice folds into), and that opponent is
+     offered the counters through `AcceptAsObjectEnters`, then puts them (CR 122.6a).
+     **Reachability (2026-10-26):** closed — PR #294.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 332".
 
 ### Found by `durations-and-control` (2026-10-25)
 
@@ -9896,4 +9723,156 @@ keyed by its event.
      are handed that player.
      **Slotted:** `multiplayer-rules`, CR 800 at four seats, where "an
      opponent" stops being the only one.
+
+### Found by `batch-legality-and-entry-choices` (2026-10-26)
+
+334. **A target an earlier instruction moved is acted on as the new object
+     it became.** `ChosenTargets` holds each target by id
+     (`engine/targeting.rs`), and CR 608.2b's check runs once, as the
+     resolution begins. An instruction after one that moved a target reads
+     the same id. Where the verb acts "from wherever it is", the move's new
+     object is acted on: `event_for` (`engine/resolve.rs`) builds `Exile`,
+     `ReturnToHand` and `ShuffleIntoLibrary` from the object's zone now. So
+     "Destroy target creature. Exile target creature." with one creature
+     chosen for both (CR 115.3) exiles the card from the graveyard, though CR
+     400.7 makes it a new object that neither instruction targeted. A verb that
+     reads the battlefield acts on a returned one the same way: "exile target
+     creature, then return it", then a counter on a target chosen as the
+     same creature. CR 608.2b's "illegal targets ... won't be affected" covers
+     a target that stopped being the object chosen. Found at #294's review
+     beside item 26, the batch-level check that no producer reaches; the
+     owner wants it fixed before the item 6 audit closes.
+     **Reachability (2026-10-26):** unreachable — no registered card's
+     instruction exiles, returns or shuffles a target (a scan of
+     `src/cards`, 2026-10-26); the cards that use those verbs act on
+     themselves or on a triggering object.
+     **Sized:** each target held with its existence as chosen, and every
+     instruction's read of `ChosenTargets` dropping a target that is no
+     longer that existence (CR 400.7, 608.2b): ~60–100 lines over
+     `targeting.rs` and the resolver's readers, and two fixtures, the
+     destroy-then-exile above and the flicker, shown failing first.
+     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     beside item 292, its player twin: an instruction acting on a target
+     that is gone does nothing.
+
+335. **An "as this enters" effect can do anything an instruction can, and the
+     entry replacements are a closed list of payloads.** CR 614.1c makes any
+     "As [this permanent] enters, …" a replacement effect, and CR 614.12 and
+     614.13 say when its choices are made and which objects may move, never
+     what it does. The engine's entry rewrites are a payload per family:
+     `EnterWith` (status, counters and edits on the entering object),
+     `EnterAfterMoving` (CR 614.13's moves), `EnterAsCopy`,
+     `EnterUnderControlOf`, and entering attacking. Printed cards already reach
+     past them: Dermotaxi and The Mimeoplasm exile from any graveyard, Ulamog's
+     Despoiler moves cards out of exile, Phylactery Lich puts a counter on
+     another permanent, and the reveal lands reveal a card. A custom card could
+     print "As this enters, each opponent loses 2 life". The count at #294
+     (Scryfall, 2026-10-26): 287 cards print "As this … enters," in four answer
+     shapes, a value (~175), a player (32), objects (~140) and a yes or no (51).
+
+     The general form mirrors a rider: an entry replacement carrying an
+     instruction, performed in the window #294 gave an entry's own side
+     effects, right before it enters. Two questions make it a design:
+     - **What the entry reads back.** Devour's count, Thromok's X², Sutured
+       Ghoul's power and The Mimeoplasm's copy read what the instruction did,
+       and the CR 616.1 loop needs that answer while it decides (Corpsejack
+       Menace doubles devour's counters in the same loop), while a multi-step
+       instruction needs each step performed before the next (CR 608.2c).
+     - **What the permanent remembers.** Imprint's exiled card, whether a
+       trigger exiles it (Chrome Mox) or a replacement does (Dermotaxi),
+       devour's "it devoured" (CR 702.82b), Sutured Ghoul's exiled cards and
+       every "as this enters, choose" value are CR 607 links.
+
+     Raised by the owner at #294's review (2026-10-26). The same design says
+     whether the entry's objects prompts (`ChooseAuxiliaryZoneChange`,
+     `ChooseCopySource`, `ChooseEnteringDefender`) fold into one arm by
+     answer shape, as #294 folded the yes-or-no and player ones
+     (`replacement-architecture.md` §4.2).
+     **Reachability (2026-10-26):** unreachable — every registered entry
+     replacement fits one of the payloads.
+     **Sized:** a design first: the instruction form, the half the entry
+     reads back, and its CR 607 record, decided before `breadth-features`
+     builds on the payloads; the build is sized there.
+     **Slotted:** `route-review`, beside CR 607's linked abilities and the
+     card parser's design.
+
+336. **CR 616.1's ordering prompt names an effect by its source, so two
+     effects of one object are one option twice.** `ask_choose_replacement`
+     offers `ChoiceOption::Object(source)` per candidate. Thunder-Thrash Elder
+     granted devour 5 (CR 614.13b's own example, Jund's grant) has its printed
+     devour 3 and the grant as two options that are both the Elder, told
+     apart only by their place: a client, the AI harness and the decision
+     log, which writes an option by identity and never by position, cannot
+     tell which was chosen. Found at #294's pre-review.
+     **Reachability (2026-10-26):** unreachable — the registered cards with
+     two replacement effects (Doubling Season, Primal Vigor, Winding
+     Constrictor, Protean Hydra, Leyline of the Void, Bard King of Dale) watch
+     different events with them; reachable with a grant or a copied second
+     effect on one object.
+     **Sized:** an option naming the effect (its source and its ability, or
+     its instance id), read by the prompt, the log and the dev GUI's option
+     list: ~40–80 lines and the fixture the Elder already is.
+     **Slotted:** `route-review`, with the AI harness's `DecisionProvider`
+     shape, which decides how an option names what it is.
+
+337. **An entry choice's cost is paid only in life.** `EnterModsTemplate`'s
+     `unless_paid` carries any `Cost`, and `pays_as_object_enters` refuses every
+     arm but `PayLife` as the effect applies, with CR 614.12b's combined
+     payability summed for life alone. A mana payment ("as this enters, you
+     may pay {2}"), a sacrifice or a discard needs its own combined check,
+     the mana one against the pool and the mana abilities a player could
+     still activate. Found at #294's pre-review.
+     **Reachability (2026-10-26):** unreachable — no registered card has an
+     entry choice with a cost.
+     **Sized:** each arm's payment and its combined payability: ~40–80
+     lines per arm, mana the largest.
+     **Slotted:** `remaining-costs`, beside the other costs that route row
+     builds.
+
+338. **Nothing remembers whether tribute was paid.** CR 702.104b's "if
+     tribute wasn't paid" is true when "the opponent chosen as a result of
+     the tribute ability didn't have the creature enter the battlefield with
+     +1/+1 counters as specified", and all 11 printed tribute cards read it
+     (Fanatic of Xenagos: "When this creature enters, if tribute wasn't paid,
+     ..."). Since #294 the entry asks which opponent and whether they put
+     the counters, and the entry's record names who put any counters, but no
+     record or field says a tribute choice was made, which opponent it named,
+     or that they declined, so the trigger's condition has nothing to read.
+     The answer is the permanent's own memory of how it entered, the same
+     link CR 607 makes for every "as this enters, choose". Found at #294's
+     review (the owner, 2026-10-26).
+     **Reachability (2026-10-26):** unreachable — no tribute card is
+     registered.
+     **Sized:** the chosen opponent and the answer kept with the entering
+     permanent, and a `Condition` leaf reading them at the trigger and at
+     resolution (CR 603.4): ~60–100 lines and a fixture.
+     **Slotted:** `route-review`, beside CR 607's linked abilities (item 335's
+     design), since a remembered entry choice is one of them.
+
+339. **A life cost passes the payability check when its player can't lose
+     life.** CR 119.8 says a player who can't lose life can't pay a cost
+     that involves paying life, and CR 614.17b says a cost that includes an
+     event that can't happen can't be chosen. `GameState::can_pay_costs`
+     asks neither: its `PayLife` arm compares the life total with the amount
+     and nothing else, so under Platinum Emperion ("Your life total can't
+     change") a spell or ability with "Pay 2 life" passes the check. The
+     payment then proposes the life loss, `is_prohibited` drops it, and the
+     cost counts as paid with no life lost. The entry check
+     `pays_as_object_enters` already asks the prohibition, as its own
+     question beside `can_pay_costs`, so the two checks disagree on the same
+     cost. Found at #294's review (the owner, 2026-10-26).
+     The fix makes one check: `can_pay_costs` asks the restriction for each
+     cost through `cant-pay-costs`'s projection of a cost to the event it
+     includes, and the entry check calls it with the costs its player has
+     already chosen for the entering batch plus the new one. That needs the
+     list to carry each cost's source, since each entering permanent pays
+     for itself, and life summed across it (CR 119.4).
+     **Reachability (2026-10-26):** unreachable — no registered card stops a
+     player losing life.
+     **Sized:** the `PayLife` arm's restriction question and the entry check
+     moved onto `can_pay_costs`: ~40–60 lines and a fixture with a "can't
+     lose life" effect, one life cost cast and one offered as a permanent
+     enters.
+     **Slotted:** `cant-pay-costs`, whose projection of a cost to its event
+     asks this question for every arm.
 

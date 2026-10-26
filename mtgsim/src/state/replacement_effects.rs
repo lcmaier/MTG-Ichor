@@ -223,7 +223,7 @@ impl DurationRegistry<RegisteredReplacementEffect> {
 /// Lives on `GameState`; `codebase-state.md` item 40 says why. Empty outside a
 /// batch, and empty in every batch with no entry in it, which is nearly all of
 /// them.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct EntrySelectionScope {
     /// CR 614.13a — every object entering the battlefield in this batch.
     ///
@@ -237,6 +237,28 @@ pub struct EntrySelectionScope {
     /// CR 614.13b — every object already chosen to change zones while applying
     /// an entry replacement in this batch.
     pub chosen: Vec<ObjectId>,
+
+    /// What the entry being decided now has decided to happen right before it
+    /// enters, moved onto its batch member when its CR 616.1 loop ends.
+    pub(crate) just_before_entry: crate::engine::replacement::JustBeforeEntry,
+
+    /// The batch id the batch's before-entering events are decided and
+    /// performed under, opened by the first of them so the CR 616.1 loops
+    /// that decide them are traced with the event they make.
+    pub(crate) just_before_entry_window: Option<crate::events::event::BatchId>,
+
+    /// CR 614.12b — every cost a player has chosen to pay for an entry of
+    /// this batch, which a later choice must be payable beside.
+    pub(crate) costs_chosen: Vec<EntryCostChosen>,
+}
+
+/// One cost chosen for one entry (CR 614.12b): who pays it, and the entry it
+/// is paid for, so an entry that never happens takes its cost with it.
+#[derive(Debug, Clone)]
+pub(crate) struct EntryCostChosen {
+    pub(crate) entering: ObjectId,
+    pub(crate) payer: PlayerId,
+    pub(crate) cost: crate::types::costs::Cost,
 }
 
 impl EntrySelectionScope {

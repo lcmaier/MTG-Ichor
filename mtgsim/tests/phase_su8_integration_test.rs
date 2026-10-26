@@ -25,7 +25,8 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::types::costs::Cost;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -222,7 +223,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ChooseDamageSource { source: object },
         ChoiceKind::ChooseDelayedTriggerEvent { source: object },
         ChoiceKind::ChooseOpponent { source: object },
-        ChoiceKind::ChooseEnteringController { object },
+        ChoiceKind::ChoosePlayerAsObjectEnters { object, source: object, role: EntryRole::Controller },
         ChoiceKind::ChooseEnteringDefender { object },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: object, source: object, to: Zone::Graveyard },
         ChoiceKind::ChooseCopySource { source: object },
@@ -231,6 +232,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::Scry { source: None, n: 1 },
         ChoiceKind::ScryOrder { source: None, bottom: true },
         ChoiceKind::LegendRule { legend_name: "Grizzly Bears".to_string() },
+        ChoiceKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) },
     ];
     let place = |kind: &ChoiceKind| match kind {
         ChoiceKind::PriorityAction => 0,
@@ -254,7 +256,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ChooseDamageSource { .. } => 18,
         ChoiceKind::ChooseDelayedTriggerEvent { .. } => 19,
         ChoiceKind::ChooseOpponent { .. } => 20,
-        ChoiceKind::ChooseEnteringController { .. } => 21,
+        ChoiceKind::ChoosePlayerAsObjectEnters { .. } => 21,
         ChoiceKind::ChooseEnteringDefender { .. } => 22,
         ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 23,
         ChoiceKind::ChooseCopySource { .. } => 24,
@@ -263,9 +265,10 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::Scry { .. } => 27,
         ChoiceKind::ScryOrder { .. } => 28,
         ChoiceKind::LegendRule { .. } => 29,
+        ChoiceKind::AcceptAsObjectEnters { .. } => 30,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
-    assert_eq!(places, (0..30).collect::<Vec<_>>(), "every kind, once, in order");
+    assert_eq!(places, (0..31).collect::<Vec<_>>(), "every kind, once, in order");
     kinds
 }
 
@@ -298,11 +301,15 @@ fn every_question_kind_answers_a_why() {
 /// and the why says so, as it says the chooser is not their own opponent
 /// (CR 102.2). Four seats, the fourth gone.
 #[test]
-fn a_departed_player_is_named_at_choose_entering_controller() {
+fn a_departed_player_is_named_at_choose_player_as_object_enters() {
     let mut game = setup_game(4);
     let entering = put_in_hand(&mut game, grizzly_bears(), 0);
     game.player_lost[3] = true;
-    let context = ChoiceContext::new(ChoiceKind::ChooseEnteringController { object: entering });
+    let context = ChoiceContext::new(ChoiceKind::ChoosePlayerAsObjectEnters {
+        object: entering,
+        source: entering,
+        role: EntryRole::Controller,
+    });
     let options = [ChoiceOption::Player(1), ChoiceOption::Player(2)];
     let question = OpenQuestion { player: 0, context: &context, options: &options };
 

@@ -150,6 +150,26 @@ is `hybrid-and-phyrexian-payment`, a sized slot. The entry is kept as written fo
   - **Keyed by the ability pair (CR 614.14, 607.4).**
   - **The auxiliary move's record holds the moved objects as they are after
     the move.**
+- **The family, counted** (Scryfall, paper cards, 2026-10-26, at #294's
+  review). Every reader of a choice or a payment made while the object was
+  cast or as it entered:
+
+  | Wording | Cards | Rule |
+  |---|---|---|
+  | "the chosen …" | 432 | 607.2d |
+  | "As this enters, [you / choose / an opponent chooses / each player] …" | 291 | 614.12a, 607.2d |
+  | — of those, "choose an opponent" or "choose a player" | 18 | 614.12a |
+  | "was kicked" | 251 | 702.33e |
+  | "exiled with this" | 137 | 607.2a, 607.2b |
+  | "mana was spent to cast" | 44 | 400.7d |
+  | bargained, evoked, or "if tribute wasn't paid" | 30 | 702.104b and kin |
+
+  Two customers are already in the tree, each a one-off this design takes
+  over: `PermanentState::x_value`, CR 107.3m's X carried into an entry's
+  abilities as a field of its own, and `codebase-state.md` item 338, which
+  finds nothing remembering whether tribute was paid. `route-review` is
+  where CR 607 is given an owner, beside item 335's "as this enters"
+  abstraction.
 
 ### 2.3 Casting from a non-hand zone — ✅ graduated 2026-10-05 to `permission-architecture.md`
 
@@ -1846,7 +1866,7 @@ mechanic rather than a migration, which is why it is here and not in
   | `choose_replacement` | `ChooseReplacementEffect` | the affected object's controller, or the affected player (CR 616.1) | **C**, and the **residual** §4 names — it lands on whoever is affected, mid-resolution, and often not on the actor | 1.8 / 4.0 / 12.0 |
   | `apply_optional_replacement` | `ApplyOptionalReplacement` | same (CR 614.1a's "you may") | **C**, residual | 0 / 0.01 / 0.09 |
   | `allocate_next_damage` | `AllocateNextDamage` | the affected player (CR 615.7) | **C**, residual | 0.01 / 0.04 / 0.04 |
-  | `choose_entering_controller` | `ChooseEnteringController` | the caster (CR 616.1b) | **P**-shaped but asked at entry, after the action — a policy, or the agent | 0 / 0 / 0 — Xantcha unpooled |
+  | `choose_player_as_object_enters` | `ChoosePlayerAsObjectEnters` | the entering permanent's controller (CR 616.1b, 702.104a) | **P**-shaped but asked at entry, after the action — a policy, or the agent | 0 / 0 / 0 — Xantcha unpooled |
   | `choose_auxiliary_zone_change` | `ChooseAuxiliaryZoneChange` | the entering permanent's controller (CR 614.13a) | **C** or the agent's — devour's count is strategy | 0.49 / 0.33 / 0.48 |
   | `choose_copy_source` | `ChooseCopySource` | the controller (CR 707.4) | **C** or the agent's | 0.49 / 0.22 / 0.32 |
   | `choose_damage_source` | `ChooseDamageSource` | the controller (CR 609.7a) | **C** or the agent's | 0 / 16 / 37 |

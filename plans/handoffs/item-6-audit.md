@@ -786,10 +786,10 @@ about.
 | 3b | `record-existences` | Every record names its object by existence (split from 4 at #289's review) | 328 | — | ~300 | ~450–600 | both differ: a trigger names the existence its event was about, which is another where an object moved again in its own window; an A/B attributed to those windows | the dispatch's subject reads |
 | 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296, 326, 327 | 46 | ~1,550–1,800 | ~1,550–1,850 | identical | the replacement gather's membership test |
 | 5 | `durations-and-control` | "For as long as" ended with its object, the control sweep's announcements and record, a recipient for `GainControl`, and CR 514.2's wipe asking a restriction (split from `batches-durations-and-control` at #293's review; item 148 to `ironworks-loop` there) | 17, 20, 300, 324, 325, "Before Layers" 13 | — | ~670–965 | ~810–1,390 | both differ: 300's wide form announces Ray of Command's steal before its delayed trigger is created, attributed game by game | the duration sweep per departure, and the settlement per row a resolution writes |
-| 5b | `batch-legality-and-entry-choices` | Phase 2 skips a stale member; an entry event's auxiliary moves and costs decided as they apply and performed as one batch (split from 5 at #293's review) | 26, 61, 62, 63, 134, 330, 332 (63 and 332 from first-card slots at #293's review) | — | ~730–1,030 | ~910–1,550 | identical | phase 2's check per member |
-| 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329 | 38 | ~1,230 | ~1,500–1,800 | identical | castability's assignment (155) |
+| 5b | `batch-legality-and-entry-choices` | An entry event's moves and costs decided as they apply and performed as one event right before the entries, entry choices asked by answer shape (split from 5 at #293's review) | 61, 62, 63, 134, 330, 332 (63 and 332 from first-card slots at #293's review; 26 retired at #294's) | — | ~780–1,145 | ~945–1,660 | identical | phase 2's per-member read of the moves riding on it |
+| 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329, 334 (334 filed at #294's review) | 38 | ~1,230, ~1,340–1,410 with 334 | ~1,500–1,800, ~1,640–2,080 with 334 | identical | castability's assignment (155) |
 | 7 | `layers-combat-and-counters` | The triage's layer, combat and counter builds, one record check among them | 12, 86, 117, 184, 190, 205, 206, 308, 322, 323, "Before Layers" 16, "Before card breadth" 1, 3, 5 and 6 (12 from a first-card slot at #293's review) | 41, 44, 50 | ~1,330 | ~1,650–2,000 | identical | the layer walk |
-| 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 284, 285; the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
+| 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 285 (284 closed as moot at #294's review); the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
 
 That is **60 items and 40 merge rows in 9 PRs**, about 11,000–14,000
 lines carried, since `record-existences` was split from
@@ -1014,9 +1014,9 @@ item 124's precedent that a sweep does not ride inside a rules change.
      say which. Item 326's holder is `PlayerHistory`, so a clone allocates
      once fewer.
 5. `durations-and-control` (split from `batches-durations-and-control` at
-   #293's review, whose design note,
-   `plans/handoffs/batches-durations-and-control.md`, holds both halves'
-   decisions).
+   #293's review; that design note held both halves' decisions, and #294
+   deleted it as the second half landed, so its record is #293's body and
+   the file's history).
    - Item 17: "for as long as" ends with the object it names. The
      replacement and restriction registries are swept, the watched object is
      read by existence, and the control leg is built. **Check:** no such row
@@ -1055,6 +1055,21 @@ item 124's precedent that a sweep does not ride inside a rules change.
    - Items 63 and 332 (re-slotted from "with the first registered card" at
      #293's review): devour by a count (Thromok the Insatiable), and
      tribute's choice of opponent, beside this PR's entry choices.
+   - Done (#294): six items closed, and item 26 retired as met at the
+     producers, since no producer puts two members on one object in one
+     batch. Three calls the plan did not make, each at #294's review: devour's
+     moves are their own event right before the entries, inside the entering
+     batch, after a spot check of "as this enters" rulings (Wood Elemental,
+     Overlaid Terrain, Shimatsu), so no decided batch is held across another;
+     an entry's prompts are one arm per answer shape (`AcceptAsObjectEnters`,
+     `ChoosePlayerAsObjectEnters`), from a census of 287 printed "as this
+     enters" cards; and the three `Query` arms read as clauses. Filed: item
+     334 (a target an earlier instruction moved, for PR 6); items 335, 336
+     and 338 (an "as this enters" instruction can be anything, the ordering
+     prompt naming an effect by its source, nothing remembering tribute),
+     for `route-review`; item 337 (entry costs other than life, for
+     `remaining-costs`); and item 339 (a life cost payable while its player
+     can't lose life, for `cant-pay-costs`).
 6. `resolution-recipients-and-amounts`.
    - Items 90 and 106: a resolution-created row keeps its targets for its
      rider, and `RetargetSpec::ToFixed` reads them.
@@ -1067,6 +1082,10 @@ item 124's precedent that a sweep does not ride inside a rules change.
      fizzles alone.
    - Item 292: a one-player instruction whose player is gone does nothing.
      Row 39's two more sites go with it.
+   - Item 334 (filed at #294's review, the owner: fixed before the audit
+     closes): its object twin, a target an earlier instruction moved is no
+     longer the object chosen (CR 400.7), so the instruction does nothing
+     to it.
    - Items 299 and 269: "equal to its power" is read at resolution, and an
      object's value becomes one `AmountExpr::ValueOf`.
    - Item 307 (row 40): entering attacking is asked of the attacking
@@ -1123,8 +1142,8 @@ item 124's precedent that a sweep does not ride inside a rules change.
      - the memo audits taken over a clone, in debug builds.
    - Item 239: the `.clone()` audit, 390 sites. The 43 in `engine/layers/`
      are read first, then the 30 in `engine/replacement/`.
-   - Item 284: the check that a card-homed item is met when its card is
-     registered. It is Python and a CI step, outside the band.
+   - Item 284: closed as moot at #294's review (the owner, 2026-10-26),
+     when the slot "with the first registered card" was retired.
    - Four rules of `engineering-practices.md` a script could check, slotted
      here at #286's review, each to `check_practices_page.py` or a check
      beside it:

@@ -741,6 +741,9 @@ controller when it was created. **Query:** type `PlayerId` named `controller`
 - `RegisteredReplacementEffect` — owner: as `ContinuousEffect`'s.
 - `RegisteredRestriction` — owner: as `ContinuousEffect`'s.
 - `UntilReturn` — owner: the exile's controller (CR 610.3c).
+- `Rider` — hand-over: the replacement effect's controller (CR 615.5), from
+  the instance that queued it to the effect it runs; it waits on `GameState`
+  only while an entry's moves are decided (#294).
 - `GameAction` ×2 — hand-over: the controller an entering permanent or token
   enters under, until the entry writes it.
 - `ResolutionStamp` — moment: the resolving object's controller, as the event

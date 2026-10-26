@@ -24,7 +24,8 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::types::costs::Cost;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -239,7 +240,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::AllocateNextDamage { source: id, remaining: 3 },
         ChoiceKind::ChooseDamageSource { source: id },
         ChoiceKind::ChooseOpponent { source: id },
-        ChoiceKind::ChooseEnteringController { object: id },
+        ChoiceKind::ChoosePlayerAsObjectEnters { object: id, source: id, role: EntryRole::CounterPutter },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard },
         ChoiceKind::ChooseCopySource { source: id },
         ChoiceKind::CommanderToCommandZoneSba { commander: id },
@@ -248,19 +249,53 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ScryOrder { source: Some(id), bottom: true },
         ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
         ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::Second },
+        ChoiceKind::AcceptAsObjectEnters { object: id, source: id, offer: EntryOffer::Pay(Cost::PayLife(2)) },
+        ChoiceKind::ChooseDelayedTriggerEvent { source: id },
+        ChoiceKind::ChooseEnteringDefender { object: id },
     ];
-    let mut names = BTreeSet::new();
     for kind in &kinds {
         Raised::of(kind, false).check();
         // `as_str` is a match the compiler holds to the variants, and its
         // strings are checked here against each variant's own name.
         let debug = format!("{kind:?}");
         assert_eq!(debug.split([' ', '{', '(']).next(), Some(kind.as_str()), "{debug}");
-        names.insert(kind.as_str());
     }
-    assert_eq!(
-        names.len(),
-        28,
-        "one fixture per variant; a variant was added without one: {names:?}"
-    );
+    // Every variant has a place, by a match the compiler holds to the enum:
+    // a new variant does not compile here until it has one, and the places
+    // the fixtures above reach must be all of them.
+    let place = |kind: &ChoiceKind| match kind {
+        ChoiceKind::PriorityAction => 0,
+        ChoiceKind::DeclareAttackers => 1,
+        ChoiceKind::DeclareBlockers => 2,
+        ChoiceKind::AssignCombatDamage { .. } => 3,
+        ChoiceKind::AssignTrampleDamage { .. } => 4,
+        ChoiceKind::ChooseXValue { .. } => 5,
+        ChoiceKind::ChooseAlternativeCost { .. } => 6,
+        ChoiceKind::ChooseAdditionalCosts { .. } => 7,
+        ChoiceKind::SelectRecipients { .. } => 8,
+        ChoiceKind::GenericManaAllocation { .. } => 9,
+        ChoiceKind::OrderCostReductions { .. } => 10,
+        ChoiceKind::ManaAbilityWindow { .. } => 11,
+        ChoiceKind::ChooseSacrificeForCost { .. } => 12,
+        ChoiceKind::ChooseReplacementEffect { .. } => 13,
+        ChoiceKind::OrderTriggers { .. } => 14,
+        ChoiceKind::ApplyOptionalReplacement { .. } => 15,
+        ChoiceKind::ApplyOptionalEffect { .. } => 16,
+        ChoiceKind::AllocateNextDamage { .. } => 17,
+        ChoiceKind::ChooseDamageSource { .. } => 18,
+        ChoiceKind::ChooseDelayedTriggerEvent { .. } => 19,
+        ChoiceKind::ChooseOpponent { .. } => 20,
+        ChoiceKind::ChoosePlayerAsObjectEnters { .. } => 21,
+        ChoiceKind::ChooseEnteringDefender { .. } => 22,
+        ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 23,
+        ChoiceKind::ChooseCopySource { .. } => 24,
+        ChoiceKind::CommanderToCommandZoneSba { .. } => 25,
+        ChoiceKind::Discard { .. } => 26,
+        ChoiceKind::Scry { .. } => 27,
+        ChoiceKind::ScryOrder { .. } => 28,
+        ChoiceKind::LegendRule { .. } => 29,
+        ChoiceKind::AcceptAsObjectEnters { .. } => 30,
+    };
+    let reached: BTreeSet<usize> = kinds.iter().map(place).collect();
+    assert_eq!(reached, (0..31).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
 }

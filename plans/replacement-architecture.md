@@ -1312,6 +1312,15 @@ A new arm is a claim that CR 614–616 permits an operation this list omits. It
 should arrive with the rule number that says so; absent one, it belongs in
 `Instead` or in `then`.
 
+**An arm that can point an event at another object says what a batch does
+when an earlier member has moved that object.** Every producer names an
+object once per batch, or orders its members so none goes stale (CR 608.2b,
+609.3), and every arm but `Retarget` acts on its own event's subject.
+`Retarget` points damage at another recipient, and no producer puts a move
+beside damage in one batch. A new arm that breaks either premise owes the
+answer phase 2 would need (adopted at #294's review, 2026-10-26, when
+`codebase-state.md` item 26 closed as met at the producers).
+
 **`Instead` carries a template, not a constant.** Several cards build the
 replacement out of the event they are replacing: Chatterfang ("those tokens
 *plus that many* 1/1 Squirrels"), Divine Visitation ("*that many* 4/4 Angels"),
@@ -1966,22 +1975,39 @@ Lifelink proposes from inside `perform_action(DealDamage)`, and a second batch i
 there would tell a CR 603.2c trigger that two events happened. RD's CR 120.3
 decomposition is the same shape.
 
-**One exception, and it is the converse of that argument** (RC-5, 2026-09-03).
-CR 614.13's auxiliary zone changes are *not* a result of the entry: they are
-performed while the entry is still being decided, in phase 1, before the entry
-event exists at all. Joining would put a devoured creature's death and the entry
-it paid for into one CR 603.2c event. `execute_actions_new_batch` opens a
-genuinely fresh id; it has one caller, tagged `// AUXILIARY-MOVE:`, and a second
-caller needs the rule that says its events are not a result of the enclosing one.
+**One exception, and it is the converse of that argument** (RC-5, 2026-09-03;
+reshaped at #294's review, 2026-10-26). CR 614.13's other objects that change
+zones are *not* a result of the entry: Wood Elemental's, Overlaid Terrain's and
+Shimatsu's rulings put them right before it, so they are an event of their own.
+Thunder-Thrash Elder's ruling makes it one event for every entry of the batch:
+"all creatures devoured this way are sacrificed at the same time". Each is
+decided as its entry's replacement applies (`decide_just_before_entry`, tagged
+`// AUXILIARY-MOVE:`), under a fresh batch id the batch's first opens, so the
+count devour reads in the same CR 616.1 loop is what will be performed (a move
+CR 614.6 drops is no sacrifice). The decided moves ride on their entry
+(`BatchMember::just_before_entry`), and the batch's phase 2 performs all of them
+under that id ahead of its entries, then dispatches it. Until then a chosen
+object is where it was, so its own effects still apply to the entry: a
+devoured Master Biomancer still gives the devourer its counters (CR 616.1f;
+confirmed by the owner at #294's review). An entry the loop
+stopped or replaced never happens, and neither do its moves, nor is its
+payment a cost chosen for CR 614.12b. A second caller
+of the fresh id needs the rule that says its events are not a result of the
+enclosing one.
 
-**A fresh id is right and one-per-application is wrong, corrected on review the
-same day.** Thunder-Thrash Elder's own ruling (2008-10-01) says "all creatures
-devoured this way are sacrificed at the same time" when several devour creatures
-enter together — so the target is one batch per *entry event*, not one per
-`apply_auxiliary_move` call. That is a **deferral**, not a relabelling: the moves
-would have to be collected across phase 1 and performed once, which collides
-with counting what was performed (§10's finding 5). Unreachable from the
-registered pool, sized as `codebase-state.md` item 61.
+**An entry's choices are asked by what the player answers** (the owner, at
+#294's review, 2026-10-26, from a census of the 287 printed "as this
+enters" cards and their keywords). Every choice is CR 614.12a's, made before
+the permanent enters, and one prompt arm serves each answer shape, its
+question carried as data: a yes or no is `AcceptAsObjectEnters { offer }` (a
+shockland's payment, tribute's counters), a player is
+`ChoosePlayerAsObjectEnters { role }` (Xantcha's controller, tribute's
+opponent), and a new family adds an offer or a role. The objects shape
+keeps its three arms until `codebase-state.md` item 335's design; a value is CR 607's. Two
+"may"s sit on an entry and ask different players: `ReplacementDef::optional`
+asks the effect's chooser whether the whole effect applies (unleash), and a
+counters row's `optional` asks the putter, inside an effect that applies
+either way (tribute).
 
 **Each batch member keeps its own `applied` set.** A first draft had the batch
 share one, and that is wrong: CR 614.5 is per *event*, and batch members are
@@ -2057,6 +2083,7 @@ Per `CLAUDE.md`: write it N-player-shaped or pay to retrofit it.
   restart; do not assume one pass. **Not built:** phase 1 runs each subject
   group's loop to completion in APNAP order, so a later player's choice cannot
   send an earlier one back (`codebase-state.md` item 25, slotted at `multiplayer-rules`).
+
 
 ### 4.4 What is *not* a replacement effect
 
@@ -4419,13 +4446,12 @@ post-RE audit (2026-09-15) and amended in place where the tree moved.
   §2.2). Unchanged; `ATOM-607.2b-001` and `-2g-001` re-filed there, and
   Sutured Ghoul (`codebase-state.md` item 59) is the wrong answer waiting on it.
 - **CR 614.12b** — "combined costs of those effects to not be payable" across
-  simultaneous entries. **Was parked on cost modification, and CM-1–CM-4
-  landed (2026-09-07/08) without touching it, because that was the wrong
-  prerequisite.** It needs an entry replacement whose choice has a *cost*
-  (shocklands' "you may pay 2 life" — none registered; `EnterModsTemplate`
-  carries tapped and counters only) and a plural non-token entry (RE-4's
-  plural batch is tokens'), and the rule bites only with both.
-  `codebase-state.md` main item 134 carries the reachability and the size.
+  simultaneous entries. **Landed at #294 (2026-10-26)**: `EnterModsTemplate`'s
+  `unless_paid` carries the cost (a shockland's 2 life), offered as the
+  effect applies only when it is payable beside every cost the batch's
+  entries chose already, and paid as a loss of life right before the
+  entries, with CR 614.13's moves. Life is the cost built; another is
+  refused as it applies.
 - **CR 614.12c anchor words.** Linked abilities again — §2.2.
 - **CR 615.13** — triggers on prevention. **Critical-path item 6** ("Phase 7"
   is the archived plan's name). RD-4 left the seam: `apply_rewrite`'s return

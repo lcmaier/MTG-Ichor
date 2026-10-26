@@ -68,7 +68,7 @@ new ask that calls the helper inherits both, and the record.
 | which permanents to sacrifice for a cost, CR 601.2h, 701.21a | `ask_choose_sacrifice_for_cost` `ui/ask.rs:1332` | there are exactly as many candidates as the cost takes |
 | what a copy effect copies, CR 608.2d, 614.12a | `ask_choose_copy_source` `ui/ask.rs:1228` | one candidate, and the copy is not a "may" |
 | a source of damage, CR 609.7a | `ask_choose_damage_source` `ui/ask.rs:1278` | one candidate |
-| "an opponent of your choice" as a permanent enters, CR 614.12a | `ask_choose_entering_controller` `ui/ask.rs:1141` | one opponent |
+| "an opponent of your choice" as a permanent enters, CR 614.12a: to control it (CR 616.1b), or to put its counters (CR 702.104a) | `ask_choose_player_as_object_enters` `ui/ask.rs:1140` | one opponent |
 | what a creature put onto the battlefield attacking attacks, CR 508.4 | `ask_choose_entering_defender` `ui/ask.rs:1160` | one candidate |
 | whether to pass priority, CR 117.3d | `run_priority_round` `engine/priority.rs:38` | passing is the only legal action, and the seat does not stop at every priority point |
 

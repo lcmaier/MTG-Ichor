@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::engine::combat::keywords::lethal_damage_owed;
 use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_damage_with_keyword};
-use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
+use crate::engine::replacement::{AppliedReplacements, BatchMember, JustBeforeEntry, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
 use crate::events::event::{AppliedReplacement, DepartedObject, EventId, GameEvent, UnattachRoute};
@@ -40,6 +40,17 @@ pub use crate::types::zones::ZoneChangeAct;
 /// depth`); the bound is that number with headroom — 7 across 1,600 games,
 /// both pools at two seats and four, 2026-09-13.
 const BATCH_NESTING_LIMIT: usize = 32;
+
+/// Phase 1's answer: the members as decided, in batch order, and what phase
+/// 2 needs besides them.
+struct DecidedBatch {
+    members: Vec<BatchMember>,
+    /// The riders their replacements queued (CR 615.5).
+    riders: Vec<crate::engine::replacement::Rider>,
+    /// The batch id the members' before-entering events perform under, when
+    /// an entry decided any.
+    just_before_entry_window: Option<crate::events::event::BatchId>,
+}
 
 /// Who is asking for a mutation, and what caused it.
 ///
@@ -990,68 +1001,106 @@ impl GameState {
         self.dispatch_after_batch(result, mark, window, ctx)
     }
 
-    /// [`Self::execute_actions`], but the batch gets a **new** id instead of
-    /// joining the enclosing one.
+    /// The sacrifices devour just chose, or the 2 life a shockland's
+    /// controller just chose to pay: each is put through its own CR 616.1
+    /// loop now, so every replacement that watches it has had its say (a
+    /// finality counter exiling a devoured creature), and held, decided but
+    /// not performed, for the batch to perform immediately before its entries
+    /// ([`JustBeforeEntry`]). Nothing moves and no life is lost here.
     ///
-    /// **One caller, and it needs a rule to exist** — CR 614.13's auxiliary
-    /// zone changes (`// AUXILIARY-MOVE:` in `engine::replacement::pipeline`).
-    /// §4.2's default is right on CR 120.3f's grounds: lifelink's life gain is
-    /// a *result of* the damage, so a second batch id would tell a CR 603.2c
-    /// trigger that two events happened. 614.13's moves are the converse. They
-    /// are performed in phase 1, while the entry is still being *decided*, so
-    /// there is no entry event yet for them to be part of; and two devour
-    /// creatures entering together apply their replacements one after the
-    /// other, so joining would hand "whenever one or more creatures die" one
-    /// event where the rules have two.
+    /// Returns how many of `moves` will happen, which is the count devour
+    /// multiplies: a move a replacement prevented (CR 614.6) sacrifices no
+    /// creature, and one it redirected still sacrifices it (CR 701.21a,
+    /// 702.82a). A payment's count goes unread.
     ///
-    /// A second caller needs the same argument made again: not "these are
-    /// different", but "the CR does not make these a result of the enclosing
-    /// event".
-    pub(crate) fn execute_actions_new_batch(
-        &mut self,
-        batch: Vec<GameAction>,
-        ctx: &ActionContext,
-    ) -> Result<Vec<GameAction>, String> {
-        let previous = self.events.open_new_batch();
-        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
-        // A new lineage, as in `execute_actions`.
+    /// Every entry's held events of one batch are one event (Thunder-Thrash
+    /// Elder's ruling), so they share one batch id: the first opens it and
+    /// the rest use it again, and the loops that decided them are traced
+    /// under the event they make. Each starts a fresh applied set, being
+    /// contained in the entry rather than a finer grain of it.
+    pub(crate) fn decide_just_before_entry(&mut self, moves: Vec<GameAction>, ctx: &ActionContext) -> Result<u32, String> {
+        // AUXILIARY-MOVE: CR 614.13's moves are no result of the entry; they
+        // happen right before it, so they are an event of their own
+        // (`replacement-architecture.md` §4.2).
+        let previous = match self.entry_selection.just_before_entry_window {
+            Some(window) => self.events.reopen_batch(window),
+            None => {
+                let previous = self.events.open_new_batch();
+                self.entry_selection.just_before_entry_window = self.events.current_batch();
+                previous
+            }
+        };
         let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
-        let proposals = batch.into_iter().map(|action| (action, ctx.cause)).collect();
-        let result = self.execute_batch_inner(proposals, ctx, &AppliedReplacements::EMPTY);
+        let mark = self.events.next_seq();
+        let proposals = moves.into_iter().map(|action| (action, ctx.cause)).collect();
+        let decided = self.decide_members(proposals, ctx, &AppliedReplacements::EMPTY);
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
-        // Its own window, dispatched at its own close, mid-phase-1 of the
-        // enclosing batch — CR 614.13's moves are not a result of the entry
-        // they are nested inside, so a devoured creature's death triggers
-        // before the entry's ETB (§4.1).
-        let (performed, riders) = result?;
-        self.dispatch_batch(mark, window, ctx)?;
-        self.execute_riders(riders, ctx)?;
-        Ok(performed)
+        // The window is dispatched from the record its perform starts at, so a
+        // record made under it now would reach no trigger.
+        debug_assert!(
+            self.events.next_seq() == mark,
+            "deciding the events right before an entry performed {} of them",
+            self.events.next_seq().0 - mark.0
+        );
+        let Some(DecidedBatch { members, riders, just_before_entry_window }) = decided? else { return Ok(0) };
+        // A move stays a move: no rewrite turns one into an entry (a move onto
+        // the battlefield is refused as a proposal), so none has events of its
+        // own to happen before it, which nothing here would perform.
+        debug_assert!(
+            just_before_entry_window.is_none() && members.iter().all(|m| m.just_before_entry.is_empty()),
+            "a CR 614.13 move decided events to happen before an entry of its own"
+        );
+        let moved = members.iter().filter(|m| m.event.is_some()).count() as u32;
+        self.entry_selection.just_before_entry.append(JustBeforeEntry { members, riders });
+        Ok(moved)
+    }
+
+    /// What a batch's entries decided to happen right before they enter,
+    /// performed as one event under the window that decided it, dispatched
+    /// at its close, then its riders (CR 615.5). A devoured creature's death
+    /// triggers ahead of the entry's, and both wait for the next priority.
+    fn perform_just_before_entry(
+        &mut self,
+        before: JustBeforeEntry,
+        window: crate::events::event::BatchId,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
+        let previous = self.events.reopen_batch(window);
+        let mark = self.events.next_seq();
+        let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
+        self.nesting.batch_depth += 1;
+        let counted = before.members.iter().filter(|m| m.event.is_some()).count();
+        let result = self.perform_members(before.members, before.riders.len(), ctx);
+        self.nesting.batch_depth -= 1;
+        self.nesting.decomposition_depth = outer_lineage;
+        self.events.close_batch(previous);
+        let performed = result?;
+        // What devour counted is what was performed, as one event.
+        debug_assert!(
+            performed.len() == counted && self.events.records_since(mark).iter().all(|r| r.stamp.batch == Some(window)),
+            "the moves and payments a batch's entries decided on perform as one event, each one counted: \
+             {} performed of {counted}",
+            performed.len()
+        );
+        self.dispatch_batch(mark, Some(window), ctx)?;
+        self.execute_riders(before.riders, ctx)
     }
 
     /// One batch's two phases, decide and perform, handing back the riders its
     /// replacements queued for the caller to run (`execute_riders`, or
     /// `resolve_riders` inside an enclosing window).
     ///
-    /// **Split out from its two callers because Rust has no `finally`.**
-    /// [`Self::execute_actions`] and [`Self::execute_actions_new_batch`] differ
-    /// in exactly one thing — whether the batch joins the enclosing id or opens
-    /// a fresh one (§4.2's `// AUXILIARY-MOVE:` rule) — and both must run
-    /// `close_batch` on every exit path, including the several `?` that can
-    /// leave this function with an `Err`. Putting the body here lets each
-    /// wrapper be open / call / close with no early return of its own. A `Drop`
-    /// guard is the other way to get that and cannot be used here: the guard
-    /// would have to hold `&mut GameState` to close the batch, which is the
-    /// borrow this function is already holding.
-    ///
-    /// Nothing else lives in the split — it is not a phase boundary or an
-    /// extension point. [`Self::execute_actions_decomposing`] is the third caller
-    /// and it makes §3.2d's argument about *lineage* rather than §4.2's about
-    /// batch identity, so a fourth needs one or the other — not a reason to
-    /// reuse this body.
+    /// **Split out from its callers because Rust has no `finally`.**
+    /// [`Self::execute_actions`] and [`Self::execute_actions_decomposing`] each
+    /// open a batch, and both must run `close_batch` on every exit path,
+    /// including the several `?` that can leave this function with an `Err`.
+    /// Putting the body here lets each wrapper be open / call / close with no
+    /// early return of its own. A `Drop` guard is the other way to get that and
+    /// cannot be used here: the guard would have to hold `&mut GameState` to
+    /// close the batch, which is the borrow this function is already holding.
     ///
     /// **Deciding is separated from performing, and that is CR 704.3.** "The
     /// game checks for any of the listed conditions ... then performs all
@@ -1059,13 +1108,43 @@ impl GameState {
     /// every member's replacements are chosen against one board, the board as
     /// it was before any of them happened. It is also what CR 614.4 wants for a
     /// simultaneous event: the effect must exist before *the* event, and the
-    /// event is the whole batch.
+    /// event is the whole batch. What the entries decided to happen right
+    /// before they enter ([`JustBeforeEntry`]) is performed between the two, as
+    /// an event of its own.
     fn execute_batch_inner(
         &mut self,
         proposals: Vec<(GameAction, EventCause)>,
         ctx: &ActionContext,
         inherited: &AppliedReplacements,
     ) -> Result<(Vec<GameAction>, Vec<crate::engine::replacement::Rider>), String> {
+        let Some(DecidedBatch { members: mut decided, riders, just_before_entry_window }) =
+            self.decide_members(proposals, ctx, inherited)?
+        else {
+            return Ok((Vec::new(), Vec::new()));
+        };
+        let mut before = JustBeforeEntry::NONE;
+        for member in &mut decided {
+            before.append(std::mem::take(&mut member.just_before_entry));
+        }
+        if !before.is_empty() {
+            let window = just_before_entry_window
+                .ok_or_else(|| "an entry decided events to happen before it with no batch id to perform them under".to_string())?;
+            self.perform_just_before_entry(before, window, ctx)?;
+        }
+        let performed = self.perform_members(decided, riders.len(), ctx)?;
+        Ok((performed, riders))
+    }
+
+    /// Phase 1: every member decided against one board (CR 616.1, 704.3), in
+    /// batch order, with the riders their replacements queued; `None` once the
+    /// game has ended (CR 104.1). An entry's before-entering events ride on
+    /// its member.
+    fn decide_members(
+        &mut self,
+        proposals: Vec<(GameAction, EventCause)>,
+        ctx: &ActionContext,
+        inherited: &AppliedReplacements,
+    ) -> Result<Option<DecidedBatch>, String> {
         use crate::engine::replacement::{apply_replacements, Rider};
         use crate::engine::trace_records;
 
@@ -1085,7 +1164,7 @@ impl GameState {
         // riders (Stunning Reversal's survivor wins before the rider's seven draws).
         // The ending batch's own members all perform; they were one event.
         if self.result.is_some() {
-            return Ok((Vec::new(), Vec::new()));
+            return Ok(None);
         }
 
         // Loud rather than a draw: a nesting this deep is a lost lineage, the
@@ -1145,6 +1224,7 @@ impl GameState {
             // The groups after this one are read, never decided, here: CR
             // 615.7's count is allocated across every member it applies to.
             let (through_this, later) = groups.split_at_mut(g + 1);
+            let subject = through_this[g].subject;
             let group = &mut through_this[g].members;
             // A group is one subject's, and where members name their own causes
             // CR 704.7's dedupe left one member per subject, so the group's cause
@@ -1157,15 +1237,49 @@ impl GameState {
                 decided_ok = Err(e);
                 break;
             }
+            self.attach_just_before_entry(group, subject);
         }
+        let just_before_entry_window = self.entry_selection.just_before_entry_window;
         self.entry_selection = outer_selection;
         self.prevention_allocations = outer_allocations;
         decided_ok?;
 
         // Batch order, not APNAP: CR 101.4 sequenced the choices, and the events
         // are simultaneous, though observable (a graveyard is ordered).
-        let mut decided: Vec<BatchMember> = groups.into_iter().flat_map(|g| g.members).collect();
-        decided.sort_by_key(|m| m.place);
+        let mut members: Vec<BatchMember> = groups.into_iter().flat_map(|g| g.members).collect();
+        members.sort_by_key(|m| m.place);
+        Ok(Some(DecidedBatch { members, riders, just_before_entry_window }))
+    }
+
+    /// What `group`'s CR 616.1 loop decided to happen immediately before its
+    /// entry, onto that entry. An entry the loop stopped or turned into
+    /// another event never happens as an entry, and neither do they (CR
+    /// 614.6), nor is a payment among them a cost chosen for CR 614.12b: the
+    /// costs chosen for that entry go with them.
+    fn attach_just_before_entry(&mut self, group: &mut [BatchMember], subject: Option<ObjectOrPlayerId>) {
+        let before = std::mem::take(&mut self.entry_selection.just_before_entry);
+        if before.is_empty() {
+            return;
+        }
+        if let Some(entry) = group.iter_mut().find(|m| matches!(m.event, Some(GameAction::EnterBattlefield { .. }))) {
+            entry.just_before_entry.append(before);
+            return;
+        }
+        if let Some(ObjectOrPlayerId::Object(entering)) = subject {
+            self.entry_selection.costs_chosen.retain(|chosen| chosen.entering != entering);
+        }
+    }
+
+    /// Phase 2: `decided` performed in batch order, as one event, returning
+    /// what was performed. `rider_count` is how many riders the batch
+    /// queued, for the trace.
+    fn perform_members(
+        &mut self,
+        decided: Vec<BatchMember>,
+        rider_count: usize,
+        ctx: &ActionContext,
+    ) -> Result<Vec<GameAction>, String> {
+        use crate::engine::trace_records;
 
         // CR 120.10's lethal damage, off the board the batch decided against:
         // a member's damage marks and removes loyalty as it performs.
@@ -1248,9 +1362,7 @@ impl GameState {
         self.lki_captures.truncate(frames_from);
         self.lethal_damage_left = outer_lethal_damage;
         performed_ok?;
-        self.trace(|| {
-            trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
-        });
+        self.trace(|| trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), rider_count));
         let window = self.events.current_batch();
         let performed_range = performed_from..self.events.next_seq().0;
         if let Some(frames) = snapshot {
@@ -1276,7 +1388,7 @@ impl GameState {
             self.settle_game_result();
         }
 
-        Ok((performed, riders))
+        Ok(performed)
     }
 
     /// [`Self::resolve_riders`] as a batch of their own, dispatched at its

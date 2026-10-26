@@ -44,8 +44,8 @@ number, roadmap row and phase code the first time it appears.
   and its base SHA;
 - what to read first, in order, by file and heading anchor;
 - the intake: `python plans/check_state_of_play.py --slotted <name>`;
-- whether there is a design stop (the note first, a draft PR, stop for the
-  owner's review);
+- whether there is a design stop, run as `/design-note` (the note first, a
+  draft PR, stop for the owner's review);
 - the gates that can fail for this work, and the close-out's deliverables;
 - that it ends with `/pr-handover`, and that merging is the owner's call.
 

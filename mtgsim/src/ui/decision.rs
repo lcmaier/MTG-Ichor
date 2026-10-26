@@ -276,8 +276,9 @@ pub struct ScriptedDecisionProvider {
     /// The `per_bucket_mins` of every [`DecisionProvider::allocate`] this
     /// provider has answered, in prompt order — see [`Self::allocation_mins`].
     allocation_mins: RefCell<Vec<Vec<u64>>>,
-    /// Every prompt's kind, in prompt order — see [`Self::asked`].
-    asked: RefCell<Vec<ChoiceKind>>,
+    /// Every prompt's player and kind, in prompt order — see [`Self::asked`]
+    /// and [`Self::asked_of`].
+    asked: RefCell<Vec<(PlayerId, ChoiceKind)>>,
     mode: SeatMode,
 }
 
@@ -324,6 +325,12 @@ impl ScriptedDecisionProvider {
     /// queue matches a kind by its variant alone, so what a question offered
     /// is read here, as [`Self::allocation_mins`] reads a split's floors.
     pub fn asked(&self) -> Vec<ChoiceKind> {
+        self.asked.borrow().iter().map(|(_, kind)| kind.clone()).collect()
+    }
+
+    /// [`Self::asked`] with the player each prompt asked, so a test can say
+    /// who answered as well as what.
+    pub fn asked_of(&self) -> Vec<(PlayerId, ChoiceKind)> {
         self.asked.borrow().clone()
     }
 
@@ -371,8 +378,8 @@ impl ScriptedDecisionProvider {
 
     /// Pop the front expectation and validate. Panics if queue is empty or
     /// kind doesn't match — every DP call must have a corresponding expectation.
-    fn pop_and_validate(&self, actual_kind: &ChoiceKind, method_name: &str) -> ScriptedResponse {
-        self.asked.borrow_mut().push(actual_kind.clone());
+    fn pop_and_validate(&self, player: PlayerId, actual_kind: &ChoiceKind, method_name: &str) -> ScriptedResponse {
+        self.asked.borrow_mut().push((player, actual_kind.clone()));
         let mut queue = self.queue.borrow_mut();
         let expectation = match queue.pop_front() {
             Some(e) => e,
@@ -432,12 +439,12 @@ impl DecisionProvider for ScriptedDecisionProvider {
     fn pick_n(
         &self,
         game: &GameState,
-        _player: PlayerId,
+        player: PlayerId,
         context: &ChoiceContext,
         options: &[ChoiceOption],
         _bounds: (usize, usize),
     ) -> Vec<usize> {
-        match self.pop_and_validate(&context.kind, "pick_n") {
+        match self.pop_and_validate(player, &context.kind, "pick_n") {
             ScriptedResponse::PickN(indices) => indices,
             ScriptedResponse::Choose(chosen) => {
                 let mut picked = Vec::new();
@@ -469,12 +476,12 @@ impl DecisionProvider for ScriptedDecisionProvider {
     fn pick_number(
         &self,
         _game: &GameState,
-        _player: PlayerId,
+        player: PlayerId,
         context: &ChoiceContext,
         _min: u64,
         _max: u64,
     ) -> u64 {
-        match self.pop_and_validate(&context.kind, "pick_number") {
+        match self.pop_and_validate(player, &context.kind, "pick_number") {
             ScriptedResponse::Number(n) => n,
             other => panic!(
                 "ScriptedDecisionProvider: pick_number called but scripted response is {:?}, expected Number",
@@ -486,7 +493,7 @@ impl DecisionProvider for ScriptedDecisionProvider {
     fn allocate(
         &self,
         _game: &GameState,
-        _player: PlayerId,
+        player: PlayerId,
         context: &ChoiceContext,
         _total: u64,
         _buckets: &[ChoiceOption],
@@ -494,7 +501,7 @@ impl DecisionProvider for ScriptedDecisionProvider {
         _per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.allocation_mins.borrow_mut().push(per_bucket_mins.to_vec());
-        match self.pop_and_validate(&context.kind, "allocate") {
+        match self.pop_and_validate(player, &context.kind, "allocate") {
             ScriptedResponse::Allocation(alloc) => alloc,
             other => panic!(
                 "ScriptedDecisionProvider: allocate called but scripted response is {:?}, expected Allocation",
@@ -506,11 +513,11 @@ impl DecisionProvider for ScriptedDecisionProvider {
     fn choose_ordering(
         &self,
         _game: &GameState,
-        _player: PlayerId,
+        player: PlayerId,
         context: &ChoiceContext,
         _items: &[ChoiceOption],
     ) -> Vec<usize> {
-        match self.pop_and_validate(&context.kind, "choose_ordering") {
+        match self.pop_and_validate(player, &context.kind, "choose_ordering") {
             ScriptedResponse::Ordering(order) => order,
             other => panic!(
                 "ScriptedDecisionProvider: choose_ordering called but scripted response is {:?}, expected Ordering",

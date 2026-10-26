@@ -39,6 +39,6 @@ pub(crate) use instance::AppliedReplacements;
 pub use instance::{GameRuleReplacement, ReplacementInstance, ReplacementInstanceId};
 pub(crate) use lookahead::EntryFrame;
 pub(crate) use pipeline::{
-    apply_replacements, auxiliary_zone, not_auxiliary, BatchMember, NotAuxiliary,
-    Rider, SubjectGroup,
+    apply_replacements, auxiliary_zone, not_auxiliary, BatchMember, JustBeforeEntry,
+    NotAuxiliary, Rider, SubjectGroup,
 };

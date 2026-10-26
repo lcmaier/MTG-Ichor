@@ -38,7 +38,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::ask::generic_split_caps;
 use crate::types::replacement::{ReplacementClass, Rewrite};
 use crate::types::zones::Zone;
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
+use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryRole, Rejection};
 use crate::ui::decision::PriorityAction;
 use crate::ui::display::{
     cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,
@@ -270,6 +270,16 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
 /// abilities asked about the events an ordering's abilities triggered on.
 /// The other filtered kinds' reasons are their owners': a target's `cant-be-targeted`'s, a
 /// sacrifice's `remaining-costs`'s (`setup-architecture.md` §8).
+/// Why `player` is not among the opponents `chooser` may name, `to` saying
+/// what the player would have been for.
+fn not_an_opponent_refusal(game: &GameState, chooser: PlayerId, player: PlayerId, to: &str) -> Vec<WhyLine> {
+    let reason = game.not_an_opponent(chooser, player).map(|reason| match reason {
+        NotAnOpponent::Yourself => (format!("{} is choosing, and an opponent is another player", player_name(player)), Some("102.2")),
+        NotAnOpponent::LeftTheGame => (format!("{} has left the game", player_name(player)), Some("800.4a")),
+    });
+    reason.map(|reason| refusal(to, reason)).into_iter().collect()
+}
+
 fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: Option<&[TraceRecord]>) -> Vec<WhyLine> {
     let offered = question.options.iter().any(|option| names(option, about));
     match (&question.context.kind, about) {
@@ -300,12 +310,15 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
         {
             generic_split_refusals(game, question.player, mana_cost)
         }
-        (ChoiceKind::ChooseEnteringController { .. } | ChoiceKind::ChooseOpponent { .. }, WhyAbout::Player(player)) => {
-            let reason = game.not_an_opponent(question.player, player).map(|reason| match reason {
-                NotAnOpponent::Yourself => (format!("{} is choosing, and an opponent is another player", player_name(player)), Some("102.2")),
-                NotAnOpponent::LeftTheGame => (format!("{} has left the game", player_name(player)), Some("800.4a")),
-            });
-            reason.map(|reason| refusal("To control it", reason)).into_iter().collect()
+        (ChoiceKind::ChoosePlayerAsObjectEnters { role, .. }, WhyAbout::Player(player)) => {
+            let to = match role {
+                EntryRole::Controller => "To control it",
+                EntryRole::CounterPutter => "To put its counters on",
+            };
+            not_an_opponent_refusal(game, question.player, player, to)
+        }
+        (ChoiceKind::ChooseOpponent { .. }, WhyAbout::Player(player)) => {
+            not_an_opponent_refusal(game, question.player, player, "To control it")
         }
         (ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to }, WhyAbout::Object(id)) if !offered => {
             auxiliary_refusal(game, question.player, (*entering, *source, *to), id).into_iter().collect()
@@ -338,9 +351,10 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::AllocateNextDamage { .. }
             | ChoiceKind::ChooseDamageSource { .. }
             | ChoiceKind::ChooseDelayedTriggerEvent { .. }
-            | ChoiceKind::ChooseEnteringController { .. }
+            | ChoiceKind::ChoosePlayerAsObjectEnters { .. }
             | ChoiceKind::ChooseOpponent { .. }
             | ChoiceKind::ChooseEnteringDefender { .. }
+            | ChoiceKind::AcceptAsObjectEnters { .. }
             | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
             | ChoiceKind::ChooseCopySource { .. }
             | ChoiceKind::CommanderToCommandZoneSba { .. }
@@ -471,8 +485,11 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         ChoiceKind::ChooseDelayedTriggerEvent { source } => {
             (format!("the events that happened at once, any of which triggers {}'s delayed ability", n(source)), Some("603.7b"))
         }
-        ChoiceKind::ChooseEnteringController { object } => {
+        ChoiceKind::ChoosePlayerAsObjectEnters { object, role: EntryRole::Controller, .. } => {
             (format!("the opponents still in the game, one of whom controls {} as it enters", n(object)), Some("614.12a"))
+        }
+        ChoiceKind::ChoosePlayerAsObjectEnters { object, role: EntryRole::CounterPutter, .. } => {
+            (format!("the opponents still in the game, one of whom may put counters on {} as it enters", n(object)), Some("702.104a"))
         }
         ChoiceKind::ChooseOpponent { source } => {
             (format!("the opponents still in the game, one of whom {}'s instruction names", n(source)), Some("608.2d"))
@@ -480,6 +497,10 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         ChoiceKind::ChooseEnteringDefender { object } => {
             (format!("what can be attacked that its effect allows, which {} attacks as it enters", n(object)), Some("508.4"))
         }
+        ChoiceKind::AcceptAsObjectEnters { object, offer, .. } => (
+            format!("whether to {} as {} enters", crate::ui::display::entry_offer_words(offer), n(object)),
+            Some("614.12a"),
+        ),
         ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, .. } => {
             (format!("the objects {}'s effect may move as {} enters", n(source), n(entering)), Some("614.13a"))
         }

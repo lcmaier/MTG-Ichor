@@ -169,7 +169,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 215 |
 | …of them in `PERFORMANCE_POOL` | 124 |
-| `#[test]` functions | 2834 |
+| `#[test]` functions | 2851 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -190,14 +190,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 384 |
-| …closed, still recorded | 236 |
-| …open — unreachable, and says why | 101 |
+| Numbered items | 390 |
+| …closed, still recorded | 244 |
+| …open — unreachable, and says why | 100 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 29 |
+| …open — reachable, not wrong (perf, a name, a harness) | 28 |
 | …open — nothing to build, a record for a later phase | 14 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 146 of 148 |
+| …open, carrying an explicit `**Sized:**` | 144 of 146 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -211,16 +211,15 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 136 |
-| …slotted to the first registered card that needs it | 0 |
+| …slotted to a phase or roadmap row still to come | 134 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
 
 **Both bolded rows fail the check.** A home is a `**Slotted:**` line naming a
 phase or `roadmap-v2.md` §3a row still to come (Phases 9 and 10 by number,
-having no rows yet), "with the first registered card that" and the card or
-class, or "none — a record". A line naming only phases that have landed is
+having no rows yet), or "none — a record". "With the first registered card
+that …" is no home since #294's review. A line naming only phases that have landed is
 no home: they went without it. A phase reads its intake list at its first
 ticket: `python plans/check_state_of_play.py --slotted cant-be-targeted`.
 
@@ -247,7 +246,6 @@ discipline. → `engineering-practices.md#the-spec-database`.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- `plans/handoffs/batches-durations-and-control.md`
 - `plans/handoffs/item-6-audit.md`
 
 ## What this file deliberately does not know

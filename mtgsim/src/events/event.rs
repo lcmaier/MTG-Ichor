@@ -861,7 +861,11 @@ pub struct EventId(pub usize);
 /// once per death inside it.
 ///
 /// The trigger matcher (critical path item 6) is the customer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+///
+/// Not ordered: the moves and payments a batch's entries decide on are
+/// numbered after that batch and performed before it, so a larger id is not a
+/// later event. The stream's order is [`EventId`]'s.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BatchId(pub u64);
 
 /// When something waiting for an event was created, as a position in the
@@ -1158,15 +1162,22 @@ impl EventWindow {
     ///
     /// Two callers, each with the rules argument for why its events are not a
     /// result of the event they are nested inside:
-    /// `GameState::execute_actions_new_batch` for CR 614.13's auxiliary moves,
-    /// and `GameState::execute_riders` for a replacement's
-    /// rider, which CR 615.5 puts "immediately afterward".
+    /// `GameState::decide_just_before_entry` for CR 614.13's other objects that
+    /// change zones, right before the entry, and `GameState::execute_riders`
+    /// for a replacement's rider, which CR 615.5 puts "immediately afterward".
     pub(crate) fn open_new_batch(&mut self) -> Option<BatchId> {
         let previous = self.open;
         let id = BatchId(self.next_batch);
         self.next_batch += 1;
         self.open = Some(id);
         previous
+    }
+
+    /// Open `id` again, a batch [`Self::open_new_batch`] numbered earlier: the
+    /// events an entry's replacements decide on in phase 1 are performed under
+    /// it in phase 2.
+    pub(crate) fn reopen_batch(&mut self, id: BatchId) -> Option<BatchId> {
+        self.open.replace(id)
     }
 
     /// Close a batch, restoring what [`Self::open_batch`] returned.

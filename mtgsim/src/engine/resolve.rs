@@ -2397,7 +2397,7 @@ impl GameState {
             None => false,
             Some(action) => !crate::engine::restriction::is_prohibited(
                 self,
-                &crate::engine::restriction::Query::Event {
+                &crate::engine::restriction::Query::EventHappens {
                     action: &action,
                     cause: ctx.cause(),
                     lookahead: None,

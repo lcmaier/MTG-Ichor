@@ -2,7 +2,7 @@ use crate::engine::combat::validation::CombatError;
 use crate::oracle::x_values::LegalXValues;
 use crate::state::battlefield::AttackTarget;
 use crate::types::colors::Color;
-use crate::types::costs::{AdditionalCost, AlternativeCost};
+use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{CounterType, EffectRecipient};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::state::game_state::GameState;
@@ -112,7 +112,7 @@ pub enum ChoiceKind {
     ///
     /// Asked only when there are more candidates than the cost needs. With
     /// exactly as many as it needs the payment is forced and nothing is
-    /// asked, as with [`Self::ChooseEnteringController`].
+    /// asked, as with [`Self::ChoosePlayerAsObjectEnters`].
     ChooseSacrificeForCost { spell_or_ability_id: ObjectId, count: u32 },
 
     // --- Replacement effects (CR 616.1) ---
@@ -201,11 +201,14 @@ pub enum ChoiceKind {
     /// still in the game; with one, nothing is asked.
     ChooseOpponent { source: ObjectId },
 
-    /// CR 616.1b / 614.12a — an entry replacement puts `object` under "an
-    /// opponent of your choice" and there is more than one opponent to choose
-    /// from. The options are players. With exactly one opponent nothing is
-    /// asked, and the choice is made before the permanent enters.
-    ChooseEnteringController { object: ObjectId },
+    /// CR 614.12a — an entry replacement asks for a player as `object`
+    /// enters, before it does, and `role` says what the player will be: the
+    /// opponent it enters under the control of (Xantcha, CR 616.1b), or the
+    /// opponent who may put its counters on (tribute, CR 702.104a). The
+    /// options are the opponents still in the game; with one, nothing is
+    /// asked. `source` is the object whose effect asks, the entering one for
+    /// its own ability.
+    ChoosePlayerAsObjectEnters { object: ObjectId, source: ObjectId, role: EntryRole },
 
     /// CR 508.4 — `object` is put onto the battlefield attacking, and its
     /// controller chooses what it attacks as it enters, among two or more of
@@ -213,6 +216,14 @@ pub enum ChoiceKind {
     /// §2.23 the planeswalkers and battles among them. With one candidate
     /// nothing is asked.
     ChooseEnteringDefender { object: ObjectId },
+
+    /// CR 614.12a — an entry replacement offers the asked player something
+    /// they may do as `object` enters, yes or no. `offer` says what: a
+    /// shockland's "you may pay 2 life", offered only when the payment is
+    /// payable beside every cost the event's entries chose already (CR
+    /// 614.12b). `source` is the object whose effect offers it, the entering
+    /// one for its own ability.
+    AcceptAsObjectEnters { object: ObjectId, source: ObjectId, offer: EntryOffer },
 
     /// CR 614.13/13a — an entry replacement is being applied and it moves other
     /// objects: devour's "you may sacrifice any number of creatures", Sutured
@@ -316,6 +327,26 @@ pub enum ChoiceKind {
     LegendRule { legend_name: String },
 }
 
+/// What [`ChoiceKind::AcceptAsObjectEnters`] offers, so a client can tell a cost
+/// from a gift without reading the card.
+#[derive(Debug, Clone, PartialEq)]
+pub enum EntryOffer {
+    /// CR 614.12's "you may pay [cost]".
+    Pay(Cost),
+    /// "That player may put N counters on it as it enters", the putter's own
+    /// choice (tribute, CR 702.104a).
+    PutCounters { counter: CounterType, n: u32 },
+}
+
+/// What the player [`ChoiceKind::ChoosePlayerAsObjectEnters`] asks for will be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntryRole {
+    /// The opponent the permanent enters under the control of (CR 616.1b).
+    Controller,
+    /// The opponent who may put its counters on (CR 702.104a, 122.6a).
+    CounterPutter,
+}
+
 impl ChoiceKind {
     /// The object this question is about — the spell or ability asking, or
     /// the permanent it concerns — when there is exactly one.
@@ -367,8 +398,9 @@ impl ChoiceKind {
             ChoiceKind::ChooseDamageSource { source } => Some(*source),
             ChoiceKind::ChooseDelayedTriggerEvent { source } => Some(*source),
             ChoiceKind::ChooseOpponent { source } => Some(*source),
-            ChoiceKind::ChooseEnteringController { object } => Some(*object),
+            ChoiceKind::ChoosePlayerAsObjectEnters { source, .. } => Some(*source),
             ChoiceKind::ChooseEnteringDefender { object } => Some(*object),
+            ChoiceKind::AcceptAsObjectEnters { source, .. } => Some(*source),
             ChoiceKind::ChooseAuxiliaryZoneChange { source, .. } => Some(*source),
             ChoiceKind::ChooseCopySource { source } => Some(*source),
             ChoiceKind::CommanderToCommandZoneSba { commander } => Some(*commander),
@@ -407,8 +439,9 @@ impl ChoiceKind {
             ChoiceKind::ChooseDamageSource { .. } => "ChooseDamageSource",
             ChoiceKind::ChooseDelayedTriggerEvent { .. } => "ChooseDelayedTriggerEvent",
             ChoiceKind::ChooseOpponent { .. } => "ChooseOpponent",
-            ChoiceKind::ChooseEnteringController { .. } => "ChooseEnteringController",
+            ChoiceKind::ChoosePlayerAsObjectEnters { .. } => "ChoosePlayerAsObjectEnters",
             ChoiceKind::ChooseEnteringDefender { .. } => "ChooseEnteringDefender",
+            ChoiceKind::AcceptAsObjectEnters { .. } => "AcceptAsObjectEnters",
             ChoiceKind::ChooseAuxiliaryZoneChange { .. } => "ChooseAuxiliaryZoneChange",
             ChoiceKind::ChooseCopySource { .. } => "ChooseCopySource",
             ChoiceKind::CommanderToCommandZoneSba { .. } => "CommanderToCommandZoneSba",
