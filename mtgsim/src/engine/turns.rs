@@ -3,7 +3,7 @@ use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
 use crate::state::game_state::{
     initial_step, next_step, ExtraTurn, GameState, PhaseType, StepType, TurnPlan,
 };
-use crate::types::ids::{ExtraTurnId, ObjectId, PlayerId};
+use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 use crate::ui::decision::DecisionProvider;
 
@@ -421,9 +421,16 @@ impl GameState {
                     .filter(|(_, entry)| entry.damage_marked != 0 || entry.damaged_by_deathtouch)
                     .map(|(id, _)| id)
                     .collect();
+                // A rule's action a card can switch off (Patient Zero's "damage
+                // isn't removed"), asked of each.
+                let rule = crate::types::restriction::RuleAction::CleanupDamageRemoval;
+                let removed: Vec<ObjectId> = damaged
+                    .into_iter()
+                    .filter(|&id| crate::engine::restriction::rule_applies(self, rule, ObjectOrPlayerId::Object(id)))
+                    .collect();
                 // NOT REPLACEABLE: CR 514.2's damage wearing off. The cards that
-                // stop it are "can't"s, not replacements.
-                for id in damaged {
+                // stop it say the rule does not apply; none replaces it.
+                for id in removed {
                     if let Some(entry) = self.battlefield.get_mut(&id) {
                         entry.damage_marked = 0;
                         entry.damaged_by_deathtouch = false;

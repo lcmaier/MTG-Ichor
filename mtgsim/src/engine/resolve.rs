@@ -478,7 +478,7 @@ impl GameState {
             // own, with a `Cant` becoming `Doesnt`, since CR 118.3 lets no
             // player pay a cost they can't.
             Effect::Optional { chooser, effect: inner } => {
-                let chooser = self.resolve_player_ref(chooser, &[], ctx)?;
+                let chooser = self.player_the_instruction_names(chooser, &[], ctx, dp)?;
                 let kind = ChoiceKind::ApplyOptionalEffect { source: ctx.source };
                 if !crate::ui::ask::ask_take_or_leave(dp, self, chooser, ctx.source, kind, "apply_optional_effect") {
                     // Its targets were announced all the same, so the instances
@@ -1077,11 +1077,12 @@ impl GameState {
                 // said "X". Static abilities are the ones that stay live.
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer7cModifyPT,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::ModifyPowerToughness { power: PtValue::Fixed(power), toughness: PtValue::Fixed(toughness) },
-                );
+                )?;
                 Ok(())
             }
 
@@ -1090,11 +1091,12 @@ impl GameState {
                 let toughness = self.evaluate_amount(toughness_expr, ctx, None)? as i32;
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer7bSetPT,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::SetPowerToughness { power: PtValue::Fixed(power), toughness: PtValue::Fixed(toughness) },
-                );
+                )?;
                 Ok(())
             }
 
@@ -1106,11 +1108,12 @@ impl GameState {
             Primitive::SwitchPowerToughness(duration) => {
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer7dSwitchPT,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::SwitchPowerToughness,
-                );
+                )?;
                 Ok(())
             }
 
@@ -1125,11 +1128,12 @@ impl GameState {
                 };
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer5Color,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     modification,
-                );
+                )?;
                 Ok(())
             }
 
@@ -1137,13 +1141,14 @@ impl GameState {
 
             Primitive::ChangeType(type_change, duration) => {
                 let affected = self.affected_permanents(recipient, targets, ctx);
-                if affected.is_empty() {
+                if affected.is_empty() || self.never_starts(*duration, ctx) {
                     return Ok(());
                 }
                 // A TypeChange may produce several Layer 4 rows: CR 613.6 makes them
                 // siblings ("the parts of the effect each apply in their appropriate
                 // layers") and CR 613.7b makes them share a timestamp — one resolution,
                 // one moment of creation.
+                self.settle_before_a_resolution_effect(&actx)?;
                 let timestamp = self.allocate_timestamp();
                 for modification in type_change.modifications() {
                     self.add_resolution_row(ctx, Layer::Layer4Type, *duration, timestamp, affected.clone(), modification);
@@ -1159,44 +1164,48 @@ impl GameState {
             Primitive::GrantKeywordFlag(keyword, duration) => {
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer6Ability,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::GrantKeywordFlag(*keyword),
-                );
+                )?;
                 Ok(())
             }
 
             Primitive::RemoveKeywordFlag(keyword, duration) => {
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer6Ability,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::RemoveKeywordFlag(*keyword),
-                );
+                )?;
                 Ok(())
             }
 
             Primitive::LoseAbility(ability_id, duration) => {
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer6Ability,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::LoseAbility(*ability_id),
-                );
+                )?;
                 Ok(())
             }
 
             Primitive::LoseAllAbilities(duration) => {
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer6Ability,
                     *duration,
                     self.affected_permanents(recipient, targets, ctx),
                     EffectModification::LoseAllAbilities,
-                );
+                )?;
                 Ok(())
             }
 
@@ -1204,11 +1213,12 @@ impl GameState {
                 let grantees = self.affected_permanents(recipient, targets, ctx);
                 let granted = self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer6Ability,
                     *duration,
                     grantees.clone(),
                     EffectModification::GrantAbility(def.clone()),
-                );
+                )?;
 
                 // CR 613.7a clause 2: a granted static ability's own effects take the
                 // *later* of this effect's timestamp and the grantee's, so a permanent
@@ -1287,6 +1297,9 @@ impl GameState {
             // Censer-Bearer's ruling); `Implicit` at each event (Safe Passage's).
             // Per-target shapes author an empty `Fixed`, as `Restrict` does.
             Primitive::CreateReplacement(def, duration, pattern_fill) => {
+                if self.never_starts(*duration, ctx) {
+                    return Ok(());
+                }
                 // CR 113.7a — an ability's source is the object that has it,
                 // so a row an activated ability makes names the permanent, not
                 // the ephemeral stack object CR 608.2n deletes at the end of
@@ -1435,6 +1448,9 @@ impl GameState {
             // `Duration` is the card's, never the engine's: CR 608.2c hands scope to a
             // human reader (`cant-effects-architecture.md` §9 finding 1).
             Primitive::Restrict(def, duration) => {
+                if self.never_starts(*duration, ctx) {
+                    return Ok(());
+                }
                 // **A restriction naming nobody waits for the resolution's targets**:
                 // an empty `Fixed` beside `Nobody`, filled one row per target, since one
                 // row naming both would make a second copy a no-op under CR 614.5.
@@ -1531,9 +1547,9 @@ impl GameState {
 
             // NOT REPLACEABLE: a direct write because nothing replaces *this* removal — Pyramids, the
             // one printed card that removes all damage, uses it as a replacement's
-            // substituted event. Not by analogy to the CR 514.2 cleanup wipe, which
-            // seven cards restrict and which owes an enforcement point
-            // (`codebase-state.md`, Before Replacement item 20).
+            // substituted event. Not by analogy to the CR 514.2 cleanup wipe, a
+            // rule's action a card can switch off (`Restriction::RuleDoesNotApply`),
+            // where this is an effect's.
             Primitive::RemoveAllDamage => {
                 for object in self.affected_permanents(recipient, targets, ctx) {
                     if let Some(entry) = self.battlefield.get_mut(&object) {
@@ -1561,6 +1577,17 @@ impl GameState {
                     .into_iter()
                     .map(ObjectOrPlayerId::Object)
                     .collect();
+                // Who puts them on is the instruction's to name, asked once as
+                // it applies (CR 608.2d), and `event_for` reads it per object.
+                let named;
+                let primitive = match primitive {
+                    Primitive::AddCounters { counter, amount, by } if !objects.is_empty() => {
+                        let by = PlayerRef::Player(self.player_the_instruction_names(by, targets, ctx, dp)?);
+                        named = Primitive::AddCounters { counter: *counter, amount: amount.clone(), by };
+                        &named
+                    }
+                    _ => primitive,
+                };
                 let batch = self.events_for(primitive, &objects, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())
@@ -1572,7 +1599,7 @@ impl GameState {
             Primitive::GetCounters { counter, amount, by } => {
                 let n = self.evaluate_amount(amount, ctx, None)? as u32;
                 let player = self.resolve_player_for_self(recipient, targets, ctx);
-                let by = self.resolve_player_ref(by, targets, ctx)?;
+                let by = self.player_the_instruction_names(by, targets, ctx, dp)?;
                 self.execute_action(
                     GameAction::AddCounters {
                         subject: ObjectOrPlayerId::Player(player),
@@ -1587,24 +1614,35 @@ impl GameState {
 
             // === Layer 2 — control-changing effects (CR 613.1b) ===
 
-            Primitive::GainControl(duration) => {
+            Primitive::GainControl { to, duration } => {
                 // A filter names permanents (Mob Rule); a target may also be a
                 // spell, which has a controller too (CR 108.4).
                 let affected = match recipient {
                     EffectRecipient::FilteredPermanents(_) => self.affected_permanents(recipient, targets, ctx),
                     _ => self.collect_permanent_or_spell_targets(targets),
                 };
+                // Nothing to take is no choice of who takes it.
+                if affected.is_empty() {
+                    return Ok(());
+                }
                 // `You` rather than `ctx.controller`, though they name the
                 // same player: on a `Resolution` row, `FilterPlayers::you()`
                 // reads `ContinuousEffect.controller`, which CR 611.2c
-                // locked at resolution.
+                // locked at resolution. `Owner` is each object's own (CR
+                // 108.3), read per object by the walk (Homeward Path).
+                // Anyone else is settled now.
+                let to = match to {
+                    PlayerRef::You | PlayerRef::Owner => to.clone(),
+                    other => PlayerRef::Player(self.player_the_instruction_names(other, targets, ctx, dp)?),
+                };
                 self.add_resolution_effect(
                     ctx,
+                    &actx,
                     Layer::Layer2Control,
                     *duration,
                     affected,
-                    EffectModification::SetController(PlayerRef::You),
-                );
+                    EffectModification::SetController(to),
+                )?;
                 Ok(())
             }
 
@@ -1747,20 +1785,52 @@ impl GameState {
     fn add_resolution_effect(
         &mut self,
         ctx: &ResolutionContext,
+        actx: &ActionContext,
         layer: Layer,
         duration: Duration,
         affected: Vec<ObjectId>,
         modification: EffectModification,
-    ) -> Option<(Timestamp, EffectId)> {
-        if affected.is_empty() {
-            return None;
+    ) -> Result<Option<(Timestamp, EffectId)>, String> {
+        if affected.is_empty() || self.never_starts(duration, ctx) {
+            return Ok(None);
         }
+        self.settle_before_a_resolution_effect(actx)?;
         let timestamp = self.allocate_timestamp();
-        Some((timestamp, self.add_resolution_row(ctx, layer, duration, timestamp, affected, modification)))
+        Ok(Some((timestamp, self.add_resolution_row(ctx, layer, duration, timestamp, affected, modification))))
+    }
+
+    /// CR 611.2b — "if the 'for as long as' duration never starts, the
+    /// effect does nothing": the object it lasts as long as is the ability's
+    /// own, and it has left the battlefield or become a new object there (CR
+    /// 400.7, Sower of Temptation's ruling), or, for "as long as you control"
+    /// it, is no longer this resolution's controller's. A spell is never on
+    /// the battlefield to last as long as.
+    fn never_starts(&self, duration: Duration, ctx: &ResolutionContext) -> bool {
+        if !duration.ends_with_its_source() {
+            return false;
+        }
+        let Some(watched) = ctx.ability_source else { return true };
+        if !self.battlefield.contains_key(&watched.id) || self.object_ref(watched.id) != Some(watched) {
+            return true;
+        }
+        duration.ends_with_control_of_its_source() && get_effective_controller(self, watched.id) != Some(ctx.controller)
+    }
+
+    /// CR 603.2: what an earlier instruction's effect did to a controller or
+    /// a combatant (CR 603.10d, 506.4) is an event as it happens, so it is
+    /// announced before the next effect is written rather than merged into
+    /// the next batch's. Inside a batch, as a rider's resolution is, the
+    /// batch's close settles it.
+    fn settle_before_a_resolution_effect(&mut self, actx: &ActionContext) -> Result<(), String> {
+        if self.nesting.batch_depth > 0 || self.nesting.dispatch_depth > 0 {
+            return Ok(());
+        }
+        self.settle_layer_consequences(actx)
     }
 
     /// One row of a resolution's continuous effect at `timestamp`, which the
-    /// caller allocates: a type change's sibling rows share one (CR 613.7b).
+    /// caller allocates: a type change's sibling rows share one (CR 613.7b),
+    /// so the caller settles once, before the effect's first row.
     fn add_resolution_row(
         &mut self,
         ctx: &ResolutionContext,
@@ -1904,6 +1974,9 @@ impl GameState {
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
+        if self.never_starts(duration, ctx) {
+            return Ok(());
+        }
         // --- 1. The two roles -------------------------------------------
         let (donor, affected): (ObjectId, Vec<ObjectId>) = match roles {
             CopyRoles::RecipientsCopyChosen(filter) => {
@@ -1979,6 +2052,8 @@ impl GameState {
         let keeps_own_value = except.iter().any(|exception| matches!(exception, CopyException::DoesNotCopy(_)));
         let row_subjects: Vec<Vec<ObjectId>> =
             if keeps_own_value { affected.iter().map(|&id| vec![id]).collect() } else { vec![affected] };
+        // One effect, whatever its rows: settled before the first write.
+        self.settle_before_a_resolution_effect(&ActionContext::resolving(dp, ctx))?;
         for affected in row_subjects {
             let mut values = captured.clone();
             if !except.is_empty() {
@@ -2664,20 +2739,51 @@ impl GameState {
         self.owner_of(source).ok_or_else(|| format!("{source} is gone, and nothing kept its last known information to say who owned it"))
     }
 
-    /// The player a `PlayerRef` names at resolution: who puts the counters on
-    /// for `Primitive::AddCounters` and `GetCounters` (CR 122.6a's shape on a
-    /// proposal), and who chooses for `Effect::Optional`.
-    ///
+    /// The player an instruction names as it is applied (CR 608.2d): who
+    /// puts the counters on for `Primitive::AddCounters` and `GetCounters`
+    /// (CR 122.6a's shape on a proposal), who chooses for `Effect::Optional`,
+    /// and who gains control for `GainControl`. "An opponent" none of its
+    /// recipients is (Akroan Horse's, which targets no one) is its
+    /// controller's choice among the opponents still in the game, asked only
+    /// when there are two or more. Every other reference reads as
+    /// [`Self::resolve_player_ref`] reads it.
+    fn player_the_instruction_names(
+        &self,
+        who: &PlayerRef,
+        recipients: &[ObjectOrPlayerId],
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<PlayerId, String> {
+        if matches!(who, PlayerRef::Opponent) && Self::opponent_among(recipients, ctx).is_none() {
+            let opponents = self.opponents_of(ctx.controller);
+            if opponents.len() > 1 {
+                return Ok(crate::ui::ask::ask_choose_opponent(dp, self, ctx.controller, ctx.effect_source(), &opponents));
+            }
+        }
+        self.resolve_player_ref(who, recipients, ctx)
+    }
+
+    /// The opponent among the objects and players an instruction acts on,
+    /// when one is: a targeted opponent, for every printed shape.
+    fn opponent_among(recipients: &[ObjectOrPlayerId], ctx: &ResolutionContext) -> Option<PlayerId> {
+        recipients.iter().find_map(|recipient| match recipient {
+            ObjectOrPlayerId::Player(pid) if *pid != ctx.controller => Some(*pid),
+            _ => None,
+        })
+    }
+
     /// `You` is the effect's controller — every printed one-shot, and the
-    /// card writes it. `Opponent` is the resolution's player target when it
-    /// has one, else the only opponent still in the game; with several and
-    /// no target it is an authoring error and loud. Bold Plagiarist's
+    /// card writes it. `Opponent` is the opponent among the instruction's
+    /// recipients when one is, else the only opponent still in the game;
+    /// with several, an instruction asks
+    /// ([`Self::player_the_instruction_names`]), and a read, which cannot
+    /// ask, is loud. Bold Plagiarist's
     /// "*they* put" is the printed customer, a trigger whose effect names the
     /// player who triggered it — `Player(id)` once CR 603 fills it.
     fn resolve_player_ref(
         &self,
         by: &PlayerRef,
-        targets: &[ObjectOrPlayerId],
+        recipients: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
     ) -> Result<PlayerId, String> {
         Ok(match by {
@@ -2685,11 +2791,7 @@ impl GameState {
             PlayerRef::Player(pid) => *pid,
             PlayerRef::Owner => self.source_owner_of(ctx)?,
             PlayerRef::Opponent => {
-                let targeted = targets.iter().find_map(|t| match t {
-                    ObjectOrPlayerId::Player(pid) if *pid != ctx.controller => Some(*pid),
-                    _ => None,
-                });
-                match targeted {
+                match Self::opponent_among(recipients, ctx) {
                     Some(pid) => pid,
                     None => {
                         let opponents = self.opponents_of(ctx.controller);
@@ -2697,9 +2799,9 @@ impl GameState {
                             [only] => *only,
                             others => {
                                 return Err(format!(
-                                    "an effect names \"an opponent\" as the player putting \
-                                     counters on, targets none, and player {} has {} \
-                                     opponents in the game",
+                                    "a read names \"an opponent\" none of its recipients is, and player {} has {} \
+                                     opponents in the game: the choice is the instruction's (CR 608.2d), \
+                                     which a read cannot ask",
                                     ctx.controller,
                                     others.len()
                                 ))

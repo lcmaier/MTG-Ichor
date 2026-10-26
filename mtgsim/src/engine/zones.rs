@@ -507,6 +507,38 @@ impl GameState {
         self.restrictions.remove_references_to(id, |_| false);
     }
 
+    /// CR 611.2b, checked: no row a resolution made "for as long as" an
+    /// object remains names one that has left the battlefield, and none "for
+    /// as long as you control" it names one another player was announced to
+    /// control. The departure sweep and the control sweep are what keep it.
+    #[cfg(debug_assertions)]
+    pub(crate) fn assert_no_row_outlives_its_object(&self) {
+        use crate::engine::layers::types::EffectOrigin;
+        use crate::types::effects::Duration;
+        let outlives = |source: ObjectId, duration: Duration, controller: PlayerId| {
+            duration.ends_with_its_source()
+                && match self.battlefield.get(&source) {
+                    None => true,
+                    Some(entry) => {
+                        duration.ends_with_control_of_its_source() && entry.announced_control.controller() != controller
+                    }
+                }
+        };
+        let continuous = self
+            .continuous_effects
+            .iter()
+            .filter(|row| matches!(row.origin, EffectOrigin::Resolution))
+            .map(|row| (row.source, row.duration, row.controller));
+        let replacement = self.replacement_effects.iter().map(|row| (row.source, row.duration, row.controller));
+        let restriction = self.restrictions.iter().map(|row| (row.source, row.duration, row.controller));
+        for (source, duration, controller) in continuous.chain(replacement).chain(restriction) {
+            assert!(
+                !outlives(source, duration, controller),
+                "a row lasting {duration:?} for player {controller} outlived {source}, the object it lasts as long as (CR 611.2b)"
+            );
+        }
+    }
+
     /// Clean up zone-specific state when leaving a zone.
     ///
     /// Called BEFORE remove_from_zone_collection so we can still read
@@ -520,16 +552,14 @@ impl GameState {
             // resolution's "until end of turn" row names this permanent too
             // when its ability made it, and lasts as long as it said (611.2a).
             self.continuous_effects.remove_rows_ending_with(id);
-            // Not the replacement registry: a resolution's rows last as it stated
-            // (CR 611.2a), a regeneration shield outliving its source, and unspent
-            // ones expire at CR 514.2's cleanup. The permanent stops being a gather
-            // candidate (idempotent).
+            // The same rows in the other two registries: a resolution's "can't"
+            // or replacement "for as long as" this remains. Any other duration
+            // is the one the resolution stated (CR 611.2a), so a regeneration
+            // shield outlives its source. The permanent also stops being a
+            // gather and a restriction-sweep candidate (idempotent).
+            self.replacement_effects.remove_rows_ending_with(id);
+            self.restrictions.remove_rows_ending_with(id);
             self.replacement_ability_sources.remove(&id);
-            // Same rule, same reason (`cant-effects-architecture.md` §3.4): the
-            // leaving permanent stops being a restriction-sweep candidate. Its
-            // *registry* rows are deliberately untouched for the reason above —
-            // a resolution's "can't" has the duration that resolution stated,
-            // not the source's lifetime.
             self.restriction_ability_sources.remove(&id);
             // And the cost-effect sweep's, for the same reason again.
             self.cost_modification_ability_sources.remove(&id);

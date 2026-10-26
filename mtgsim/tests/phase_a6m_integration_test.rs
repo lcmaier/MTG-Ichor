@@ -113,7 +113,7 @@ fn test_a_resolving_set_power_toughness_over_a_filter_affects_each_creature_it_n
     let later = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
     assert_eq!(power_toughness(&game, later), (Some(3), Some(3)));
     let gain_control = Effect::Atom(
-        Primitive::GainControl(Duration::Indefinite),
+        Primitive::GainControl { to: PlayerRef::You, duration: Duration::Indefinite },
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     resolve(&mut game, 1, &gain_control, vec![ObjectOrPlayerId::Object(mine)]);
@@ -251,7 +251,7 @@ fn test_gaining_control_of_a_filtered_set_takes_the_permanents_it_names_then() {
         put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1),
         put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1),
     ];
-    let effect = Effect::Atom(Primitive::GainControl(Duration::UntilEndOfTurn), opponents_creatures());
+    let effect = Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn }, opponents_creatures());
     resolve(&mut game, 0, &effect, Vec::new());
     let later = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 

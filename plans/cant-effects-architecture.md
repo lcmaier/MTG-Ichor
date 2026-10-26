@@ -212,7 +212,7 @@ stated scope, but the population is not small (Scryfall, 2026-08-30):
 | Phrasing | Cards | Where it would land |
 |---|---:|---|
 | "doesn't untap during …" | **248** | Tier 2 — the CR 502.1 untap step's turn-based action |
-| "damage isn't removed …" | 7 | Tier 2 — CR 514.2's cleanup wipe (`codebase-state.md` item 20) |
+| "damage isn't removed …" | 7 | axis 4, `RuleDoesNotApply` at CR 514.2's cleanup wipe (built 2026-10-25, #293) |
 | "no more than N creature can attack" | 2 | Tier 1a's global cap — Silent Arbiter, Dueling Grounds |
 
 The last row is why `--decompose` prints the global caps *outside* its sum:
@@ -232,7 +232,7 @@ one shared vocabulary rather than four bespoke checks.
 | Restriction | Where it would be checked | Today |
 |---|---|---|
 | Indestructible | `restriction::predicate`'s `keyword_restrictions`, asked by `prohibition` at the pipeline's top | ✅ a keyword-derived `Restriction::Event` (RS-1) |
-| Can't be regenerated | `gather.rs::push_if_applicable`, asking `is_prohibited` with `Query::ApplyReplacement` | ✅ a registered `Restriction::ApplyReplacement` (RS-1) |
+| Can't be regenerated | `gather.rs::push_if_applicable`, asking `is_prohibited` with `Query::TryApplyReplacement` | ✅ a registered `Restriction::ApplyReplacement` (RS-1) |
 | Defender | `oracle/legality.rs::can_attack`, which `validate_attackers` asks | ✅ hardcoded |
 | Flying vs. non-reach blocker | `can_block`, `engine/combat/validation.rs` | ✅ hardcoded |
 | Menace, Intimidate | — | ❌ flag exists, nothing reads it |
@@ -480,11 +480,20 @@ pub enum Restriction {
         // Its player half is RD-4's, CR 615.12 over damage dealt to a player.
         affected: Affected,
     },
+
+    // ---- Axis 4: a rule's own action (CR 101.1) --------------------------
+    /// Added by `durations-and-control` (#293): "damage isn't removed during
+    /// cleanup steps" (CR 514.2), "you don't lose the game for having 0 or
+    /// less life" (704.5a), "the legend rule doesn't apply" (704.5j). A
+    /// turn-based or state-based action proposes no event an axis-1 arm can
+    /// watch, or proposes one only after a choice (the legend rule's), so the
+    /// rule asks before it acts.
+    RuleDoesNotApply { rule: RuleAction, affected: Affected },
 }
 ```
 
 **The growth contract, meant to be enforced in review.** `Restriction` grows on
-three axes and no other, and each axis is an enumeration the engine already
+four axes and no other, and each axis is an enumeration the engine already
 owns:
 
 | Axis | What a "can't" attaches to | The enumeration that bounds it | Open? |
@@ -492,6 +501,7 @@ owns:
 | 1 | an event the engine proposes | `GameAction` variants, via `EventPattern` | grows with the engine |
 | 2 | a choice a player makes | `ChoiceKind` (`ui/choice_types.rs`) | grows with the engine |
 | 3 | the application of an effect | `gather`'s one application site | **closed at one arm** |
+| 4 | a rule's own action | `RuleAction`: the check's `StateBasedAction`, and each turn-based action a card can switch off | grows with its first card |
 
 - **`Event` never grows.** New replaceable event kinds arrive as `GameAction`
   variants and reach this arm through `EventPattern` for free. A change that
@@ -502,6 +512,15 @@ owns:
   missing item is a `ChoiceKind`.
 - **Axis 3 is closed** for the reason its own doc comment gives: one application
   site, two things the CR permits withholding.
+- **Axis 4 is asked where the rule acts.** The state-based check asks it of
+  every member it gathers, ahead of CR 704.7's collapse, so every 704.5 subrule
+  is covered by one site; a subrule that asks a player first (the legend rule,
+  704.6d's commander) asks it before the prompt. A turn-based action joins
+  `RuleAction` with its first card and asks at its own site. CR 500.4's mana
+  emptying is not one: "mana doesn't empty" (Upwelling, Omnath) is a
+  `ManaPersistence` row kind the mana pool's expiry reads
+  (`codebase-state.md` Deferred Migrations item 4), since a pool's mana can
+  also persist until a stated time rather than not empty at all.
 - **Per-card variety goes in the filters**, which are `ObjectFilter`,
   `CardFilter` and `PlayerRef` — vocabulary that already exists and that §2.4
   measured as sufficient for 60 of 62 observed shapes.
@@ -1107,7 +1126,7 @@ have will take place."
 **Site.** `gather.rs::push_if_applicable`, where CR 701.19c already lives.
 
 **What changes.** The `game.cant_be_regenerated.contains(&id)` lookup becomes
-`is_prohibited(game, &Query::ApplyReplacement { .. })`, and the
+`is_prohibited(game, &Query::TryApplyReplacement { .. })`, and the
 `GameState` `HashSet` goes away (§6.4). `ReplacementDef::is_regeneration` gains
 its second reader — which its own doc calls "the smell" — and that is correct
 here rather than a violation: the field's doc says it is a *rules-level

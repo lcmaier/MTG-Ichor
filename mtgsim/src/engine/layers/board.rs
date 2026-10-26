@@ -322,7 +322,7 @@ impl<'l> Board<'l> {
                     if !entity.entered_as.is_empty() {
                         board.entered_as.push(EnteredAsNote::new(id, &entity.entered_as));
                     }
-                    (entity.controller, entity.controller_since_turn)
+                    (entity.controller, entity.entered_battlefield_turn)
                 }
                 None => (base_controller(game, id, lookahead).unwrap_or(obj.owner), 0),
             };

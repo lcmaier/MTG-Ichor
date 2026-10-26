@@ -238,6 +238,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ApplyOptionalEffect { source: id },
         ChoiceKind::AllocateNextDamage { source: id, remaining: 3 },
         ChoiceKind::ChooseDamageSource { source: id },
+        ChoiceKind::ChooseOpponent { source: id },
         ChoiceKind::ChooseEnteringController { object: id },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard },
         ChoiceKind::ChooseCopySource { source: id },
@@ -259,7 +260,7 @@ fn every_variant_decides_its_subject() {
     }
     assert_eq!(
         names.len(),
-        27,
+        28,
         "one fixture per variant; a variant was added without one: {names:?}"
     );
 }

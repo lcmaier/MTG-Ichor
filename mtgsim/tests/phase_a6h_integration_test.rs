@@ -23,7 +23,7 @@ use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::cost_determination::cost_modifications_for;
 use mtgsim::types::ids::ObjectOrPlayerId;
 use mtgsim::oracle::x_values::LegalXValues;
-use mtgsim::state::battlefield::AttackTarget;
+use mtgsim::state::battlefield::{AnnouncedControl, AttackTarget};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     assert_not_asked, card_of_type, effect_ctx, forest, not_asked, place_forest, put_in_hand, put_on_battlefield,
@@ -332,7 +332,7 @@ fn the_control_sweeps_audit_agrees_with_no_control_changing_effect() {
 fn the_control_sweeps_audit_panics_when_a_controller_changed_unseen() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    game.battlefield.get_mut(&bears).unwrap().announced_controller = 1;
+    game.battlefield.get_mut(&bears).unwrap().announced_control = AnnouncedControl::Controller(1);
     game.enable_audit();
     let _ = game.execute_action(GameAction::Tap { object: bears }, &test_ctx());
 }

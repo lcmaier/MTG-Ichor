@@ -194,6 +194,13 @@ pub enum ChoiceKind {
     /// games. `source` is the delayed trigger's (CR 603.7d–g).
     ChooseDelayedTriggerEvent { source: ObjectId },
 
+    /// CR 608.2d — `source`'s resolving instruction names "an opponent" it
+    /// did not target, and its controller chooses which as it applies the
+    /// instruction (Akroan Horse's ruling: "in a multiplayer game, you choose
+    /// the opponent as the ability resolves"). The options are the opponents
+    /// still in the game; with one, nothing is asked.
+    ChooseOpponent { source: ObjectId },
+
     /// CR 616.1b / 614.12a — an entry replacement puts `object` under "an
     /// opponent of your choice" and there is more than one opponent to choose
     /// from. The options are players. With exactly one opponent nothing is
@@ -359,6 +366,7 @@ impl ChoiceKind {
             ChoiceKind::AllocateNextDamage { source, .. } => Some(*source),
             ChoiceKind::ChooseDamageSource { source } => Some(*source),
             ChoiceKind::ChooseDelayedTriggerEvent { source } => Some(*source),
+            ChoiceKind::ChooseOpponent { source } => Some(*source),
             ChoiceKind::ChooseEnteringController { object } => Some(*object),
             ChoiceKind::ChooseEnteringDefender { object } => Some(*object),
             ChoiceKind::ChooseAuxiliaryZoneChange { source, .. } => Some(*source),
@@ -398,6 +406,7 @@ impl ChoiceKind {
             ChoiceKind::AllocateNextDamage { .. } => "AllocateNextDamage",
             ChoiceKind::ChooseDamageSource { .. } => "ChooseDamageSource",
             ChoiceKind::ChooseDelayedTriggerEvent { .. } => "ChooseDelayedTriggerEvent",
+            ChoiceKind::ChooseOpponent { .. } => "ChooseOpponent",
             ChoiceKind::ChooseEnteringController { .. } => "ChooseEnteringController",
             ChoiceKind::ChooseEnteringDefender { .. } => "ChooseEnteringDefender",
             ChoiceKind::ChooseAuxiliaryZoneChange { .. } => "ChooseAuxiliaryZoneChange",

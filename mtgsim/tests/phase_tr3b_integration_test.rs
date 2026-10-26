@@ -220,7 +220,7 @@ fn tempter() -> Arc<CardData> {
             whenever(
                 enters(TriggerSubject::ThisObject),
                 Effect::Atom(
-                    Primitive::GainControl(Duration::WhileSourceOnBattlefield),
+                    Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
                     EffectRecipient::Target(
                         SelectionFilter::Permanent(ObjectFilter::And(
                             Box::new(ObjectFilter::ByType(CardType::Creature)),

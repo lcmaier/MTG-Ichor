@@ -1574,7 +1574,7 @@ impl GameState {
         // Announced under that controller too: the stolen spell's permanent
         // arrives the thief's, and no control changed (CR 603.10d).
         if let Some(entry) = self.battlefield.get_mut(&id) {
-            entry.announced_controller = effective;
+            entry.announced_control = crate::state::battlefield::AnnouncedControl::Controller(effective);
         }
         // CR 508.4: put onto the battlefield attacking, when CR 506.3 lets it
         // be an attacking creature at all.
@@ -2488,7 +2488,7 @@ impl GameState {
     ) -> Vec<(crate::engine::layers::types::Layer, crate::engine::layers::types::EffectModification)>
     {
         use crate::engine::layers::types::{EffectModification, Layer, PtValue};
-        use crate::types::effects::{ColorChange, Primitive, PlayerRef};
+        use crate::types::effects::{ColorChange, Primitive};
 
         let single = |layer, modification| vec![(layer, modification)];
 
@@ -2535,12 +2535,12 @@ impl GameState {
                     ColorChange::RemoveAll => EffectModification::RemoveAllColors,
                 },
             ),
-            // CR 613.1b. `PlayerRef::You` rather than a resolved id keeps this a pure
+            // CR 613.1b. The `PlayerRef` rather than a resolved id keeps this a pure
             // map from primitive to rows; `compute::resolve_set_controller` resolves it
             // during the walk, the only place CR 109.5's *current* controller can be asked.
-            Primitive::GainControl(_dur) => single(
+            Primitive::GainControl { to, .. } => single(
                 Layer::Layer2Control,
-                EffectModification::SetController(PlayerRef::You),
+                EffectModification::SetController(to.clone()),
             ),
             Primitive::ChangeType(type_change, _dur) => {
                 type_change.modifications().into_iter().map(|m| (Layer::Layer4Type, m)).collect()

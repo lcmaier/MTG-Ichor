@@ -2226,9 +2226,10 @@ triggering never matches one.
 
 **`ControlChanged` is announced by a sweep of its own** (item 13; designed
 in §12's TR-4d section): for each permanent, compare
-`get_effective_controller` against `PermanentState.announced_controller`;
-on a difference emit the record and write the field. A field with one
-meaning, the last announced controller; a "becomes" on a computed value,
+`get_effective_controller` against `PermanentState.announced_control`'s
+controller; on a difference emit the record and write the field. A field
+with one meaning, what the last sweep announced, its frame kept in it when
+there is one (item 324, #293); a "becomes" on a computed value,
 detected where computed values are re-read. Its gate is
 `any_control_changing` now or at the last sweep
 (`control_effects_at_last_sweep`), since the summary is rebuilt as rows go,

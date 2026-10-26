@@ -159,6 +159,12 @@ fn moved_since(
 }
 
 impl GameState {
+    /// Whether a state-based action applies to `subject`: whether no card
+    /// says it does not (`Restriction::RuleDoesNotApply`, CR 101.1).
+    fn state_based_action_applies(&self, rule: StateBasedAction, subject: ObjectOrPlayerId) -> bool {
+        crate::engine::restriction::rule_applies(self, crate::types::restriction::RuleAction::StateBased(rule), subject)
+    }
+
     /// Check and perform all state-based actions.
     /// Returns true if any SBA was performed (caller should re-check).
     pub fn check_state_based_actions(
@@ -269,6 +275,10 @@ impl GameState {
             to_offer.sort_by_key(|(_, owner, _)| self.apnap_index(*owner));
             let mut accepted: Vec<(GameAction, StateBasedAction)> = Vec::new();
             for (id, owner, from) in to_offer {
+                // Never offered where a card says the rule does not apply.
+                if !self.state_based_action_applies(StateBasedAction::CommanderToCommandZone, ObjectOrPlayerId::Object(id)) {
+                    continue;
+                }
                 // A state-based action, not a replacement effect: only CR
                 // 903.9b's hand or library move is one.
                 let kind = ChoiceKind::CommanderToCommandZoneSba { commander: id };
@@ -401,8 +411,22 @@ impl GameState {
             // The controller keeps one of each group, on a board still holding this
             // check's other deaths (CR 704.3): two Isamarus, one with lethal damage,
             // still ask. Sorted to APNAP (CR 101.4) from the map's seat order, stably.
-            let mut conflicts: Vec<_> =
-                legend_groups.iter().filter(|(_, ids)| ids.len() > 1).collect();
+            // A legend the rule does not apply to (Mirror Gallery) is in no
+            // conflict, asked only of groups that have one, since the walk
+            // costs a sweep of the restriction sources per permanent.
+            let mut conflicts: Vec<(&(usize, String), Vec<ObjectId>)> = legend_groups
+                .iter()
+                .filter(|(_, ids)| ids.len() > 1)
+                .map(|(key, ids)| {
+                    let subject_to_rule: Vec<ObjectId> = ids
+                        .iter()
+                        .copied()
+                        .filter(|&id| self.state_based_action_applies(StateBasedAction::LegendRule, ObjectOrPlayerId::Object(id)))
+                        .collect();
+                    (key, subject_to_rule)
+                })
+                .filter(|(_, ids)| ids.len() > 1)
+                .collect();
             conflicts.sort_by_key(|((controller, _), _)| self.apnap_index(*controller));
 
             let mut chosen: Vec<ObjectId> = Vec::new();
@@ -410,8 +434,8 @@ impl GameState {
                 // The group key, not a re-read: the key is what put these
                 // permanents together, so asking anyone else would prompt a
                 // player who does not control them.
-                let keep = ask_choose_legend_to_keep(decisions, self, *controller, name, ids);
-                for &id in ids {
+                let keep = ask_choose_legend_to_keep(decisions, self, *controller, name, &ids);
+                for id in ids {
                     if id != keep {
                         chosen.push(id);
                     }
@@ -523,6 +547,10 @@ impl GameState {
         // decides under the move's cause, and one finds an attachment the batch
         // moved already unattached by its leaving (CR 701.3d). Each kind of
         // counter CR 704.5q removes is one too, ahead of the moves.
+        // CR 101.1, ahead of the collapse: a member a card says its rule does
+        // not apply to is no member, so a player Phyrexian Unlife keeps at 0
+        // life still loses to ten poison counters.
+        batch.retain(|(action, rule)| subject_of(action).is_none_or(|subject| self.state_based_action_applies(*rule, subject)));
         let mut seen: HashSet<(Option<ObjectOrPlayerId>, CollapsedResult)> = HashSet::new();
         batch.retain(|(action, _)| {
             CollapsedResult::of(action).is_none_or(|result| seen.insert((subject_of(action), result)))

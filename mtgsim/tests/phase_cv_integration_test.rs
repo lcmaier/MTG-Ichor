@@ -798,6 +798,8 @@ fn steal(game: &mut GameState, id: ObjectId, to: PlayerId) {
         affected_objects: ObjectSet::Fixed(vec![id]),
         modification: EffectModification::SetController(PlayerRef::Player(to)),
     });
+    // Announced as if the change had happened in play.
+    game.settle_announced_controllers();
 }
 
 /// A creature carrying a static *replacement* ability, for the leg-1 gate test.

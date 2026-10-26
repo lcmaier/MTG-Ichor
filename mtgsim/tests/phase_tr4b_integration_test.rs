@@ -708,7 +708,7 @@ fn control_aura() -> Arc<CardData> {
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .enchant_filter(SelectionFilter::Creature)
         .ability(static_ability(Effect::Atom(
-            Primitive::GainControl(Duration::WhileSourceOnBattlefield),
+            Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
             EffectRecipient::Host,
         )))
         .build()

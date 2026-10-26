@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-22",
+  "fetched": "2026-10-25",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -56,6 +56,13 @@
         {"n": 13, "published_at": "2024-06-07", "comment": "In the Commander variant, a double-faced card's color identity is determined by the mana costs and mana symbols in the rules text of both faces combined. If either face has a color indicator or basic land type, those are also considered. For example, Ral, Monsoon Mage's color identity is blue and red, since its front face is red and its back face has a blue and red color indicator."},
         {"n": 14, "published_at": "2024-06-07", "comment": "A transforming double-faced card enters the battlefield with its front face up by default, unless a spell or ability instructs you to put it onto the battlefield transformed or allows you to cast it transformed, in which case it enters with its back face up."},
         {"n": 15, "published_at": "2024-06-07", "comment": "If you are instructed to put a card that isn't a double-faced card onto the battlefield transformed, it will not enter the battlefield at all. In that case, it stays in the zone it was previously in. For example, if a single-faced card is a copy of Ral, Monsoon Mage, choosing to exile that permanent during the resolution of its triggered ability will cause it to remain in exile."}
+      ]
+    },
+    "Akroan Horse": {
+      "first_seen": "2026-10-25",
+      "rulings": [
+        {"n": 1, "published_at": "2013-09-15", "comment": "Akroan Horse's enters-the-battlefield ability doesn't target any opponent. In a multiplayer game, you choose the opponent as the ability resolves."},
+        {"n": 2, "published_at": "2013-09-15", "comment": "In the last ability, “each opponent” refers to opponents of Akroan Horse's controller. In most situations in two-player games, your opponent will control Akroan Horse and you'll put Soldier tokens onto the battlefield."}
       ]
     },
     "Alhammarret's Archive": {
@@ -418,6 +425,14 @@
         {"n": 3, "published_at": "2024-11-08", "comment": "Doubling Season affects permanents that enter with counters."},
         {"n": 4, "published_at": "2024-11-08", "comment": "Battles will enter with double the normal number of defense counters."},
         {"n": 5, "published_at": "2024-11-08", "comment": "If there are two Doubling Seasons on the battlefield, then the number of tokens or counters is four times the original number. If there are three on the battlefield, then the number of tokens or counters is eight times the original number, and so on."}
+      ]
+    },
+    "Dragonlord Silumgar": {
+      "first_seen": "2026-10-25",
+      "rulings": [
+        {"n": 1, "published_at": "2015-02-25", "comment": "If Dragonlord Silumgar leaves the battlefield, you no longer control it, and its control-change effect ends."},
+        {"n": 2, "published_at": "2015-02-25", "comment": "If Dragonlord Silumgar ceases to be under your control before its ability resolves, you won't gain control of the creature or planeswalker at all."},
+        {"n": 3, "published_at": "2015-02-25", "comment": "If another player gains control of Dragonlord Silumgar, its control-change effect ends. Regaining control of Dragonlord Silumgar won't cause you to regain control of the creature or planeswalker."}
       ]
     },
     "Dryad Arbor": {
@@ -1325,6 +1340,13 @@
       "read": "2026-09-19",
       "rulings": [
         {"n": 1, "published_at": "2025-01-24", "comment": "If this creature enters at the same time as one or more other creatures, its ability will trigger for each of those other creatures. "}
+      ]
+    },
+    "Sower of Temptation": {
+      "first_seen": "2026-10-25",
+      "rulings": [
+        {"n": 1, "published_at": "2007-10-01", "comment": "You retain control of the targeted creature as long as Sower of Temptation remains on the battlefield, even if a different player gains control of Sower of Temptation itself."},
+        {"n": 2, "published_at": "2007-10-01", "comment": "If Sower of Temptation leaves the battlefield before the ability resolves, the ability will have no effect."}
       ]
     },
     "Spark Double": {

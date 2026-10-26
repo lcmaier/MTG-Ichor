@@ -675,13 +675,14 @@ mod tests {
     }
 
     #[test]
-    fn test_untap_cost_blocked_by_control_change() {
-        // Creature entered on turn 1, control changes on turn 3 → sick again on turn 3
+    fn test_untap_cost_blocked_on_the_turn_its_clock_starts() {
+        // CR 302.6's clock started on turn 3, its controller's turn, staged as
+        // the arrival it seeds from: sick, so {Q} cannot be paid. A Layer 2
+        // change starting the clock is phase_lg's
+        // `test_gaining_control_gives_the_creature_summoning_sickness`.
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
-        // Advance to turn 3 — P0's next turn, so the creature is no longer sick
         game.begin_turn(3, 0);
-        // Simulate control change on turn 3
-        game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
+        game.battlefield.get_mut(&creature_id).unwrap().entered_battlefield_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
         let result = plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx());
@@ -690,11 +691,11 @@ mod tests {
     }
 
     #[test]
-    fn test_untap_cost_allowed_control_change_haste() {
-        // Creature with haste, control changes on turn 3 → haste bypasses
+    fn test_untap_cost_allowed_with_haste_on_the_turn_its_clock_starts() {
+        // The same clock, and haste bypasses it for {Q} (CR 702.10c)
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordFlag::Haste]);
         game.begin_turn(3, 0);
-        game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
+        game.battlefield.get_mut(&creature_id).unwrap().entered_battlefield_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
         plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx()).unwrap();

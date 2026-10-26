@@ -799,7 +799,6 @@ mod tests {
             crate::cards::utility_creatures::merfolk_thaumaturgist(),
             0,
         );
-        game.battlefield.get_mut(&thaum).unwrap().controller_since_turn = 0;
 
         let decisions = ScriptedDecisionProvider::new();
         // No target to script: the Thaumaturgist is the only creature on the
@@ -853,9 +852,6 @@ mod tests {
             crate::cards::utility_creatures::merfolk_thaumaturgist(),
             0,
         );
-        // Summoning sickness would block the {T} cost (CR 302.6). 0 = pregame,
-        // the convention has_summoning_sickness reads.
-        game.battlefield.get_mut(&thaum).unwrap().controller_since_turn = 0;
 
         let decisions = ScriptedDecisionProvider::new();
         let ability_id = crate::oracle::characteristics::get_effective_abilities(&game, thaum)

@@ -96,6 +96,42 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-10-25 for items 17, 20, 300, 324, 325 and "Before Layers" 13**
+(#293, `durations-and-control`: a resolution's "for as long as" ended with
+its object in every registry and by its control leg, a card switching off
+a rule's own action, a change of control announced before the next effect
+a resolution writes, the control sweep's view held once, CR 302.6's clock
+seeded from the entry turn, and `GainControl` naming who gains control;
+A6e's cleanup PR 5, its first half). No card moves and neither pool moved,
+so no table is re-recorded. Two `close_out.py` sittings against **main**
+`5b57860` (#292's merge): **engine** `70d6919`, every item's commit, and
+then `d94532f`, with the pre-review's fixes.
+
+**Predictions, before any arm ran:**
+- gameplay identical on both pools at two seats and four, unless a game
+  reaches a decision through Ray of Command's steal, now announced before
+  its haste is written and its delayed trigger created, each such game
+  attributed;
+- no registered card writes a "for as long as" from a spell or a stale
+  ability, so CR 611.2b's "never starts" moves nothing;
+- instructions per decision up a little, the settle before each effect a
+  resolution writes being gated on the layer epoch.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress (both sittings) | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Restriction queries`, `main` → engine, performance / stress (both sittings) | 978 → 993 / 929 → 941 | 1,894 → 1,924 / 1,934 → 1,964 |
+| `Memo hits`, `main` → engine, performance / stress | 55,460 → 55,486 / 57,261 → 57,393 | 156,468 → 156,584 / 183,182 → 183,472 |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,027 |
+| instructions / decision, `d94532f` vs `main`, callgrind, the Commander board | | 0.7442 M → 0.7443 M, **+0.02%** (`70d6919`: +0.07%) |
+| clone floors, held memory and the round trip (CI's release step) | | pass, as `main` |
+| audited smoke, both arms, 1,000 games at seed 777, performance / stress: errors, panics, turn limits | 0 / 0 | 0 / 0 |
+
+The restriction queries are the state-based check asking the new axis of
+each member it gathers; the memo hits, the frames those questions and the
+per-effect settle read again. Ray of Command's steal is announced before
+its haste row now, and no game of either pool moved for it.
+
 **Measured 2026-10-25 for items 291, 296, 326 and 327** (#291,
 `one-fact-one-type`: one type each for an object or a player, what an
 effect is affecting and which objects an amount counts, a zone statement

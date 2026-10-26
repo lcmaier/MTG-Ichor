@@ -117,7 +117,7 @@ pub fn ray_of_command() -> Arc<CardData> {
                     EffectRecipient::Target(SelectionFilter::Permanent(creature_an_opponent_controls), TargetCount::Exactly(1)),
                 ),
                 Effect::Remember(Box::new(Effect::Atom(
-                    Primitive::GainControl(Duration::UntilEndOfTurn),
+                    Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
                     EffectRecipient::SameInstanceAs(0),
                 ))),
                 Effect::Atom(

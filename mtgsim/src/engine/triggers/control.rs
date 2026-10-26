@@ -4,7 +4,7 @@
 //! Control is the layer walk's output (CR 613.1b): a control-changing effect
 //! starting or ending changes it, and no performer proposes or announces
 //! that. So a sweep compares each permanent's controller with the one the
-//! stream last announced (`PermanentState::announced_controller`) and
+//! stream last announced (`PermanentState::announced_control`) and
 //! announces each difference as a `GameEvent::ControlChanged`, the changes
 //! one sweep finds as one event. Its points are the head of an outermost
 //! batch, each pass of the state-based check, and the cleanup step after
@@ -28,6 +28,7 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::{EffectiveCharacteristics, Layer};
 use crate::events::cause::{EventCause, GameRule};
 use crate::events::event::GameEvent;
+use crate::state::battlefield::AnnouncedControl;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
@@ -65,7 +66,7 @@ impl GameState {
         // before it, so a row written after it keeps nothing: Ray of
         // Command's haste, written after its steal and before any batch.
         let unannounced = frames.iter().any(|(id, frame)| {
-            frame.as_ref().zip(self.battlefield.get(id)).is_some_and(|(frame, entry)| frame.controller != entry.announced_controller)
+            frame.as_ref().zip(self.battlefield.get(id)).is_some_and(|(frame, entry)| frame.controller != entry.announced_control.controller())
         });
         if unannounced {
             return;
@@ -76,12 +77,18 @@ impl GameState {
             // before every row a resolution or an expiry writes, so rewriting
             // each would copy the battlefield into every fork. Equal by value
             // is enough, since a change of control looks back to the contents.
-            let kept = self.battlefield.get(&id).map(|entry| entry.frame_before_control_change.as_deref());
+            let kept = self.battlefield.get(&id).map(|entry| entry.announced_control.frame().map(|kept| &**kept));
             if kept.is_none_or(|kept| kept == frame.as_deref()) {
                 continue;
             }
+            // Every frame's controller is the announced one here, so a kept
+            // frame replaces the record, and with no frame the record keeps
+            // its controller.
             if let Some(entry) = self.battlefield.get_mut(&id) {
-                entry.frame_before_control_change = frame;
+                entry.announced_control = match frame {
+                    Some(frame) => AnnouncedControl::Frame(frame),
+                    None => AnnouncedControl::Controller(entry.announced_control.controller()),
+                };
             }
         }
     }
@@ -131,25 +138,37 @@ impl GameState {
             let frame = if rows { compute_characteristics(self, id) } else { None };
             let Some(entry) = self.battlefield.get(&id) else { continue };
             let now = frame.as_ref().map_or(entry.controller, |frame| frame.controller);
-            // Write only a permanent whose kept frame or announced controller
-            // would change, for the reason above; an unchanged one hands back
-            // its kept frame unwritten, equal in value to its replacement.
-            if now == entry.announced_controller && entry.frame_before_control_change.as_deref() == frame.as_deref() {
-                if let Some(kept) = &entry.frame_before_control_change {
+            let announced = entry.announced_control.controller();
+            // Write only a permanent whose record would change, for the
+            // reason above; an unchanged one hands back its kept frame
+            // unwritten, equal in value to its replacement.
+            if now == announced && entry.announced_control.frame().map(|kept| &**kept) == frame.as_deref() {
+                if let Some(kept) = entry.announced_control.frame() {
                     sweep.frames_before.push((id, Arc::clone(kept)));
                 }
                 continue;
             }
             let Some(entry) = self.battlefield.get_mut(&id) else { continue };
-            if let Some(before) = std::mem::replace(&mut entry.frame_before_control_change, frame) {
+            let record = match frame {
+                Some(frame) => AnnouncedControl::Frame(frame),
+                None => AnnouncedControl::Controller(now),
+            };
+            if let AnnouncedControl::Frame(before) = std::mem::replace(&mut entry.announced_control, record) {
                 sweep.frames_before.push((id, before));
             }
-            if now != entry.announced_controller {
-                sweep.changes.push(ControlChange { object: id, from: entry.announced_controller, to: now });
-                entry.announced_controller = now;
+            if now != announced {
+                sweep.changes.push(ControlChange { object: id, from: announced, to: now });
             }
         }
         self.control_effects_at_last_sweep = rows;
+        // CR 611.2b: "for as long as you control" it ends as it changes hands,
+        // and a later change back does not begin it again (Dragonlord
+        // Silumgar's ruling). What ending a steal returns is the next sweep's.
+        for change in &sweep.changes {
+            self.continuous_effects.remove_rows_ending_with_control_of(change.object, change.to);
+            self.replacement_effects.remove_rows_ending_with_control_of(change.object, change.to);
+            self.restrictions.remove_rows_ending_with_control_of(change.object, change.to);
+        }
         sweep
     }
 
@@ -159,7 +178,7 @@ impl GameState {
     fn audit_announced_controllers(&self) {
         let ids = self.battlefield_ids_ordered();
         let announced =
-            ids.iter().filter_map(|id| Some(format!("{id} {}", self.battlefield.get(id)?.announced_controller))).collect();
+            ids.iter().filter_map(|id| Some(format!("{id} {}", self.battlefield.get(id)?.announced_control.controller()))).collect();
         let walked = self.unobserved(|| {
             ids.iter().filter_map(|id| Some(format!("{id} {}", compute_characteristics(self, *id)?.controller))).collect()
         });

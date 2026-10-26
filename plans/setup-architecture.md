@@ -265,7 +265,7 @@ turn 0, as `Game::setup` deals the opening hands at turn 0, and begins the
 stated turn last.
 
 **The arrival turn is a parameter of the state half.** CR 302.6's clock is the
-entity's `controller_since_turn`, and a static Layer 2 effect's clock is its
+entity's `entered_battlefield_turn`, and a static Layer 2 effect's clock is its
 row's `created_on_turn` (the controller arm in `engine/layers/compute.rs`). So
 a Control Magic–shaped Aura that arrived this turn leaves the creature it
 steals sick, and one that arrived earlier does not. `PermanentState::entering`

@@ -469,8 +469,8 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         | Primitive::LoseAbility(_, lasts)
         | Primitive::LoseAllAbilities(lasts)
         | Primitive::ChangeColor(_, lasts)
-        | Primitive::ChangeType(_, lasts)
-        | Primitive::GainControl(lasts) => duration_reads(lasts),
+        | Primitive::ChangeType(_, lasts) => duration_reads(lasts),
+        Primitive::GainControl { to, duration } => player_ref_reads(to) | duration_reads(duration),
         Primitive::CreateReplacement(..)
         | Primitive::Restrict(..)
         | Primitive::Copy { .. }
@@ -481,7 +481,10 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
 fn duration_reads(d: &Duration) -> TriggerBindingReads {
     match d {
         Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => TriggerBindingReads::NONE,
-        Duration::WhileSourceOnBattlefield | Duration::WhileEnchanted | Duration::WhileEquipped => TriggerBindingReads::SOURCE,
+        Duration::WhileSourceOnBattlefield
+        | Duration::WhileEnchanted
+        | Duration::WhileEquipped
+        | Duration::WhileYouControlSource => TriggerBindingReads::SOURCE,
     }
 }
 

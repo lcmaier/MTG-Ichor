@@ -245,7 +245,7 @@ fn a_stolen_spell_still_counts_as_the_one_you_cast() {
     let yours = put_on_battlefield(&mut game, multanis_presence(), 0);
     let theirs = put_on_battlefield(&mut game, multanis_presence(), 1);
     let spell = put_spell_on_stack(&mut game, grizzly_bears(), 0);
-    resolve_at(&mut game, 1, Primitive::GainControl(Duration::Indefinite), spell);
+    resolve_at(&mut game, 1, Primitive::GainControl { to: PlayerRef::You, duration: Duration::Indefinite }, spell);
     assert_eq!(mtgsim::oracle::characteristics::get_effective_controller(&game, spell), Some(1), "player 1 controls it");
 
     counter(&mut game, spell, 1);
@@ -701,7 +701,7 @@ fn a_watcher_stolen_with_another_permanent_triggers_for_each() {
     let zidane = put_on_battlefield(&mut game, zidane, 0);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
     let mob_rule = Effect::Atom(
-        Primitive::GainControl(Duration::UntilEndOfTurn),
+        Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
         EffectRecipient::FilteredPermanents(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
             Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
@@ -752,7 +752,7 @@ fn the_first_steal_on_a_board_reads_the_frame_from_before() {
 fn a_permanent_that_arrives_stolen_announces_no_change() {
     let mut game = stocked(2);
     let spell = put_spell_on_stack(&mut game, grizzly_bears(), 0);
-    resolve_at(&mut game, 1, Primitive::GainControl(Duration::Indefinite), spell);
+    resolve_at(&mut game, 1, Primitive::GainControl { to: PlayerRef::You, duration: Duration::Indefinite }, spell);
     let before = game.recorded_events().len();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -939,7 +939,7 @@ fn steal_aura(name: &str) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .ability(static_ability(Effect::Atom(Primitive::GainControl(Duration::WhileSourceOnBattlefield), EffectRecipient::Host)))
+        .ability(static_ability(Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield }, EffectRecipient::Host)))
         .build()
 }
 
@@ -987,6 +987,65 @@ fn two_control_changes_in_one_resolution_are_two_events() {
 
     assert_eq!(controller(&game, betrayer), Some(0), "back with its owner");
     assert_eq!(hands(&game), (before.0, before.1 + 2, before.2 + 2), "players 2 and 1 each lost control");
+}
+
+/// **Fixture**: "Creatures you control have 'When you lose control of this
+/// creature, draw two cards.'"
+fn gives_the_betrayers_trigger() -> Arc<CardData> {
+    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let betrayal = triggered_ability("", whenever(you_lose_control_of(TriggerSubject::ThisObject), draw_two));
+    CardDataBuilder::new("Fixture Sigil of Betrayal")
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Atom(
+            Primitive::GrantAbility(Arc::new(betrayal), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            )),
+        )))
+        .build()
+}
+
+/// One resolution steals the enchantment that gives its controller's
+/// creatures "when you lose control of this, draw two", then one of those
+/// creatures, with no batch between. The first change is an event as it
+/// happens (CR 603.2), so the creature had lost the ability before it
+/// changed hands, and its owner draws nothing (CR 608.2c, 603.10d). Merged
+/// into one event, both changes looked back to the board before the first.
+// COVERS-PARTIAL: ATOM-603.10d-001
+#[test]
+fn a_second_steal_looks_back_to_the_board_the_first_left() {
+    let mut game = stocked(2);
+    let sigil = put_on_battlefield(&mut game, gives_the_betrayers_trigger(), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let hands = |game: &GameState| (hand_size(game, 0), hand_size(game, 1));
+    let before = hands(&game);
+
+    let an_opponents = |kind: CardType| {
+        EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(kind)),
+            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+        ))
+    };
+    let thefts = Effect::Sequence(vec![
+        Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn }, an_opponents(CardType::Enchantment)),
+        Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn }, an_opponents(CardType::Creature)),
+    ]);
+    let source = put_in_graveyard(&mut game, card_of_type("Fixture Double Theft", CardType::Sorcery), 0);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 0,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::one(Vec::new()),
+        replaced_event: None,
+        trigger: None,
+    };
+    game.resolve_effect(&thefts, &ctx, &test_dp()).unwrap();
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!((controller(&game, sigil), controller(&game, bears)), (Some(0), Some(0)), "both stolen");
+    assert_eq!(hands(&game), before, "the Bears had no trigger left when it changed hands");
 }
 
 // RULING: Ray of Command #2 - "You may target an untapped creature with Ray of Command."

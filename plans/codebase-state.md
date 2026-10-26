@@ -865,13 +865,11 @@ here. None is blocking RB.
     **Sized:** the two `unwrap_or(0)` reads (`sba.rs:242`, `:254`)
     become an explicit `None` arm whose answer CR 721.2c decides, ~10 lines plus
     a test; lands with the first Station card (Phase 8).
-    **Slotted:** with the first registered card that has station (Scryfall:
-    `kw:station`), whose PR gives the two `unwrap_or(0)` reads in `sba.rs` an
-    explicit `None` arm. Kept with its card at the card-homed triage
-    (2026-10-23): no rule gives a creature with no toughness a number (CR
-    208.2a's "use 0" is a characteristic-defining ability's), so a station
-    card's rulings decide the arm, and `unwrap_or(0)` already gives the judge
-    corpus's answer for Taskmaster and The Seriema.
+    **Slotted:** A6e's cleanup, in `layers-combat-and-counters`, beside
+    "Before card breadth" 1's noncreature P/T (CR 208.3): both are the
+    `Option` a permanent's power and toughness are, and the station cards'
+    rulings, fetched there, decide the `None` arm (the owner, at #293's
+    review, 2026-10-25: a filed gap with printed customers takes a route row).
 
 ### Found by the "can't" design pass (2026-08-27)
 
@@ -1167,85 +1165,16 @@ registered card returns an object.
 
 ### Found by the #62 pre-merge pass (2026-08-30)
 
-17. **Nothing expires a registry row with a source-scoped duration (found
-    2026-08-30, closing `rb-review.md` H2).** `cleanup_zone_state` used to call
-    `replacement_effects.remove_by_source` when a permanent left the
-    battlefield, citing CR 611.2a for the opposite of what it says: every row in
-    that registry was made by a *resolution*, and 611.2a gives those the
-    duration the spell or ability stated. The call is gone. What goes with it:
-    `RegisteredReplacementEffect.duration` can hold `WhileSourceOnBattlefield`,
-    `WhileEnchanted` and `WhileEquipped`, and no hook removes any of them —
-    `remove_expired_at_cleanup` handles `UntilEndOfTurn` and
-    `remove_expired_at_turn_start` handles `UntilYourNextTurn`. Unreachable
-    today: `Primitive::Regenerate` is the only producer and it makes
-    `UntilEndOfTurn` rows. **Sized:** one `retain_effects` closure keyed on
-    duration *and* source, called from `cleanup_zone_state` — the right cite is
-    CR 611.2b ("for as long as . . ."), not 611.2a. Owed by the first
-    resolution-created replacement whose text is "for as long as [this
-    permanent] is on the battlefield".
-
-    **The key is wrong, and the continuous registry has the same hole (the
-    type-surface re-sweep, 2026-09-24, `cr-coverage-audit.md` §4a pass 4).** A
-    resolution's row records `source: ctx.source`, the resolving stack object,
-    which ceases to exist at CR 608.2n. That is never the permanent a "for as
-    long as" names, so a closure keyed on the row's source never matches the
-    one that leaves. `cleanup_zone_state`'s `remove_by_source` ends a static
-    ability's rows because their source *is* the permanent, and it would leave
-    Sower of Temptation's control change in place after Sower left. 78 cards,
-    nearly all trigger, activated or Saga-chapter resolutions:
-    `o:"for as long as ~ remains on the battlefield"` 27 (Sower, and
-    Suncleanser's "can't", a restriction row) and `o:"for as long as you
-    control ~"` 51 (Dragonlord Silumgar). The rulings fix what the row needs:
-    - **The watched object, by `ObjectRef`.** Sower's ruling (2007-10-01): if
-      Sower leaves before the ability resolves, it has no effect, which is CR
-      611.2b's "never starts". A flicker ends it (CR 400.7), so the epoch
-      matters. It is the entry's `ability_identity.source`, already an
-      `ObjectRef`.
-    - **A control leg, as a second arm.** Silumgar's ruling (2015-02-25):
-      another player gaining control ends the effect, and regaining control
-      does not restore it. So the end is an event, TR-4's `ControlChanged`
-      (`triggers-architecture.md` §3.12 item 13), not a condition read live.
-      Sower's ruling keeps its steal when Sower changes controller, which is
-      why the two legs are separate arms. Suspend's haste, "until you lose
-      control of the spell or the permanent it becomes" (CR 702.62a), is the
-      control leg across main item 10's stack-to-battlefield carve-out.
-
-    **Sized:** ~80–120 lines with tests, replacing the closure above. Two
-    `Duration` arms carry the `ObjectRef` (and the player, for the control
-    leg), written by the resolution; a resolution whose ref is already stale
-    registers nothing. One `DurationRegistry` retain keyed on the ref serves all
-    three registries, called from `move_object` for any zone and from the
-    control-change sweep. Fixtures: Sower flickered in response, Sower leaving
-    later, Silumgar stolen and returned. Owed by the first registered
-    resolution with such a duration, in any of the three registries.
-
-    **Since TR-3b (2026-10-08, #234):** item 223 fixed the key. A
-    resolution's row names `ResolutionContext::effect_source`, the permanent,
-    and the continuous registry's battlefield sweep ends a resolution's row
-    whose duration ends with its source. That predicate is
-    `Duration::ends_with_its_source` (CR 611.2b), so the retain above reads it
-    for the replacement and restriction registries too. Still owed: their
-    sweep, the epoch (the row's source is an id, not an `ObjectRef`), and the
-    control leg.
-
-    **Reachability (2026-10-23):** unreachable — the registered source-scoped
-    durations are all static abilities, whose rows name the permanent as their
-    source, and no registered resolution writes one (Sower of Temptation and
-    Dragonlord Silumgar are unregistered).
-
-    **Reachability (2026-09-03):** unreachable — still exactly two producers of
-    registry rows, `Primitive::Regenerate` (`UntilEndOfTurn`) and
-    `Primitive::Restrict` (a duration the card writes), and no registered card
-    uses either; static replacement and restriction abilities never register a
-    row.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-    (the card-homed triage, 2026-10-23): the replacement and restriction
-    registries' sweep on `Duration::ends_with_its_source`, the watched object
-    as an `ObjectRef` so a flicker ends it (CR 400.7), and the control leg on
-    TR-4d's `ControlChanged`, with the three fixtures above. Its check, in
-    debug builds after each performed batch: no row in the three registries
-    whose duration ends with its source names an object that has left the
-    battlefield (CR 611.2b).
+17. **~~Nothing expires a registry row with a source-scoped duration.~~ — ✅
+    CLOSED 2026-10-25 (PR #293, `durations-and-control`).** — archived.
+    A resolution's "for as long as" row ends as its object leaves in all three
+    registries; one whose watched object has left, become a new object (CR
+    400.7) or changed hands registers nothing (CR 611.2b);
+    `Duration::WhileYouControlSource` is the control leg, ended by the control
+    sweep and not begun again; and debug builds check after every outermost
+    batch that no such row outlives its object.
+    **Reachability (2026-10-25):** closed — PR #293.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 17".
 
 ### Found by the theme C+E pass (2026-08-30)
 
@@ -1277,37 +1206,14 @@ registered card returns an object.
     **Reachability (2026-10-09):** closed — PR #238.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 19".
 
-20. **The CR 514.2 cleanup damage wipe has no enforcement point, and seven cards
-    want one (found 2026-08-30, answering `rb-review.md` E4).** `turns.rs:133`
-    zeroes `damage_marked` on every battlefield entry unconditionally. Ancient
-    Adamantoise, Case of the Market Melee, Melt Through, Patient Zero,
-    Switchgrass Grazer, Uthgardt Fury and Victory of the Pyrohammer all say
-    damage isn't removed during cleanup steps (Scryfall
-    `o:/damage isn.t removed/ -is:funny`, 2026-08-30). **Not this pipeline's
-    problem:** CR 514.2 is a turn-based action that "doesn't use the stack", and
-    the restrictions are per-permanent and filtered ("from creatures your
-    opponents control"), so the wipe needs to consult a predicate — the sixth
-    enforcement point in `cant-effects-architecture.md` §3 — rather than propose
-    a `GameAction`. **Sized:** one filter on one loop, once `RestrictionDef` and
-    its sweep exist (RS-1). Until then the seven cards are unauthorable, which
-    is the right state; what was wrong was `Primitive::RemoveAllDamage`'s
-    comment citing this wipe as an *unrestricted* precedent for its own direct
-    write. → `replacement-architecture.md` §8a.
-
-    Also from that check, and owed to the census rather than to this section:
-    `cant-census.py` queries `o:"can't"`, so restrictions phrased "isn't" or
-    "doesn't" are outside its 2,034 clauses — including **248 cards printing
-    "doesn't untap during ..."**. `cant-effects-architecture.md` §2.2 is where
-    that belongs.
-
-    **Reachability (2026-10-23):** unreachable — RS-1's registry exists and
-    `turns.rs`'s cleanup still zeroes `damage_marked` unconditionally; none of
-    the seven cards is registered.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-    (the card-homed triage, 2026-10-23): CR 514.2's wipe asks the restriction
-    registry before it removes a permanent's damage, with a fixture static
-    "damage isn't removed from creatures you control during cleanup steps" and
-    a creature that keeps its damage into the next turn.
+20. **~~The CR 514.2 cleanup damage wipe has no enforcement point.~~ — ✅
+    CLOSED 2026-10-25 (PR #293, `durations-and-control`).** — archived.
+    `Restriction::RuleDoesNotApply`, keyed by `RuleAction`, lets a card switch
+    off a rule's own action: the cleanup wipe asks it of each damaged
+    permanent, and the state-based check of every member it gathers, ahead of
+    CR 704.7's collapse.
+    **Reachability (2026-10-25):** closed — PR #293.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 20".
 
 ### Found by the theme H pass (2026-08-30)
 
@@ -1458,8 +1364,8 @@ registered card returns an object.
     dedupes per object, combat and untap batches are per-object unique, RC-5's
     auxiliary batch names each object once by CR 614.13b, and no registered
     spell proposes one object twice.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-    (the card-homed triage, 2026-10-23): phase 2's `still_legal`, one arm per
+    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
+    (the card-homed triage, 2026-10-23; the PR split at #293's review): phase 2's `still_legal`, one arm per
     `GameAction` variant with no wildcard, skipping a stale member rather than
     failing the batch (CR 608.2b), with a fixture whose one instruction names
     one creature twice ("exile target creature and target creature", CR
@@ -2574,8 +2480,8 @@ measurement; what follows is what a later phase has to know.
     entry as one batch), but no registered card creates two creatures with
     devour at once or grants devour; `grants_devour` in
     `phase_rc5_integration_test.rs` is the only board.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-    (the card-homed triage, 2026-10-23): one entry event's auxiliary moves
+    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
+    (the card-homed triage, 2026-10-23; the PR split at #293's review): one entry event's auxiliary moves
     performed as one batch and counted by what was performed (CR 701.21a; the
     card's "for each creature sacrificed this way"), with a fixture that
     creates two creature tokens with devour at once, the plural entry RE-4
@@ -2601,8 +2507,8 @@ measurement; what follows is what a later phase has to know.
 
     **Reachability (2026-10-23):** unreachable — no registered card takes the
     granted-devour road; `grants_devour` is the only board.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-    (the card-homed triage, 2026-10-23): a granted devour is the entering
+    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
+    (the card-homed triage, 2026-10-23; the PR split at #293's review): a granted devour is the entering
     creature's own ability, so that creature's controller chooses and
     sacrifices (CR 614.13a's "you", CR 109.5), and `grants_devour` asserts it;
     the chooser field only if the gather cannot give the instance that
@@ -2621,11 +2527,10 @@ measurement; what follows is what a later phase has to know.
     registered.
 
     **Sized:** ~20 lines with the card, as the entry says.
-    **Slotted:** with the first registered card that devours by a count,
-    Thromok the Insatiable: `PerChosen::Count`, ~20 lines. Kept with its card
-    at the card-homed triage (2026-10-23): CR 702.82a's devour N is a number,
-    and a count in its place is the card's own text ("where X is the number of
-    creatures devoured this way"), so the card decides the shape.
+    **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`, beside
+    items 61 and 62's devour: `PerChosen::Count` with Thromok the Insatiable's
+    fixture, ~20 lines (the owner, at #293's review, 2026-10-25: a filed gap
+    with printed customers takes a route row).
 
 64. **~~`PermanentFilter` filters objects in zones where nothing is a
     permanent, and the name now lies.~~ ✅ Renamed to `ObjectFilter` 2026-09-07
@@ -3053,13 +2958,10 @@ one, so nothing was wrong in practice and nothing moved.
     it lands:** a group-2 cost is by definition one whose payment cannot be
     predicted, so it is the first cost that can fail *after* a group-1
     sacrifice — item 79's constraint and §3.12's argument both meet it there.
-    **Slotted:** with the first registered card whose cost mills (Deranged
-    Assistant), the first arm in CR 601.2h's second payment group
-    (`ATOM-701.17b-002`). Kept with its card at the card-homed triage
-    (2026-10-23): the group's first member is a single-arm cost action, which
-    the cost document gives its first card in Phase 8, and
-    `payment_order_rank` is matched with no wildcard, so that arm cannot
-    compile without taking its rank.
+    **Slotted:** `remaining-costs`, the cost route's row for the costs CR
+    601.2h orders: the second payment group's rank, with a mill cost's fixture
+    (Deranged Assistant's shape) (the owner, at #293's review, 2026-10-25: a
+    filed gap with printed customers takes a route row).
 
 81. **A keyworded additional cost can be mandatory, and `AdditionalCost`'s
     shape says otherwise.** Every named variant is a keyword whose keyword
@@ -4432,9 +4334,11 @@ The layer system's designated single-point change site is `oracle/characteristic
    **Sized:** read the persistence set off the continuous-effects
    registry (a `ManaPersistence` row kind) at the two sites, ~40–60 lines, with
    T12c.
-   **Slotted:** with the first registered card that keeps unspent mana as steps
-   and phases end (Upwelling, Omnath; Scryfall: `o:"lose unspent"`), beside
-   `mana-provenance`'s T12c.
+   **Slotted:** `mana-provenance`, as its own step beside T12c: the
+   persistence set read off a `ManaPersistence` row kind at the two expiry
+   sites, with Upwelling's and Omnath's shapes as fixtures (31 printed cards
+   keep unspent mana, `o:"lose unspent"`) (the owner, at #293's review,
+   2026-10-25: a filed gap with printed customers takes a route row).
 
 5. **Timestamps — ✅ live.** — archived.
     **Reachability (2026-09-03):** closed — timestamps are live; the 613.8 half
@@ -4610,57 +4514,15 @@ The layer system's designated single-point change site is `oracle/characteristic
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
     613) — now DURING Layers" item 11.
 
-13. **Layer 2 — control-changing effects (CR 613.1b) — ✅ done (2026-08-23).** The layer is live end to end: `Primitive::GainControl` lowers through both channels, Act of Treason is registry-eligible, and all seven of the corpus's Layer 2 atoms are covered.
-
-    - **`EffectModification::SetController` carries a `PlayerRef`, not a `PlayerId`.** A resolved id in a registry row is a snapshot of who controlled the source at registration, which is item 11's bug in a new variant: CR 109.5 makes a static ability's "you" the *current* controller, so Mind Control's "You control enchanted creature" follows the Aura when the Aura changes hands. `compute::resolve_set_controller` resolves it during the walk through the same `FilterPlayers` a filter's `ByController` uses, so both halves of CR 109.5 have one implementation. It also keeps `static_primitive_rows` a pure map from primitive to rows — that table has no game and no source, so a `PlayerId` would have left `GainControl` in the `_ => Vec::new()` arm item 12 exists to empty.
-
-      `PlayerRef::Owner` deliberately means something different here than in a filter: in `ByController` it describes the *source*, here it describes the object being moved (Homeward Path hands each creature to its own owner). The `Opponent` arm and what it does not cover are below.
-
-      **Which player identities may stay symbolic, and the gap that follows.** The layer walk is a pure read — it cannot prompt, and it runs many times per game state — so a `PlayerRef` survives into a registry row only when it has to be *re-derived* every walk: `You` (CR 109.5 makes a static ability's "you" the source's current controller) and `Owner` (fixed by CR 108.3, free to recompute). Every other identity is settled when the effect is created and stored as `Player(pid)`.
-
-      That is not a restriction on what cards can say, and the cards make the point:
-
-      | Card | New controller is | Settled |
-      |---|---|---|
-      | Akroan Horse, Fateful Handoff, Rainbow Vale (9 cards, `o:"opponent gains control" -o:"target opponent"`) | "an opponent", **not** targeted | at resolution — the Akroan Horse ruling is explicit that "in a multiplayer game, you choose the opponent as the ability resolves" |
-      | Risky Move | "that player", from a per-player trigger | at trigger resolution |
-      | Scrambleverse | a player chosen at random | at resolution |
-      | Illicit Auction | whoever bid the most life | at resolution |
-      | Donate, Harmless Offering | a targeted player | at cast (CR 601.2c) |
-
-      **What is missing is the lowering, not the type.** `Primitive::GainControl(Duration)` carries no player and lowers to `PlayerRef::You`, so "an opponent gains control" has no representation today — the 9-card group above needs `GainControl` to name a recipient and the resolution arm to make the choice through the `DecisionProvider` when more than one opponent exists. `PlayerRef::Opponent` is exact and free in a two-player game (CR 102.2 leaves nothing to choose), which is what `compute::resolve_set_controller` resolves; above two players it asserts, because reaching the walk means that choice was skipped.
-
-      A new `PlayerRef` variant is **not** the fix for the computed cases and would be the wrong shape for them: "the player with the highest life total", an auction winner, or a random player are computations over game state at one instant, and re-running them on every layer walk would let the answer drift between walks of an unchanged registry.
-
-    - **`PermanentState.controller` was read directly at 20 sites; all 20 migrated** to `oracle::characteristics::get_effective_controller` / `controls`. Same shape and same silent-failure mode as Phase LD Part B's 21 `card_data` reads. **No `// PRE-LAYER ZONE:` exemptions were tagged** — that class is cast-zone and play-from-hand legality, which runs before the object is a permanent, and every site here asks about something already on the battlefield or the stack.
-
-      Two needed more than a substitution. `stack.rs::resolve_top_of_stack` reads the controller *before* the pop, because a spell's controller lives on the `StackEntry` and the pop destroys it — one value now feeds both the `ResolutionContext` (CR 608.2) and the entering permanent's controller (CR 110.2b). `turns.rs`'s untap sweep needs two passes, since the predicate is a `&self` layer query and the untap is a `&mut self` write.
-
-    - **CR 302.6 lives in the frame, not on the battlefield.** `PermanentState.controller_since_turn` could not be maintained: control from a continuous effect is derived, so an `UntilEndOfTurn` steal reverts at cleanup with no mutation to hang an update on and no event to hook. `EffectiveCharacteristics.control_since_turn` is computed beside the controller it describes, which is what makes reversion need nothing at all — the value stops being computed when the row leaves the registry. The battlefield field survives as the seed, owning every control change that is *not* a Layer 2 effect (entering the battlefield, today the only one).
-
-      The Layer 2 arm advances it only when control actually moves, because CR 302.6 asks whether control was *continuous* and gaining control of your own creature is not a change. Act of Treason legally targets your own creature and would have hidden this behind its haste clause.
-
-      **One honest gap, and it is unobservable.** Strictly, CR 302.6 makes a creature sick for its *original* controller the instant a steal expires, since control was interrupted during the turn. We report it as not sick. The only window between expiry and that player's next turn beginning is the cleanup step itself, where no player receives priority (CR 514.3) and no ability can be activated, so modelling it would mean recording an interruption nothing can read.
-
-    - **Layer 2 reaches the stack.** `compute::base_controller` — now the single definition of the pre-Layer-2 seed, with three callers where there used to be three copies — has a `StackEntry` arm, which is CR 108.4's other half. `collect_controllable_targets` is the Layer-2-only sibling of `collect_battlefield_targets`: every other continuous effect describes a characteristic a permanent has, but control is the one thing a spell also has.
-
-    - **Perf, interleaved, `fuzz_games --games 200 --seed 12345`.** `main` 79.7 → this branch 83.1 ms/game (9 rounds), of which ~1.8% is the migration measured with Act of Treason unregistered so the card pool matches, and the rest is the card being cast. **Under item 11's +7% ceiling.** The gate, however, is now worth **+28%** rather than 4% (83.7 → 107.2 with it forced off) because it went from protecting one call site to 21. The **sharper per-object gate item 11 proposed was built, measured and discarded**: 83.3 vs 82.6 ms/game over 5 rounds, inside the spread of either column and worse on the median, because `ObjectId` is a v4 UUID and the set probe costs a SipHash at every migrated call site on every board to save on the rare one. Do not rebuild it without a board that keeps the registry-wide flag true for a long time. Determinism holds: three runs at one seed byte-identical apart from wall-clock lines.
-
-    - **Cross-call memoization deliberately did NOT land here** (`layers-architecture.md` §12 item 2, scheduled between this phase and 613.8). Three reasons: §12 requires the paranoid recompute-and-assert mode in the same commit, which is phase-sized on its own; +4% does not force it; and its invalidation key wants designing against item 8 step 4's board-wide sequential pass, which does not exist yet. Landing it before that pass risks building a cache for the wrong computation.
-
-    **Reachability (2026-10-23):** unreachable (the residual; the layer closed
-    2026-08-23) — `Primitive::GainControl(Duration)` still carries no player
-    and no card of the nine is registered, so `PlayerRef::Opponent`'s assert
-    above two players has no lowering to reach it.
-
-    **Sized:** `Primitive::GainControl` takes a recipient and the
-    resolution arm asks the `DecisionProvider` when more than one opponent
-    exists, ~80–120 lines with the first of the nine cards.
-    **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-(the card-homed triage, 2026-10-23): `Primitive::GainControl` names its new
-controller, and "an opponent" is chosen as the ability resolves (CR 608.2d;
-the Akroan Horse ruling), asked only above two players, with a three-seat
-fixture.
+13. **Layer 2 — control-changing effects (CR 613.1b) — ✅ done (2026-08-23);
+    the residual ✅ CLOSED 2026-10-25 (PR #293, `durations-and-control`).** —
+    archived.
+    `Primitive::GainControl { to, duration }` names who gains control; "an
+    opponent" an instruction does not target is chosen as it applies, through
+    `player_the_instruction_names`, asked only above two players
+    (`ChoiceKind::ChooseOpponent`; CR 608.2d, the Akroan Horse ruling).
+    **Reachability (2026-10-25):** closed — PR #293.
+    Full entry: `plans/archive/codebase-state-closed.md`, ""Before Layers" item 13".
 
 14. **The targeting-side `ObjectFilter` could not resolve a `PlayerRef` — ✅
     done (2026-08-23).** — archived.
@@ -5632,9 +5494,10 @@ with its customer named:**
      the template with a draw.
 
      **Sized:** ~15 lines in `substitute`, with Hullbreacher, after §2.19.
-     **Slotted:** with the first registered card that replaces a draw with a
-     token creation, Hullbreacher, once `any-color-plus-painlands-plus-signets` gives a Treasure its any-color
-     mana.
+     **Slotted:** `any-color-plus-painlands-plus-signets`, which gives a
+     Treasure its any-color mana: the draw-to-creation leg in `substitute`,
+     with Hullbreacher's shape (the owner, at #293's review, 2026-10-25: a
+     filed gap with printed customers takes a route row).
 
 127. **A creation template with a *choice* of def has no shape.** Jinnie Fay,
      Jetmir's Second — "you may instead create that many 2/2 green Cat
@@ -5649,12 +5512,10 @@ with its customer named:**
      unregistered.
 
      **Sized:** ~40 lines and a `ChoiceKind`, with Jinnie Fay.
-     **Slotted:** with the first registered card that offers a choice of token
-     definitions in a replacement, Jinnie Fay, Jetmir's Second. Kept with its
-     card at the card-homed triage (2026-10-23): the alternatives are the
-     card's own two definitions, so the card decides the modal template's
-     shape; the choice is asked in `apply_rewrite`, where CR 614.13's
-     auxiliary move already asks.
+     **Slotted:** `token-copies`, the route's token row: the modal creation
+     template and its `ChoiceKind`, asked in `apply_rewrite`, with Jinnie
+     Fay's shape (the owner, at #293's review, 2026-10-25: a filed gap with
+     printed customers takes a route row).
 
 128. **~~"Create … tapped and attacking" has the first half and not the second.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f).** — archived.
      "Tapped and attacking" is the creating effect's word, on `TokenDef` and
@@ -5957,11 +5818,11 @@ closed. **The last of RE's ten PRs.**
      the ruling that decides it. Recorded rather than guessed because a wrong
      answer here is a restriction that vanishes from a pool with nothing
      pointing at it.
-     **Slotted:** with the first registered card that makes restricted and
-     unrestricted mana in one ability, whose ruling decides it. Kept with its
-     card at the card-homed triage (2026-10-23): no rule says which
-     restriction the new units carry (CR 106.6a is about one ability's mana),
-     so the card's ruling decides the arm; the refusal is loud until then.
+     **Slotted:** `mana-provenance`, which owns what restricted mana carries:
+     the `Fixed` leg's arm for an ability making restricted and unrestricted
+     mana at once, decided by the CR 106.6a reading that row makes (the owner,
+     at #293's review, 2026-10-25: a filed gap with printed customers takes a
+     route row).
 
 136. **The chokepoint's fixed cost per event is the whole of what a proposal
      with nothing watching it costs, and the one lever §8 pre-approved cannot
@@ -6076,8 +5937,8 @@ self-replacement producer is `replacement-architecture.md` §11 item 3's,
 with its reachability line there; and the eviction of that document's
 pre-build reasoning is planned section by section in the handoff and opens
 as its own PR after this one merges.
-     **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-     (the card-homed triage, 2026-10-23): an entry choice's cost on
+     **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
+     (the card-homed triage, 2026-10-23; the PR split at #293's review): an entry choice's cost on
      `EnterModsTemplate`, paid as the replacement applies (CR 614.12, a
      shockland as the fixture), and CR 614.12b's payability sweep over a
      batch's chosen costs, with a fixture plural entry, two such tokens
@@ -6898,12 +6759,18 @@ owner decided it the same day.
 
      **Sized:** the card, its `Primitive` arm, and one test: a Colossus in exile under
      Pull from Eternity is shuffled into its owner's library instead. Phase 8.
-     **Slotted:** A6e's cleanup builds it in `batches-durations-and-control`
-     (the card-homed triage, 2026-10-23): a `Primitive` that puts an object
-     into its owner's graveyard (`ZoneChangeAct::Put`, `EventCause::Effect`),
-     with a fixture "put target face-up exiled card into its owner's
-     graveyard" and the Colossus test: one in exile is shuffled into its
-     owner's library instead.
+     **Re-sized (2026-10-25, #293's intake):**
+     "target face-up exiled card" is a target outside the battlefield and
+     the stack, which no `SelectionFilter` arm selects and no registered card
+     asks for; its surface is ~260–400 lines for exile alone, in targeting,
+     castability and the target prompt. 15 printed cards target an exiled
+     card and 1,286 a card in a graveyard (Scryfall, 2026-10-25), so the
+     surface is built for both zones at once.
+     **Slotted:** `ironworks-loop`, which builds graveyard targets (Scrap
+     Trawler, Myr Retriever): the `Primitive` that puts an object into its
+     owner's graveyard (`ZoneChangeAct::Put`, `EventCause::Effect`), with
+     Pull from Eternity and the Colossus test, one in exile shuffled into its
+     owner's library instead (the owner, at #293's review, 2026-10-25).
 
 ### Found by A4g — process-stable ids (PR #158, 2026-09-16)
 
@@ -9397,9 +9264,10 @@ scan of the history log, and the place in a turn that reads a tally since
      a count of draws, deaths, attacks or damage.
      **Sized:** a word per fact naming its objects, as `cast <card>` does,
      each ~40 lines with its test.
-     **Slotted:** with the first registered card that narrows one (Caller of
-     the Claw for deaths). `route-review`'s audit of the scenario format reads it first
-     (`roadmap-v2.md`).
+     **Slotted:** `route-review`, whose audit of the scenario format reads it
+     first (`roadmap-v2.md`): a word per narrowed fact, Caller of the Claw's
+     deaths the first (the owner, at #293's review, 2026-10-25: a filed gap
+     with printed customers takes a route row).
 
 ### Found by TR-5d (2026-10-19)
 
@@ -9605,36 +9473,14 @@ scan of the history log, and the place in a turn that reads a tally since
      left (CR 113.7a), with a fixture "{T}: this creature deals damage equal
      to its power to any target" sacrificed in response.
 
-300. **Two control changes one resolution writes back to back are announced
-     as one.** A change of control is announced by the sweep at the head of
-     the next batch (`engine/triggers/control.rs`). So when a resolution
-     writes two Layer 2 rows with no action performed between them, two
-     instructions that each gain control (CR 608.2c orders them), one sweep
-     announces both, and both look back to the board before the first. The
-     second permanent's look-back should be the board after the first: steal
-     an enchantment that gives "creatures you control have 'when you lose
-     control of this, draw two'", then steal one of those creatures, and its
-     owner should draw nothing, since the creature had lost the ability
-     before it changed hands; merged, the owner draws two. A row of another
-     layer that ends a control effect (a Layer 6 row that strips Control
-     Magic's ability) merges the same way. Changes a batch performs between
-     are announced apart: two steal Auras that Calming Verse's two
-     instructions destroy are two events, each looking back to its own
-     board (`two_control_changes_in_one_resolution_are_two_events`). The
-     owner raised it at #272's review, from the §15.4 fix.
-     **Reachability (2026-10-22):** unreachable — the two registered cards
-     that write a control row, Act of Treason and Ray of Command, write one
-     each.
-     **Sized:** ~15 lines and a ~45-line test: before a resolution writes a
-     Layer 2 row while a change waits to be announced, it announces that
-     change first (`resolve_primitive` holds the provider), so each
-     instruction's change is its own event. Announcing before *every* row a
-     resolution writes also covers the Layer 6 case, but it moves Ray of
-     Command's announcement ahead of its delayed trigger's creation record,
-     a pooled stream, so that wider form carries a re-record.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `batches-durations-and-control` (`plans/handoffs/item-6-audit.md`, pass
-     3's cleanup).
+300. **~~Two control changes one resolution writes back to back are announced
+     as one.~~ — ✅ CLOSED 2026-10-25 (PR #293, `durations-and-control`).** —
+     archived.
+     Every continuous effect a resolution writes settles the layers'
+     consequences first (the wide form, the owner's choice at #293's review),
+     so each change of control is an event as it happens (CR 603.2).
+     **Reachability (2026-10-25):** closed — PR #293.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 300".
 
 ### Found by the item 6 audit, pass 3 — hygiene and CI (2026-10-22)
 
@@ -9882,27 +9728,20 @@ keyed by its event.
      **Slotted:** A6e's cleanup, in `layers-combat-and-counters`, beside
      "Before card breadth" 6's multi-block damage, which reads both ends.
 
-324. **The last control sweep's view is held twice.**
-     `PermanentState.announced_controller` and `frame_before_control_change`,
-     whose characteristics carry the same controller whenever a
-     control-changing effect exists, are compared and written together by
-     `engine/triggers/control.rs` (CR 603.10d).
-     **Reachability (2026-10-24):** reachable — not wrong today.
-     **Sized:** ~30–50 lines: one record of what the last sweep announced,
-     its frame optional.
-     **Slotted:** A6e's cleanup, in `batches-durations-and-control`, beside
-     item 300's control announcements.
+324. **~~The last control sweep's view is held twice.~~ — ✅ CLOSED 2026-10-25
+     (PR #293, `durations-and-control`).** — archived.
+     `PermanentState.announced_control` is one `AnnouncedControl`: the
+     controller, or the frame whose controller it is.
+     **Reachability (2026-10-25):** closed — PR #293.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 324".
 
-325. **`PermanentState.controller_since_turn` is the entry turn by
-     construction.** Its one production writer sets it as the permanent
-     enters, beside `entered_battlefield_turn`; a change of control is Layer
-     2's, computed into `EffectiveCharacteristics.control_since_turn` (CR
-     302.6) and never written back. Tests set it apart to stage a board
-     production cannot reach.
-     **Reachability (2026-10-24):** reachable — not wrong today.
-     **Sized:** ~20–40 lines and the staging tests: the frame seeds from the
-     entry turn, and a test stages that.
-     **Slotted:** A6e's cleanup, in `batches-durations-and-control`.
+325. **~~`PermanentState.controller_since_turn` is the entry turn by
+     construction.~~ — ✅ CLOSED 2026-10-25 (PR #293,
+     `durations-and-control`).** — archived.
+     The field is gone; CR 302.6's frame seeds from
+     `entered_battlefield_turn`.
+     **Reachability (2026-10-25):** closed — PR #293.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 325".
 
 326. **~~A player's most recent turn is held twice.~~ — ✅ CLOSED 2026-10-25 (PR #291, `one-fact-one-type`).** — archived.
      `PlayerHistory` keeps a player's most recent turn and the one before it,
@@ -9943,6 +9782,55 @@ keyed by its event.
      batch) then shows CR 603.7a's filter failing first.
      **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`.
 
+### Found by `record-existences` (2026-10-25)
+
+330. **A trigger's filter reads an object its own event moved as the card it
+     became.** Since #290 a record names the existence its event was about,
+     and "this object" and "that creature" compare it, but a filter reads the
+     object by id as it is after the event (`named_subject_matches`,
+     `engine/triggers/dispatch.rs`). Where one event both changes an object and
+     moves it, that is the new object: "whenever one or more counters are
+     removed from a permanent you control" asks the card in the graveyard,
+     which no player controls. A damage source is read as it dealt the
+     damage since #290's review, on CR 608.2h's side, as the judges' Dragonhawk
+     ruling reads lifelink. For every other arm the rule is CR 603.10's, which
+     reads objects "immediately after the event" and names only 603.10a's
+     zone-change triggers as looking back; it says nothing of an object the
+     event ended. Raised by the owner (2026-10-25), with two questions, the
+     first since answered:
+     - **Answered: no** (the owner, at #293's review, 2026-10-25), paying
+       "{T}, Sacrifice this" is not one event to a trigger on the tap. CR
+       601.2h pays a cost's parts "in any order", one after another, and
+       Relic Putrescence's second ruling reads an artifact that "is no longer
+       on the battlefield" after it became tapped: a Treasure tapped and then
+       sacrificed. The engine pays each part as its own event
+       (`pay_single_cost`), so "whenever an artifact you control becomes
+       tapped" matches the Treasure as it is tapped on the battlefield, which
+       is right.
+     - **Answered: as the event found it** (the owner, at #293's review,
+       2026-10-25): the check's actions are simultaneous (CR 704.3), so the
+       counters come off the creature that dies, and Cloudsculpt Armorer
+       triggers. The question as it was put: where one event changes an
+       object and moves it, does a
+       trigger's filter read the object as the event found it (its last known
+       information, which CR 704.8 derives from before the check), as the
+       damage source is read, or as it is after the event? The board is a
+       state-based check: Black Sun's Zenith for 2 puts two -1/-1 counters on
+       a 1/1 with a +1/+1 counter, and the next check removes one of each (CR
+       704.5q) and puts the 0/0 into its graveyard (704.5f) as one event (CR
+       704.3). Cloudsculpt Armorer's "whenever one or more counters are
+       removed from a permanent you control" triggers if its filter reads the
+       creature as the event found it, and doesn't if it reads the card in
+       the graveyard.
+     **Reachability (2026-10-25):** unreachable — no registered card puts a
+     change to an object and its move in one event (#290's A/B), and the only
+     registered counter-removal trigger is Protean Hydra's on itself.
+     **Sized:** ~10–20 lines: `named_subject_matches` reads
+     `ObjectInformation::of(named.id, self.lki(named))`, as the damage arm
+     does; ~40–60 of fixtures, the counter removal above shown failing first.
+     **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`: a
+     state-based check's one event is that PR's batch.
+
 ### Found by `one-fact-one-type` (2026-10-25)
 
 331. **`Duration::WhileSourceOnBattlefield` holds two durations, and a static
@@ -9982,5 +9870,30 @@ keyed by its event.
      `ask_choose_entering_controller`, the entry asking it where the
      look-ahead keeps refusing, and the "may": ~40–60 lines and a fixture.
      CR 702.104b's "if tribute wasn't paid" is the card's.
-     **Slotted:** with the first registered card that has tribute.
+     **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`, beside its entry
+     choices: the tribute choice asked through the entry's prompt for an
+     opponent, with a three-seat fixture (the owner, at #293's review,
+     2026-10-25: a filed gap with printed customers takes a route row).
+
+### Found by `durations-and-control` (2026-10-25)
+
+333. **"An opponent" in a read refuses above two players.** Since #293 an
+     instruction that names "an opponent" it does not target asks its
+     controller which as it applies (CR 608.2d,
+     `player_the_instruction_names`). Two places name one while only
+     reading: an amount's "the number of cards in an opponent's hand"
+     (`AmountExpr::CountOf` with a hand, through `evaluate_amount`) and the
+     enters-attacking filter's player test. Both are `&self` and read
+     through `resolve_player_ref`, which refuses with two or more opponents.
+     CR 608.2d makes the choice the instruction's, so the answer is the
+     instruction choosing its opponent before it reads, and the read taking
+     that player. Found at #293's pre-review.
+     **Reachability (2026-10-25):** unreachable — no registered card reads
+     an amount or an enters-attacking filter over "an opponent" it does not
+     target; reachable at four seats with the first that does.
+     **Sized:** ~30–50 lines and a three-seat fixture: the instruction names
+     its opponent once, through the one asking function, and the two reads
+     are handed that player.
+     **Slotted:** `multiplayer-rules`, CR 800 at four seats, where "an
+     opponent" stops being the only one.
 
