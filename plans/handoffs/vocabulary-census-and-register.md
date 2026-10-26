@@ -278,7 +278,7 @@ widen `Rewrite`'s closed payloads to arms the pipeline must refuse.
    - (b) **Keep it**, recording on `PlayerRef::Opponent` that the role decides
      the reading, and filing a check that no filter reads it as one.
 
-   **Recommended: (a).**
+   **Settled: (a)**, as revised (the owner, at #296's third review round, 2026-10-26).
 
 4. **`SelectionFilter`: kept, or folded into D.** The owner leans (b), and
    asked at #296's first round for its ramifications and whether the name
