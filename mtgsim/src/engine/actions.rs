@@ -1109,7 +1109,7 @@ impl GameState {
         else {
             return Ok((Vec::new(), Vec::new()));
         };
-        let mut before = JustBeforeEntry::default();
+        let mut before = JustBeforeEntry::NONE;
         for member in &mut decided {
             before.append(std::mem::take(&mut member.just_before_entry));
         }

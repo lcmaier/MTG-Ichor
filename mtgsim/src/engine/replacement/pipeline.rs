@@ -99,7 +99,7 @@ pub(crate) struct Rider {
 
 /// What applying a rewrite to one event did — what a rider reads, and what a
 /// use is spent by (`replacement-architecture.md` §9, RD decision 7).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 struct Applied {
     /// Did the rewrite change the event? CR 609.7b's "prevents no damage or
     /// replaces no damage" from the other side: a `Uses::Once` effect is spent
@@ -121,6 +121,13 @@ struct Applied {
     /// is `ReplacedEvent::Damage` with `prevented` 0, which is the number
     /// Reverse Damage's "life equal to the damage prevented this way" needs.
     prevented: u64,
+}
+
+impl Applied {
+    /// An application that changed nothing and prevented nothing: a declined
+    /// copy, a payment made instead of the rest of an "enters with", the
+    /// start of a loop's tally.
+    const CHANGED_NOTHING: Applied = Applied { took_effect: false, prevented: 0 };
 }
 
 /// One member of a batch, from its proposal to its performance: CR 704.3
@@ -159,7 +166,7 @@ impl BatchMember {
             cause,
             applied: AppliedReplacements::EMPTY,
             inner_move: None,
-            just_before_entry: JustBeforeEntry::default(),
+            just_before_entry: JustBeforeEntry::NONE,
         }
     }
 }
@@ -179,6 +186,8 @@ impl BatchMember {
 /// move is where it was, so its own effects still apply to the entry: a
 /// devoured Master Biomancer still gives the devouring creature its counters
 /// (CR 616.1f, and 614.13a's objects that "will also change zones").
+/// `Default` only for `EntrySelectionScope`'s own derive; code names
+/// [`Self::NONE`].
 #[derive(Debug, Clone, Default)]
 pub(crate) struct JustBeforeEntry {
     /// Decided, in the order they perform.
@@ -189,6 +198,10 @@ pub(crate) struct JustBeforeEntry {
 }
 
 impl JustBeforeEntry {
+    /// Nothing to happen before the entry: every member but an entry with a
+    /// CR 614.13 move or a CR 614.12 payment.
+    pub(crate) const NONE: JustBeforeEntry = JustBeforeEntry { members: Vec::new(), riders: Vec::new() };
+
     pub(crate) fn is_empty(&self) -> bool {
         self.members.is_empty() && self.riders.is_empty()
     }
@@ -653,7 +666,7 @@ pub(crate) fn apply_replacements(
         // is about the event the effect replaced, so a later redirect in the same loop
         // does not rename Reverse Damage's player.
         let rider_subject = applicable.first().and_then(|&pos| group[pos].event.as_ref()).map_or(subject, subject_of);
-        let mut outcome = Applied::default();
+        let mut outcome = Applied::CHANGED_NOTHING;
         let mut redirected = false;
         // Whom it prevented damage to, and how much, in member order: a
         // redirect earlier in the loop can leave two members of one group
@@ -2129,7 +2142,7 @@ fn apply_rewrite(
                 if is_unpreventable(game, *unpreventable, subject) {
                     // Applied, prevented nothing, event untouched, nothing
                     // spent — and the caller queues the rider anyway.
-                    Ok((Some(event), Applied::default()))
+                    Ok((Some(event), Applied::CHANGED_NOTHING))
                 } else {
                     Ok((None, Applied { took_effect: true, prevented: *amount }))
                 }
@@ -2153,7 +2166,7 @@ fn apply_rewrite(
                     && pays_as_it_enters(game, ctx, chosen, object, cost)?
                 {
                     let event = GameAction::EnterBattlefield { object, from, controller, mods, act };
-                    return Ok((Some(event), Applied::default()));
+                    return Ok((Some(event), Applied::CHANGED_NOTHING));
                 }
                 let template = entry_counter_choices(game, ctx, chosen, object, controller, &mods, template)?;
                 let extra = evaluate_enter_template(
@@ -2197,7 +2210,7 @@ fn apply_rewrite(
                     // Declined, or nothing to copy (CR 101.3): the effect applied
                     // and changed nothing, which CR 614.5's applied set spends.
                     let event = GameAction::EnterBattlefield { object, from, controller, mods, act };
-                    return Ok((Some(event), Applied::default()));
+                    return Ok((Some(event), Applied::CHANGED_NOTHING));
                 };
                 let values = crate::engine::layers::copiable_values(game, donor).ok_or_else(|| {
                     format!("the donor {donor} of an entry copy has no object to capture")
@@ -2500,7 +2513,7 @@ fn apply_rewrite(
                     .filter(|&to| redirection_is_legal(game, to, target))
                 {
                     Some(to) => (to, Applied { took_effect: true, prevented: 0 }),
-                    None => (target, Applied::default()),
+                    None => (target, Applied::CHANGED_NOTHING),
                 };
                 Ok((
                     Some(GameAction::DealDamage {
