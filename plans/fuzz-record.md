@@ -96,6 +96,41 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-10-26 for items 340–345** (#297, `card-vocabulary-folds`:
+one spelling per word a card's text uses, the object word in three roles,
+`PlayerRef` as the player word, a filter's player half as a `PlayerSet`, one
+`ParticipantFilter`, two constructors, and "target opponent"; the detour's
+second PR). No card moves, so no table is re-recorded. One `close_out.py`
+sitting against **main** `498775f` (#296's merge): **engine** `933787e`, every
+item's commit and the pre-review's; each fold's commit was read against
+`main` on both pools at two seats and four before the next (the brief's
+order), and read identical each time.
+
+**Predictions, before any arm ran:** gameplay and cost rows identical on both
+pools at two seats and four, since every fold builds the value its readers
+read the old arm as and no registered card writes "target opponent";
+instructions per decision +0.0% to +0.5%, the two hot paths changing shape
+without doing more work; the audited smoke clean.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| cost rows, engine vs `main` | identical | identical |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7515 M → 0.7569 M, **+0.72%** |
+| clone floors, held memory and the round trip (CI's release step) | | pass, as `main` |
+| audited smoke, engine, 1,000 games at seed 777, performance / stress: errors, panics, turn limits | 0 / 0 | 0 / 0 |
+
+**The budget's prediction missed.** A probe arm, the engine with the
+creature target's old validator back as a fast path for
+`Permanent(ByType(Creature))`, reads +0.11% against the engine's +0.71% at
+`fd07d50`: about 0.6 points are castability checking a creature target
+through the permanent filter (`validate_permanent_target`'s filter dispatch
+and referents) where `validate_creature_target` read the type directly. The
+reading is inside the budget and the general path stays; the fast path is a
+choice put to the owner at #297's review.
+
+
 **Measured 2026-10-26 for items 61, 62, 63, 134, 330 and 332** (#294,
 `batch-legality-and-entry-choices`: an entry's sacrifices and payments
 decided as they apply and performed as one event right before the entries,

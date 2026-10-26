@@ -9190,3 +9190,155 @@ Tribute is a counters row with `by: Some(PlayerRef::Opponent)` and `optional: tr
      choices: the tribute choice asked through the entry's prompt for an
      opponent, with a three-seat fixture (the owner, at #293's review,
      2026-10-25: a filed gap with printed customers takes a route row).
+
+### Item 340 — closed 2026-10-26 by PR #297 (`card-vocabulary-folds`)
+
+`Antecedent` is the object word in three roles: it gained `ThisObjectsHost` and `Referred`, `EffectRecipient::Object` and `TriggerSubject::Object` hold it, `TriggerSubject::Any` is `Filter(ObjectFilter::All)`, and `HostMatches` is `Condition::ObjectMatches(Antecedent, ObjectFilter)`. The words a role cannot answer are refused: an arm naming a triggering event's object at registration, a condition's remembered object by answering no.
+
+*Original entry:*
+
+340. **"This object" and the other object words are spelled once per role.**
+     `EffectRecipient` spells "this object", "enchanted creature", a
+     trigger's participant and the object a delayed trigger remembers as
+     arms of its own; `TriggerSubject` spells three of them again, and
+     `Condition::HostMatches` a fourth way, beside `Antecedent`, which
+     already holds two. The register's role table shows these three roles
+     answer several object words each, so they hold the one word type.
+     `Antecedent` gains `ThisObjectsHost` and `Referred`'s object half;
+     `EffectRecipient::Object(Antecedent)` and
+     `TriggerSubject::Object(Antecedent)` fold the arms, a recipient refusing
+     `Antecedent::TargetOfInstance` (`SameInstanceAs` stays its spelling) and
+     `Antecedent::Affected`; `TriggerSubject::Any` becomes
+     `Filter(ObjectFilter::All)`; `HostMatches` becomes
+     `Condition::ObjectMatches(Antecedent, ObjectFilter)`, the shape
+     `CounterCount` already has. #295's decision 2 had filed the recipient
+     half at `names-and-hygiene-sweeps`; #296's decision 1 moves it here. A
+     fold holds exactly the families of the arms it folds, so it counts no new
+     one (`engineering-practices.md#what-a-new-type-must-express`).
+     **Reachability (2026-10-26):** reachable — not wrong today: each
+     spelling reads its object correctly, and the cost is a reader per role
+     and a sweep that grows with every card.
+     **Sized:** ~390 sites and ~95 lines of readers, ~530–580 carried.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds` (#296's decision
+     1), ahead of `resolution-recipients-and-amounts`, which adds #295's
+     `Antecedent` arms on it.
+
+### Item 341 — closed 2026-10-26 by PR #297 (`card-vocabulary-folds`)
+
+`EffectRecipient::Player(PlayerRef)` folds `Controller`, `TriggeringPlayer`, `DefendingPlayer` and `Referred`'s players into `You`, `TheEventsPlayer`, `DefendingPlayer` and `ReferredPlayer`, and `NamedPlayers` went: `PlayerGroup.named` holds a `PlayerRef`, Alms Collector's "that player" being `TheEventsPlayer`. A filter's "its owner" is `OwnerOf(ThisObject)`; `Owner` keeps the owner of each object acted on, which item 348 folds into `OwnerOf(Affected)`.
+
+*Original entry:*
+
+341. **The player an instruction acts on is spelled apart from `PlayerRef`.**
+     `EffectRecipient::Controller`, `TriggeringPlayer` and `DefendingPlayer`
+     name one player beside `PlayerRef::You` and `PlayerRef::DefendingPlayer`,
+     and `PlayerRef::Owner` names only the source's owner.
+     `EffectRecipient::Player(PlayerRef)` folds the three; `PlayerRef` gains
+     `TheEventsPlayer` (what `TriggeringPlayer` reads), `OwnerOf(Antecedent)`
+     (`Owner` becomes `OwnerOf(ThisObject)`) and `ReferredPlayer`, which
+     `EffectRecipient::Referred`'s players become. Item 268's
+     `ControllerOf`, `ForEachPlayer` and the zone change's two readings are
+     then arms of `PlayerRef`, not a `PlayerAntecedent` beside it (#296's
+     decision 2, reopening #295's decision 4). `NamedPlayers::FirstInstance`
+     ("you and that player", read off instance 0) folds the same way:
+     `PlayerGroup.named` holds a `PlayerRef::TheEventsPlayer`, a rider's being
+     its replaced event's player, so nothing picks by position. The census
+     note had put `PlayerRef::EnchantedPlayer` in this fold too; it moved to
+     item 346, since a player word nothing can be attached to is an arm the
+     engine cannot apply. A fold holds exactly its folded arms' families.
+     **Reachability (2026-10-26):** reachable — not wrong today.
+     **Sized:** ~295 sites and ~50 lines, ~370–400 carried.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
+
+### Item 342 — closed 2026-10-26 by PR #297 (`card-vocabulary-folds`)
+
+A filter's player half is a `PlayerSet`: `ByController`, `ByOwner`, `SourceFilter::ControlledBy`, `ObjectFact::DealtDamageTo`, the trigger events' twenty fields and the three trigger-side filters' player halves, so a filter's "an opponent" is `PlayerSet::Opponents` and `PlayerRef::Opponent` the chosen one. `PlayerSet` gained `Player(PlayerRef)` and `DefendingPlayers` (`AnyDefendingPlayer`'s), and `Condition::DefendingPlayer` is `Condition::Player` over `PlayerSet::Player(DefendingPlayer(of))`.
+
+*Original entry:*
+
+342. **"An opponent" reads as any opponent in a filter and as one chosen
+     opponent in an instruction.** `object_filter.rs` reads
+     `PlayerRef::Opponent` as `player != you`; `resolve_player_ref` and
+     `SetController` read it as the one opponent, the second asserting at
+     three players or more. Each reader is right for its role, and one arm
+     with two readings is item 268's shape. A filter's player half takes a
+     `PlayerSet` (`ObjectFilter::ByController` and `ByOwner`,
+     `SourceFilter::ControlledBy`, and the trigger arms' through item 343),
+     so "a creature an opponent controls" is `PlayerSet::Opponents` and
+     `PlayerRef::Opponent` is only the chosen one. `PlayerSet` gains
+     `Player(PlayerRef)` for a filter naming one player (53 cards say
+     "creature defending player controls", 223 "that player controls"),
+     never holding `PlayerRef::You`, which stays `PlayerSet::You`;
+     `AnyDefendingPlayer` becomes `PlayerSet::DefendingPlayers`; and
+     `Condition::DefendingPlayer` folds into `Condition::Player`. The trigger
+     events' own player fields are filters too, read through `player_ref_is`
+     with `PlayerRef::Opponent` as `player != you`: about 20
+     `Option<PlayerRef>` fields on `TriggerEvent` ("whenever an opponent casts
+     a spell", `GainsLife.player`, `TurnBegins.whose`, `ControlChanges`' two)
+     and `ObjectFact::DealtDamageTo.player`. Each becomes a `PlayerSet`, and
+     its `None`, "any player", becomes `PlayerSet::Everyone`, which it already
+     means (found at #296's pre-review).
+     **Reachability (2026-10-26):** reachable — not wrong today: every
+     registered card reads "an opponent" in the role its reader expects.
+     **Sized:** ~195 sites in the filters and ~120–180 in the trigger events'
+     fields, and ~110 lines of readers, ~480–560 carried; it takes the fold
+     PR to ~1,850–2,100 carried.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds` (#296's decision
+     3).
+
+### Item 343 — closed 2026-10-26 by PR #297 (`card-vocabulary-folds`)
+
+`ParticipantFilter` (a `PlayerSet`, a `TriggerSubject`, their `Or`) replaced `DamageRecipient`, `DefenderFilter` and `ObjectOrPlayerSubject`, with one `admits` whose two leaves the asker answers.
+
+*Original entry:*
+
+343. **A trigger arm's "a player or a permanent" is three types.**
+     `DamageRecipient`, `DefenderFilter` and `ObjectOrPlayerSubject` each test
+     the object or player that played a part in an event, with a player half
+     and an object half. They become one `ParticipantFilter`: a player half
+     (a `PlayerSet`, item 342), an object half (a `TriggerSubject`), and their
+     `Or`. `SelectionFilter` stays apart, holding the same leaves, for a
+     selection's candidates (#296's decision 4). A fold holds exactly its
+     folded arms' families: a participant such as "a planeswalker or battle an
+     opponent controls" is the object half's `ObjectFilter`, as it is today.
+     **Reachability (2026-10-26):** reachable — not wrong today.
+     **Sized:** ~80 sites and ~60 lines, ~170–200 carried.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
+
+### Item 344 — closed 2026-10-26 by PR #297 (`card-vocabulary-folds`)
+
+`EffectRecipient::filtered_permanents` and `SelectionFilter::creature` construct the general arms, and the resolution refuses a zone-reaching `FilteredObjectsIn` once, before any primitive reads it.
+
+*Original entry:*
+
+344. **Two enums each spell one arm twice.**
+     `EffectRecipient::FilteredPermanents` is the battlefield case of
+     `FilteredObjectsIn`, and `SelectionFilter::Creature` is
+     `Permanent(ObjectFilter::ByType(Creature))`. Each becomes a constructor
+     of the general arm, and the resolution's four refusals of
+     `FilteredObjectsIn` become one of `zones != BATTLEFIELD`.
+     **Reachability (2026-10-26):** reachable — not wrong today.
+     **Sized:** ~220 sites and ~20 lines, ~250–260 carried.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
+
+### Item 345 — closed 2026-10-26 by PR #297 (`card-vocabulary-folds`)
+
+`SelectionFilter::Player` holds a `PlayerSet`: "target opponent" is `Player(PlayerSet::Opponents)`, asked by `validate_selection` and the enumeration of legal selections. The fixture casts "target opponent loses 2 life" from hand at three seats (`tests/phase_card_vocabulary_folds_integration_test.rs`).
+
+*Original entry:*
+
+345. **"Target opponent" can't be written.** `SelectionFilter::Player`
+     admits any player, where its three trigger-side siblings each carry a
+     player filter. 742 printed cards say it (`o:"target opponent"
+     game:paper -is:funny`, 2026-10-26), and v1 is four-player Commander.
+     `Player` takes a `PlayerSet` (item 342's), so it is
+     `Player(PlayerSet::Opponents)`, and `validate_selection` and the
+     enumeration of legal selections ask it.
+     **Reachability (2026-10-26):** unreachable — no registered card targets
+     an opponent, since none can be written.
+     **Sized:** ~40–60 lines and a fixture "target opponent loses 2 life"
+     at three seats, cast from hand.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`, with item 342,
+     whose `PlayerSet` is the arm's new payload: the one behavior that PR
+     adds, against decision 1's "the fold PR renames", because an arm whose
+     payload its reader ignores is worse than a missing one.
