@@ -9883,3 +9883,34 @@ keyed by its event.
      **Slotted:** `multiplayer-rules`, CR 800 at four seats, where "an
      opponent" stops being the only one.
 
+### Found by `batch-legality-and-entry-choices` (2026-10-26)
+
+334. **A target an earlier instruction moved is acted on as the new object
+     it became.** `ChosenTargets` holds each target by id
+     (`engine/targeting.rs`), and CR 608.2b's check runs once, as the
+     resolution begins. An instruction after one that moved a target reads
+     the same id. Where the verb acts "from wherever it is", the move's new
+     object is acted on: `event_for` (`engine/resolve.rs`) builds `Exile`,
+     `ReturnToHand` and `ShuffleIntoLibrary` from the object's zone now. So
+     "Destroy target creature. Exile target creature." with one creature
+     chosen for both (CR 115.3) exiles the card from the graveyard, though CR
+     400.7 makes it a new object that neither instruction targeted. A verb that
+     reads the battlefield acts on a returned one the same way: "exile target
+     creature, then return it", then a counter on a target chosen as the
+     same creature. CR 608.2b's "illegal targets ... won't be affected" covers
+     a target that stopped being the object chosen. Found at #294's review
+     beside item 26, the batch-level check that no producer reaches; the
+     owner wants it fixed before the item 6 audit closes.
+     **Reachability (2026-10-26):** unreachable — no registered card's
+     instruction exiles, returns or shuffles a target (a scan of
+     `src/cards`, 2026-10-26); the cards that use those verbs act on
+     themselves or on a triggering object.
+     **Sized:** each target held with its existence as chosen, and every
+     instruction's read of `ChosenTargets` dropping a target that is no
+     longer that existence (CR 400.7, 608.2b): ~60–100 lines over
+     `targeting.rs` and the resolver's readers, and two fixtures, the
+     destroy-then-exile above and the flicker, shown failing first.
+     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     beside item 292, its player twin: an instruction acting on a target
+     that is gone does nothing.
+

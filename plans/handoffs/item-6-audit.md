@@ -787,7 +787,7 @@ about.
 | 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296, 326, 327 | 46 | ~1,550–1,800 | ~1,550–1,850 | identical | the replacement gather's membership test |
 | 5 | `durations-and-control` | "For as long as" ended with its object, the control sweep's announcements and record, a recipient for `GainControl`, and CR 514.2's wipe asking a restriction (split from `batches-durations-and-control` at #293's review; item 148 to `ironworks-loop` there) | 17, 20, 300, 324, 325, "Before Layers" 13 | — | ~670–965 | ~810–1,390 | both differ: 300's wide form announces Ray of Command's steal before its delayed trigger is created, attributed game by game | the duration sweep per departure, and the settlement per row a resolution writes |
 | 5b | `batch-legality-and-entry-choices` | Phase 2 skips a stale member; an entry event's auxiliary moves and costs decided as they apply and performed as one batch (split from 5 at #293's review) | 26, 61, 62, 63, 134, 330, 332 (63 and 332 from first-card slots at #293's review) | — | ~730–1,030 | ~910–1,550 | identical | phase 2's check per member |
-| 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329 | 38 | ~1,230 | ~1,500–1,800 | identical | castability's assignment (155) |
+| 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329, 334 (334 filed at #294's review) | 38 | ~1,230, ~1,340–1,410 with 334 | ~1,500–1,800, ~1,640–2,080 with 334 | identical | castability's assignment (155) |
 | 7 | `layers-combat-and-counters` | The triage's layer, combat and counter builds, one record check among them | 12, 86, 117, 184, 190, 205, 206, 308, 322, 323, "Before Layers" 16, "Before card breadth" 1, 3, 5 and 6 (12 from a first-card slot at #293's review) | 41, 44, 50 | ~1,330 | ~1,650–2,000 | identical | the layer walk |
 | 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 285 (284 closed as moot at #294's review); the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
 
@@ -1067,6 +1067,10 @@ item 124's precedent that a sweep does not ride inside a rules change.
      fizzles alone.
    - Item 292: a one-player instruction whose player is gone does nothing.
      Row 39's two more sites go with it.
+   - Item 334 (filed at #294's review, the owner: fixed before the audit
+     closes): its object twin, a target an earlier instruction moved is no
+     longer the object chosen (CR 400.7), so the instruction does nothing
+     to it.
    - Items 299 and 269: "equal to its power" is read at resolution, and an
      object's value becomes one `AmountExpr::ValueOf`.
    - Item 307 (row 40): entering attacking is asked of the attacking
