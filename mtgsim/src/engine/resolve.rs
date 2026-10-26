@@ -23,7 +23,7 @@ use crate::oracle::characteristics::{controls, defending_player_for, get_effecti
 use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::RestrictionDef;
-use crate::types::ids::{ObjectOrPlayer, ExtraTurnId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::effects::{AffectedSet, EntersAttacking, ExtraPhasesAfter};
 use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
@@ -2865,20 +2865,16 @@ impl GameState {
     /// and a word for one player read as [`Self::resolve_player_ref`] reads it.
     fn player_set_has(&self, set: &PlayerSet, player: PlayerId, ctx: &ResolutionContext) -> bool {
         match set {
-            PlayerSet::Nobody => false,
-            PlayerSet::You => player == ctx.controller,
-            PlayerSet::Opponents => player != ctx.controller,
-            PlayerSet::Everyone => true,
             PlayerSet::DefendingPlayers => self.is_defending_player(player),
-            PlayerSet::Fixed(ids) => ids.contains(&player),
             PlayerSet::Player(who) => self.resolve_player_ref(who, &[], ctx).ok() == Some(player),
+            ids => ids.contains(ctx.controller, player),
         }
     }
 
     /// "That player" (`PlayerRef::TheEventsPlayer`): a trigger's event's
     /// player, or a CR 615.5 rider's replaced event's, which `resolve_rider`
     /// hands the rider as its one instance.
-    fn the_events_player(&self, ctx: &ResolutionContext) -> Option<PlayerId> {
+    pub(crate) fn the_events_player(&self, ctx: &ResolutionContext) -> Option<PlayerId> {
         match &ctx.trigger {
             Some(binding) => {
                 self.note_binding_read(ctx, TriggerBindingReads::PLAYER);
@@ -2967,15 +2963,11 @@ impl GameState {
                             objects.object_for(self, *word, ctx.effect_source()).is_some_and(|it| it.id() == object.id)
                         }
                     };
-                    let attacked = |target: AttackTarget| match target {
-                        AttackTarget::Player(player) => Some(ObjectOrPlayer::Player(player)),
-                        AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => self.object_ref(id).map(ObjectOrPlayer::Object),
-                    };
                     self.what_can_be_attacked()
                         .into_iter()
                         .filter(|&target| {
                             defending_player_for(self, target) == Some(named)
-                                && attacked(target).is_some_and(|it| among.admits(it, &names_player, &names_object))
+                                && self.attacked_participant(target).is_some_and(|it| among.admits(it, &names_player, &names_object))
                         })
                         .collect()
                 }

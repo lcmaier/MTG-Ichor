@@ -2104,7 +2104,7 @@ impl GameState {
                         self.named_subject_matches(attacker, declared, referents, seq)
                             && defender.as_ref().is_none_or(|asked| self.defender_matches(asked, target, referents, seq))
                     })
-                    .filter_map(|&(declared, target)| Some((declared, self.attacked(target)?)));
+                    .filter_map(|&(declared, target)| Some((declared, self.attacked_participant(target)?)));
                 match occurrence {
                     AttackOccurrence::Attacker => {
                         attacks.map(|(attacker, defender)| TriggeringEventObjects::Attack { attacker, defender }).collect()
@@ -2562,7 +2562,7 @@ impl GameState {
     /// Whether `target`, what a creature was declared attacking, is what
     /// `asked` names (CR 508.3a, 508.3b, 508.3e).
     fn defender_matches(&self, asked: &ParticipantFilter, target: AttackTarget, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
-        self.attacked(target).is_some_and(|attacked| {
+        self.attacked_participant(target).is_some_and(|attacked| {
             asked.admits(attacked, &|who, player| self.player_set_is(who, player, referents), &|which, object| {
                 self.subject_matches(which, ObjectInformation::Current(object.id), referents, seq)
             })
@@ -2571,7 +2571,7 @@ impl GameState {
 
     /// What `target` names, a permanent as the existence it is now (CR
     /// 400.7). `None` for a permanent the store no longer holds.
-    fn attacked(&self, target: AttackTarget) -> Option<ObjectOrPlayer> {
+    pub(crate) fn attacked_participant(&self, target: AttackTarget) -> Option<ObjectOrPlayer> {
         Some(match target {
             AttackTarget::Player(player) => ObjectOrPlayer::Player(player),
             AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => ObjectOrPlayer::Object(self.object_ref(id)?),

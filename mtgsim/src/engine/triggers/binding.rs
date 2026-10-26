@@ -244,8 +244,7 @@ impl GameState {
                 self.bound_objects(binding, *role).into_iter().map(ObjectOrPlayerId::Object).collect()
             }
             EffectRecipient::Player(PlayerRef::TheEventsPlayer) => {
-                self.note_binding_read(ctx, TriggerBindingReads::PLAYER);
-                self.bound_player(binding).map(ObjectOrPlayerId::Player).into_iter().collect()
+                self.the_events_player(ctx).map(ObjectOrPlayerId::Player).into_iter().collect()
             }
             EffectRecipient::Object(Antecedent::Referred) => {
                 self.note_binding_read(ctx, TriggerBindingReads::REFERRED);
