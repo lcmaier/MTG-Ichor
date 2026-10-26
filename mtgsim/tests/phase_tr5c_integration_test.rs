@@ -998,7 +998,7 @@ fn an_opponents_activation_triggers_and_resolves_first() {
 fn shaman_fixture() -> Arc<CardData> {
     let gain = Effect::Atom(
         Primitive::GainLife(AmountExpr::Fixed(1)),
-        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
     );
     let add = Effect::Atom(
         Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),

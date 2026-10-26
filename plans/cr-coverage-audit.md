@@ -1239,7 +1239,7 @@ route by which item 342's twenty arrived.
 - `You` — **kept** "under your control": with `Owner`, CR 610.3c's default and its one alternative.
 
 #### `SelectionFilter`
-- `Player` — **owns** "a player" as a candidate (`EffectRecipient::Target` owns "target"); it takes a `PlayerSet` for "target opponent" (item 345).
+- `Player` — **holds** a `PlayerSet`: a player as a candidate, "target player" being `Everyone` and "target opponent" `Opponents` (`EffectRecipient::Target` owns "target").
 - `Any` — **owns** "any target" (CR 115.4), the CR's own name for its candidates.
 - `Permanent` — **holds** an `ObjectFilter`, "target creature" being its constructor `creature`.
 - `Spell` — **owns** "a spell on the stack" as a candidate.

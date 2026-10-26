@@ -93,7 +93,7 @@ pub fn blood_artist() -> Arc<CardData> {
             Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::LoseLife(AmountExpr::Fixed(1)),
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Player(PlayerRef::You)),
             ]),

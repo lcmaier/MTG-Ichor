@@ -447,7 +447,7 @@ fn an_exile_edict_chooses_through_the_same_recipient() {
     let exiles = Effect::Atom(
         Primitive::Exile,
         EffectRecipient::ChosenBy(Box::new(Choice {
-            chooser: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            chooser: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             among: ChoiceScope::ChoosersPermanents,
             picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Creature))],
             acts_on: ChoiceSide::Chosen,

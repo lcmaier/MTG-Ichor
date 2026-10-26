@@ -498,7 +498,7 @@ mod tests {
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::{GameState, Phase, PhaseType};
     use crate::types::card_types::*;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
+    use crate::types::effects::{PlayerSet, AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
 
@@ -696,7 +696,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(5), unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 ),
             })
             .build();

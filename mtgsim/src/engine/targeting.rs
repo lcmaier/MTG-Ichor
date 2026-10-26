@@ -5,7 +5,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{PlayerRef, Antecedent, Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
+use crate::types::effects::{PlayerSet, PlayerRef, Antecedent, Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 
@@ -433,7 +433,7 @@ impl GameState {
         identity: FilterIdentity<'_>,
     ) -> Result<(), String> {
         match filter {
-            SelectionFilter::Player => self.validate_player_target(target),
+            SelectionFilter::Player(players) => self.validate_player_target(target, players, you, identity),
             SelectionFilter::Any => self.validate_any_target(target),
             SelectionFilter::Permanent(pf) => {
                 self.validate_permanent_target(target, pf, you, identity)
@@ -472,7 +472,13 @@ impl GameState {
     }
 
     /// Validate a target is a valid player.
-    fn validate_player_target(&self, target: &ObjectOrPlayerId) -> Result<(), String> {
+    fn validate_player_target(
+        &self,
+        target: &ObjectOrPlayerId,
+        players: &PlayerSet,
+        you: PlayerId,
+        identity: FilterIdentity<'_>,
+    ) -> Result<(), String> {
         match target {
             ObjectOrPlayerId::Player(pid) => {
                 if *pid >= self.players.len() {
@@ -486,6 +492,11 @@ impl GameState {
                 // game no longer has.
                 if !self.in_game(*pid) {
                     return Err(format!("Player {} has left the game", pid));
+                }
+                // "Target opponent": a player in the set, asked as a filter
+                // asks it, so CR 608.2b's re-check asks it again.
+                if object_filter::player_set_names(self, players, *pid, &mut TextReferents { game: self, you, identity }) != Some(true) {
+                    return Err(format!("Player {} is not in {:?}", pid, players));
                 }
                 Ok(())
             }
@@ -808,7 +819,7 @@ mod tests {
     fn test_validate_player_target() {
         let game = GameState::new(2, 20);
         let targets = vec![ObjectOrPlayerId::Player(1)];
-        let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
+        let spec = EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1));
         assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_ok());
     }
 
@@ -816,7 +827,7 @@ mod tests {
     fn test_validate_player_target_invalid() {
         let game = GameState::new(2, 20);
         let targets = vec![ObjectOrPlayerId::Player(5)];
-        let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
+        let spec = EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1));
         assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_err());
     }
 

@@ -159,7 +159,7 @@ fn edict_for(n: u64) -> Effect {
     Effect::Atom(
         Primitive::Sacrifice,
         EffectRecipient::ChosenBy(Box::new(Choice {
-            chooser: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            chooser: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             among: ChoiceScope::ChoosersPermanents,
             picks: vec![Pick::exactly(n, ObjectFilter::ByType(CardType::Creature))],
             acts_on: ChoiceSide::Chosen,

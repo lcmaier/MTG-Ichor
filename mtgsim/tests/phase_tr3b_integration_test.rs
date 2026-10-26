@@ -449,7 +449,7 @@ fn a_delayed_trigger_refers_to_the_player_its_creator_named() {
             Effect::Sequence(vec![
                 remember(Effect::Atom(
                     Primitive::GainLife(AmountExpr::Fixed(1)),
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 )),
                 at_the_next_end_step(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Player(PlayerRef::ReferredPlayer))),
             ]),

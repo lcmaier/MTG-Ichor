@@ -3187,7 +3187,7 @@ impl GameState {
     ) -> PlayerId {
         match recipient {
             EffectRecipient::Implicit | EffectRecipient::Player(PlayerRef::You) => ctx.controller,
-            EffectRecipient::Target(SelectionFilter::Player, _) | EffectRecipient::Player(_) => {
+            EffectRecipient::Target(SelectionFilter::Player(_), _) | EffectRecipient::Player(_) => {
                 for t in targets {
                     if let ObjectOrPlayerId::Player(pid) = t {
                         return *pid;

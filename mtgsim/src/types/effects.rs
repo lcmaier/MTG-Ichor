@@ -1124,8 +1124,9 @@ pub enum PickCount {
 /// Shared by both `Target` and `Choose` variants of `EffectRecipient`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SelectionFilter {
-    /// Player
-    Player,
+    /// A player in the set: "target player" is `Everyone`, "target opponent"
+    /// `Opponents` (742 printed cards), its "you" the controller (CR 109.5).
+    Player(PlayerSet),
     /// "any target" — creature, player, or planeswalker
     Any,
     /// Permanent matching a filter; "target creature" is

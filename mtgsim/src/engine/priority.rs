@@ -301,7 +301,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::game_state::PhaseType;
     use crate::types::card_types::CardType;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
+    use crate::types::effects::{PlayerSet, AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::choice_types::ChoiceKind;
     use crate::ui::decision::{ScriptedDecisionProvider, SeatMode};
@@ -356,7 +356,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 ),
             })
             .build();
@@ -370,7 +370,7 @@ mod tests {
         decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
         // Target: Player(1) is at index 1 in [Player(0), Player(1)]
         decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![1]);
 

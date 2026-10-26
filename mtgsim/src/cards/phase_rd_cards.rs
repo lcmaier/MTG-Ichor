@@ -423,7 +423,7 @@ pub fn angel_of_suffering() -> Arc<CardData> {
                 // the player the damage was aimed at, which for this card is
                 // always the Angel's controller and for the next one on this
                 // path may not be.
-                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             )),
         ))
         .build()
@@ -800,7 +800,7 @@ pub fn reverse_damage() -> Arc<CardData> {
                             Effect::Atom(
                                 Primitive::GainLife(AmountExpr::DamagePrevented),
                                 EffectRecipient::Target(
-                                    SelectionFilter::Player,
+                                    SelectionFilter::Player(PlayerSet::Everyone),
                                     TargetCount::Exactly(1),
                                 ),
                             ),

@@ -74,7 +74,7 @@ fn target_player_discards(rules_text: &'static str, n: u64, chooser: DiscardChoo
         costs: Vec::new(),
         effect: Effect::Atom(
             Primitive::Discard(AmountExpr::Fixed(n), chooser),
-            EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
         ),
     }
 }

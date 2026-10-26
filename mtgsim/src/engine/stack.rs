@@ -350,7 +350,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::game_state::{GameState, StackEntry};
     use crate::types::card_types::CardType;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
+    use crate::types::effects::{PlayerSet, AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaSpent, ManaType};
     use crate::types::zones::Zone;
     use crate::test_support::{lightning_bolt as make_bolt, pacifism as make_pacifism, test_dp};
@@ -370,7 +370,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(3)),
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 ),
             })
             .build()

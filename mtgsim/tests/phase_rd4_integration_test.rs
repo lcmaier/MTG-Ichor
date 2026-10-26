@@ -587,7 +587,7 @@ fn a_riders_prevented_amount_is_zero_under_unpreventable_damage() {
         .next_damage(3)
         .with_then(Effect::Atom(
             Primitive::GainLife(AmountExpr::DamagePrevented),
-            EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
         )),
     );
     let ctx = test_ctx();

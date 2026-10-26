@@ -619,7 +619,7 @@ pub fn moment_of_silence() -> Arc<CardData> {
                     Duration::UntilEndOfTurn,
                     PatternFill::Authored,
                 ),
-                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             ),
         ))
         .build()
@@ -1242,7 +1242,7 @@ pub fn skullcrack() -> Arc<CardData> {
                 ),
                 Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 ),
             ]),
         ))

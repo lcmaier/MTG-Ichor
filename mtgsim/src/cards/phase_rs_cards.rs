@@ -163,7 +163,7 @@ pub fn diabolic_edict() -> Arc<CardData> {
             effect: Effect::Atom(
                 Primitive::Sacrifice,
                 EffectRecipient::ChosenBy(Box::new(Choice {
-                    chooser: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    chooser: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                     among: ChoiceScope::ChoosersPermanents,
                     picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Creature))],
                     acts_on: ChoiceSide::Chosen,

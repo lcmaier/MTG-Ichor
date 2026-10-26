@@ -522,13 +522,13 @@ fn a_fixture_rider_reads_the_prevented_amount_until_reverse_damage_lands_in_rd_3
                 .next_damage(3)
                 .with_then(Effect::Atom(
                     Primitive::GainLife(AmountExpr::DamagePrevented),
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 )),
             ),
             Duration::UntilEndOfTurn,
             PatternFill::Authored,
         ),
-        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
     );
     let ctx = ResolutionContext {
         source: spell,
@@ -586,7 +586,7 @@ fn a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s()
         .once()
         .with_then(Effect::Atom(
             Primitive::GainLife(AmountExpr::DamagePrevented),
-            EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
         )),
     );
     let before = game.recorded_events().len();

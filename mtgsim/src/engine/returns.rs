@@ -109,7 +109,7 @@ impl GameState {
             .ok_or_else(|| format!("the Aura {aura} has no enchant ability (CR 303.4a)"))?;
         // `PermanentState::attached_to` holds objects, so a Curse has no host
         // to enter attached to (`codebase-state.md` item 227).
-        if matches!(filter, SelectionFilter::Player) {
+        if matches!(filter, SelectionFilter::Player(_)) {
             return Err(format!("the Aura {aura} enchants a player, and an attachment holds only objects"));
         }
         let candidates: Vec<ObjectOrPlayerId> = self

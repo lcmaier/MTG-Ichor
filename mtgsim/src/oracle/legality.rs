@@ -273,7 +273,13 @@ pub fn enumerate_legal_selections_upto(
     };
 
     match filter {
-        SelectionFilter::Player => players().take(limit).collect(),
+        SelectionFilter::Player(crate::types::effects::PlayerSet::Everyone) => players().take(limit).collect(),
+        // "Target opponent": the seats the set holds, asked as the target
+        // will be checked.
+        SelectionFilter::Player(_) => players()
+            .filter(|candidate| game.validate_selection(filter, candidate, you, identity).is_ok())
+            .take(limit)
+            .collect(),
 
         // "Any target" — players, then creatures and planeswalkers.
         SelectionFilter::Any => players()
@@ -741,7 +747,7 @@ mod tests {
         // The control: with everyone in the game, four seats and a fourth
         // choice. Without it the assertions below would pass on an arm that
         // offered nothing at all.
-        for filter in [SelectionFilter::Player, SelectionFilter::Any] {
+        for filter in [SelectionFilter::Player(crate::types::effects::PlayerSet::Everyone), SelectionFilter::Any] {
             assert_eq!(seats(&game, filter.clone()).len(), 4, "{:?}: four seats", filter);
         }
 
@@ -752,7 +758,7 @@ mod tests {
             ObjectOrPlayerId::Player(1),
             ObjectOrPlayerId::Player(2),
         ];
-        for filter in [SelectionFilter::Player, SelectionFilter::Any] {
+        for filter in [SelectionFilter::Player(crate::types::effects::PlayerSet::Everyone), SelectionFilter::Any] {
             // The battlefield is empty, so `Any` offers the seats and nothing
             // else and the two lists are the same list.
             assert_eq!(seats(&game, filter.clone()), in_game, "{:?}: the seat is not offered", filter);

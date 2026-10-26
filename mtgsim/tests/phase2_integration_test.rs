@@ -8,7 +8,7 @@ use mtgsim::cards::alpha;
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::types::effects::{EffectRecipient, ObjectFilter, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{PlayerSet, EffectRecipient, ObjectFilter, SelectionFilter, TargetCount};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -67,7 +67,7 @@ fn test_cast_and_resolve_ancestral_recall() {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Target Player(0) at index 0 in [Player(0), Player(1)] for Player
     decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+        recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
         spell_id: recall_id,
     }, vec![0]);
     // Cast (returns ActionTaken immediately)
@@ -331,7 +331,7 @@ fn test_stack_lifo_order_bolt_then_recall() {
     // After ActionTaken, priority returns to caster (player 0)
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+        recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
         spell_id: recall_id,
     }, vec![1]);
     game.run_priority_round(&decisions).unwrap();

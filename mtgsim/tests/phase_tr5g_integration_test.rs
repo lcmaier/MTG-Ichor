@@ -836,7 +836,7 @@ fn a_count_of_other_creatures_leaves_out_the_abilitys_own_permanent() {
         instances: Vec::new(),
         ability_type: AbilityType::Activated,
         costs: Vec::new(),
-        effect: Effect::Atom(Primitive::LoseLife(others), EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))),
+        effect: Effect::Atom(Primitive::LoseLife(others), EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1))),
         is_characteristic_defining: false,
         activation_restriction: ActivationRestriction::None,
     };

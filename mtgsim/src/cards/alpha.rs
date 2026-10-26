@@ -62,7 +62,7 @@ pub fn ancestral_recall() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(3)),
-                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             ),
         })
         .build()

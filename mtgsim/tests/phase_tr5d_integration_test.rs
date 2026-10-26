@@ -823,7 +823,7 @@ fn damage_to_you_is_dealt_to_the_controller() {
 /// was dealt this way.
 #[test]
 fn a_riders_damage_during_the_resolution_is_not_dealt_this_way() {
-    let at_a_player = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
+    let at_a_player = EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1));
     let siphon = Effect::Sequence(vec![
         Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false }, at_a_player.clone()),
         Effect::Atom(Primitive::GainLife(AmountExpr::DamageDealtThisWay), EffectRecipient::Player(PlayerRef::You)),
