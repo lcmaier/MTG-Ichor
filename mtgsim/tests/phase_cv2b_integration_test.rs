@@ -343,11 +343,11 @@ fn kaito_shaped() -> Arc<CardData> {
             Box::new(Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::ChangeType(ninja_creature, Duration::WhileSourceOnBattlefield),
-                    EffectRecipient::ThisObject,
+                    EffectRecipient::Object(Antecedent::ThisObject),
                 ),
                 Effect::Atom(
                     Primitive::SetPowerToughness(AmountExpr::Fixed(3), AmountExpr::Fixed(4), Duration::WhileSourceOnBattlefield),
-                    EffectRecipient::ThisObject,
+                    EffectRecipient::Object(Antecedent::ThisObject),
                 ),
             ])),
         )))
@@ -403,10 +403,10 @@ fn gideon_blackblade_shaped() -> Arc<CardData> {
         .subtype(Subtype::Planeswalker(PlaneswalkerType::Gideon))
         .loyalty(4)
         .ability(static_ability(Effect::Sequence(vec![
-            Effect::Atom(Primitive::ChangeType(creature, Duration::WhileSourceOnBattlefield), EffectRecipient::ThisObject),
+            Effect::Atom(Primitive::ChangeType(creature, Duration::WhileSourceOnBattlefield), EffectRecipient::Object(Antecedent::ThisObject)),
             Effect::Atom(
                 Primitive::SetPowerToughness(AmountExpr::Fixed(4), AmountExpr::Fixed(4), Duration::WhileSourceOnBattlefield),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ),
         ])))
         .build()
@@ -425,7 +425,7 @@ fn wall_of_omens() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .power_toughness(0, 4)
         .keyword_flag(KeywordFlag::Defender)
-        .ability(triggered_ability("", whenever(enters(TriggerSubject::ThisObject), draw)))
+        .ability(triggered_ability("", whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), draw)))
         .build()
 }
 
@@ -454,7 +454,7 @@ fn sliver_by_cda() -> Arc<CardData> {
             is_characteristic_defining: true,
             ..static_ability(Effect::Atom(
                 Primitive::ChangeType(with_subtypes(&[CreatureType::Sliver]), Duration::WhileSourceOnBattlefield),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ))
         })
         .build()
@@ -1197,10 +1197,10 @@ fn tapped_animus() -> Arc<CardData> {
         .ability(static_ability(Effect::Conditional(
             Condition::SourceTapped,
             Box::new(Effect::Sequence(vec![
-                Effect::Atom(Primitive::ChangeType(creature, Duration::WhileSourceOnBattlefield), EffectRecipient::ThisObject),
+                Effect::Atom(Primitive::ChangeType(creature, Duration::WhileSourceOnBattlefield), EffectRecipient::Object(Antecedent::ThisObject)),
                 Effect::Atom(
                     Primitive::SetPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::WhileSourceOnBattlefield),
-                    EffectRecipient::ThisObject,
+                    EffectRecipient::Object(Antecedent::ThisObject),
                 ),
             ])),
         )))

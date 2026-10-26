@@ -18,7 +18,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, PatternFill, PlayerRef, PlayerSet, Primitive,
+    Antecedent, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PatternFill, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
@@ -60,7 +60,7 @@ pub fn selfless_squire() -> Arc<CardData> {
     );
     let growth = Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::TriggeringAmount, by: PlayerRef::You },
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     );
     CardDataBuilder::new("Selfless Squire")
         .mana_cost(ManaCost::build(&[ManaType::White], 3))
@@ -71,7 +71,7 @@ pub fn selfless_squire() -> Arc<CardData> {
         .power_toughness(1, 1)
         .keyword_flag(KeywordFlag::Flash)
         .rules_text(&format!("Flash\n{shield_text}\n{growth_text}"))
-        .ability(triggered_ability(shield_text, whenever(enters(TriggerSubject::ThisObject), shield)))
+        .ability(triggered_ability(shield_text, whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), shield)))
         .ability(triggered_ability(
             growth_text,
             whenever(damage_to_is_prevented(DamageRecipient::Player(Some(PlayerRef::You))), growth),

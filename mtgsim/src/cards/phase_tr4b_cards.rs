@@ -17,7 +17,7 @@ use crate::cards::phase_tr1_cards::saproling_token;
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive};
+use crate::types::effects::{Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive};
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, TriggerSubject};
@@ -81,14 +81,14 @@ pub fn grafted_wargear() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(3), AmountExpr::Fixed(2), Duration::WhileSourceOnBattlefield),
-                EffectRecipient::Host,
+                EffectRecipient::Object(Antecedent::ThisObjectsHost),
             ),
         })
         .ability(triggered_ability(
             text,
             whenever(
-                becomes_unattached(TriggerSubject::ThisObject, TriggerSubject::Any),
-                Effect::Atom(Primitive::Sacrifice, EffectRecipient::Triggering(EventRole::Host)),
+                becomes_unattached(TriggerSubject::Object(Antecedent::ThisObject), TriggerSubject::Filter(ObjectFilter::All)),
+                Effect::Atom(Primitive::Sacrifice, EffectRecipient::Object(Antecedent::Triggering(EventRole::Host))),
             ),
         ))
         .ability(equip("Equip {0}", Vec::new()))
@@ -133,7 +133,7 @@ pub fn bramble_elemental() -> Arc<CardData> {
             whenever(
                 becomes_attached(
                     ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura)),
-                    TriggerSubject::ThisObject,
+                    TriggerSubject::Object(Antecedent::ThisObject),
                 ),
                 Effect::Atom(Primitive::CreateToken(saproling_token(), AmountExpr::Fixed(2)), EffectRecipient::Controller),
             ),

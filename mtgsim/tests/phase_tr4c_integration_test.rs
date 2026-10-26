@@ -45,7 +45,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
+use mtgsim::types::effects::{Antecedent, AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
@@ -104,10 +104,10 @@ fn watcher(name: &str, subject: TriggerSubject, change: ZoneChangePattern, owner
 }
 
 /// A card whose one ability triggers on the card itself moving `change`
-/// (`TriggerSubject::ThisObject`).
+/// (`TriggerSubject::Object(Antecedent::ThisObject)`).
 fn mover(name: &str, card_type: CardType, change: ZoneChangePattern) -> Arc<CardData> {
     let arm = TriggerEvent::ZoneChange {
-        subject: TriggerSubject::ThisObject,
+        subject: TriggerSubject::Object(Antecedent::ThisObject),
         change,
         by: None,
         owner: None,
@@ -466,7 +466,7 @@ fn a_creature_returned_to_its_owners_hand_triggers_its_leaves_the_battlefield_ab
         CardDataBuilder::new("Fixture Departer")
             .card_type(CardType::Creature)
             .power_toughness(2, 2)
-            .ability(triggered_ability("", whenever(leaves_the_battlefield(TriggerSubject::ThisObject), gain_one())))
+            .ability(triggered_ability("", whenever(leaves_the_battlefield(TriggerSubject::Object(Antecedent::ThisObject)), gain_one())))
             .build(),
         0,
     );

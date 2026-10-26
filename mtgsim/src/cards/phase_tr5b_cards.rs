@@ -85,7 +85,7 @@ pub fn simic_ascendancy() -> Arc<CardData> {
         "At the beginning of your upkeep, if this enchantment has twenty or more growth counters on it, you win the game.";
     let growth = Effect::Atom(
         Primitive::AddCounters { counter: CounterType::Growth, amount: AmountExpr::TriggeringAmount, by: PlayerRef::You },
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     );
     let win = TriggerDef {
         condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
@@ -181,7 +181,7 @@ pub fn protean_hydra() -> Arc<CardData> {
             at_beginning_of(StepType::End, Whose::Each),
             Effect::Atom(
                 Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(2), by: PlayerRef::You },
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ),
         )),
         duration: DelayedDuration::Once,
@@ -191,7 +191,7 @@ pub fn protean_hydra() -> Arc<CardData> {
     let prevent = ReplacementDef::new(EventPattern::DealDamage { source: None, combat: None }, ObjectSet::SourceOnly, Rewrite::Prevent)
         .with_then(Effect::Atom(
             Primitive::RemoveCounters(CounterType::PlusOnePlusOne, AmountExpr::ReplacedAmount),
-            EffectRecipient::ThisObject,
+            EffectRecipient::Object(Antecedent::ThisObject),
         ));
     CardDataBuilder::new("Protean Hydra")
         .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Green)]))
@@ -212,7 +212,7 @@ pub fn protean_hydra() -> Arc<CardData> {
         .ability(triggered_ability(
             grow_text,
             whenever(
-                counters_removed_from(TriggerSubject::ThisObject, CounterType::PlusOnePlusOne),
+                counters_removed_from(TriggerSubject::Object(Antecedent::ThisObject), CounterType::PlusOnePlusOne),
                 Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(two_more)), EffectRecipient::Controller),
             ),
         ))

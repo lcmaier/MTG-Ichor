@@ -26,7 +26,7 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerFact, PlayerSet,
+    Antecedent, AmountExpr, Condition, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerFact, PlayerSet,
     Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use crate::types::keywords::KeywordFlag;
@@ -164,7 +164,7 @@ pub fn verdant_force() -> Arc<CardData> {
 /// triggers from mana being added, could add mana — so the dispatcher
 /// resolves it at once (CR 605.4a), inside the CR 601.2g window when the
 /// land was tapped there, and the stack never sees it. "Its controller adds"
-/// is the `Host` recipient: the land's controller, whoever controls the Aura.
+/// is the host as recipient: the land's controller, whoever controls the Aura.
 ///
 /// # The rulings, and where each is tested
 ///
@@ -182,13 +182,13 @@ pub fn wild_growth() -> Arc<CardData> {
         .rules_text("Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.")
         .enchant_filter(SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Land)))
         .ability(triggered_ability("Whenever enchanted land is tapped for mana, its controller adds an additional {G}.", whenever(
-            TriggerEvent::ManaAdded { source: TriggerSubject::Host, tapped_for_mana: Some(true), mana: None },
+            TriggerEvent::ManaAdded { source: TriggerSubject::Object(Antecedent::ThisObjectsHost), tapped_for_mana: Some(true), mana: None },
             Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     mana: vec![(ManaType::Green, AmountExpr::Fixed(1))],
                     special: vec![],
                 }),
-                EffectRecipient::Host,
+                EffectRecipient::Object(Antecedent::ThisObjectsHost),
             ),
         )))
         .build()

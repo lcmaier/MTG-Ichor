@@ -20,7 +20,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    Antecedent, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerGroup, PlayerRef, PlayerSet, Primitive, TokenDef,
 };
 use crate::types::history::{CountIs, HistoryCount, TurnFact};
@@ -33,7 +33,7 @@ use crate::types::triggers::{EventRole, Multiplicity, TriggerCondition, TriggerD
 fn counter_on_this() -> Effect {
     Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     )
 }
 
@@ -80,7 +80,7 @@ pub fn paladin_of_atonement() -> Arc<CardData> {
             effect: counter_on_this(),
         }))
         .ability(triggered_ability("When this creature dies, you gain life equal to its toughness.", TriggerDef {
-            condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
+            condition: TriggerCondition::Event(dies(TriggerSubject::Object(Antecedent::ThisObject)).into()),
             intervening_if: None,
             limit: None,
             effect: Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringToughness(EventRole::Object)), EffectRecipient::Controller),

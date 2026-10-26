@@ -15,7 +15,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    Antecedent, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
 };
 use crate::types::history::CountIs;
 use crate::types::ids::AbilityId;
@@ -64,7 +64,7 @@ pub fn sphere_grid() -> Arc<CardData> {
     };
     let counter_on_that_creature = Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::Triggering(EventRole::DamageSource),
+        EffectRecipient::Object(Antecedent::Triggering(EventRole::DamageSource)),
     );
     let grant = |keyword: KeywordFlag| {
         Effect::Atom(

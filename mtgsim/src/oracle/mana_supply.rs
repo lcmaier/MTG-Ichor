@@ -982,7 +982,7 @@ fn mana_trigger_adds(
 
 /// The mana a triggered mana ability's effect gives `player`, as
 /// `resolve_mana_trigger_effect` decides whose it is: the host's controller
-/// for `Host`, its own controller otherwise. `false` when an amount cannot
+/// for the host as recipient, its own controller otherwise. `false` when an amount cannot
 /// be read before it resolves.
 fn trigger_mana(
     game: &GameState,

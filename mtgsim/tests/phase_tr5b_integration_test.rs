@@ -27,7 +27,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
+    Antecedent, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
@@ -408,7 +408,7 @@ fn resolve_all_with(game: &mut GameState, dp: &dyn DecisionProvider) {
 #[test]
 fn a_per_counter_arm_triggers_once_for_each_counter_put_on_at_once() {
     let mut game = setup_two_player_game();
-    let arm = counters_put_on(TriggerSubject::ThisObject, CounterType::PlusOnePlusOne);
+    let arm = counters_put_on(TriggerSubject::Object(Antecedent::ThisObject), CounterType::PlusOnePlusOne);
     let mage = put_on_battlefield(&mut game, creature_that_gains("Fixture Mage", arm, AmountExpr::Fixed(1)), 0);
 
     counters_on_target(&mut game, 1, mage, put(CounterType::PlusOnePlusOne, 3));
@@ -434,7 +434,7 @@ fn a_creature_entering_with_counters_triggers_its_own_per_counter_arm() {
         )))))
         .ability(triggered_ability(
             "",
-            whenever(counters_put_on(TriggerSubject::ThisObject, CounterType::PlusOnePlusOne), gain(AmountExpr::Fixed(1))),
+            whenever(counters_put_on(TriggerSubject::Object(Antecedent::ThisObject), CounterType::PlusOnePlusOne), gain(AmountExpr::Fixed(1))),
         ))
         .build();
 
@@ -547,7 +547,7 @@ fn a_put_arm_reads_counters_a_player_gets() {
 #[test]
 fn a_per_counter_removal_arm_triggers_once_for_each_counter_removed() {
     let mut game = setup_two_player_game();
-    let arm = counters_removed_from(TriggerSubject::ThisObject, CounterType::PlusOnePlusOne);
+    let arm = counters_removed_from(TriggerSubject::Object(Antecedent::ThisObject), CounterType::PlusOnePlusOne);
     let hydra = put_on_battlefield(&mut game, creature_that_gains("Fixture Hydra", arm, AmountExpr::Fixed(1)), 0);
     counters_on_target(&mut game, 0, hydra, put(CounterType::PlusOnePlusOne, 3));
 
@@ -565,7 +565,7 @@ fn a_per_counter_removal_arm_triggers_once_for_each_counter_removed() {
 #[test]
 fn a_removal_asking_more_than_is_there_records_and_triggers_on_what_it_took() {
     let mut game = setup_two_player_game();
-    let arm = counters_removed_from(TriggerSubject::ThisObject, CounterType::PlusOnePlusOne);
+    let arm = counters_removed_from(TriggerSubject::Object(Antecedent::ThisObject), CounterType::PlusOnePlusOne);
     let hydra = put_on_battlefield(&mut game, creature_that_gains("Fixture Hydra", arm, AmountExpr::Fixed(1)), 0);
     counters_on_target(&mut game, 0, hydra, put(CounterType::PlusOnePlusOne, 1));
     let start = game.recorded_events().records().len();
@@ -593,7 +593,7 @@ fn a_removal_asking_more_than_is_there_records_and_triggers_on_what_it_took() {
 
 /// "When the third charge counter is put on this, draw a card."
 fn third_charge_counter() -> Arc<CardData> {
-    let arm = counters_put_on(TriggerSubject::ThisObject, CounterType::Charge).once_per_object();
+    let arm = counters_put_on(TriggerSubject::Object(Antecedent::ThisObject), CounterType::Charge).once_per_object();
     CardDataBuilder::new("Fixture Countdown")
         .card_type(CardType::Artifact)
         .ability(triggered_ability(
@@ -650,7 +650,7 @@ fn the_nth_counter_reads_the_count_before_and_after_one_event() {
 fn a_trigger_asking_a_reading_its_arm_cannot_give_is_refused() {
     let once_per_subject_dies = TriggerDef {
         condition: TriggerCondition::Event(TriggerEvent::ZoneChange {
-            subject: TriggerSubject::Any,
+            subject: TriggerSubject::Filter(ObjectFilter::All),
             change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
             by: None,
             owner: None,
@@ -663,7 +663,7 @@ fn a_trigger_asking_a_reading_its_arm_cannot_give_is_refused() {
     assert_eq!(once_per_subject_dies.readings_its_arms_cannot_give().len(), 1);
 
     let per_counter_threshold = TriggerDef {
-        condition: TriggerCondition::Event(counters_put_on(TriggerSubject::ThisObject, CounterType::Charge).into()),
+        condition: TriggerCondition::Event(counters_put_on(TriggerSubject::Object(Antecedent::ThisObject), CounterType::Charge).into()),
         intervening_if: Some(Condition::CounterCountReached { counter_type: CounterType::Charge, n: 3 }),
         limit: None,
         effect: gain(AmountExpr::Fixed(1)),

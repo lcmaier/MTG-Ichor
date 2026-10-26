@@ -53,7 +53,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::{AdditionalCost, Cost};
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
+    Antecedent, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
     ObjectSet, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -286,7 +286,7 @@ fn the_newcomers_own_etb_triggers_beside_soul_wardens() {
     put_on_battlefield(&mut game, soul_warden(), 0);
     let comer = put_on_battlefield(
         &mut game,
-        watcher("Arriving Scholar", enters(TriggerSubject::ThisObject), draw_one()),
+        watcher("Arriving Scholar", enters(TriggerSubject::Object(Antecedent::ThisObject)), draw_one()),
         1,
     );
 
@@ -655,7 +655,7 @@ fn an_untap_step_trigger_is_held_until_the_upkeep() {
     fill_library(&mut game, 1, 5);
     let untapper = put_on_battlefield(
         &mut game,
-        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: TriggerSubject::ThisObject }, draw_one()),
+        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: TriggerSubject::Object(Antecedent::ThisObject) }, draw_one()),
         1,
     );
     game.battlefield.get_mut(&untapper).unwrap().tapped = true;
@@ -711,7 +711,7 @@ fn attack_triggers_fire_as_attackers_are_declared() {
         enchantment_watcher(
             "War Drums",
             triggered_ability("", whenever(
-                attacks(TriggerSubject::Any),
+                attacks(TriggerSubject::Filter(ObjectFilter::All)),
                 gain_one(),
             )),
         ),
@@ -749,7 +749,7 @@ fn entering_tapped_is_not_becoming_tapped() {
         &mut game,
         enchantment_watcher(
             "Tap Sentinel",
-            triggered_ability("", whenever(TriggerEvent::BecomesTapped { subject: TriggerSubject::Any }, draw_one())),
+            triggered_ability("", whenever(TriggerEvent::BecomesTapped { subject: TriggerSubject::Filter(ObjectFilter::All) }, draw_one())),
         ),
         0,
     );
@@ -808,7 +808,7 @@ fn prevented_damage_triggers_nothing() {
             "Pain Diary",
             triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
-                    source: TriggerSubject::Any,
+                    source: TriggerSubject::Filter(ObjectFilter::All),
                     recipient: DamageRecipient::Player(Some(PlayerRef::You)),
                     combat: None,
                     excess: false,
@@ -836,7 +836,7 @@ fn prevented_damage_triggers_nothing() {
             "Pain Diary",
             triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
-                    source: TriggerSubject::Any,
+                    source: TriggerSubject::Filter(ObjectFilter::All),
                     recipient: DamageRecipient::Player(Some(PlayerRef::You)),
                     combat: None,
                     excess: false,
@@ -901,7 +901,7 @@ fn damage_triggers_still_fire_when_the_creature_regenerates() {
             "Wound Tally",
             triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
-                    source: TriggerSubject::Any,
+                    source: TriggerSubject::Filter(ObjectFilter::All),
                     recipient: DamageRecipient::Object(Some(a_creature())),
                     combat: None,
                     excess: false,
@@ -943,13 +943,13 @@ fn damage_triggers_still_fire_when_the_creature_regenerates() {
 fn a_zone_change_trigger_cannot_find_an_object_that_left() {
     let counter_on_it = Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::Triggering(EventRole::Object),
+        EffectRecipient::Object(Antecedent::Triggering(EventRole::Object)),
     );
     // Control: still there, it gets the counter.
     let mut game = setup_two_player_game();
     let grower = put_on_battlefield(
         &mut game,
-        watcher("Sprouting Sapling", enters(TriggerSubject::ThisObject), counter_on_it.clone()),
+        watcher("Sprouting Sapling", enters(TriggerSubject::Object(Antecedent::ThisObject)), counter_on_it.clone()),
         0,
     );
     assert_eq!(pending(&game), 1);
@@ -961,7 +961,7 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
     let mut game = setup_two_player_game();
     let grower = put_on_battlefield(
         &mut game,
-        watcher("Sprouting Sapling", enters(TriggerSubject::ThisObject), counter_on_it),
+        watcher("Sprouting Sapling", enters(TriggerSubject::Object(Antecedent::ThisObject)), counter_on_it),
         0,
     );
     game.change_zone(grower, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
@@ -979,9 +979,9 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
 // COVERS: ATOM-603.6c-002
 #[test]
 fn a_dies_trigger_checks_only_the_first_zone_the_card_went_to() {
-    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::Triggering(EventRole::Object));
+    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object)));
     let mut game = setup_two_player_game();
-    let restless = put_on_battlefield(&mut game, watcher("Restless Shade", dies(TriggerSubject::ThisObject), exile_it.clone()), 0);
+    let restless = put_on_battlefield(&mut game, watcher("Restless Shade", dies(TriggerSubject::Object(Antecedent::ThisObject)), exile_it.clone()), 0);
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
     destroy_all(&mut game, &[restless], source);
     assert_eq!(pending(&game), 1);
@@ -1031,14 +1031,14 @@ fn a_permanent_animated_as_it_enters_is_a_creature_to_an_etb_trigger() {
 fn humility_strips_an_etb_before_it_can_trigger() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, humility(), 1);
-    put_on_battlefield(&mut game, watcher("Arriving Scholar", enters(TriggerSubject::ThisObject), draw_one()), 0);
+    put_on_battlefield(&mut game, watcher("Arriving Scholar", enters(TriggerSubject::Object(Antecedent::ThisObject)), draw_one()), 0);
     assert_eq!(pending(&game), 0);
 
     // Together, in one window: Humility has no ETB of its own, and the
     // creature's is gone by the time the window closes.
     let mut game = setup_two_player_game();
     let hum = put_in_hand(&mut game, humility(), 1);
-    let scholar = put_in_hand(&mut game, watcher("Arriving Scholar", enters(TriggerSubject::ThisObject), draw_one()), 0);
+    let scholar = put_in_hand(&mut game, watcher("Arriving Scholar", enters(TriggerSubject::Object(Antecedent::ThisObject)), draw_one()), 0);
     let entry = |_game: &GameState, object: ObjectId, controller: PlayerId| GameAction::EnterBattlefield {
         object,
         from: Some(Zone::Hand),
@@ -1113,7 +1113,7 @@ fn a_trigger_on_a_trigger_is_placed_in_the_second_tier() {
     );
     let scholar = put_on_battlefield(
         &mut game,
-        watcher("Arriving Scholar", enters(TriggerSubject::ThisObject), draw_one()),
+        watcher("Arriving Scholar", enters(TriggerSubject::Object(Antecedent::ThisObject)), draw_one()),
         0,
     );
 
@@ -1135,7 +1135,7 @@ fn a_trigger_with_no_legal_target_is_removed_and_never_reaches_the_stack() {
         &mut game,
         watcher(
             "Shattering Herald",
-            enters(TriggerSubject::ThisObject),
+            enters(TriggerSubject::Object(Antecedent::ThisObject)),
             Effect::Atom(
                 Primitive::Destroy,
                 EffectRecipient::Target(
@@ -1330,7 +1330,7 @@ fn a_bound_object_is_still_affected_after_it_changes_characteristics() {
                 enters(a_creature()),
                 Effect::Atom(
                     Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-                    EffectRecipient::Triggering(EventRole::Object),
+                    EffectRecipient::Object(Antecedent::Triggering(EventRole::Object)),
                 ),
             )),
         ),
@@ -1572,7 +1572,7 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
             "Discard Diary",
             triggered_ability("", whenever(
                 TriggerEvent::ZoneChange {
-                    subject: TriggerSubject::Any,
+                    subject: TriggerSubject::Filter(ObjectFilter::All),
                     change: ZoneChangePattern { from: Some(Zone::Hand), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Discarded) },
                     by: None,
                     owner: Some(PlayerRef::You),
@@ -1657,7 +1657,7 @@ fn under_eon_hub_an_untap_trigger_goes_on_the_stack_at_the_draw_step() {
     put_on_battlefield(&mut game, eon_hub(), 0);
     let watch = put_on_battlefield(
         &mut game,
-        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: TriggerSubject::ThisObject }, gain_one()),
+        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: TriggerSubject::Object(Antecedent::ThisObject) }, gain_one()),
         1,
     );
     game.battlefield.get_mut(&watch).unwrap().tapped = true;
@@ -1679,7 +1679,7 @@ fn guile_shaped() -> Arc<CardData> {
     watcher(
         "Incarnate Echo",
         TriggerEvent::ZoneChange {
-            subject: TriggerSubject::ThisObject,
+            subject: TriggerSubject::Object(Antecedent::ThisObject),
             change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
             by: None,
             owner: None,
@@ -1776,7 +1776,7 @@ fn dread_shaped() -> Arc<CardData> {
         )))
         .ability(triggered_ability("", whenever(
             TriggerEvent::ZoneChange {
-                subject: TriggerSubject::ThisObject,
+                subject: TriggerSubject::Object(Antecedent::ThisObject),
                 change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                 by: None,
                 owner: None,
@@ -1840,7 +1840,7 @@ fn one_ability_two_zones() -> Arc<CardData> {
         triggered_ability("", TriggerDef {
             condition: TriggerCondition::AnyOf(vec![
                 TriggerEvent::ZoneChange {
-                    subject: TriggerSubject::ThisObject,
+                    subject: TriggerSubject::Object(Antecedent::ThisObject),
                     change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     by: None,
                     owner: None,
@@ -2073,7 +2073,7 @@ fn kicked_herald() -> Arc<CardData> {
         .power_toughness(2, 2)
         .additional_cost(kicker_red())
         .ability(triggered_ability("", TriggerDef {
-            condition: TriggerCondition::Event(enters(TriggerSubject::ThisObject).into()),
+            condition: TriggerCondition::Event(enters(TriggerSubject::Object(Antecedent::ThisObject)).into()),
             intervening_if: Some(Condition::SpellWasKicked),
             limit: None,
             effect: gain_one(),

@@ -1087,7 +1087,9 @@ route by which item 342's twenty arrived.
 
 #### `Antecedent`
 - `ThisObject` — **owns** "this object", the ability's source (CR 113.7).
+- `ThisObjectsHost` — **owns** "enchanted creature", "equipped creature": what the source is attached to (CR 303.4m, 301.5a).
 - `Triggering` — **owns** "that creature", a trigger's participant (CR 608.2c).
+- `Referred` — **owns** "that card" on a delayed trigger, an object it refers to (CR 603.7c).
 
 #### `ChoiceScope`
 - `ChoosersPermanents` — **owns** "a permanent of their choice", the chooser's own.
@@ -1099,7 +1101,7 @@ route by which item 342's twenty arrived.
 - `ModeChosen` — **not a word**: a fact about the modes chosen (CR 700.2).
 - `All` — **not a word**: a conjunction of conditions.
 - `Not` — **not a word**: a negation.
-- `HostMatches` — **folds** into `ObjectMatches(Antecedent, ObjectFilter)` (item 340).
+- `ObjectMatches` — **holds** an `Antecedent` and the filter asked of the object it names.
 - `SourceUntapped` — **kept** "this object is untapped": the feeds table reads it as entry state (`Condition::reads_entry_state`), which a general leaf would hide.
 - `SourceTapped` — **kept** "this object is tapped", for the same reason.
 - `CounterCount` — **holds** an `Antecedent`.
@@ -1150,20 +1152,18 @@ route by which item 342's twenty arrived.
 
 #### `EffectRecipient`
 - `Implicit` — **not a word**: an instruction that names nothing.
-- `ThisObject` — **folds** into `Object(Antecedent::ThisObject)` (item 340).
+- `Object` — **holds** an `Antecedent`: this object, its host, a trigger's participant, a delayed trigger's object.
 - `Controller` — **folds** into `Player(PlayerRef::You)` (item 341).
 - `Target` — **owns** "target [something]" (CR 115.1), holding a `SelectionFilter`.
 - `Choose` — **owns** "choose [something]" (CR 608.2d), holding a `SelectionFilter`.
 - `SameInstanceAs` — **owns** "that target", an instance announced earlier (CR 115.3); a recipient refuses `Antecedent::TargetOfInstance`, its value-reading twin.
-- `Triggering` — **folds** into `Object(Antecedent::Triggering)` (item 340).
 - `TriggeringPlayer` — **folds** into `Player(PlayerRef::TheEventsPlayer)` (item 341).
-- `Referred` — **folds** into `Object(Antecedent::Referred)` and `Player(PlayerRef::ReferredPlayer)` (items 340, 341).
+- `Referred` — **folds** into `Player(PlayerRef::ReferredPlayer)`, its objects being `Object(Antecedent::Referred)` (item 341).
 - `AttackedBy` — **owns** "the player or planeswalker it's attacking" (CR 506.3), holding an `Antecedent`.
 - `DefendingPlayer` — **folds** into `Player(PlayerRef::DefendingPlayer)` (item 341).
 - `EachOf` — **holds** a `PlayerGroup`, whose relation is a `PlayerSet`: "each opponent" acts on every player in it.
 - `FilteredPermanents` — **folds** into a constructor of `FilteredObjectsIn` (item 344).
 - `FilteredObjectsIn` — **owns** "every object matching [a filter] in [zones]".
-- `Host` — **folds** into `Object(Antecedent::ThisObjectsHost)` (item 340).
 - `Group` — **not a word**: a union of recipients, acted on at once (CR 608.2f).
 - `ChosenBy` — **owns** "a [permanent] of their choice" as the effect applies (CR 608.2d), holding a `Choice`.
 
@@ -1271,11 +1271,8 @@ route by which item 342's twenty arrived.
 - `ReplacedAmount` — **kept** "that much", beside `AmountExpr::ReplacedAmount`, for the same reason.
 
 #### `TriggerSubject`
-- `ThisObject` — **folds** into `Object(Antecedent::ThisObject)` (item 340).
-- `Host` — **folds** into `Object(Antecedent::ThisObjectsHost)` (item 340).
-- `Filter` — **holds** an `ObjectFilter`.
-- `Any` — **folds** into `Filter(ObjectFilter::All)` (item 340).
-- `Referred` — **folds** into `Object(Antecedent::Referred)` (item 340).
+- `Object` — **holds** an `Antecedent`: this object, its host, a delayed trigger's object; the registry refuses `Antecedent::Triggering`, since an arm has no triggering event yet.
+- `Filter` — **holds** an `ObjectFilter`, `ObjectFilter::All` being any object.
 
 ### The fields
 

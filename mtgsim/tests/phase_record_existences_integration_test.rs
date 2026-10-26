@@ -13,7 +13,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp, vanilla_creature};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, Primitive};
+use mtgsim::types::effects::{Antecedent, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
@@ -24,7 +24,7 @@ fn exiles_what_loses_a_counter() -> Arc<CardData> {
     let arm = counters_removed_from(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)), CounterType::PlusOnePlusOne);
     CardDataBuilder::new("Fixture Shedding Ward")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", whenever(arm, Effect::Atom(Primitive::Exile, EffectRecipient::Triggering(EventRole::Object)))))
+        .ability(triggered_ability("", whenever(arm, Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))))))
         .build()
 }
 

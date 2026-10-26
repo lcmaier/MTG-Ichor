@@ -23,7 +23,7 @@ use mtgsim::test_support::{
     vanilla_creature,
     effect_ctx,
 };
-use mtgsim::types::effects::{Effect, EffectRecipient, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{Antecedent, Effect, EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaSpent, ManaType};
 use mtgsim::types::zones::Zone;
@@ -544,11 +544,11 @@ fn strip_then_grant_equipment() -> std::sync::Arc<mtgsim::objects::card_data::Ca
         .mana_cost(mtgsim::types::mana::ManaCost::build(&[], 1))
         .ability(mtgsim::test_support::static_ability(Effect::Atom(
             Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
-            EffectRecipient::Host,
+            EffectRecipient::Object(Antecedent::ThisObjectsHost),
         )))
         .ability(mtgsim::test_support::static_ability(Effect::Atom(
             Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
-            EffectRecipient::Host,
+            EffectRecipient::Object(Antecedent::ThisObjectsHost),
         )))
         .build()
 }

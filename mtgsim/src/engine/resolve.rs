@@ -50,7 +50,7 @@ pub struct ResolutionContext {
     /// ability is resolving, and which existence of it (CR 400.7); `None` for
     /// a spell (whose source is `source`) and for a CR 615.5 rider. "This
     /// permanent" in an ability's text reads this: `Primitive::Attach` attaches
-    /// it and `EffectRecipient::ThisObject` finds it.
+    /// it and `EffectRecipient::Object(Antecedent::ThisObject)` finds it.
     pub ability_source: Option<ObjectRef>,
     /// The player who controls the spell/ability
     pub controller: PlayerId,
@@ -72,7 +72,7 @@ pub struct ResolutionContext {
     /// question has no answer rather than a default one.
     pub replaced_event: Option<ReplacedEvent>,
     /// A triggered ability's bound facts, for the resolution of one and for
-    /// nothing else (`triggers-architecture.md` §6.3): `Triggering`,
+    /// nothing else (`triggers-architecture.md` §6.3): `Antecedent::Triggering`,
     /// `TriggeringPlayer` and `TriggeringAmount` read it, and refuse outside
     /// a trigger rather than reading a default.
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
@@ -291,7 +291,7 @@ impl GameState {
             // slice it already reads — empty when CR 603.6 finds nothing.
             Effect::Atom(
                 primitive,
-                recipient @ (EffectRecipient::Triggering(_)
+                recipient @ (EffectRecipient::Object(Antecedent::Triggering(_) | Antecedent::Referred)
                 | EffectRecipient::TriggeringPlayer
                 | EffectRecipient::Referred),
             ) => {
@@ -348,7 +348,7 @@ impl GameState {
             }
             // "This creature": no instance of "target" either (CR 113.7a), and
             // empty when the source is no longer the object the ability is of.
-            Effect::Atom(primitive, recipient @ EffectRecipient::ThisObject) => {
+            Effect::Atom(primitive, recipient @ EffectRecipient::Object(Antecedent::ThisObject)) => {
                 let this: Vec<ObjectOrPlayerId> =
                     self.this_object(ctx).map(ObjectOrPlayerId::Object).into_iter().collect();
                 self.resolve_primitive(primitive, recipient, &this, ctx, dp, walk)
@@ -591,18 +591,19 @@ impl GameState {
                     // Refused at the atom until its card: once the Aura has
                     // left, "enchanted creature" is what it last enchanted
                     // (CR 608.2h), which the live attachment no longer says.
-                    EffectRecipient::Host => {
-                        return Err(format!("a `Host` recipient on a `Primitive::DealDamage` on {:?} is not built", ctx.source));
+                    EffectRecipient::Object(Antecedent::ThisObjectsHost) => {
+                        return Err(format!("a host recipient on a `Primitive::DealDamage` on {:?} is not built", ctx.source));
                     }
                     EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
                     // Each of these was found before the primitive, into
                     // `targets`.
-                    EffectRecipient::ThisObject
+                    EffectRecipient::Object(Antecedent::ThisObject)
                     | EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
-                    | EffectRecipient::Triggering(_)
+                    | EffectRecipient::Object(Antecedent::Triggering(_))
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred
+                    | EffectRecipient::Object(Antecedent::Referred)
                     | EffectRecipient::AttackedBy(_)
                     | EffectRecipient::DefendingPlayer(_)
                     | EffectRecipient::EachOf(_)
@@ -808,14 +809,14 @@ impl GameState {
             }
 
             // CR 701.13a — move to exile from wherever the object is: the resolved
-            // targets (CR 608.2b has re-checked them), or `ThisObject`'s slice —
+            // targets (CR 608.2b has re-checked them), or this object's slice —
             // "exile this creature" on a rider (Exquisite Archangel) and "Exile
             // Stunning Reversal" as a spell's last instruction, which CR 608.2m lets
             // finish resolving from exile. One batch, for `Destroy`'s reason (CR 608.2f).
             Primitive::Exile => {
                 if let EffectRecipient::Implicit = recipient {
                     return Err(format!(
-                        "a `Primitive::Exile` on {:?} names nothing to exile; use `ThisObject` or a target",
+                        "a `Primitive::Exile` on {:?} names nothing to exile; use `Object(Antecedent::ThisObject)` or a target",
                         ctx.source
                     ));
                 }
@@ -1335,10 +1336,11 @@ impl GameState {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::Group(_)
-                    | EffectRecipient::ThisObject
-                    | EffectRecipient::Triggering(_)
+                    | EffectRecipient::Object(Antecedent::ThisObject)
+                    | EffectRecipient::Object(Antecedent::Triggering(_))
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred
+                    | EffectRecipient::Object(Antecedent::Referred)
                     | EffectRecipient::AttackedBy(_)
                     | EffectRecipient::DefendingPlayer(_) => {
                         debug_assert!(
@@ -1415,9 +1417,9 @@ impl GameState {
                         }
                         vec![(*def).clone()]
                     }
-                    EffectRecipient::Host => {
+                    EffectRecipient::Object(Antecedent::ThisObjectsHost) => {
                         return Err(format!(
-                            "a `Primitive::CreateReplacement` on {:?} has a `Host` recipient, \
+                            "a `Primitive::CreateReplacement` on {:?} has a host recipient, \
                              which only a static ability's continuous effect can have.",
                             ctx.source
                         ))
@@ -1646,7 +1648,7 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 701.24a — the recipient says whose library. `ThisObject` is the
+            // CR 701.24a — the recipient says whose library. This object's is the
             // source's owner's, "shuffle it into its owner's library" on a rider that
             // already moved it (Darksteel Colossus), read wherever the card went (CR
             // 108.3); a commander sent to the command zone instead still shuffles it
@@ -1654,19 +1656,20 @@ impl GameState {
             Primitive::ShuffleLibrary => {
                 let players: Vec<PlayerId> = match recipient {
                     EffectRecipient::Controller => vec![ctx.controller],
-                    EffectRecipient::ThisObject => vec![self.source_owner_of(ctx)?],
+                    EffectRecipient::Object(Antecedent::ThisObject) => vec![self.source_owner_of(ctx)?],
                     EffectRecipient::Implicit => {
                         return Err(format!(
-                            "a `Primitive::ShuffleLibrary` on {:?} names no library; use `Controller` or `ThisObject`",
+                            "a `Primitive::ShuffleLibrary` on {:?} names no library; use `Controller` or `Object(Antecedent::ThisObject)`",
                             ctx.source
                         ));
                     }
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::Group(_)
-                    | EffectRecipient::Triggering(_)
+                    | EffectRecipient::Object(Antecedent::Triggering(_))
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred
+                    | EffectRecipient::Object(Antecedent::Referred)
                     | EffectRecipient::AttackedBy(_)
                     | EffectRecipient::DefendingPlayer(_) => targets
                         .iter()
@@ -1685,7 +1688,7 @@ impl GameState {
                     }
                     EffectRecipient::FilteredPermanents(_)
                     | EffectRecipient::FilteredObjectsIn(..)
-                    | EffectRecipient::Host => {
+                    | EffectRecipient::Object(Antecedent::ThisObjectsHost) => {
                         return Err(format!(
                             "a `Primitive::ShuffleLibrary` on {:?} has a filter recipient, \
                              and a library is a player's, not an object's",
@@ -2458,10 +2461,10 @@ impl GameState {
     /// in the announcement, which a group does not give it yet.
     fn resolve_group_member(&self, member: &EffectRecipient, ctx: &ResolutionContext) -> Result<Vec<ObjectOrPlayerId>, String> {
         Ok(match member {
-            EffectRecipient::ThisObject => self.this_object(ctx).map(ObjectOrPlayerId::Object).into_iter().collect(),
-            EffectRecipient::Triggering(_) | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => {
-                self.bound_targets(member, ctx)?
-            }
+            EffectRecipient::Object(Antecedent::ThisObject) => self.this_object(ctx).map(ObjectOrPlayerId::Object).into_iter().collect(),
+            EffectRecipient::Object(Antecedent::Triggering(_) | Antecedent::Referred)
+            | EffectRecipient::TriggeringPlayer
+            | EffectRecipient::Referred => self.bound_targets(member, ctx)?,
             EffectRecipient::FilteredPermanents(_) => {
                 self.affected_permanents(member, &[], ctx).into_iter().map(ObjectOrPlayerId::Object).collect()
             }
@@ -2878,7 +2881,7 @@ impl GameState {
     /// left with (Fathom Fleet Swordjack's ruling).
     fn attacked_by(&self, creature: Antecedent, ctx: &ResolutionContext) -> Vec<ObjectOrPlayerId> {
         let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-        let attack = objects.object_for(creature, ctx.effect_source()).and_then(|it| it.attacking(self));
+        let attack = objects.object_for(self, creature, ctx.effect_source()).and_then(|it| it.attacking(self));
         match attack {
             Some(AttackTarget::Player(player)) => vec![ObjectOrPlayerId::Player(player)],
             Some(AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => vec![ObjectOrPlayerId::Object(id)],
@@ -2916,7 +2919,7 @@ impl GameState {
             },
             EntersAttacking::SameAs(creature) => {
                 let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-                objects.object_for(*creature, ctx.effect_source()).and_then(|it| it.attacking(self)).into_iter().collect()
+                objects.object_for(self, *creature, ctx.effect_source()).and_then(|it| it.attacking(self)).into_iter().collect()
             }
         };
         Ok(EntersAttackingCandidates { candidates })
@@ -2944,7 +2947,9 @@ impl GameState {
             EffectRecipient::Implicit | EffectRecipient::Controller => vec![ctx.controller],
             EffectRecipient::EachOf(group) => self.players_in(group, ctx),
             EffectRecipient::DefendingPlayer(creature) => self.defending_player_of(*creature, ctx).into_iter().collect(),
-            EffectRecipient::TriggeringPlayer | EffectRecipient::Triggering(_) | EffectRecipient::Referred => self
+            EffectRecipient::TriggeringPlayer
+            | EffectRecipient::Object(Antecedent::Triggering(_) | Antecedent::Referred)
+            | EffectRecipient::Referred => self
                 .bound_targets(recipient, ctx)?
                 .into_iter()
                 .filter_map(|target| match target {
@@ -2952,7 +2957,7 @@ impl GameState {
                     ObjectOrPlayerId::Object(_) => None,
                 })
                 .collect(),
-            EffectRecipient::ThisObject
+            EffectRecipient::Object(Antecedent::ThisObject)
             | EffectRecipient::Target(..)
             | EffectRecipient::Choose(..)
             | EffectRecipient::SameInstanceAs(_)
@@ -2960,7 +2965,7 @@ impl GameState {
             | EffectRecipient::AttackedBy(_)
             | EffectRecipient::FilteredPermanents(_)
             | EffectRecipient::FilteredObjectsIn(..)
-            | EffectRecipient::Host
+            | EffectRecipient::Object(Antecedent::ThisObjectsHost)
             | EffectRecipient::ChosenBy(_) => return Ok(None),
         }))
     }
@@ -2969,7 +2974,7 @@ impl GameState {
     /// reads it.
     fn defending_player_of(&self, creature: Antecedent, ctx: &ResolutionContext) -> Option<PlayerId> {
         let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-        objects.object_for(creature, ctx.effect_source())?.defending_player(self, &|_| {})
+        objects.object_for(self, creature, ctx.effect_source())?.defending_player(self, &|_| {})
     }
 
     /// CR 113.7a, 608.2h — the ability's source's last known information,
@@ -3121,6 +3126,7 @@ impl GameState {
             EffectRecipient::Target(SelectionFilter::Player, _)
             | EffectRecipient::TriggeringPlayer
             | EffectRecipient::Referred
+            | EffectRecipient::Object(Antecedent::Referred)
             | EffectRecipient::DefendingPlayer(_) => {
                 for t in targets {
                     if let ObjectOrPlayerId::Player(pid) = t {

@@ -51,7 +51,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
-    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    Antecedent, AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -350,7 +350,7 @@ fn colossus_among_three(game: &mut GameState, player: PlayerId) -> ObjectId {
 #[test]
 fn the_number_milled_counts_a_colossus_shuffled_back() {
     let mut game = setup_two_player_game();
-    let arm = from_library(TriggerSubject::Any, Some(ZoneChangeAct::Milled), Some(PlayerRef::Opponent), Multiplicity::OncePerEvent);
+    let arm = from_library(TriggerSubject::Filter(ObjectFilter::All), Some(ZoneChangeAct::Milled), Some(PlayerRef::Opponent), Multiplicity::OncePerEvent);
     let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Controller);
     let counter = CardDataBuilder::new("Fixture Mill Counter")
         .card_type(CardType::Enchantment)
@@ -386,7 +386,7 @@ fn a_creature_card_kept_in_the_library_was_still_milled() {
 #[test]
 fn an_arm_naming_no_act_ignores_a_card_kept_in_its_zone() {
     let mut game = setup_two_player_game();
-    let arm = from_library(TriggerSubject::Any, None, Some(PlayerRef::You), Multiplicity::PerOccurrence);
+    let arm = from_library(TriggerSubject::Filter(ObjectFilter::All), None, Some(PlayerRef::You), Multiplicity::PerOccurrence);
     let watching = put_on_battlefield(&mut game, watcher("Fixture Library Leaver Watcher", arm), 1);
     colossus_among_three(&mut game, 1);
 
@@ -419,7 +419,7 @@ fn totem(name: &str, effect: Effect) -> Arc<CardData> {
 fn then_return_it_later(instruction: Effect) -> Effect {
     let def = Arc::new(whenever(
         at_beginning_of(StepType::End, Whose::Each),
-        Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Referred),
+        Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Object(Antecedent::Referred)),
     ));
     let template = DelayedTriggerTemplate { def, duration: DelayedDuration::Once, turn: DelayedTurn::NoneNamed, rules_text: "".into() };
     Effect::Sequence(vec![
@@ -502,7 +502,7 @@ fn a_trigger_does_not_find_what_moved_into_a_hand() {
         owner: Some(PlayerRef::You),
         multiplicity: Multiplicity::PerOccurrence,
     };
-    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::Triggering(EventRole::Object));
+    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object)));
     let card = CardDataBuilder::new("Fixture Bounce Watcher")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(arm, exile_it)))
@@ -529,7 +529,7 @@ fn kharn_shaped() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Betrayer")
         .card_type(CardType::Creature)
         .power_toughness(5, 5)
-        .ability(triggered_ability("", whenever(you_lose_control_of(TriggerSubject::ThisObject), draw_two)))
+        .ability(triggered_ability("", whenever(you_lose_control_of(TriggerSubject::Object(Antecedent::ThisObject)), draw_two)))
         .build()
 }
 
@@ -725,7 +725,7 @@ fn a_watcher_stolen_with_another_permanent_triggers_for_each() {
 fn the_first_steal_on_a_board_reads_the_frame_from_before() {
     let mut game = stocked(2);
     let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
-    let mut granted = triggered_ability("", whenever(you_lose_control_of(TriggerSubject::ThisObject), draw));
+    let mut granted = triggered_ability("", whenever(you_lose_control_of(TriggerSubject::Object(Antecedent::ThisObject)), draw));
     granted.id = new_ability_id();
     let granter = put_on_battlefield(&mut game, card_of_type("Fixture Banner", CardType::Enchantment), 0);
     let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)));
@@ -801,7 +801,7 @@ fn a_trigger_on_any_change_the_creature_lacked_before_does_not_trigger() {
     let mut game = stocked(2);
     put_on_battlefield(&mut game, silencer(), 0);
     let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller);
-    let any_change = TriggerEvent::ControlChanges { subject: TriggerSubject::ThisObject, from: None, to: None };
+    let any_change = TriggerEvent::ControlChanges { subject: TriggerSubject::Object(Antecedent::ThisObject), from: None, to: None };
     let watcher = CardDataBuilder::new("Fixture Turncoat")
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
@@ -939,7 +939,7 @@ fn steal_aura(name: &str) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .ability(static_ability(Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield }, EffectRecipient::Host)))
+        .ability(static_ability(Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield }, EffectRecipient::Object(Antecedent::ThisObjectsHost))))
         .build()
 }
 
@@ -993,7 +993,7 @@ fn two_control_changes_in_one_resolution_are_two_events() {
 /// creature, draw two cards.'"
 fn gives_the_betrayers_trigger() -> Arc<CardData> {
     let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller);
-    let betrayal = triggered_ability("", whenever(you_lose_control_of(TriggerSubject::ThisObject), draw_two));
+    let betrayal = triggered_ability("", whenever(you_lose_control_of(TriggerSubject::Object(Antecedent::ThisObject)), draw_two));
     CardDataBuilder::new("Fixture Sigil of Betrayal")
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(

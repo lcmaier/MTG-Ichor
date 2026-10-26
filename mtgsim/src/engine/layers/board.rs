@@ -862,9 +862,9 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
             out.members |= Channels::CONTROLLER;
             player_fact_reads(fact, out, you_channel);
         }
-        // The host is read through the filter; *which* object is the host is
-        // `attached_to`, which no layer writes.
-        Condition::HostMatches(filter) => filter_reads(filter, out, you_channel),
+        // The object is read through the filter; *which* object it is is
+        // `attached_to`, the source, or a trigger's, none of which a layer writes.
+        Condition::ObjectMatches(_, filter) => filter_reads(filter, out, you_channel),
         // The source's tapped status, its counters and how it was
         // cast are off `GameState`, and the resolution's leaves never
         // evaluate in a walk at all.

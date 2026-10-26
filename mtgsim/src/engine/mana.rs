@@ -14,7 +14,7 @@ use crate::events::cause::GeneratedBy;
 use crate::objects::card_data::AbilityType;
 use crate::types::costs::Cost;
 use crate::oracle::characteristics::controller_or_owner;
-use crate::types::effects::{Effect, EffectRecipient, ManaOutput, Primitive};
+use crate::types::effects::{Antecedent, Effect, EffectRecipient, ManaOutput, Primitive};
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::triggers::Lki;
@@ -160,7 +160,7 @@ pub(crate) struct ManaProducer<'a> {
 }
 
 /// Whose pool a triggered mana ability's mana goes to: "its controller adds"
-/// on an Aura is the `Host` recipient, the enchanted permanent's controller
+/// on an Aura is the host as recipient, the enchanted permanent's controller
 /// (Wild Growth's ruling: the mana is not the land's ability), and anything
 /// else the ability's controller's.
 pub(crate) fn triggered_mana_recipient(
@@ -170,7 +170,7 @@ pub(crate) fn triggered_mana_recipient(
     controller: PlayerId,
 ) -> PlayerId {
     match recipient {
-        EffectRecipient::Host => crate::oracle::board::host_of(game, source)
+        EffectRecipient::Object(Antecedent::ThisObjectsHost) => crate::oracle::board::host_of(game, source)
             .and_then(|host| controller_or_owner(game, host))
             .unwrap_or(controller),
         _ => controller,

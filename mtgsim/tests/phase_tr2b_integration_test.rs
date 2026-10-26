@@ -30,7 +30,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Choice, ChoiceScope, ChoiceSide, Condition, CostAnswer, CounterType, Duration, Effect,
+    Antecedent, AmountExpr, Choice, ChoiceScope, ChoiceSide, Condition, CostAnswer, CounterType, Duration, Effect,
     EffectRecipient, ObjectFilter, Pick, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
@@ -247,7 +247,7 @@ fn a_may_whose_damage_is_prevented_still_answers_does() {
     );
     let guardian = watcher(
         "Grudging Guardian",
-        enters(TriggerSubject::ThisObject),
+        enters(TriggerSubject::Object(Antecedent::ThisObject)),
         Effect::Sequence(vec![you_may(hurt_me), if_you(CostAnswer::Does, draw_one())]),
     );
     put_on_battlefield(&mut game, guardian, 0);
@@ -317,7 +317,7 @@ fn a_sacrifice_whose_permanent_has_gone_answers_cant_and_draws_nothing() {
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(
             TriggerEvent::CastsSpell { caster: None, spell: None },
-            Effect::Sequence(vec![Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject), if_you(CostAnswer::Does, draw_three)]),
+            Effect::Sequence(vec![Effect::Atom(Primitive::Sacrifice, EffectRecipient::Object(Antecedent::ThisObject)), if_you(CostAnswer::Does, draw_three)]),
         )))
         .build();
     let stillness = put_on_battlefield(&mut game, standing, 0);
@@ -362,7 +362,7 @@ fn if_you_cant_reads_a_sacrifice_that_could_not_start() {
         ..ResolutionContext::untargeted(stolen, 0, mtgsim::events::cause::GeneratedBy::Spell)
     };
     let sacrifice_this = Effect::Sequence(vec![
-        Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject),
+        Effect::Atom(Primitive::Sacrifice, EffectRecipient::Object(Antecedent::ThisObject)),
         if_you(CostAnswer::Cant, lose_five),
     ]);
     game.resolve_effect(&sacrifice_this, &ctx, &test_dp()).unwrap();
@@ -374,7 +374,7 @@ fn if_you_cant_reads_a_sacrifice_that_could_not_start() {
 #[test]
 fn a_trigger_sacrifices_the_object_its_event_named() {
     let mut game = setup_two_player_game();
-    let sacrifice_it = Effect::Atom(Primitive::Sacrifice, EffectRecipient::Triggering(EventRole::Object));
+    let sacrifice_it = Effect::Atom(Primitive::Sacrifice, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object)));
     put_on_battlefield(
         &mut game,
         watcher("Ravenous Gate", enters(ObjectFilter::ByType(CardType::Creature)), sacrifice_it),
@@ -477,7 +477,7 @@ fn each_opponent_loses_its_power() -> Effect {
 /// opponent loses life equal to this creature's power."
 fn reckoner() -> Arc<CardData> {
     let def = TriggerDef {
-        condition: TriggerCondition::Event(enters(TriggerSubject::ThisObject).into()),
+        condition: TriggerCondition::Event(enters(TriggerSubject::Object(Antecedent::ThisObject)).into()),
         intervening_if: Some(Condition::Player {
             players: PlayerSet::You,
             fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(10)),
@@ -592,10 +592,10 @@ fn a_draw_trigger_reads_the_power_of_a_card_discarded_in_response() {
 fn an_ability_that_sacrifices_its_own_source_reads_the_power_it_left_with() {
     let mut game = setup_two_player_game();
     let effect = Effect::Sequence(vec![
-        Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject),
+        Effect::Atom(Primitive::Sacrifice, EffectRecipient::Object(Antecedent::ThisObject)),
         each_opponent_loses_its_power(),
     ]);
-    let martyr = creature_with_ability("Brief Martyr", 3, 3, triggered_ability("", whenever(enters(TriggerSubject::ThisObject), effect)));
+    let martyr = creature_with_ability("Brief Martyr", 3, 3, triggered_ability("", whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), effect)));
     let martyr = put_on_battlefield(&mut game, martyr, 0);
     place(&mut game, &test_dp());
     game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -617,7 +617,7 @@ fn two_sources_are_asked_their_order_only_when_the_def_reads_the_source() {
         let mut game = setup_two_player_game();
         let counter_on_this = Effect::Atom(
             Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-            EffectRecipient::ThisObject,
+            EffectRecipient::Object(Antecedent::ThisObject),
         );
         let effect = if reads_source { counter_on_this } else { gain_one() };
         let idol = CardDataBuilder::new("Growing Idol")

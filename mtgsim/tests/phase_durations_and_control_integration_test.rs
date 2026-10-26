@@ -21,7 +21,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PatternFill, PlayerRef, PlayerSet,
+    Antecedent, AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PatternFill, PlayerRef, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -49,7 +49,7 @@ fn on_entry(name: &str, text: &'static str, effect: Primitive) -> Arc<CardData> 
         .power_toughness(2, 2)
         .ability(triggered_ability(
             text,
-            whenever(enters(TriggerSubject::ThisObject), Effect::Atom(effect, an_opponents_creature())),
+            whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), Effect::Atom(effect, an_opponents_creature())),
         ))
         .build()
 }
@@ -222,10 +222,10 @@ fn trojan_horse() -> Arc<CardData> {
         .ability(triggered_ability(
             "When this creature enters, an opponent gains control of it.",
             whenever(
-                enters(TriggerSubject::ThisObject),
+                enters(TriggerSubject::Object(Antecedent::ThisObject)),
                 Effect::Atom(
                     Primitive::GainControl { to: PlayerRef::Opponent, duration: Duration::Indefinite },
-                    EffectRecipient::ThisObject,
+                    EffectRecipient::Object(Antecedent::ThisObject),
                 ),
             ),
         ))

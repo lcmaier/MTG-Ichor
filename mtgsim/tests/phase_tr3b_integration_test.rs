@@ -40,7 +40,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
+    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
     TargetCount, TokenDef,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId, UntilReturnId};
@@ -218,7 +218,7 @@ fn tempter() -> Arc<CardData> {
         .ability(triggered_ability(
             "When this creature enters, gain control of target creature an opponent controls for as long as this creature remains on the battlefield.",
             whenever(
-                enters(TriggerSubject::ThisObject),
+                enters(TriggerSubject::Object(Antecedent::ThisObject)),
                 Effect::Atom(
                     Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
                     EffectRecipient::Target(
@@ -242,7 +242,7 @@ fn regenerator() -> Arc<CardData> {
         .power_toughness(2, 2)
         .ability(tap_ability(
             "{T}: Regenerate this creature.",
-            Effect::Atom(Primitive::Regenerate, EffectRecipient::ThisObject),
+            Effect::Atom(Primitive::Regenerate, EffectRecipient::Object(Antecedent::ThisObject)),
         ))
         .build()
 }
@@ -340,7 +340,7 @@ fn a_delayed_trigger_watching_two_tokens_that_die_at_once_triggers_once() {
     put_on_battlefield(&mut game, parallel_lives(), 0);
     let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(5)), EffectRecipient::Controller);
     let when_it_dies = DelayedTriggerTemplate {
-        def: Arc::new(whenever(dies(TriggerSubject::Referred), gain)),
+        def: Arc::new(whenever(dies(TriggerSubject::Object(Antecedent::Referred)), gain)),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::NoneNamed,
         rules_text: "".into(),
@@ -715,10 +715,10 @@ fn banisher(under: ReturnUnder) -> Arc<CardData> {
         .ability(triggered_ability(
             "When this creature enters, exile target creature until this creature leaves the battlefield.",
             whenever(
-                enters(TriggerSubject::ThisObject),
+                enters(TriggerSubject::Object(Antecedent::ThisObject)),
                 Effect::Atom(
                     Primitive::ExileUntil {
-                        until: Box::new(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
+                        until: Box::new(leaves_the_battlefield(TriggerSubject::Object(Antecedent::ThisObject)).into()),
                         refers_to: None,
                         under,
                     },
@@ -748,7 +748,7 @@ fn calix_instant() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::ExileUntil {
-                    until: Box::new(leaves_the_battlefield(TriggerSubject::Referred).into()),
+                    until: Box::new(leaves_the_battlefield(TriggerSubject::Object(Antecedent::Referred)).into()),
                     refers_to: Some(EffectRecipient::Target(SelectionFilter::Permanent(yours), TargetCount::Exactly(1))),
                     under: ReturnUnder::Owner,
                 },
@@ -1114,7 +1114,7 @@ fn an_until_that_cannot_answer_610_3b_is_refused() {
         .ability(triggered_ability(
             "When this creature enters, exile target creature until you gain life.",
             whenever(
-                enters(TriggerSubject::ThisObject),
+                enters(TriggerSubject::Object(Antecedent::ThisObject)),
                 Effect::Atom(
                     Primitive::ExileUntil { until: Box::new(gains), refers_to: None, under: ReturnUnder::Owner },
                     EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
@@ -1152,7 +1152,7 @@ fn an_instant_or_sorcery_card_returned_to_the_battlefield_stays_in_the_graveyard
     let returns = Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None };
     let keeper = CardDataBuilder::new("Fixture Grave Keeper")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", whenever(discarded, Effect::Atom(returns, EffectRecipient::Triggering(EventRole::Object)))))
+        .ability(triggered_ability("", whenever(discarded, Effect::Atom(returns, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))))))
         .build();
     put_on_battlefield(&mut game, keeper, 0);
     let instant = put_in_hand(&mut game, card_of_type("Fixture Instant", CardType::Instant), 0);

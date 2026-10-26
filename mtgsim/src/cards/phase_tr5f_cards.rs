@@ -19,7 +19,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::history::ObjectFact;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Effect, EffectRecipient, EntersAttacking, ExtraPhasesAfter, ObjectFilter, Primitive, TokenDef,
+    Antecedent, AmountExpr, Effect, EffectRecipient, EntersAttacking, ExtraPhasesAfter, ObjectFilter, Primitive, TokenDef,
 };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
@@ -80,7 +80,7 @@ pub fn hanweir_garrison() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Soldier))
         .power_toughness(2, 3)
         .rules_text(text)
-        .ability(triggered_ability(text, whenever(attacks(TriggerSubject::ThisObject), two_humans)))
+        .ability(triggered_ability(text, whenever(attacks(TriggerSubject::Object(Antecedent::ThisObject)), two_humans)))
         .build()
 }
 

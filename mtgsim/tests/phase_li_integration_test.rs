@@ -23,7 +23,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
+    Antecedent, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
@@ -38,7 +38,7 @@ fn pt(game: &GameState, id: ObjectId) -> (Option<i32>, Option<i32>) {
 fn equipped_creature_has_flying() -> mtgsim::objects::card_data::AbilityDef {
     static_ability(Effect::Atom(
         Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
-        EffectRecipient::Host,
+        EffectRecipient::Object(Antecedent::ThisObjectsHost),
     ))
 }
 

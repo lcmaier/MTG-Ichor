@@ -20,7 +20,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
@@ -81,7 +81,7 @@ pub fn guerrilla_tactics() -> Arc<CardData> {
     let spell = "Guerrilla Tactics deals 2 damage to any target.";
     let trigger = "When a spell or ability an opponent controls causes you to discard this card, it deals 4 damage to any target.";
     let discarded = TriggerEvent::ZoneChange {
-        subject: TriggerSubject::ThisObject,
+        subject: TriggerSubject::Object(Antecedent::ThisObject),
         change: ZoneChangePattern { from: Some(Zone::Hand), to: None, act: Some(ZoneChangeAct::Discarded) },
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
         owner: None,
@@ -116,7 +116,7 @@ fn enchanted_creature(rules_text: &'static str, primitives: Vec<Primitive>) -> A
         instances: Vec::new(),
         ability_type: AbilityType::Static,
         costs: Vec::new(),
-        effect: Effect::Sequence(primitives.into_iter().map(|p| Effect::Atom(p, EffectRecipient::Host)).collect()),
+        effect: Effect::Sequence(primitives.into_iter().map(|p| Effect::Atom(p, EffectRecipient::Object(Antecedent::ThisObjectsHost))).collect()),
     }
 }
 
@@ -176,7 +176,7 @@ pub fn angelic_destiny() -> Arc<CardData> {
         ))
         .ability(triggered_ability(
             returns,
-            whenever(dies(TriggerSubject::Host), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::ThisObject)),
+            whenever(dies(TriggerSubject::Object(Antecedent::ThisObjectsHost)), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Object(Antecedent::ThisObject))),
         ))
         .build()
 }
@@ -219,7 +219,7 @@ pub fn rancor() -> Arc<CardData> {
         ))
         .ability(triggered_ability(
             returns,
-            whenever(dies(TriggerSubject::ThisObject), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(EventRole::Object))),
+            whenever(dies(TriggerSubject::Object(Antecedent::ThisObject)), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object)))),
         ))
         .build()
 }
@@ -294,7 +294,7 @@ pub fn bridge_from_below() -> Arc<CardData> {
                 exile,
                 whenever(
                     put_into_a_graveyard_from_the_battlefield(ObjectFilter::ByType(CardType::Creature), PlayerRef::Opponent),
-                    Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
+                    Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::ThisObject)),
                 ),
             ),
         ))

@@ -36,7 +36,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerGroup, PlayerRef, PlayerSet, Primitive,
+    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerGroup, PlayerRef, PlayerSet, Primitive,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -221,7 +221,7 @@ fn tempest_fixture(words: &'static str, damage: Effect) -> Arc<CardData> {
         .power_toughness(4, 4)
         .ability(triggered_ability(
             "When this creature enters, at the beginning of your next end step, this creature deals 2 damage to each opponent.",
-            whenever(enters(TriggerSubject::ThisObject), create),
+            whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), create),
         ))
         .build()
 }
@@ -390,7 +390,7 @@ fn shield_around(game: &mut GameState, player: PlayerId, mut def: ReplacementDef
 /// `n` damage to `whom`."
 fn perilous(n: u64, whom: EffectRecipient) -> Arc<CardData> {
     let damage = Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(n), unpreventable: false }, whom);
-    creature_with_ability("Perilous Fixture", 1, 1, triggered_ability("", whenever(when_it_dies(TriggerSubject::ThisObject), damage)))
+    creature_with_ability("Perilous Fixture", 1, 1, triggered_ability("", whenever(when_it_dies(TriggerSubject::Object(Antecedent::ThisObject)), damage)))
 }
 
 /// Its dies trigger, put on the stack and resolved.

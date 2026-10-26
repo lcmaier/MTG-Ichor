@@ -101,7 +101,7 @@ fn watcher(shape: Shape, change: ZoneChangePattern) -> Arc<CardData> {
             "",
             whenever(
                 TriggerEvent::ZoneChange {
-                    subject: TriggerSubject::Any,
+                    subject: TriggerSubject::Filter(ObjectFilter::All),
                     change,
                     by: Some(by),
                     owner: Some(PlayerRef::You),

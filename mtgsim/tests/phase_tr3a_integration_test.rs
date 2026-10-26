@@ -35,7 +35,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerGroup,
+    Antecedent, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerGroup,
     PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -242,7 +242,7 @@ fn a_named_grant_asks_only_its_object_and_only_for_its_kinds() {
     let land = put_on_battlefield(&mut game, forest(), 0);
     let mut granted = triggered_ability(
         "Whenever this creature becomes tapped, you gain 1 life.",
-        whenever(TriggerEvent::BecomesTapped { subject: TriggerSubject::ThisObject }, gain_one()),
+        whenever(TriggerEvent::BecomesTapped { subject: TriggerSubject::Object(Antecedent::ThisObject) }, gain_one()),
     );
     granted.id = new_ability_id();
     game.continuous_effects.add(ContinuousEffect {
@@ -332,12 +332,12 @@ fn watchful_sentinel() -> Arc<CardData> {
             activated(
                 true,
                 create(template(
-                    TriggerEvent::BecomesUntapped { subject: TriggerSubject::ThisObject },
+                    TriggerEvent::BecomesUntapped { subject: TriggerSubject::Object(Antecedent::ThisObject) },
                     gain(2),
                     DelayedDuration::Once,
                 )),
             ),
-            activated(false, create(template(leaves_the_battlefield(TriggerSubject::ThisObject), gain(3), DelayedDuration::Once))),
+            activated(false, create(template(leaves_the_battlefield(TriggerSubject::Object(Antecedent::ThisObject)), gain(3), DelayedDuration::Once))),
         ],
     )
 }
@@ -614,8 +614,8 @@ fn doomed_construct() -> Arc<CardData> {
     creature(
         "Doomed Construct",
         vec![
-            activated(false, at_the_next_end_step(Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject))),
-            activated(false, at_the_next_end_step(Effect::Atom(Primitive::Destroy, EffectRecipient::ThisObject))),
+            activated(false, at_the_next_end_step(Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::ThisObject)))),
+            activated(false, at_the_next_end_step(Effect::Atom(Primitive::Destroy, EffectRecipient::Object(Antecedent::ThisObject)))),
         ],
     )
 }
@@ -699,7 +699,7 @@ fn mirror_warden_ability() -> AbilityDef {
         false,
         at_the_next_end_step(Effect::Atom(
             Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-            EffectRecipient::ThisObject,
+            EffectRecipient::Object(Antecedent::ThisObject),
         )),
     )
 }
@@ -716,7 +716,7 @@ fn an_abilitys_delayed_trigger_has_that_abilitys_source() {
     let warden = put_on_battlefield(&mut game, creature("Mirror Warden", vec![mirror_warden_ability()]), 0);
     let warden_then = game.object_ref(warden).unwrap();
     activate_and_resolve(&mut game, 0, warden, 0);
-    let etb = triggered_ability("", whenever(enters(TriggerSubject::ThisObject), at_the_next_end_step(gain_one())));
+    let etb = triggered_ability("", whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), at_the_next_end_step(gain_one())));
     let token = create_token(&mut game, 0, token(1, vec![etb]));
     place_and_resolve(&mut game);
     assert_eq!(game.delayed_triggers.len(), 2);
@@ -837,7 +837,7 @@ fn a_special_actions_delayed_trigger_is_its_static_abilitys_objects() {
 fn overcharged_golem() -> Arc<CardData> {
     let sacrifice = create(template(
         TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility },
-        Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject),
+        Effect::Atom(Primitive::Sacrifice, EffectRecipient::Object(Antecedent::ThisObject)),
         DelayedDuration::Once,
     ));
     let mut ability = activated(
@@ -845,7 +845,7 @@ fn overcharged_golem() -> Arc<CardData> {
         Effect::Sequence(vec![
             Effect::Atom(
                 Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ),
             Effect::Conditional(Condition::ResolvedThisTurn(3), Box::new(sacrifice)),
         ]),
@@ -915,7 +915,7 @@ fn a_permanent_entering_during_the_end_step_waits_for_the_next() {
     advance_to(&mut game, 0, StepType::End);
     let sacrifice_itself = triggered_ability(
         "",
-        whenever(at_beginning_of(StepType::End, Whose::Each), Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject)),
+        whenever(at_beginning_of(StepType::End, Whose::Each), Effect::Atom(Primitive::Sacrifice, EffectRecipient::Object(Antecedent::ThisObject))),
     );
     let ephemeral = create_token(&mut game, 0, token(1, vec![sacrifice_itself]));
     assert!(game.pending_triggers.is_empty(), "the end step has begun");

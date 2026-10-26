@@ -18,7 +18,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
+    Antecedent, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
     Primitive, };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
@@ -134,7 +134,7 @@ pub fn psychosis_crawler() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::SetPowerToughness(cards_in_your_hand(), cards_in_your_hand(), Duration::WhileSourceOnBattlefield),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ),
             is_characteristic_defining: true,
             activation_restriction: ActivationRestriction::None,
@@ -178,7 +178,7 @@ pub fn cosis_trickster() -> Arc<CardData> {
         .rules_text("Whenever an opponent shuffles their library, you may put a +1/+1 counter on this creature.")
         .ability(triggered_ability("Whenever an opponent shuffles their library, you may put a +1/+1 counter on this creature.", whenever(
             shuffles_their_library(Whose::AnOpponents),
-            you_may_put_counters(AmountExpr::Fixed(1), EffectRecipient::ThisObject),
+            you_may_put_counters(AmountExpr::Fixed(1), EffectRecipient::Object(Antecedent::ThisObject)),
         )))
         .build()
 }

@@ -22,7 +22,7 @@ use crate::events::event::{CreatedAt, EventRecord, EventId, GameEvent, LifeChang
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
-use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, TokenDef};
+use crate::types::effects::{Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, TokenDef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::history::TurnFact;
 use crate::types::mana::ManaType;
@@ -234,18 +234,18 @@ pub enum ObjectOrPlayerSubject {
 /// "Which object" an arm is about, read against the ability's own source.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TriggerSubject {
-    /// CR 603.6a's "[this object]": the record's subject is the source itself.
-    ThisObject,
-    /// "Enchanted land", "equipped creature": the source's host (CR 303.4m).
-    Host,
-    /// "A creature", "another creature you control". "Another" is
-    /// `And(filter, NotSource)`; `NotSource` excludes the ability's own source.
+    /// The one object a word names: CR 603.6a's "[this object]", the source
+    /// itself; "enchanted land", "equipped creature", the source's host (CR
+    /// 303.4m); or CR 603.7c's "when that token dies", an object a delayed
+    /// triggered ability refers to ([`Referred`]), each existence's own
+    /// departure and no later object's (CR 400.7). An arm has no triggering
+    /// event yet, so `Antecedent::Triggering` names nothing here, and the
+    /// registry refuses it (`TriggerDef::readings_its_arms_cannot_give`).
+    Object(Antecedent),
+    /// "A creature", "another creature you control"; `ObjectFilter::All` is
+    /// any object. "Another" is `And(filter, NotSource)`; `NotSource`
+    /// excludes the ability's own source.
     Filter(ObjectFilter),
-    Any,
-    /// CR 603.7c — "when that token dies": an object a delayed triggered
-    /// ability refers to ([`Referred`]), each existence's own departure and no
-    /// later object's (CR 400.7).
-    Referred,
 }
 
 impl TriggerSubject {
@@ -253,8 +253,8 @@ impl TriggerSubject {
     /// or the object a delayed trigger refers to.
     pub fn names_one_object(&self) -> bool {
         match self {
-            TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Referred => true,
-            TriggerSubject::Filter(_) | TriggerSubject::Any => false,
+            TriggerSubject::Object(_) => true,
+            TriggerSubject::Filter(_) => false,
         }
     }
 }
@@ -722,7 +722,7 @@ impl std::ops::BitOrAssign for EventKindMask {
 
 impl TriggerDef {
     /// Whether every condition is this object itself changing zones
-    /// (`TriggerSubject::ThisObject`): Guerrilla Tactics' discard, Guile's "put
+    /// (`TriggerSubject::Object(Antecedent::ThisObject)`): Guerrilla Tactics' discard, Guile's "put
     /// into a graveyard from anywhere". Only the move itself can trigger such
     /// an ability. Read after the move, it is asked where the move left the
     /// object, by the one window that made it a newcomer there; read looking
@@ -730,7 +730,7 @@ impl TriggerDef {
     /// on `newcomer_trigger_sources` rather than the zone map every window asks.
     pub fn triggers_only_on_this_object_moving(&self) -> bool {
         let arms = self.condition.events();
-        !arms.is_empty() && arms.iter().all(|arm| matches!(arm, TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, .. }))
+        !arms.is_empty() && arms.iter().all(|arm| matches!(arm, TriggerEvent::ZoneChange { subject: TriggerSubject::Object(Antecedent::ThisObject), .. }))
     }
 }
 
@@ -1034,7 +1034,7 @@ impl TriggerEvent {
     /// it is attached to leaving the battlefield, the one CR 400.7f lets find
     /// the Aura's new object in a graveyard.
     pub fn watches_its_host_leave(&self) -> bool {
-        matches!(self, TriggerEvent::ZoneChange { subject: TriggerSubject::Host, change, .. } if change.from == Some(Zone::Battlefield))
+        matches!(self, TriggerEvent::ZoneChange { subject: TriggerSubject::Object(Antecedent::ThisObjectsHost), change, .. } if change.from == Some(Zone::Battlefield))
     }
 
     /// The act a zone-change arm names: "whenever you sacrifice". CR 701
@@ -1264,12 +1264,25 @@ impl TriggerEvent {
     /// 603.7c): "when that token dies". The creating resolution remembers
     /// the objects for this field alone.
     pub fn watches_referred(&self) -> bool {
-        self.subject() == Some(&TriggerSubject::Referred)
+        self.subject() == Some(&TriggerSubject::Object(Antecedent::Referred))
     }
 
     /// Whether any field of the arm, its subject or another, names an
     /// object a delayed trigger refers to; a `caused_by` arm's too.
     pub fn names_referred_object(&self) -> bool {
+        self.names_in_a_subject(Antecedent::Referred)
+    }
+
+    /// Whether any field of the arm names an object of a triggering event,
+    /// which an arm cannot have, since it is what decides that event; a
+    /// `caused_by` arm's too. The registry refuses one.
+    pub fn names_a_triggering_object(&self) -> bool {
+        crate::types::triggers::EventRole::ALL.iter().any(|&role| self.names_in_a_subject(Antecedent::Triggering(role)))
+    }
+
+    /// Whether a field holding a subject names `word`, a `caused_by` arm's
+    /// too.
+    fn names_in_a_subject(&self, word: Antecedent) -> bool {
         let fields: [Option<&TriggerSubject>; 2] = match self {
             TriggerEvent::ZoneChange { subject, .. }
             | TriggerEvent::BecomesTapped { subject }
@@ -1286,7 +1299,9 @@ impl TriggerEvent {
             TriggerEvent::Blocks { blocker: one, attacker: other, .. }
             | TriggerEvent::BecomesAttached { attachment: one, host: other }
             | TriggerEvent::BecomesUnattached { attachment: one, former_host: other } => [Some(one), Some(other)],
-            TriggerEvent::AbilityTriggers { caused_by, .. } => return caused_by.as_deref().is_some_and(TriggerEvent::names_referred_object),
+            TriggerEvent::AbilityTriggers { caused_by, .. } => {
+                return caused_by.as_deref().is_some_and(|caused_by| caused_by.names_in_a_subject(word));
+            }
             TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Player(_), .. }
             | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Player(_), .. }
             | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Player(_), .. }
@@ -1305,7 +1320,7 @@ impl TriggerEvent {
             | TriggerEvent::CreatesToken { .. }
             | TriggerEvent::Scries { .. } => [None, None],
         };
-        fields.into_iter().flatten().any(|subject| *subject == TriggerSubject::Referred)
+        fields.into_iter().flatten().any(|subject| *subject == TriggerSubject::Object(word))
     }
 
     /// How the arm counts its occurrences (CR 603.2c): its multiplicity
@@ -1417,8 +1432,8 @@ impl TriggerEvent {
     fn other_combatant(&self) -> Option<EventRole> {
         match self {
             TriggerEvent::Blocks { occurrence: BlockOccurrence::Unblocked, .. } => None,
-            TriggerEvent::Blocks { blocker: TriggerSubject::ThisObject, .. } => Some(EventRole::Attacker),
-            TriggerEvent::Blocks { attacker: TriggerSubject::ThisObject, .. } => Some(EventRole::Blocker),
+            TriggerEvent::Blocks { blocker: TriggerSubject::Object(Antecedent::ThisObject), .. } => Some(EventRole::Attacker),
+            TriggerEvent::Blocks { attacker: TriggerSubject::Object(Antecedent::ThisObject), .. } => Some(EventRole::Blocker),
             _ => None,
         }
     }
@@ -2336,7 +2351,7 @@ pub(crate) mod samples {
     /// it reads (an act, and losing control to nobody), each with the records
     /// it reads, written out by hand.
     pub(crate) fn arms() -> Vec<(TriggerEvent, &'static [&'static str])> {
-        let this = TriggerSubject::ThisObject;
+        let this = TriggerSubject::Object(Antecedent::ThisObject);
         let each = Multiplicity::PerOccurrence;
         let anywhere = ZoneChangePattern { from: None, to: None, act: None };
         vec![
@@ -2378,7 +2393,7 @@ pub(crate) mod samples {
             ),
             (
                 TriggerEvent::Blocks {
-                    blocker: TriggerSubject::Any,
+                    blocker: TriggerSubject::Filter(ObjectFilter::All),
                     attacker: this.clone(),
                     occurrence: BlockOccurrence::Blocked,
                     count: None,
@@ -2409,9 +2424,9 @@ pub(crate) mod samples {
                 TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(this.clone()), counter_type: None, by: None, multiplicity: each },
                 &["CountersRemovedFrom"],
             ),
-            (TriggerEvent::BecomesAttached { attachment: TriggerSubject::Any, host: TriggerSubject::Any }, &["Attached"]),
+            (TriggerEvent::BecomesAttached { attachment: TriggerSubject::Filter(ObjectFilter::All), host: TriggerSubject::Filter(ObjectFilter::All) }, &["Attached"]),
             (
-                TriggerEvent::BecomesUnattached { attachment: TriggerSubject::Any, former_host: TriggerSubject::Any },
+                TriggerEvent::BecomesUnattached { attachment: TriggerSubject::Filter(ObjectFilter::All), former_host: TriggerSubject::Filter(ObjectFilter::All) },
                 &["Unattached"],
             ),
             (TriggerEvent::ControlChanges { subject: this.clone(), from: None, to: None }, &["ControlChanged", "ZoneChange", "LeftTheGame"]),
@@ -2471,7 +2486,7 @@ mod tests {
         let each = Multiplicity::PerOccurrence;
         let you = || Some(PlayerRef::You);
         let to_you = TriggerEvent::DamageDealt {
-            source: TriggerSubject::Any,
+            source: TriggerSubject::Filter(ObjectFilter::All),
             recipient: DamageRecipient::Player(you()),
             combat: None,
             excess: false,
@@ -2481,7 +2496,7 @@ mod tests {
         let prevented_to_you = TriggerEvent::DamageIsPrevented { recipient: DamageRecipient::Player(you()), multiplicity: each };
         assert_eq!(prevented_to_you.event_roles(), &[] as &[EventRole]);
         let attacks_you = TriggerEvent::Attacks {
-            attacker: TriggerSubject::Any,
+            attacker: TriggerSubject::Filter(ObjectFilter::All),
             defender: Some(DefenderFilter::Player(you())),
             occurrence: AttackOccurrence::Attacker,
             alone: false,
@@ -2489,7 +2504,7 @@ mod tests {
         };
         assert_eq!(attacks_you.event_roles(), &[EventRole::Attacker]);
         let attacks_anything = TriggerEvent::Attacks {
-            attacker: TriggerSubject::Any,
+            attacker: TriggerSubject::Filter(ObjectFilter::All),
             defender: Some(DefenderFilter::Or(Box::new(DefenderFilter::Player(you())), Box::new(DefenderFilter::Permanent(ObjectFilter::All)))),
             occurrence: AttackOccurrence::Attacker,
             alone: false,
@@ -2506,7 +2521,7 @@ mod tests {
         for from in zones {
             for to in zones {
                 let arm = TriggerEvent::ZoneChange {
-                    subject: TriggerSubject::Any,
+                    subject: TriggerSubject::Filter(ObjectFilter::All),
                     change: ZoneChangePattern { from: Some(from), to: Some(to), act: None },
                     by: None,
                     owner: None,
@@ -2542,8 +2557,8 @@ mod tests {
     fn a_defs_record_kinds_are_its_arms_together() {
         let tapped_or_untapped = TriggerDef {
             condition: TriggerCondition::AnyOf(vec![
-                TriggerEvent::BecomesTapped { subject: TriggerSubject::ThisObject },
-                TriggerEvent::BecomesUntapped { subject: TriggerSubject::ThisObject },
+                TriggerEvent::BecomesTapped { subject: TriggerSubject::Object(Antecedent::ThisObject) },
+                TriggerEvent::BecomesUntapped { subject: TriggerSubject::Object(Antecedent::ThisObject) },
             ]),
             intervening_if: None,
             limit: None,

@@ -24,7 +24,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature};
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Subtypes, Supertype};
 use mtgsim::types::effects::{
-    CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, TypeChange,
+    Antecedent, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, TypeChange,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -527,7 +527,7 @@ fn test_a_cda_and_a_non_cda_in_one_layer_are_independent() {
             TypeChange { set_subtypes: Some(Subtypes::from([Subtype::Creature(CreatureType::Elf)])), ..no_change() },
             Duration::WhileSourceOnBattlefield,
         ),
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     ));
     is_an_elf.is_characteristic_defining = true;
     let changeling_ish = CardDataBuilder::new("Elf By Definition")
@@ -685,7 +685,7 @@ fn test_the_hierophants_grant_waits_for_humility_whatever_the_timestamps() {
 fn test_fixture_abilities_are_static() {
     let def: AbilityDef = static_ability(Effect::Atom(
         Primitive::ChangeType(no_change(), Duration::WhileSourceOnBattlefield),
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     ));
     assert_eq!(def.ability_type, AbilityType::Static);
     assert_ne!(def.id, new_ability_id());

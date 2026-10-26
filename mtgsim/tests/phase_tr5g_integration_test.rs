@@ -36,7 +36,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive,
+    Antecedent, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::history::CountIs;
@@ -118,7 +118,7 @@ fn a_creature() -> ObjectFilter {
 
 /// "When this creature enters, you gain 1 life."
 fn healer() -> Arc<CardData> {
-    watcher("Healer", whenever(enters(TriggerSubject::ThisObject), gain_one()))
+    watcher("Healer", whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), gain_one()))
 }
 
 fn legendary_creature(name: &str) -> Arc<CardData> {
@@ -258,7 +258,7 @@ fn each_doubled_instance_makes_its_own_choice() {
     put_on_battlefield(&mut game, panharmonicon(), 0);
     let may_gain = Effect::Optional { chooser: PlayerRef::You, effect: Box::new(gain_one()) };
     let before = life(&game, 0);
-    let healer = reanimate(&mut game, watcher("Hopeful", whenever(enters(TriggerSubject::ThisObject), may_gain)), 0);
+    let healer = reanimate(&mut game, watcher("Hopeful", whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), may_gain)), 0);
     assert_eq!(waiting_from(&game, healer), 2);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: healer }, vec![0]);
@@ -350,7 +350,7 @@ fn a_do_this_only_once_trigger_doubled_acts_once() {
         chooser: PlayerRef::You,
         effect: Box::new(Effect::Atom(
             Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-            EffectRecipient::ThisObject,
+            EffectRecipient::Object(Antecedent::ThisObject),
         )),
     };
     let once = TriggerDef { limit: Some(TriggerLimit::DoThisOnlyOnceEachTurn), ..whenever(enters(a_creature()), grow) };
@@ -948,7 +948,7 @@ fn put_into_a_graveyard_from_the_battlefield(subject: ObjectFilter) -> TriggerDe
 fn teysa_doubles_a_creatures_own_dies_trigger_and_one_watching_it() {
     let mut game = audited_game();
     put_on_battlefield(&mut game, teysa_karlov(), 0);
-    let own = put_on_battlefield(&mut game, watcher("Martyr", whenever(dies(TriggerSubject::ThisObject), gain_one())), 0);
+    let own = put_on_battlefield(&mut game, watcher("Martyr", whenever(dies(TriggerSubject::Object(Antecedent::ThisObject)), gain_one())), 0);
     let mourner = put_on_battlefield(&mut game, watcher("Mourner", whenever(dies(another(a_creature())), gain_one())), 0);
     resolve_all(&mut game, &test_dp());
     destroy(&mut game, &[own]);

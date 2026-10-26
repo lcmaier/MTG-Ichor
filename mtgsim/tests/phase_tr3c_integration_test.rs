@@ -42,7 +42,7 @@ use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
-    AmountExpr, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef,
+    Antecedent, AmountExpr, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
@@ -83,7 +83,7 @@ fn scorchfuse_myr() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Myr))
         .power_toughness(1, 1)
         .rules_text(text)
-        .ability(triggered_ability(text, whenever(dies(TriggerSubject::ThisObject), deals(2))))
+        .ability(triggered_ability(text, whenever(dies(TriggerSubject::Object(Antecedent::ThisObject)), deals(2))))
         .build()
 }
 
@@ -556,7 +556,7 @@ fn spitefang_manticore() -> Arc<CardData> {
         .ability(triggered_ability(
             text,
             whenever(
-                enters(TriggerSubject::ThisObject),
+                enters(TriggerSubject::Object(Antecedent::ThisObject)),
                 may_sacrifice_then(another(ObjectFilter::ByType(CardType::Creature)), deals_its_power),
             ),
         ))
@@ -622,8 +622,8 @@ fn withheld_tithe() -> Arc<CardData> {
 fn bloodtithe_rite() -> Arc<CardData> {
     let gain_1 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
     let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
-    let each = is_sacrificed(TriggerSubject::Any);
-    let one_or_more = is_sacrificed(TriggerSubject::Any).once_per_event();
+    let each = is_sacrificed(TriggerSubject::Filter(ObjectFilter::All));
+    let one_or_more = is_sacrificed(TriggerSubject::Filter(ObjectFilter::All)).once_per_event();
     CardDataBuilder::new("Bloodtithe Rite")
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
         .color(Color::Black)

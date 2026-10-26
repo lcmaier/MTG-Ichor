@@ -20,7 +20,7 @@ use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount,
+    Antecedent, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -63,7 +63,7 @@ pub fn flickerwisp() -> Arc<CardData> {
     let return_it = DelayedTriggerTemplate {
         def: Arc::new(whenever(
             at_beginning_of(StepType::End, Whose::Each),
-            Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::Referred),
+            Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::Object(Antecedent::Referred)),
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::NoneNamed,
@@ -81,7 +81,7 @@ pub fn flickerwisp() -> Arc<CardData> {
         .ability(triggered_ability(
             text,
             whenever(
-                enters(TriggerSubject::ThisObject),
+                enters(TriggerSubject::Object(Antecedent::ThisObject)),
                 Effect::Sequence(vec![
                     Effect::Remember(Box::new(Effect::Atom(
                         Primitive::Exile,
@@ -145,10 +145,10 @@ pub fn banishing_light() -> Arc<CardData> {
         .ability(triggered_ability(
             text,
             whenever(
-                enters(TriggerSubject::ThisObject),
+                enters(TriggerSubject::Object(Antecedent::ThisObject)),
                 Effect::Atom(
                     Primitive::ExileUntil {
-                        until: Box::new(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
+                        until: Box::new(leaves_the_battlefield(TriggerSubject::Object(Antecedent::ThisObject)).into()),
                         refers_to: None,
                         under: ReturnUnder::Owner,
                     },

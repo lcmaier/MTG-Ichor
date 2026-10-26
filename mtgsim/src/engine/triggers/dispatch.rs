@@ -42,7 +42,7 @@ use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::state::history_log::RowFact;
-use crate::types::effects::{Condition, Effect, EffectRecipient, PlayerRef, Primitive};
+use crate::types::effects::{ObjectFilter, Condition, Effect, EffectRecipient, PlayerRef, Primitive};
 use crate::types::history::CountIs;
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
@@ -285,7 +285,7 @@ pub(super) struct TriggerCandidate<'a> {
     pub(super) controller: PlayerId,
     pub(super) owner: PlayerId,
     pub(super) zone: Zone,
-    /// The source's host (CR 303.4m), for `TriggerSubject::Host`.
+    /// The source's host (CR 303.4m), for `TriggerSubject::Object(Antecedent::ThisObjectsHost)`.
     pub(super) host: Option<ObjectId>,
     pub(super) frame: TriggerCandidateFrame<'a>,
     /// What a stack object is built from (CR 603.3's "text of the ability").
@@ -354,7 +354,7 @@ pub(super) struct TriggerReferents<'a> {
     pub(super) controller: PlayerId,
     /// "Its owner", of "this object".
     pub(super) owner: PlayerId,
-    /// The source's host (CR 303.4m), for `TriggerSubject::Host`.
+    /// The source's host (CR 303.4m), for `TriggerSubject::Object(Antecedent::ThisObjectsHost)`.
     pub(super) host: Option<ObjectId>,
     /// CR 603.7h's "this ability": the ability whose arm this is, or the one
     /// that created a delayed trigger; `None` for a spell's delayed trigger.
@@ -398,11 +398,13 @@ impl FilterReferents for TriggerReferents<'_> {
         EarlierTargets::None
     }
 
-    /// The candidate, now: an arm's own words have no triggering event yet.
+    /// The candidate, or its host, now: an arm's own words have no
+    /// triggering event yet, and name no one remembered object.
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
             Antecedent::ThisObject => ObjectInformation::Current(self.this.id()).defending_player(game, &|_| {}),
-            Antecedent::Triggering(_) => None,
+            Antecedent::ThisObjectsHost => ObjectInformation::Current(self.host?).defending_player(game, &|_| {}),
+            Antecedent::Triggering(_) | Antecedent::Referred => None,
         }
     }
 }
@@ -2299,7 +2301,7 @@ impl GameState {
         // blocking, so no arm that names a blocker, counts them or asks for
         // the only one reads it (509.3d, 509.3e, 506.5).
         if let (
-            TriggerEvent::Blocks { blocker: TriggerSubject::Any, attacker, occurrence: BlockOccurrence::Blocked, count: None, alone: false, .. },
+            TriggerEvent::Blocks { blocker: TriggerSubject::Filter(ObjectFilter::All), attacker, occurrence: BlockOccurrence::Blocked, count: None, alone: false, .. },
             GameEvent::BecameBlocked { attacker: blocked },
         ) = (arm, &record.event)
         {
@@ -2492,7 +2494,7 @@ impl GameState {
         }
     }
 
-    /// "Which object" (§3.3): `This` is the source itself, `Host` what it is
+    /// "Which object" (§3.3): this object is the source itself, its host what it is
     /// attached to, a filter is read against the subject — as `read` says.
     /// `event_id` names the matched record.
     fn subject_matches(&self, subject: &TriggerSubject, object: ObjectInformation<'_>, referents: &TriggerReferents<'_>, event_id: EventId) -> bool {
@@ -2550,8 +2552,11 @@ impl GameState {
             })
         };
         match subject {
-            TriggerSubject::Any => true,
-            TriggerSubject::ThisObject => referents.this.is(id, record_existence()),
+            // Asks nothing of the object, so one the store has lost still matches.
+            TriggerSubject::Filter(ObjectFilter::All) => true,
+            TriggerSubject::Object(Antecedent::ThisObject) => referents.this.is(id, record_existence()),
+            // An arm has no triggering event to name yet; the registry refuses it.
+            TriggerSubject::Object(Antecedent::Triggering(_)) => false,
             // Only a permanent has anything attached to it (CR 301.5, 303.4).
             // One read as it was just before this event is asked as that frame
             // has it (CR 603.10a), since the Aura or Equipment that stays has
@@ -2561,12 +2566,12 @@ impl GameState {
             // after a flicker (CR 400.7).
             // Nothing is attached to a permanent not yet on the battlefield,
             // and a history row's frame keeps no attachments.
-            TriggerSubject::Host => match object {
+            TriggerSubject::Object(Antecedent::ThisObjectsHost) => match object {
                 ObjectInformation::Current(id) | ObjectInformation::Characteristics(id, _, FrameContext::Now) => referents.host == Some(id),
                 ObjectInformation::LastKnown(lki) => !self.gone_before(event_id, lki) && lki.had_attached(referents.this.id()),
                 ObjectInformation::Characteristics(_, _, FrameContext::Entering | FrameContext::HistoryRow(_)) => false,
             },
-            TriggerSubject::Referred => {
+            TriggerSubject::Object(Antecedent::Referred) => {
                 let existence = record_existence();
                 referents.referred.iter().any(|referred| existence == Some(referred.object))
             }
@@ -2783,7 +2788,7 @@ impl GameState {
     /// mana ability that triggered it, with no stack object, no priority and
     /// no target. Through the same proposal an activated one makes, so a
     /// replacement or a "can't" sees it; `tapped_for_mana` is false (CR 106.12
-    /// — the Aura was not tapped). "Its controller adds" is the `Host`
+    /// — the Aura was not tapped). "Its controller adds" is the host as
     /// recipient: the enchanted land's controller, whoever controls the Aura
     /// (Wild Growth's ruling — the mana is not the land's ability).
     fn resolve_triggered_mana(&mut self, pending: &PendingTrigger, ctx: &ActionContext) -> Result<(), String> {

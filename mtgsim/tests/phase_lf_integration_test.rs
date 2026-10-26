@@ -28,7 +28,7 @@ use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::test_support::{test_ctx, test_dp};
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, Primitive, SelectionFilter,
+    Antecedent, AmountExpr, CounterType, Duration, Effect, EffectRecipient, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::card_types::CardType;
@@ -49,7 +49,7 @@ fn row(id: ObjectId, timestamp: Timestamp, modification: EffectModification) -> 
 fn inert_ability() -> AbilityDef {
     static_ability(Effect::Atom(
         Primitive::GrantKeywordFlag(KeywordFlag::Vigilance, Duration::WhileSourceOnBattlefield),
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     ))
 }
 
@@ -456,7 +456,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
             AmountExpr::Fixed(3),
             Duration::WhileSourceOnBattlefield,
         ),
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     ));
     let spell = Effect::Atom(
         Primitive::GrantAbility(std::sync::Arc::new(granted), Duration::UntilEndOfTurn),
@@ -497,7 +497,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
             AmountExpr::Fixed(7),
             Duration::WhileSourceOnBattlefield,
         ),
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     ));
     let granted_id = granted.id;
     let spell = Effect::Atom(
@@ -586,7 +586,7 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
             AmountExpr::Fixed(6),
             Duration::WhileSourceOnBattlefield,
         ),
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     ));
     // The author asserts CDA-ness. CR 604.3a(2) overrules them for a *granted*
     // ability, and overruling means "treat it as an ordinary ability", not

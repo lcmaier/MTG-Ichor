@@ -23,7 +23,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef,
+    Antecedent, ObjectSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef,
     PlayerSet, Primitive, SelectionFilter, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
@@ -230,7 +230,7 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
                     lands_you_control,
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ),
         })
         .ability(static_ability("Nontoken creatures you control are Forest lands in addition to their other types.", Effect::Atom(
@@ -329,7 +329,7 @@ pub fn kird_ape() -> Arc<CardData> {
                     AmountExpr::Fixed(2),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             )),
         )))
         .build()
@@ -375,10 +375,10 @@ pub fn flight_clause() -> Arc<CardData> {
         // have a condition worth reading.
         .enchant_filter(SelectionFilter::Permanent(ObjectFilter::All))
         .ability(static_ability("As long as enchanted permanent is a creature, it has flying.", Effect::Conditional(
-            Condition::HostMatches(ObjectFilter::ByType(CardType::Creature)),
+            Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::ByType(CardType::Creature)),
             Box::new(Effect::Atom(
                 Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
-                EffectRecipient::Host,
+                EffectRecipient::Object(Antecedent::ThisObjectsHost),
             )),
         )))
         .build()

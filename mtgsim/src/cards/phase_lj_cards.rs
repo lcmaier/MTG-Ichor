@@ -18,7 +18,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, ColorChange, Condition, Duration, Effect, EffectRecipient, ObjectFilter,
+    Antecedent, AmountExpr, ColorChange, Condition, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerFact, PlayerRef, PlayerSet, Primitive,
 };
 use crate::types::ids::AbilityId;
@@ -214,7 +214,7 @@ pub fn graveyard_reveler() -> Arc<CardData> {
                     AmountExpr::Fixed(2),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             )),
         )))
         .build()

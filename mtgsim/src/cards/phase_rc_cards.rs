@@ -67,7 +67,7 @@ use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Duration, Effect, EffectRecipient,
+    Antecedent, ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Duration, Effect, EffectRecipient,
     ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
@@ -583,7 +583,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
                     non_wall_creatures_you_control,
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ),
         })
         .build()

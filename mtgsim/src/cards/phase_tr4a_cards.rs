@@ -18,7 +18,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -107,14 +107,14 @@ pub fn demonic_vigor() -> Arc<CardData> {
                     AmountExpr::Fixed(1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::Host,
+                EffectRecipient::Object(Antecedent::ThisObjectsHost),
             ),
         })
         .ability(triggered_ability(
             text,
             whenever(
-                dies(TriggerSubject::Host),
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(EventRole::Object)),
+                dies(TriggerSubject::Object(Antecedent::ThisObjectsHost)),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))),
             ),
         ))
         .build()

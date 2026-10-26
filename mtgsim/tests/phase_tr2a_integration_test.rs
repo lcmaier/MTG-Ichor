@@ -42,7 +42,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
+    Antecedent, AmountExpr, Condition, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
     ManaOutput, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter,
     TargetCount, TypeChange,
 };
@@ -96,7 +96,7 @@ fn plus_one_counters(game: &GameState, id: ObjectId) -> u32 {
 fn this_object_is_the_permanent_whose_ability_resolves() {
     let mut game = setup_two_player_game();
     let sapling =
-        put_on_battlefield(&mut game, watcher("Self-Tending Sapling", enters(TriggerSubject::ThisObject), counter_on(EffectRecipient::ThisObject)), 0);
+        put_on_battlefield(&mut game, watcher("Self-Tending Sapling", enters(TriggerSubject::Object(Antecedent::ThisObject)), counter_on(EffectRecipient::Object(Antecedent::ThisObject))), 0);
     place_triggers(&mut game, &test_dp());
     resolve_top(&mut game, &test_dp());
     assert_eq!(plus_one_counters(&game, sapling), 1);
@@ -109,7 +109,7 @@ fn this_object_is_the_permanent_whose_ability_resolves() {
 fn this_object_finds_nothing_once_its_source_has_left_and_returned() {
     let mut game = setup_two_player_game();
     let sapling =
-        put_on_battlefield(&mut game, watcher("Self-Tending Sapling", enters(TriggerSubject::ThisObject), counter_on(EffectRecipient::ThisObject)), 0);
+        put_on_battlefield(&mut game, watcher("Self-Tending Sapling", enters(TriggerSubject::Object(Antecedent::ThisObject)), counter_on(EffectRecipient::Object(Antecedent::ThisObject))), 0);
     place_triggers(&mut game, &test_dp());
     assert_eq!(game.stack.len(), 1);
     game.change_zone(sapling, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
@@ -330,7 +330,7 @@ fn pending_triggers(game: &GameState) -> usize {
 fn loses_life_triggers_once_per_loss_and_never_on_a_gain() {
     let mut game = setup_two_player_game();
     let grudge = TriggerEvent::LosesLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
-    let keeper = put_on_battlefield(&mut game, watcher("Grudge Keeper", grudge, counter_on(EffectRecipient::ThisObject)), 0);
+    let keeper = put_on_battlefield(&mut game, watcher("Grudge Keeper", grudge, counter_on(EffectRecipient::Object(Antecedent::ThisObject))), 0);
     let ctx = test_ctx();
     game.execute_action(GameAction::LoseLife { player: 0, amount: 2, damage_source: None }, &ctx).unwrap();
     assert_eq!(pending_triggers(&game), 1);
@@ -533,7 +533,7 @@ fn the_first_time_each_turn_is_the_records_place_in_its_turn() {
             "Grudge Brooder",
             1,
             1,
-            limited(first_loss, TriggerLimit::FirstTimeEachTurn, counter_on(EffectRecipient::ThisObject)),
+            limited(first_loss, TriggerLimit::FirstTimeEachTurn, counter_on(EffectRecipient::Object(Antecedent::ThisObject))),
         ),
         0,
     );
@@ -576,7 +576,7 @@ fn kindling_pilgrim() -> Arc<CardData> {
         ability_type: AbilityType::Activated,
         costs: Vec::new(),
         effect: Effect::Sequence(vec![
-            counter_on(EffectRecipient::ThisObject),
+            counter_on(EffectRecipient::Object(Antecedent::ThisObject)),
             Effect::Conditional(
                 Condition::ResolvedThisTurn(3),
                 Box::new(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Controller)),
@@ -675,7 +675,7 @@ fn its_power_is_read_as_the_effect_applies() {
             "Proud Brute",
             3,
             3,
-            triggered_ability("", whenever(enters(TriggerSubject::ThisObject), bolt_of_self)),
+            triggered_ability("", whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), bolt_of_self)),
         ),
         0,
     );
@@ -857,7 +857,7 @@ fn gain_counter() -> Arc<CardData> {
             amount: AmountExpr::TriggeringAmount,
             by: PlayerRef::You,
         },
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     );
     watcher("Mercy Keeper", gains, that_many)
 }

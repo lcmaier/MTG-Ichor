@@ -22,7 +22,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    Antecedent, AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
@@ -104,7 +104,7 @@ fn a_trigger_chain_at_the_nesting_bound_is_a_draw_beside_platinum_angel() {
     );
     echo.id = new_ability_id();
     put_on_battlefield(&mut game, creature_with_ability("Fixture: echo", 1, 1, echo), 0);
-    let mut arrives = triggered_ability("", whenever(enters(TriggerSubject::ThisObject), gain_one()));
+    let mut arrives = triggered_ability("", whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), gain_one()));
     arrives.id = new_ability_id();
     let arriving = put_in_hand(&mut game, creature_with_ability("Fixture: arriving", 1, 1, arrives), 0);
 
@@ -124,7 +124,7 @@ fn a_trigger_chain_at_the_nesting_bound_is_a_draw_beside_platinum_angel() {
 fn a_tier_two_trigger_reads_its_cause_as_the_arm_it_names() {
     let mut game = setup_two_player_game();
     let to_a_graveyard = TriggerEvent::ZoneChange {
-        subject: TriggerSubject::Any,
+        subject: TriggerSubject::Filter(ObjectFilter::All),
         change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
         by: None,
         owner: None,

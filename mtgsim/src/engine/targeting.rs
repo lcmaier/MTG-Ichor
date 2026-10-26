@@ -5,7 +5,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
+use crate::types::effects::{Antecedent, Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 
@@ -284,7 +284,7 @@ impl<'a> DeclaredInstances<'a> {
 /// `cursor` is the count of instances *declared* so far by the walk, which is
 /// how a declaring atom learns its own index without the tree being numbered.
 /// Returns `None` for a recipient that names no instance — `Implicit`,
-/// `Controller`, the filtered sweeps and `Host`, none of which reads a
+/// `Controller`, the filtered sweeps and the host, none of which reads a
 /// chosen target.
 pub(crate) fn instance_of<'a>(
     recipient: &'a EffectRecipient,
@@ -339,11 +339,11 @@ impl GameState {
     ) -> Result<(), String> {
         match recipient {
             EffectRecipient::Implicit
-            | EffectRecipient::ThisObject
+            | EffectRecipient::Object(Antecedent::ThisObject)
             | EffectRecipient::EachOf(_)
             | EffectRecipient::FilteredPermanents { .. }
             | EffectRecipient::FilteredObjectsIn { .. }
-            | EffectRecipient::Host => {
+            | EffectRecipient::Object(Antecedent::ThisObjectsHost) => {
                 if !targets.is_empty() {
                     return Err("Spell has no targets but targets were provided".to_string());
                 }
@@ -360,9 +360,10 @@ impl GameState {
             // walks the declared clauses rather than the atoms.
             // A trigger's bound fact is announced by nothing (CR 608.2k — it is
             // "a specific untargeted object"), so there is no clause here.
-            EffectRecipient::Triggering(_)
+            EffectRecipient::Object(Antecedent::Triggering(_))
             | EffectRecipient::TriggeringPlayer
-            | EffectRecipient::Referred => Err(format!(
+            | EffectRecipient::Referred
+            | EffectRecipient::Object(Antecedent::Referred) => Err(format!(
                 "{recipient:?} is a triggered ability's bound fact, not an instance of \"target\" to validate"
             )),
             // What a creature attacks, and whom, is read as the instruction

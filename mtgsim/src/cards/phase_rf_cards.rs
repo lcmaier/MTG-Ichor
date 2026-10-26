@@ -30,7 +30,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive,
+    Antecedent, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -105,7 +105,7 @@ fn shuffles_into_library_from_anywhere(rules_text: &'static str) -> AbilityDef {
                 ObjectSet::SourceOnly,
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
             )
-            .with_then(Effect::Atom(Primitive::ShuffleLibrary, EffectRecipient::ThisObject)),
+            .with_then(Effect::Atom(Primitive::ShuffleLibrary, EffectRecipient::Object(Antecedent::ThisObject))),
         ))),
     ))
 }

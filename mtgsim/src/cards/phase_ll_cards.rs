@@ -12,7 +12,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, PlaneswalkerType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, TypeChange,
+    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, TypeChange,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -85,11 +85,11 @@ pub fn grist_insect_clause() -> Arc<CardData> {
                         adding(vec![CardType::Creature], vec![Subtype::Creature(CreatureType::Insect)]),
                         Duration::WhileSourceOnBattlefield,
                     ),
-                    EffectRecipient::ThisObject,
+                    EffectRecipient::Object(Antecedent::ThisObject),
                 ),
                 Effect::Atom(
                     Primitive::SetPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
-                    EffectRecipient::ThisObject,
+                    EffectRecipient::Object(Antecedent::ThisObject),
                 ),
             ])),
         )))

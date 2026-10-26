@@ -29,7 +29,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount,
     TokenDef,
 };
 use mtgsim::types::colors::Color;
@@ -135,7 +135,7 @@ fn mind_control() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
-                EffectRecipient::Host,
+                EffectRecipient::Object(Antecedent::ThisObjectsHost),
             ),
         })
         .build()

@@ -107,7 +107,7 @@ fn abduction_fixture() -> Arc<CardData> {
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .enchant_filter(SelectionFilter::Creature)
         .rules_text(text)
-        .ability(triggered_ability(text, whenever(dies(TriggerSubject::Host), Effect::Atom(returns, EffectRecipient::Triggering(EventRole::Object)))))
+        .ability(triggered_ability(text, whenever(dies(TriggerSubject::Object(Antecedent::ThisObjectsHost)), Effect::Atom(returns, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))))))
         .build()
 }
 
@@ -595,7 +595,7 @@ fn strangleroot_geist_returns_once() {
 fn creature_with_a_dies_trigger_if(condition: Condition) -> Arc<CardData> {
     let text = "When this creature dies, if [condition], you gain 1 life.";
     let def = TriggerDef {
-        condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
+        condition: TriggerCondition::Event(dies(TriggerSubject::Object(Antecedent::ThisObject)).into()),
         intervening_if: Some(condition),
         limit: None,
         effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
@@ -673,8 +673,8 @@ fn aura_leaves_trigger_if_it_enchanted_a_creature_reads_its_last_host() {
         let mut game = setup_two_player_game();
         let text = "When this Aura leaves the battlefield, if it enchanted a creature, you gain 1 life.";
         let def = TriggerDef {
-            condition: TriggerCondition::Event(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
-            intervening_if: Some(Condition::HostMatches(ObjectFilter::ByType(CardType::Creature))),
+            condition: TriggerCondition::Event(leaves_the_battlefield(TriggerSubject::Object(Antecedent::ThisObject)).into()),
+            intervening_if: Some(Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::ByType(CardType::Creature))),
             limit: None,
             effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
         };
@@ -765,7 +765,7 @@ fn a_dies_trigger_puts_as_many_counters_as_its_source_had() {
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .card_type(CardType::Creature)
         .power_toughness(1, 1)
-        .ability(triggered_ability(text, whenever(dies(TriggerSubject::ThisObject), put_as_many_as_it_had())))
+        .ability(triggered_ability(text, whenever(dies(TriggerSubject::Object(Antecedent::ThisObject)), put_as_many_as_it_had())))
         .build();
     let a = put_on_battlefield(&mut game, a_card, 0);
     add_counters(&mut game, a, CounterType::PlusOnePlusOne, 3);
@@ -868,7 +868,7 @@ fn a_delayed_trigger_made_after_its_source_is_gone_knows_its_owner() {
         .power_toughness(1, 1)
         .ability(triggered_ability(
             text,
-            whenever(dies(TriggerSubject::ThisObject), Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Implicit)),
+            whenever(dies(TriggerSubject::Object(Antecedent::ThisObject)), Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Implicit)),
         ))
         .build();
     let token = put_on_battlefield_under(&mut game, card, 0, 1);
@@ -960,8 +960,8 @@ fn token_aura_leaves_trigger_if_its_owner_controls_the_host_holds_after_the_toke
     let mut game = setup_two_player_game();
     let text = "When this Aura leaves the battlefield, if enchanted creature is controlled by this Aura's owner, you gain 1 life.";
     let def = TriggerDef {
-        condition: TriggerCondition::Event(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
-        intervening_if: Some(Condition::HostMatches(ObjectFilter::ByController(PlayerRef::Owner))),
+        condition: TriggerCondition::Event(leaves_the_battlefield(TriggerSubject::Object(Antecedent::ThisObject)).into()),
+        intervening_if: Some(Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::ByController(PlayerRef::Owner))),
         limit: None,
         effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
     };
@@ -991,7 +991,7 @@ fn token_aura_leaves_trigger_if_its_owner_controls_the_host_holds_after_the_toke
 fn spirit_link_fixture() -> Arc<CardData> {
     let text = "Whenever enchanted creature deals damage, you gain that much life.";
     let deals_damage = TriggerEvent::DamageDealt {
-        source: TriggerSubject::Host,
+        source: TriggerSubject::Object(Antecedent::ThisObjectsHost),
         recipient: DamageRecipient::Any,
         combat: None,
         excess: false,

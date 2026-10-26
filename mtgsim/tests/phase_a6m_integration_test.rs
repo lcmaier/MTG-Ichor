@@ -22,7 +22,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    Antecedent, AffectedSet, AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -138,7 +138,7 @@ fn shared_ability() -> mtgsim::objects::card_data::AbilityDef {
         .get_or_init(|| {
             static_ability(Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::Indefinite),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ))
         })
         .clone()
@@ -152,7 +152,7 @@ fn granted_anthem() -> mtgsim::objects::card_data::AbilityDef {
         .get_or_init(|| {
             static_ability(Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::Indefinite),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ))
         })
         .clone()

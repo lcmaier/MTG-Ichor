@@ -360,7 +360,7 @@ mod tests {
     };
     use crate::types::card_types::CardType;
     use crate::types::effects::{
-        AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, PlayerFact, PlayerSet, Primitive,
+        Antecedent, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, PlayerFact, PlayerSet, Primitive,
     };
     use crate::types::ids::ObjectId;
     use crate::types::mana::ManaSpent;
@@ -599,7 +599,7 @@ mod tests {
                 Condition::Player { players: PlayerSet::Opponents, fact: PlayerFact::LifeAtMost(AmountExpr::Fixed(10)) },
                 Box::new(Effect::Atom(
                     Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(2), Duration::WhileSourceOnBattlefield),
-                    EffectRecipient::ThisObject,
+                    EffectRecipient::Object(Antecedent::ThisObject),
                 )),
             )))
             .build();

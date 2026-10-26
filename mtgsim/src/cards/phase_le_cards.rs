@@ -12,7 +12,7 @@ use std::sync::Arc;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{ObjectFilter, ObjectSet, 
+use crate::types::effects::{Antecedent, ObjectFilter, ObjectSet, 
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, Primitive, };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
@@ -70,7 +70,7 @@ pub fn tarmogoyf() -> Arc<CardData> {
                     AmountExpr::Plus(Box::new(card_types_in_graveyards()), 1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ),
             is_characteristic_defining: true,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -108,7 +108,7 @@ pub fn culling_drone() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::ChangeColor(ColorChange::RemoveAll, Duration::WhileSourceOnBattlefield),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             ),
             is_characteristic_defining: true,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,

@@ -17,7 +17,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -89,8 +89,8 @@ pub fn ray_of_command() -> Arc<CardData> {
     );
     let tap_it = DelayedTriggerTemplate {
         def: Arc::new(whenever(
-            you_lose_control_of(TriggerSubject::Referred),
-            Effect::Atom(Primitive::Tap, EffectRecipient::Referred),
+            you_lose_control_of(TriggerSubject::Object(Antecedent::Referred)),
+            Effect::Atom(Primitive::Tap, EffectRecipient::Object(Antecedent::Referred)),
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::NoneNamed,

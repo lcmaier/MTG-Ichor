@@ -706,14 +706,15 @@ impl FilterReferents for FilterPlayers<'_, '_> {
         self.board.note_gated_read(input);
     }
 
-    /// The source, now: a static ability has no triggering event.
+    /// The source, or its host, now: a static ability has no triggering
+    /// event and no remembered object.
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
-        match creature {
-            Antecedent::ThisObject => {
-                ObjectInformation::Current(self.source).defending_player(game, &|input| self.board.note_gated_read(input))
-            }
-            Antecedent::Triggering(_) => None,
-        }
+        let creature = match creature {
+            Antecedent::ThisObject => self.source,
+            Antecedent::ThisObjectsHost => crate::oracle::board::host_of(game, self.source)?,
+            Antecedent::Triggering(_) | Antecedent::Referred => return None,
+        };
+        ObjectInformation::Current(creature).defending_player(game, &|input| self.board.note_gated_read(input))
     }
 
     fn counters_on(&self, game: &GameState, id: ObjectId, kind: Option<CounterType>) -> u32 {
@@ -785,12 +786,16 @@ fn resolve_set_controller(
         // CR 508.5: an attacking source's defending player. A static has no
         // triggering event, and "defending player" with no creature names no
         // one player.
-        PlayerRef::DefendingPlayer(Antecedent::ThisObject) => {
-            ObjectInformation::Current(effect.source)
+        PlayerRef::DefendingPlayer(creature @ (Antecedent::ThisObject | Antecedent::ThisObjectsHost)) => {
+            let creature = match creature {
+                Antecedent::ThisObjectsHost => crate::oracle::board::host_of(game, effect.source)?,
+                _ => effect.source,
+            };
+            ObjectInformation::Current(creature)
                 .defending_player(game, &|input| board.note_gated_read(input))
                 .filter(|&p| still_playing(p))
         }
-        PlayerRef::DefendingPlayer(Antecedent::Triggering(_)) | PlayerRef::AnyDefendingPlayer => None,
+        PlayerRef::DefendingPlayer(Antecedent::Triggering(_) | Antecedent::Referred) | PlayerRef::AnyDefendingPlayer => None,
         PlayerRef::Opponent => {
             match game.opponents_of(players.you()).as_slice() {
                 // Exactly one opponent, so nothing was ever chosen.

@@ -252,9 +252,9 @@ fn sphere_grid_puts_its_counter_on_the_creature_that_dealt_the_damage() {
 #[test]
 fn that_creature_is_the_recipient_when_the_instruction_names_it() {
     let mut game = stocked(2);
-    let destroy_it = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::DamageRecipient));
+    let destroy_it = Effect::Atom(Primitive::Destroy, EffectRecipient::Object(Antecedent::Triggering(EventRole::DamageRecipient)));
     let dealt_damage = TriggerEvent::DamageDealt {
-        source: TriggerSubject::Any,
+        source: TriggerSubject::Filter(ObjectFilter::All),
         recipient: DamageRecipient::Object(Some(ObjectFilter::ByType(CardType::Creature))),
         combat: None,
         excess: false,
@@ -283,7 +283,7 @@ fn martyr() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Martyr")
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(triggered_ability("", whenever(dies(TriggerSubject::ThisObject), deals)))
+        .ability(triggered_ability("", whenever(dies(TriggerSubject::Object(Antecedent::ThisObject)), deals)))
         .build()
 }
 
@@ -296,7 +296,7 @@ fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
     let mut game = stocked(2);
     let gains_its_power = Effect::Sequence(vec![
         Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::DamageSource)), EffectRecipient::Controller),
-        a_counter_on(EffectRecipient::Triggering(EventRole::DamageSource)),
+        a_counter_on(EffectRecipient::Object(Antecedent::Triggering(EventRole::DamageSource))),
     ]);
     let dealt_damage_by_a_creature = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
@@ -331,7 +331,7 @@ fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
 #[test]
 fn them_over_combat_damage_is_each_creature_that_dealt_it() {
     let mut game = stocked(2);
-    let on_each = a_counter_on(EffectRecipient::Triggering(EventRole::DamageSource));
+    let on_each = a_counter_on(EffectRecipient::Object(Antecedent::Triggering(EventRole::DamageSource)));
     put_on_battlefield(&mut game, watcher("Fixture Bloodied Banner", combat_damage_to_a_player(Multiplicity::OncePerEvent), on_each), 0);
     let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let second = put_on_battlefield(&mut game, grizzly_bears(), 0);
@@ -350,7 +350,7 @@ fn them_over_combat_damage_is_each_creature_that_dealt_it() {
 #[test]
 fn them_over_an_attack_is_each_attacker() {
     let mut game = stocked(2);
-    let on_each = a_counter_on(EffectRecipient::Triggering(EventRole::Attacker));
+    let on_each = a_counter_on(EffectRecipient::Object(Antecedent::Triggering(EventRole::Attacker)));
     let attack = attacks(TriggerSubject::Filter(creature_you_control())).once_per_event();
     put_on_battlefield(&mut game, watcher("Fixture War Drum", attack, on_each), 0);
     let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
@@ -370,7 +370,7 @@ fn them_over_an_attack_is_each_attacker() {
 #[test]
 fn them_over_entries_is_each_creature_still_there() {
     let mut game = stocked(2);
-    let on_each = a_counter_on(EffectRecipient::Triggering(EventRole::Object));
+    let on_each = a_counter_on(EffectRecipient::Object(Antecedent::Triggering(EventRole::Object)));
     let enters = TriggerEvent::EntersBattlefield {
         subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
         controller: Some(PlayerRef::You),

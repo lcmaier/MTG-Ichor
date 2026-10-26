@@ -8,7 +8,7 @@ use crate::events::event::{CreatedAt, EventId, GameEvent, ResolutionStamp};
 use crate::oracle::characteristics::has_subtype;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{EnchantmentType, Subtype};
-use crate::types::effects::{EffectRecipient, ReturnUnder, SelectionFilter, TargetCount};
+use crate::types::effects::{Antecedent, EffectRecipient, ReturnUnder, SelectionFilter, TargetCount};
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates, EntryCounters};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
@@ -202,10 +202,10 @@ impl GameState {
             return Err(format!("CR 610.3a/b asks whether {until:?} has happened since, which needs that event's history"));
         };
         let watched: Vec<ObjectRef> = match subject {
-            TriggerSubject::ThisObject => {
+            TriggerSubject::Object(Antecedent::ThisObject) => {
                 vec![source.ok_or("a spell is never on the battlefield to leave it (CR 610.3)")?]
             }
-            TriggerSubject::Referred => referred.to_vec(),
+            TriggerSubject::Object(Antecedent::Referred) => referred.to_vec(),
             other => return Err(format!("CR 610.3a/b asks whether {other:?} has left since, which needs its history")),
         };
         let here = |object: &ObjectRef| self.find(*object).is_some() && self.battlefield.contains_key(&object.id);

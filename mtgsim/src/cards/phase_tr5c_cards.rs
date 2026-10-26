@@ -16,7 +16,7 @@ use crate::cards::authoring::{becomes_the_target_of, blocks_a_creature, triggere
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
+use crate::types::effects::{Antecedent, ObjectFilter, AmountExpr, Effect, EffectRecipient, Primitive};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, TargetedBy, TriggerSubject};
 
@@ -39,7 +39,7 @@ use crate::types::triggers::{EventRole, TargetedBy, TriggerSubject};
 ///   `loyal_sentry_destroys_the_attacker_after_it_has_left`.
 pub fn loyal_sentry() -> Arc<CardData> {
     let text = "When this creature blocks a creature, destroy that creature and this creature.";
-    let both = EffectRecipient::Group(vec![EffectRecipient::Triggering(EventRole::Attacker), EffectRecipient::ThisObject]);
+    let both = EffectRecipient::Group(vec![EffectRecipient::Object(Antecedent::Triggering(EventRole::Attacker)), EffectRecipient::Object(Antecedent::ThisObject)]);
     CardDataBuilder::new("Loyal Sentry")
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
@@ -50,7 +50,7 @@ pub fn loyal_sentry() -> Arc<CardData> {
         .rules_text(text)
         .ability(triggered_ability(
             text,
-            whenever(blocks_a_creature(TriggerSubject::ThisObject, TriggerSubject::Any), Effect::Atom(Primitive::Destroy, both)),
+            whenever(blocks_a_creature(TriggerSubject::Object(Antecedent::ThisObject), TriggerSubject::Filter(ObjectFilter::All)), Effect::Atom(Primitive::Destroy, both)),
         ))
         .build()
 }
@@ -81,7 +81,7 @@ pub fn cephalid_aristocrat() -> Arc<CardData> {
         .ability(triggered_ability(
             text,
             whenever(
-                becomes_the_target_of(TriggerSubject::ThisObject, TargetedBy::SpellOrAbility, None),
+                becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, None),
                 Effect::Atom(Primitive::Mill(AmountExpr::Fixed(2)), EffectRecipient::Controller),
             ),
         ))

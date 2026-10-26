@@ -70,15 +70,30 @@ impl ConditionReferents<'_> {
 
 impl<'a> ConditionReferents<'a> {
     /// Finds the object a text's word for one means. `ThisObject` is
-    /// `source`, the object whose ability it is; `Triggering(role)` is
-    /// the object that played that part in the triggering event. Either comes
-    /// back as `ObjectInformation`: the object as it is now, or as it last
-    /// existed once it has left (CR 608.2h). `None` when the triggering event
-    /// has no such object.
-    pub fn object_for(&self, word: Antecedent, source: ObjectId) -> Option<ObjectInformation<'a>> {
+    /// `source`, the object whose ability it is; `ThisObjectsHost` what it is
+    /// attached to now, or was as it left (CR 303.4m, 608.2h);
+    /// `Triggering(role)` the object that played that part in the triggering
+    /// event. Each comes back as `ObjectInformation`: the object as it is
+    /// now, or as it last existed once it has left (CR 608.2h). `None` when
+    /// there is no such object, and for `Referred`: a condition has no
+    /// remembered object.
+    pub fn object_for(&self, game: &GameState, word: Antecedent, source: ObjectId) -> Option<ObjectInformation<'a>> {
         match word {
             Antecedent::ThisObject => Some(ObjectInformation::of(source, self.source_lki)),
+            Antecedent::ThisObjectsHost => {
+                let host = match self.source_lki {
+                    Some(lki) => lki.host(),
+                    None => crate::oracle::board::host_of(game, source),
+                }?;
+                // The triggering event's own object, where the host is one,
+                // as its record framed it.
+                Some(match self.triggering_event.object_with_id(host) {
+                    Some(framed @ ObjectInformation::LastKnown(_)) => framed,
+                    _ => ObjectInformation::Current(host),
+                })
+            }
             Antecedent::Triggering(role) => self.triggering_event.object(role),
+            Antecedent::Referred => None,
         }
     }
 }
@@ -124,7 +139,7 @@ pub(super) fn holds(
         // It attacks what the battlefield says, or what the history kept.
         Condition::DefendingPlayer { of, fact: player_fact } => {
             let note = |input| board.note_gated_read(input);
-            match referents.object_for(*of, source).and_then(|it| it.defending_player(game, &note)) {
+            match referents.object_for(game, *of, source).and_then(|it| it.defending_player(game, &note)) {
                 Some(defending) => {
                     let players = PlayerSet::Fixed(vec![defending]);
                     player_fact_holds(&players, player_fact, game, board, source, layer_index, locked_you, owner_if_gone)
@@ -161,7 +176,7 @@ pub(super) fn holds(
         // "This" or "it", as it last existed once it has left (persist's
         // creature, which died), and off the entity otherwise.
         Condition::CounterCount { object, kind, count } => {
-            let Some(asked) = referents.object_for(*object, source) else { return false };
+            let Some(asked) = referents.object_for(game, *object, source) else { return false };
             let n = match asked.lki() {
                 Some(lki) => lki.counters_of(*kind),
                 None => match board.entity(game, asked.id()) {
@@ -177,25 +192,27 @@ pub(super) fn holds(
         // source matches nothing, so its conditional effect does not exist.
         // A source that left was attached to what its last known information
         // says, and CR 608.2h reads that host where it was, or as it left
-        // when it is the triggering object.
-        Condition::HostMatches(filter) => {
-            let host = match referents.source_lki {
-                Some(lki) => lki.host(),
-                None => crate::oracle::board::host_of(game, source),
-            };
-            let Some(host) = host else {
+        // when it is the triggering object. "This" and "it" read the same
+        // way, as `CounterCount` reads them.
+        Condition::ObjectMatches(object, filter) => {
+            let Some(asked) = referents.object_for(game, *object, source) else {
                 return false;
             };
-            let chars = match referents.triggering_event.object_with_id(host) {
-                Some(ObjectInformation::LastKnown(lki)) => Some(FrameRef::Shared(std::sync::Arc::clone(lki.frame()))),
-                _ if referents.source_lki.is_some() && !game.battlefield.contains_key(&host) => None,
-                _ => board.frame_of(game, host, layer_index),
+            let chars = match asked {
+                ObjectInformation::LastKnown(lki) => Some(FrameRef::Shared(std::sync::Arc::clone(lki.frame()))),
+                _ if *object == Antecedent::ThisObjectsHost
+                    && referents.source_lki.is_some()
+                    && !game.battlefield.contains_key(&asked.id()) =>
+                {
+                    None
+                }
+                _ => board.frame_of(game, asked.id(), layer_index),
             };
             let Some(chars) = chars else {
                 return false;
             };
             let mut players = FilterPlayers::for_source(source, game, board, layer_index, locked_you, owner_if_gone);
-            object_matches_filter(filter, host, &chars, &mut players)
+            object_matches_filter(filter, asked.id(), &chars, &mut players)
         }
 
         // A history count, for "you" as every leaf here reads it: the
@@ -444,7 +461,7 @@ fn controls_matching(
 // The leaves with no registered consumer.
 //
 // Kird Ape covers `PlayerFact::ControlsPermanent` and the Flight Clause covers
-// `HostMatches`, both end to end in `tests/phase_li3_integration_test.rs`.
+// `ObjectMatches` of the host, both end to end in `tests/phase_li3_integration_test.rs`.
 // The rest are exercised here against a settled board, because a leaf no
 // card reaches is exactly the kind of code that is wrong and quiet — the
 // failure mode `static_ability_atoms`' doc is written about.
@@ -618,17 +635,17 @@ mod tests {
         let mut game = setup_two_player_game();
         let aura = put_on_battlefield(&mut game, card_of_type("Loose Aura", CardType::Enchantment), 0);
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-        assert!(!settled_holds(&Condition::HostMatches(ObjectFilter::All), &game, aura, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::All), &game, aura, None, ConditionReferents::NONE));
 
         assert!(game.attach(aura, bears));
-        assert!(settled_holds(&Condition::HostMatches(ObjectFilter::All), &game, aura, None, ConditionReferents::NONE));
+        assert!(settled_holds(&Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::All), &game, aura, None, ConditionReferents::NONE));
         assert!(settled_holds(
-            &Condition::HostMatches(ObjectFilter::ByType(CardType::Creature)),
+            &Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::ByType(CardType::Creature)),
             &game,
             aura, None, ConditionReferents::NONE
         ));
         assert!(!settled_holds(
-            &Condition::HostMatches(ObjectFilter::ByType(CardType::Artifact)),
+            &Condition::ObjectMatches(Antecedent::ThisObjectsHost, ObjectFilter::ByType(CardType::Artifact)),
             &game,
             aura, None, ConditionReferents::NONE
         ));

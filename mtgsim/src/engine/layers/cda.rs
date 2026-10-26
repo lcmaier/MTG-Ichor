@@ -44,7 +44,7 @@
 
 use crate::engine::layers::types::{EffectModification, EffectiveCharacteristics, Layer, PtValue};
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::types::effects::{ColorChange, Effect, EffectRecipient, Primitive};
+use crate::types::effects::{Antecedent, ColorChange, Effect, EffectRecipient, Primitive};
 use crate::types::ids::AbilityId;
 
 /// The layers a CDA can occupy.
@@ -90,8 +90,8 @@ pub(super) fn cda_modifications(
             // recipient is always the object itself. A filter here would mean
             // the ability is not a CDA and was mis-flagged.
             debug_assert!(
-                matches!(recipient, EffectRecipient::ThisObject),
-                "CR 604.3a(3): CDA on '{}' has a recipient other than ThisObject, so it affects other objects and is not characteristic-defining",
+                matches!(recipient, EffectRecipient::Object(Antecedent::ThisObject)),
+                "CR 604.3a(3): CDA on '{}' has a recipient other than this object, so it affects other objects and is not characteristic-defining",
                 chars.name
             );
 
@@ -257,7 +257,7 @@ mod tests {
             instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
-            effect: Effect::Atom(primitive, EffectRecipient::ThisObject),
+            effect: Effect::Atom(primitive, EffectRecipient::Object(Antecedent::ThisObject)),
             is_characteristic_defining: true,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         }

@@ -12,6 +12,7 @@
 //! player who would have taken it (CR 800.4), a return made.
 
 use crate::state::game_state::GameState;
+use crate::types::effects::{Antecedent};
 use crate::types::ids::{DelayedTriggerId, ExtraTurnId, PlayerId, UntilReturnId};
 use crate::types::triggers::{DelayedDuration, DelayedTrigger, TriggerSubject, TriggerTurn};
 use crate::ui::display::{named, object_label};
@@ -98,8 +99,8 @@ pub fn what_is_waiting(game: &GameState) -> Waiting {
                 id: until.id,
                 source: named(game, until.source.object.id),
                 watched: match until.until.subject() {
-                    Some(TriggerSubject::ThisObject) => Some(named(game, until.source.object.id)),
-                    Some(TriggerSubject::Referred) => until.referred.first().map(|r| named(game, r.object.id)),
+                    Some(TriggerSubject::Object(Antecedent::ThisObject)) => Some(named(game, until.source.object.id)),
+                    Some(TriggerSubject::Object(Antecedent::Referred)) => until.referred.first().map(|r| named(game, r.object.id)),
                     _ => None,
                 },
                 returns: until.returns.iter().map(|(object, _)| named(game, object.id)).collect(),

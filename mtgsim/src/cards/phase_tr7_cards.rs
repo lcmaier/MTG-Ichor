@@ -21,7 +21,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive,
+    Antecedent, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -133,7 +133,7 @@ pub fn wingrattle_scarecrow() -> Arc<CardData> {
         instances: Vec::new(),
         ability_type: AbilityType::Static,
         costs: Vec::new(),
-        effect: Effect::Conditional(you_control_a_creature_of(color), Box::new(Effect::Atom(grant, EffectRecipient::ThisObject))),
+        effect: Effect::Conditional(you_control_a_creature_of(color), Box::new(Effect::Atom(grant, EffectRecipient::Object(Antecedent::ThisObject)))),
     };
     CardDataBuilder::new("Wingrattle Scarecrow")
         .mana_cost(ManaCost::build(&[], 3))

@@ -35,7 +35,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter,
+    Antecedent, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
@@ -241,7 +241,7 @@ fn a_prevention_for_your_creature_is_not_damage_to_you() {
 #[test]
 fn a_prevented_creatures_event_role_is_the_damage_recipient() {
     let arm = damage_to_is_prevented(DamageRecipient::Object(Some(ObjectFilter::ByType(CardType::Creature))));
-    let def = whenever(arm, Effect::Atom(Primitive::Tap, EffectRecipient::Triggering(EventRole::DamageRecipient)));
+    let def = whenever(arm, Effect::Atom(Primitive::Tap, EffectRecipient::Object(Antecedent::Triggering(EventRole::DamageRecipient))));
     assert!(def.event_roles_its_arms_lack().is_empty());
     let watcher = CardDataBuilder::new("Fixture Watcher")
         .card_type(CardType::Enchantment)
@@ -272,13 +272,13 @@ fn a_prevented_creatures_event_role_is_the_damage_recipient() {
 // COVERS: BOUNDARY-DEF-615.1a-001
 #[test]
 fn prevent_makes_a_prevention_effect_and_a_trigger_on_damage_is_not_one() {
-    let tap_it = Effect::Atom(Primitive::Tap, EffectRecipient::Triggering(EventRole::DamageRecipient));
+    let tap_it = Effect::Atom(Primitive::Tap, EffectRecipient::Object(Antecedent::Triggering(EventRole::DamageRecipient)));
     let watcher = CardDataBuilder::new("Fixture Watcher")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(damage_to_is_prevented(a_creature()), tap_it)))
         .build();
     let dealt = TriggerEvent::DamageDealt {
-        source: TriggerSubject::Any,
+        source: TriggerSubject::Filter(ObjectFilter::All),
         recipient: a_creature(),
         combat: None,
         excess: false,
@@ -312,7 +312,7 @@ fn prevent_makes_a_prevention_effect_and_a_trigger_on_damage_is_not_one() {
 /// "Whenever a [recipient] is dealt excess [noncombat] damage", read once per
 /// permanent.
 fn excess_arm(recipient: DamageRecipient, combat: Option<bool>) -> TriggerEvent {
-    TriggerEvent::DamageDealt { source: TriggerSubject::Any, recipient, combat, excess: true, multiplicity: Multiplicity::OncePerSubject }
+    TriggerEvent::DamageDealt { source: TriggerSubject::Filter(ObjectFilter::All), recipient, combat, excess: true, multiplicity: Multiplicity::OncePerSubject }
 }
 
 fn a_creature() -> DamageRecipient {
@@ -550,7 +550,7 @@ fn excess_read_per_record_or_of_a_player_is_refused() {
         whenever(arm, gain).readings_its_arms_cannot_give().len()
     };
     let per_record = TriggerEvent::DamageDealt {
-        source: TriggerSubject::Any,
+        source: TriggerSubject::Filter(ObjectFilter::All),
         recipient: a_creature(),
         combat: None,
         excess: true,
@@ -650,7 +650,7 @@ fn delayed_triggers_on_either_side_of_their_source_leaving_agree_on_it() {
     let source = game.object_ref(id).expect("it is there");
     let grow_it = at_the_next_end_step(Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(2), by: PlayerRef::You },
-        EffectRecipient::ThisObject,
+        EffectRecipient::Object(Antecedent::ThisObject),
     ));
     make_delayed(&mut game, &grow_it, source, Arc::clone(&card), None);
     game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &ActionContext::new(&test_dp())).expect("it dies");
@@ -890,10 +890,10 @@ fn fixture_sorcery(effect: Effect) -> Arc<CardData> {
 fn an_unattach_from_a_creature_that_died_reads_it_as_it_left() {
     let boost = static_ability(Effect::Atom(
         Primitive::ModifyPowerToughness(AmountExpr::Fixed(3), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
-        EffectRecipient::Host,
+        EffectRecipient::Object(Antecedent::ThisObjectsHost),
     ));
     let gain = whenever(
-        TriggerEvent::BecomesUnattached { attachment: TriggerSubject::ThisObject, former_host: TriggerSubject::Any },
+        TriggerEvent::BecomesUnattached { attachment: TriggerSubject::Object(Antecedent::ThisObject), former_host: TriggerSubject::Filter(ObjectFilter::All) },
         Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Host)), EffectRecipient::Controller),
     );
     let sword = CardDataBuilder::new("Fixture Sword")

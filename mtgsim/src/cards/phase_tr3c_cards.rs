@@ -15,7 +15,7 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef, Primitive,
+    Antecedent, AmountExpr, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::mana::{ManaCost, ManaType};
@@ -68,7 +68,7 @@ pub fn cornered_crook() -> Arc<CardData> {
         .ability(triggered_ability(
             text,
             whenever(
-                enters(TriggerSubject::ThisObject),
+                enters(TriggerSubject::Object(Antecedent::ThisObject)),
                 Effect::Sequence(vec![
                     Effect::Optional {
                         chooser: PlayerRef::You,

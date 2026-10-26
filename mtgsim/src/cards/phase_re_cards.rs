@@ -318,7 +318,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
+    Antecedent, AffectedSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
     PatternFill, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
     TokenDef,
 };
@@ -1323,7 +1323,7 @@ pub fn laboratory_maniac() -> Arc<CardData> {
 /// `Prevent` with a rider, because "instead exile this creature and ..." is
 /// two effects on two different subjects — the Archangel and you — and a
 /// substitution produces one event about one (§3.2d). The rider's exile names
-/// the Archangel through `EffectRecipient::ThisObject`, the effect's own
+/// the Archangel through `EffectRecipient::Object(Antecedent::ThisObject)`, the effect's own
 /// source; its life total is `Primitive::SetLifeTotal` over
 /// `AmountExpr::StartingLifeTotal`, so it is 40 in Commander and a 24-life
 /// *gain* from -4 that Rhox Faithmender doubles (CR 119.5).
@@ -1397,7 +1397,7 @@ pub fn exquisite_archangel() -> Arc<CardData> {
                 Rewrite::Prevent,
             )
             .with_then(Effect::Sequence(vec![
-                Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
+                Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::ThisObject)),
                 Effect::Atom(
                     Primitive::SetLifeTotal(AmountExpr::StartingLifeTotal),
                     EffectRecipient::Controller,
@@ -1506,7 +1506,7 @@ pub fn stunning_reversal() -> Arc<CardData> {
             "Exile Stunning Reversal.",
             AbilityType::Spell,
             Vec::new(),
-            Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
+            Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::ThisObject)),
         ))
         .build()
 }

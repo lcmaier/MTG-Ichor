@@ -37,7 +37,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
+    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
     TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
@@ -520,11 +520,11 @@ fn watching_equipment() -> Arc<CardData> {
         .subtype(equipment_subtype())
         .ability(triggered_ability(
             "Whenever this Equipment becomes attached to a creature, you gain 1 life.",
-            whenever(becomes_attached(TriggerSubject::ThisObject, a_creature()), gain(1)),
+            whenever(becomes_attached(TriggerSubject::Object(Antecedent::ThisObject), a_creature()), gain(1)),
         ))
         .ability(triggered_ability(
             "Whenever this Equipment becomes unattached from a creature, you gain 10 life.",
-            whenever(becomes_unattached(TriggerSubject::ThisObject, a_creature()), gain(10)),
+            whenever(becomes_unattached(TriggerSubject::Object(Antecedent::ThisObject), a_creature()), gain(10)),
         ))
         .ability(equip("Equip {0}", Vec::new()))
         .build()
@@ -709,7 +709,7 @@ fn control_aura() -> Arc<CardData> {
         .enchant_filter(SelectionFilter::Creature)
         .ability(static_ability(Effect::Atom(
             Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
-            EffectRecipient::Host,
+            EffectRecipient::Object(Antecedent::ThisObjectsHost),
         )))
         .build()
 }
@@ -739,14 +739,14 @@ fn an_aura_that_takes_a_creature_triggers_siona_as_the_creature_it_made_yours() 
 fn granting_equipment() -> Arc<CardData> {
     let granted = triggered_ability(
         "Whenever an Equipment becomes unattached from this creature, you gain 5 life.",
-        whenever(becomes_unattached(ObjectFilter::BySubtype(equipment_subtype()), TriggerSubject::ThisObject), gain(5)),
+        whenever(becomes_unattached(ObjectFilter::BySubtype(equipment_subtype()), TriggerSubject::Object(Antecedent::ThisObject)), gain(5)),
     );
     CardDataBuilder::new("Probe Granting Equipment")
         .card_type(CardType::Artifact)
         .subtype(equipment_subtype())
         .ability(static_ability(Effect::Atom(
             Primitive::GrantAbility(Arc::new(granted), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::Host,
+            EffectRecipient::Object(Antecedent::ThisObjectsHost),
         )))
         .ability(equip("Equip {0}", Vec::new()))
         .build()
@@ -920,8 +920,8 @@ fn bouncing_equipment() -> Arc<CardData> {
         .ability(triggered_ability(
             "Whenever this Equipment becomes unattached from a permanent, return that permanent to its owner's hand.",
             whenever(
-                becomes_unattached(TriggerSubject::ThisObject, TriggerSubject::Any),
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(EventRole::Host)),
+                becomes_unattached(TriggerSubject::Object(Antecedent::ThisObject), TriggerSubject::Filter(ObjectFilter::All)),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Object(Antecedent::Triggering(EventRole::Host))),
             ),
         ))
         .ability(equip("Equip {0}", Vec::new()))

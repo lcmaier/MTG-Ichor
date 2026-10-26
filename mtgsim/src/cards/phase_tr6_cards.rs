@@ -19,7 +19,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, 
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Condition, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive, };
+    Antecedent, ObjectSet, AmountExpr, Condition, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive, };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{TriggerCondition, TriggerDef};
@@ -65,7 +65,7 @@ pub fn emperor_crocodile() -> Arc<CardData> {
             "When you control no other creatures, sacrifice this creature.",
             when_state(
                 Condition::Not(Box::new(you(PlayerFact::ControlsPermanent(other_creature)))),
-                Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject),
+                Effect::Atom(Primitive::Sacrifice, EffectRecipient::Object(Antecedent::ThisObject)),
             ),
         ))
         .build()

@@ -133,7 +133,8 @@ impl TriggerDef {
 
     /// The readings of its event the def asks of an arm that cannot give
     /// them: once per subject on an arm that cannot be read that way; a
-    /// referred object (CR 603.7c) in a field its arm remembers none for; CR
+    /// referred object (CR 603.7c) in a field its arm remembers none for; a
+    /// triggering event's object named by an arm, which decides that event; CR
     /// 122.7's threshold on a trigger that is not a counter put read once per
     /// subject, whose records alone keep the counts it compares; a block arm
     /// whose fields no CR 509.3 reading combines; and a side of a block named
@@ -152,6 +153,9 @@ impl TriggerDef {
         // set is empty and the trigger never triggers.
         if arms.iter().any(|arm| arm.names_referred_object() && !arm.watches_referred()) {
             wrong.push("a referred object, named where its arm remembers none (CR 603.7c)");
+        }
+        if arms.iter().any(TriggerEvent::names_a_triggering_object) {
+            wrong.push("a triggering event's object, named by an arm, which has no triggering event yet");
         }
         // CR 120.10's excess is the event's, which a permanent's records sum
         // to, and a player is dealt none.
@@ -179,7 +183,7 @@ impl TriggerDef {
         for arm in arms {
             let TriggerEvent::Blocks { blocker, attacker, occurrence, count, alone, .. } = arm else { continue };
             match occurrence {
-                BlockOccurrence::Unblocked if *blocker != TriggerSubject::Any || count.is_some() || *alone => {
+                BlockOccurrence::Unblocked if *blocker != TriggerSubject::Filter(ObjectFilter::All) || count.is_some() || *alone => {
                     wrong.push("an unblocked creature's trigger that asks about a blocker")
                 }
                 BlockOccurrence::Block if count.is_some() => wrong.push("CR 509.3e's count, on a trigger once per block"),
@@ -191,8 +195,8 @@ impl TriggerDef {
             // Cockatrice's "destroy that creature" written as the attacker
             // would destroy Cockatrice itself.
             let names_by_role = |role| named.contains(TriggerBindingReads::event_role(role));
-            let own_side_by_role = (*blocker == TriggerSubject::ThisObject && names_by_role(EventRole::Blocker))
-                || (*attacker == TriggerSubject::ThisObject && names_by_role(EventRole::Attacker));
+            let own_side_by_role = (*blocker == TriggerSubject::Object(Antecedent::ThisObject) && names_by_role(EventRole::Blocker))
+                || (*attacker == TriggerSubject::Object(Antecedent::ThisObject) && names_by_role(EventRole::Attacker));
             if own_side_by_role {
                 wrong.push("its own side of a block, named by event role rather than as this object");
             }
@@ -267,11 +271,11 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
             }
             crate::types::effects::TargetCount::Exactly(_) | crate::types::effects::TargetCount::UpTo(_) => TriggerBindingReads::NONE,
         },
-        EffectRecipient::ThisObject | EffectRecipient::Host => TriggerBindingReads::SOURCE,
-        EffectRecipient::Triggering(p) => TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*p),
+        EffectRecipient::Object(Antecedent::ThisObject) | EffectRecipient::Object(Antecedent::ThisObjectsHost) => TriggerBindingReads::SOURCE,
+        EffectRecipient::Object(Antecedent::Triggering(p)) => TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*p),
         EffectRecipient::TriggeringPlayer => TriggerBindingReads::PLAYER,
         EffectRecipient::AttackedBy(creature) | EffectRecipient::DefendingPlayer(creature) => creature_reads(*creature),
-        EffectRecipient::Referred => TriggerBindingReads::REFERRED,
+        EffectRecipient::Referred | EffectRecipient::Object(Antecedent::Referred) => TriggerBindingReads::REFERRED,
         EffectRecipient::Group(members) => members.iter().fold(TriggerBindingReads::NONE, |reads, member| reads | recipient_reads(member)),
         EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter_reads(among),
         EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient_reads(&choice.chooser), |reads, pick| {
@@ -287,8 +291,9 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
 /// is now: its attack.
 fn creature_reads(creature: Antecedent) -> TriggerBindingReads {
     match creature {
-        Antecedent::ThisObject => TriggerBindingReads::SOURCE,
+        Antecedent::ThisObject | Antecedent::ThisObjectsHost => TriggerBindingReads::SOURCE,
         Antecedent::Triggering(p) => TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::needs_one(p),
+        Antecedent::Referred => TriggerBindingReads::REFERRED,
     }
 }
 
@@ -361,11 +366,20 @@ fn condition_reads(c: &Condition) -> TriggerBindingReads {
         Condition::SpellWasKicked
         | Condition::SourceUntapped
         | Condition::SourceTapped
-        | Condition::CounterCount { object: Antecedent::ThisObject, .. } => TriggerBindingReads::SOURCE,
-        Condition::HostMatches(among) => TriggerBindingReads::SOURCE | filter_reads(among),
+        | Condition::CounterCount { object: Antecedent::ThisObject | Antecedent::ThisObjectsHost, .. } => TriggerBindingReads::SOURCE,
+        Condition::ObjectMatches(Antecedent::ThisObject | Antecedent::ThisObjectsHost, among) => {
+            TriggerBindingReads::SOURCE | filter_reads(among)
+        }
         // "It had": the object, as the record it left with framed it.
         Condition::CounterCount { object: Antecedent::Triggering(p), .. } => {
             TriggerBindingReads::CHARACTERISTICS | TriggerBindingReads::needs_one(*p)
+        }
+        Condition::ObjectMatches(Antecedent::Triggering(p), among) => {
+            TriggerBindingReads::CHARACTERISTICS | TriggerBindingReads::needs_one(*p) | filter_reads(among)
+        }
+        // A condition has no remembered object, and answers no.
+        Condition::CounterCount { object: Antecedent::Referred, .. } | Condition::ObjectMatches(Antecedent::Referred, _) => {
+            TriggerBindingReads::NONE
         }
         Condition::All(all) => all.iter().fold(TriggerBindingReads::NONE, |reads, c| reads | condition_reads(c)),
         Condition::Not(clause) => condition_reads(clause),
@@ -493,7 +507,7 @@ mod tests {
     use super::TriggerBindingReads;
     use crate::cards::authoring::{enters, leaves_the_battlefield, whenever};
     use crate::types::card_types::CardType;
-    use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, Primitive, ReturnUnder};
+    use crate::types::effects::{Antecedent, Effect, EffectRecipient, ObjectFilter, Primitive, ReturnUnder};
     use crate::types::triggers::{EventRole, TriggerDef, TriggerSubject};
 
     /// "Whenever a creature enters, exile it until this leaves the
@@ -506,11 +520,11 @@ mod tests {
             enters(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))),
             Effect::Atom(
                 Primitive::ExileUntil {
-                    until: Box::new(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
+                    until: Box::new(leaves_the_battlefield(TriggerSubject::Object(Antecedent::ThisObject)).into()),
                     refers_to: None,
                     under: ReturnUnder::Owner,
                 },
-                EffectRecipient::Triggering(EventRole::Object),
+                EffectRecipient::Object(Antecedent::Triggering(EventRole::Object)),
             ),
         )
     }
@@ -523,12 +537,27 @@ mod tests {
     #[test]
     fn a_referred_object_named_where_its_arm_remembers_none_is_refused() {
         use crate::types::triggers::TriggerEvent;
-        let attaches = TriggerEvent::BecomesAttached { attachment: TriggerSubject::Referred, host: TriggerSubject::Any };
+        let attaches = TriggerEvent::BecomesAttached { attachment: TriggerSubject::Object(Antecedent::Referred), host: TriggerSubject::Filter(ObjectFilter::All) };
         let def = whenever(attaches, Effect::Sequence(Vec::new()));
         assert_eq!(def.readings_its_arms_cannot_give(), vec!["a referred object, named where its arm remembers none (CR 603.7c)"]);
 
-        let on_the_host = TriggerEvent::BecomesAttached { attachment: TriggerSubject::Any, host: TriggerSubject::Referred };
+        let on_the_host = TriggerEvent::BecomesAttached { attachment: TriggerSubject::Filter(ObjectFilter::All), host: TriggerSubject::Object(Antecedent::Referred) };
         assert!(whenever(on_the_host, Effect::Sequence(Vec::new())).readings_its_arms_cannot_give().is_empty(), "the subject is remembered");
+    }
+
+    /// A trigger's subject holds the object word, and "that creature" is the
+    /// one word it cannot answer: the arm is what decides the triggering
+    /// event, so there is none yet to name an object of. Written as an arm's
+    /// subject, it would never match, so it is refused as it is authored.
+    #[test]
+    fn a_triggering_object_named_by_an_arm_is_refused() {
+        let it_dies = crate::cards::authoring::dies(TriggerSubject::Object(Antecedent::Triggering(EventRole::Object)));
+        assert_eq!(
+            whenever(it_dies, Effect::Sequence(Vec::new())).readings_its_arms_cannot_give(),
+            vec!["a triggering event's object, named by an arm, which has no triggering event yet"]
+        );
+        let this_dies = crate::cards::authoring::dies(TriggerSubject::Object(Antecedent::ThisObject));
+        assert!(whenever(this_dies, Effect::Sequence(Vec::new())).readings_its_arms_cannot_give().is_empty());
     }
 
     /// "Each of up to X target creatures, where X is the number of cards
@@ -539,7 +568,7 @@ mod tests {
         use crate::types::effects::{AmountExpr, CounterType, PlayerRef, SelectionFilter, TargetCount};
         let up_to_x = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpToAmount(AmountExpr::TriggeringAmount));
         let counter = Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You };
-        let def = whenever(enters(TriggerSubject::ThisObject), Effect::Atom(counter, up_to_x));
+        let def = whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), Effect::Atom(counter, up_to_x));
         assert!(def.trigger_binding_reads().contains(TriggerBindingReads::AMOUNT));
     }
 
@@ -555,8 +584,8 @@ mod tests {
     #[test]
     fn an_event_role_the_arm_lacks_is_named() {
         let def = whenever(
-            crate::cards::authoring::dies(TriggerSubject::Any),
-            Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::DamageRecipient)),
+            crate::cards::authoring::dies(TriggerSubject::Filter(ObjectFilter::All)),
+            Effect::Atom(Primitive::Destroy, EffectRecipient::Object(Antecedent::Triggering(EventRole::DamageRecipient))),
         );
         assert_eq!(def.event_roles_its_arms_lack(), vec![EventRole::DamageRecipient]);
         assert!(exile_that_creature_until_this_leaves().event_roles_its_arms_lack().is_empty());
@@ -567,7 +596,7 @@ mod tests {
     fn a_plain_exile_reads_only_its_object() {
         let def = whenever(
             enters(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))),
-            Effect::Atom(Primitive::Exile, EffectRecipient::Triggering(EventRole::Object)),
+            Effect::Atom(Primitive::Exile, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))),
         );
         assert_eq!(def.trigger_binding_reads(), TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(EventRole::Object));
     }

@@ -40,7 +40,7 @@ use mtgsim::cards::phase_re9_cards::deep_water;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    Antecedent, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::colors::Color;
 use mtgsim::types::history::{CountIs, ObjectFact};
@@ -185,8 +185,8 @@ fn a_creature_attacking_without_a_declaration_is_unblocked() {
 #[test]
 fn a_creature_attacking_without_a_declaration_can_be_blocked() {
     let mut game = stocked(2);
-    put_on_battlefield(&mut game, life_on("Fixture Unblocked Watcher", attacks_and_isnt_blocked(TriggerSubject::Any)), 0);
-    put_on_battlefield(&mut game, life_on("Fixture Blocked Watcher", becomes_blocked(TriggerSubject::Any)), 1);
+    put_on_battlefield(&mut game, life_on("Fixture Unblocked Watcher", attacks_and_isnt_blocked(TriggerSubject::Filter(ObjectFilter::All))), 0);
+    put_on_battlefield(&mut game, life_on("Fixture Blocked Watcher", becomes_blocked(TriggerSubject::Filter(ObjectFilter::All))), 1);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let entered = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let blocker = put_on_battlefield(&mut game, grizzly_bears(), 1);
@@ -306,7 +306,7 @@ fn three_attackers_three_ways(watching: Arc<CardData>) -> Board {
 /// CR 509.3a: once for each blocking creature.
 #[test]
 fn blocks_triggers_once_for_each_blocking_creature() {
-    let mut board = three_attackers_three_ways(life_on("Fixture Wall Watcher", blocks(TriggerSubject::Any)));
+    let mut board = three_attackers_three_ways(life_on("Fixture Wall Watcher", blocks(TriggerSubject::Filter(ObjectFilter::All))));
     resolve_all(&mut board.game);
     assert_eq!(life(&board.game, 0), 23);
 }
@@ -314,7 +314,7 @@ fn blocks_triggers_once_for_each_blocking_creature() {
 /// CR 509.3c: once for each blocked creature, however many block it.
 #[test]
 fn becomes_blocked_triggers_once_for_each_blocked_creature() {
-    let mut board = three_attackers_three_ways(life_on("Fixture Charge Watcher", becomes_blocked(TriggerSubject::Any)));
+    let mut board = three_attackers_three_ways(life_on("Fixture Charge Watcher", becomes_blocked(TriggerSubject::Filter(ObjectFilter::All))));
     resolve_all(&mut board.game);
     assert_eq!(life(&board.game, 0), 22, "two blocked creatures, one of them twice");
 }
@@ -323,15 +323,15 @@ fn becomes_blocked_triggers_once_for_each_blocked_creature() {
 #[test]
 fn becomes_blocked_by_triggers_once_for_each_blocker() {
     let mut board =
-        three_attackers_three_ways(life_on("Fixture Melee Watcher", becomes_blocked_by(TriggerSubject::Any, TriggerSubject::Any)));
+        three_attackers_three_ways(life_on("Fixture Melee Watcher", becomes_blocked_by(TriggerSubject::Filter(ObjectFilter::All), TriggerSubject::Filter(ObjectFilter::All))));
     resolve_all(&mut board.game);
     assert_eq!(life(&board.game, 0), 23);
 }
 
 fn blocked_by(count: CountIs) -> TriggerEvent {
     TriggerEvent::Blocks {
-        blocker: TriggerSubject::Any,
-        attacker: TriggerSubject::Any,
+        blocker: TriggerSubject::Filter(ObjectFilter::All),
+        attacker: TriggerSubject::Filter(ObjectFilter::All),
         occurrence: BlockOccurrence::Blocked,
         count: Some(count),
         alone: false,
@@ -358,11 +358,11 @@ fn a_count_of_blockers_is_asked_when_blockers_are_declared() {
 #[test]
 fn a_blocked_creatures_event_holds_every_blocker() {
     let mut game = stocked(2);
-    let tap_them = Effect::Atom(Primitive::Tap, EffectRecipient::Triggering(EventRole::Blocker));
+    let tap_them = Effect::Atom(Primitive::Tap, EffectRecipient::Object(Antecedent::Triggering(EventRole::Blocker)));
     let charger = CardDataBuilder::new("Fixture Charger")
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(triggered_ability("", whenever(becomes_blocked(TriggerSubject::ThisObject), tap_them)))
+        .ability(triggered_ability("", whenever(becomes_blocked(TriggerSubject::Object(Antecedent::ThisObject)), tap_them)))
         .build();
     let charger = put_on_battlefield(&mut game, charger, 0);
     let (first, second) = (put_on_battlefield(&mut game, grizzly_bears(), 1), put_on_battlefield(&mut game, grizzly_bears(), 1));
@@ -377,7 +377,7 @@ fn a_blocked_creatures_event_holds_every_blocker() {
 // COVERS-PARTIAL: ATOM-509.1h-001
 #[test]
 fn attacks_and_isnt_blocked_reads_the_declaration() {
-    let mut board = three_attackers_three_ways(life_on("Fixture Raid Watcher", attacks_and_isnt_blocked(TriggerSubject::Any)));
+    let mut board = three_attackers_three_ways(life_on("Fixture Raid Watcher", attacks_and_isnt_blocked(TriggerSubject::Filter(ObjectFilter::All))));
     board.game.change_zone(board.blockers[0], Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     resolve_all(&mut board.game);
     assert_eq!(life(&board.game, 0), 21, "the third attacker only");
@@ -403,8 +403,8 @@ fn a_filter_reads_the_creature_as_blockers_are_declared() {
 
 fn blocks_alone() -> TriggerEvent {
     TriggerEvent::Blocks {
-        blocker: TriggerSubject::Any,
-        attacker: TriggerSubject::Any,
+        blocker: TriggerSubject::Filter(ObjectFilter::All),
+        attacker: TriggerSubject::Filter(ObjectFilter::All),
         occurrence: BlockOccurrence::Blocker,
         count: None,
         alone: true,
@@ -439,11 +439,11 @@ fn blocks_alone_is_the_only_blocker_across_every_defender() {
 /// Cockatrice's shape: "whenever this creature blocks or becomes blocked by a
 /// creature, destroy that creature".
 fn basilisk() -> Arc<CardData> {
-    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::OtherCombatant));
+    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Object(Antecedent::Triggering(EventRole::OtherCombatant)));
     let def = TriggerDef {
         condition: TriggerCondition::AnyOf(vec![
-            blocks_a_creature(TriggerSubject::ThisObject, TriggerSubject::Any).into(),
-            becomes_blocked_by(TriggerSubject::ThisObject, TriggerSubject::Any).into(),
+            blocks_a_creature(TriggerSubject::Object(Antecedent::ThisObject), TriggerSubject::Filter(ObjectFilter::All)).into(),
+            becomes_blocked_by(TriggerSubject::Object(Antecedent::ThisObject), TriggerSubject::Filter(ObjectFilter::All)).into(),
         ]),
         intervening_if: None,
         limit: None,
@@ -482,8 +482,8 @@ fn the_other_creature_in_a_block_is_read_through_the_arm_that_matched() {
 fn the_registry_refuses_block_readings_no_rule_gives() {
     let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
     let unblocked_by = TriggerEvent::Blocks {
-        blocker: TriggerSubject::ThisObject,
-        attacker: TriggerSubject::Any,
+        blocker: TriggerSubject::Object(Antecedent::ThisObject),
+        attacker: TriggerSubject::Filter(ObjectFilter::All),
         occurrence: BlockOccurrence::Unblocked,
         count: None,
         alone: false,
@@ -491,20 +491,20 @@ fn the_registry_refuses_block_readings_no_rule_gives() {
     };
     assert_eq!(whenever(unblocked_by, gain.clone()).readings_its_arms_cannot_give().len(), 1);
     let counted_block = TriggerEvent::Blocks {
-        blocker: TriggerSubject::Any,
-        attacker: TriggerSubject::Any,
+        blocker: TriggerSubject::Filter(ObjectFilter::All),
+        attacker: TriggerSubject::Filter(ObjectFilter::All),
         occurrence: BlockOccurrence::Block,
         count: Some(CountIs::AtLeast(2)),
         alone: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
     assert_eq!(whenever(counted_block, gain).readings_its_arms_cannot_give().len(), 1);
-    let destroy = |role| Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(role));
-    let own_side = whenever(becomes_blocked_by(TriggerSubject::ThisObject, TriggerSubject::Any), destroy(EventRole::Attacker));
+    let destroy = |role| Effect::Atom(Primitive::Destroy, EffectRecipient::Object(Antecedent::Triggering(role)));
+    let own_side = whenever(becomes_blocked_by(TriggerSubject::Object(Antecedent::ThisObject), TriggerSubject::Filter(ObjectFilter::All)), destroy(EventRole::Attacker));
     assert_eq!(own_side.readings_its_arms_cannot_give().len(), 1, "its own side, by event role");
-    let no_side = whenever(becomes_blocked_by(TriggerSubject::Any, TriggerSubject::Any), destroy(EventRole::OtherCombatant));
+    let no_side = whenever(becomes_blocked_by(TriggerSubject::Filter(ObjectFilter::All), TriggerSubject::Filter(ObjectFilter::All)), destroy(EventRole::OtherCombatant));
     assert_eq!(no_side.readings_its_arms_cannot_give().len(), 1);
-    let fine = whenever(becomes_blocked_by(TriggerSubject::ThisObject, TriggerSubject::Any), destroy(EventRole::OtherCombatant));
+    let fine = whenever(becomes_blocked_by(TriggerSubject::Object(Antecedent::ThisObject), TriggerSubject::Filter(ObjectFilter::All)), destroy(EventRole::OtherCombatant));
     assert!(fine.readings_its_arms_cannot_give().is_empty());
 }
 
@@ -515,13 +515,13 @@ fn the_registry_refuses_block_readings_no_rule_gives() {
 /// creature to name.
 #[test]
 fn a_block_arm_is_about_the_side_it_names() {
-    let blocked: TriggerEvent = becomes_blocked_by(TriggerSubject::Referred, TriggerSubject::Any).into();
+    let blocked: TriggerEvent = becomes_blocked_by(TriggerSubject::Object(Antecedent::Referred), TriggerSubject::Filter(ObjectFilter::All)).into();
     assert!(blocked.watches_referred());
-    assert_eq!(blocked.subject(), Some(&TriggerSubject::Referred));
-    let blocking: TriggerEvent = blocks_a_creature(TriggerSubject::Referred, TriggerSubject::Any).into();
+    assert_eq!(blocked.subject(), Some(&TriggerSubject::Object(Antecedent::Referred)));
+    let blocking: TriggerEvent = blocks_a_creature(TriggerSubject::Object(Antecedent::Referred), TriggerSubject::Filter(ObjectFilter::All)).into();
     assert!(blocking.watches_referred());
-    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::OtherCombatant));
-    let unblocked = whenever(attacks_and_isnt_blocked(TriggerSubject::ThisObject), destroy);
+    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Object(Antecedent::Triggering(EventRole::OtherCombatant)));
+    let unblocked = whenever(attacks_and_isnt_blocked(TriggerSubject::Object(Antecedent::ThisObject)), destroy);
     assert_eq!(unblocked.readings_its_arms_cannot_give().len(), 1, "no creature across an unblocked one");
 }
 
@@ -535,7 +535,7 @@ fn a_block_arm_is_about_the_side_it_names() {
 #[test]
 fn loyal_sentry_destroys_both_before_combat_damage() {
     let mut game = stocked(2);
-    put_on_battlefield(&mut game, life_on("Fixture Mourning Bell", dies(TriggerSubject::Any).once_per_event()), 1);
+    put_on_battlefield(&mut game, life_on("Fixture Mourning Bell", dies(TriggerSubject::Filter(ObjectFilter::All)).once_per_event()), 1);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let sentry = put_on_battlefield(&mut game, loyal_sentry(), 1);
     declare_attacks(&mut game, &[(bears, 1)]);
@@ -659,14 +659,14 @@ fn place_triggers(game: &mut GameState, dp: &ScriptedDecisionProvider) {
 /// `hybrid-and-phyrexian-payment`'s: "Whenever this creature becomes the target of a spell or ability
 /// an opponent controls, counter that spell or ability."
 fn frost_titan_fixture() -> Arc<CardData> {
-    let counter = Effect::Atom(Primitive::Counter, EffectRecipient::Triggering(EventRole::SpellOrAbility));
+    let counter = Effect::Atom(Primitive::Counter, EffectRecipient::Object(Antecedent::Triggering(EventRole::SpellOrAbility)));
     CardDataBuilder::new("Fixture Frost Titan")
         .card_type(CardType::Creature)
         .color(Color::Blue)
         .power_toughness(6, 6)
         .ability(triggered_ability(
             "",
-            whenever(becomes_the_target_of(TriggerSubject::ThisObject, TargetedBy::SpellOrAbility, Some(PlayerRef::Opponent)), counter),
+            whenever(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, Some(PlayerRef::Opponent)), counter),
         ))
         .build()
 }
@@ -753,7 +753,7 @@ fn frost_titan_counters_an_opponents_triggered_ability() {
     let tap_one = Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
     let watcher = CardDataBuilder::new("Fixture Grim Watcher")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", whenever(dies(TriggerSubject::Any), tap_one)))
+        .ability(triggered_ability("", whenever(dies(TriggerSubject::Filter(ObjectFilter::All)), tap_one)))
         .build();
     put_on_battlefield(&mut game, watcher, 1);
     bystander(&mut game);
@@ -854,10 +854,10 @@ fn one_spells_targets_are_one_event() {
 /// spell or ability you control for the first time each turn, put a +1/+1
 /// counter on it".
 fn valiant_fixture() -> Arc<CardData> {
-    let counter = Effect::Atom(Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You }, EffectRecipient::ThisObject);
+    let counter = Effect::Atom(Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You }, EffectRecipient::Object(Antecedent::ThisObject));
     let def = TriggerDef {
         limit: Some(TriggerLimit::FirstTimeEachTurn),
-        ..whenever(becomes_the_target_of(TriggerSubject::ThisObject, TargetedBy::SpellOrAbility, Some(PlayerRef::You)), counter)
+        ..whenever(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, Some(PlayerRef::You)), counter)
     };
     CardDataBuilder::new("Fixture Valiant Mouse").card_type(CardType::Creature).power_toughness(1, 1).ability(triggered_ability("", def)).build()
 }
@@ -909,10 +909,10 @@ fn valiant_triggers_again_next_turn() {
 #[test]
 fn a_first_time_for_any_controller_counts_every_targeting() {
     let mut game = stocked(2);
-    let counter = Effect::Atom(Primitive::Counter, EffectRecipient::Triggering(EventRole::SpellOrAbility));
+    let counter = Effect::Atom(Primitive::Counter, EffectRecipient::Object(Antecedent::Triggering(EventRole::SpellOrAbility)));
     let def = TriggerDef {
         limit: Some(TriggerLimit::FirstTimeEachTurn),
-        ..whenever(becomes_the_target_of(TriggerSubject::ThisObject, TargetedBy::SpellOrAbility, None), counter)
+        ..whenever(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::SpellOrAbility, None), counter)
     };
     let spinner = CardDataBuilder::new("Fixture Glass Spinner").card_type(CardType::Creature).power_toughness(2, 2).ability(triggered_ability("", def)).build();
     let spinner = put_on_battlefield(&mut game, spinner, 0);
@@ -935,10 +935,10 @@ fn a_first_time_for_any_controller_counts_every_targeting() {
 fn first_time_each_turn_is_refused_where_nothing_can_tell_a_first() {
     let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
     let first = |arm: TriggerEvent| TriggerDef { limit: Some(TriggerLimit::FirstTimeEachTurn), ..whenever(arm, gain.clone()) };
-    assert_eq!(first(dies(TriggerSubject::Any).into()).readings_its_arms_cannot_give().len(), 1);
+    assert_eq!(first(dies(TriggerSubject::Filter(ObjectFilter::All)).into()).readings_its_arms_cannot_give().len(), 1);
     let aura = TargetedBy::Spell(Some(ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura))));
-    assert_eq!(first(becomes_the_target_of(TriggerSubject::ThisObject, aura, None).into()).readings_its_arms_cannot_give().len(), 1);
-    assert!(first(becomes_the_target_of(TriggerSubject::ThisObject, TargetedBy::Spell(None), None).into())
+    assert_eq!(first(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), aura, None).into()).readings_its_arms_cannot_give().len(), 1);
+    assert!(first(becomes_the_target_of(TriggerSubject::Object(Antecedent::ThisObject), TargetedBy::Spell(None), None).into())
         .readings_its_arms_cannot_give()
         .is_empty());
 }
@@ -1173,7 +1173,7 @@ fn a_trigger_on_a_mana_abilitys_activation_that_adds_mana_resolves_at_once() {
     );
     let echo = CardDataBuilder::new("Fixture Mana Echo")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", whenever(activates_an_ability_of(Whose::Yours, TriggerSubject::Any, Some(true)), add_one)))
+        .ability(triggered_ability("", whenever(activates_an_ability_of(Whose::Yours, TriggerSubject::Filter(ObjectFilter::All), Some(true)), add_one)))
         .build();
     put_on_battlefield(&mut game, echo, 0);
     let forest = put_on_battlefield(&mut game, forest(), 0);
@@ -1196,7 +1196,7 @@ fn a_trigger_is_a_mana_ability_by_the_activation_that_triggered_it() {
     );
     let echo = CardDataBuilder::new("Fixture Any Echo")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", whenever(activates_an_ability_of(Whose::Yours, TriggerSubject::Any, None), add_one)))
+        .ability(triggered_ability("", whenever(activates_an_ability_of(Whose::Yours, TriggerSubject::Filter(ObjectFilter::All), None), add_one)))
         .build();
     put_on_battlefield(&mut game, echo, 0);
     let forest = put_on_battlefield(&mut game, forest(), 0);

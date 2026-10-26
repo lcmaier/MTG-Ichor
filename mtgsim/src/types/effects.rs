@@ -692,15 +692,12 @@ pub enum Condition {
     /// Each states the absence of what a positive fact finds, so the fact is
     /// written once and negated here rather than given a "no" twin.
     Not(Box<Condition>),
-    /// "as long as enchanted/equipped [permanent] is [X]" — a predicate on
-    /// whatever the source is attached to (CR 303.4m reads it fresh, as
-    /// `ObjectSet::Host` does). Rune of Flight's two clauses are both this
-    /// leaf. `Host` rather than `AttachedTo` for the reason §13a decision 4
-    /// gives: one word for one relationship across the whole engine.
-    ///
-    /// False when the source is attached to nothing, which is what makes an
-    /// unattached Aura's conditional effect simply not exist.
-    HostMatches(ObjectFilter),
+    /// "As long as enchanted/equipped [permanent] is [X]": the object the
+    /// antecedent names matches the filter. Rune of Flight's two clauses are
+    /// both `ThisObjectsHost`, read fresh as `ObjectSet::Host` is (CR 303.4m),
+    /// and false while the source is attached to nothing, which is what makes
+    /// an unattached Aura's conditional effect simply not exist.
+    ObjectMatches(Antecedent, ObjectFilter),
     /// "As long as this artifact is untapped" — Trinisphere, Winter Orb,
     /// Static Orb. Tapped is a status (CR 110.5), not a characteristic, so
     /// no layer writes it and `board::condition_reads` declares nothing for
@@ -763,17 +760,31 @@ pub enum Condition {
 }
 
 /// The antecedent of a word in an ability's text that means an object: which
-/// object "this", "it" or "that creature" refers to. A condition, a recipient
-/// and "defending player" each name one (`ConditionReferents::object_for`
-/// finds it).
+/// object "this", "it" or "that creature" refers to. A recipient, a trigger's
+/// subject, a condition and "defending player" each name one
+/// (`ConditionReferents::object_for` finds it for a condition). Each role
+/// answers the words its table row in `cr-coverage-audit.md#4d-words-and-their-spellings`
+/// gives it: a trigger's subject has no triggering event yet, and a
+/// condition no remembered object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Antecedent {
     /// "This": the object whose ability it is (CR 113.7a).
     ThisObject,
+    /// "Enchanted creature", "equipped creature": what the object whose
+    /// ability it is is attached to now (CR 303.4m, 301.5a), and nothing while
+    /// it is attached to nothing. Never `Triggering(EventRole::Host)`, the host
+    /// in an attach event.
+    ThisObjectsHost,
     /// "It": the object with this event role in the triggering event, a
     /// triggered ability's alone. A static ability has none, and the leaf
     /// answers no.
     Triggering(crate::types::triggers::EventRole),
+    /// CR 603.7c — "that card", "when that token dies": an object a delayed
+    /// triggered ability refers to, which the instruction that created it
+    /// remembered ([`Effect::Remember`]), each found only while it is the
+    /// same object (CR 400.7). A condition has no remembered object, and the
+    /// leaf answers no.
+    Referred,
 }
 
 impl Condition {
@@ -796,7 +807,7 @@ impl Condition {
             | Condition::DefendingPlayer { .. }
             | Condition::SpellWasKicked
             | Condition::ModeChosen(_)
-            | Condition::HostMatches(_)
+            | Condition::ObjectMatches(..)
             | Condition::ThisTurn(..)
             | Condition::LastTurn(..)
             | Condition::SinceYourLastTurn(..)
@@ -875,19 +886,39 @@ pub enum ModalCount {
 pub enum EffectRecipient {
     /// No object involved: a mana ability's production, an instruction to the
     /// controller that names nothing, a replacement row scoped by its own
-    /// filter and player set. Never "this object", which is [`Self::ThisObject`].
+    /// filter and player set. Never "this object", which is
+    /// `Object(Antecedent::ThisObject)`.
     Implicit,
-    /// "This creature", "this permanent", a card's own name: the object whose
-    /// ability this is (CR 113.7a), or the spell or replacement source itself
-    /// when no ability is resolving. On a static ability it is the source, read
-    /// live (`ObjectSet::SourceOnly`), and CR 604.3a(3) makes it every CDA's
-    /// recipient.
+    /// The object a word in the text names, and no instance of "target":
     ///
-    /// At resolution it is found by identity: an ability's source that left
-    /// its zone and came back is a new object (CR 400.7), and the effect finds
-    /// nothing. A primitive that reads only a fact the move keeps, such as
-    /// `ShuffleLibrary`'s owner (CR 108.3), reads it wherever the object is.
-    ThisObject,
+    /// - `ThisObject` — "this creature", a card's own name: the object whose
+    ///   ability this is (CR 113.7a), or the spell or replacement source
+    ///   itself when no ability is resolving. On a static ability it is the
+    ///   source, read live (`ObjectSet::SourceOnly`), and CR 604.3a(3) makes it
+    ///   every CDA's recipient. At resolution it is found by identity: a source
+    ///   that left its zone and came back is a new object (CR 400.7), and the
+    ///   effect finds nothing. A primitive that reads only a fact the move
+    ///   keeps, such as `ShuffleLibrary`'s owner (CR 108.3), reads it wherever
+    ///   the object is.
+    /// - `ThisObjectsHost` — "enchanted creature" on an Aura (CR 303.4m),
+    ///   "equipped creature" on an Equipment (CR 301.5a). Static abilities
+    ///   only; it lowers to `ObjectSet::Host`, which reads `attached_to` during
+    ///   the layer walk rather than capturing it, because registration happens
+    ///   before the attach.
+    /// - `Triggering(role)` — "that creature", "it", "them" on a triggered
+    ///   ability: the object that played the named part in each triggering
+    ///   event, which the card states (CR 608.2c), so the damage's source after
+    ///   "[a creature] deals damage" and its recipient after "[a creature] is
+    ///   dealt damage". One object for a trigger on each event, each event's
+    ///   for "one or more" (CR 603.2c). Each is found by id **and** epoch (CR
+    ///   603.6's "unable to be found", CR 400.7 in one comparison): a creature
+    ///   that died and was returned before the trigger resolves is a new
+    ///   object, and is not found.
+    /// - `Referred` — CR 603.7c's "return that card", "sacrifice it" on a
+    ///   delayed triggered ability: what the instruction its creator
+    ///   remembered acted on ([`Effect::Remember`]), each object found only
+    ///   while it is the same object (CR 400.7).
+    Object(Antecedent),
     /// The controller of this spell/ability (e.g. Night's Whisper "you draw",
     /// Angel's Mercy "you gain"). Not targeting.
     Controller,
@@ -940,22 +971,13 @@ pub enum EffectRecipient {
     /// the instance declared at 0", which is what a card author needs to see
     /// without opening this file.
     SameInstanceAs(usize),
-    /// "That creature", "it", "them" on a triggered ability: the object that
-    /// played the named part in each triggering event, which the card states
-    /// (CR 608.2c), so the damage's source after "[a creature] deals damage"
-    /// and its recipient after "[a creature] is dealt damage". One object for a
-    /// trigger on each event, each event's for "one or more" (CR 603.2c). Each
-    /// is found by id **and** epoch (CR 603.6's "unable to be found", CR 400.7
-    /// in one comparison): a creature that died and was returned before the
-    /// trigger resolves is a new object, and is not found.
-    Triggering(crate::types::triggers::EventRole),
     /// "That player" on a triggered ability — the arm's `player_of` on the
     /// matched records.
     TriggeringPlayer,
-    /// CR 603.7c — "return that card", "sacrifice it", "that player" on a
-    /// delayed triggered ability: what the instruction its creator
-    /// remembered acted on ([`Effect::Remember`]), each object found only
-    /// while it is the same object (CR 400.7). Never an instance of "target".
+    /// CR 603.7c — "that player" on a delayed triggered ability, or what the
+    /// instruction its creator remembered acted on, players and objects
+    /// alike ([`Effect::Remember`]). Never an instance of "target". Its
+    /// objects alone are `Object(Antecedent::Referred)`.
     Referred,
     /// "The player or planeswalker it's attacking" (CR 506.3): what the
     /// creature named is attacking, read as CR 608.2h reads that creature.
@@ -1009,13 +1031,6 @@ pub enum EffectRecipient {
     /// for one, so `resolve.rs` refuses it by name rather than falling into a
     /// catch-all — an arm the engine cannot apply is worse than a missing one.
     FilteredObjectsIn(ObjectFilter, ZoneSet),
-    /// The permanent this one is attached to — "enchanted creature" on an
-    /// Aura (CR 303.4m), "equipped creature" on an Equipment (CR 301.5a).
-    /// Static abilities only, like `FilteredPermanents`; lowers to
-    /// `ObjectSet::Host`, which reads `attached_to` during the
-    /// layer walk rather than capturing it, because registration happens
-    /// before the attach.
-    Host,
     /// "Destroy that creature and this creature" (Loyal Sentry), "destroy it
     /// and all creatures it blocked this turn": each member found as it would
     /// be alone, and every object they find acted on in one instruction (CR
@@ -1838,13 +1853,13 @@ pub enum Primitive {
     /// and the return it waits to make, which CR 610.3 creates immediately
     /// after the event and which uses no stack. The event is read as a
     /// trigger arm is: "until this leaves the battlefield" is a leaving of
-    /// `TriggerSubject::ThisObject`, Palace Jailer's "until an opponent
+    /// `TriggerSubject::Object(Antecedent::ThisObject)`, Palace Jailer's "until an opponent
     /// becomes the monarch" a designation's arm. If the event has already
     /// happened since the spell was cast or the ability triggered (610.3a,
     /// 610.3b), nothing moves.
     ExileUntil {
         until: Box<crate::types::triggers::TriggerEvent>,
-        /// The target the event refers to as `TriggerSubject::Referred`,
+        /// The target the event refers to as `TriggerSubject::Object(Antecedent::Referred)`,
         /// "until target enchantment you control leaves the battlefield"
         /// (Calix, Destiny's Hand): an `EffectRecipient::Target` declared
         /// after the instruction's own, so it is announced and re-checked (CR
@@ -2385,7 +2400,7 @@ pub enum Effect {
     /// made as the move left it (CR 400.7), so long as it went where the
     /// instruction put it, each object it acted on without moving it, and
     /// each player it named; [`EffectRecipient::Referred`] and
-    /// `TriggerSubject::Referred` read them back. One instruction per
+    /// `TriggerSubject::Object(Antecedent::Referred)` read them back. One instruction per
     /// resolution.
     Remember(Box<Effect>),
 

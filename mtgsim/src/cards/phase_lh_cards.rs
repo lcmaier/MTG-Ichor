@@ -21,7 +21,7 @@ use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype}
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    Antecedent, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
@@ -87,7 +87,7 @@ pub fn holy_strength() -> Arc<CardData> {
                     AmountExpr::Fixed(2),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::Host,
+                EffectRecipient::Object(Antecedent::ThisObjectsHost),
             ),
         })
         .build()
@@ -187,7 +187,7 @@ Equip {1}")
                     AmountExpr::Fixed(0),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::Host,
+                EffectRecipient::Object(Antecedent::ThisObjectsHost),
             ),
         })
         .ability(equip("Equip {1}", vec![Cost::Mana(ManaCost::build(&[], 1))]))
@@ -230,7 +230,7 @@ pub fn cobbled_wings() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
-                EffectRecipient::Host,
+                EffectRecipient::Object(Antecedent::ThisObjectsHost),
             ),
         })
         .ability(equip("Equip {1}", vec![Cost::Mana(ManaCost::build(&[], 1))]))
@@ -257,7 +257,7 @@ pub fn cobbled_wings() -> Arc<CardData> {
 /// Registered, not pooled: it opens no engine path Bonesplitter and Cobbled
 /// Wings do not.
 pub fn loxodon_warhammer() -> Arc<CardData> {
-    let equipped = |primitive| Effect::Atom(primitive, EffectRecipient::Host);
+    let equipped = |primitive| Effect::Atom(primitive, EffectRecipient::Object(Antecedent::ThisObjectsHost));
     CardDataBuilder::new("Loxodon Warhammer")
         .card_type(CardType::Artifact)
         .subtype(Subtype::Artifact(ArtifactType::Equipment))

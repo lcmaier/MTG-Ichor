@@ -61,7 +61,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
+    Antecedent, AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -740,7 +740,7 @@ fn wall_of_omens() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .power_toughness(0, 4)
-        .ability(triggered_ability("", whenever(enters(TriggerSubject::ThisObject), draw)))
+        .ability(triggered_ability("", whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), draw)))
         .build()
 }
 

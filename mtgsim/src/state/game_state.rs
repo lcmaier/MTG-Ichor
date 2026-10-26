@@ -16,7 +16,7 @@ use crate::state::replacement_effects::{
 use crate::state::restrictions::RestrictionRegistry;
 use crate::state::shared_stores::{ObjectTable, SharedList};
 use crate::state::player::PlayerState;
-use crate::types::effects::{CounterType, Effect};
+use crate::types::effects::{Antecedent, CounterType, Effect};
 use crate::types::mana::ManaSpent;
 use crate::types::ids::{
     AbilityId, ExtraTurnId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
@@ -2445,10 +2445,10 @@ impl GameState {
             EffectRecipient::FilteredPermanents(filter) => {
                 Some(ObjectSet::battlefield_filter(filter.clone()))
             }
-            EffectRecipient::ThisObject => Some(ObjectSet::SourceOnly),
+            EffectRecipient::Object(Antecedent::ThisObject) => Some(ObjectSet::SourceOnly),
             // Likewise unresolved: the host is read during the walk, which is
             // what makes it fine that this runs before the Aura is attached.
-            EffectRecipient::Host => Some(ObjectSet::Host),
+            EffectRecipient::Object(Antecedent::ThisObjectsHost) => Some(ObjectSet::Host),
 
             // `Target` and `Choose` need a resolution to pick with, and
             // `Controller` names a player where an `ObjectSet` names objects.
@@ -2461,7 +2461,7 @@ impl GameState {
                      resolution to select with, and a static ability never \
                      resolves; `Controller` names a player, not a set of \
                      objects. Use `FilteredPermanents` for \"permanents you \
-                     control\", or `ThisObject` for \"this permanent\".",
+                     control\", or `Object(Antecedent::ThisObject)` for \"this permanent\".",
                     label, recipient
                 );
                 None
@@ -2723,7 +2723,7 @@ mod tests {
             assert!(GameState::static_object_set(
                 &EffectRecipient::FilteredPermanents(ObjectFilter::All), "T"
             ).is_some());
-            assert!(GameState::static_object_set(&EffectRecipient::ThisObject, "T").is_some());
+            assert!(GameState::static_object_set(&EffectRecipient::Object(Antecedent::ThisObject), "T").is_some());
         }
 
         // --- the arms that decline, each proven loud ----------------------
@@ -2822,7 +2822,7 @@ mod tests {
                     // Drawing a card is not a continuous effect; there is no
                     // layer for it and never will be.
                     Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::ThisObject,
+                    EffectRecipient::Object(Antecedent::ThisObject),
                 )))
                 .build();
 

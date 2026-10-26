@@ -274,10 +274,10 @@ fn returns_unless_it_had(keyword: &'static str, counter: CounterType) -> Ability
         attacking: None,
     };
     triggered_ability(keyword, TriggerDef {
-        condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
+        condition: TriggerCondition::Event(dies(TriggerSubject::Object(Antecedent::ThisObject)).into()),
         intervening_if: Some(Condition::CounterCount { object: Antecedent::Triggering(EventRole::Object), kind: Some(counter), count: CountIs::AtMost(0) }),
         limit: None,
-        effect: Effect::Atom(returns, EffectRecipient::Triggering(EventRole::Object)),
+        effect: Effect::Atom(returns, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))),
     })
 }
 
@@ -416,7 +416,7 @@ pub fn attacks_alone(subject: impl Into<TriggerSubject>) -> TriggerEvent {
 /// player, planeswalker or battle that one or more creatures are declared
 /// attacking, whose "them" are those creatures.
 pub fn is_attacked(defender: DefenderFilter) -> TriggerEvent {
-    attack_event(TriggerSubject::Any, Some(defender), AttackOccurrence::Defender)
+    attack_event(TriggerSubject::Filter(ObjectFilter::All), Some(defender), AttackOccurrence::Defender)
 }
 
 /// "Whenever [whose player] attacks" (CR 508.3d): one trigger for a
@@ -448,7 +448,7 @@ pub fn player_or_their_planeswalker(who: PlayerRef) -> DefenderFilter {
 /// "Whenever [subject] blocks" (CR 509.3a): once for each such creature
 /// declared as a blocker, however many it blocks.
 pub fn blocks(subject: impl Into<TriggerSubject>) -> CountableEvent {
-    CountableEvent(block_event(subject.into(), TriggerSubject::Any, BlockOccurrence::Blocker))
+    CountableEvent(block_event(subject.into(), TriggerSubject::Filter(ObjectFilter::All), BlockOccurrence::Blocker))
 }
 
 /// "Whenever [subject] blocks [a creature]" (CR 509.3b): once for each
@@ -460,7 +460,7 @@ pub fn blocks_a_creature(subject: impl Into<TriggerSubject>, blocked: impl Into<
 /// "Whenever [subject] becomes blocked" (CR 509.3c): once for each such
 /// creature blocked, however many block it.
 pub fn becomes_blocked(subject: impl Into<TriggerSubject>) -> CountableEvent {
-    CountableEvent(block_event(TriggerSubject::Any, subject.into(), BlockOccurrence::Blocked))
+    CountableEvent(block_event(TriggerSubject::Filter(ObjectFilter::All), subject.into(), BlockOccurrence::Blocked))
 }
 
 /// "Whenever [subject] becomes blocked by [a creature]" (CR 509.3d): once
@@ -473,7 +473,7 @@ pub fn becomes_blocked_by(subject: impl Into<TriggerSubject>, blocker: impl Into
 /// attacking creature no creature was declared blocking, one that entered
 /// attacking included.
 pub fn attacks_and_isnt_blocked(subject: impl Into<TriggerSubject>) -> CountableEvent {
-    CountableEvent(block_event(TriggerSubject::Any, subject.into(), BlockOccurrence::Unblocked))
+    CountableEvent(block_event(TriggerSubject::Filter(ObjectFilter::All), subject.into(), BlockOccurrence::Unblocked))
 }
 
 /// "Whenever [subject] becomes the target of [by] [controlled by]" (CR
@@ -519,7 +519,7 @@ fn attack_event(attacker: TriggerSubject, defender: Option<DefenderFilter>, occu
 /// "A creature [whose player] controls"; any creature for `Whose::Each`.
 fn creature_controlled_by(whose: Whose) -> TriggerSubject {
     match whose.player_ref() {
-        None => TriggerSubject::Any,
+        None => TriggerSubject::Filter(ObjectFilter::All),
         Some(player) => TriggerSubject::Filter(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
             Box::new(ObjectFilter::ByController(player)),
@@ -535,7 +535,7 @@ mod tests {
     /// constructor builds, and an arm left alone reads per occurrence.
     #[test]
     fn once_per_event_is_what_the_arm_reads() {
-        let this = || TriggerSubject::ThisObject;
+        let this = || TriggerSubject::Object(Antecedent::ThisObject);
         let countable = || {
             vec![
                 dies(this()),
@@ -548,9 +548,9 @@ mod tests {
                 attacks(this()),
                 attacks_defender(this(), DefenderFilter::Player(None)),
                 blocks(this()),
-                blocks_a_creature(this(), TriggerSubject::Any),
+                blocks_a_creature(this(), TriggerSubject::Filter(ObjectFilter::All)),
                 becomes_blocked(this()),
-                becomes_blocked_by(this(), TriggerSubject::Any),
+                becomes_blocked_by(this(), TriggerSubject::Filter(ObjectFilter::All)),
                 attacks_and_isnt_blocked(this()),
                 becomes_the_target_of(this(), TargetedBy::SpellOrAbility, None),
                 player_becomes_the_target_of(Whose::Yours, TargetedBy::SpellOrAbility, None),

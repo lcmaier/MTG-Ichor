@@ -163,7 +163,7 @@ fn on_its_attack(name: &str, effect: Effect) -> Arc<CardData> {
         .color(Color::Red)
         .power_toughness(2, 2)
         .keyword_flag(KeywordFlag::Haste)
-        .ability(triggered_ability("", whenever(attacks(TriggerSubject::ThisObject), effect)))
+        .ability(triggered_ability("", whenever(attacks(TriggerSubject::Object(Antecedent::ThisObject)), effect)))
         .build()
 }
 
@@ -589,7 +589,7 @@ fn a_token_put_onto_the_battlefield_attacking_triggers_no_defender_or_player() {
 fn attacks_alone_counts_only_the_declared() {
     for (way, put_attacking) in WAYS_ONTO_THE_BATTLEFIELD_ATTACKING {
         let mut game = stocked(2);
-        put_on_battlefield(&mut game, watcher("Fixture Lone Banner", attacks_alone(TriggerSubject::Any), gain_one()), 0);
+        put_on_battlefield(&mut game, watcher("Fixture Lone Banner", attacks_alone(TriggerSubject::Filter(ObjectFilter::All)), gain_one()), 0);
         let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
         at(&mut game, StepType::BeginCombat);
         let entered = put_attacking(&mut game, 0);
@@ -983,7 +983,7 @@ fn while_it(name: &str, condition: Condition, effect: Primitive) -> Arc<CardData
         .card_type(CardType::Creature)
         .color(Color::Green)
         .power_toughness(1, 1)
-        .ability(static_ability(Effect::Conditional(condition, Box::new(Effect::Atom(effect, EffectRecipient::ThisObject)))))
+        .ability(static_ability(Effect::Conditional(condition, Box::new(Effect::Atom(effect, EffectRecipient::Object(Antecedent::ThisObject))))))
         .build()
 }
 

@@ -105,7 +105,7 @@ fn watcher(name: &str, arm: impl Into<TriggerEvent>, effect: Effect) -> Arc<Card
 fn a_counter_on_the_attackers() -> Effect {
     Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::Triggering(EventRole::Attacker),
+        EffectRecipient::Object(Antecedent::Triggering(EventRole::Attacker)),
     )
 }
 
@@ -184,7 +184,7 @@ fn the_declaration_names_what_each_attacker_attacks() {
 #[test]
 fn a_creature_attacks_triggers_for_each_attacker() {
     let mut game = stocked(4);
-    put_on_battlefield(&mut game, watcher("Fixture War Horn", attacks(TriggerSubject::Any), a_counter_on_the_attackers()), 2);
+    put_on_battlefield(&mut game, watcher("Fixture War Horn", attacks(TriggerSubject::Filter(ObjectFilter::All)), a_counter_on_the_attackers()), 2);
     let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
     declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
 
@@ -200,7 +200,7 @@ fn a_creature_attacks_triggers_for_each_attacker() {
 fn a_creature_attacks_you_triggers_for_your_attacker_only() {
     for you in [DefenderFilter::Player(Some(PlayerRef::You)), player_or_their_planeswalker(PlayerRef::You)] {
         let mut game = stocked(4);
-        let attacks_you = attacks_defender(TriggerSubject::Any, you);
+        let attacks_you = attacks_defender(TriggerSubject::Filter(ObjectFilter::All), you);
         put_on_battlefield(&mut game, watcher("Fixture Sentry Bell", attacks_you, a_counter_on_the_attackers()), 1);
         let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
         declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
@@ -287,7 +287,7 @@ fn you_attack_a_player_triggers_for_each_player_attacked() {
 fn attacks_alone_triggers_only_for_a_lone_attacker() {
     for (attackers, triggers) in [(1, 1), (2, 0)] {
         let mut game = stocked(2);
-        put_on_battlefield(&mut game, watcher("Fixture Duelist's Oath", attacks_alone(TriggerSubject::Any), a_counter_on_the_attackers()), 0);
+        put_on_battlefield(&mut game, watcher("Fixture Duelist's Oath", attacks_alone(TriggerSubject::Filter(ObjectFilter::All)), a_counter_on_the_attackers()), 0);
         let creatures = bears(&mut game, attackers);
         let attacks: Vec<(ObjectId, PlayerId)> = creatures.iter().map(|&id| (id, 1)).collect();
         declare(&mut game, &creatures, &attacks);
@@ -305,7 +305,7 @@ fn its_power_over_a_defenders_attackers_is_refused() {
     assert_eq!(its_power.event_roles_its_arms_lack(), vec![EventRole::Attacker]);
     let them = whenever(is_attacked(DefenderFilter::Player(None)), a_counter_on_the_attackers());
     assert!(them.event_roles_its_arms_lack().is_empty());
-    let each = whenever(attacks(TriggerSubject::Any), gain(AmountExpr::TriggeringPower(EventRole::Attacker)));
+    let each = whenever(attacks(TriggerSubject::Filter(ObjectFilter::All)), gain(AmountExpr::TriggeringPower(EventRole::Attacker)));
     assert!(each.event_roles_its_arms_lack().is_empty(), "an attacker's own triggering event has one");
 }
 
@@ -493,7 +493,7 @@ fn defending_player_of_the_source_is_one_player_for_every_trigger() {
 /// chosen, at the trigger's placement.
 #[test]
 fn a_targets_defending_player_is_read_at_placement() {
-    let this_creatures = whenever(attacks(TriggerSubject::ThisObject), tap_target_creature_of(defending_player_of(Antecedent::ThisObject)));
+    let this_creatures = whenever(attacks(TriggerSubject::Object(Antecedent::ThisObject)), tap_target_creature_of(defending_player_of(Antecedent::ThisObject)));
     let its_attackers = whenever(attacks(creature_you_control()), tap_target_creature_of(defending_player_of(its_attacker())));
     for (def, attacked) in [(this_creatures, 2), (its_attackers, 3)] {
         let mut game = stocked(4);
@@ -513,7 +513,7 @@ fn a_targets_defending_player_is_read_at_placement() {
 /// off its last known information (CR 508.5, 608.2h).
 #[test]
 fn an_intervening_if_reads_the_defending_player_of_a_creature_that_left() {
-    let mut def = whenever(attacks(TriggerSubject::ThisObject), Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller));
+    let mut def = whenever(attacks(TriggerSubject::Object(Antecedent::ThisObject)), Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller));
     let creature = ObjectFilter::ByType(CardType::Creature);
     def.intervening_if =
         Some(Condition::DefendingPlayer { of: Antecedent::ThisObject, fact: PlayerFact::ControlsPermanent(creature) });

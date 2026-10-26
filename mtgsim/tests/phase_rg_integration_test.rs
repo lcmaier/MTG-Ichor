@@ -268,7 +268,7 @@ fn artifact_while_untapped() -> Arc<CardData> {
                     TypeChange { add_types: vec![CardType::Artifact], ..TypeChange::NONE },
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::ThisObject,
+                EffectRecipient::Object(Antecedent::ThisObject),
             )),
         )),
     )
@@ -620,11 +620,11 @@ fn kaito_shaped() -> Arc<CardData> {
             Box::new(Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::ChangeType(ninja_creature, Duration::WhileSourceOnBattlefield),
-                    EffectRecipient::ThisObject,
+                    EffectRecipient::Object(Antecedent::ThisObject),
                 ),
                 Effect::Atom(
                     Primitive::SetPowerToughness(AmountExpr::Fixed(3), AmountExpr::Fixed(4), Duration::WhileSourceOnBattlefield),
-                    EffectRecipient::ThisObject,
+                    EffectRecipient::Object(Antecedent::ThisObject),
                 ),
             ])),
         )))

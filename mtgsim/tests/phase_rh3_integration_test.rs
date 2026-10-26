@@ -26,7 +26,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet,
+    Antecedent, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet,
     Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -99,8 +99,8 @@ fn returns_when_it_dies() -> Arc<CardData> {
         triggered_ability(
             "",
             whenever(
-                dies(TriggerSubject::ThisObject),
-                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::Triggering(EventRole::Object)),
+                dies(TriggerSubject::Object(Antecedent::ThisObject)),
+                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))),
             ),
         ),
     )
@@ -143,8 +143,8 @@ fn aura_returning_to_hand() -> Arc<CardData> {
         .ability(triggered_ability(
             "",
             whenever(
-                dies(TriggerSubject::ThisObject),
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(EventRole::Object)),
+                dies(TriggerSubject::Object(Antecedent::ThisObject)),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))),
             ),
         ))
         .build()
@@ -177,13 +177,13 @@ fn shuffles_in_from_anywhere() -> Arc<CardData> {
             "",
             whenever(
                 TriggerEvent::ZoneChange {
-                    subject: TriggerSubject::ThisObject,
+                    subject: TriggerSubject::Object(Antecedent::ThisObject),
                     change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     by: None,
                     owner: None,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
-                Effect::Atom(Primitive::ShuffleIntoLibrary, EffectRecipient::Triggering(EventRole::Object)),
+                Effect::Atom(Primitive::ShuffleIntoLibrary, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))),
             ),
         ),
     )
@@ -220,13 +220,13 @@ fn returns_milled_cards() -> Arc<CardData> {
             "",
             whenever(
                 TriggerEvent::ZoneChange {
-                    subject: TriggerSubject::Any,
+                    subject: TriggerSubject::Filter(ObjectFilter::All),
                     change: ZoneChangePattern { from: Some(Zone::Library), to: Some(Zone::Graveyard), act: None },
                     by: None,
                     owner: Some(PlayerRef::You),
                     multiplicity: Multiplicity::OncePerEvent,
                 },
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(EventRole::Object)),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Object(Antecedent::Triggering(EventRole::Object))),
             ),
         ),
     )
@@ -334,7 +334,7 @@ fn exile_watcher() -> Arc<CardData> {
             "",
             whenever(
                 TriggerEvent::ZoneChange {
-                    subject: TriggerSubject::Any,
+                    subject: TriggerSubject::Filter(ObjectFilter::All),
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Exile), act: None },
                     by: Some(SourceFilter::ControlledBy(PlayerRef::You)),
                     owner: None,
@@ -508,7 +508,7 @@ fn a_permanent_a_rider_makes_does_not_see_the_event_before_it() {
         "",
         whenever(
             TriggerEvent::ZoneChange {
-                subject: TriggerSubject::Any,
+                subject: TriggerSubject::Filter(ObjectFilter::All),
                 change: ZoneChangePattern { from: None, to: Some(Zone::Exile), act: None },
                 by: None,
                 owner: None,
@@ -697,7 +697,7 @@ fn gains_when_put_into_a_graveyard() -> Arc<CardData> {
             "",
             whenever(
                 TriggerEvent::ZoneChange {
-                    subject: TriggerSubject::ThisObject,
+                    subject: TriggerSubject::Object(Antecedent::ThisObject),
                     change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     by: None,
                     owner: None,

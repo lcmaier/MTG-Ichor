@@ -6,6 +6,7 @@
 //! projection, and each instruction names the event role it reads.
 
 use std::sync::Arc;
+use crate::types::effects::{Antecedent};
 
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::layers::types::EffectiveCharacteristics;
@@ -238,13 +239,17 @@ impl GameState {
             )
         })?;
         Ok(match recipient {
-            EffectRecipient::Triggering(role) => {
+            EffectRecipient::Object(Antecedent::Triggering(role)) => {
                 self.note_binding_read(ctx, TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*role));
                 self.bound_objects(binding, *role).into_iter().map(ObjectOrPlayerId::Object).collect()
             }
             EffectRecipient::TriggeringPlayer => {
                 self.note_binding_read(ctx, TriggerBindingReads::PLAYER);
                 self.bound_player(binding).map(ObjectOrPlayerId::Player).into_iter().collect()
+            }
+            EffectRecipient::Object(Antecedent::Referred) => {
+                self.note_binding_read(ctx, TriggerBindingReads::REFERRED);
+                binding.referred.objects.iter().filter_map(|r| r.found(self)).map(ObjectOrPlayerId::Object).collect()
             }
             EffectRecipient::Referred => {
                 self.note_binding_read(ctx, TriggerBindingReads::REFERRED);
@@ -314,7 +319,7 @@ mod tests {
 
         let recorded = game.recorded_events();
         let record = recorded.records().iter().rev().find(|r| matches!(r.event, GameEvent::ControlChanged { .. })).expect("announced");
-        let arm = TriggerEvent::ControlChanges { subject: TriggerSubject::Any, from: Some(PlayerRef::You), to: None };
+        let arm = TriggerEvent::ControlChanges { subject: TriggerSubject::Filter(ObjectFilter::All), from: Some(PlayerRef::You), to: None };
         let read = read_at_trigger(&game, &arm, record, creature).characteristics(&game).expect("it exists");
         assert_eq!(read.power, Some(3));
     }

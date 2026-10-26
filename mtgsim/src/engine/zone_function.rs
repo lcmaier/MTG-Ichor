@@ -21,6 +21,7 @@
 
 
 use crate::objects::card_data::{AbilityDef, AbilityType};
+use crate::types::effects::{Antecedent};
 use crate::types::card_types::{CardType, CardTypes};
 use crate::types::triggers::{TriggerDef, TriggerEvent, TriggerSubject};
 use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
@@ -116,7 +117,7 @@ fn trigger_zones(def: &TriggerDef, types: &CardTypes) -> ZoneSet {
 fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
     match arm {
         TriggerEvent::ZoneChange {
-            subject: TriggerSubject::ThisObject,
+            subject: TriggerSubject::Object(Antecedent::ThisObject),
             change: ZoneChangePattern { from: Some(zone), to, .. },
             ..
         } => {
@@ -126,7 +127,7 @@ fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
                 to.map_or(ZoneSet::ALL, ZoneSet::of).without(ZoneSet::of(*zone))
             }
         }
-        TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, change: ZoneChangePattern { from: None, .. }, .. } => {
+        TriggerEvent::ZoneChange { subject: TriggerSubject::Object(Antecedent::ThisObject), change: ZoneChangePattern { from: None, .. }, .. } => {
             ZoneSet::ALL
         }
         _ => default_zones(types),
@@ -376,11 +377,11 @@ mod tests {
     }
 
     /// A triggered ability on this card itself changing zones
-    /// (`TriggerSubject::ThisObject`), "when this card is put into `to` from
+    /// (`TriggerSubject::Object(Antecedent::ThisObject)`), "when this card is put into `to` from
     /// `from`", gaining 1 life.
     fn when_this_card_moves(from: Zone, to: Option<Zone>, act: Option<crate::types::zones::ZoneChangeAct>) -> AbilityDef {
         let arm = TriggerEvent::ZoneChange {
-            subject: TriggerSubject::ThisObject,
+            subject: TriggerSubject::Object(Antecedent::ThisObject),
             change: ZoneChangePattern { from: Some(from), to, act },
             by: None,
             owner: None,
