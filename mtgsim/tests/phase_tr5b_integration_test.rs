@@ -33,7 +33,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
-use mtgsim::types::triggers::{Multiplicity, ObjectOrPlayerSubject, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{Multiplicity, ParticipantFilter, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::oracle::x_values::LegalXValues;
@@ -525,7 +525,7 @@ fn a_put_arms_by_reads_who_put_the_counters_on() {
 fn a_put_arm_reads_counters_a_player_gets() {
     let mut game = setup_two_player_game();
     let arm = TriggerEvent::CountersPutOn {
-        subject: ObjectOrPlayerSubject::Player(PlayerSet::You),
+        subject: ParticipantFilter::Player(PlayerSet::You),
         counter_type: Some(CounterType::Energy),
         by: PlayerSet::Everyone,
         multiplicity: Multiplicity::OncePerSubject,

@@ -220,15 +220,82 @@ enum OccurrenceSubject {
     DamageRecipient,
 }
 
-/// "Which object or player" an arm is about: what its counters are on (CR
-/// 122.1), or what becomes the target (CR 115.1).
+/// What an arm asks of an object or player that played a part in its event
+/// (the part `EventRole` names): what damage was dealt to (CR 120.1), what
+/// is attacked (CR 508.3a, 508.3b, 508.3e), what counters are on (CR
+/// 122.1), what becomes the target (CR 115.1). A selection's candidates are
+/// `SelectionFilter`'s, holding the same leaves.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ObjectOrPlayerSubject {
-    /// "On this creature", "a permanent you control".
-    Object(TriggerSubject),
-    /// "Whenever you get one or more counters", "becomes the target": a
-    /// player in the set, `Everyone` being any player.
+pub enum ParticipantFilter {
+    /// A player in the set: "whenever you get one or more counters", "deals
+    /// combat damage to a player"; `Everyone` is any player.
     Player(PlayerSet),
+    /// An object the subject names: "on this creature", "a planeswalker you
+    /// control"; `Filter(ObjectFilter::All)` is any object.
+    Object(TriggerSubject),
+    /// Either: "attacks you or a planeswalker you control" (17 cards), which
+    /// the authoring word `player_or_their_planeswalker` writes, and "is
+    /// dealt damage" with nothing asked of what, [`Self::any`].
+    Or(Box<ParticipantFilter>, Box<ParticipantFilter>),
+}
+
+impl ParticipantFilter {
+    /// Any object or player.
+    pub fn any() -> Self {
+        ParticipantFilter::Or(
+            Box::new(ParticipantFilter::Player(PlayerSet::Everyone)),
+            Box::new(ParticipantFilter::Object(TriggerSubject::Filter(ObjectFilter::All))),
+        )
+    }
+
+    /// Whether `it`, the object or player that played the part, is one this
+    /// names. The asker answers the two leaves, since who "you" is and how an
+    /// object is read are the asker's: `names_player` whether a `PlayerSet`
+    /// holds the player, `names_object` whether a subject names the object.
+    /// A leaf that asks nothing (`Everyone`, `Filter(All)`) is answered here,
+    /// so an object the store has lost still matches it. A trigger asks with
+    /// its referents, a resolution putting a creature onto the battlefield
+    /// attacking with its controller (CR 508.4).
+    pub fn admits(
+        &self,
+        it: ObjectOrPlayer,
+        names_player: &dyn Fn(&PlayerSet, PlayerId) -> bool,
+        names_object: &dyn Fn(&TriggerSubject, ObjectRef) -> bool,
+    ) -> bool {
+        match (self, it) {
+            (ParticipantFilter::Player(PlayerSet::Everyone), ObjectOrPlayer::Player(_))
+            | (ParticipantFilter::Object(TriggerSubject::Filter(ObjectFilter::All)), ObjectOrPlayer::Object(_)) => true,
+            (ParticipantFilter::Player(who), ObjectOrPlayer::Player(player)) => names_player(who, player),
+            (ParticipantFilter::Object(which), ObjectOrPlayer::Object(object)) => names_object(which, object),
+            (ParticipantFilter::Or(either, or), _) => {
+                either.admits(it, names_player, names_object) || or.admits(it, names_player, names_object)
+            }
+            (ParticipantFilter::Player(_), ObjectOrPlayer::Object(_)) | (ParticipantFilter::Object(_), ObjectOrPlayer::Player(_)) => false,
+        }
+    }
+
+    /// Whether an object can be what it names.
+    pub fn admits_an_object(&self) -> bool {
+        match self {
+            ParticipantFilter::Player(_) => false,
+            ParticipantFilter::Object(_) => true,
+            ParticipantFilter::Or(either, or) => either.admits_an_object() || or.admits_an_object(),
+        }
+    }
+
+    /// The subjects its object halves name, for the checks that read every
+    /// subject an arm holds.
+    pub fn subjects(&self) -> Vec<&TriggerSubject> {
+        match self {
+            ParticipantFilter::Player(_) => Vec::new(),
+            ParticipantFilter::Object(subject) => vec![subject],
+            ParticipantFilter::Or(either, or) => {
+                let mut subjects = either.subjects();
+                subjects.extend(or.subjects());
+                subjects
+            }
+        }
+    }
 }
 
 /// "Which object" an arm is about, read against the ability's own source.
@@ -282,58 +349,6 @@ impl TargetedBy {
     }
 }
 
-/// What an attack trigger asks of the player, planeswalker or battle
-/// attacked: CR 508.3a's "attacks [a player, planeswalker, or battle]",
-/// 508.3b's "is attacked" and 508.3e's "attacks [another player]".
-#[derive(Debug, Clone, PartialEq)]
-pub enum DefenderFilter {
-    /// A player in the set: `Everyone` is any player, `You` the ability's
-    /// controller.
-    Player(PlayerSet),
-    /// A planeswalker or a battle: "attacks a planeswalker you control".
-    Permanent(ObjectFilter),
-    /// Either: "attacks you or a planeswalker you control" (17 cards) is a
-    /// player or a permanent, which the authoring word
-    /// `player_or_their_planeswalker` writes.
-    Or(Box<DefenderFilter>, Box<DefenderFilter>),
-}
-
-impl DefenderFilter {
-    /// Whether `target`, a player, planeswalker or battle, is one this names.
-    /// The asker answers the two leaves, since who "you" is and what a filter
-    /// reads are the asker's: `names_player` whether a `PlayerSet` holds that
-    /// player, `matches_permanent` whether a planeswalker or battle matches a
-    /// filter. A trigger asks with its referents (CR 508.3a, 508.3b, 508.3e),
-    /// a resolution putting a creature onto the battlefield attacking with
-    /// its controller (CR 508.4).
-    pub fn admits(
-        &self,
-        target: AttackTarget,
-        names_player: &dyn Fn(&PlayerSet, PlayerId) -> bool,
-        matches_permanent: &dyn Fn(&ObjectFilter, ObjectId) -> bool,
-    ) -> bool {
-        match (self, target) {
-            (DefenderFilter::Player(who), AttackTarget::Player(player)) => names_player(who, player),
-            (DefenderFilter::Permanent(filter), AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
-                matches_permanent(filter, id)
-            }
-            (DefenderFilter::Or(either, or), _) => {
-                either.admits(target, names_player, matches_permanent) || or.admits(target, names_player, matches_permanent)
-            }
-            (DefenderFilter::Player(_), AttackTarget::Planeswalker(_) | AttackTarget::Battle(_))
-            | (DefenderFilter::Permanent(_), AttackTarget::Player(_)) => false,
-        }
-    }
-
-    /// Whether a planeswalker or a battle, an object, can be what it names.
-    pub fn admits_a_permanent(&self) -> bool {
-        match self {
-            DefenderFilter::Player(_) => false,
-            DefenderFilter::Permanent(_) => true,
-            DefenderFilter::Or(either, or) => either.admits_a_permanent() || or.admits_a_permanent(),
-        }
-    }
-}
 
 /// What one occurrence of an attack trigger is (CR 603.2c): each creature
 /// declared as an attacker (CR 508.3a, 508.3c, 508.3d), or each player,
@@ -358,16 +373,6 @@ pub enum BlockOccurrence {
     Unblocked,
 }
 
-/// Whom damage was dealt to, for "is dealt damage" and "deals damage to".
-#[derive(Debug, Clone, PartialEq)]
-pub enum DamageRecipient {
-    Any,
-    /// A player in the set: `Everyone` is any player, `You` the ability's
-    /// controller.
-    Player(PlayerSet),
-    /// A permanent; `None` is any permanent.
-    Object(Option<ObjectFilter>),
-}
 
 /// An object's event role: the part it played in the event that triggered
 /// an ability, which an instruction names to say which object it reads. "That
@@ -774,7 +779,7 @@ pub enum TriggerEvent {
     /// "Is dealt damage", "deals damage", "deals combat damage to a player".
     DamageDealt {
         source: TriggerSubject,
-        recipient: DamageRecipient,
+        recipient: ParticipantFilter,
         combat: Option<bool>,
         /// "Is dealt excess damage" (CR 120.10): only damage past lethal, and
         /// "that much" is the excess. Read once per permanent, whose records'
@@ -787,7 +792,7 @@ pub enum TriggerEvent {
     /// once each time a prevention effect is applied to one recipient's
     /// damage in a batch, however many sources it came from. "That many" is
     /// the damage that application prevented.
-    DamageIsPrevented { recipient: DamageRecipient, multiplicity: Multiplicity },
+    DamageIsPrevented { recipient: ParticipantFilter, multiplicity: Multiplicity },
     /// "At the beginning of [your/each] [phase]". `whose: Everyone` is each.
     PhaseBegins { phase: PhaseType, whose: PlayerSet },
     /// "At the beginning of [your/each] upkeep"; "at end of combat" is
@@ -818,7 +823,7 @@ pub enum TriggerEvent {
     /// over a creature that player controls.
     Attacks {
         attacker: TriggerSubject,
-        defender: Option<DefenderFilter>,
+        defender: Option<ParticipantFilter>,
         occurrence: AttackOccurrence,
         /// CR 506.5: the only creature declared as an attacker.
         alone: bool,
@@ -847,7 +852,7 @@ pub enum TriggerEvent {
     /// (Frost Titan's ruling). `controller` is whose spell or ability it is.
     /// "For the first time each turn" (valiant) is the def's limit, read off
     /// the turn's targeting rows.
-    BecomesTarget { target: ObjectOrPlayerSubject, by: TargetedBy, controller: PlayerSet, multiplicity: Multiplicity },
+    BecomesTarget { target: ParticipantFilter, by: TargetedBy, controller: PlayerSet, multiplicity: Multiplicity },
     /// "Whenever [a player] activates an ability of [a permanent] [that isn't
     /// a mana ability]" (CR 602.2), off the record its costs announce: a
     /// mana ability's included (CR 605.3a), which Harsh Mentor's intervening
@@ -887,7 +892,7 @@ pub enum TriggerEvent {
     /// intervening "if", `Condition::CounterCountReached`, as CR 714.2b
     /// words a Saga's chapter.
     CountersPutOn {
-        subject: ObjectOrPlayerSubject,
+        subject: ParticipantFilter,
         counter_type: Option<CounterType>,
         by: PlayerSet,
         multiplicity: Multiplicity,
@@ -897,7 +902,7 @@ pub enum TriggerEvent {
     /// included (its fifth). `by` is who removed them, where a player did:
     /// a rule's removal matches no `by`.
     CountersRemovedFrom {
-        subject: ObjectOrPlayerSubject,
+        subject: ParticipantFilter,
         counter_type: Option<CounterType>,
         by: PlayerSet,
         multiplicity: Multiplicity,
@@ -1171,16 +1176,18 @@ impl TriggerEvent {
             | TriggerEvent::Attacks { attacker: subject, .. }
             | TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocked | BlockOccurrence::Unblocked, attacker: subject, .. }
             | TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocker | BlockOccurrence::Block, blocker: subject, .. }
-            | TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Object(subject), .. }
+            | TriggerEvent::BecomesTarget { target: ParticipantFilter::Object(subject), .. }
             | TriggerEvent::ActivatesAbility { source: subject, .. }
             | TriggerEvent::BecomesAttached { host: subject, .. }
             | TriggerEvent::BecomesUnattached { former_host: subject, .. }
             | TriggerEvent::ControlChanges { subject, .. }
-            | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Object(subject), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(subject), .. } => Some(subject),
-            TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Player(_), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Player(_), .. }
-            | TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Player(_), .. }
+            | TriggerEvent::CountersPutOn { subject: ParticipantFilter::Object(subject), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: ParticipantFilter::Object(subject), .. } => Some(subject),
+            // An arm about a player, or about a player or an object, is about
+            // no one object.
+            TriggerEvent::CountersPutOn { subject: ParticipantFilter::Player(_) | ParticipantFilter::Or(..), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: ParticipantFilter::Player(_) | ParticipantFilter::Or(..), .. }
+            | TriggerEvent::BecomesTarget { target: ParticipantFilter::Player(_) | ParticipantFilter::Or(..), .. }
             | TriggerEvent::DamageIsPrevented { .. }
             | TriggerEvent::DrawsCard { .. }
             | TriggerEvent::PhaseBegins { .. }
@@ -1284,30 +1291,35 @@ impl TriggerEvent {
     /// Whether a field holding a subject names `word`, a `caused_by` arm's
     /// too.
     fn names_in_a_subject(&self, word: Antecedent) -> bool {
-        let fields: [Option<&TriggerSubject>; 2] = match self {
+        let fields: Vec<&TriggerSubject> = match self {
             TriggerEvent::ZoneChange { subject, .. }
             | TriggerEvent::BecomesTapped { subject }
             | TriggerEvent::BecomesUntapped { subject }
             | TriggerEvent::ManaAdded { source: subject, .. }
-            | TriggerEvent::DamageDealt { source: subject, .. }
             | TriggerEvent::EntersBattlefield { subject, .. }
-            | TriggerEvent::Attacks { attacker: subject, .. }
-            | TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Object(subject), .. }
             | TriggerEvent::ActivatesAbility { source: subject, .. }
-            | TriggerEvent::ControlChanges { subject, .. }
-            | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Object(subject), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(subject), .. } => [Some(subject), None],
+            | TriggerEvent::ControlChanges { subject, .. } => vec![subject],
+            TriggerEvent::DamageDealt { source, recipient, .. } => {
+                let mut fields = vec![source];
+                fields.extend(recipient.subjects());
+                fields
+            }
+            TriggerEvent::Attacks { attacker, defender, .. } => {
+                let mut fields = vec![attacker];
+                fields.extend(defender.iter().flat_map(ParticipantFilter::subjects));
+                fields
+            }
+            TriggerEvent::DamageIsPrevented { recipient: participant, .. }
+            | TriggerEvent::BecomesTarget { target: participant, .. }
+            | TriggerEvent::CountersPutOn { subject: participant, .. }
+            | TriggerEvent::CountersRemovedFrom { subject: participant, .. } => participant.subjects(),
             TriggerEvent::Blocks { blocker: one, attacker: other, .. }
             | TriggerEvent::BecomesAttached { attachment: one, host: other }
-            | TriggerEvent::BecomesUnattached { attachment: one, former_host: other } => [Some(one), Some(other)],
+            | TriggerEvent::BecomesUnattached { attachment: one, former_host: other } => vec![one, other],
             TriggerEvent::AbilityTriggers { caused_by, .. } => {
                 return caused_by.as_deref().is_some_and(|caused_by| caused_by.names_in_a_subject(word));
             }
-            TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Player(_), .. }
-            | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Player(_), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Player(_), .. }
-            | TriggerEvent::DrawsCard { .. }
-            | TriggerEvent::DamageIsPrevented { .. }
+            TriggerEvent::DrawsCard { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
@@ -1319,9 +1331,9 @@ impl TriggerEvent {
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::AbilityResolves { .. }
             | TriggerEvent::CreatesToken { .. }
-            | TriggerEvent::Scries { .. } => [None, None],
+            | TriggerEvent::Scries { .. } => Vec::new(),
         };
-        fields.into_iter().flatten().any(|subject| *subject == TriggerSubject::Object(word))
+        fields.into_iter().any(|subject| *subject == TriggerSubject::Object(word))
     }
 
     /// How the arm counts its occurrences (CR 603.2c): its multiplicity
@@ -1447,9 +1459,11 @@ impl TriggerEvent {
     /// attacked (CR 506.3).
     pub fn event_roles(&self) -> &'static [EventRole] {
         match self {
-            TriggerEvent::DamageDealt { recipient: DamageRecipient::Player(_), .. } => &[EventRole::DamageSource],
-            TriggerEvent::DamageIsPrevented { recipient: DamageRecipient::Player(_), .. } => &[],
-            TriggerEvent::Attacks { defender: Some(defender), .. } if !defender.admits_a_permanent() => &[EventRole::Attacker],
+            TriggerEvent::DamageDealt { recipient, .. } if !recipient.admits_an_object() => &[EventRole::DamageSource],
+            TriggerEvent::DamageIsPrevented { recipient, .. } if !recipient.admits_an_object() => &[],
+            TriggerEvent::Attacks { defender: Some(defender), .. } if !defender.admits_an_object() => &[EventRole::Attacker],
+            TriggerEvent::CountersPutOn { subject, .. } | TriggerEvent::CountersRemovedFrom { subject, .. } if !subject.admits_an_object() => &[],
+            TriggerEvent::BecomesTarget { target, .. } if !target.admits_an_object() => &[EventRole::SpellOrAbility],
             TriggerEvent::ZoneChange { .. }
             | TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
@@ -1460,8 +1474,8 @@ impl TriggerEvent {
             | TriggerEvent::IsCountered { .. }
             | TriggerEvent::ControlChanges { .. }
             | TriggerEvent::ActivatesAbility { .. }
-            | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Object(_), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(_), .. }
+            | TriggerEvent::CountersPutOn { .. }
+            | TriggerEvent::CountersRemovedFrom { .. }
             | TriggerEvent::CreatesToken { .. } => &[EventRole::Object],
             TriggerEvent::DamageDealt { .. } => &[EventRole::DamageSource, EventRole::DamageRecipient],
             TriggerEvent::DamageIsPrevented { .. } => &[EventRole::DamageRecipient],
@@ -1471,8 +1485,7 @@ impl TriggerEvent {
                 &[EventRole::Blocker, EventRole::Attacker, EventRole::OtherCombatant]
             }
             TriggerEvent::Blocks { .. } => &[EventRole::Blocker, EventRole::Attacker],
-            TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Object(_), .. } => &[EventRole::Target, EventRole::SpellOrAbility],
-            TriggerEvent::BecomesTarget { target: ObjectOrPlayerSubject::Player(_), .. } => &[EventRole::SpellOrAbility],
+            TriggerEvent::BecomesTarget { .. } => &[EventRole::Target, EventRole::SpellOrAbility],
             TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
                 &[EventRole::Attachment, EventRole::Host]
             }
@@ -1483,8 +1496,6 @@ impl TriggerEvent {
             | TriggerEvent::LosesLife { .. }
             | TriggerEvent::PlayerLoses { .. }
             | TriggerEvent::ShufflesLibrary { .. }
-            | TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Player(_), .. }
-            | TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Player(_), .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. }
             | TriggerEvent::Scries { .. } => &[],
@@ -2375,10 +2386,10 @@ pub(crate) mod samples {
             (TriggerEvent::DrawsCard { player: PlayerSet::Everyone, multiplicity: each, place: None }, &["CardDrawn"]),
             (TriggerEvent::ManaAdded { source: this.clone(), tapped_for_mana: None, mana: None }, &["ManaAdded"]),
             (
-                TriggerEvent::DamageDealt { source: this.clone(), recipient: DamageRecipient::Any, combat: None, excess: false, multiplicity: each },
+                TriggerEvent::DamageDealt { source: this.clone(), recipient: ParticipantFilter::any(), combat: None, excess: false, multiplicity: each },
                 &["DamageDealt"],
             ),
-            (TriggerEvent::DamageIsPrevented { recipient: DamageRecipient::Any, multiplicity: each }, &["DamagePrevented"]),
+            (TriggerEvent::DamageIsPrevented { recipient: ParticipantFilter::any(), multiplicity: each }, &["DamagePrevented"]),
             (TriggerEvent::PhaseBegins { phase: PhaseType::Precombat, whose: PlayerSet::Everyone }, &["PhaseBegin"]),
             (TriggerEvent::StepBegins { step: StepType::Upkeep, whose: PlayerSet::Everyone }, &["StepBegin"]),
             (TriggerEvent::TurnBegins { whose: PlayerSet::Everyone }, &["TurnBegin"]),
@@ -2405,7 +2416,7 @@ pub(crate) mod samples {
             ),
             (
                 TriggerEvent::BecomesTarget {
-                    target: ObjectOrPlayerSubject::Object(this.clone()),
+                    target: ParticipantFilter::Object(this.clone()),
                     by: TargetedBy::SpellOrAbility,
                     controller: PlayerSet::Everyone,
                     multiplicity: each,
@@ -2418,11 +2429,11 @@ pub(crate) mod samples {
             (TriggerEvent::PlayerLoses { player: PlayerSet::Everyone }, &["PlayerLost"]),
             (TriggerEvent::ShufflesLibrary { player: PlayerSet::Everyone }, &["LibraryShuffled"]),
             (
-                TriggerEvent::CountersPutOn { subject: ObjectOrPlayerSubject::Object(this.clone()), counter_type: None, by: PlayerSet::Everyone, multiplicity: each },
+                TriggerEvent::CountersPutOn { subject: ParticipantFilter::Object(this.clone()), counter_type: None, by: PlayerSet::Everyone, multiplicity: each },
                 &["CountersPutOn"],
             ),
             (
-                TriggerEvent::CountersRemovedFrom { subject: ObjectOrPlayerSubject::Object(this.clone()), counter_type: None, by: PlayerSet::Everyone, multiplicity: each },
+                TriggerEvent::CountersRemovedFrom { subject: ParticipantFilter::Object(this.clone()), counter_type: None, by: PlayerSet::Everyone, multiplicity: each },
                 &["CountersRemovedFrom"],
             ),
             (TriggerEvent::BecomesAttached { attachment: TriggerSubject::Filter(ObjectFilter::All), host: TriggerSubject::Filter(ObjectFilter::All) }, &["Attached"]),
@@ -2488,17 +2499,17 @@ mod tests {
         let you = || PlayerSet::You;
         let to_you = TriggerEvent::DamageDealt {
             source: TriggerSubject::Filter(ObjectFilter::All),
-            recipient: DamageRecipient::Player(you()),
+            recipient: ParticipantFilter::Player(you()),
             combat: None,
             excess: false,
             multiplicity: each,
         };
         assert_eq!(to_you.event_roles(), &[EventRole::DamageSource]);
-        let prevented_to_you = TriggerEvent::DamageIsPrevented { recipient: DamageRecipient::Player(you()), multiplicity: each };
+        let prevented_to_you = TriggerEvent::DamageIsPrevented { recipient: ParticipantFilter::Player(you()), multiplicity: each };
         assert_eq!(prevented_to_you.event_roles(), &[] as &[EventRole]);
         let attacks_you = TriggerEvent::Attacks {
             attacker: TriggerSubject::Filter(ObjectFilter::All),
-            defender: Some(DefenderFilter::Player(you())),
+            defender: Some(ParticipantFilter::Player(you())),
             occurrence: AttackOccurrence::Attacker,
             alone: false,
             multiplicity: each,
@@ -2506,7 +2517,7 @@ mod tests {
         assert_eq!(attacks_you.event_roles(), &[EventRole::Attacker]);
         let attacks_anything = TriggerEvent::Attacks {
             attacker: TriggerSubject::Filter(ObjectFilter::All),
-            defender: Some(DefenderFilter::Or(Box::new(DefenderFilter::Player(you())), Box::new(DefenderFilter::Permanent(ObjectFilter::All)))),
+            defender: Some(ParticipantFilter::Or(Box::new(ParticipantFilter::Player(you())), Box::new(ParticipantFilter::Object(TriggerSubject::Filter(ObjectFilter::All))))),
             occurrence: AttackOccurrence::Attacker,
             alone: false,
             multiplicity: each,

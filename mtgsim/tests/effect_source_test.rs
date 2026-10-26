@@ -42,7 +42,7 @@ use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, RetargetSpec, Rewrite, SourcePattern};
 use mtgsim::types::triggers::{
-    DamageRecipient, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerEvent, TriggerSubject,
+    ParticipantFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerEvent, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::display::format_event_log;
@@ -504,7 +504,7 @@ fn a_trigger_on_the_damage_reads_a_source_that_left_as_it_last_was() {
     make_red(&mut game, hawk);
     let red_damage_to_you = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(ObjectFilter::ByColor(Color::Red)),
-        recipient: DamageRecipient::Player(PlayerSet::You),
+        recipient: ParticipantFilter::Player(PlayerSet::You),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,

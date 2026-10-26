@@ -25,7 +25,7 @@ use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
-use crate::types::triggers::{DamageRecipient, TriggerSubject};
+use crate::types::triggers::{ParticipantFilter, TriggerSubject};
 
 /// Selfless Squire — {3}{W}
 /// Creature — Human Soldier 1/1
@@ -74,7 +74,7 @@ pub fn selfless_squire() -> Arc<CardData> {
         .ability(triggered_ability(shield_text, whenever(enters(TriggerSubject::Object(Antecedent::ThisObject)), shield)))
         .ability(triggered_ability(
             growth_text,
-            whenever(damage_to_is_prevented(DamageRecipient::Player(PlayerSet::You)), growth),
+            whenever(damage_to_is_prevented(ParticipantFilter::Player(PlayerSet::You)), growth),
         ))
         .build()
 }

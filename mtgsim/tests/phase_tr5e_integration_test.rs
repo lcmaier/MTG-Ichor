@@ -36,7 +36,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::types::triggers::{DefenderFilter, EventRole, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
+use mtgsim::types::triggers::{ParticipantFilter, EventRole, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_event_log;
@@ -198,7 +198,7 @@ fn a_creature_attacks_triggers_for_each_attacker() {
 /// attacking its controller and not the one attacking another player.
 #[test]
 fn a_creature_attacks_you_triggers_for_your_attacker_only() {
-    for you in [DefenderFilter::Player(PlayerSet::You), player_or_their_planeswalker(PlayerSet::You)] {
+    for you in [ParticipantFilter::Player(PlayerSet::You), player_or_their_planeswalker(PlayerSet::You)] {
         let mut game = stocked(4);
         let attacks_you = attacks_defender(TriggerSubject::Filter(ObjectFilter::All), you);
         put_on_battlefield(&mut game, watcher("Fixture Sentry Bell", attacks_you, a_counter_on_the_attackers()), 1);
@@ -217,7 +217,7 @@ fn a_creature_attacks_you_triggers_for_your_attacker_only() {
 #[test]
 fn a_player_is_attacked_triggers_for_each_player_with_its_attackers() {
     let mut game = stocked(4);
-    let attacked = is_attacked(DefenderFilter::Player(PlayerSet::Everyone));
+    let attacked = is_attacked(ParticipantFilter::Player(PlayerSet::Everyone));
     put_on_battlefield(&mut game, watcher("Fixture Watchtower", attacked, a_counter_on_the_attackers()), 2);
     let [first, second, third] = bears(&mut game, 3)[..] else { unreachable!() };
     declare(&mut game, &[first, second, third], &[(first, 1), (second, 3), (third, 1)]);
@@ -301,9 +301,9 @@ fn attacks_alone_triggers_only_for_a_lone_attacker() {
 #[test]
 fn its_power_over_a_defenders_attackers_is_refused() {
     let gain = |amount| Effect::Atom(Primitive::GainLife(amount), EffectRecipient::Player(PlayerRef::You));
-    let its_power = whenever(is_attacked(DefenderFilter::Player(PlayerSet::Everyone)), gain(AmountExpr::TriggeringPower(EventRole::Attacker)));
+    let its_power = whenever(is_attacked(ParticipantFilter::Player(PlayerSet::Everyone)), gain(AmountExpr::TriggeringPower(EventRole::Attacker)));
     assert_eq!(its_power.event_roles_its_arms_lack(), vec![EventRole::Attacker]);
-    let them = whenever(is_attacked(DefenderFilter::Player(PlayerSet::Everyone)), a_counter_on_the_attackers());
+    let them = whenever(is_attacked(ParticipantFilter::Player(PlayerSet::Everyone)), a_counter_on_the_attackers());
     assert!(them.event_roles_its_arms_lack().is_empty());
     let each = whenever(attacks(TriggerSubject::Filter(ObjectFilter::All)), gain(AmountExpr::TriggeringPower(EventRole::Attacker)));
     assert!(each.event_roles_its_arms_lack().is_empty(), "an attacker's own triggering event has one");

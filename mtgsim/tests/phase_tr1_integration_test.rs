@@ -60,7 +60,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSpent, ManaType};
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::types::triggers::{
-    DamageRecipient, EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent,
+    ParticipantFilter, EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerSubject, TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
@@ -809,7 +809,7 @@ fn prevented_damage_triggers_nothing() {
             triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
                     source: TriggerSubject::Filter(ObjectFilter::All),
-                    recipient: DamageRecipient::Player(PlayerSet::You),
+                    recipient: ParticipantFilter::Player(PlayerSet::You),
                     combat: None,
                     excess: false,
                     multiplicity: Multiplicity::PerOccurrence,
@@ -837,7 +837,7 @@ fn prevented_damage_triggers_nothing() {
             triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
                     source: TriggerSubject::Filter(ObjectFilter::All),
-                    recipient: DamageRecipient::Player(PlayerSet::You),
+                    recipient: ParticipantFilter::Player(PlayerSet::You),
                     combat: None,
                     excess: false,
                     multiplicity: Multiplicity::PerOccurrence,
@@ -902,7 +902,7 @@ fn damage_triggers_still_fire_when_the_creature_regenerates() {
             triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
                     source: TriggerSubject::Filter(ObjectFilter::All),
-                    recipient: DamageRecipient::Object(Some(a_creature())),
+                    recipient: ParticipantFilter::Object(TriggerSubject::Filter(a_creature())),
                     combat: None,
                     excess: false,
                     multiplicity: Multiplicity::PerOccurrence,
@@ -1767,7 +1767,7 @@ fn dread_shaped() -> Arc<CardData> {
         .ability(triggered_ability("", whenever(
             TriggerEvent::DamageDealt {
                 source: a_creature().into(),
-                recipient: DamageRecipient::Player(PlayerSet::You),
+                recipient: ParticipantFilter::Player(PlayerSet::You),
                 combat: None,
                 excess: false,
                 multiplicity: Multiplicity::PerOccurrence,
@@ -1848,7 +1848,7 @@ fn one_ability_two_zones() -> Arc<CardData> {
                 },
                 TriggerEvent::DamageDealt {
                     source: a_creature().into(),
-                    recipient: DamageRecipient::Player(PlayerSet::You),
+                    recipient: ParticipantFilter::Player(PlayerSet::You),
                     combat: None,
                     excess: false,
                     multiplicity: Multiplicity::PerOccurrence,

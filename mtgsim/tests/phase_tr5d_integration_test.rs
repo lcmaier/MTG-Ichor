@@ -45,7 +45,7 @@ use mtgsim::types::mana::ManaType;
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::triggers::{
-    DamageRecipient, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, Referred, TriggerEvent,
+    ParticipantFilter, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, Referred, TriggerEvent,
     TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::Zone;
@@ -240,7 +240,7 @@ fn a_prevention_for_your_creature_is_not_damage_to_you() {
 /// damage arm.
 #[test]
 fn a_prevented_creatures_event_role_is_the_damage_recipient() {
-    let arm = damage_to_is_prevented(DamageRecipient::Object(Some(ObjectFilter::ByType(CardType::Creature))));
+    let arm = damage_to_is_prevented(ParticipantFilter::Object(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))));
     let def = whenever(arm, Effect::Atom(Primitive::Tap, EffectRecipient::Object(Antecedent::Triggering(EventRole::DamageRecipient))));
     assert!(def.event_roles_its_arms_lack().is_empty());
     let watcher = CardDataBuilder::new("Fixture Watcher")
@@ -311,12 +311,12 @@ fn prevent_makes_a_prevention_effect_and_a_trigger_on_damage_is_not_one() {
 
 /// "Whenever a [recipient] is dealt excess [noncombat] damage", read once per
 /// permanent.
-fn excess_arm(recipient: DamageRecipient, combat: Option<bool>) -> TriggerEvent {
+fn excess_arm(recipient: ParticipantFilter, combat: Option<bool>) -> TriggerEvent {
     TriggerEvent::DamageDealt { source: TriggerSubject::Filter(ObjectFilter::All), recipient, combat, excess: true, multiplicity: Multiplicity::OncePerSubject }
 }
 
-fn a_creature() -> DamageRecipient {
-    DamageRecipient::Object(Some(ObjectFilter::ByType(CardType::Creature)))
+fn a_creature() -> ParticipantFilter {
+    ParticipantFilter::Object(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)))
 }
 
 /// An enchantment whose controller gains that much life off `arm`.
@@ -557,7 +557,7 @@ fn excess_read_per_record_or_of_a_player_is_refused() {
         multiplicity: Multiplicity::PerOccurrence,
     };
     assert_eq!(refused(per_record), 1);
-    assert_eq!(refused(excess_arm(DamageRecipient::Player(PlayerSet::Everyone), None)), 1);
+    assert_eq!(refused(excess_arm(ParticipantFilter::Player(PlayerSet::Everyone), None)), 1);
     assert_eq!(refused(excess_arm(a_creature(), None)), 0);
 }
 

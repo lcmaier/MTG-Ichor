@@ -15,7 +15,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{PlayerRef, Antecedent, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
-use mtgsim::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{ParticipantFilter, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
 
 /// "Whenever a +1/+1 counter is removed from a creature, exile that
@@ -61,7 +61,7 @@ fn a_trigger_on_a_removal_remembers_the_creature_its_death_ended() {
 fn gains_when_red_deals_damage() -> Arc<CardData> {
     let arm = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(ObjectFilter::ByColor(Color::Red)),
-        recipient: DamageRecipient::Any,
+        recipient: ParticipantFilter::any(),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,

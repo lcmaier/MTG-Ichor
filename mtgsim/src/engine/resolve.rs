@@ -23,13 +23,13 @@ use crate::oracle::characteristics::{controls, defending_player_for, get_effecti
 use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::RestrictionDef;
-use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use crate::types::ids::{ObjectOrPlayer, ExtraTurnId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::effects::{AffectedSet, EntersAttacking, ExtraPhasesAfter};
 use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
 use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::types::triggers::{
-    CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
+    TriggerSubject, CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
 };
 use crate::ui::choice_types::ChoiceKind;
@@ -2967,13 +2967,27 @@ impl GameState {
             EntersAttacking::Player { player, among } => match self.named_player(player, ctx)? {
                 Some(named) => {
                     let names_player = |who: &PlayerSet, player: PlayerId| self.player_set_has(who, player, ctx);
-                    let matches_permanent = |filter: &ObjectFilter, id: ObjectId| {
-                        self.object_matches_filter_of_source(ObjectInformation::Current(id), filter, ctx.controller, ctx.effect_source())
+                    let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+                    let names_object = |which: &TriggerSubject, object: ObjectRef| match which {
+                        TriggerSubject::Filter(filter) => self.object_matches_filter_of_source(
+                            ObjectInformation::Current(object.id),
+                            filter,
+                            ctx.controller,
+                            ctx.effect_source(),
+                        ),
+                        TriggerSubject::Object(word) => {
+                            objects.object_for(self, *word, ctx.effect_source()).is_some_and(|it| it.id() == object.id)
+                        }
+                    };
+                    let attacked = |target: AttackTarget| match target {
+                        AttackTarget::Player(player) => Some(ObjectOrPlayer::Player(player)),
+                        AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => self.object_ref(id).map(ObjectOrPlayer::Object),
                     };
                     self.what_can_be_attacked()
                         .into_iter()
                         .filter(|&target| {
-                            defending_player_for(self, target) == Some(named) && among.admits(target, &names_player, &matches_permanent)
+                            defending_player_for(self, target) == Some(named)
+                                && attacked(target).is_some_and(|it| among.admits(it, &names_player, &names_object))
                         })
                         .collect()
                 }

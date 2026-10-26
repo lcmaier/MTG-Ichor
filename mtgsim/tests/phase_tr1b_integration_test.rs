@@ -41,7 +41,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId};
 use mtgsim::types::triggers::{
-    DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
+    ParticipantFilter, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -201,7 +201,7 @@ fn a_creature() -> ObjectFilter {
 fn dread_shaped() -> Arc<CardData> {
     let damage = TriggerEvent::DamageDealt {
         source: a_creature().into(),
-        recipient: DamageRecipient::Player(PlayerSet::You),
+        recipient: ParticipantFilter::Player(PlayerSet::You),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,

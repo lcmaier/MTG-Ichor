@@ -1126,15 +1126,6 @@ route by which item 342's twenty arrived.
 - `Spells` — **holds** an `ObjectFilter`.
 - `Itself` — **kept** "this spell": a cost effect's subject answers no other object word (CR 113.6d).
 
-#### `DamageRecipient`
-- `Any` — **folds** into `ParticipantFilter` (item 343).
-- `Player` — **folds** into `ParticipantFilter` (item 343).
-- `Object` — **folds** into `ParticipantFilter` (item 343).
-
-#### `DefenderFilter`
-- `Player` — **folds** into `ParticipantFilter` (item 343).
-- `Permanent` — **folds** into `ParticipantFilter` (item 343).
-- `Or` — **folds** into `ParticipantFilter` (item 343).
 
 #### `DiscardChooser`
 - `Affected` — **owns** "the discarding player chooses" (CR 701.9b).
@@ -1204,15 +1195,17 @@ route by which item 342's twenty arrived.
 - `Or` — **not a word**: a union of criteria.
 - `Not` — **not a word**: a complement.
 
-#### `ObjectOrPlayerSubject`
-- `Object` — **folds** into `ParticipantFilter` (item 343).
-- `Player` — **folds** into `ParticipantFilter` (item 343).
 
 #### `ObjectSet`
 - `SourceOnly` — **kept** "this object": a static's affected set answers only "this object" and "its host".
 - `Filter` — **holds** an `ObjectFilter` and the zones it reads.
 - `Fixed` — **owns** "the objects fixed as the effect began" (CR 611.2c).
 - `Host` — **kept** "enchanted creature", for `SourceOnly`'s reason.
+
+#### `ParticipantFilter`
+- `Player` — **holds** a `PlayerSet`: what damage was dealt to, what is attacked, what counters are on, what becomes the target, as a player.
+- `Object` — **holds** a `TriggerSubject`: the same parts, as an object.
+- `Or` — **not a word**: a union of the two halves ("you or a planeswalker you control").
 
 #### `PerChosen`
 - `Fixed` — **kept** "a number printed on the card", beside `AmountExpr::Fixed`: `Rewrite`'s payloads are a closed algebra (devour N, CR 702.82a).

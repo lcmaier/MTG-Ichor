@@ -46,7 +46,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
-    DamageRecipient, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, Referred,
+    ParticipantFilter, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, Referred,
     TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
@@ -992,7 +992,7 @@ fn spirit_link_fixture() -> Arc<CardData> {
     let text = "Whenever enchanted creature deals damage, you gain that much life.";
     let deals_damage = TriggerEvent::DamageDealt {
         source: TriggerSubject::Object(Antecedent::ThisObjectsHost),
-        recipient: DamageRecipient::Any,
+        recipient: ParticipantFilter::any(),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,

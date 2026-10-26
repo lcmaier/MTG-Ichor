@@ -41,7 +41,7 @@ use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
-    DamageRecipient, EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
+    ParticipantFilter, EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -165,7 +165,7 @@ fn creature_you_control() -> ObjectFilter {
 fn combat_damage_to_a_player(multiplicity: Multiplicity) -> TriggerEvent {
     TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(creature_you_control()),
-        recipient: DamageRecipient::Player(PlayerSet::Everyone),
+        recipient: ParticipantFilter::Player(PlayerSet::Everyone),
         combat: Some(true),
         excess: false, multiplicity,
     }
@@ -255,7 +255,7 @@ fn that_creature_is_the_recipient_when_the_instruction_names_it() {
     let destroy_it = Effect::Atom(Primitive::Destroy, EffectRecipient::Object(Antecedent::Triggering(EventRole::DamageRecipient)));
     let dealt_damage = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(ObjectFilter::All),
-        recipient: DamageRecipient::Object(Some(ObjectFilter::ByType(CardType::Creature))),
+        recipient: ParticipantFilter::Object(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,
@@ -300,7 +300,7 @@ fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
     ]);
     let dealt_damage_by_a_creature = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
-        recipient: DamageRecipient::Player(PlayerSet::You),
+        recipient: ParticipantFilter::Player(PlayerSet::You),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,

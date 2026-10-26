@@ -21,7 +21,7 @@ use crate::types::history::CountIs;
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
+use crate::types::triggers::{ParticipantFilter, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 
 /// Sphere Grid — {1}{G}
 /// Enchantment
@@ -57,7 +57,7 @@ pub fn sphere_grid() -> Arc<CardData> {
     );
     let deals_combat_damage_to_a_player = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(creature_you_control),
-        recipient: DamageRecipient::Player(PlayerSet::Everyone),
+        recipient: ParticipantFilter::Player(PlayerSet::Everyone),
         combat: Some(true),
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,

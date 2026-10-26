@@ -44,7 +44,7 @@ use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, 
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::triggers::{
-    DamageRecipient, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
+    ParticipantFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
     TargetedBy, TriggerMultiplierDef, TriggerSubject, TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
@@ -892,7 +892,7 @@ fn a_game_that_ends_drops_the_triggers_still_waiting() {
     let mut game = audited_game();
     let damage_to_a_player = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(a_creature()),
-        recipient: DamageRecipient::Player(PlayerSet::Everyone),
+        recipient: ParticipantFilter::Player(PlayerSet::Everyone),
         combat: None,
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,

@@ -46,7 +46,7 @@ use crate::types::effects::{PlayerSet, ObjectFilter, Condition, Effect, EffectRe
 use crate::types::history::CountIs;
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::triggers::{zone_change_looks_back, AttackOccurrence, BlockOccurrence, ObjectOrPlayerSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerId, TriggerSubject, TriggeringEvent, TriggeringEventObjects};
+use crate::types::triggers::{zone_change_looks_back, AttackOccurrence, BlockOccurrence, ParticipantFilter, TargetedBy, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerId, TriggerSubject, TriggeringEvent, TriggeringEventObjects};
 use super::binding::TriggeringEventView;
 
 use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
@@ -2013,7 +2013,7 @@ impl GameState {
                 let as_it_dealt = record.event.source_lki().or_else(|| self.lki(*dealt_by));
                 let source_read = ObjectInformation::of(dealt_by.id, as_it_dealt);
                 triggering_event_if(
-                    self.damage_recipient_matches(recipient, *dealt_to, referents, seq)
+                    self.participant_matches(recipient, *dealt_to, referents, seq)
                         && combat.is_none_or(|c| c == *is_combat)
                         && (!*excess || *dealt_excess > 0)
                         && self.subject_matches_existence(source, source_read, Some(*dealt_by), referents, seq),
@@ -2022,7 +2022,7 @@ impl GameState {
             // Announced as the batch decided, and read at its close, so the
             // recipient is asked as the damage left it (CR 603.10).
             (TriggerEvent::DamageIsPrevented { recipient, .. }, GameEvent::DamagePrevented { recipient: prevented_to, .. }) => {
-                triggering_event_if(self.damage_recipient_matches(recipient, *prevented_to, referents, seq))
+                triggering_event_if(self.participant_matches(recipient, *prevented_to, referents, seq))
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
                 triggering_event_if(phase == rp && self.player_set_is(whose, *player, referents))
@@ -2150,7 +2150,7 @@ impl GameState {
                 TriggerEvent::BecomesTarget { target: watched, by: kind, controller: whose, .. },
                 GameEvent::Targeted { target, by, ability_source, controller, .. },
             ) => {
-                let target_ok = self.object_or_player_matches(watched, *target, referents, seq);
+                let target_ok = self.participant_matches(watched, *target, referents, seq);
                 let kind_ok = kind.admits(ability_source.is_none())
                     && match kind {
                         TargetedBy::Spell(Some(filter)) => {
@@ -2389,38 +2389,20 @@ impl GameState {
         };
         let matched = counter_type.is_none_or(|k| k == kind)
             && self.player_if_any_is(by, who, referents)
-            && self.object_or_player_matches(watched, on, referents, record.seq);
+            && self.participant_matches(watched, on, referents, record.seq);
         if !matched {
             return Vec::new();
         }
         vec![self.triggering_event_objects(arm, record); multiplicity.counter_occurrences(n).0]
     }
 
-    /// Whether the object or player a record names is the one an arm's
-    /// [`ObjectOrPlayerSubject`] watches, for both arms that have one: a
-    /// counter arm's (what the counters went on or came off) and a targeting
-    /// arm's (what became the target). `watched` is the card's words, `it`
-    /// the record's fact. "This creature"
-    /// or "a creature you control" (`ObjectOrPlayerSubject::Object`) asks the
-    /// object `it` names the question every object arm asks, of the object as
-    /// the event found it (CR 603.10). "You" or "a player"
-    /// (`ObjectOrPlayerSubject::Player`) asks the player `it` names, any
-    /// player for `None`. A player never matches an object arm, nor the
-    /// reverse.
-    fn object_or_player_matches(
-        &self,
-        watched: &ObjectOrPlayerSubject,
-        it: ObjectOrPlayer,
-        referents: &TriggerReferents<'_>,
-        seq: EventId,
-    ) -> bool {
-        match (watched, it) {
-            (ObjectOrPlayerSubject::Object(which), ObjectOrPlayer::Object(object)) => self.named_subject_matches(which, object, referents, seq),
-            (ObjectOrPlayerSubject::Player(who), ObjectOrPlayer::Player(player)) => {
-                self.player_set_is(who, player, referents)
-            }
-            (ObjectOrPlayerSubject::Object(_), ObjectOrPlayer::Player(_)) | (ObjectOrPlayerSubject::Player(_), ObjectOrPlayer::Object(_)) => false,
-        }
+    /// Whether `it`, an object or player the record names, is what the arm's
+    /// participant filter names: the player against its set, the object as
+    /// the event found it (CR 603.10).
+    fn participant_matches(&self, asked: &ParticipantFilter, it: ObjectOrPlayer, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
+        asked.admits(it, &|who, player| self.player_set_is(who, player, referents), &|which, object| {
+            self.named_subject_matches(which, object, referents, seq)
+        })
     }
 
     /// Whether `arm`, one event of a trigger condition, is a `ManaAdded` arm —
@@ -2470,28 +2452,6 @@ impl GameState {
         let referents = TriggerReferents::of_object(permanent, controller, object.owner, crate::oracle::board::host_of(self, permanent), None);
         let producer = ManaProducer { id: producer, tapped_for_mana: tapped, lki: None };
         self.mana_added_arm_matches(arm, producer, None, added, &referents, self.events.next_seq())
-    }
-
-    /// Whether damage dealt, or prevented, to `target` is to the player or
-    /// permanent `recipient` names; a permanent is read now.
-    fn damage_recipient_matches(
-        &self,
-        recipient: &DamageRecipient,
-        target: ObjectOrPlayer,
-        referents: &TriggerReferents<'_>,
-        seq: EventId,
-    ) -> bool {
-        match (recipient, target) {
-            (DamageRecipient::Any, _) => true,
-            (DamageRecipient::Player(who), ObjectOrPlayer::Player(pid)) => {
-                self.player_set_is(who, pid, referents)
-            }
-            (DamageRecipient::Object(filter), ObjectOrPlayer::Object(object)) => match filter {
-                None => true,
-                Some(filter) => self.named_subject_matches(&TriggerSubject::Filter(filter.clone()), object, referents, seq),
-            },
-            (DamageRecipient::Player(_), ObjectOrPlayer::Object(_)) | (DamageRecipient::Object(_), ObjectOrPlayer::Player(_)) => false,
-        }
     }
 
     /// "Which object" (§3.3): this object is the source itself, its host what it is
@@ -2601,9 +2561,11 @@ impl GameState {
 
     /// Whether `target`, what a creature was declared attacking, is what
     /// `asked` names (CR 508.3a, 508.3b, 508.3e).
-    fn defender_matches(&self, asked: &DefenderFilter, target: AttackTarget, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
-        asked.admits(target, &|who, player| self.player_set_is(who, player, referents), &|filter, id| {
-            self.subject_matches(&TriggerSubject::Filter(filter.clone()), ObjectInformation::Current(id), referents, seq)
+    fn defender_matches(&self, asked: &ParticipantFilter, target: AttackTarget, referents: &TriggerReferents<'_>, seq: EventId) -> bool {
+        self.attacked(target).is_some_and(|attacked| {
+            asked.admits(attacked, &|who, player| self.player_set_is(who, player, referents), &|which, object| {
+                self.subject_matches(which, ObjectInformation::Current(object.id), referents, seq)
+            })
         })
     }
 

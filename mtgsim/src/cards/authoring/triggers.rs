@@ -20,7 +20,7 @@ use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
 use crate::types::card_types::CardType;
 use crate::types::triggers::{
-    AttackOccurrence, BlockOccurrence, ObjectOrPlayerSubject, DamageRecipient, TargetedBy, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
+    AttackOccurrence, BlockOccurrence, ParticipantFilter, TargetedBy, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
     ReflexiveForm, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
@@ -109,7 +109,7 @@ impl Whose {
 /// triggers an event makes are its methods' and no other arm's.
 pub struct CounterEvent {
     direction: CounterDirection,
-    subject: ObjectOrPlayerSubject,
+    subject: ParticipantFilter,
     counter_type: Option<CounterType>,
     by: PlayerSet,
 }
@@ -158,7 +158,7 @@ impl From<CounterEvent> for TriggerEvent {
 pub fn counters_put_on(subject: impl Into<TriggerSubject>, counter_type: impl Into<Option<CounterType>>) -> CounterEvent {
     CounterEvent {
         direction: CounterDirection::PutOn,
-        subject: ObjectOrPlayerSubject::Object(subject.into()),
+        subject: ParticipantFilter::Object(subject.into()),
         counter_type: counter_type.into(),
         by: PlayerSet::Everyone,
     }
@@ -171,7 +171,7 @@ pub fn counters_removed_from(
 ) -> CounterEvent {
     CounterEvent {
         direction: CounterDirection::RemovedFrom,
-        subject: ObjectOrPlayerSubject::Object(subject.into()),
+        subject: ParticipantFilter::Object(subject.into()),
         counter_type: counter_type.into(),
         by: PlayerSet::Everyone,
     }
@@ -331,7 +331,7 @@ pub fn draws_a_card(whose: Whose) -> CountableEvent {
 /// "Whenever damage that would be dealt to [recipient] is prevented" (CR
 /// 615.13): one trigger for each prevention effect applied to that
 /// recipient's damage.
-pub fn damage_to_is_prevented(recipient: DamageRecipient) -> CountableEvent {
+pub fn damage_to_is_prevented(recipient: ParticipantFilter) -> CountableEvent {
     CountableEvent(TriggerEvent::DamageIsPrevented { recipient, multiplicity: Multiplicity::PerOccurrence })
 }
 
@@ -395,7 +395,7 @@ pub fn attacks(subject: impl Into<TriggerSubject>) -> CountableEvent {
 
 /// "Whenever [subject] attacks [defender]" (CR 508.3a's second sentence):
 /// "whenever a creature attacks you or a planeswalker you control".
-pub fn attacks_defender(subject: impl Into<TriggerSubject>, defender: DefenderFilter) -> CountableEvent {
+pub fn attacks_defender(subject: impl Into<TriggerSubject>, defender: ParticipantFilter) -> CountableEvent {
     CountableEvent(attack_event(subject.into(), Some(defender), AttackOccurrence::Attacker))
 }
 
@@ -414,7 +414,7 @@ pub fn attacks_alone(subject: impl Into<TriggerSubject>) -> TriggerEvent {
 /// "Whenever [defender] is attacked" (CR 508.3b): one trigger for each
 /// player, planeswalker or battle that one or more creatures are declared
 /// attacking, whose "them" are those creatures.
-pub fn is_attacked(defender: DefenderFilter) -> TriggerEvent {
+pub fn is_attacked(defender: ParticipantFilter) -> TriggerEvent {
     attack_event(TriggerSubject::Filter(ObjectFilter::All), Some(defender), AttackOccurrence::Defender)
 }
 
@@ -430,18 +430,18 @@ pub fn player_attacks(whose: Whose) -> TriggerEvent {
 /// controls are declared attacking. A planeswalker or battle attacked is not
 /// the player.
 pub fn player_attacks_player(whose: Whose, attacked: Whose) -> TriggerEvent {
-    let defender = DefenderFilter::Player(attacked.player_set());
+    let defender = ParticipantFilter::Player(attacked.player_set());
     attack_event(creature_controlled_by(whose), Some(defender), AttackOccurrence::Defender)
 }
 
 /// "[A player] or a planeswalker [that player] controls", as what is
 /// attacked: "whenever a creature attacks you or a planeswalker you control".
-pub fn player_or_their_planeswalker(who: PlayerSet) -> DefenderFilter {
+pub fn player_or_their_planeswalker(who: PlayerSet) -> ParticipantFilter {
     let their_planeswalker = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Planeswalker)),
         Box::new(ObjectFilter::ByController(who.clone())),
     );
-    DefenderFilter::Or(Box::new(DefenderFilter::Player(who)), Box::new(DefenderFilter::Permanent(their_planeswalker)))
+    ParticipantFilter::Or(Box::new(ParticipantFilter::Player(who)), Box::new(ParticipantFilter::Object(TriggerSubject::Filter(their_planeswalker))))
 }
 
 /// "Whenever [subject] blocks" (CR 509.3a): once for each such creature
@@ -484,7 +484,7 @@ pub fn becomes_the_target_of(
     controlled_by: PlayerSet,
 ) -> CountableEvent {
     CountableEvent(TriggerEvent::BecomesTarget {
-        target: ObjectOrPlayerSubject::Object(subject.into()),
+        target: ParticipantFilter::Object(subject.into()),
         by,
         controller: controlled_by,
         multiplicity: Multiplicity::PerOccurrence,
@@ -500,7 +500,7 @@ pub fn activates_an_ability_of(whose: Whose, source: impl Into<TriggerSubject>, 
 /// "Whenever [whose player] become[s] the target of [by] [controlled by]".
 pub fn player_becomes_the_target_of(whose: Whose, by: TargetedBy, controlled_by: PlayerSet) -> CountableEvent {
     CountableEvent(TriggerEvent::BecomesTarget {
-        target: ObjectOrPlayerSubject::Player(whose.player_set()),
+        target: ParticipantFilter::Player(whose.player_set()),
         by,
         controller: controlled_by,
         multiplicity: Multiplicity::PerOccurrence,
@@ -511,7 +511,7 @@ fn block_event(blocker: TriggerSubject, attacker: TriggerSubject, occurrence: Bl
     TriggerEvent::Blocks { blocker, attacker, occurrence, count: None, alone: false, multiplicity: Multiplicity::PerOccurrence }
 }
 
-fn attack_event(attacker: TriggerSubject, defender: Option<DefenderFilter>, occurrence: AttackOccurrence) -> TriggerEvent {
+fn attack_event(attacker: TriggerSubject, defender: Option<ParticipantFilter>, occurrence: AttackOccurrence) -> TriggerEvent {
     TriggerEvent::Attacks { attacker, defender, occurrence, alone: false, multiplicity: Multiplicity::PerOccurrence }
 }
 
@@ -542,10 +542,10 @@ mod tests {
                 is_sacrificed(this()),
                 creates_a_token(Whose::Yours, None),
                 draws_a_card(Whose::Yours),
-                damage_to_is_prevented(DamageRecipient::Any),
+                damage_to_is_prevented(ParticipantFilter::any()),
                 enters(this()),
                 attacks(this()),
-                attacks_defender(this(), DefenderFilter::Player(PlayerSet::Everyone)),
+                attacks_defender(this(), ParticipantFilter::Player(PlayerSet::Everyone)),
                 blocks(this()),
                 blocks_a_creature(this(), TriggerSubject::Filter(ObjectFilter::All)),
                 becomes_blocked(this()),

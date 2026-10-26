@@ -1362,9 +1362,9 @@ pub enum EntersAttacking {
     /// vocabulary its other player instructions use, and `among`, what of
     /// theirs it may attack (the player, a planeswalker they control, a battle
     /// they protect), which the controller chooses between: "that player" is
-    /// `DefenderFilter::Player(None)`, and "that player or a planeswalker they
+    /// `ParticipantFilter::Player(PlayerSet::Everyone)`, and "that player or a planeswalker they
     /// control" is the `Or` of it and a planeswalker filter.
-    Player { player: EffectRecipient, among: crate::types::triggers::DefenderFilter },
+    Player { player: EffectRecipient, among: crate::types::triggers::ParticipantFilter },
     /// CR 702.49c: what another creature is attacking, or was as it left.
     SameAs(Antecedent),
 }

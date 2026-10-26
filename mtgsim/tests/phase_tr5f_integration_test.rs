@@ -42,7 +42,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::types::triggers::{DefenderFilter, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{ParticipantFilter, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -571,7 +571,7 @@ fn a_token_put_onto_the_battlefield_attacking_never_attacked() {
 #[test]
 fn a_token_put_onto_the_battlefield_attacking_triggers_no_defender_or_player() {
     let mut game = stocked(2);
-    put_on_battlefield(&mut game, watcher("Fixture Watchtower", is_attacked(DefenderFilter::Player(PlayerSet::Everyone)), gain_one()), 0);
+    put_on_battlefield(&mut game, watcher("Fixture Watchtower", is_attacked(ParticipantFilter::Player(PlayerSet::Everyone)), gain_one()), 0);
     put_on_battlefield(&mut game, watcher("Fixture War Drum", player_attacks(Whose::Yours), gain_one()), 0);
     let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
     declare(&mut game, &[garrison], &[(garrison, 1)]);
@@ -729,7 +729,7 @@ fn a_creature_put_onto_the_battlefield_attacking_makes_combat_happen() {
 fn a_token_attacking_that_player_attacks_the_player_named() {
     let defending = EntersAttacking::Player {
         player: EffectRecipient::Player(PlayerRef::DefendingPlayer(Antecedent::ThisObject)),
-        among: DefenderFilter::Player(PlayerSet::Everyone),
+        among: ParticipantFilter::Player(PlayerSet::Everyone),
     };
     let same = EntersAttacking::SameAs(Antecedent::ThisObject);
     for entering in [defending, same] {

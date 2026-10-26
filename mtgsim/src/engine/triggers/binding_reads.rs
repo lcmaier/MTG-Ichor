@@ -16,7 +16,7 @@ use crate::types::effects::{
     PlayerSet, ObjectSet, AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, };
 use crate::types::triggers::{
-    BlockOccurrence, DamageRecipient, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
+    BlockOccurrence, ParticipantFilter, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
 
 /// A set of the facts of an entry a def reads, each one a column the elision
@@ -164,7 +164,7 @@ impl TriggerDef {
             if *multiplicity == Multiplicity::PerOccurrence {
                 wrong.push("excess damage, read per record rather than once per permanent");
             }
-            if matches!(recipient, DamageRecipient::Player(_)) {
+            if matches!(recipient, ParticipantFilter::Player(_)) {
                 wrong.push("excess damage, dealt to a player");
             }
         }
