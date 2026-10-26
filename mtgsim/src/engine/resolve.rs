@@ -2742,38 +2742,48 @@ impl GameState {
     /// The player an instruction names as it is applied (CR 608.2d): who
     /// puts the counters on for `Primitive::AddCounters` and `GetCounters`
     /// (CR 122.6a's shape on a proposal), who chooses for `Effect::Optional`,
-    /// and who gains control for `GainControl`. "An opponent" it does not
-    /// target is its controller's choice among the opponents still in the
-    /// game, asked only when there are two or more (Akroan Horse's ruling).
-    /// Every other reference, and a target, reads as
+    /// and who gains control for `GainControl`. "An opponent" none of its
+    /// recipients is (Akroan Horse's, which targets no one) is its
+    /// controller's choice among the opponents still in the game, asked only
+    /// when there are two or more. Every other reference reads as
     /// [`Self::resolve_player_ref`] reads it.
     fn player_the_instruction_names(
         &self,
         who: &PlayerRef,
-        targets: &[ObjectOrPlayerId],
+        recipients: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<PlayerId, String> {
-        if matches!(who, PlayerRef::Opponent) && targeted_opponent(targets, ctx).is_none() {
+        if matches!(who, PlayerRef::Opponent) && Self::opponent_among(recipients, ctx).is_none() {
             let opponents = self.opponents_of(ctx.controller);
             if opponents.len() > 1 {
                 return Ok(crate::ui::ask::ask_choose_opponent(dp, self, ctx.controller, ctx.effect_source(), &opponents));
             }
         }
-        self.resolve_player_ref(who, targets, ctx)
+        self.resolve_player_ref(who, recipients, ctx)
+    }
+
+    /// The opponent among the objects and players an instruction acts on,
+    /// when one is: a targeted opponent, for every printed shape.
+    fn opponent_among(recipients: &[ObjectOrPlayerId], ctx: &ResolutionContext) -> Option<PlayerId> {
+        recipients.iter().find_map(|recipient| match recipient {
+            ObjectOrPlayerId::Player(pid) if *pid != ctx.controller => Some(*pid),
+            _ => None,
+        })
     }
 
     /// `You` is the effect's controller — every printed one-shot, and the
-    /// card writes it. `Opponent` is the resolution's player target when it
-    /// has one, else the only opponent still in the game; with several and
-    /// no target an instruction asks ([`Self::player_the_instruction_names`]),
-    /// and a read, which cannot ask, is loud. Bold Plagiarist's
+    /// card writes it. `Opponent` is the opponent among the instruction's
+    /// recipients when one is, else the only opponent still in the game;
+    /// with several, an instruction asks
+    /// ([`Self::player_the_instruction_names`]), and a read, which cannot
+    /// ask, is loud. Bold Plagiarist's
     /// "*they* put" is the printed customer, a trigger whose effect names the
     /// player who triggered it — `Player(id)` once CR 603 fills it.
     fn resolve_player_ref(
         &self,
         by: &PlayerRef,
-        targets: &[ObjectOrPlayerId],
+        recipients: &[ObjectOrPlayerId],
         ctx: &ResolutionContext,
     ) -> Result<PlayerId, String> {
         Ok(match by {
@@ -2781,7 +2791,7 @@ impl GameState {
             PlayerRef::Player(pid) => *pid,
             PlayerRef::Owner => self.source_owner_of(ctx)?,
             PlayerRef::Opponent => {
-                match targeted_opponent(targets, ctx) {
+                match Self::opponent_among(recipients, ctx) {
                     Some(pid) => pid,
                     None => {
                         let opponents = self.opponents_of(ctx.controller);
@@ -2789,7 +2799,7 @@ impl GameState {
                             [only] => *only,
                             others => {
                                 return Err(format!(
-                                    "a read names \"an opponent\" it does not target, and player {} has {} \
+                                    "a read names \"an opponent\" none of its recipients is, and player {} has {} \
                                      opponents in the game: the choice is the instruction's (CR 608.2d), \
                                      which a read cannot ask",
                                     ctx.controller,
@@ -3128,15 +3138,6 @@ impl GameState {
 /// never a back-reference to it — `targeting::instance_of` resolves
 /// `EffectRecipient::SameInstanceAs` before the primitive sees it. Reaching one here
 /// means the walk was bypassed, which is a wiring error rather than a card's.
-/// "An opponent" the resolution targets, when it targets one: a player
-/// target who is not its controller.
-fn targeted_opponent(targets: &[ObjectOrPlayerId], ctx: &ResolutionContext) -> Option<PlayerId> {
-    targets.iter().find_map(|t| match t {
-        ObjectOrPlayerId::Player(pid) if *pid != ctx.controller => Some(*pid),
-        _ => None,
-    })
-}
-
 fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> String {
     format!(
         "a primitive on {:?} was handed {:?}, a back-reference to an instance of \"target\" rather than the clause that declared it (CR 115.3). Resolve it through `targeting::instance_of`.",
