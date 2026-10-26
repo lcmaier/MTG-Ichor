@@ -246,8 +246,6 @@ discipline. → `engineering-practices.md#the-spec-database`.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- `plans/handoffs/batch-legality-and-entry-choices.md`
-- `plans/handoffs/batches-durations-and-control.md`
 - `plans/handoffs/item-6-audit.md`
 
 ## What this file deliberately does not know

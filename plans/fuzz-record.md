@@ -96,7 +96,47 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
-**Measured 2026-10-25 for items 17, 20, 300, 324, 325 and "Before Layers" 13**
+**Measured 2026-10-26 for items 61, 62, 63, 134, 330 and 332** (#294,
+`batch-legality-and-entry-choices`: an entry's sacrifices and payments
+decided as they apply and performed as one event right before the entries,
+a granted devour chosen by its creature's controller, devour by a count, a
+shockland's 2 life under CR 614.12b, a trigger's filter reading an object as
+its event found it, and tribute's opponent; A6e's cleanup PR 5b, item 26
+retired). No card moves, so no table is re-recorded. One `close_out.py`
+sitting against **main** `384f224` (#293's merge): **engine** `20e8094`,
+every item's commit.
+
+**Predictions, before any arm ran** (the design note): both pools identical,
+since no registered card reaches a new path, and a single devour entry's
+sacrifices stay a window dispatched before its entry performs.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / differ: 2 of 200 games |
+| `Memo hits`, `main` → engine, performance / stress | 55,486 → 55,487 / 57,393 → 57,393 | 156,584 → 156,585 / 183,472 → 183,387 |
+| `Layer frames`, `main` → engine, performance / stress | 4,336 → 4,335 / 4,365 → 4,364 | 13,003 → 13,001 / 14,929 → 14,921 |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7446 M → 0.7515 M, **+0.93%** |
+| clone floors, held memory and the round trip (CI's release step) | | pass, as `main` |
+| audited smoke, engine, 1,000 games at seed 777, performance / stress: errors, panics, turn limits | 0 / 0 | 0 / 0 |
+
+**The prediction missed, in one way, game by game.** Games 83 and 145 of
+the stress pool's 200 at four seats diverge, each where Thunder-Thrash
+Elder devours a permanent whose own replacement modifies its entry: Master
+Biomancer in game 83 (9 counters on `main`, 11 here, its power of 2 added)
+and Winding Constrictor in game 145 (3, then 4). On `main` the sacrifice was
+performed mid-loop, so the devoured permanent was gone before CR 616.1f
+looked again; here nothing performs until phase 1 ends (#293's decision 2,
+"every decision is made against the event's one board"), so its effect is
+still there and applies. Game 83's divergence reads in the 200-game dump;
+game 145, whose dump loses its names to a player eliminated at its end, was
+replayed alone at seed 12489 under a 28-turn cap. Whether a devoured
+permanent's replacement should still apply is put to the owner in the PR
+(CR 616.1f, 614.13a; Master Biomancer's ruling reads its power "as that
+creature is entering"). The cost rows move by those games and by the devour
+window's frames.
+
+
 (#293, `durations-and-control`: a resolution's "for as long as" ended with
 its object in every registry and by its control leg, a card switching off
 a rule's own action, a change of control announced before the next effect
