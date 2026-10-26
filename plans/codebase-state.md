@@ -9876,3 +9876,133 @@ keyed by its event.
      **Slotted:** `cant-pay-costs`, whose projection of a cost to its event
      asks this question for every arm.
 
+### Found by `vocabulary-census-and-register` (2026-10-26)
+
+The census asked of every arm of the types a card's text is written in which
+word it spells, and whether that word is spelled elsewhere
+(`cr-coverage-audit.md#4d-words-and-their-spellings`). Items 340–344 are its
+folds and 345–347 the gaps the duplicates hid.
+
+340. **"This object" and the other object words are spelled once per role.**
+     `EffectRecipient` spells "this object", "enchanted creature", a
+     trigger's participant and the object a delayed trigger remembers as
+     arms of its own; `TriggerSubject` spells three of them again, and
+     `Condition::HostMatches` a fourth way, beside `Antecedent`, which
+     already holds two. The register's role table shows these three roles
+     answer several object words each, so they hold the one word type.
+     `Antecedent` gains `ThisObjectsHost` and `Referred`'s object half;
+     `EffectRecipient::Object(Antecedent)` and
+     `TriggerSubject::Object(Antecedent)` fold the arms, a recipient refusing
+     `Antecedent::TargetOfInstance` (`SameInstanceAs` stays its spelling) and
+     `Antecedent::Affected`; `TriggerSubject::Any` becomes
+     `Filter(ObjectFilter::All)`; `HostMatches` becomes
+     `Condition::ObjectMatches(Antecedent, ObjectFilter)`, the shape
+     `CounterCount` already has. #295's decision 2 had filed the recipient
+     half at `names-and-hygiene-sweeps`; #296's decision 1 moves it here.
+     **Reachability (2026-10-26):** reachable — not wrong today: each
+     spelling reads its object correctly, and the cost is a reader per role
+     and a sweep that grows with every card.
+     **Sized:** ~390 sites and ~95 lines of readers, ~530–580 carried.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds` (#296's decision
+     1), ahead of `resolution-recipients-and-amounts`, which adds #295's
+     `Antecedent` arms on it.
+
+341. **The player an instruction acts on is spelled apart from `PlayerRef`.**
+     `EffectRecipient::Controller`, `TriggeringPlayer` and `DefendingPlayer`
+     name one player beside `PlayerRef::You` and `PlayerRef::DefendingPlayer`,
+     and `PlayerRef::Owner` names only the source's owner.
+     `EffectRecipient::Player(PlayerRef)` folds the three; `PlayerRef` gains
+     `TheEventsPlayer` (what `TriggeringPlayer` reads), `OwnerOf(Antecedent)`
+     (`Owner` becomes `OwnerOf(ThisObject)`) and `ReferredPlayer`, which
+     `EffectRecipient::Referred`'s players become. Item 268's
+     `ControllerOf`, `ForEachPlayer` and the zone change's two readings are
+     then arms of `PlayerRef`, not a `PlayerAntecedent` beside it (#296's
+     decision 2, reopening #295's decision 4).
+     **Reachability (2026-10-26):** reachable — not wrong today.
+     **Sized:** ~295 sites and ~50 lines, ~370–400 carried.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
+
+342. **"An opponent" reads as any opponent in a filter and as one chosen
+     opponent in an instruction.** `object_filter.rs` reads
+     `PlayerRef::Opponent` as `player != you`; `resolve_player_ref` and
+     `SetController` read it as the one opponent, the second asserting at
+     three players or more. Each reader is right for its role, and one arm
+     with two readings is item 268's shape. A filter's player half takes a
+     `PlayerSet` (`ObjectFilter::ByController` and `ByOwner`,
+     `SourceFilter::ControlledBy`, and the trigger arms' through item 343),
+     so "a creature an opponent controls" is `PlayerSet::Opponents` and
+     `PlayerRef::Opponent` is only the chosen one. `PlayerSet` gains
+     `Player(PlayerRef)` for a filter naming one player (53 cards say
+     "creature defending player controls", 223 "that player controls"),
+     never holding `PlayerRef::You`, which stays `PlayerSet::You`;
+     `AnyDefendingPlayer` becomes `PlayerSet::DefendingPlayers`; and
+     `Condition::DefendingPlayer` folds into `Condition::Player`.
+     **Reachability (2026-10-26):** reachable — not wrong today: every
+     registered card reads "an opponent" in the role its reader expects.
+     **Sized:** ~195 sites and ~80 lines, ~315–355 carried.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds` (#296's decision
+     3).
+
+343. **A trigger arm's "a player or a permanent" is three types.**
+     `DamageRecipient`, `DefenderFilter` and `ObjectOrPlayerSubject` each test
+     the object or player that played a part in an event, with a player half
+     and an object half. They become one `ParticipantFilter`: a player half
+     (a `PlayerSet`, item 342), an object half (a `TriggerSubject`), and their
+     `Or`. `SelectionFilter` stays apart, holding the same leaves, for a
+     selection's candidates (#296's decision 4).
+     **Reachability (2026-10-26):** reachable — not wrong today.
+     **Sized:** ~80 sites and ~60 lines, ~170–200 carried.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
+
+344. **Two enums each spell one arm twice.**
+     `EffectRecipient::FilteredPermanents` is the battlefield case of
+     `FilteredObjectsIn`, and `SelectionFilter::Creature` is
+     `Permanent(ObjectFilter::ByType(Creature))`. Each becomes a constructor
+     of the general arm, and the resolution's four refusals of
+     `FilteredObjectsIn` become one of `zones != BATTLEFIELD`.
+     **Reachability (2026-10-26):** reachable — not wrong today.
+     **Sized:** ~220 sites and ~20 lines, ~250–260 carried.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
+
+345. **"Target opponent" can't be written.** `SelectionFilter::Player`
+     admits any player, where its three trigger-side siblings each carry a
+     player filter. 742 printed cards say it (`o:"target opponent"
+     game:paper -is:funny`, 2026-10-26), and v1 is four-player Commander.
+     `Player` takes a `PlayerSet` (item 342's), so it is
+     `Player(PlayerSet::Opponents)`, and `validate_selection` and the
+     enumeration of legal selections ask it.
+     **Reachability (2026-10-26):** unreachable — no registered card targets
+     an opponent, since none can be written.
+     **Sized:** ~40–60 lines and a fixture "target opponent loses 2 life"
+     at three seats, cast from hand.
+     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`, with item 342,
+     whose `PlayerSet` is the arm's new payload: the one behavior that PR
+     adds.
+
+346. **"Enchanted player" can't be written.** CR 303.4m's "enchanted [object
+     or player]" is whatever the permanent is attached to, a player for a
+     Curse: 48 printed cards (`o:"enchanted player" game:paper -is:funny`,
+     2026-10-26). An Aura attaches only to an object here, `Host` names an
+     object in every role, and no player word names the host. It needs an
+     Aura attached to a player (an enchant-player filter, the attachment, CR
+     704.5m's check of a player host) and `PlayerRef::EnchantedPlayer`.
+     **Reachability (2026-10-26):** unreachable — no registered Aura
+     enchants a player.
+     **Sized:** ~200–300 lines and fixtures: a Curse cast on an opponent, its
+     trigger naming the enchanted player, and its host leaving the game.
+     **Slotted:** `route-review`, which places what the cleanup leaves for the
+     route; Curses are Commander cards, so its row comes before Phase 8.
+
+347. **Two target families have no `SelectionFilter` arm.** "Target player or
+     planeswalker", 130 printed cards (`o:"target player or planeswalker"`),
+     and "target activated or triggered ability", 39
+     (`o:/target (activated|triggered|activated or triggered) ability/`), both
+     `game:paper -is:funny`, 2026-10-26. The first is an `Or` of a player arm
+     and a permanent arm, as `ParticipantFilter` will have; the second is a
+     stack object that is not a spell. Targets in a graveyard (886) are
+     `ironworks-loop`'s already.
+     **Reachability (2026-10-26):** unreachable — no registered card targets
+     either.
+     **Sized:** ~60–100 lines and a fixture for each.
+     **Slotted:** `route-review`.
+

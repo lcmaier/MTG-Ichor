@@ -982,6 +982,297 @@ hold no value another holder owns. `plans/references/concept-census.py
   stores, nesting guards, the layer memo's stamps, registry summaries and the
   fast-path gates' indices, which are derived from the board and say so.
 
+## 4d. Words and their spellings
+
+§4c asks of every field the game holds which concept it holds, and stops at
+the types a card's text is written in. This section asks those types the
+other question: **which word does each arm spell, and is that word spelled
+anywhere else?** A card's text is written in roles (who an instruction acts
+on, which player a filter names, what a trigger watches, how much), and each
+role grew the words it needed a phase at a time, so "this object" came to be
+spelled seven ways. A second spelling goes wrong when its readers disagree,
+which is what main item 268 records of "that player". The census ran once,
+at `vocabulary-census-and-register` (2026-10-26, #296), with
+`plans/references/vocabulary-census.py`; this register is its result.
+
+**Where it reads.** Every enum that §4c's **Stops at:** types hold,
+transitively, through payloads and fields, stopping at the game's state and
+the ids. Each reached enum is in one class below. The `words` class is the
+entries under "The words", one per enum, a line per arm; every other class
+spells no word for a thing, for the reason it gives.
+
+**The rule** (decided at the census's review, 2026-10-26): one spelling per
+word. A role holds the shared word type (`Antecedent` for an object,
+`PlayerRef` for one player, `PlayerSet` for players a filter admits) where it
+answers several of its words, and keeps its own arm where it answers one or
+is a closed algebra (`Rewrite`'s payloads, `CLAUDE.md`'s growth contract). A
+second spelling is kept only with its reason, or waits for the item that
+folds it.
+
+**How an entry reads, and what the check fails.** Each arm's line gives one
+verdict in bold: **owns** (the one spelling of its word), **holds** (an arm
+wrapping a shared word type), **kept** (a second spelling, with its reason),
+**folds** (a second spelling, with the open item that folds it) or **not a
+word** (it names no object, player or amount, with what it is instead).
+`check_type_surface.py`'s third check fails a reached enum in no class, a
+class naming an enum no longer reached, an arm with no line or a line naming
+no arm, a line with no verdict, and a **folds** line whose item is closed or
+missing: a landed fold rewrites its lines.
+
+### The classes
+
+- **values** — a printed value, asked of a thing a word names:
+  `ArtifactType`, `BattleType`, `CardType`, `Characteristic`, `Color`,
+  `CounterType`, `CreatureType`, `DungeonType`, `EnchantmentType`,
+  `KeywordFlag`, `LandType`, `ManaGrant`, `ManaPersistence`,
+  `ManaRestriction`, `ManaSymbol`, `ManaType`, `PersistenceExpiry`,
+  `PhaseType`, `PlanarType`, `PlaneswalkerType`, `SpellType`, `StepType`,
+  `Subtype`, `Supertype`, `Zone`
+- **verbs** — an action or an event the CR names, owned by its chapter
+  (`EventPattern` grows one arm per `GameAction` variant by contract):
+  `AdditionalCost`, `AlternativeCost`, `AmountRewrite`, `CharacteristicEdit`,
+  `ColorChange`, `CopyException`, `Cost`, `CostChange`, `Effect`,
+  `EventPattern`, `GameActionTemplate`, `GameRule`, `Primitive`,
+  `PriorityAction`, `Restriction`, `Rewrite`, `RuleAction`, `SpecialAction`,
+  `StateBasedAction`, `TokenSubstitution`, `TriggerEvent`, `TurnBasedAction`,
+  `ZoneChangeAct`
+- **facts** — a fact or a predicate asked of what a word names:
+  `AttackOccurrence`, `BlockOccurrence`, `CostAnswer`, `CountIs`,
+  `DestructionSourcePattern`, `DrawFilter`, `HistorySpan`,
+  `LifeLossCausePattern`, `ObjectFact`, `PlayerFact`, `ReplacementKindFilter`,
+  `TapStatus`, `TargetedBy`, `TriggerCondition`, `TurnFact`
+- **settings** — how many, how often, how long, how rounded, which kind of
+  ability: `AbilityType`, `ActivationRestriction`, `ChoiceSide`,
+  `DelayedDuration`, `DelayedTurn`, `ExtraPhasesAfter`, `InherentAbility`,
+  `ModalCount`, `Multiplicity`, `PatternFill`, `PickCount`, `ReflexiveForm`,
+  `ReplacementClass`, `Rounding`, `TriggerLimit`, `TriggerOrigin`,
+  `TriggerTier`, `Uses`, `XOffer`
+- **keys** — a thing named by identity: `AttackTarget`, `ObjectOrPlayer`,
+  `ObjectOrPlayerId`, `ReplacementInstanceId`
+- **record** — the game's record and its observers, reached through a
+  payload, which §4c reads: `ChoiceKind`, `ChoiceOption`,
+  `CounterEffectKind`, `DepartedObject`, `Elision`, `EntryOffer`, `EntryRole`,
+  `EventCause`, `GameEvent`, `GameRuleReplacement`, `GeneratedBy`, `Unasked`,
+  `UnaskedAnswer`, `UnattachRoute`
+
+### The words
+
+#### `AmountExpr`
+- `Fixed` — **owns** "a number printed on the card".
+- `X` — **owns** "X" (CR 107.3).
+- `CountOf` — **owns** "the number of [objects]", holding an `ObjectSet`.
+- `CardTypesAmong` — **owns** "the number of card types among" (the Lhurgoyfs).
+- `Plus` — **not a word**: arithmetic on another amount.
+- `History` — **owns** "the amount of [what happened] in a span of turns".
+- `AffectedManaValue` — **folds** into `ValueOf(Affected, ManaValue)` (item 269).
+- `SourcePower` — **folds** into `ValueOf(ThisObject, Power)` (item 269).
+- `SourceCounters` — **folds** into `ValueOf(ThisObject, Counters)` (item 269).
+- `TriggeringAmount` — **owns** "that many" on a triggered ability.
+- `TriggeringPower` — **folds** into `ValueOf(Triggering, Power)` (item 269).
+- `TriggeringToughness` — **folds** into `ValueOf(Triggering, Toughness)` (item 269).
+- `TargetPower` — **folds** into `ValueOf(TargetOfInstance, Power)` (item 269).
+- `TargetToughness` — **folds** into `ValueOf(TargetOfInstance, Toughness)` (item 269).
+- `DamageDealtThisWay` — **owns** "the damage dealt this way".
+- `ExcessDamageDealtThisWay` — **owns** "the excess damage dealt this way" (CR 120.10).
+- `DiscardedThisWay` — **owns** "the cards discarded this way".
+- `ReplacedAmount` — **owns** "that much" in a CR 615.5 rider.
+- `Multiply` — **not a word**: arithmetic on another amount.
+- `UnspentMana` — **owns** "the unspent mana you have" of one type.
+- `DamagePrevented` — **owns** "the damage prevented this way" (CR 615.5).
+- `StartingLifeTotal` — **owns** "your starting life total" (CR 103.4).
+
+#### `Antecedent`
+- `ThisObject` — **owns** "this object" (CR 113.7a).
+- `Triggering` — **owns** "that creature", a trigger's participant (CR 608.2c).
+
+#### `ChoiceScope`
+- `ChoosersPermanents` — **owns** "a permanent of their choice", the chooser's own.
+
+#### `Condition`
+- `Player` — **holds** a `PlayerSet` and the fact asked of each player in it.
+- `DefendingPlayer` — **folds** into `Player` over `PlayerSet::Player(DefendingPlayer(of))` (item 342).
+- `SpellWasKicked` — **not a word**: a fact about the source's costs (CR 702.33d).
+- `ModeChosen` — **not a word**: a fact about the modes chosen (CR 700.2).
+- `All` — **not a word**: a conjunction of conditions.
+- `Not` — **not a word**: a negation.
+- `HostMatches` — **folds** into `ObjectMatches(Antecedent, ObjectFilter)` (item 340).
+- `SourceUntapped` — **kept** "this object is untapped": the feeds table reads it as entry state (`Condition::reads_entry_state`), which a general leaf would hide.
+- `SourceTapped` — **kept** "this object is tapped", for the same reason.
+- `CounterCount` — **holds** an `Antecedent`.
+- `ThisTurn` — **not a word**: a history count over this turn.
+- `LastTurn` — **not a word**: a history count over the last turn.
+- `SinceYourLastTurn` — **not a word**: a history count since your last turn.
+- `ThisGame` — **not a word**: a history count over the game.
+- `CounterCountReached` — **not a word**: CR 122.7's threshold of the source's counters.
+- `ResolvedThisTurn` — **not a word**: how often this ability resolved this turn (CR 603.7h).
+- `CostAnswer` — **not a word**: CR 118.12's answer to the action before.
+
+#### `CopyDonor`
+- `Chosen` — **holds** a `SelectionFilter`.
+- `ThisObject` — **kept** "this object": `Rewrite`'s payloads are a closed algebra, each arm one the pipeline applies.
+- `Host` — **kept** "enchanted creature", for the same reason.
+
+#### `CopyRoles`
+- `RecipientsCopyChosen` — **holds** a `SelectionFilter`.
+- `ThisObjectCopiesRecipient` — **not a word**: which of two objects copies which (CR 707.4).
+- `FilteredCopyRecipient` — **holds** an `ObjectFilter`.
+
+#### `CostSubject`
+- `Spells` — **holds** an `ObjectFilter`.
+- `Itself` — **kept** "this spell": a cost effect's subject answers no other object word (CR 113.6d).
+
+#### `DamageRecipient`
+- `Any` — **folds** into `ParticipantFilter` (item 343).
+- `Player` — **folds** into `ParticipantFilter` (item 343).
+- `Object` — **folds** into `ParticipantFilter` (item 343).
+
+#### `DefenderFilter`
+- `Player` — **folds** into `ParticipantFilter` (item 343).
+- `Permanent` — **folds** into `ParticipantFilter` (item 343).
+- `Or` — **folds** into `ParticipantFilter` (item 343).
+
+#### `DiscardChooser`
+- `Affected` — **owns** "the discarding player chooses" (CR 701.9b).
+- `AtRandom` — **not a word**: CR 701.9b's random discard.
+
+#### `Duration`
+- `UntilEndOfTurn` — **not a word**: a time (CR 514.2).
+- `UntilYourNextTurn` — **not a word**: a time.
+- `WhileSourceOnBattlefield` — **not a word**: a relation of time to the source.
+- `WhileEnchanted` — **not a word**: a relation of time to the source's host.
+- `WhileEquipped` — **not a word**: a relation of time to the source's host.
+- `WhileYouControlSource` — **not a word**: a relation of time to the source's controller.
+- `Indefinite` — **not a word**: no end (CR 611.2a).
+
+#### `EffectRecipient`
+- `Implicit` — **not a word**: an instruction that names nothing.
+- `ThisObject` — **folds** into `Object(Antecedent::ThisObject)` (item 340).
+- `Controller` — **folds** into `Player(PlayerRef::You)` (item 341).
+- `Target` — **owns** "target [something]" (CR 115.1), holding a `SelectionFilter`.
+- `Choose` — **owns** "choose [something]" (CR 608.2d), holding a `SelectionFilter`.
+- `SameInstanceAs` — **owns** "that target", an instance announced earlier (CR 115.3); a recipient refuses `Antecedent::TargetOfInstance`, its value-reading twin.
+- `Triggering` — **folds** into `Object(Antecedent::Triggering)` (item 340).
+- `TriggeringPlayer` — **folds** into `Player(PlayerRef::TheEventsPlayer)` (item 341).
+- `Referred` — **folds** into `Object(Antecedent::Referred)` and `Player(PlayerRef::ReferredPlayer)` (item 340).
+- `AttackedBy` — **owns** "the player or planeswalker it's attacking" (CR 506.3), holding an `Antecedent`.
+- `DefendingPlayer` — **folds** into `Player(PlayerRef::DefendingPlayer)` (item 341).
+- `EachOf` — **owns** "each player", "each opponent", holding a `PlayerGroup`.
+- `FilteredPermanents` — **folds** into a constructor of `FilteredObjectsIn` (item 344).
+- `FilteredObjectsIn` — **owns** "every object matching [a filter] in [zones]".
+- `Host` — **folds** into `Object(Antecedent::ThisObjectsHost)` (item 340).
+- `Group` — **not a word**: a union of recipients, acted on at once (CR 608.2f).
+- `ChosenBy` — **owns** "a [permanent] of their choice" as the effect applies (CR 608.2d), holding a `Choice`.
+
+#### `EntersAttacking`
+- `Chosen` — **not a word**: CR 508.4's choice by the controller.
+- `Player` — **kept** "attacking that player" as an `EffectRecipient`: a player that is "target player" declares an instance of "target", which only a recipient can.
+- `SameAs` — **holds** an `Antecedent` (CR 702.49c).
+
+#### `EventRole`
+- `Object` — **owns** the participant "the object the event is about".
+- `DamageSource` — **owns** the participant "the source of the damage" (CR 120.1).
+- `DamageRecipient` — **owns** the participant "the object dealt damage" (CR 120.1).
+- `Attacker` — **owns** the participant "the attacking creature" (CR 506.4).
+- `Blocker` — **owns** the participant "the blocking creature" (CR 509.1g).
+- `OtherCombatant` — **owns** the participant "the creature on the other side of a block".
+- `Attacked` — **owns** the participant "the planeswalker or battle attacked" (CR 506.3).
+- `Attachment` — **owns** the participant "the Aura, Equipment or Fortification" (CR 701.3).
+- `Host` — **owns** the participant "the object it became attached to" (CR 701.3).
+- `Target` — **owns** the participant "the object that became the target" (CR 115.1).
+- `SpellOrAbility` — **owns** the participant "the spell or ability it became the target of".
+
+#### `IdentityRef`
+- `ThisAbility` — **owns** "this ability" (CR 603.7h's same ability).
+
+#### `NamedPlayers`
+- `Nobody` — **not a word**: no player named.
+- `FirstInstance` — **folds** into `PlayerGroup.named` holding a `PlayerRef::TheEventsPlayer`, a rider's being its replaced event's player (item 268).
+
+#### `ObjectFilter`
+- `All` — **not a word**: no criterion.
+- `ByType` — **not a word**: a criterion on a card type.
+- `BySubtype` — **not a word**: a criterion on a subtype.
+- `BySupertype` — **not a word**: a criterion on a supertype.
+- `ByColor` — **not a word**: a criterion on a color.
+- `ByController` — **holds** a `PlayerRef`, which **folds** into a `PlayerSet` (item 342).
+- `PowerLE` — **not a word**: a criterion on power.
+- `WithCounters` — **not a word**: a criterion on counters.
+- `Token` — **not a word**: a criterion, CR 111.1.
+- `ThisTurn` — **not a word**: a criterion on what the object did this turn.
+- `ThisCombat` — **not a word**: a criterion on what it did this combat.
+- `ByOwner` — **holds** a `PlayerRef`, which **folds** into a `PlayerSet` (item 342).
+- `NotSource` — **kept** "other than this object": a relation to an object ("another"), not a word for one.
+- `OtherThanInstance` — **kept** "another target" (CR 601.2c): a relation to an earlier instance.
+- `And` — **not a word**: an intersection of criteria.
+- `Or` — **not a word**: a union of criteria.
+- `Not` — **not a word**: a complement.
+
+#### `ObjectOrPlayerSubject`
+- `Object` — **folds** into `ParticipantFilter` (item 343).
+- `Player` — **folds** into `ParticipantFilter` (item 343).
+
+#### `ObjectSet`
+- `SourceOnly` — **kept** "this object": a static's affected set answers only "this object" and "its host".
+- `Filter` — **holds** an `ObjectFilter` and the zones it reads.
+- `Fixed` — **owns** "the objects fixed as the effect began" (CR 611.2c).
+- `Host` — **kept** "enchanted creature", for `SourceOnly`'s reason.
+
+#### `PerChosen`
+- `Fixed` — **kept** "a number printed on the card", beside `AmountExpr::Fixed`: `Rewrite`'s payloads are a closed algebra (devour N, CR 702.82a).
+- `Count` — **owns** "the number devoured this way".
+
+#### `PlayerRef`
+- `You` — **owns** "you" (CR 109.5).
+- `Opponent` — **owns** "an opponent", one chosen as the instruction applies (CR 608.2d); its reading as any opponent in a filter moves to `PlayerSet::Opponents` (item 342).
+- `Owner` — **folds** into `OwnerOf(Antecedent::ThisObject)` (item 341).
+- `Player` — **owns** a player captured by id.
+- `DefendingPlayer` — **owns** "defending player" (CR 508.5), holding an `Antecedent`.
+- `AnyDefendingPlayer` — **folds** into `PlayerSet::DefendingPlayers` (item 342).
+
+#### `PlayerSet`
+- `Nobody` — **not a word**: no player.
+- `You` — **kept** "you" as a set of one, beside `PlayerRef::You`: a relation in the family of `Opponents` and `Everyone`, and `Player(PlayerRef::You)` is refused (item 342).
+- `Opponents` — **owns** "every opponent" (CR 102.1).
+- `Everyone` — **owns** "every player".
+- `Fixed` — **owns** "the players fixed as the effect began".
+
+#### `RetargetSpec`
+- `ToEffectSource` — **kept** "this object": `Rewrite`'s payloads are a closed algebra.
+- `ToHost` — **kept** "enchanted creature", for the same reason.
+- `ToDamageSourceController` — **owns** "that source's controller", the replaced event's (CR 614.9).
+
+#### `ReturnUnder`
+- `Owner` — **kept** "its owner": CR 610.3c's owner is each returned object's, which no antecedent names.
+- `You` — **kept** "under your control": with `Owner`, CR 610.3c's default and its one alternative.
+
+#### `SelectionFilter`
+- `Creature` — **folds** into a constructor of `Permanent` (item 344).
+- `Player` — **owns** "target player"; it takes a `PlayerSet` for "target opponent" (item 345).
+- `Any` — **owns** "any target" (CR 115.4).
+- `Permanent` — **holds** an `ObjectFilter`.
+- `Spell` — **owns** "target spell".
+- `DamageSource` — **owns** "a source of damage", CR 609.7a's choice.
+
+#### `SourceFilter`
+- `ControlledBy` — **holds** a `PlayerRef`, which **folds** into a `PlayerSet` (item 342).
+
+#### `TargetCount`
+- `Exactly` — **kept** "a number printed on the card", beside `ExactlyAmount(Fixed(n))`: castability's `fewest()` reads it with no evaluator, at every priority.
+- `UpTo` — **kept** "up to a printed number", for the same reason.
+- `UpToAmount` — **holds** an `AmountExpr`.
+- `ExactlyAmount` — **holds** an `AmountExpr`.
+
+#### `TemplateAmount`
+- `Fixed` — **kept** "a number printed on the card", beside `AmountExpr::Fixed`: `Rewrite`'s payloads are a closed algebra.
+- `ReplacedAmount` — **kept** "that much", beside `AmountExpr::ReplacedAmount`, for the same reason.
+
+#### `TriggerSubject`
+- `ThisObject` — **folds** into `Object(Antecedent::ThisObject)` (item 340).
+- `Host` — **folds** into `Object(Antecedent::ThisObjectsHost)` (item 340).
+- `Filter` — **holds** an `ObjectFilter`.
+- `Any` — **folds** into `Filter(ObjectFilter::All)` (item 340).
+- `Referred` — **folds** into `Object(Antecedent::Referred)` (item 340).
+
 ---
 
 ## 5. Findings register
