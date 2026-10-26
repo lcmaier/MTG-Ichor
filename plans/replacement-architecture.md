@@ -1981,11 +1981,11 @@ zones are *not* a result of the entry: Wood Elemental's, Overlaid Terrain's and
 Shimatsu's rulings put them right before it, so they are an event of their own.
 Thunder-Thrash Elder's ruling makes it one event for every entry of the batch:
 "all creatures devoured this way are sacrificed at the same time". Each is
-decided as its entry's replacement applies (`decide_before_entering`, tagged
+decided as its entry's replacement applies (`decide_just_before_entry`, tagged
 `// AUXILIARY-MOVE:`), under a fresh batch id the batch's first opens, so the
 count devour reads in the same CR 616.1 loop is what will be performed (a move
 CR 614.6 drops is no sacrifice). The decided moves ride on their entry
-(`BatchMember::before_entering`), and the batch's phase 2 performs all of them
+(`BatchMember::just_before_entry`), and the batch's phase 2 performs all of them
 under that id ahead of its entries, then dispatches it. Until then a chosen
 object is where it was, so its own effects still apply to the entry: a
 devoured Master Biomancer still gives the devourer its counters (CR 616.1f;

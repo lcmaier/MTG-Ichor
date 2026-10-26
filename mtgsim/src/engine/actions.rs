@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::engine::combat::keywords::lethal_damage_owed;
 use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_damage_with_keyword};
-use crate::engine::replacement::{AppliedReplacements, BatchMember, BeforeEntering, SubjectGroup};
+use crate::engine::replacement::{AppliedReplacements, BatchMember, JustBeforeEntry, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
 use crate::events::event::{AppliedReplacement, DepartedObject, EventId, GameEvent, UnattachRoute};
@@ -49,7 +49,7 @@ struct DecidedBatch {
     riders: Vec<crate::engine::replacement::Rider>,
     /// The batch id the members' before-entering events perform under, when
     /// an entry decided any.
-    before_entering_window: Option<crate::events::event::BatchId>,
+    just_before_entry_window: Option<crate::events::event::BatchId>,
 }
 
 /// Who is asking for a mutation, and what caused it.
@@ -1004,7 +1004,7 @@ impl GameState {
     /// CR 614.13's moves, or the life CR 614.12b's payment loses, decided as
     /// the entry replacement that chose them applies and held for the
     /// entering batch to perform right before its entries
-    /// ([`BeforeEntering`]). Returns how many will be performed: a move a
+    /// ([`JustBeforeEntry`]). Returns how many will be performed: a move a
     /// replacement drops (CR 614.6) is no creature sacrificed, and one it
     /// redirects still is, which is devour's count (CR 701.21a, 702.82a).
     ///
@@ -1013,15 +1013,15 @@ impl GameState {
     /// ruling) and the CR 616.1 loops that decided them are traced with it.
     /// Each move is contained in the entry, not a finer grain of it, so it
     /// starts a fresh applied set.
-    pub(crate) fn decide_before_entering(&mut self, moves: Vec<GameAction>, ctx: &ActionContext) -> Result<u32, String> {
+    pub(crate) fn decide_just_before_entry(&mut self, moves: Vec<GameAction>, ctx: &ActionContext) -> Result<u32, String> {
         // AUXILIARY-MOVE: CR 614.13's moves are no result of the entry; they
         // happen right before it, so they are an event of their own
         // (`replacement-architecture.md` §4.2).
-        let previous = match self.entry_selection.before_entering_window {
+        let previous = match self.entry_selection.just_before_entry_window {
             Some(window) => self.events.reopen_batch(window),
             None => {
                 let previous = self.events.open_new_batch();
-                self.entry_selection.before_entering_window = self.events.current_batch();
+                self.entry_selection.just_before_entry_window = self.events.current_batch();
                 previous
             }
         };
@@ -1032,16 +1032,16 @@ impl GameState {
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
-        let Some(DecidedBatch { members, riders, before_entering_window }) = decided? else { return Ok(0) };
+        let Some(DecidedBatch { members, riders, just_before_entry_window }) = decided? else { return Ok(0) };
         // A move stays a move: no rewrite turns one into an entry (a move onto
         // the battlefield is refused as a proposal), so none has events of its
         // own to happen before it, which nothing here would perform.
         debug_assert!(
-            before_entering_window.is_none() && members.iter().all(|m| m.before_entering.is_empty()),
+            just_before_entry_window.is_none() && members.iter().all(|m| m.just_before_entry.is_empty()),
             "a CR 614.13 move decided events to happen before an entry of its own"
         );
         let moved = members.iter().filter(|m| m.event.is_some()).count() as u32;
-        self.entry_selection.before_entering.absorb(BeforeEntering { members, riders });
+        self.entry_selection.just_before_entry.append(JustBeforeEntry { members, riders });
         Ok(moved)
     }
 
@@ -1049,9 +1049,9 @@ impl GameState {
     /// performed as one event under the window that decided it, dispatched
     /// at its close, then its riders (CR 615.5). A devoured creature's death
     /// triggers ahead of the entry's, and both wait for the next priority.
-    fn perform_before_entering(
+    fn perform_just_before_entry(
         &mut self,
-        before: BeforeEntering,
+        before: JustBeforeEntry,
         window: crate::events::event::BatchId,
         ctx: &ActionContext,
     ) -> Result<(), String> {
@@ -1096,7 +1096,7 @@ impl GameState {
     /// it was before any of them happened. It is also what CR 614.4 wants for a
     /// simultaneous event: the effect must exist before *the* event, and the
     /// event is the whole batch. What the entries decided to happen right
-    /// before they enter ([`BeforeEntering`]) is performed between the two, as
+    /// before they enter ([`JustBeforeEntry`]) is performed between the two, as
     /// an event of its own.
     fn execute_batch_inner(
         &mut self,
@@ -1104,19 +1104,19 @@ impl GameState {
         ctx: &ActionContext,
         inherited: &AppliedReplacements,
     ) -> Result<(Vec<GameAction>, Vec<crate::engine::replacement::Rider>), String> {
-        let Some(DecidedBatch { members: mut decided, riders, before_entering_window }) =
+        let Some(DecidedBatch { members: mut decided, riders, just_before_entry_window }) =
             self.decide_members(proposals, ctx, inherited)?
         else {
             return Ok((Vec::new(), Vec::new()));
         };
-        let mut before = BeforeEntering::default();
+        let mut before = JustBeforeEntry::default();
         for member in &mut decided {
-            before.absorb(std::mem::take(&mut member.before_entering));
+            before.append(std::mem::take(&mut member.just_before_entry));
         }
         if !before.is_empty() {
-            let window = before_entering_window
+            let window = just_before_entry_window
                 .ok_or_else(|| "an entry decided events to happen before it with no batch id to perform them under".to_string())?;
-            self.perform_before_entering(before, window, ctx)?;
+            self.perform_just_before_entry(before, window, ctx)?;
         }
         let performed = self.perform_members(decided, riders.len(), ctx)?;
         Ok((performed, riders))
@@ -1224,9 +1224,9 @@ impl GameState {
                 decided_ok = Err(e);
                 break;
             }
-            self.attach_before_entering(group, costs_before);
+            self.attach_just_before_entry(group, costs_before);
         }
-        let before_entering_window = self.entry_selection.before_entering_window;
+        let just_before_entry_window = self.entry_selection.just_before_entry_window;
         self.entry_selection = outer_selection;
         self.prevention_allocations = outer_allocations;
         decided_ok?;
@@ -1235,7 +1235,7 @@ impl GameState {
         // are simultaneous, though observable (a graveyard is ordered).
         let mut members: Vec<BatchMember> = groups.into_iter().flat_map(|g| g.members).collect();
         members.sort_by_key(|m| m.place);
-        Ok(Some(DecidedBatch { members, riders, before_entering_window }))
+        Ok(Some(DecidedBatch { members, riders, just_before_entry_window }))
     }
 
     /// What `group`'s CR 616.1 loop decided to happen right before its entry,
@@ -1243,13 +1243,13 @@ impl GameState {
     /// event never happens as an entry, and neither do they (CR 614.6), nor
     /// is a payment among them a cost chosen for CR 614.12b: the costs the
     /// loop chose, those after `costs_before`, go with them.
-    fn attach_before_entering(&mut self, group: &mut [BatchMember], costs_before: usize) {
-        let before = std::mem::take(&mut self.entry_selection.before_entering);
+    fn attach_just_before_entry(&mut self, group: &mut [BatchMember], costs_before: usize) {
+        let before = std::mem::take(&mut self.entry_selection.just_before_entry);
         if before.is_empty() {
             return;
         }
         match group.iter_mut().find(|m| matches!(m.event, Some(GameAction::EnterBattlefield { .. }))) {
-            Some(entry) => entry.before_entering.absorb(before),
+            Some(entry) => entry.just_before_entry.append(before),
             None => self.entry_selection.costs_chosen.truncate(costs_before),
         }
     }

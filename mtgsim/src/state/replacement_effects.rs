@@ -240,12 +240,12 @@ pub struct EntrySelectionScope {
 
     /// What the entry being decided now has decided to happen right before it
     /// enters, moved onto its batch member when its CR 616.1 loop ends.
-    pub(crate) before_entering: crate::engine::replacement::BeforeEntering,
+    pub(crate) just_before_entry: crate::engine::replacement::JustBeforeEntry,
 
     /// The batch id the batch's before-entering events are decided and
     /// performed under, opened by the first of them so the CR 616.1 loops
     /// that decide them are traced with the event they make.
-    pub(crate) before_entering_window: Option<crate::events::event::BatchId>,
+    pub(crate) just_before_entry_window: Option<crate::events::event::BatchId>,
 
     /// CR 614.12b — every cost a player has chosen to pay for an entry of
     /// this batch, which a later choice must be payable beside.

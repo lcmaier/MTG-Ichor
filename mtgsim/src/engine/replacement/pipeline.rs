@@ -148,7 +148,7 @@ pub(crate) struct BatchMember {
     pub inner_move: Option<Box<BatchMember>>,
     /// What this entry's replacements decided to happen right before it
     /// enters. Empty for every member but an entry with a CR 614.13 move.
-    pub before_entering: BeforeEntering,
+    pub just_before_entry: JustBeforeEntry,
 }
 
 impl BatchMember {
@@ -159,16 +159,18 @@ impl BatchMember {
             cause,
             applied: AppliedReplacements::EMPTY,
             inner_move: None,
-            before_entering: BeforeEntering::default(),
+            just_before_entry: JustBeforeEntry::default(),
         }
     }
 }
 
-/// The events an entry's replacements decide on as they apply, performed
-/// right before the permanent enters, as an event of their own: CR 614.13's
-/// other objects that change zones, which Wood Elemental's, Overlaid
-/// Terrain's and Shimatsu's rulings put right before the entry. Every entry
-/// of one batch shares that event: "all creatures devoured this way are
+/// The events that happen **immediately before** a batch's entries, as one
+/// event of their own: what an entry's replacements chose as they applied,
+/// CR 614.13's other objects that change zones (devour's sacrifices) and the
+/// life a CR 614.12 choice pays. Not "some time before": nothing comes
+/// between them and the entries, which Wood Elemental's, Overlaid Terrain's
+/// and Shimatsu's rulings put "right before" the permanent enters. Every
+/// entry of one batch shares the event: "all creatures devoured this way are
 /// sacrificed at the same time" (Thunder-Thrash Elder's ruling).
 ///
 /// Decided in phase 1 with the entry, so a count read in the same CR 616.1
@@ -178,7 +180,7 @@ impl BatchMember {
 /// devoured Master Biomancer still gives the devouring creature its counters
 /// (CR 616.1f, and 614.13a's objects that "will also change zones").
 #[derive(Debug, Clone, Default)]
-pub(crate) struct BeforeEntering {
+pub(crate) struct JustBeforeEntry {
     /// Decided, in the order they perform.
     pub members: Vec<BatchMember>,
     /// The riders the replacements on them queued (CR 615.5), run once they
@@ -186,13 +188,15 @@ pub(crate) struct BeforeEntering {
     pub riders: Vec<Rider>,
 }
 
-impl BeforeEntering {
+impl JustBeforeEntry {
     pub(crate) fn is_empty(&self) -> bool {
         self.members.is_empty() && self.riders.is_empty()
     }
 
-    /// `more` after these, renumbered to follow them.
-    pub(crate) fn absorb(&mut self, more: BeforeEntering) {
+    /// Add `more` after these, as later events of the same moment: each
+    /// member's place is renumbered to follow the ones already here, so
+    /// they perform in the order they were decided.
+    pub(crate) fn append(&mut self, more: JustBeforeEntry) {
         let first = self.members.len();
         self.members.extend(more.members.into_iter().enumerate().map(|(i, member)| BatchMember { place: first + i, ..member }));
         self.riders.extend(more.riders);
@@ -2100,7 +2104,7 @@ fn is_unpreventable(game: &GameState, unpreventable: bool, subject: Option<Objec
 /// rules' own statement that applying an entry replacement may move other
 /// objects, so a rewrite is no longer a pure function of the event. Every
 /// other arm still is. The moves are decided here and held on `GameState`
-/// (`decide_before_entering`), and the batch performs them right before its
+/// (`decide_just_before_entry`), and the batch performs them right before its
 /// entries, so nothing here changes the board.
 fn apply_rewrite(
     game: &mut GameState,
@@ -3090,7 +3094,7 @@ fn pays_as_it_enters(
         return Ok(false);
     }
     game.entry_selection.costs_chosen.push((payer, cost.clone()));
-    game.decide_before_entering(vec![payment], &ctx.caused_by(cause))?;
+    game.decide_just_before_entry(vec![payment], &ctx.caused_by(cause))?;
     Ok(true)
 }
 
@@ -3367,7 +3371,7 @@ fn named_for_an_entry(
 ///    creature unsacrificeable removes it from the list rather than letting it
 ///    be chosen and then refusing the move — the count would be wrong either
 ///    way, and only one of them is a *choice* the player was allowed to make.
-/// 2. **The moves.** Proposed, never written: `decide_before_entering` puts
+/// 2. **The moves.** Proposed, never written: `decide_just_before_entry` puts
 ///    them through the whole CR 614 pipeline with fresh applied sets
 ///    (CR 614.5), so a finality counter still exiles a devoured creature and
 ///    Kalitas still gets its Zombie. They are decided now and performed right
@@ -3429,7 +3433,7 @@ fn apply_auxiliary_move(
             act: aux.act,
         })
         .collect();
-    let moved = game.decide_before_entering(moves, &ctx.caused_by(cause))?;
+    let moved = game.decide_just_before_entry(moves, &ctx.caused_by(cause))?;
 
     Ok(match aux.per_chosen {
         Some((counter, per)) if moved > 0 => EnterMods::with_counters(counter, moved * per.each(moved)),

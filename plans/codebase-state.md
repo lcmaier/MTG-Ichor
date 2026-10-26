@@ -2303,7 +2303,7 @@ measurement; what follows is what a later phase has to know.
     CR 614.13 is the rules' own statement that applying an entry replacement may
     change the board, so a `Rewrite` is no longer a pure function of the event.
     Every other arm still is. The moves are decided through
-    `decide_before_entering` and performed by the batch right before its
+    `decide_just_before_entry` and performed by the batch right before its
     entries (since #294), never written directly — and the loop's termination argument is untouched,
     because `apply_auxiliary_move` cannot create a replacement effect and the
     applied set still bounds the iterations.
@@ -2428,7 +2428,7 @@ measurement; what follows is what a later phase has to know.
 61. **~~Every auxiliary move of one entry event should be one batch, and RC-5 ships one per application.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
     archived.
     Devour's moves are decided as its replacement applies, under a batch id the
-    batch's first opens, and ride on their entry (`BatchMember::before_entering`);
+    batch's first opens, and ride on their entry (`BatchMember::just_before_entry`);
     phase 2 performs every entry's moves as that one event, right before the
     entries (Wood Elemental's, Overlaid Terrain's and Shimatsu's rulings), and
     devour counts what will be performed. An entry replaced after devour chose

@@ -214,7 +214,7 @@ Three doors sit beside `execute_action` `engine/actions.rs:772`:
 `engine/actions.rs:834` for one whose members carry causes of their own (CR
 704.3's state-based actions, CR 610.3d's returns), and
 `execute_actions_decomposing` `engine/actions.rs:947` for CR 121.2's draws.
-`// AUXILIARY-MOVE:` marks `decide_before_entering` in `engine/actions.rs`,
+`// AUXILIARY-MOVE:` marks `decide_just_before_entry` in `engine/actions.rs`,
 where CR 614.13's moves are decided under a batch id of their own, which
 the entering batch performs them under right before its entries. The
 `// CAST-ROLLBACK:` exemption is `rollback_cast_to_hand`
@@ -322,7 +322,7 @@ The prompts the engine answers itself, and why: `elisions.md` §2, §3.
 | "Becomes" events fire on the transition only | the `Tap` arm `engine/actions.rs:1706` | CR 603.2e |
 | An observable order goes through the timestamp order | `battlefield_ordered` `state/game_state.rs:1375`, `battlefield_ids_ordered` `state/game_state.rs:1385`, keyed on `PermanentState::timestamp` `state/battlefield.rs:63` | `plans/id-hasher.md` §6; the gate, `engineering-practices.md#invariant-gates` |
 | One performer, one emitter | `move_object` `engine/zones.rs:50`, `announce_zone_change` `engine/actions.rs:2133` | `replacement-architecture.md` §11, item 20 |
-| A simultaneous rule needs a batch | `execute_actions` `engine/actions.rs:821`; `decide_before_entering` in `engine/actions.rs` | `replacement-architecture.md` §4.2 |
+| A simultaneous rule needs a batch | `execute_actions` `engine/actions.rs:821`; `decide_just_before_entry` in `engine/actions.rs` | `replacement-architecture.md` §4.2 |
 | No outcome-bearing decision state off `GameState` | §2.6 | `codebase-state.md` item 40 |
 | Never prompt with fewer than two candidates | `Decided::Single` `engine/replacement/pipeline.rs:523` | `replacement-architecture.md` §4.1 |
 | A "can't" is not a replacement effect | `prohibition` `engine/replacement/pipeline.rs:456`, ahead of the gather | `cant-effects-architecture.md` §4.1 |

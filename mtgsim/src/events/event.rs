@@ -1158,7 +1158,7 @@ impl EventWindow {
     ///
     /// Two callers, each with the rules argument for why its events are not a
     /// result of the event they are nested inside:
-    /// `GameState::decide_before_entering` for CR 614.13's other objects that
+    /// `GameState::decide_just_before_entry` for CR 614.13's other objects that
     /// change zones, right before the entry, and `GameState::execute_riders`
     /// for a replacement's rider, which CR 615.5 puts "immediately afterward".
     pub(crate) fn open_new_batch(&mut self) -> Option<BatchId> {
