@@ -241,7 +241,8 @@ opponent" body is a target per opponent, 57 cards (decision 5).
      words choose between two. `Antecedent::Triggering` already answers "no"
      on a static ability, so the precedent is there for (a).
 
-   **Recommended: (a).** What it does not fold: `EffectRecipient` names the
+   **Settled: (a)** (the owner, at #295's second review round, 2026-10-26).
+   What it does not fold: `EffectRecipient` names the
    object an instruction *acts on*, and mirrors `ThisObject` and
    `Triggering(EventRole)` today. An object word an instruction acts on still
    needs its recipient arm. This PR's new words are read as values only, and
@@ -396,7 +397,7 @@ opponent" body is a target per opponent, 57 cards (decision 5).
    attack candidates read for that player, and hands back one
    `GameAction::CreateTokens`.
 
-   - (a) **`Effect::ForEach(Each, body)`**, `Each` being
+   - (a) **`Effect::ForEach(Over, body)`**, `Over` being
      `Players(PlayerGroup)` or `Objects(ObjectSet)`. Players are built for a
      `CreateToken` body: the 13. Every other body is refused when the card is
      built, and filed: the choices (a `ChoiceScope` arm for that player's
@@ -412,8 +413,10 @@ opponent" body is a target per opponent, 57 cards (decision 5).
      with no legal target blocks the cast is a ruling to read first. About
      250–400 more lines, so the PR splits at decision 6's line.
 
-   **Settled: (a)**, with the iteration's type named `Each` rather than
-   `Iteration` (the owner, at #295's first review round, 2026-10-26). v1 is
+   **Settled: (a)**, with the iteration's type named `Over`, the set it runs
+   over, so a card reads `ForEach(Over::Players(..), ..)` (the owner, at
+   #295's first and second review rounds, 2026-10-26, after `Iteration`
+   and then `Each`). v1 is
    four-player Commander, where the 57 are staples (Hapatra, Grasp of Fate,
    Elminster's Simulacrum), so their item's slot is on the route before
    Phase 8, not after it.
@@ -425,7 +428,7 @@ opponent" body is a target per opponent, 57 cards (decision 5).
    (`o:/for each [a-z]+ vote|each player who voted|voted for/`, of 41 that
    say `o:vote`). Each vote names a player, the voter, which is the player
    `PlayerAntecedent::ForEachPlayer` already names. So voting would add an
-   `Each::Votes(..)` arm and reuse the player word; nothing here blocks it.
+   `Over::Votes(..)` arm and reuse the player word; nothing here blocks it.
    The vote itself is not built: CR 701.38's prompt, which starts at a named
    player and goes in turn order (Expropriate's ruling: each player knows
    the earlier votes), is `backlog.md#24-voting-and-the-decisionprovider-choice-shapes`,
@@ -561,7 +564,7 @@ opponent" body is a target per opponent, 57 cards (decision 5).
      member. *Upkeep*: a second way to say a union, which `Group`
      already says.
 
-   **Recommended: (a).**
+   **Settled: (a)** (the owner, at #295's second review round, 2026-10-26).
 
 ## What builds without a decision
 
