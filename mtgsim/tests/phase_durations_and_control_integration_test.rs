@@ -28,7 +28,7 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef, RuleAction};
 use mtgsim::types::triggers::TriggerSubject;
-use mtgsim::types::zones::{Zone, ZoneChangeAct};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneSet};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -126,6 +126,9 @@ fn steal(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
+    // The board play reaches after it, the state-based check settling
+    // what the resolution changed.
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
 }
 
 fn control_rows(game: &GameState) -> usize {
@@ -233,10 +236,10 @@ fn an_opponent_gains_control_is_chosen_as_it_resolves_among_two_opponents() {
     let horse = put_on_battlefield(&mut game, trojan_horse(), 0);
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ChooseOpponent { source: horse }, vec![1]);
+    dp.expect_choice(ChoiceKind::ChooseOpponent { source: horse }, vec![ChoiceOption::Player(2)]);
 
     game.resolve_top_of_stack(&dp).unwrap();
-    assert_eq!(controller(&game, horse), Some(2), "the second of its two opponents, as chosen");
+    assert_eq!(controller(&game, horse), Some(2), "the opponent chosen");
 }
 
 /// CR 102.2: with one opponent there is nothing to choose, and nothing is
@@ -407,4 +410,29 @@ fn an_opponent_putting_counters_on_is_chosen_among_two_opponents() {
     game.resolve_effect(&gift, &ctx, &dp).unwrap();
     assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 1);
     assert!(matches!(dp.asked().as_slice(), [ChoiceKind::ChooseOpponent { source: asked }] if *asked == source));
+}
+
+/// A commander a card says CR 704.6d does not apply to: put into its
+/// owner's graveyard, it is not offered the command zone, and nobody is
+/// asked.
+#[test]
+fn a_commander_the_rule_does_not_apply_to_is_not_offered_the_command_zone() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(
+        &mut game,
+        rule_does_not_apply(
+            "Fixture Grave Pact of Exile",
+            RuleAction::StateBased(StateBasedAction::CommanderToCommandZone),
+            AffectedSet::objects(ObjectSet::Filter { filter: ObjectFilter::All, zones: ZoneSet::GRAVEYARD }),
+        ),
+        0,
+    );
+    let commander = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    game.objects.get_mut(&commander).unwrap().is_commander = true;
+    game.change_zone(commander, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+
+    game.check_state_based_actions(&dp).unwrap();
+    assert_eq!(game.get_object(commander).unwrap().zone, Zone::Graveyard);
+    assert!(dp.asked().is_empty(), "asked {:?}", dp.asked());
 }
