@@ -3081,9 +3081,9 @@ fn pays_as_it_enters(
         .entry_selection
         .costs_chosen
         .iter()
-        .filter(|(player, _)| *player == payer)
-        .map(|(_, cost)| match cost {
-            Cost::PayLife(n) => *n,
+        .filter(|chosen| chosen.payer == payer)
+        .map(|chosen| match chosen.cost {
+            Cost::PayLife(n) => n,
             _ => 0,
         })
         .sum();
@@ -3093,7 +3093,7 @@ fn pays_as_it_enters(
     if !payable || !ask_accept_as_it_enters(ctx.dp, game, payer, entering, chosen.source, EntryOffer::Pay(cost.clone())) {
         return Ok(false);
     }
-    game.entry_selection.costs_chosen.push((payer, cost.clone()));
+    game.entry_selection.costs_chosen.push(crate::state::replacement_effects::EntryCostChosen { entering, payer, cost: cost.clone() });
     game.decide_just_before_entry(vec![payment], &ctx.caused_by(cause))?;
     Ok(true)
 }

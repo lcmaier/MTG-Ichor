@@ -1211,12 +1211,12 @@ impl GameState {
             // The groups after this one are read, never decided, here: CR
             // 615.7's count is allocated across every member it applies to.
             let (through_this, later) = groups.split_at_mut(g + 1);
+            let subject = through_this[g].subject;
             let group = &mut through_this[g].members;
             // A group is one subject's, and where members name their own causes
             // CR 704.7's dedupe left one member per subject, so the group's cause
             // is its member's. No group is empty; `ctx.cause` only spares an index.
             let group_ctx = ctx.caused_by(group.first().map_or(ctx.cause, |m| m.cause));
-            let costs_before = self.entry_selection.costs_chosen.len();
             let decided = apply_replacements(self, group, later, &group_ctx, inherited, &mut riders)
                 .and_then(|()| self.decide_destruction_moves(group, later, ctx, &mut riders))
                 .map(|()| self.decide_entry_attacks(group, ctx));
@@ -1224,7 +1224,7 @@ impl GameState {
                 decided_ok = Err(e);
                 break;
             }
-            self.attach_just_before_entry(group, costs_before);
+            self.attach_just_before_entry(group, subject);
         }
         let just_before_entry_window = self.entry_selection.just_before_entry_window;
         self.entry_selection = outer_selection;
@@ -1238,19 +1238,22 @@ impl GameState {
         Ok(Some(DecidedBatch { members, riders, just_before_entry_window }))
     }
 
-    /// What `group`'s CR 616.1 loop decided to happen right before its entry,
-    /// onto that entry. An entry the loop stopped or turned into another
-    /// event never happens as an entry, and neither do they (CR 614.6), nor
-    /// is a payment among them a cost chosen for CR 614.12b: the costs the
-    /// loop chose, those after `costs_before`, go with them.
-    fn attach_just_before_entry(&mut self, group: &mut [BatchMember], costs_before: usize) {
+    /// What `group`'s CR 616.1 loop decided to happen immediately before its
+    /// entry, onto that entry. An entry the loop stopped or turned into
+    /// another event never happens as an entry, and neither do they (CR
+    /// 614.6), nor is a payment among them a cost chosen for CR 614.12b: the
+    /// costs chosen for that entry go with them.
+    fn attach_just_before_entry(&mut self, group: &mut [BatchMember], subject: Option<ObjectOrPlayerId>) {
         let before = std::mem::take(&mut self.entry_selection.just_before_entry);
         if before.is_empty() {
             return;
         }
-        match group.iter_mut().find(|m| matches!(m.event, Some(GameAction::EnterBattlefield { .. }))) {
-            Some(entry) => entry.just_before_entry.append(before),
-            None => self.entry_selection.costs_chosen.truncate(costs_before),
+        if let Some(entry) = group.iter_mut().find(|m| matches!(m.event, Some(GameAction::EnterBattlefield { .. }))) {
+            entry.just_before_entry.append(before);
+            return;
+        }
+        if let Some(ObjectOrPlayerId::Object(entering)) = subject {
+            self.entry_selection.costs_chosen.retain(|chosen| chosen.entering != entering);
         }
     }
 

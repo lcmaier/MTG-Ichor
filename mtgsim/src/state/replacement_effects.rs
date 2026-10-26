@@ -249,7 +249,16 @@ pub struct EntrySelectionScope {
 
     /// CR 614.12b — every cost a player has chosen to pay for an entry of
     /// this batch, which a later choice must be payable beside.
-    pub(crate) costs_chosen: Vec<(PlayerId, crate::types::costs::Cost)>,
+    pub(crate) costs_chosen: Vec<EntryCostChosen>,
+}
+
+/// One cost chosen for one entry (CR 614.12b): who pays it, and the entry it
+/// is paid for, so an entry that never happens takes its cost with it.
+#[derive(Debug, Clone)]
+pub(crate) struct EntryCostChosen {
+    pub(crate) entering: ObjectId,
+    pub(crate) payer: PlayerId,
+    pub(crate) cost: crate::types::costs::Cost,
 }
 
 impl EntrySelectionScope {
