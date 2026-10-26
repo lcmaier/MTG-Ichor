@@ -1353,7 +1353,11 @@ pub struct EntryCountersTemplate {
     pub by: Option<PlayerRef>,
     /// "That player **may** put": the putter puts them or declines, asked as
     /// the effect applies (tribute, CR 702.104a). `false` for every "enters
-    /// with", which no player chooses.
+    /// with", which no player chooses. **Not `ReplacementDef::optional`**,
+    /// which asks the effect's chooser whether the whole effect applies, its
+    /// decline CR 614.5's one opportunity taken: unleash's "you may have this
+    /// creature enter with a +1/+1 counter" is that one. This asks the player
+    /// putting the counters, inside an effect that applies either way.
     pub optional: bool,
 }
 

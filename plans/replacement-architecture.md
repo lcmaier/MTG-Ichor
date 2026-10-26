@@ -1995,6 +1995,20 @@ payment a cost chosen for CR 614.12b. A second caller
 of the fresh id needs the rule that says its events are not a result of the
 enclosing one.
 
+**An entry's choices are asked by what the player answers** (the owner, at
+#294's review, 2026-10-26, from a census of the 287 printed "as this
+enters" cards and their keywords). Every choice is CR 614.12a's, made before
+the permanent enters, and one prompt arm serves each answer shape, its
+question carried as data: a yes or no is `AcceptAsItEnters { offer }` (a
+shockland's payment, tribute's counters), a player is
+`ChoosePlayerAsItEnters { role }` (Xantcha's controller, tribute's
+opponent), and a new family adds an offer or a role. The objects shape
+keeps its three arms until `codebase-state.md` item 335's design; a value is CR 607's. Two
+"may"s sit on an entry and ask different players: `ReplacementDef::optional`
+asks the effect's chooser whether the whole effect applies (unleash), and a
+counters row's `optional` asks the putter, inside an effect that applies
+either way (tribute).
+
 **Each batch member keeps its own `applied` set.** A first draft had the batch
 share one, and that is wrong: CR 614.5 is per *event*, and batch members are
 separate events. Kalitas's own ruling pins it — when Kalitas dies at the same
@@ -2069,6 +2083,7 @@ Per `CLAUDE.md`: write it N-player-shaped or pay to retrofit it.
   restart; do not assume one pass. **Not built:** phase 1 runs each subject
   group's loop to completion in APNAP order, so a later player's choice cannot
   send an earlier one back (`codebase-state.md` item 25, slotted at `multiplayer-rules`).
+
 
 ### 4.4 What is *not* a replacement effect
 

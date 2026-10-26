@@ -9783,7 +9783,11 @@ keyed by its event.
        devour's "it devoured" (CR 702.82b), Sutured Ghoul's exiled cards and
        every "as this enters, choose" value are CR 607 links.
 
-     Raised by the owner at #294's review (2026-10-26).
+     Raised by the owner at #294's review (2026-10-26). The same design says
+     whether the entry's objects prompts (`ChooseAuxiliaryZoneChange`,
+     `ChooseCopySource`, `ChooseEnteringDefender`) fold into one arm by
+     answer shape, as #294 folded the yes-or-no and player ones
+     (`replacement-architecture.md` §4.2).
      **Reachability (2026-10-26):** unreachable — every registered entry
      replacement fits one of the payloads.
      **Sized:** a design first: the instruction form, the half the entry
@@ -9791,4 +9795,37 @@ keyed by its event.
      builds on the payloads; the build is sized there.
      **Slotted:** `route-review`, beside CR 607's linked abilities and the
      card parser's design.
+
+336. **CR 616.1's ordering prompt names an effect by its source, so two
+     effects of one object are one option twice.** `ask_choose_replacement`
+     offers `ChoiceOption::Object(source)` per candidate. Thunder-Thrash Elder
+     granted devour 5 (CR 614.13b's own example, Jund's grant) has its printed
+     devour 3 and the grant as two options that are both the Elder, told
+     apart only by their place: a client, the AI harness and the decision
+     log, which writes an option by identity and never by position, cannot
+     tell which was chosen. Found at #294's pre-review.
+     **Reachability (2026-10-26):** unreachable — the registered cards with
+     two replacement effects (Doubling Season, Primal Vigor, Winding
+     Constrictor, Protean Hydra, Leyline of the Void, Bard King of Dale) watch
+     different events with them; reachable with a grant or a copied second
+     effect on one object.
+     **Sized:** an option naming the effect (its source and its ability, or
+     its instance id), read by the prompt, the log and the dev GUI's option
+     list: ~40–80 lines and the fixture the Elder already is.
+     **Slotted:** `route-review`, with the AI harness's `DecisionProvider`
+     shape, which decides how an option names what it is.
+
+337. **An entry choice's cost is paid only in life.** `EnterModsTemplate`'s
+     `unless_paid` carries any `Cost`, and `pays_as_it_enters` refuses every
+     arm but `PayLife` as the effect applies, with CR 614.12b's combined
+     payability summed for life alone. A mana payment ("as this enters, you
+     may pay {2}"), a sacrifice or a discard needs its own combined check,
+     the mana one against the pool and the mana abilities a player could
+     still activate. Found at #294's pre-review.
+     **Reachability (2026-10-26):** unreachable — no registered card has an
+     entry choice with a cost.
+     **Sized:** each arm's payment and its combined payability: ~40–80
+     lines per arm, mana the largest.
+     **Slotted:** `remaining-costs`, beside the other costs that route row
+     builds.
 
