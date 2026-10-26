@@ -232,7 +232,7 @@ one shared vocabulary rather than four bespoke checks.
 | Restriction | Where it would be checked | Today |
 |---|---|---|
 | Indestructible | `restriction::predicate`'s `keyword_restrictions`, asked by `prohibition` at the pipeline's top | ✅ a keyword-derived `Restriction::Event` (RS-1) |
-| Can't be regenerated | `gather.rs::push_if_applicable`, asking `is_prohibited` with `Query::ApplyReplacement` | ✅ a registered `Restriction::ApplyReplacement` (RS-1) |
+| Can't be regenerated | `gather.rs::push_if_applicable`, asking `is_prohibited` with `Query::TryApplyReplacement` | ✅ a registered `Restriction::ApplyReplacement` (RS-1) |
 | Defender | `oracle/legality.rs::can_attack`, which `validate_attackers` asks | ✅ hardcoded |
 | Flying vs. non-reach blocker | `can_block`, `engine/combat/validation.rs` | ✅ hardcoded |
 | Menace, Intimidate | — | ❌ flag exists, nothing reads it |
@@ -1126,7 +1126,7 @@ have will take place."
 **Site.** `gather.rs::push_if_applicable`, where CR 701.19c already lives.
 
 **What changes.** The `game.cant_be_regenerated.contains(&id)` lookup becomes
-`is_prohibited(game, &Query::ApplyReplacement { .. })`, and the
+`is_prohibited(game, &Query::TryApplyReplacement { .. })`, and the
 `GameState` `HashSet` goes away (§6.4). `ReplacementDef::is_regeneration` gains
 its second reader — which its own doc calls "the smell" — and that is correct
 here rather than a violation: the field's doc says it is a *rules-level

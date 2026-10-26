@@ -650,7 +650,7 @@ fn push_if_applicable(
     if instance.def.is_regeneration
         && is_prohibited(
             game,
-            &Query::ApplyReplacement {
+            &Query::TryApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,
                 subject: p.subject,
             },

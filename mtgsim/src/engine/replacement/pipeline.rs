@@ -2026,7 +2026,7 @@ fn is_unpreventable(game: &GameState, unpreventable: bool, subject: Option<Objec
     unpreventable
         || is_prohibited(
             game,
-            &Query::ApplyReplacement { kind: ReplacementKindFilter::Prevention, subject },
+            &Query::TryApplyReplacement { kind: ReplacementKindFilter::Prevention, subject },
         )
 }
 

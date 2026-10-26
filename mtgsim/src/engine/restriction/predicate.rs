@@ -46,12 +46,12 @@ pub(crate) enum Query<'a> {
         lookahead: Option<&'a EntryFrame<'a>>,
     },
     /// CR 701.19c / 615.12 — may this replacement effect be applied?
-    ApplyReplacement {
+    TryApplyReplacement {
         kind: ReplacementKindFilter,
         subject: Option<ObjectOrPlayerId>,
     },
     /// CR 101.1 — does this rule's own action apply to `subject`?
-    ApplyRule {
+    TryApplyRule {
         rule: RuleAction,
         subject: ObjectOrPlayerId,
     },
@@ -100,7 +100,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
 /// card says it does not (`Restriction::RuleDoesNotApply`). The one ask of
 /// axis 4, for every site where a rule acts.
 pub(crate) fn rule_applies(game: &GameState, rule: RuleAction, subject: ObjectOrPlayerId) -> bool {
-    !is_prohibited(game, &Query::ApplyRule { rule, subject })
+    !is_prohibited(game, &Query::TryApplyRule { rule, subject })
 }
 
 /// [`is_prohibited`], naming the restriction it found first, in the order its
@@ -114,7 +114,7 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
                 let fresh = lookahead.map(EntryFrame::uncomputed);
                 prohibition_sweeping(game, &Query::Event { action, cause, lookahead: fresh.as_ref() }, Sweep::Everything)
             }
-            Query::ApplyReplacement { .. } | Query::ApplyRule { .. } => prohibition_sweeping(game, query, Sweep::Everything),
+            Query::TryApplyReplacement { .. } | Query::TryApplyRule { .. } => prohibition_sweeping(game, query, Sweep::Everything),
         });
         let named = |found: Option<Prohibition>| found.map(|p| format!("{p:?}")).into_iter().collect();
         assert_shortcut_agrees("the restriction sweep's gate", || format!("{query:?}"), named(found), named(everything));
@@ -159,7 +159,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
             derived = EntryFrame::new(game, action);
             Some(&derived)
         }
-        Query::ApplyReplacement { .. } | Query::ApplyRule { .. } => None,
+        Query::TryApplyReplacement { .. } | Query::TryApplyRule { .. } => None,
     };
 
     // --- Source 1: the battlefield sweep ---------------------------------
@@ -248,7 +248,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 /// "Destroy target creature. It can't be regenerated" registers a
 /// `Restriction::ApplyReplacement { kind: Regeneration, affected: objects(Fixed([creature])) }`.
 /// When `gather` later finds a regeneration shield around that creature it asks
-/// `Query::ApplyReplacement { kind: Regeneration, subject: <creature> }`, and
+/// `Query::TryApplyReplacement { kind: Regeneration, subject: <creature> }`, and
 /// the second arm answers with the *same* `set_affects` call — the kinds agree
 /// and the creature is in the set, so the shield is withheld. The destruction
 /// still happens, which is the whole reason this cannot be an `Event` arm.
@@ -274,19 +274,19 @@ fn matches(
 
         (
             Restriction::ApplyReplacement { kind, affected },
-            Query::ApplyReplacement { kind: asked, subject },
+            Query::TryApplyReplacement { kind: asked, subject },
         ) => {
             kind == asked && set_affects(game, affected, source, controller, *subject, None)
         }
 
         (
             Restriction::RuleDoesNotApply { rule, affected },
-            Query::ApplyRule { rule: asked, subject },
+            Query::TryApplyRule { rule: asked, subject },
         ) => rule == asked && set_affects(game, affected, source, controller, Some(*subject), None),
 
-        (Restriction::Event { .. }, Query::ApplyReplacement { .. } | Query::ApplyRule { .. })
-        | (Restriction::ApplyReplacement { .. }, Query::Event { .. } | Query::ApplyRule { .. })
-        | (Restriction::RuleDoesNotApply { .. }, Query::Event { .. } | Query::ApplyReplacement { .. }) => false,
+        (Restriction::Event { .. }, Query::TryApplyReplacement { .. } | Query::TryApplyRule { .. })
+        | (Restriction::ApplyReplacement { .. }, Query::Event { .. } | Query::TryApplyRule { .. })
+        | (Restriction::RuleDoesNotApply { .. }, Query::Event { .. } | Query::TryApplyReplacement { .. }) => false,
     }
 }
 
