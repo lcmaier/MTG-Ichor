@@ -190,14 +190,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 390 |
+| Numbered items | 398 |
 | …closed, still recorded | 244 |
-| …open — unreachable, and says why | 100 |
+| …open — unreachable, and says why | 103 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 28 |
+| …open — reachable, not wrong (perf, a name, a harness) | 33 |
 | …open — nothing to build, a record for a later phase | 14 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 144 of 146 |
+| …open, carrying an explicit `**Sized:**` | 152 of 154 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -211,7 +211,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 134 |
+| …slotted to a phase or roadmap row still to come | 142 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
@@ -247,7 +247,6 @@ discipline. → `engineering-practices.md#the-spec-database`.
 is an open plate.
 
 - `plans/handoffs/item-6-audit.md`
-- `plans/handoffs/vocabulary-census-and-register.md`
 
 ## What this file deliberately does not know
 
