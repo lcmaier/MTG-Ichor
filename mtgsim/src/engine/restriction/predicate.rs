@@ -51,7 +51,7 @@ pub(crate) enum Query<'a> {
         subject: Option<ObjectOrPlayerId>,
     },
     /// CR 101.1 — does this rule's own action apply to `subject`?
-    RuleAction {
+    ApplyRule {
         rule: RuleAction,
         subject: ObjectOrPlayerId,
     },
@@ -100,7 +100,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
 /// card says it does not (`Restriction::RuleDoesNotApply`). The one ask of
 /// axis 4, for every site where a rule acts.
 pub(crate) fn rule_applies(game: &GameState, rule: RuleAction, subject: ObjectOrPlayerId) -> bool {
-    !is_prohibited(game, &Query::RuleAction { rule, subject })
+    !is_prohibited(game, &Query::ApplyRule { rule, subject })
 }
 
 /// [`is_prohibited`], naming the restriction it found first, in the order its
@@ -114,7 +114,7 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
                 let fresh = lookahead.map(EntryFrame::uncomputed);
                 prohibition_sweeping(game, &Query::Event { action, cause, lookahead: fresh.as_ref() }, Sweep::Everything)
             }
-            Query::ApplyReplacement { .. } | Query::RuleAction { .. } => prohibition_sweeping(game, query, Sweep::Everything),
+            Query::ApplyReplacement { .. } | Query::ApplyRule { .. } => prohibition_sweeping(game, query, Sweep::Everything),
         });
         let named = |found: Option<Prohibition>| found.map(|p| format!("{p:?}")).into_iter().collect();
         assert_shortcut_agrees("the restriction sweep's gate", || format!("{query:?}"), named(found), named(everything));
@@ -159,7 +159,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
             derived = EntryFrame::new(game, action);
             Some(&derived)
         }
-        Query::ApplyReplacement { .. } | Query::RuleAction { .. } => None,
+        Query::ApplyReplacement { .. } | Query::ApplyRule { .. } => None,
     };
 
     // --- Source 1: the battlefield sweep ---------------------------------
@@ -281,11 +281,11 @@ fn matches(
 
         (
             Restriction::RuleDoesNotApply { rule, affected },
-            Query::RuleAction { rule: asked, subject },
+            Query::ApplyRule { rule: asked, subject },
         ) => rule == asked && set_affects(game, affected, source, controller, Some(*subject), None),
 
-        (Restriction::Event { .. }, Query::ApplyReplacement { .. } | Query::RuleAction { .. })
-        | (Restriction::ApplyReplacement { .. }, Query::Event { .. } | Query::RuleAction { .. })
+        (Restriction::Event { .. }, Query::ApplyReplacement { .. } | Query::ApplyRule { .. })
+        | (Restriction::ApplyReplacement { .. }, Query::Event { .. } | Query::ApplyRule { .. })
         | (Restriction::RuleDoesNotApply { .. }, Query::Event { .. } | Query::ApplyReplacement { .. }) => false,
     }
 }
