@@ -155,8 +155,11 @@ growth contract). So the table decides where the word goes. ✓ answers,
   About 195 sites and 80 lines.
 - **D. One filter for a player or a permanent in a trigger's arm.**
   `DamageRecipient`, `DefenderFilter` and `ObjectOrPlayerSubject` become one
-  `ObjectOrPlayerFilter` (the name pairs with `ObjectOrPlayerId` and
-  `ObjectOrPlayer`, item 291's): a player half (a `PlayerSet` under H), an
+  `ParticipantFilter`, named for its role: it tests the object or player
+  that played a part in a trigger's event, the word `EventRole` already
+  uses (#296's second round: a generic `ObjectOrPlayerFilter` read as the
+  whole codebase's filter, which under decision 4(b) it isn't). A player
+  half (a `PlayerSet` under H), an
   object half (a `TriggerSubject`), and their `Or`. About 80 sites and 60
   lines. `SelectionFilter` is decision 4.
 - **F. One arm for every permanent matching.** `FilteredPermanents` becomes a
@@ -256,6 +259,19 @@ widen `Rewrite`'s closed payloads to arms the pipeline must refuse.
    made (`Fixed`), so it needs one arm that holds a named player,
    `PlayerSet::Player(PlayerRef)`. "You" stays `PlayerSet::You`, and
    `Player(PlayerRef::You)` is refused, so "you" has one spelling there.
+   **What each type covers under (a)** (asked at #296's second round):
+
+   | | `PlayerRef` | `PlayerSet` |
+   |---|---|---|
+   | The question it answers | "who?": exactly one player | "is this player one of them?": a test asked of a candidate |
+   | Its arms | `You`, `Opponent` (one, chosen, CR 608.2d), `Player(id)`, `DefendingPlayer(of)`, and fold C's `ControllerOf(a)`, `OwnerOf(a)`, `TheEventsPlayer`, `ForEachPlayer`, `EnchantedPlayer`, `ReferredPlayer` | `Nobody`, `You`, `Opponents`, `Everyone`, `Fixed(ids)`, and fold H's `DefendingPlayers` and `Player(PlayerRef)`, the one player that word names |
+   | Where it's read | the player an instruction acts on (`EffectRecipient::Player`), who gains control, who puts counters on, who chooses | a filter's "controlled by" or "owned by", a trigger's "you", "an opponent" or "a player", a replacement's or a "can't"'s affected players, a condition over players, "each opponent" |
+   | "An opponent" | "an opponent gains control of it": `Opponent` | "a creature an opponent controls": `Opponents` |
+   | "Defending player" | "defending player loses 2 life": `DefendingPlayer(of)` | "creature defending player controls": `Player(DefendingPlayer(of))`; with no creature to say which, `DefendingPlayers` |
+
+   "You" is in both because it is both one player and a set of one;
+   `Player(PlayerRef::You)` is refused, so a set spells it `You`.
+
    - (a) **Fold H, as revised**: a filter's player half takes a `PlayerSet`,
      with `Player(PlayerRef)` for a named player. `PlayerRef::Opponent` is
      then only the chosen one. About 195 sites and 80 lines.
@@ -295,7 +311,7 @@ widen `Rewrite`'s closed payloads to arms the pipeline must refuse.
 
    **What (b) means.**
    - Two types say "a player or an object that qualifies": `SelectionFilter`
-     for a selection, and fold D's `ObjectOrPlayerFilter` for a trigger's
+     for a selection, and fold D's `ParticipantFilter` for a trigger's
      participant. The difference is real. A selection ranges over every zone
      a candidate can be in (the battlefield, the stack, a graveyard), so
      where the object is belongs to its criteria. An event's participant is
@@ -321,7 +337,7 @@ widen `Rewrite`'s closed payloads to arms the pipeline must refuse.
    under that word. So `SelectionFilter` names what it holds, and a new name
    for this type alone would split that family of names. If the family is
    renamed, it's one sweep in `names-and-hygiene-sweeps`.
-   - (a) **Fold it into `ObjectOrPlayerFilter`**, with `Spell`, `Any`,
+   - (a) **Fold it into one filter for the whole codebase**, `ObjectOrPlayerFilter` in place of `ParticipantFilter`, with `Spell`, `Any`,
      `DamageSource` and the graveyard and ability targets as arms the trigger
      side never uses. About 290 sites more, and a target-vocabulary design
      inside a fold.
@@ -378,7 +394,7 @@ widen `Rewrite`'s closed payloads to arms the pipeline must refuse.
      type-surface sweep did before a gate held it: `GameState` grew from 28
      fields to 52 unread (`check_type_surface.py`'s doc records it).
 
-   **Recommended: (a).**
+   **Settled: (a)** (the owner, at #296's second review round, 2026-10-26).
 
 ## Filed at the build, each with its reachability, size and slot
 
