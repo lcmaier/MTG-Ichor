@@ -1013,11 +1013,16 @@ folds it.
 verdict in bold: **owns** (the one spelling of its word), **holds** (an arm
 wrapping a shared word type), **kept** (a second spelling, with its reason),
 **folds** (a second spelling, with the open item that folds it) or **not a
-word** (it names no object, player or amount, with what it is instead).
+word** (it names no object, player or amount, with what it is instead). An
+arm's line does not wrap, so the check reads it whole.
 `check_type_surface.py`'s third check fails a reached enum in no class, a
 class naming an enum no longer reached, an arm with no line or a line naming
 no arm, a line with no verdict, and a **folds** line whose item is closed or
-missing: a landed fold rewrites its lines.
+missing: a landed fold rewrites its lines. **It lines arms, not fields.** A
+word type held in a struct's field, or in a field of an enum in another class,
+is not asked: a trigger event's `Option<PlayerRef>` ("whenever an opponent
+casts", about 19 fields, in item 342's fold), `Choice.chooser`. That limit
+was put to the owner at #296's handover.
 
 ### The classes
 
@@ -1082,7 +1087,7 @@ missing: a landed fold rewrites its lines.
 - `StartingLifeTotal` — **owns** "your starting life total" (CR 103.4).
 
 #### `Antecedent`
-- `ThisObject` — **owns** "this object" (CR 113.7a).
+- `ThisObject` — **owns** "this object", the ability's source (CR 113.7).
 - `Triggering` — **owns** "that creature", a trigger's participant (CR 608.2c).
 
 #### `ChoiceScope`
@@ -1153,10 +1158,10 @@ missing: a landed fold rewrites its lines.
 - `SameInstanceAs` — **owns** "that target", an instance announced earlier (CR 115.3); a recipient refuses `Antecedent::TargetOfInstance`, its value-reading twin.
 - `Triggering` — **folds** into `Object(Antecedent::Triggering)` (item 340).
 - `TriggeringPlayer` — **folds** into `Player(PlayerRef::TheEventsPlayer)` (item 341).
-- `Referred` — **folds** into `Object(Antecedent::Referred)` and `Player(PlayerRef::ReferredPlayer)` (item 340).
+- `Referred` — **folds** into `Object(Antecedent::Referred)` and `Player(PlayerRef::ReferredPlayer)` (items 340, 341).
 - `AttackedBy` — **owns** "the player or planeswalker it's attacking" (CR 506.3), holding an `Antecedent`.
 - `DefendingPlayer` — **folds** into `Player(PlayerRef::DefendingPlayer)` (item 341).
-- `EachOf` — **owns** "each player", "each opponent", holding a `PlayerGroup`.
+- `EachOf` — **holds** a `PlayerGroup`, whose relation is a `PlayerSet`: "each opponent" acts on every player in it.
 - `FilteredPermanents` — **folds** into a constructor of `FilteredObjectsIn` (item 344).
 - `FilteredObjectsIn` — **owns** "every object matching [a filter] in [zones]".
 - `Host` — **folds** into `Object(Antecedent::ThisObjectsHost)` (item 340).
@@ -1172,7 +1177,7 @@ missing: a landed fold rewrites its lines.
 - `Object` — **owns** the participant "the object the event is about".
 - `DamageSource` — **owns** the participant "the source of the damage" (CR 120.1).
 - `DamageRecipient` — **owns** the participant "the object dealt damage" (CR 120.1).
-- `Attacker` — **owns** the participant "the attacking creature" (CR 506.4).
+- `Attacker` — **owns** the participant "the attacking creature" (CR 508.1a).
 - `Blocker` — **owns** the participant "the blocking creature" (CR 509.1g).
 - `OtherCombatant` — **owns** the participant "the creature on the other side of a block".
 - `Attacked` — **owns** the participant "the planeswalker or battle attacked" (CR 506.3).
@@ -1186,7 +1191,7 @@ missing: a landed fold rewrites its lines.
 
 #### `NamedPlayers`
 - `Nobody` — **not a word**: no player named.
-- `FirstInstance` — **folds** into `PlayerGroup.named` holding a `PlayerRef::TheEventsPlayer`, a rider's being its replaced event's player (item 268).
+- `FirstInstance` — **folds** into `PlayerGroup.named` holding a `PlayerRef::TheEventsPlayer`, a rider's being its replaced event's player (item 341).
 
 #### `ObjectFilter`
 - `All` — **not a word**: no criterion.
@@ -1194,13 +1199,13 @@ missing: a landed fold rewrites its lines.
 - `BySubtype` — **not a word**: a criterion on a subtype.
 - `BySupertype` — **not a word**: a criterion on a supertype.
 - `ByColor` — **not a word**: a criterion on a color.
-- `ByController` — **holds** a `PlayerRef`, which **folds** into a `PlayerSet` (item 342).
+- `ByController` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).
 - `PowerLE` — **not a word**: a criterion on power.
 - `WithCounters` — **not a word**: a criterion on counters.
 - `Token` — **not a word**: a criterion, CR 111.1.
 - `ThisTurn` — **not a word**: a criterion on what the object did this turn.
 - `ThisCombat` — **not a word**: a criterion on what it did this combat.
-- `ByOwner` — **holds** a `PlayerRef`, which **folds** into a `PlayerSet` (item 342).
+- `ByOwner` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).
 - `NotSource` — **kept** "other than this object": a relation to an object ("another"), not a word for one.
 - `OtherThanInstance` — **kept** "another target" (CR 601.2c): a relation to an earlier instance.
 - `And` — **not a word**: an intersection of criteria.
@@ -1232,7 +1237,7 @@ missing: a landed fold rewrites its lines.
 #### `PlayerSet`
 - `Nobody` — **not a word**: no player.
 - `You` — **kept** "you" as a set of one, beside `PlayerRef::You`: a relation in the family of `Opponents` and `Everyone`, and `Player(PlayerRef::You)` is refused (item 342).
-- `Opponents` — **owns** "every opponent" (CR 102.1).
+- `Opponents` — **owns** "every opponent" (CR 102.2, 102.3).
 - `Everyone` — **owns** "every player".
 - `Fixed` — **owns** "the players fixed as the effect began".
 
@@ -1247,14 +1252,14 @@ missing: a landed fold rewrites its lines.
 
 #### `SelectionFilter`
 - `Creature` — **folds** into a constructor of `Permanent` (item 344).
-- `Player` — **owns** "target player"; it takes a `PlayerSet` for "target opponent" (item 345).
-- `Any` — **owns** "any target" (CR 115.4).
+- `Player` — **owns** "a player" as a candidate (`EffectRecipient::Target` owns "target"); it takes a `PlayerSet` for "target opponent" (item 345).
+- `Any` — **owns** "any target" (CR 115.4), the CR's own name for its candidates.
 - `Permanent` — **holds** an `ObjectFilter`.
-- `Spell` — **owns** "target spell".
+- `Spell` — **owns** "a spell on the stack" as a candidate.
 - `DamageSource` — **owns** "a source of damage", CR 609.7a's choice.
 
 #### `SourceFilter`
-- `ControlledBy` — **holds** a `PlayerRef`, which **folds** into a `PlayerSet` (item 342).
+- `ControlledBy` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).
 
 #### `TargetCount`
 - `Exactly` — **kept** "a number printed on the card", beside `ExactlyAmount(Fixed(n))`: castability's `fewest()` reads it with no evaluator, at every priority.
