@@ -80,6 +80,13 @@ gates do that. Stop at about 60 tool calls and report what you have.
     for the cards the note discusses where the count groups them by what
     they do. The owner has caught this on devour, on sacrifice verbs and on
     entry prompts (`plans/engineering-practices.md#what-a-new-type-must-express`).
+13. **Empty values by name.** Flag `X::default()`, `Default::default()` or a
+    new `#[derive(Default)]` where the value is an engine type's empty or
+    neutral case: the project names those (`EnterMods::NONE`,
+    `AppliedReplacements::EMPTY`, `ChosenTargets::NONE`), so a reader sees
+    what the empty one means. Grep the diff's added lines for `default()`.
+    A `Default` derive kept only so a containing type can derive it is fine
+    when its doc says so. The owner caught this twice at #294.
 
 The layer, chokepoint, replacement and determinism invariants are `CLAUDE.md`'s
 and the `check_*.py` gates'; flag a breach you see, but do not hunt for them.
