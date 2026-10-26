@@ -219,14 +219,14 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **Every open item names its home on a `**Slotted:**` line (gated 2026-10-09).**
 The line names a phase code or `roadmap-v2.md` §3a row still to come (Phases 9
-and 10 by name, which have no rows yet); or "with the first registered card
-that …" and the card or class; or "none — a record". An item is slotted in the
-commit that files it, a phase reads its list at its first ticket (`python
-plans/check_state_of_play.py --slotted <code>`), and `--check` fails on an open
-item with no home, on one slotted only to phases that have landed, and on a
-number used twice in one run. "The first registered card" is for a fix that is
-mechanical once a card needs it; an item that needs a design decision names a
-phase or a row (`engineering-practices.md#gaps-a-phase-finds`, adopted at TR-5d's review).
+and 10 by name, which have no rows yet); or "none — a record". An item is
+slotted in the commit that files it, a phase reads its list at its first ticket
+(`python plans/check_state_of_play.py --slotted <code>`), and `--check` fails on
+an open item with no home, on one slotted only to phases that have landed, and
+on a number used twice in one run. A mechanical fix takes a phase or a row as
+much as a design does (`engineering-practices.md#gaps-a-phase-finds`): the slot
+"with the first registered card that …" was retired at #294's review (the
+owner, 2026-10-26), since a gap with printed customers takes a route row.
 
 **What does not belong here (adopted 2026-09-12, RE-6's review).** A wrong
 answer sized under about thirty lines, with a fixture that can prove it, is
@@ -1856,7 +1856,7 @@ section never asked.
     with a color-indicator override, before Phase 8; (b) done; (c) none — a
     card.
     **Slotted:** `breadth-features`, whose `backlog.md` §2.10 derives colors in `build()`; (c)
-    with the first registered card that gains control by an Aura.
+    there too, with an Aura that gains control (Control Magic).
 
 ### Found by the RS-1 spine (2026-08-31)
 
@@ -8412,8 +8412,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      ability has "this ability"; Dimir Doppelganger and Lazav are
      unregistered.
      **Sized:** ~20 lines, the activated def carried on the stack entry.
-     **Slotted:** the first registered activated "this ability" copy, Dimir
-     Doppelganger, which waits on `ironworks-loop`'s graveyard targets (the Ironworks
+     **Slotted:** `ironworks-loop`, beside its graveyard targets, with Dimir
+     Doppelganger's activated "this ability" copy as the fixture (the Ironworks
      loop, moved off TR-7 on 2026-10-13).
 
 222. **~~A copy row that carries a triggered ability opens the dispatcher's
@@ -9196,28 +9196,14 @@ Number 277 was withdrawn in #260 and is not reused.
      that makes the first writes on the activation's record whether it is one,
      and the arm reads it.
 
-284. **Nothing flags an item slotted with its first registered card when the
-     card arrives.** 53 open items are slotted "with the first registered card"
-     that needs them (the board's count, 2026-10-22), and registering that card
-     does not lead back to them. A gap the engine refuses loudly finds its
-     author (no field, no variant, an error at resolution); a silent one does
-     not: item 278's effects that make blocks would write no record and block
-     triggers would never see them. TR-5c's review (the owner, 2026-10-18). The
-     check, one of the family: each such item names at least one example card
-     where it is slotted (44 of 55 did at TR-5c's review), and the check fails
-     when a card it names is registered while the item is open, so registering
-     Caller of the Claw fails on item 287 until it is closed or re-slotted.
-     Each of the 53 is re-read beside it against
-     `engineering-practices.md#gaps-a-phase-finds`'s rule (TR-5d's review, 2026-10-20): one that needs a design decision
-     moves to a phase or a row.
-     **Reachability (2026-10-22):** reachable — not wrong: a process gap; no
-     game answers differently.
-     **Sized:** ~80 lines of Python over this file and the registry's names,
-     a CI step, and a named card for each item that names none.
-     **Slotted:** A6e, item 6's close audit, in its cleanup's
-     `names-and-hygiene-sweeps` (`plans/handoffs/item-6-audit.md`, pass 3's
-     cleanup), the review already scheduled at the end of triggers (the
-     owner's slot).
+284. **~~Nothing flags an item slotted with its first registered card when the
+     card arrives.~~ — ✅ CLOSED 2026-10-26 (PR #294, moot).** — archived.
+     The slot it guarded was retired at #294's review (the owner,
+     2026-10-26): every open item names a phase or a row, so none waits on a
+     card's registration, and `check_state_of_play.py --check` fails one that
+     does.
+     **Reachability (2026-10-26):** closed — PR #294.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 284".
 
 285. **Nearly 90 engine functions return tuples whose parts only their docs
      name.** 69 pairs, 9 triples and 2 four-tuples outside the card

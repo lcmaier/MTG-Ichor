@@ -204,7 +204,6 @@ ROUTE_TOKEN_RE = re.compile(
 )
 #: A code whose last letter marks a phase of a family (`TR-4a` of `TR-4`).
 LETTERED_CODE_RE = re.compile(r"[A-Z]{2}-[0-9]+[a-z]?")
-CARD_HOME_RE = re.compile(r"\bthe first registered card\b")
 RECORD_HOME_RE = re.compile(r"^none\s*[—–-]+\s*a record\b")
 
 
@@ -249,10 +248,10 @@ def slotted_text(body):
 
 def home(body, route):
     """`(class, detail)` for an open item's home. `route`: slotted to a phase
-    or row still to come; `card`: to the first registered card that needs it;
-    `record`: nothing to build. Not homes: `missing` (no Slotted line),
-    `landed` (it names only phases that have landed, so they went without
-    it), `unknown` (it names nothing the route has)."""
+    or row still to come; `record`: nothing to build. Not homes: `missing`
+    (no Slotted line), `landed` (it names only phases that have landed, so
+    they went without it), `unknown` (it names nothing the route has, the
+    retired "with the first registered card" among them)."""
     text = slotted_text(body)
     if text is None:
         return "missing", ""
@@ -262,8 +261,6 @@ def home(body, route):
     status = {t: route_status(t, route) for t in tokens}
     if any(s is False for s in status.values()):
         return "route", text
-    if CARD_HOME_RE.search(text):
-        return "card", text
     if any(status.values()):
         return "landed", ", ".join(t for t, s in status.items() if s)
     unknown = [t for t, s in status.items() if s is None]
@@ -291,8 +288,8 @@ def deferred_migrations():
         **counts,
         "sized": sum(1 for b in open_items if "Sized:" in b),
         "open": len(open_items),
-        **{f"home_{k}": homes.count(k) for k in ("route", "card", "record")},
-        "homeless": sum(1 for h in homes if h not in ("route", "card", "record")),
+        **{f"home_{k}": homes.count(k) for k in ("route", "record")},
+        "homeless": sum(1 for h in homes if h not in ("route", "record")),
         "duplicates": len(duplicate_numbers(block)),
     }
 
@@ -397,7 +394,7 @@ def selftest():
         "## Deferred Migrations",
         "### Found by X",
         f"1. **Phase.** {open_} **Slotted:** TR-3c, its reflexive window.",
-        f"2. **Card.** {open_} **Slotted:** with the first registered card that names a counter.",
+        f"2. **Retired slot.** {open_} **Slotted:** with the first registered card that names a counter.",
         "3. **Record.** **Reachability (2026-10-09):** nothing owed — x. **Slotted:** none — a record of x.",
         f"4. **Landed.** {open_} **Slotted:** TR-3b, beside it. **Sized:** with TR-3c.",
         f"5. **Missing.** {open_}",
@@ -419,7 +416,7 @@ def selftest():
         ("Before Layers", "1"), ("main", "2"),
     ], f"selftest: runs {numbered}"
     homes = [home(b, route)[0] for _, _, b, _ in numbered if classify_item(b) != "closed"]
-    assert homes == ["route", "card", "record", "landed", "missing", "unknown", "route", "card", "unknown",
+    assert homes == ["route", "unknown", "record", "landed", "missing", "unknown", "route", "unknown", "unknown",
                      "route", "route"], f"selftest: homes {homes}"
     last = slotted_text(numbered[9][2])
     assert last == "TR-4a with the frame.", f"selftest: a section's last Slotted line ran on: {last!r}"
@@ -723,15 +720,14 @@ def render():
     L.append("| | |")
     L.append("|---|---:|")
     L.append(f"| …slotted to a phase or roadmap row still to come | {dm['home_route']} |")
-    L.append(f"| …slotted to the first registered card that needs it | {dm['home_card']} |")
     L.append(f"| …a record, nothing to build | {dm['home_record']} |")
     L.append(f"| **…open with no home** | **{dm['homeless']}** |")
     L.append(f"| **A number used twice in one run** | **{dm['duplicates']}** |")
     L.append("")
     L.append("**Both bolded rows fail the check.** A home is a `**Slotted:**` line naming a")
     L.append("phase or `roadmap-v2.md` §3a row still to come (Phases 9 and 10 by number,")
-    L.append("having no rows yet), \"with the first registered card that\" and the card or")
-    L.append("class, or \"none — a record\". A line naming only phases that have landed is")
+    L.append("having no rows yet), or \"none — a record\". \"With the first registered card")
+    L.append("that …\" is no home since #294's review. A line naming only phases that have landed is")
     L.append("no home: they went without it. A phase reads its intake list at its first")
     L.append("ticket: `python plans/check_state_of_play.py --slotted cant-be-targeted`.")
     L.append("")

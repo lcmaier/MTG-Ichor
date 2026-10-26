@@ -789,7 +789,7 @@ about.
 | 5b | `batch-legality-and-entry-choices` | Phase 2 skips a stale member; an entry event's auxiliary moves and costs decided as they apply and performed as one batch (split from 5 at #293's review) | 26, 61, 62, 63, 134, 330, 332 (63 and 332 from first-card slots at #293's review) | — | ~730–1,030 | ~910–1,550 | identical | phase 2's check per member |
 | 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329 | 38 | ~1,230 | ~1,500–1,800 | identical | castability's assignment (155) |
 | 7 | `layers-combat-and-counters` | The triage's layer, combat and counter builds, one record check among them | 12, 86, 117, 184, 190, 205, 206, 308, 322, 323, "Before Layers" 16, "Before card breadth" 1, 3, 5 and 6 (12 from a first-card slot at #293's review) | 41, 44, 50 | ~1,330 | ~1,650–2,000 | identical | the layer walk |
-| 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 284, 285; the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
+| 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 285 (284 closed as moot at #294's review); the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
 
 That is **60 items and 40 merge rows in 9 PRs**, about 11,000–14,000
 lines carried, since `record-existences` was split from
@@ -1123,8 +1123,8 @@ item 124's precedent that a sweep does not ride inside a rules change.
      - the memo audits taken over a clone, in debug builds.
    - Item 239: the `.clone()` audit, 390 sites. The 43 in `engine/layers/`
      are read first, then the 30 in `engine/replacement/`.
-   - Item 284: the check that a card-homed item is met when its card is
-     registered. It is Python and a CI step, outside the band.
+   - Item 284: closed as moot at #294's review (the owner, 2026-10-26),
+     when the slot "with the first registered card" was retired.
    - Four rules of `engineering-practices.md` a script could check, slotted
      here at #286's review, each to `check_practices_page.py` or a check
      beside it:

@@ -226,9 +226,9 @@ is designed:
   states is owed whether or not a card prints it: it gets a fixture test and a
   reachability line saying "no printed producer", never "nothing owed".
 - **A gap in the phase's own subsystem ships in the phase while the band
-  holds.** What is still filed takes one of two slots: "with the first
-  registered card that …" for a fix that is mechanical once a card needs it, or
-  a named phase or roadmap row for one that needs a design decision.
+  holds.** What is still filed is slotted to a named phase or roadmap row,
+  a mechanical fix as much as one that needs a design decision: a gap with
+  printed customers waits on the route, never on a card's registration.
 
 ### Landing a phase
 

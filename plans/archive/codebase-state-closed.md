@@ -8889,3 +8889,32 @@ The field is gone; CR 302.6's frame seeds from `entered_battlefield_turn`.
 controller, and "an opponent" is chosen as the ability resolves (CR 608.2d;
 the Akroan Horse ruling), asked only above two players, with a three-seat
 fixture.
+
+### Item 284 — closed 2026-10-26 by PR #294 (`batch-legality-and-entry-choices`), moot
+
+The slot it guarded, "with the first registered card that …", was retired at #294's review (the owner, 2026-10-26): every open item names a phase or a row, so none waits on a card's registration, and `check_state_of_play.py --check` fails one that does.
+
+*Original entry:*
+
+284. **Nothing flags an item slotted with its first registered card when the
+     card arrives.** 53 open items are slotted "with the first registered card"
+     that needs them (the board's count, 2026-10-22), and registering that card
+     does not lead back to them. A gap the engine refuses loudly finds its
+     author (no field, no variant, an error at resolution); a silent one does
+     not: item 278's effects that make blocks would write no record and block
+     triggers would never see them. TR-5c's review (the owner, 2026-10-18). The
+     check, one of the family: each such item names at least one example card
+     where it is slotted (44 of 55 did at TR-5c's review), and the check fails
+     when a card it names is registered while the item is open, so registering
+     Caller of the Claw fails on item 287 until it is closed or re-slotted.
+     Each of the 53 is re-read beside it against
+     `engineering-practices.md#gaps-a-phase-finds`'s rule (TR-5d's review, 2026-10-20): one that needs a design decision
+     moves to a phase or a row.
+     **Reachability (2026-10-22):** reachable — not wrong: a process gap; no
+     game answers differently.
+     **Sized:** ~80 lines of Python over this file and the registry's names,
+     a CI step, and a named card for each item that names none.
+     **Slotted:** A6e, item 6's close audit, in its cleanup's
+     `names-and-hygiene-sweeps` (`plans/handoffs/item-6-audit.md`, pass 3's
+     cleanup), the review already scheduled at the end of triggers (the
+     owner's slot).
