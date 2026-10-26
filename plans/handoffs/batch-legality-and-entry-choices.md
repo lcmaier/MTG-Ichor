@@ -7,8 +7,9 @@ the decisions #293 settled for this PR are in
 `plans/handoffs/batches-durations-and-control.md` (its decisions 2 and 3,
 and item 330's answer), and the landing deletes both files. Every size below
 was read against `384f2243` (#293's merge). **Revised at #294's review
-rounds (2026-10-26)**: decisions 1 and 3 are rewritten, 2 is folded into 1,
-4, 5 and 6 are settled, and 7 covers all three `Query` names.
+rounds (2026-10-26)**: decisions 1 and 3 are rewritten (3 twice, the second
+time from a Scryfall spot check), 2 is folded into 1, and 4, 5, 6 and 7 are
+settled.
 
 ## Where the work sits
 
@@ -19,8 +20,8 @@ triggers. The words "batch", "phase 1" and "phase 2" are the #293 note's.
 - **Phase 1**: the entry replacements' choices. Devour (items 61, 62, 63), a
   shockland's 2 life (item 134), tribute's opponent and its "may" (item 332).
   Each is decided here, and nothing is performed.
-- **Phase 2**: what phase 1 decided, devour's sacrifices and the life paid
-  included, performed with the entries as one event (decision 3).
+- **Phase 2**: what phase 1 decided. Devour's sacrifices and the life paid
+  come first, as an event of their own, then the entries (decision 3).
 - **Triggers**: item 330's filter reads the object as its event found it.
 
 No card is registered. Each item's card is a fixture in its test file
@@ -35,17 +36,17 @@ this PR either way decision 1 goes.
 
 | Item | What it builds | Code | Tests |
 |---|---|---:|---:|
-| 61 | Devour decides its moves and counts them; the moves ride on their entry and perform with it; `execute_actions_new_batch` goes; the one-event check | 110–160 | 120–160 |
+| 61 | Devour decides its moves and counts them; the moves ride on their entry and perform as a window of their own before it; phase 2's per-window work as one function; `execute_actions_new_batch` goes; the check | 130–190 | 120–160 |
 | 62 | `apply_auxiliary_move`'s unused entering-controller parameter goes; `grants_devour` becomes a real Layer 6 grant, its chooser asserted | 0–15 | 50–70 |
 | 63 | `PerChosen::Fixed(n)` and `PerChosen::Count`, at four literals and two readers | 20–35 | 30–50 |
 | 134 | `EnterModsTemplate.unless_paid`, CR 614.12b's running total, the payment riding on its entry, and its prompt | 110–160 | 120–160 |
 | 330 | `named_subject_matches` reads the record's existence as its event found it | 10–20 | 60–90 |
 | 332 | Tribute's opponent asked as the creature enters, the counters' "may", and their prompts, Xantcha's folded in | 60–95 | 70–100 |
-| **Total** | | **310–485** | **450–630** |
+| **Total** | | **330–515** | **450–630** |
 
-That's **760–1,115 sized** and **915–1,600 carried**, against the brief's
-900–1,270 and 1,100–1,900. Item 26 leaving and decision 3 dropping the
-batch split are the difference. Most of the range is under the band's
+That's **780–1,145 sized** and **945–1,660 carried**, against the brief's
+900–1,270 and 1,100–1,900. Item 26 leaving and decision 3 holding no
+batch are the difference. Most of the range is under the band's
 floor, which the owner accepted for the split.
 
 ## Decisions
@@ -78,47 +79,58 @@ floor, which the owner accepted for the split.
 
 2. **Folded into 1** at the first review round.
 
-3. **Item 61: devour's moves are one event with the entry.** Nothing moves in
-   phase 1 after this PR. Today `apply_auxiliary_move` performs the sacrifices
-   in a nested batch while phase 1 is still deciding (`pipeline.rs`, its
-   `execute_actions_new_batch` call). RC-5 did that because the entering
+3. **Item 61: devour's moves are their own event, right before the entry,
+   inside the entering batch.** Revised at both review rounds. Nothing
+   moves in phase 1 after this PR. Today `apply_auxiliary_move` performs the
+   sacrifices in a nested batch while phase 1 is still deciding (`pipeline.rs`,
+   its `execute_actions_new_batch` call). RC-5 did that because the entering
    creature's counters depend on how many were sacrificed, a later
    replacement in the same loop reads them (Corpsejack Menace doubles them,
    Hardened Scales adds one), and RC-5 counted what was performed. #293's
    decision 2 counts what was decided instead: a replacement that drops a
-   move (CR 614.6) has already dropped it when devour counts. That leaves
-   whether the moves are the entry's own event.
-   - (a) **One event: the moves ride on their entry, the way a destruction's
-     move rides on the destruction.** Each is decided as devour applies,
-     through the CR 616.1 loop with a fresh applied set, so a finality counter
-     still exiles a devoured creature. It's recorded on `GameState.entry_selection`
-     while the loop runs (a fork at the next devour prompt needs it,
-     `codebase-state.md` item 40) and moved onto the entering member when its
-     group's loop ends, beside `BatchMember::inner_move`. Phase 2 performs the
-     moves with the entry, under the batch's own id. CR 614.13a calls them
-     "objects that will also change zones": they change zones with the
-     entering permanent, and no rule makes them an event of their own. The
-     tree's reason for a new batch id, in `execute_actions_new_batch`'s doc,
-     is that they're performed while the entry is still being decided, so
-     there is no entry event yet for them to be part of. That was the
-     engine's order, and this removes it. `execute_actions_new_batch` loses
-     its one caller and goes, with the `// AUXILIARY-MOVE:` exception.
-     CLAUDE.md's chokepoint bullet cites that tag, so its line changes, and
-     so do the paragraphs in `replacement-architecture.md`,
-     `triggers-architecture.md` and `engine-map.md` that give the exception.
-     A shockland's payment rides the same way (#293's decision 3).
-   - (b) **Their own event, just before the entry**, #293's decision 2 as
-     written: `execute_batch_inner` split in two and a held batch, as this
-     note's first draft had it.
+   move (CR 614.6) has already dropped it when devour counts. What's left is
+   when the moves happen relative to the entry.
 
-   Triggers read the same either way. "Whenever one or more creatures die"
-   fires once for the devoured creatures, as #293's decision 2 already
-   gives, and the entering creature never sees them die, since CR 603.10a
-   looks back to before the event, when it wasn't on the battlefield. What (a) changes is that a "one or more" trigger watching
-   both deaths and entries sees one event. Thunder-Thrash Elder is in the
-   performance pool; its records keep their order (the sacrifices before the
-   entry), so both pools are predicted identical, attributed game by game if
-   not. **Recommended: (a).**
+   **The spot check (Scryfall rulings, 2026-10-26)**, on the cards whose "as
+   this enters" moves other objects. Wood Elemental's, Overlaid Terrain's
+   and Shimatsu the Bloodcloaked's rulings each say the sacrifice happens
+   "right before" the permanent enters (Shimatsu's: before it enters, so
+   nothing entering beside it can be chosen). Thunder-Thrash Elder's says all
+   creatures devoured across simultaneous entries are sacrificed at the same
+   time. Devouring Hellion's says a sacrificed permanent's "whenever a
+   creature enters" never sees the Hellion enter, and that no player acts
+   between the choice and the entry. So the moves are one event across the
+   batch's entries, and it comes before them: two events, in that order. The
+   first round's one event contradicts the first three rulings.
+   - (a) **Two events in one batch.** The moves ride on their entry as
+     decided members, as the first round had them: each is decided as devour
+     applies, through the CR 616.1 loop with a fresh applied set (a finality
+     counter still exiles a devoured creature), recorded on
+     `GameState.entry_selection` while the loop runs (a fork at the next devour
+     prompt needs it, `codebase-state.md` item 40), and moved onto the
+     entering member when its group's loop ends, beside `BatchMember::inner_move`.
+     Phase 2 performs every entry's moves first, under a window of their own
+     that is dispatched at its close, then the entries in the batch's own
+     window. That is the shape a replacement's riders already have on the
+     other side (CR 615.5): a window of their own, right after the event.
+     Nothing is held across batches and no batch is split. What phase 2 does
+     for a window (each departing object's last known information, the
+     look-back snapshot, the dispatch) runs once per window, so that part
+     becomes one function phase 2 calls twice. `execute_actions_new_batch`
+     goes, and `// AUXILIARY-MOVE:` marks the moves' window instead, so
+     CLAUDE.md's chokepoint bullet keeps the tag with a new place to point.
+     A shockland's payment rides in the same window (#293's decision 3).
+   - (b) **One event**, the first round's: the moves performed with the
+     entry under the batch's own id. It contradicts the rulings above.
+   - (c) **The first draft's**: a decided batch held on `entry_selection`
+     and performed between the entering batch's phases by a split
+     `execute_batch_inner`. The same two events as (a).
+
+   No other "as this enters" family changes. Copies, the choices of a value
+   or a player, and the reveal lands move nothing, so they have nothing to
+   time. Thunder-Thrash Elder is in the performance pool, and a single devour
+   entry's sacrifices stay a window dispatched before its entry performs, as
+   today, so both pools are predicted identical. **Recommended: (a).**
 
 4. **Item 134: the cost's type.** **Settled: `Cost`** (the owner, at #294's
    review, 2026-10-26), with only `PayLife` built here. Any other arm is an
@@ -177,7 +189,13 @@ floor, which the owner accepted for the split.
    board script no longer reads it as a home, the practices page and
    `codebase-state.md`'s header drop it, the two lines that named it beside a
    phase name the phase only, and item 284 closes as moot.
-7. **The three `Query` names.** `is_prohibited` asks one question three
+7. **The three `Query` names.** **Settled: (a)** (the owner, at #294's
+   third round, 2026-10-26, on the condition that only the "can't" check
+   reads a `Query`). It holds by design: `Query` is the one question CR
+   101.2's reader takes, and its three readers are that module's own,
+   `is_prohibited`, `prohibition` (which "can't" forbids it, for the trace and
+   devour's candidate filter) and `rule_applies`, the first negated. Every
+   site reads as a question. `is_prohibited` asks one question three
    ways: may this event happen (`Event`, CR 614.17's "can't be destroyed"),
    may this replacement effect be applied (`TryApplyReplacement`, CR
    701.19c's "can't be regenerated"), and does this rule's action apply
@@ -196,13 +214,13 @@ floor, which the owner accepted for the split.
    - (c) **`Check` on all three**, your `CheckEventHappens`: it repeats what
      `is_prohibited` already says.
 
-   **Recommended: (a).** 15 sites for `Event` and 11 for the other two, in
-   the build's first commit.
+   15 sites for `Event` and 11 for the other two, in the build's first
+   commit.
 
 ## What the build checks
 
-- Item 61, in debug builds: an entry's moves perform in its own batch, and
-  they're exactly the members devour counted.
+- Item 61, in debug builds: a batch's entry moves perform as one window
+  ahead of its entries, and they're exactly the members devour counted.
 - `cargo build --all-targets` with zero warnings, `cargo test`,
   `cargo clippy --all-targets -- -D warnings`, and the `check_*.py` family.
 - The close-out's A/B on both pools, predicted identical: no registered card
