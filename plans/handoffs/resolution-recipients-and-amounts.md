@@ -7,7 +7,9 @@ each PR takes". This file is the design note, reviewed before the build; the
 landing deletes it. Every size and count below was read against `ac583da4`
 (#294's merge). The intake, `check_state_of_play.py --slotted
 resolution-recipients-and-amounts`, lists 14 open items; with them go the
-duplicate inventory's rows 38 and 39.
+duplicate inventory's rows 38 and 39. **Revised at #295's first review
+round (2026-10-26)**: decisions 1, 3, 4 and 5 are settled; 2, 6 and 7 are
+rewritten from the cards up.
 
 ## Where the work sits
 
@@ -112,7 +114,7 @@ opponent" body is a target per opponent, 57 cards (decision 5).
 
    | Reader | Under (a) |
    |---|---|
-   | The walk's index for each instruction (`resolve_effect_step`) | a declaring instance gets the targets still the existence chosen; a back-reference (`SameInstanceAs`) also gets an object this resolution's own records moved into a public zone, as the object the move made (CR 400.7j) |
+   | The walk's index for each instruction (`resolve_effect_step`) | "Exile target creature" gets the creature only while it is still the object that was chosen; one that has moved since is skipped. "Then return that card" is the exception: if this same spell moved the card into a public zone, "that card" finds it where it went (CR 400.7j). Cloudshift is both halves |
    | `ExileUntil`'s second instance | filtered, as a declaring instance |
    | A chooser that is a target player (`choose_as_it_applies`) | filtered: a player who has left the game is nobody (item 292) |
    | `NamedPlayers::FirstInstance` (`players_in`) | gone: decision 4 folds it into the event's player |
@@ -137,20 +139,60 @@ opponent" body is a target per opponent, 57 cards (decision 5).
 
    **Settled: (a)** (the owner, at #295's first review round, 2026-10-26).
 
-2. **Items 269 and 299: the object word, and one `AmountExpr::ValueOf`.**
+2. **Items 269 and 299: "equal to its power", one way.**
 
-   | What the shape must do | Count | Example | Holds today |
-   |---|---:|---|---|
-   | Power of this object | 26, and "its power" 265 shared with the next four rows | Dreadhorde Arcanist | `SourcePower`, at an entry and in a cost only; refused at resolution (item 299) |
-   | Power, toughness of a target, or of "that creature" | 3 + 28 power, 0 + 26 toughness | Soul's Grace; Agonizing Demise | `TargetPower`, `TargetToughness`, both refused |
-   | Power, toughness of a trigger's participant | inside "that creature's" and "its" | Paladin of Atonement | `TriggeringPower(role)`, `TriggeringToughness(role)` |
-   | Mana value of an object | its 66, that card's 43, that spell's 27, that creature's 2 | Ad Nauseam | `AffectedManaValue`, in the layer walk only |
-   | Counters of a kind on an object | on this 65, on that or target 2 | Aether Vial | `SourceCounters(kind)` |
-   | A value of one object a cost used | power 28, toughness 15, mana value 12 + 4 + 3 | Fling, Animal Boneyard | nothing (decision 3) |
-   | A value of an exiled or chosen object | 3 + 3 exiled; 0 chosen | Corpse Explosion | nothing |
-   | "Enchanted/equipped creature's power" | 0 as an amount | — | not needed |
-   | A total over several objects a cost used | 6 | Soulblast | out: a total over a set, with the rank below |
-   | "The greatest power among" a set | 77 | Alena, Kessig Trapper | out: a rank over a set, `CountOf`'s sibling, not one object |
+   **What a player sees.** Many cards deal damage, gain life or put counters
+   "equal to" some number read off one object: Swords to Plowshares' "its
+   controller gains life equal to its power" (the exiled creature), Fling's
+   "damage equal to the sacrificed creature's power", a tapper's "{T}: this
+   creature deals damage equal to its power to any target". Each reads one
+   object and one number about it. The object can be this permanent, a
+   target, the creature a trigger is about, the object a continuous effect is
+   changing, or one a cost used. The number can be its power, toughness,
+   mana value, or counters of a kind.
+
+   **What the engine has.** One `AmountExpr` variant per pairing of an object
+   and a number, added a phase at a time as cards needed them: `SourcePower`,
+   `SourceCounters`, `TargetPower`, `TargetToughness`, `TriggeringPower`,
+   `TriggeringToughness`, `AffectedManaValue`. Three of them refuse at
+   resolution. A sacrificed source's power (item 299) and a target's power
+   are two of the refusals, and a new pairing is a new variant.
+
+   **The grid the shape has to cover.** Each cell says whether printed cards
+   need it and which variant holds it today. "Its" (265 cards for power, 51
+   for toughness, 66 for mana value) can be any of the first four rows, by
+   what "it" refers to, so the counts in the details below are by phrase, not
+   by cell.
+
+   | Which object | Power | Toughness | Mana value | Counters |
+   |---|---|---|---|---|
+   | This object | needed; `SourcePower`, not at resolution | needed; none | needed; none | needed; `SourceCounters` |
+   | A target | needed; `TargetPower`, refuses | needed; `TargetToughness`, refuses | needed; none | needed; none |
+   | The creature a trigger is about | needed; `TriggeringPower` | needed; `TriggeringToughness` | needed; none | not printed |
+   | The object an effect changes (a static's "it") | not printed | not printed | needed; `AffectedManaValue` | not printed |
+   | An object a cost used (decision 3) | needed; none | needed; none | needed; none | not printed |
+   | A card an earlier instruction found ("that card", "the exiled card") | needed; none | not printed | needed; none | not printed |
+
+   This PR builds the first five rows. The last row is another object word,
+   filed (see the end of this note). Out of scope, with where they go: a total over several objects
+   ("the total power of the sacrificed creatures", 6) and "the greatest power
+   among" a set (77), both one number over a set, which
+   `cost-architecture.md` already owes to Phase 8 as their own `AmountExpr`
+   leaves.
+
+   <details><summary>Every query and count behind the grid</summary>
+
+   | Phrase | Count |
+   |---|---:|
+   | "equal to this creature's power" / "its power" / "that creature's power" / "target creature's power" | 26 / 265 / 28 / 3 |
+   | "equal to the sacrificed …'s power" / "toughness" / "mana value" | 28 / 15 / 12 |
+   | "equal to its toughness" / "that creature's toughness" / "this creature's toughness" | 51 / 26 / 1 |
+   | "equal to its mana value" / "that card's" / "that spell's" / "that creature's" | 66 / 43 / 27 / 2 |
+   | "equal to the discarded / revealed / exiled …'s mana value" | 4 / 3 / 3 |
+   | "equal to the exiled …'s power" / "the chosen …'s power" | 3 / 0 |
+   | "equal to the number of … counters on it / this …" / "on that / target …" | 65 / 2 |
+   | "the total power/toughness/mana value of the sacrificed/exiled/discarded" | 6 |
+   | "greatest power among" | 77 |
 
    Queries: `o:"equal to this creature's power"`, `o:"equal to its power"`,
    `o:"equal to that creature's power"`, `o:"equal to target creature's power"`,
@@ -159,15 +201,20 @@ opponent" body is a target per opponent, 57 cards (decision 5).
    `o:"equal to that spell's mana value"`, `o:/equal to the (sacrificed|discarded|revealed|exiled) [a-z]+'s mana value/`,
    `o:/equal to the number of [^.]*counters on (it|this [a-z]+)\b/`,
    `o:/total (power|toughness|mana value) of the (sacrificed|exiled|discarded)/`,
-   `o:"greatest power among"`. Fling's ruling (2024-04-12): "Use the
-   sacrificed creature's power as it last existed on the battlefield." The
-   two set rows are `AmountExpr` leaves that `cost-architecture.md`'s count
-   of cost-reducing statics already owes to Phase 8, one per shape.
+   `o:"greatest power among"`.
 
-   A reader names which object (this one, a target, a participant, the object
-   a continuous effect is applied to, an object a payment used) and which
-   value (power, toughness, mana value, counters of a kind). Today each
-   pairing is its own variant, and printed cards fill most of the grid.
+   </details>
+
+   **When the number is read.** As the instruction applies, off the object
+   as it is if it's still where the card expects it, and as it last existed
+   if it has left (CR 608.2h). Fling's ruling (2024-04-12): "Use the
+   sacrificed creature's power as it last existed on the battlefield."
+   Swords to Plowshares' says the same of the creature it exiled.
+
+   **The choice is whether the grid is one variant or one per cell.** Under
+   (a), Fling is `ValueOf(Antecedent::PaidWith(PaymentAct::Sacrificed),
+   ObjectValue::Power)` and the tapper is `ValueOf(Antecedent::ThisObject,
+   ObjectValue::Power)`.
 
    - (a) **`AmountExpr::ValueOf(Antecedent, ObjectValue)`.** `Antecedent`,
      today `ThisObject` and `Triggering(EventRole)`, gains
@@ -384,8 +431,32 @@ opponent" body is a target per opponent, 57 cards (decision 5).
    the earlier votes), is `backlog.md#24-voting-and-the-decisionprovider-choice-shapes`,
    which has no owner yet.
 
-6. **Items 90, 106 and 329: a rider's view of the resolution that made its
-   row.**
+6. **Items 90, 106 and 329: what a damage shield remembers from the spell
+   that made it.**
+
+   **What a player sees.** Divine Deflection: "Prevent the next X damage that
+   would be dealt to you and/or permanents you control this turn. If damage
+   is prevented this way, Divine Deflection deals that much damage to any
+   target." You choose "any target" as you cast it. It resolves and leaves a
+   shield, and the spell is gone. Later in the turn damage comes in, the
+   shield prevents it, and only then does "deals that much damage" happen,
+   to the target you chose back at cast. General's Regalia is the same with
+   no second step: "The next time a source of your choice would deal damage
+   to you this turn, that damage is dealt to target creature you control
+   instead." The creature was chosen when the ability was activated, and the
+   redirect happens later.
+
+   **Where it sits.** The shield is a row in the replacement registry, made
+   when the spell resolves (`Primitive::CreateReplacement`). When damage is
+   proposed, the replacement pipeline applies the row. "Deals that much
+   damage" is a rider: the extra instruction a replacement adds, run after
+   the replaced event (CR 615.5) as a small resolution of its own
+   (`resolve_rider`). The rider already gets two facts: how much was
+   prevented, and the damage's recipient as its one "target". It doesn't get
+   the target chosen at cast, though the row keeps it
+   (`RegisteredReplacementEffect.targets`, written and never read). The
+   redirect has no way to name that target at all. Item 329 is the third
+   gap: a rider whose text says "this" gets no "this".
 
    | What the rider or redirect must reach | Count | Example | Holds today |
    |---|---:|---|---|
@@ -407,9 +478,8 @@ opponent" body is a target per opponent, 57 cards (decision 5).
    names it as its `ability_source`: the object for a static ability, the
    row's source for a registry row.
 
-   A rider is a resolution of its own, with the replaced event's subject as
-   its one "target" (`resolve_rider`). The row's targets were chosen when the
-   row was made, and are kept on the row.
+   **The choice is where a rider finds the target chosen at cast**: in a
+   place of its own, or appended to the rider's existing target list.
 
    - (a) **A holder for what only a rider has, and one recipient that reads
      it.** `ResolutionContext.replaced_event: Option<ReplacedEvent>` becomes
@@ -437,7 +507,32 @@ opponent" body is a target per opponent, 57 cards (decision 5).
    `EffectRecipient::ReplacedSubject` reading `RiderFacts`, is filed at
    `names-and-hygiene-sweeps`.
 
-7. **Items 94 and 281: what a `Group` holds.**
+7. **Items 94 and 281: one instruction that acts on things found different
+   ways.**
+
+   **What a player sees.** Loyal Sentry: "When this creature blocks a
+   creature, destroy that creature and this creature." One instruction, two
+   objects found two different ways ("that creature" is the blocked
+   attacker, "this creature" is the Sentry), destroyed at the same time (CR
+   608.2f). Pestilence: "deals 1 damage to each creature and each player" is
+   the same shape: one damage event to every creature and every player at
+   once. Hunting Kavu: "exile this creature and target creature without
+   flying that's attacking you".
+
+   **What a `Group` is.** The recipient for that shape:
+   `EffectRecipient::Group(vec![member, member, …])`. Each member is a
+   recipient on its own (`ThisObject`, `Triggering(..)`,
+   `FilteredPermanents(..)`), found as it would be alone. The verb then acts
+   on everything the members found as one action, so a destroy is one batch
+   and a "whenever one or more creatures die" triggers once. Loyal Sentry is
+   `Group(vec![Triggering(Attacker), ThisObject])`.
+
+   **What it can't hold today.** A member that is "each player", so
+   Pestilence can't be written. Splitting it into two instructions makes two
+   damage events: a "one or more" trigger fires twice, and a shield that
+   divides damage across one event (CR 615.7) sees two. And a member that is
+   a target, so Hunting Kavu
+   can't be written.
 
    | What the recipient must hold | Count | Example | Holds today |
    |---|---:|---|---|
