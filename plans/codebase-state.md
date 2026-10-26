@@ -865,13 +865,11 @@ here. None is blocking RB.
     **Sized:** the two `unwrap_or(0)` reads (`sba.rs:242`, `:254`)
     become an explicit `None` arm whose answer CR 721.2c decides, ~10 lines plus
     a test; lands with the first Station card (Phase 8).
-    **Slotted:** with the first registered card that has station (Scryfall:
-    `kw:station`), whose PR gives the two `unwrap_or(0)` reads in `sba.rs` an
-    explicit `None` arm. Kept with its card at the card-homed triage
-    (2026-10-23): no rule gives a creature with no toughness a number (CR
-    208.2a's "use 0" is a characteristic-defining ability's), so a station
-    card's rulings decide the arm, and `unwrap_or(0)` already gives the judge
-    corpus's answer for Taskmaster and The Seriema.
+    **Slotted:** A6e's cleanup, in `layers-combat-and-counters`, beside
+    "Before card breadth" 1's noncreature P/T (CR 208.3): both are the
+    `Option` a permanent's power and toughness are, and the station cards'
+    rulings, fetched there, decide the `None` arm (the owner, at #293's
+    review, 2026-10-25: a filed gap with printed customers takes a route row).
 
 ### Found by the "can't" design pass (2026-08-27)
 
@@ -2529,11 +2527,10 @@ measurement; what follows is what a later phase has to know.
     registered.
 
     **Sized:** ~20 lines with the card, as the entry says.
-    **Slotted:** with the first registered card that devours by a count,
-    Thromok the Insatiable: `PerChosen::Count`, ~20 lines. Kept with its card
-    at the card-homed triage (2026-10-23): CR 702.82a's devour N is a number,
-    and a count in its place is the card's own text ("where X is the number of
-    creatures devoured this way"), so the card decides the shape.
+    **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`, beside
+    items 61 and 62's devour: `PerChosen::Count` with Thromok the Insatiable's
+    fixture, ~20 lines (the owner, at #293's review, 2026-10-25: a filed gap
+    with printed customers takes a route row).
 
 64. **~~`PermanentFilter` filters objects in zones where nothing is a
     permanent, and the name now lies.~~ ✅ Renamed to `ObjectFilter` 2026-09-07
@@ -2961,13 +2958,10 @@ one, so nothing was wrong in practice and nothing moved.
     it lands:** a group-2 cost is by definition one whose payment cannot be
     predicted, so it is the first cost that can fail *after* a group-1
     sacrifice — item 79's constraint and §3.12's argument both meet it there.
-    **Slotted:** with the first registered card whose cost mills (Deranged
-    Assistant), the first arm in CR 601.2h's second payment group
-    (`ATOM-701.17b-002`). Kept with its card at the card-homed triage
-    (2026-10-23): the group's first member is a single-arm cost action, which
-    the cost document gives its first card in Phase 8, and
-    `payment_order_rank` is matched with no wildcard, so that arm cannot
-    compile without taking its rank.
+    **Slotted:** `remaining-costs`, the cost route's row for the costs CR
+    601.2h orders: the second payment group's rank, with a mill cost's fixture
+    (Deranged Assistant's shape) (the owner, at #293's review, 2026-10-25: a
+    filed gap with printed customers takes a route row).
 
 81. **A keyworded additional cost can be mandatory, and `AdditionalCost`'s
     shape says otherwise.** Every named variant is a keyword whose keyword
@@ -4340,9 +4334,11 @@ The layer system's designated single-point change site is `oracle/characteristic
    **Sized:** read the persistence set off the continuous-effects
    registry (a `ManaPersistence` row kind) at the two sites, ~40–60 lines, with
    T12c.
-   **Slotted:** with the first registered card that keeps unspent mana as steps
-   and phases end (Upwelling, Omnath; Scryfall: `o:"lose unspent"`), beside
-   `mana-provenance`'s T12c.
+   **Slotted:** `mana-provenance`, as its own step beside T12c: the
+   persistence set read off a `ManaPersistence` row kind at the two expiry
+   sites, with Upwelling's and Omnath's shapes as fixtures (31 printed cards
+   keep unspent mana, `o:"lose unspent"`) (the owner, at #293's review,
+   2026-10-25: a filed gap with printed customers takes a route row).
 
 5. **Timestamps — ✅ live.** — archived.
     **Reachability (2026-09-03):** closed — timestamps are live; the 613.8 half
@@ -5498,9 +5494,10 @@ with its customer named:**
      the template with a draw.
 
      **Sized:** ~15 lines in `substitute`, with Hullbreacher, after §2.19.
-     **Slotted:** with the first registered card that replaces a draw with a
-     token creation, Hullbreacher, once `any-color-plus-painlands-plus-signets` gives a Treasure its any-color
-     mana.
+     **Slotted:** `any-color-plus-painlands-plus-signets`, which gives a
+     Treasure its any-color mana: the draw-to-creation leg in `substitute`,
+     with Hullbreacher's shape (the owner, at #293's review, 2026-10-25: a
+     filed gap with printed customers takes a route row).
 
 127. **A creation template with a *choice* of def has no shape.** Jinnie Fay,
      Jetmir's Second — "you may instead create that many 2/2 green Cat
@@ -5515,12 +5512,10 @@ with its customer named:**
      unregistered.
 
      **Sized:** ~40 lines and a `ChoiceKind`, with Jinnie Fay.
-     **Slotted:** with the first registered card that offers a choice of token
-     definitions in a replacement, Jinnie Fay, Jetmir's Second. Kept with its
-     card at the card-homed triage (2026-10-23): the alternatives are the
-     card's own two definitions, so the card decides the modal template's
-     shape; the choice is asked in `apply_rewrite`, where CR 614.13's
-     auxiliary move already asks.
+     **Slotted:** `token-copies`, the route's token row: the modal creation
+     template and its `ChoiceKind`, asked in `apply_rewrite`, with Jinnie
+     Fay's shape (the owner, at #293's review, 2026-10-25: a filed gap with
+     printed customers takes a route row).
 
 128. **~~"Create … tapped and attacking" has the first half and not the second.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f).** — archived.
      "Tapped and attacking" is the creating effect's word, on `TokenDef` and
@@ -5823,11 +5818,11 @@ closed. **The last of RE's ten PRs.**
      the ruling that decides it. Recorded rather than guessed because a wrong
      answer here is a restriction that vanishes from a pool with nothing
      pointing at it.
-     **Slotted:** with the first registered card that makes restricted and
-     unrestricted mana in one ability, whose ruling decides it. Kept with its
-     card at the card-homed triage (2026-10-23): no rule says which
-     restriction the new units carry (CR 106.6a is about one ability's mana),
-     so the card's ruling decides the arm; the refusal is loud until then.
+     **Slotted:** `mana-provenance`, which owns what restricted mana carries:
+     the `Fixed` leg's arm for an ability making restricted and unrestricted
+     mana at once, decided by the CR 106.6a reading that row makes (the owner,
+     at #293's review, 2026-10-25: a filed gap with printed customers takes a
+     route row).
 
 136. **The chokepoint's fixed cost per event is the whole of what a proposal
      with nothing watching it costs, and the one lever §8 pre-approved cannot
@@ -9269,9 +9264,10 @@ scan of the history log, and the place in a turn that reads a tally since
      a count of draws, deaths, attacks or damage.
      **Sized:** a word per fact naming its objects, as `cast <card>` does,
      each ~40 lines with its test.
-     **Slotted:** with the first registered card that narrows one (Caller of
-     the Claw for deaths). `route-review`'s audit of the scenario format reads it first
-     (`roadmap-v2.md`).
+     **Slotted:** `route-review`, whose audit of the scenario format reads it
+     first (`roadmap-v2.md`): a word per narrowed fact, Caller of the Claw's
+     deaths the first (the owner, at #293's review, 2026-10-25: a filed gap
+     with printed customers takes a route row).
 
 ### Found by TR-5d (2026-10-19)
 
@@ -9874,7 +9870,10 @@ keyed by its event.
      `ask_choose_entering_controller`, the entry asking it where the
      look-ahead keeps refusing, and the "may": ~40–60 lines and a fixture.
      CR 702.104b's "if tribute wasn't paid" is the card's.
-     **Slotted:** with the first registered card that has tribute.
+     **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`, beside its entry
+     choices: the tribute choice asked through the entry's prompt for an
+     opponent, with a three-seat fixture (the owner, at #293's review,
+     2026-10-25: a filed gap with printed customers takes a route row).
 
 ### Found by `durations-and-control` (2026-10-25)
 

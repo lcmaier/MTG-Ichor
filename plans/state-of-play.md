@@ -211,8 +211,8 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 130 |
-| …slotted to the first registered card that needs it | 6 |
+| …slotted to a phase or roadmap row still to come | 136 |
+| …slotted to the first registered card that needs it | 0 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
