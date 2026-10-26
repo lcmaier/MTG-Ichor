@@ -6,7 +6,10 @@ into 6a (`resolution-recipients-and-amounts`, #295) and 6b
 (`resolution-players-and-riders`). This file is the design note, reviewed
 before the register and the gate are built; the landing deletes it. Every
 count below was read against `ac583da4` (#294's merge). **Revised after its
-fresh read** (14 findings, each fixed here or made a decision).
+fresh read** (14 findings, each fixed here or made a decision), and **at
+#296's first review round** (2026-10-26): decisions 1 and 2 settled, 3
+reframed around `PlayerSet`, 4 and 5 given the ramifications and the history
+the owner asked for.
 
 ## What it is, in plain words
 
@@ -139,14 +142,17 @@ growth contract). So the table decides where the word goes. ✓ answers,
   `ReferredPlayer` (CR 603.7c's players). `EffectRecipient::Player(PlayerRef)`
   folds `Controller`, `TriggeringPlayer`, `DefendingPlayer` and `Referred`'s
   players. About 295 sites and 50 lines.
-- **H. "An opponent", one reading per word** (decision 3). Filters and
-  player conditions take a `PlayerSet`, which gains `One(PlayerRef)`;
-  `PlayerSet::You` becomes `One(PlayerRef::You)`, `AnyDefendingPlayer`
-  becomes `PlayerSet::DefendingPlayers`, and `Condition::DefendingPlayer`
-  folds into `Condition::Player { players: One(DefendingPlayer(of)), .. }`.
-  Then `PlayerRef::Opponent` means only "one opponent, chosen as the
-  instruction applies" (CR 608.2d), and "any opponent" is
-  `PlayerSet::Opponents`. About 300 sites and 80 lines.
+- **H. "An opponent", one reading per word** (decision 3). A filter's player
+  half takes a `PlayerSet`, so "a creature an opponent controls" is
+  `ByController(PlayerSet::Opponents)` and `PlayerRef::Opponent` means only
+  "one opponent, chosen as the instruction applies" (CR 608.2d). `PlayerSet`
+  gains one arm, `Player(PlayerRef)`, for a filter that names one particular
+  player ("a creature defending player controls", "creatures that player
+  controls"); it never holds `PlayerRef::You`, which stays `PlayerSet::You`,
+  and a registry test refuses it. `AnyDefendingPlayer` becomes
+  `PlayerSet::DefendingPlayers`, and `Condition::DefendingPlayer` folds into
+  `Condition::Player { players: PlayerSet::Player(DefendingPlayer(of)), .. }`.
+  About 195 sites and 80 lines.
 - **D. One filter for a player or a permanent in a trigger's arm.**
   `DamageRecipient`, `DefenderFilter` and `ObjectOrPlayerSubject` become one
   `ObjectOrPlayerFilter` (the name pairs with `ObjectOrPlayerId` and
@@ -214,7 +220,7 @@ widen `Rewrite`'s closed payloads to arms the pipeline must refuse.
 
    Either (a) or (b) reopens #295's settled decision 2's filing:
    `EffectRecipient::Object(Antecedent)` was filed at row 8, and moves.
-   **Recommended: (a).**
+   **Settled: (a)** (the owner, at #296's first review round, 2026-10-26).
 
 2. **The player word is `PlayerRef` (fold C).** This reopens #295's settled
    decision 4, which named a new `PlayerAntecedent` beside `PlayerRef`. The
@@ -225,44 +231,142 @@ widen `Rewrite`'s closed payloads to arms the pipeline must refuse.
      `EffectRecipient::Player(PlayerRef)`.
    - (b) **As settled at #295**, the overlap kept with its reason.
 
-   **Recommended: (a).** It is recorded on #295's note before 6b builds.
+   **Settled: (a)** (the owner, at #296's first review round, 2026-10-26).
+   It is recorded on #295's note before 6b builds.
 
-3. **"An opponent": one reading per word.** `PlayerRef::Opponent` is read
-   as any opponent in a filter (`object_filter.rs`, `player != you`) and as
-   one chosen opponent in an instruction (`resolve_player_ref`, and
-   `SetController`, which asserts at three players or more). Each reader is
+3. **"An opponent": one reading per word.** "A creature an opponent
+   controls" means any opponent's creature; "an opponent gains control of
+   it" means one opponent, chosen as the instruction applies (CR 608.2d).
+   Both are `PlayerRef::Opponent` today: `object_filter.rs` reads it as
+   `player != you`, and `resolve_player_ref` and `SetController` read it as
+   the one (`SetController` asserts at three players or more). Each reader is
    right for its role, but one arm with two meanings is item 268's shape.
-   - (a) **Fold H**: filters take a `PlayerSet`, which gains `One(PlayerRef)`,
-     so "any opponent" is `PlayerSet::Opponents` and `PlayerRef::Opponent` is
-     only the chosen one. It also folds `PlayerSet::You`,
-     `AnyDefendingPlayer` and `Condition::DefendingPlayer`.
+
+   **`PlayerSet` already says the first meaning**: `PlayerSet::Opponents` is
+   "every opponent", so the fix is for a filter's player half to take a
+   `PlayerSet` instead of a `PlayerRef`. The first draft muddled in a
+   second need, and its `One(PlayerRef::You)` read strangely because of it
+   (the owner, at #296's first review round). A filter sometimes names one
+   particular player rather than a relation to you: "target creature
+   defending player controls" (Ancient Hellkite; 53 cards,
+   `o:"creature defending player controls"`), "that player controls" (223,
+   `o:"that player controls"`, #295's for-each player among them, both
+   `game:paper -is:funny`, 2026-10-26). `PlayerSet`'s arms are relations to
+   you (`You`, `Opponents`, `Everyone`) and ids captured when an effect was
+   made (`Fixed`), so it needs one arm that holds a named player,
+   `PlayerSet::Player(PlayerRef)`. "You" stays `PlayerSet::You`, and
+   `Player(PlayerRef::You)` is refused, so "you" has one spelling there.
+   - (a) **Fold H, as revised**: a filter's player half takes a `PlayerSet`,
+     with `Player(PlayerRef)` for a named player. `PlayerRef::Opponent` is
+     then only the chosen one. About 195 sites and 80 lines.
    - (b) **Keep it**, recording on `PlayerRef::Opponent` that the role decides
      the reading, and filing a check that no filter reads it as one.
 
    **Recommended: (a).**
 
-4. **`SelectionFilter`: kept, or folded into D.** Its arms are `Creature`,
-   `Player`, `Any` (CR 115.4's "any target"), `Permanent(filter)`, `Spell`,
-   and `DamageSource`, which is CR 609.7a's *choice* of a source (65 cards,
-   `o:"source of your choice"`), not a target. The families it must hold at
-   v1: target player 1,028, any target 841, target card in a graveyard 886,
-   target opponent 742, target spell 375, target player or planeswalker 130,
-   target ability 39 (`o:"target player"`, `o:"any target"`, the graveyard
-   query above, `o:"target spell"`, and the rest as above).
+4. **`SelectionFilter`: kept, or folded into D.** The owner leans (b), and
+   asked at #296's first round for its ramifications and whether the name
+   is right.
+
+   **What a target is.** CR 115.1: "The targets are object(s) and/or
+   player(s)", and CR 109.1 makes an object an ability on the stack, a card,
+   a copy of a card, a token, a spell, a permanent or an emblem. So a target
+   is always exactly an object or a player, which is what the engine holds
+   (`ObjectOrPlayerId`). What varies is which objects: a permanent ("target
+   creature"), a spell ("target spell"), a card in a graveyard, an ability on
+   the stack. "Any target" (CR 115.4) is creatures, players, planeswalkers
+   and battles.
+
+   **What `SelectionFilter` is today**: the criteria an object or player must
+   meet to be selected, and "selected" is three things. Announced as a
+   target (`EffectRecipient::Target`); chosen without targeting
+   (`EffectRecipient::Choose`, CR 608.2d, and a copy's donor); and what an
+   Aura may enchant (`enchant_filter`, which CR 303.4a makes its target as
+   it's cast). Its arms: `Creature` (105 sites), `Player` (47), `Any` (51),
+   `Permanent(ObjectFilter)` (71), `Spell` (13), and `DamageSource` (11),
+   CR 609.7a's *choice* of a source of damage, which isn't a target and
+   reaches past permanents and spells (any object referred to by an object
+   on the stack, a face-up object in the command zone). The families it must
+   hold at v1: target player 1,028, any target 841, target card in a
+   graveyard 886, target opponent 742, target spell 375, target player or
+   planeswalker 130, target ability 39, a source of your choice 65
+   (`o:"target player"`, `o:"any target"`, the graveyard query above,
+   `o:"target spell"`, `o:"source of your choice"`, and the rest as above).
+
+   **What (b) means.**
+   - Two types say "a player or an object that qualifies": `SelectionFilter`
+     for a selection, and fold D's `ObjectOrPlayerFilter` for a trigger's
+     participant. The difference is real. A selection ranges over every zone
+     a candidate can be in (the battlefield, the stack, a graveyard), so
+     where the object is belongs to its criteria. An event's participant is
+     placed by the event: the creature dealt damage, the planeswalker
+     attacked. The register records the pair with that reason.
+   - Both hold the same leaves, an `ObjectFilter` for objects and (under fold
+     H) a `PlayerSet` for players, so the words inside aren't spelled twice,
+     only the two wrappers are. A later merge would be a wrapper merge, not a
+     respelling.
+   - "Target opponent" becomes `Player(PlayerSet::Opponents)` once `Player`
+     takes a `PlayerSet`, and "target player" `Player(PlayerSet::Everyone)`:
+     about 50 sites.
+   - `Creature` is `Permanent(ByType(Creature))` spelled twice in one enum,
+     like fold F's pair, so it becomes a constructor in fold F's commit (105
+     sites).
+   - What it still can't say, each a target design of its own and filed with
+     its count: "target player or planeswalker" (130), an ability on the
+     stack (39), and cards in a graveyard (886, already `ironworks-loop`'s).
+
+   **The name.** "Selection" is the engine's word for all three: choosing a
+   target, choosing without targeting, and what an Aura may enchant.
+   `validate_selection` and `enumerate_legal_selections_upto` read the type
+   under that word. So `SelectionFilter` names what it holds, and a new name
+   for this type alone would split that family of names. If the family is
+   renamed, it's one sweep in `names-and-hygiene-sweeps`.
    - (a) **Fold it into `ObjectOrPlayerFilter`**, with `Spell`, `Any`,
      `DamageSource` and the graveyard and ability targets as arms the trigger
      side never uses. About 290 sites more, and a target-vocabulary design
      inside a fold.
-   - (b) **Keep it as the target and choice vocabulary** (CR 115, 609.7a),
-     and give its player arm a `PlayerSet` (under H), so "target opponent"
-     and "target player or planeswalker" can be written. About 40–60 lines.
-     Two types say "a player or a permanent", one for targets and one for
-     events, each with its reason on the register.
+   - (b) **Keep it as the selection vocabulary** (CR 115, 303.4a, 608.2d,
+     609.7a), and give its player arm a `PlayerSet` (under H), so "target
+     opponent" can be written. About 40–60 lines, and `Creature`'s 105 sites
+     in fold F.
 
-   **Recommended: (b).** The target gaps are a design of their own, filed
-   with their counts; graveyard targets stay `ironworks-loop`'s.
+   **Recommended: (b), keeping the name.**
 
-5. **The gate.** The register lands as `cr-coverage-audit.md` section 4d,
+5. **The gate.**
+
+   **How the duplicates got in** (asked at #296's first round). Three rules
+   stand against respelling a thing, and none of them asks this question of
+   these types:
+   - **The breadth census**, `engineering-practices.md#what-a-new-type-must-express`:
+     before a new type, arm or field, count what the CR and the printed
+     cards ask it to hold. It asks "is this shape wide enough?", not "does
+     this word already have a spelling in another type?". Every role's enum
+     passed it.
+   - **The concept register's gate** (#287, 2026-10-24, the second check in
+     `check_type_surface.py`): a new field holding a registered concept fails
+     without its line. It reads the game's state and stops at the types a
+     card's text is written in, by design, since "a field there is a word on
+     a card and not a fact about a game" (its section's own words).
+   - **Two growth contracts** in `CLAUDE.md`: `EventPattern` grows one arm per
+     `GameAction` variant, and `Rewrite` is closed. They cover two types.
+
+   Every spelling of "this object" came with the phase that built its role,
+   before #287: `ObjectSet::SourceOnly` (the first layers phase, May),
+   `CostSubject::Itself` (CM-2, a spell's own cost abilities, 2026-09-07),
+   `RetargetSpec::ToEffectSource` (RD-4, redirection, 09-09),
+   `TriggerSubject::ThisObject` (TR-1, the trigger spine, 09-20),
+   `CopyDonor::ThisObject` (CV-2a, entering as a copy, 09-28),
+   `Antecedent::ThisObject` (TR-4a, the frame's facts, 10-14, as
+   `ConditionObject`). Each design built its role's enum and spelled the
+   words that role needed, and its review checked breadth. One commit says
+   the pattern out loud: TR-5e (the attack declaration, #256, 2026-10-16)
+   added "defending player" "in all three player words" (`EffectRecipient`,
+   `PlayerRef`, `Condition`), taking three player vocabularies as given. The one spelling newer than #287,
+   `ObjectOrPlayerSubject` (#291, 10-25), was itself a fold, of one trigger
+   slot's types. So no restriction failed: none covered this vocabulary.
+   This gate is the one that does.
+
+   The register lands as `cr-coverage-audit.md` section 4d,
    "Words and their spellings", holding the walk's classes and, for each
    `words` enum, a line per arm: it owns a word, holds the word type, is a
    kept spelling with its reason, or waits for its fold's item.
