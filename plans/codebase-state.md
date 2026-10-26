@@ -2471,31 +2471,14 @@ measurement; what follows is what a later phase has to know.
     built, and `grants_devour`. Its check, in debug builds: every auxiliary
     move of one entry event writes its record into one batch.
 
-62. **`AuxiliaryMove` has no chooser field, so "you" is the effect's
-    controller — and the two printed shapes disagree.** CR 614.13a says "**you**
-    may have to choose a number of objects", and who "you" is depends on where
-    the ability came from: devour is the entering creature's own ability, so the
-    choice is the *entering permanent's* controller's, while a filter-scoped
-    effect ("each other creature **you** control enters …") means its own
-    controller. RC-5 uses `ReplacementInstance::controller` for both, which is
-    exact for every registered card — devour is `ObjectSet::SourceOnly`, and
-    `gather` source 1a hands it the proposal's controller — and wrong for a
-    *granted* devour, where the granting permanent's controller would choose and
-    sacrifice their own creatures instead of the entering creature's controller
-    doing it. **Sized:** one field on `AuxiliaryMove`
-    (`EffectController | EnteringController`) read in one place, ~15 lines.
-    Deliberately not built: no registered card takes the second road, and a
-    field with one used value is the shape §3.2's growth contract warns about.
-    The test fixture `grants_devour` takes it and says so.
-
-    **Reachability (2026-10-23):** unreachable — no registered card takes the
-    granted-devour road; `grants_devour` is the only board.
-    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
-    (the card-homed triage, 2026-10-23; the PR split at #293's review): a granted devour is the entering
-    creature's own ability, so that creature's controller chooses and
-    sacrifices (CR 614.13a's "you", CR 109.5), and `grants_devour` asserts it;
-    the chooser field only if the gather cannot give the instance that
-    controller.
+62. **~~`AuxiliaryMove` has no chooser field, so "you" is the effect's controller — and the two printed shapes disagree.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+    archived.
+    No field was needed: a granted devour is the entering creature's own
+    ability, found on its CR 614.12 frame by the gather's entering leg, which
+    hands it the controller the creature enters under. `grants_devour` is now a
+    real Layer 6 grant, and a test has another player's enchantment grant it.
+    **Reachability (2026-10-26):** closed — PR #294.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 62".
 
 63. **~~`per_chosen` is a constant per object, and Thromok the Insatiable's is not.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
     archived.

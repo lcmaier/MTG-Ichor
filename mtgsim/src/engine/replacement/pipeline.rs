@@ -2112,7 +2112,7 @@ fn apply_rewrite(
         // CR 614.13 — choose, move, and count.
         Rewrite::EnterAfterMoving(aux) => match event {
             GameAction::EnterBattlefield { object, from, controller, mut mods, act } => {
-                let extra = apply_auxiliary_move(game, ctx, chosen, aux, object, controller)?;
+                let extra = apply_auxiliary_move(game, ctx, chosen, aux, object)?;
                 let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, caused_by_replacement(game, chosen)?);
                 mods.merge(&extra);
                 Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, act }), changed))
@@ -3238,14 +3238,13 @@ fn apply_auxiliary_move(
     chosen: &ReplacementInstance,
     aux: &AuxiliaryMove,
     entering: ObjectId,
-    entering_controller: PlayerId,
 ) -> Result<EnterMods, String> {
     // "You" for CR 614.13a's choice. For devour and Sutured Ghoul the effect is
-    // the entering permanent's own, so this is the controller it will enter
-    // under (CR 110.2b, off the proposal); for a filter-scoped effect it is the
-    // other permanent's controller, which is what the card's "you" means.
+    // the entering permanent's own, printed or granted, so this is the
+    // controller it will enter under (CR 110.2b, off the proposal); for a
+    // filter-scoped effect it is the other permanent's controller, which is
+    // what the card's "you" means.
     let you = chosen.controller;
-    let _ = entering_controller;
     // The moves are caused by the replacement effect (CR 614.13), never by
     // whatever caused the entry. Devour sacrifices under the entering
     // creature's own ability, which the player making the sacrifices controls,

@@ -12,8 +12,10 @@ use mtgsim::test_support::{
     vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive};
-use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
+use mtgsim::types::effects::{
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
+};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId};
 use mtgsim::types::replacement::{AuxiliaryMove, EventPattern, PerChosen, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::Zone;
@@ -62,6 +64,42 @@ fn reanimate_devouring(game: &mut GameState, entering: ObjectId, picks: Vec<usiz
     dp.expect_pick_n(ChoiceKind::ChooseAuxiliaryZoneChange { entering, source: entering, to: Zone::Graveyard }, picks);
     game.change_zone(entering, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
     assert!(dp.is_empty(), "devour asked once");
+}
+
+/// "Creatures have devour `n`", a Layer 6 grant.
+fn grants_devour_to_creatures(n: u32) -> Arc<CardData> {
+    let mut granted = static_ability(devour(PerChosen::Fixed(n)));
+    granted.id = new_ability_id();
+    CardDataBuilder::new("Fixture Devour Banner")
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Atom(
+            Primitive::GrantAbility(Arc::new(granted), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+        )))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// A granted devour is the entering creature's
+// ---------------------------------------------------------------------------
+
+/// Devour granted by player 1's enchantment is still the entering creature's
+/// own ability, so CR 614.13a's "you" is its controller, player 0 (CR 109.5):
+/// player 0 chooses among player 0's creatures, and player 1's is no
+/// candidate.
+#[test]
+fn a_granted_devour_is_chosen_by_the_entering_creatures_controller() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, grants_devour_to_creatures(1), 1);
+    let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let entering = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 0);
+
+    reanimate_devouring(&mut game, entering, vec![0]);
+
+    assert_eq!(game.get_object(mine).expect("its card").zone, Zone::Graveyard, "player 0 sacrificed their own creature");
+    assert!(game.battlefield.contains_key(&theirs), "player 1's creature was never a candidate");
+    assert_eq!(counters(&game, entering, CounterType::PlusOnePlusOne), 1);
 }
 
 // ---------------------------------------------------------------------------
