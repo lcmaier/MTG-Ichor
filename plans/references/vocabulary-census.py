@@ -4,6 +4,7 @@
     python plans/references/vocabulary-census.py              # each type's arms, with payloads
     python plans/references/vocabulary-census.py --counts     # arms per type, the scope's size
     python plans/references/vocabulary-census.py --docs       # each arm with its doc's first sentence
+    python plans/references/vocabulary-census.py --classes    # each reached enum's class; exit 1 on one unclassed
 
 WHY THIS EXISTS
 ---------------
@@ -46,6 +47,59 @@ NOT_VOCABULARY = {
     "AbilityId", "ZoneChangeEpoch", "EventId", "BatchId", "String", "Vec", "Option", "Box", "Arc", "Rc",
 }
 
+#: Every enum the walk reaches, by class. Only `words` were read arm by arm:
+#: an arm there names an object, a player or an amount, and the census grouped
+#: those arms by the CR word each spells. Every other class says why its arms
+#: spell no such word. A reached enum in no class, or a class naming an enum
+#: the walk no longer reaches, fails `--classes`.
+CLASSES = {
+    "words": {
+        "AmountExpr", "Antecedent", "ChoiceScope", "Condition", "CopyDonor", "CopyRoles", "CostSubject",
+        "DamageRecipient", "DefenderFilter", "DiscardChooser", "Duration", "EffectRecipient", "EntersAttacking",
+        "EventRole", "IdentityRef", "NamedPlayers", "ObjectFilter", "ObjectOrPlayerSubject", "ObjectSet",
+        "PerChosen", "PlayerRef", "PlayerSet", "RetargetSpec", "ReturnUnder", "SelectionFilter", "SourceFilter",
+        "TargetCount", "TemplateAmount", "TriggerSubject",
+    },
+    # A printed value: a type, a color, a counter's kind, a zone. It is
+    # asked of a thing a word names, and names none itself.
+    "values": {
+        "ArtifactType", "BattleType", "CardType", "Characteristic", "Color", "CounterType", "CreatureType",
+        "DungeonType", "EnchantmentType", "KeywordFlag", "LandType", "ManaGrant", "ManaPersistence",
+        "ManaRestriction", "ManaSymbol", "ManaType", "PersistenceExpiry", "PhaseType", "PlanarType",
+        "PlaneswalkerType", "SpellType", "StepType", "Subtype", "Supertype", "Zone",
+    },
+    # An action or an event the CR names, owned by its chapter. `EventPattern`
+    # already grows one arm per `GameAction` variant by contract.
+    "verbs": {
+        "AdditionalCost", "AlternativeCost", "AmountRewrite", "CharacteristicEdit", "ColorChange", "CopyException",
+        "Cost", "CostChange", "Effect", "EventPattern", "GameActionTemplate", "GameRule", "Primitive",
+        "PriorityAction", "Restriction", "Rewrite", "RuleAction", "SpecialAction", "StateBasedAction",
+        "TokenSubstitution", "TriggerEvent", "TurnBasedAction", "ZoneChangeAct",
+    },
+    # A fact or a predicate asked of an object, a player or the history,
+    # which a word elsewhere names.
+    "facts": {
+        "AttackOccurrence", "BlockOccurrence", "CostAnswer", "CountIs", "DestructionSourcePattern", "DrawFilter",
+        "HistorySpan", "LifeLossCausePattern", "ObjectFact", "PlayerFact", "ReplacementKindFilter", "TapStatus",
+        "TargetedBy", "TriggerCondition", "TurnFact",
+    },
+    # How many, how often, how long, how rounded, which kind of ability.
+    "settings": {
+        "AbilityType", "ActivationRestriction", "ChoiceSide", "DelayedDuration", "DelayedTurn", "ExtraPhasesAfter",
+        "InherentAbility", "ModalCount", "Multiplicity", "PatternFill", "PickCount", "ReflexiveForm",
+        "ReplacementClass", "Rounding", "TriggerLimit", "TriggerOrigin", "TriggerTier", "Uses", "XOffer",
+    },
+    # A thing named by identity, which spells no word for it.
+    "keys": {"AttackTarget", "ObjectOrPlayer", "ObjectOrPlayerId", "ReplacementInstanceId"},
+    # The game's record and its observers, reached through a payload: the
+    # concept census's (`cr-coverage-audit.md#4c-concepts-and-their-owners`).
+    "record": {
+        "ChoiceKind", "ChoiceOption", "CounterEffectKind", "DepartedObject", "Elision", "EntryOffer", "EntryRole",
+        "EventCause", "GameEvent", "GameRuleReplacement", "GeneratedBy", "Unasked", "UnaskedAnswer",
+        "UnattachRoute",
+    },
+}
+
 
 class Item:
     """One struct or enum: its kind, file, line, and for an enum its arms as
@@ -79,7 +133,7 @@ def read_items() -> dict[str, Item]:
             blanked = ATTRIBUTE.sub(lambda a: " " * len(a.group(0)), body)
             for offset, part in _split_top(blanked):
                 doc = _doc_above(lines, line_of(k + 1 + offset))
-                first = doc.split(". ")[0][:160]
+                first = doc.split(". ")[0]
                 if kind == "enum":
                     arm = re.match(r"([A-Z][A-Za-z0-9_]*)\s*(.*)", part, re.S)
                     if arm:
@@ -109,6 +163,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--counts", action="store_true")
     parser.add_argument("--docs", action="store_true")
+    parser.add_argument("--classes", action="store_true")
     args = parser.parse_args()
 
     register = read_register(AUDIT.read_text(encoding="utf-8"))
@@ -120,6 +175,22 @@ def main() -> int:
     names = scope(items, stops)
     enums = [items[n] for n in names if items[n].kind == "enum"]
     structs = [items[n] for n in names if items[n].kind == "struct"]
+
+    if args.classes:
+        reached = {e.name for e in enums}
+        classed = set().union(*CLASSES.values())
+        twice = sorted(n for n in classed if sum(n in members for members in CLASSES.values()) > 1)
+        for name, members in CLASSES.items():
+            arms = sum(len(items[n].members) for n in members if n in reached)
+            print(f"  {name:9} {len(members & reached):3} enums, {arms:4} arms")
+        problems = (
+            [f"reached, in no class: {n}" for n in sorted(reached - classed)]
+            + [f"classed, not reached: {n}" for n in sorted(classed - reached)]
+            + [f"in two classes: {n}" for n in twice]
+        )
+        for problem in problems:
+            print(problem)
+        return 1 if problems else 0
 
     if args.counts:
         arms = sum(len(e.members) for e in enums)
