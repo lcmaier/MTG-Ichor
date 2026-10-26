@@ -150,6 +150,26 @@ is `hybrid-and-phyrexian-payment`, a sized slot. The entry is kept as written fo
   - **Keyed by the ability pair (CR 614.14, 607.4).**
   - **The auxiliary move's record holds the moved objects as they are after
     the move.**
+- **The family, counted** (Scryfall, paper cards, 2026-10-26, at #294's
+  review). Every reader of a choice or a payment made while the object was
+  cast or as it entered:
+
+  | Wording | Cards | Rule |
+  |---|---|---|
+  | "the chosen …" | 432 | 607.2d |
+  | "As this enters, [you / choose / an opponent chooses / each player] …" | 291 | 614.12a, 607.2d |
+  | — of those, "choose an opponent" or "choose a player" | 18 | 614.12a |
+  | "was kicked" | 251 | 702.33e |
+  | "exiled with this" | 137 | 607.2a, 607.2b |
+  | "mana was spent to cast" | 44 | 400.7d |
+  | bargained, evoked, or "if tribute wasn't paid" | 30 | 702.104b and kin |
+
+  Two customers are already in the tree, each a one-off this design takes
+  over: `PermanentState::x_value`, CR 107.3m's X carried into an entry's
+  abilities as a field of its own, and `codebase-state.md` item 338, which
+  finds nothing remembering whether tribute was paid. `route-review` is
+  where CR 607 is given an owner, beside item 335's "as this enters"
+  abstraction.
 
 ### 2.3 Casting from a non-hand zone — ✅ graduated 2026-10-05 to `permission-architecture.md`
 
