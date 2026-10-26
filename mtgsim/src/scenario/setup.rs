@@ -163,6 +163,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         | ChoiceKind::ChooseDelayedTriggerEvent { .. }
         | ChoiceKind::ChooseReplacementEffect { .. }
         | ChoiceKind::ApplyOptionalReplacement { .. }
+        | ChoiceKind::AcceptAsItEnters { .. }
         | ChoiceKind::LegendRule { .. }
         | ChoiceKind::CommanderToCommandZoneSba { .. } => LineAnswer::Unanswered,
         // Never asked while a line plays: each waits for a step to pass

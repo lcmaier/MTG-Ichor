@@ -5823,47 +5823,16 @@ surface); this file's items 59, 60, 122 and 131 (scheduled), 88 and 118
 them); and the board's classifier, which had read "not wrong today" as
 "wrong today". One migration was found that no doc owned:
 
-134. **CR 614.12b — the combined costs of several entry choices, across
-     permanents entering simultaneously.** "If multiple replacement effects
-     that require choices from a player would modify how multiple permanents
-     enter the battlefield simultaneously, that player may not make choices
-     for those effects that would cause the combined costs of those effects
-     to not be payable." `replacement-architecture.md` §12 parked it on cost
-     modification; CM-1–CM-4 landed and it is still out, because the
-     prerequisite was misnamed. It needs an entry replacement whose *choice
-     has a cost* — the printed shape is a shockland's "As this enters, you
-     may pay 2 life. If you don't, it enters tapped", and `EnterModsTemplate`
-     carries `tapped` and `counters` only — and a plural entry of *cards*
-     (RE-4's plural batch is tokens'; a Scapeshift, a mass reanimation), and
-     the rule bites only with both at once and a player who cannot pay for
-     all of them.
-
-     **Reachability (2026-10-23):** unreachable — no registered entry
-     replacement has a cost, and no registered producer enters two permanents
-     with one at once.
-
-     **Sized:** a `cost: Option<Cost>` on `EnterModsTemplate`, paid at
-     application, ~60 lines with the first shockland; then the 614.12b check
-     itself — the CR 616.1 loop's decide phase already sees the whole batch
-     (CR 704.3's shape), so it is a payability sweep over the batch's chosen
-     costs before any is performed, ~40 lines, with the second customer.
-     Two customers before a leaf (`replacement-architecture.md` §8c).
-
-What is *not* a ledger line, and where each waits: the four §8a event kinds
-are dispositioned in `replacement-architecture.md` §8a itself (turned face
-up → `face-down-and-morph`; dice → `backlog.md` §2.31; search → `backlog.md` §2.5's producer;
-countering → closed, a zone change with a cause); Master Biomancer's type
-(item 60) is `backlog.md` §2.30's, a mechanic with no surface; the
-self-replacement producer is `replacement-architecture.md` §11 item 3's,
-with its reachability line there; and the eviction of that document's
-pre-build reasoning is planned section by section in the handoff and opens
-as its own PR after this one merges.
-     **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
-     (the card-homed triage, 2026-10-23; the PR split at #293's review): an entry choice's cost on
-     `EnterModsTemplate`, paid as the replacement applies (CR 614.12, a
-     shockland as the fixture), and CR 614.12b's payability sweep over a
-     batch's chosen costs, with a fixture plural entry, two such tokens
-     created at once (RE-4's plural batch), for a player who can pay for one.
+134. **~~CR 614.12b — the combined costs of several entry choices, across permanents entering simultaneously.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+     archived.
+     `EnterModsTemplate.unless_paid` carries an entry choice's cost: a shockland's
+     "you may pay 2 life. If you don't, it enters tapped" is
+     `tapped_unless_paid(Cost::PayLife(2))`. The payment is offered through
+     `ChoiceKind::AcceptAsItEnters` only when it is payable beside every cost the
+     batch's entries chose already, and paid as a loss of life right before the
+     entries. Two such tokens at once for a player at 3 life: one is paid for.
+     **Reachability (2026-10-26):** closed — PR #294.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 134".
 
 ### Found by the post-RE audit, pass 3 — parallel-play readiness (2026-09-15)
 

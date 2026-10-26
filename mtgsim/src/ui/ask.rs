@@ -41,7 +41,7 @@ use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, Player
 use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, Rejection};
 use super::decision::{DecisionProvider, PriorityAction};
 
 /// The one allocation a forced split admits, or `None` when the player has
@@ -1148,6 +1148,21 @@ pub fn ask_choose_entering_controller(
     let ctx = ChoiceContext::new(ChoiceKind::ChooseEnteringController { object });
     let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_entering_controller");
     candidates[index[0]]
+}
+
+/// CR 614.12a — whether `chooser` takes what an entry replacement offers as
+/// `object` enters, yes or no: a shockland's 2 life. Asked only of an offer
+/// the player can take; the caller has checked a cost is payable.
+pub fn ask_accept_as_it_enters(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    object: ObjectId,
+    source: ObjectId,
+    offer: EntryOffer,
+) -> bool {
+    let kind = ChoiceKind::AcceptAsItEnters { object, source, offer };
+    ask_take_or_leave(dp, game, chooser, object, kind, "accept_as_it_enters")
 }
 
 /// CR 608.2d — choose which of `candidates`, the opponents still in the game,

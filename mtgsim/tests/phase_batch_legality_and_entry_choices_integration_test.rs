@@ -11,18 +11,21 @@ use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_graveyard, put_on_battlefield, put_on_battlefield_under, setup_two_player_game, static_ability, test_ctx, test_dp,
-    vanilla_creature,
+    put_in_graveyard, put_in_hand, put_on_battlefield, put_on_battlefield_under, setup_two_player_game, static_ability,
+    test_ctx, test_dp, vanilla_creature,
 };
+use mtgsim::types::costs::Cost;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, TokenDef,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId};
-use mtgsim::types::replacement::{AmountRewrite, AuxiliaryMove, EventPattern, PerChosen, ReplacementDef, Rewrite};
+use mtgsim::types::replacement::{
+    AmountRewrite, AuxiliaryMove, EnterModsTemplate, EventPattern, PerChosen, ReplacementDef, Rewrite,
+};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, EntryOffer};
 
 fn add_counters(game: &mut GameState, object: ObjectId, counter: CounterType, n: u32) {
     game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(object), counter, n, by: 0 }, &test_ctx())
@@ -212,6 +215,144 @@ fn an_entry_replaced_after_devour_chose_sacrifices_nothing() {
 
     assert_eq!(game.get_object(elder).expect("its card").zone, Zone::Exile, "the Priest exiled it instead");
     assert!(game.battlefield.contains_key(&bear), "the sacrifice was part of an entry that never happened");
+}
+
+// ---------------------------------------------------------------------------
+// An entry choice's cost, and CR 614.12b
+// ---------------------------------------------------------------------------
+
+/// "As this land enters, you may pay 2 life. If you don't, it enters tapped."
+fn shock_replacement() -> Effect {
+    Effect::Replacement(Box::new(ReplacementDef::new(
+        EventPattern::EnterBattlefield { cast: None },
+        ObjectSet::SourceOnly,
+        Rewrite::EnterWith(EnterModsTemplate::tapped_unless_paid(Cost::PayLife(2))),
+    )))
+}
+
+fn shockland() -> Arc<CardData> {
+    CardDataBuilder::new("Fixture Shock Land").card_type(CardType::Land).ability(static_ability(shock_replacement())).build()
+}
+
+/// A land token with the shockland's replacement, so two can enter at once
+/// (the plural creation RE-4 built).
+fn shockland_token() -> TokenDef {
+    let mut token = soldier_token();
+    token.name = Some("Fixture Shock Land".into());
+    token.colors = Vec::new();
+    token.types = vec![CardType::Land];
+    token.subtypes = Vec::new();
+    token.power = None;
+    token.toughness = None;
+    token.abilities = vec![static_ability(shock_replacement())];
+    token.rules_text = "As this land enters, you may pay 2 life. If you don't, it enters tapped.".into();
+    token
+}
+
+fn tapped(game: &GameState, id: ObjectId) -> bool {
+    game.battlefield.get(&id).expect("on the battlefield").tapped
+}
+
+fn the_offer(object: ObjectId) -> ChoiceKind {
+    ChoiceKind::AcceptAsItEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) }
+}
+
+/// Played from hand and paid for: untapped, and 2 life lost (CR 119.4).
+#[test]
+fn a_shockland_paid_for_enters_untapped() {
+    let mut game = setup_two_player_game();
+    let land = put_in_hand(&mut game, shockland(), 0);
+    let dp = test_dp();
+    dp.expect_pick_n(the_offer(land), vec![0]);
+
+    game.play_land(0, land, &dp).expect("the land drop");
+
+    assert!(dp.is_empty(), "offered once");
+    assert!(!tapped(&game, land));
+    assert_eq!(game.players[0].life_total, 18);
+}
+
+/// Declined: it enters tapped, and no life is lost.
+#[test]
+fn a_shockland_declined_enters_tapped() {
+    let mut game = setup_two_player_game();
+    let land = put_in_hand(&mut game, shockland(), 0);
+    let dp = test_dp();
+    dp.expect_pick_n(the_offer(land), vec![]);
+
+    game.play_land(0, land, &dp).expect("the land drop");
+
+    assert!(tapped(&game, land));
+    assert_eq!(game.players[0].life_total, 20);
+}
+
+/// With 1 life the payment cannot be made (CR 119.4), so it is not offered,
+/// and the land enters tapped.
+#[test]
+fn an_unpayable_shockland_is_not_offered() {
+    let mut game = setup_two_player_game();
+    game.players[0].life_total = 1;
+    let land = put_in_hand(&mut game, shockland(), 0);
+    let dp = test_dp();
+
+    game.play_land(0, land, &dp).expect("the land drop");
+
+    assert!(dp.is_empty(), "nothing asked");
+    assert!(tapped(&game, land));
+    assert_eq!(game.players[0].life_total, 1);
+}
+
+/// Two enter at once for a player at 3 life: after paying for the first, the
+/// second's payment would make the two cost more than the player has (CR
+/// 614.12b), so it is not offered and that land enters tapped. The payment
+/// is its own event, right before the entries.
+#[test]
+fn two_shocklands_entering_together_cannot_both_be_paid_for_at_three_life() {
+    let mut game = setup_two_player_game();
+    game.players[0].life_total = 3;
+    // The tokens have no id until they are created; a scripted answer
+    // matches the prompt's kind.
+    let placeholder = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let dp = test_dp();
+    dp.expect_pick_n(the_offer(placeholder), vec![0]);
+    let mark = game.recorded_events().len();
+
+    game.execute_action(
+        GameAction::CreateTokens { defs: vec![shockland_token(), shockland_token()], controller: 0, attacking: None },
+        &ActionContext::new(&dp),
+    )
+    .expect("the tokens are created");
+
+    assert!(dp.is_empty(), "the second payment was never offered");
+    assert_eq!(game.players[0].life_total, 1);
+    let lands: Vec<ObjectId> = game.battlefield_ids_ordered();
+    let tapped_count = lands.iter().filter(|&&id| tapped(&game, id)).count();
+    assert_eq!((lands.len(), tapped_count), (2, 1), "one paid for, one tapped");
+
+    let recorded = game.recorded_events();
+    let batch_of = |pred: &dyn Fn(&GameEvent) -> bool| -> Vec<Option<BatchId>> {
+        recorded.records_from(mark).iter().filter(|r| pred(&r.event)).map(|r| r.stamp.batch).collect()
+    };
+    let paid = batch_of(&|e| matches!(e, GameEvent::LifeChanged { .. }));
+    let entered = batch_of(&|e| matches!(e, GameEvent::PermanentEnteredBattlefield { .. }));
+    assert_eq!(paid.len(), 1);
+    assert!(entered.iter().all(|b| *b != paid[0]), "the payment is its own event: {paid:?} {entered:?}");
+}
+
+/// At exactly 2 life the payment is still payable (CR 119.4), and paying it
+/// leaves the player at 0.
+#[test]
+fn a_shockland_is_payable_at_exactly_its_cost() {
+    let mut game = setup_two_player_game();
+    game.players[0].life_total = 2;
+    let land = put_in_hand(&mut game, shockland(), 0);
+    let dp = test_dp();
+    dp.expect_pick_n(the_offer(land), vec![0]);
+
+    game.play_land(0, land, &dp).expect("the land drop");
+
+    assert!(!tapped(&game, land));
+    assert_eq!(game.players[0].life_total, 0);
 }
 
 // ---------------------------------------------------------------------------

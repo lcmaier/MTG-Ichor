@@ -246,6 +246,10 @@ pub struct EntrySelectionScope {
     /// performed under, opened by the first of them so the CR 616.1 loops
     /// that decide them are traced with the event they make.
     pub(crate) before_entering_window: Option<crate::events::event::BatchId>,
+
+    /// CR 614.12b — every cost a player has chosen to pay for an entry of
+    /// this batch, which a later choice must be payable beside.
+    pub(crate) costs_chosen: Vec<(PlayerId, crate::types::costs::Cost)>,
 }
 
 impl EntrySelectionScope {

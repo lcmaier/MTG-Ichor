@@ -1001,11 +1001,12 @@ impl GameState {
         self.dispatch_after_batch(result, mark, window, ctx)
     }
 
-    /// CR 614.13's moves, decided as the entry replacement that chose them
-    /// applies and held for the entering batch to perform right before its
-    /// entries ([`BeforeEntering`]). Returns how many will be performed: a
-    /// move a replacement drops (CR 614.6) is no creature sacrificed, and one
-    /// it redirects still is, which is devour's count (CR 701.21a, 702.82a).
+    /// CR 614.13's moves, or the life CR 614.12b's payment loses, decided as
+    /// the entry replacement that chose them applies and held for the
+    /// entering batch to perform right before its entries
+    /// ([`BeforeEntering`]). Returns how many will be performed: a move a
+    /// replacement drops (CR 614.6) is no creature sacrificed, and one it
+    /// redirects still is, which is devour's count (CR 701.21a, 702.82a).
     ///
     /// Decided under the batch id they perform under, opened by the batch's
     /// first, so every entry's moves are one event (Thunder-Thrash Elder's

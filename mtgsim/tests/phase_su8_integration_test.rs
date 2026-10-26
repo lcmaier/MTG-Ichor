@@ -25,7 +25,8 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::types::costs::Cost;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -231,6 +232,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::Scry { source: None, n: 1 },
         ChoiceKind::ScryOrder { source: None, bottom: true },
         ChoiceKind::LegendRule { legend_name: "Grizzly Bears".to_string() },
+        ChoiceKind::AcceptAsItEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) },
     ];
     let place = |kind: &ChoiceKind| match kind {
         ChoiceKind::PriorityAction => 0,
@@ -263,9 +265,10 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::Scry { .. } => 27,
         ChoiceKind::ScryOrder { .. } => 28,
         ChoiceKind::LegendRule { .. } => 29,
+        ChoiceKind::AcceptAsItEnters { .. } => 30,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
-    assert_eq!(places, (0..30).collect::<Vec<_>>(), "every kind, once, in order");
+    assert_eq!(places, (0..31).collect::<Vec<_>>(), "every kind, once, in order");
     kinds
 }
 

@@ -37,6 +37,7 @@ use crate::types::effects::{
 };
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::costs::Cost;
 use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
 use crate::events::cause::{EventCause, StateBasedAction};
@@ -1326,6 +1327,13 @@ pub struct EnterModsTemplate {
     /// CR 614.1c — what the permanent enters as: Master Biomancer's "as a
     /// Mutant in addition to its other types".
     pub edits: Vec<CharacteristicEdit>,
+
+    /// CR 614.12 — "you may pay [cost]. If you don't, [the rest of this]": a
+    /// shockland's 2 life. Its controller is offered the payment as the
+    /// effect applies, only when it can pay it beside every cost the
+    /// event's entries chose already (CR 614.12b), and paid, nothing else
+    /// here applies. `None` is an effect with no cost.
+    pub unless_paid: Option<Cost>,
 }
 
 /// One kind of counter an entry replacement gives, before its amount is a
@@ -1351,14 +1359,20 @@ pub struct EntryCountersTemplate {
 impl EnterModsTemplate {
     /// CR 110.5b — "this permanent enters tapped".
     pub fn tapped() -> Self {
-        EnterModsTemplate { status: Some(TapStatus::Tapped), counters: Vec::new(), edits: Vec::new() }
+        EnterModsTemplate { status: Some(TapStatus::Tapped), counters: Vec::new(), edits: Vec::new(), unless_paid: None }
+    }
+
+    /// CR 614.12 — "as this enters, you may pay `cost`. If you don't, it
+    /// enters tapped": a shockland's 2 life.
+    pub fn tapped_unless_paid(cost: Cost) -> Self {
+        EnterModsTemplate { unless_paid: Some(cost), ..Self::tapped() }
     }
 
     /// CR 110.5b — "[permanents] enter untapped": Archelos, Spelunking. Over
     /// a seed that is already untapped it changes nothing, and it still
     /// applies (Spelunking's first ruling).
     pub fn untapped() -> Self {
-        EnterModsTemplate { status: Some(TapStatus::Untapped), counters: Vec::new(), edits: Vec::new() }
+        EnterModsTemplate { status: Some(TapStatus::Untapped), counters: Vec::new(), edits: Vec::new(), unless_paid: None }
     }
 
     /// CR 122.6a — "this permanent enters with `n` `counter` counters on it".
@@ -1372,6 +1386,7 @@ impl EnterModsTemplate {
             status: None,
             counters: vec![EntryCountersTemplate { counter, amount, by: None }],
             edits: Vec::new(),
+            unless_paid: None,
         }
     }
 
@@ -1387,8 +1402,8 @@ impl EnterModsTemplate {
         // at the one function whose premise assumes every field is a status
         // or a constant amount (`codebase-state.md` item 47's condition (a)).
         // A putter is neither and reads nothing an application changes; an
-        // edit is a constant.
-        let EnterModsTemplate { status: _, counters, edits: _ } = self;
+        // edit is a constant, and so is a cost.
+        let EnterModsTemplate { status: _, counters, edits: _, unless_paid: _ } = self;
         counters.iter().all(|c| {
             let EntryCountersTemplate { counter: _, amount, by: _ } = c;
             matches!(amount, AmountExpr::Fixed(_))

@@ -24,7 +24,8 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::types::costs::Cost;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -248,6 +249,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ScryOrder { source: Some(id), bottom: true },
         ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
         ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::Second },
+        ChoiceKind::AcceptAsItEnters { object: id, source: id, offer: EntryOffer::Pay(Cost::PayLife(2)) },
     ];
     let mut names = BTreeSet::new();
     for kind in &kinds {
@@ -260,7 +262,7 @@ fn every_variant_decides_its_subject() {
     }
     assert_eq!(
         names.len(),
-        28,
+        29,
         "one fixture per variant; a variant was added without one: {names:?}"
     );
 }

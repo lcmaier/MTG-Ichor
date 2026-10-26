@@ -30,7 +30,7 @@ use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPl
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaSymbol, ManaType};
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, Rejection};
 use crate::ui::decision::PriorityAction;
 
 /// The name the object has now, through the layers (`get_effective_name`): a
@@ -464,6 +464,9 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         ChoiceKind::ChooseEnteringDefender { object } => {
             format!("Choose what {} attacks as it enters", n(object))
         }
+        ChoiceKind::AcceptAsItEnters { object, source, offer } => {
+            format!("{}: {} as {} enters?", n(source), entry_offer_words(offer), n(object))
+        }
         ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to } => {
             format!("Choose what goes to the {to:?} as {} changes how {} enters", n(source), n(entering))
         }
@@ -752,6 +755,24 @@ pub(crate) fn additional_cost_label(cost: &AdditionalCost) -> String {
         // CR 601.2b announces only an optional cost, so this is never an
         // option; it prints with no name.
         AdditionalCost::Mandatory(_) => "Its additional cost".to_string(),
+    }
+}
+
+/// What an entry offers, as its question says it: "pay 2 life".
+pub(crate) fn entry_offer_words(offer: &EntryOffer) -> String {
+    match offer {
+        EntryOffer::Pay(cost) => match cost {
+            Cost::TapSelf => "tap it".to_string(),
+            Cost::UntapSelf => "untap it".to_string(),
+            Cost::Mana(mana) => format!("pay {mana}"),
+            Cost::PayLife(n) => format!("pay {n} life"),
+            Cost::SacrificeSelf => "sacrifice it".to_string(),
+            Cost::Sacrifice(_, n) => format!("sacrifice {n}"),
+            Cost::Discard(_, n) => format!("discard {n}"),
+            Cost::ExileFromGraveyard(_, n) => format!("exile {n} from your graveyard"),
+            Cost::RemoveCounters(_, n) => format!("remove {n} counters"),
+            Cost::AddCounters(_, n) => format!("put {n} counters"),
+        },
     }
 }
 

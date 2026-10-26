@@ -2,7 +2,7 @@ use crate::engine::combat::validation::CombatError;
 use crate::oracle::x_values::LegalXValues;
 use crate::state::battlefield::AttackTarget;
 use crate::types::colors::Color;
-use crate::types::costs::{AdditionalCost, AlternativeCost};
+use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{CounterType, EffectRecipient};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::state::game_state::GameState;
@@ -214,6 +214,14 @@ pub enum ChoiceKind {
     /// nothing is asked.
     ChooseEnteringDefender { object: ObjectId },
 
+    /// CR 614.12a — an entry replacement offers the asked player something
+    /// they may do as `object` enters, yes or no. `offer` says what: a
+    /// shockland's "you may pay 2 life", offered only when the payment is
+    /// payable beside every cost the event's entries chose already (CR
+    /// 614.12b). `source` is the object whose effect offers it, the entering
+    /// one for its own ability.
+    AcceptAsItEnters { object: ObjectId, source: ObjectId, offer: EntryOffer },
+
     /// CR 614.13/13a — an entry replacement is being applied and it moves other
     /// objects: devour's "you may sacrifice any number of creatures", Sutured
     /// Ghoul's "exile any number of creature cards from your graveyard". The
@@ -316,6 +324,14 @@ pub enum ChoiceKind {
     LegendRule { legend_name: String },
 }
 
+/// What [`ChoiceKind::AcceptAsItEnters`] offers, so a client can tell a cost
+/// from any other offer without reading the card.
+#[derive(Debug, Clone, PartialEq)]
+pub enum EntryOffer {
+    /// CR 614.12's "you may pay [cost]".
+    Pay(Cost),
+}
+
 impl ChoiceKind {
     /// The object this question is about — the spell or ability asking, or
     /// the permanent it concerns — when there is exactly one.
@@ -369,6 +385,7 @@ impl ChoiceKind {
             ChoiceKind::ChooseOpponent { source } => Some(*source),
             ChoiceKind::ChooseEnteringController { object } => Some(*object),
             ChoiceKind::ChooseEnteringDefender { object } => Some(*object),
+            ChoiceKind::AcceptAsItEnters { source, .. } => Some(*source),
             ChoiceKind::ChooseAuxiliaryZoneChange { source, .. } => Some(*source),
             ChoiceKind::ChooseCopySource { source } => Some(*source),
             ChoiceKind::CommanderToCommandZoneSba { commander } => Some(*commander),
@@ -409,6 +426,7 @@ impl ChoiceKind {
             ChoiceKind::ChooseOpponent { .. } => "ChooseOpponent",
             ChoiceKind::ChooseEnteringController { .. } => "ChooseEnteringController",
             ChoiceKind::ChooseEnteringDefender { .. } => "ChooseEnteringDefender",
+            ChoiceKind::AcceptAsItEnters { .. } => "AcceptAsItEnters",
             ChoiceKind::ChooseAuxiliaryZoneChange { .. } => "ChooseAuxiliaryZoneChange",
             ChoiceKind::ChooseCopySource { .. } => "ChooseCopySource",
             ChoiceKind::CommanderToCommandZoneSba { .. } => "CommanderToCommandZoneSba",

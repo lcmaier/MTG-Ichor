@@ -881,6 +881,7 @@ fn winding_constrictor_adds_one_of_each_kind_an_entry_carries() {
                         },
                     ],
                     edits: Vec::new(),
+                    unless_paid: None,
                 }),
             ),
         ),
@@ -978,6 +979,7 @@ fn opponents_creatures_enter_with(counter: CounterType, by: Option<PlayerRef>) -
                 status: None,
                 counters: vec![EntryCountersTemplate { counter, amount: AmountExpr::Fixed(1), by }],
                 edits: Vec::new(),
+                unless_paid: None,
             }),
         ),
     )

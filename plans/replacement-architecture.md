@@ -4427,13 +4427,12 @@ post-RE audit (2026-09-15) and amended in place where the tree moved.
   §2.2). Unchanged; `ATOM-607.2b-001` and `-2g-001` re-filed there, and
   Sutured Ghoul (`codebase-state.md` item 59) is the wrong answer waiting on it.
 - **CR 614.12b** — "combined costs of those effects to not be payable" across
-  simultaneous entries. **Was parked on cost modification, and CM-1–CM-4
-  landed (2026-09-07/08) without touching it, because that was the wrong
-  prerequisite.** It needs an entry replacement whose choice has a *cost*
-  (shocklands' "you may pay 2 life" — none registered; `EnterModsTemplate`
-  carries tapped and counters only) and a plural non-token entry (RE-4's
-  plural batch is tokens'), and the rule bites only with both.
-  `codebase-state.md` main item 134 carries the reachability and the size.
+  simultaneous entries. **Landed at #294 (2026-10-26)**: `EnterModsTemplate`'s
+  `unless_paid` carries the cost (a shockland's 2 life), offered as the
+  effect applies only when it is payable beside every cost the batch's
+  entries chose already, and paid as a loss of life right before the
+  entries, with CR 614.13's moves. Life is the cost built; another is
+  refused as it applies.
 - **CR 614.12c anchor words.** Linked abilities again — §2.2.
 - **CR 615.13** — triggers on prevention. **Critical-path item 6** ("Phase 7"
   is the archived plan's name). RD-4 left the seam: `apply_rewrite`'s return

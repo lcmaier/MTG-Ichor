@@ -1246,6 +1246,7 @@ fn an_edit_as_an_addition_and_a_nested_condition_are_refused() {
         status: None,
         counters: Vec::new(),
         edits: vec![as_a_mutant],
+        unless_paid: None,
     });
     let creature = || ObjectFilter::ByType(CardType::Creature);
     let nested = CopyException::If(creature(), vec![CopyException::If(creature(), Vec::new())]);
@@ -1269,6 +1270,7 @@ fn an_entry_edit_with_no_entry_placement_is_refused() {
         status: None,
         counters: Vec::new(),
         edits: vec![CharacteristicEdit::GainsKeyword(KeywordFlag::Flying)],
+        unless_paid: None,
     };
     let card = put_in_graveyard(
         &mut game,

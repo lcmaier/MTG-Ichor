@@ -341,6 +341,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::ChooseEnteringController { .. }
             | ChoiceKind::ChooseOpponent { .. }
             | ChoiceKind::ChooseEnteringDefender { .. }
+            | ChoiceKind::AcceptAsItEnters { .. }
             | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
             | ChoiceKind::ChooseCopySource { .. }
             | ChoiceKind::CommanderToCommandZoneSba { .. }
@@ -480,6 +481,10 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         ChoiceKind::ChooseEnteringDefender { object } => {
             (format!("what can be attacked that its effect allows, which {} attacks as it enters", n(object)), Some("508.4"))
         }
+        ChoiceKind::AcceptAsItEnters { object, offer, .. } => (
+            format!("whether to {} as {} enters", crate::ui::display::entry_offer_words(offer), n(object)),
+            Some("614.12a"),
+        ),
         ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, .. } => {
             (format!("the objects {}'s effect may move as {} enters", n(source), n(entering)), Some("614.13a"))
         }

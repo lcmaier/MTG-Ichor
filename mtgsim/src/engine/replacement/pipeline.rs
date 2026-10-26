@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
 use crate::events::cause::{EventCause, GeneratedBy};
+use crate::types::costs::Cost;
 use crate::events::event::{AppliedReplacement, GameEvent, ResolutionStamp};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::types::card_types::{CardType, Subtype, Supertype};
@@ -30,7 +31,8 @@ use crate::types::history::{CountIs, ObjectFact};
 use crate::oracle::characteristics::{get_effective_power, get_effective_types, ObjectInformation};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_take_or_leave;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::ask::ask_accept_as_it_enters;
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer};
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
 use crate::ui::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
 use crate::ui::ask::ask_choose_entering_controller;
@@ -1602,8 +1604,10 @@ impl EntryWrites {
             let def = &candidate.instance.def;
             match &def.rewrite {
                 Rewrite::EnterWith(template) => {
-                    // In full: a new field is a new row of the table.
-                    let EnterModsTemplate { status, counters, edits } = template;
+                    // In full: a new field is a new row of the table. A cost
+                    // writes nothing on the entering object; what paying it
+                    // skips is the status, counters and edits beside it.
+                    let EnterModsTemplate { status, counters, edits, unless_paid: _ } = template;
                     writes_state |= status.is_some() || !counters.is_empty();
                     for row in counters {
                         writes.add_counter_kind(row.counter);
@@ -2136,6 +2140,14 @@ fn apply_rewrite(
         // the door: a "can't have counters put on it" refuses the counters (CR 614.17d).
         Rewrite::EnterWith(template) => match event {
             GameAction::EnterBattlefield { object, from, controller, mut mods, act } => {
+                // CR 614.12: paid, the rest of the template does not apply, and
+                // the effect applied and changed nothing (CR 614.5).
+                if let Some(cost) = &template.unless_paid
+                    && pays_as_it_enters(game, ctx, chosen, object, cost)?
+                {
+                    let event = GameAction::EnterBattlefield { object, from, controller, mods, act };
+                    return Ok((Some(event), Applied::default()));
+                }
                 let extra = evaluate_enter_template(
                     game, template, chosen, object, controller, &mods,
                 )?;
@@ -2989,6 +3001,51 @@ fn redirection_is_legal(game: &GameState, to: ObjectOrPlayerId, from: ObjectOrPl
         ObjectOrPlayerId::Object(_) => true,
     };
     destination_ok && origin_ok
+}
+
+/// CR 614.12's "as this enters, you may pay [cost]", asked of the effect's
+/// controller as it applies: offered only when the cost is payable beside
+/// every cost this event's entries chose already (CR 614.12b), and decided,
+/// once taken, with the entry's other events right before it enters, as the
+/// loss of life CR 119.4 says paying life is. Life is the payment built here
+/// (CR 119.4: no more than the player's life in all; CR 119.8: not while a
+/// "can't" stops them losing it), and any other cost is refused.
+fn pays_as_it_enters(
+    game: &mut GameState,
+    ctx: &ActionContext,
+    chosen: &ReplacementInstance,
+    entering: ObjectId,
+    cost: &Cost,
+) -> Result<bool, String> {
+    let payer = chosen.controller;
+    let Cost::PayLife(life) = cost else {
+        return Err(format!(
+            "an entry replacement on {} asks {cost:?} as the permanent enters, and only paying life \
+             has a payment here (CR 614.12b's combined payability is built for life)",
+            chosen.source
+        ));
+    };
+    let cause = EventCause::Cost { player: payer, paying_for: chosen.source };
+    let payment = GameAction::LoseLife { player: payer, amount: *life, damage_source: None };
+    let chosen_already: u64 = game
+        .entry_selection
+        .costs_chosen
+        .iter()
+        .filter(|(player, _)| *player == payer)
+        .map(|(_, chosen)| match chosen {
+            Cost::PayLife(n) => *n,
+            _ => 0,
+        })
+        .sum();
+    let life_total = game.get_player(payer)?.life_total;
+    let payable = life_total >= (chosen_already + life) as i64
+        && !is_prohibited(game, &Query::EventHappens { action: &payment, cause, lookahead: None });
+    if !payable || !ask_accept_as_it_enters(ctx.dp, game, payer, entering, chosen.source, EntryOffer::Pay(cost.clone())) {
+        return Ok(false);
+    }
+    game.entry_selection.costs_chosen.push((payer, cost.clone()));
+    game.decide_before_entering(vec![payment], &ctx.caused_by(cause))?;
+    Ok(true)
 }
 
 /// Who `Rewrite::EnterUnderControlOf(player_ref)` puts the permanent under,

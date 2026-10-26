@@ -107,7 +107,7 @@ fn creatures_enter_as_mutants() -> Arc<CardData> {
     entry_effect(
         "Creatures enter as Mutants",
         and(creatures(), ObjectFilter::ByController(PlayerRef::You)),
-        EnterModsTemplate { status: None, counters: Vec::new(), edits: vec![as_a_mutant()] },
+        EnterModsTemplate { status: None, counters: Vec::new(), edits: vec![as_a_mutant()], unless_paid: None },
     )
 }
 
