@@ -21,7 +21,8 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, TokenDef,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
+use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::types::replacement::{
     AmountRewrite, AuxiliaryMove, EnterModsTemplate, EntryCountersTemplate, EventPattern, GameActionTemplate, PerChosen,
     ReplacementDef,
@@ -38,6 +39,19 @@ fn add_counters(game: &mut GameState, object: ObjectId, counter: CounterType, n:
 
 fn counters(game: &GameState, id: ObjectId, kind: CounterType) -> u32 {
     game.battlefield.get(&id).map_or(0, |entry| entry.counter_count(kind))
+}
+
+/// Every prompt `dp` answered was `expected`, player and question, in order.
+/// Rendered to compare, since a question carries no `PartialEq`.
+fn assert_asked(dp: &ScriptedDecisionProvider, expected: &[(PlayerId, ChoiceKind)]) {
+    let render = |asked: &[(PlayerId, ChoiceKind)]| asked.iter().map(|(p, kind)| format!("P{p} {kind:?}")).collect::<Vec<_>>();
+    assert_eq!(render(&dp.asked_of()), render(expected));
+}
+
+/// Where in the record `pred`'s first and last matches fall, after `mark`.
+fn record_span(game: &GameState, mark: usize, pred: impl Fn(&GameEvent) -> bool) -> (usize, usize) {
+    let seqs: Vec<usize> = game.recorded_events().records_from(mark).iter().filter(|r| pred(&r.event)).map(|r| r.seq.0).collect();
+    (*seqs.first().expect("a match"), *seqs.last().expect("a match"))
 }
 
 /// Devour, "as this enters, you may sacrifice any number of creatures. It
@@ -68,12 +82,14 @@ fn devourer(name: &str, per: PerChosen) -> Arc<CardData> {
         .build()
 }
 
-/// Enter `entering` from its graveyard, answering devour's prompt with `picks`.
-fn reanimate_devouring(game: &mut GameState, entering: ObjectId, picks: Vec<usize>) {
+/// Enter `entering` from its graveyard, answering devour's prompt with
+/// `picks`, and check `chooser` was the one asked.
+fn reanimate_devouring(game: &mut GameState, entering: ObjectId, chooser: PlayerId, picks: Vec<usize>) {
+    let prompt = || ChoiceKind::ChooseAuxiliaryZoneChange { entering, source: entering, to: Zone::Graveyard };
     let dp = test_dp();
-    dp.expect_pick_n(ChoiceKind::ChooseAuxiliaryZoneChange { entering, source: entering, to: Zone::Graveyard }, picks);
+    dp.expect_pick_n(prompt(), picks);
     game.change_zone(entering, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
-    assert!(dp.is_empty(), "devour asked once");
+    assert_asked(&dp, &[(chooser, prompt())]);
 }
 
 /// "Creatures have devour `n`", a Layer 6 grant.
@@ -140,8 +156,10 @@ fn create_two_devouring_dragons(game: &mut GameState, placeholder: ObjectId) -> 
         &ActionContext::new(&dp),
     )
     .expect("the tokens are created");
-    assert!(dp.is_empty(), "each token's devour asked once");
-    game.battlefield_ids_ordered().into_iter().filter(|id| !before.contains(id)).collect()
+    let dragons: Vec<ObjectId> = game.battlefield_ids_ordered().into_iter().filter(|id| !before.contains(id)).collect();
+    let prompt = |id| ChoiceKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard };
+    assert_asked(&dp, &[(0, prompt(dragons[0])), (0, prompt(dragons[1]))]);
+    dragons
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +197,9 @@ fn two_devour_tokens_entering_together_sacrifice_as_one_event() {
     assert_eq!(died.len(), 3);
     assert!(died.iter().all(|b| *b == died[0]), "the three sacrifices are one event: {died:?}");
     assert!(entered.iter().all(|b| *b != died[0]), "and the entries another: {entered:?}");
+    let (_, last_death) = record_span(&game, mark, |e| matches!(e, GameEvent::ZoneChange { to: Zone::Graveyard, .. }));
+    let (first_entry, _) = record_span(&game, mark, |e| matches!(e, GameEvent::PermanentEnteredBattlefield { .. }));
+    assert!(last_death < first_entry, "the sacrifices come before the entries");
 }
 
 /// Each token's counters are decided inside its own CR 616.1 loop, where a
@@ -210,9 +231,8 @@ fn an_entry_replaced_after_devour_chose_sacrifices_nothing() {
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    // The Priest is on the battlefield and devour is the entering Elder's,
-    // gathered after the battlefield sweep: index 1 applies devour first.
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
+    // Devour, the Elder's own effect, applies first.
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(elder)]);
     dp.expect_pick_n(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![0]);
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it is proposed");
     assert!(dp.is_empty());
@@ -271,7 +291,7 @@ fn a_shockland_paid_for_enters_untapped() {
 
     game.play_land(0, land, &dp).expect("the land drop");
 
-    assert!(dp.is_empty(), "offered once");
+    assert_asked(&dp, &[(0, the_offer(land))]);
     assert!(!tapped(&game, land));
     assert_eq!(game.players[0].life_total, 18);
 }
@@ -286,6 +306,7 @@ fn a_shockland_declined_enters_tapped() {
 
     game.play_land(0, land, &dp).expect("the land drop");
 
+    assert_asked(&dp, &[(0, the_offer(land))]);
     assert!(tapped(&game, land));
     assert_eq!(game.players[0].life_total, 20);
 }
@@ -301,7 +322,7 @@ fn an_unpayable_shockland_is_not_offered() {
 
     game.play_land(0, land, &dp).expect("the land drop");
 
-    assert!(dp.is_empty(), "nothing asked");
+    assert_asked(&dp, &[]);
     assert!(tapped(&game, land));
     assert_eq!(game.players[0].life_total, 1);
 }
@@ -327,11 +348,11 @@ fn two_shocklands_entering_together_cannot_both_be_paid_for_at_three_life() {
     )
     .expect("the tokens are created");
 
-    assert!(dp.is_empty(), "the second payment was never offered");
     assert_eq!(game.players[0].life_total, 1);
     let lands: Vec<ObjectId> = game.battlefield_ids_ordered();
-    let tapped_count = lands.iter().filter(|&&id| tapped(&game, id)).count();
-    assert_eq!((lands.len(), tapped_count), (2, 1), "one paid for, one tapped");
+    let paid_for: Vec<ObjectId> = lands.iter().copied().filter(|&id| !tapped(&game, id)).collect();
+    assert_eq!((lands.len(), paid_for.len()), (2, 1), "one paid for, one tapped");
+    assert_asked(&dp, &[(0, the_offer(paid_for[0]))]);
 
     let recorded = game.recorded_events();
     let batch_of = |pred: &dyn Fn(&GameEvent) -> bool| -> Vec<Option<BatchId>> {
@@ -341,6 +362,9 @@ fn two_shocklands_entering_together_cannot_both_be_paid_for_at_three_life() {
     let entered = batch_of(&|e| matches!(e, GameEvent::PermanentEnteredBattlefield { .. }));
     assert_eq!(paid.len(), 1);
     assert!(entered.iter().all(|b| *b != paid[0]), "the payment is its own event: {paid:?} {entered:?}");
+    let (payment, _) = record_span(&game, mark, |e| matches!(e, GameEvent::LifeChanged { .. }));
+    let (first_entry, _) = record_span(&game, mark, |e| matches!(e, GameEvent::PermanentEnteredBattlefield { .. }));
+    assert!(payment < first_entry, "the payment comes before the entries");
 }
 
 /// A shockland token that also says "if this land would enter, exile it
@@ -378,7 +402,8 @@ fn a_payment_whose_entry_never_happens_is_no_cost_chosen() {
     )
     .expect("the tokens are created");
 
-    assert!(dp.is_empty(), "both payments were offered: {:?}", dp.asked());
+    let offered: Vec<PlayerId> = dp.asked_of().iter().map(|(player, _)| *player).collect();
+    assert_eq!(offered, vec![0, 0], "both payments were offered, each to their controller: {:?}", dp.asked());
     assert_eq!(game.players[0].life_total, 3, "neither entry happened, so neither payment did");
 }
 
@@ -459,7 +484,7 @@ fn tribute_asks_its_controller_for_an_opponent_who_may_put_the_counters() {
 
     game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
 
-    assert!(dp.is_empty());
+    assert_asked(&dp, &[(0, the_putter(beast)), (2, the_counters(beast))]);
     assert_eq!(counters(&game, beast, CounterType::PlusOnePlusOne), 2);
     assert_eq!(who_put_counters_on(&game, mark, beast), vec![2]);
 }
@@ -476,7 +501,7 @@ fn tributes_chosen_opponent_may_decline() {
 
     game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
 
-    assert!(dp.is_empty());
+    assert_asked(&dp, &[(0, the_putter(beast)), (1, the_counters(beast))]);
     assert_eq!(counters(&game, beast, CounterType::PlusOnePlusOne), 0);
 }
 
@@ -491,7 +516,7 @@ fn tribute_with_one_opponent_asks_only_whether_to_put_them() {
 
     game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
 
-    assert!(dp.is_empty());
+    assert_asked(&dp, &[(1, the_counters(beast))]);
     assert_eq!(who_put_counters_on(&game, mark, beast), vec![1]);
 }
 
@@ -511,7 +536,7 @@ fn a_granted_devour_is_chosen_by_the_entering_creatures_controller() {
     let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let entering = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 0);
 
-    reanimate_devouring(&mut game, entering, vec![0]);
+    reanimate_devouring(&mut game, entering, 0, vec![0]);
 
     assert_eq!(game.get_object(mine).expect("its card").zone, Zone::Graveyard, "player 0 sacrificed their own creature");
     assert!(game.battlefield.contains_key(&theirs), "player 1's creature was never a candidate");
@@ -532,7 +557,7 @@ fn devour_by_the_count_gives_the_count_squared() {
     }
     let gorger = put_in_graveyard(&mut game, devourer("Fixture Squaring Gorger", PerChosen::Count), 0);
 
-    reanimate_devouring(&mut game, gorger, vec![0, 1, 2]);
+    reanimate_devouring(&mut game, gorger, 0, vec![0, 1, 2]);
 
     assert_eq!(counters(&game, gorger, CounterType::PlusOnePlusOne), 9);
     assert_eq!(game.players[0].graveyard.len(), 3, "the three it devoured");
@@ -548,7 +573,7 @@ fn devour_by_the_count_reads_this_entrys_count() {
     }
     let gorger = put_in_graveyard(&mut game, devourer("Fixture Squaring Gorger", PerChosen::Count), 0);
 
-    reanimate_devouring(&mut game, gorger, vec![0, 2]);
+    reanimate_devouring(&mut game, gorger, 0, vec![0, 2]);
 
     assert_eq!(counters(&game, gorger, CounterType::PlusOnePlusOne), 4);
 }
