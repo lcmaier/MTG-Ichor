@@ -11,8 +11,8 @@ a match's line is the source's:
   which is what a test is for.
 
 On top of them, `holders` lists every struct field and enum payload (what a
-value is stored in), and `items` every struct and enum with all its members,
-unit variants included (what a card's text can say).
+value is stored in), and `type_declarations` every struct and enum with all
+its members, unit variants included (what a card's text can say).
 """
 
 import re
@@ -227,7 +227,7 @@ def holders(path: str, text: str) -> list[Holder]:
     return out
 
 
-class Item:
+class TypeDecl:
     """One struct or enum outside test code: its kind, name, file and line,
     and its members in order, as (name, payload or type, first sentence of
     its doc). An enum's unit variant has an empty payload; `holders` skips
@@ -243,7 +243,7 @@ class Item:
         return {t for _, payload, _ in self.members for t in TYPE_NAME.findall(payload)}
 
 
-def items(path: str, text: str) -> list[Item]:
+def type_declarations(path: str, text: str) -> list[TypeDecl]:
     """Every struct and enum `text` declares outside `#[cfg(test)]`."""
     code, lines = code_only(text), text.splitlines()
     tests = test_items(code)
@@ -256,7 +256,7 @@ def items(path: str, text: str) -> list[Item]:
         k = _body_start(code, m.end())
         if k is None or code[k] == ";":
             continue
-        item = Item(kind, name, path, line_of(m.start()))
+        item = TypeDecl(kind, name, path, line_of(m.start()))
         body = ATTRIBUTE.sub(lambda a: " " * len(a.group(0)), code[k + 1 : _closing(code, k)])
         for offset, part in _split_top(body):
             doc = _doc_above(lines, line_of(k + 1 + offset)).split(". ")[0]

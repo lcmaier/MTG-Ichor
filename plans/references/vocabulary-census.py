@@ -28,7 +28,7 @@ from pathlib import Path
 
 PLANS = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PLANS))
-from check_type_surface import AUDIT, read_items, read_register, read_vocabulary, vocabulary_scope  # noqa: E402
+from check_type_surface import AUDIT, read_register, read_type_declarations, read_vocabulary, vocabulary_scope  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -49,7 +49,7 @@ def main() -> int:
     stops, _ = register
     classes, words = vocabulary
     classes = dict(classes, words=set(words))
-    declared = read_items()
+    declared = read_type_declarations()
     enums = [declared[n] for n in vocabulary_scope(declared, stops) if declared[n].kind == "enum"]
 
     if args.counts:

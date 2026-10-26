@@ -24,12 +24,16 @@ each query over the types `GameState` holds, transitively, and `GameAction`'s
 proposals, stopping at the register's card-text types and at a borrow, and
 fails a holding type the register does not list, or a count that differs.
 
-**3. Every word a card's text spells has one spelling, or a reason (§4d).**
-The second check stops at the types a card's text is written in. This one
-walks them: every enum they hold, transitively, is in one of §4d's classes,
-and every arm of an enum in its `words` class has a line with a verdict. A new
-enum fails until it is classed, a new arm until it has a line, and a
-**folds** line until its item is open, so a landed fold rewrites its lines.
+**3. Every word a card's text spells has one spelling, or a reason
+(`cr-coverage-audit.md#4d-words-and-their-spellings`).** The second check
+stops at the types a card's text is written in. This one walks them: every
+enum they hold, transitively, is in one of the register's classes, and every
+arm of an enum in its `words` class has a line with a verdict. A new enum
+fails until it is classed, a new arm until it has a line, and a **folds**
+line whose item is not open, so a landed fold rewrites its lines. It lines
+arms, not fields: a word type held in a field of a struct, or of an enum in
+another class (a trigger event's `Option<PlayerRef>`, `Choice.chooser`), is
+not asked, which the register says too.
 
 **Why per type and never per field.** On 2026-09-24 the owner turned down a
 gate on the fields of the record structs: they are the most-edited in the
@@ -52,7 +56,8 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from rust_source import aliases, holders, items, owned_types  # noqa: E402
+from rust_source import aliases, holders, owned_types, type_declarations  # noqa: E402
+from check_state_of_play import classify_item, dm_block, items_by_run  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -81,14 +86,15 @@ QUERY = re.compile(r"type `([A-Za-z][A-Za-z0-9_]*)`(?: named `([a-z_]+)`)?")
 HOLDING = re.compile(r"^- `([A-Z][A-Za-z0-9_]*)`(?: ×(\d+))? —")
 
 VOCABULARY = "## 4d. Words and their spellings"
-DEFERRED = ROOT / "plans" / "codebase-state.md"
+VOCABULARY_ANCHOR = "cr-coverage-audit.md#4d-words-and-their-spellings"
 #: A class's bullet: "- **values** — reason: `A`, `B`", wrapping.
 CLASS = re.compile(r"^- \*\*([a-z]+)\*\* —")
 WORD_ENTRY = re.compile(r"^#### `([A-Z][A-Za-z0-9_]*)`$")
 #: An arm's line: "- `Arm` — **verdict** ...".
 ARM = re.compile(r"^- `([A-Z][A-Za-z0-9_]*)` — (.*)$")
 VERDICTS = ("**owns**", "**holds**", "**kept**", "**folds**", "**not a word**")
-FOLD_ITEM = re.compile(r"\(item (\d+)\)")
+#: A fold's items: "(item 340)" or "(items 340, 341)".
+FOLD_ITEMS = re.compile(r"\(items? (\d+(?:, \d+)*)\)")
 #: Where the vocabulary walk stops: the game's state, which the second check
 #: reads, and the keys and containers, which spell no word.
 NOT_VOCABULARY = {
@@ -306,7 +312,7 @@ def read_vocabulary(text: str):
     starts = [i for i, line in enumerate(lines) if line.strip() == VOCABULARY]
     if len(starts) != 1:
         return None
-    bullets: dict[str, list[str]] = {}
+    bullet_lines: dict[str, list[str]] = {}
     words: dict[str, dict[str, str]] = {}
     current_class, current_enum = None, None
     for line in lines[starts[0] + 1 :]:
@@ -314,7 +320,7 @@ def read_vocabulary(text: str):
             break
         if m := CLASS.match(line):
             current_class, current_enum = m.group(1), None
-            bullets[current_class] = [line]
+            bullet_lines[current_class] = [line]
         elif m := WORD_ENTRY.match(line):
             current_class, current_enum = None, m.group(1)
             words[current_enum] = {}
@@ -323,23 +329,23 @@ def read_vocabulary(text: str):
         elif not line.strip() or line.startswith("#") or line.startswith("- "):
             current_class = None
         elif current_class:
-            bullets[current_class].append(line)
+            bullet_lines[current_class].append(line)
     # A class's reason may name types too; its members are the names after
     # the colon that ends the reason.
     classes = {
-        name: set(re.findall(r"`([A-Z][A-Za-z0-9_]*)`", re.split(r":\s+(?=`)", " ".join(text), maxsplit=1)[-1]))
-        for name, text in bullets.items()
+        name: set(re.findall(r"`([A-Z][A-Za-z0-9_]*)`", re.split(r":\s+(?=`)", " ".join(lines), maxsplit=1)[-1]))
+        for name, lines in bullet_lines.items()
     }
     return classes, words
 
 
-def read_items():
+def read_type_declarations():
     """Every struct and enum outside test code, by name; a name declared
     twice keeps its first, the vocabulary being read and not its doubles."""
     found = {}
     for path in sorted(SRC.rglob("*.rs")):
-        for item in items(path.relative_to(ROOT).as_posix(), path.read_text(encoding="utf-8")):
-            found.setdefault(item.name, item)
+        for decl in type_declarations(path.relative_to(ROOT).as_posix(), path.read_text(encoding="utf-8")):
+            found.setdefault(decl.name, decl)
     return found
 
 
@@ -356,15 +362,16 @@ def vocabulary_scope(declared, roots) -> list[str]:
     return sorted(seen)
 
 
-def open_items() -> set[int]:
-    """The numbers of `codebase-state.md`'s numbered items that are still
-    open: a closed one says so on its first line."""
-    out = set()
-    for line in DEFERRED.read_text(encoding="utf-8").splitlines():
-        if m := re.match(r"^(\d+)\. \*\*", line):
-            if "CLOSED" not in line and "✅" not in line:
-                out.add(int(m.group(1)))
-    return out
+def open_item_numbers() -> set[int]:
+    """The main run's open items in `codebase-state.md`'s Deferred
+    Migrations, as the board classes them (`check_state_of_play.py`): a
+    register line cites a main item, and an item is closed by its verdict."""
+    block, _ = dm_block()
+    return {
+        int(number)
+        for run, number, body, _ in items_by_run(block)
+        if run == "main" and number.isdigit() and classify_item(body) != "closed"
+    }
 
 
 def check_vocabulary() -> int:
@@ -375,7 +382,7 @@ def check_vocabulary() -> int:
         return 2
     stops, _ = register
     classes, words = vocabulary
-    declared = read_items()
+    declared = read_type_declarations()
     reached = {name for name in vocabulary_scope(declared, stops) if declared[name].kind == "enum"}
     classed = dict(classes, words=set(words))
     failures = []
@@ -386,7 +393,7 @@ def check_vocabulary() -> int:
     for c, members in sorted(classed.items()):
         for name in sorted(members - reached):
             failures.append(f"  `{name}` is in `{c}` and no longer reached")
-    still_open = open_items()
+    still_open = open_item_numbers()
     lines_read = 0
     for name, lines in sorted(words.items()):
         if name not in declared:
@@ -401,16 +408,17 @@ def check_vocabulary() -> int:
                 failures.append(f"  `{name}::{arm}` has a line and is no arm")
             elif not any(line.startswith(v) for v in VERDICTS):
                 failures.append(f"  `{name}::{arm}` has no verdict")
-            if "**folds**" in line:
-                for number in FOLD_ITEM.findall(line) or ["none"]:
+            if line.startswith("**folds**"):
+                cited = [n for group in FOLD_ITEMS.findall(line) for n in group.split(", ")]
+                for number in cited or ["none"]:
                     if number == "none" or int(number) not in still_open:
-                        failures.append(f"  `{name}::{arm}` folds through item {number}, which is not an open item")
+                        failures.append(f"  `{name}::{arm}` folds through item {number}, which is not an open main item")
     arms_total = sum(len(declared[n].members) for n in words if n in declared)
     print(f"\nvocabulary: {len(reached)} enums reached, {len(words)} word entries, {lines_read} lines for {arms_total} arms")
     if not failures:
         print("every reached enum is classed, and every word arm has its line.")
         return 0
-    print(f"\n{len(failures)} problem(s) with {AUDIT.name} §4d:\n")
+    print(f"\n{len(failures)} problem(s) with {VOCABULARY_ANCHOR}:\n")
     print("\n".join(failures))
     print(
         "\nClass a new enum, or give a new arm its line: does it spell a word another arm"
