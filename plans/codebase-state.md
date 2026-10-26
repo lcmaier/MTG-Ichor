@@ -9829,3 +9829,23 @@ keyed by its event.
      **Slotted:** `remaining-costs`, beside the other costs that route row
      builds.
 
+338. **Nothing remembers whether tribute was paid.** CR 702.104b's "if
+     tribute wasn't paid" is true when "the opponent chosen as a result of
+     the tribute ability didn't have the creature enter the battlefield with
+     +1/+1 counters as specified", and all 11 printed tribute cards read it
+     (Fanatic of Xenagos: "When this creature enters, if tribute wasn't paid,
+     ..."). Since #294 the entry asks which opponent and whether they put
+     the counters, and the entry's record names who put any counters, but no
+     record or field says a tribute choice was made, which opponent it named,
+     or that they declined, so the trigger's condition has nothing to read.
+     The answer is the permanent's own memory of how it entered, the same
+     link CR 607 makes for every "as this enters, choose". Found at #294's
+     review (the owner, 2026-10-26).
+     **Reachability (2026-10-26):** unreachable — no tribute card is
+     registered.
+     **Sized:** the chosen opponent and the answer kept with the entering
+     permanent, and a `Condition` leaf reading them at the trigger and at
+     resolution (CR 603.4): ~60–100 lines and a fixture.
+     **Slotted:** `route-review`, beside CR 607's linked abilities (item 335's
+     design), since a remembered entry choice is one of them.
+
