@@ -1032,7 +1032,14 @@ impl GameState {
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
-        let Some(DecidedBatch { members, riders, .. }) = decided? else { return Ok(0) };
+        let Some(DecidedBatch { members, riders, before_entering_window }) = decided? else { return Ok(0) };
+        // A move stays a move: no rewrite turns one into an entry (a move onto
+        // the battlefield is refused as a proposal), so none has events of its
+        // own to happen before it, which nothing here would perform.
+        debug_assert!(
+            before_entering_window.is_none() && members.iter().all(|m| m.before_entering.is_empty()),
+            "a CR 614.13 move decided events to happen before an entry of its own"
+        );
         let moved = members.iter().filter(|m| m.event.is_some()).count() as u32;
         self.entry_selection.before_entering.absorb(BeforeEntering { members, riders });
         Ok(moved)
