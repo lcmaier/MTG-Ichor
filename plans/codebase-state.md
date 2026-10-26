@@ -9849,3 +9849,30 @@ keyed by its event.
      **Slotted:** `route-review`, beside CR 607's linked abilities (item 335's
      design), since a remembered entry choice is one of them.
 
+339. **A life cost passes the payability check when its player can't lose
+     life.** CR 119.8 says a player who can't lose life can't pay a cost
+     that involves paying life, and CR 614.17b says a cost that includes an
+     event that can't happen can't be chosen. `GameState::can_pay_costs`
+     asks neither: its `PayLife` arm compares the life total with the amount
+     and nothing else, so under Platinum Emperion ("Your life total can't
+     change") a spell or ability with "Pay 2 life" passes the check. The
+     payment then proposes the life loss, `is_prohibited` drops it, and the
+     cost counts as paid with no life lost. The entry check
+     `pays_as_object_enters` already asks the prohibition, as its own
+     question beside `can_pay_costs`, so the two checks disagree on the same
+     cost. Found at #294's review (the owner, 2026-10-26).
+     The fix makes one check: `can_pay_costs` asks the restriction for each
+     cost through `cant-pay-costs`'s projection of a cost to the event it
+     includes, and the entry check calls it with the costs its player has
+     already chosen for the entering batch plus the new one. That needs the
+     list to carry each cost's source, since each entering permanent pays
+     for itself, and life summed across it (CR 119.4).
+     **Reachability (2026-10-26):** unreachable — no registered card stops a
+     player losing life.
+     **Sized:** the `PayLife` arm's restriction question and the entry check
+     moved onto `can_pay_costs`: ~40–60 lines and a fixture with a "can't
+     lose life" effect, one life cost cast and one offered as a permanent
+     enters.
+     **Slotted:** `cant-pay-costs`, whose projection of a cost to its event
+     asks this question for every arm.
+

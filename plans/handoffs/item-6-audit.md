@@ -1064,8 +1064,12 @@ item 124's precedent that a sweep does not ride inside a rules change.
      an entry's prompts are one arm per answer shape (`AcceptAsObjectEnters`,
      `ChoosePlayerAsObjectEnters`), from a census of 287 printed "as this
      enters" cards; and the three `Query` arms read as clauses. Filed: item
-     334 (a target an earlier instruction moved, for PR 6) and item 335 (an
-     "as this enters" instruction can be anything, for `route-review`).
+     334 (a target an earlier instruction moved, for PR 6); items 335, 336
+     and 338 (an "as this enters" instruction can be anything, the ordering
+     prompt naming an effect by its source, nothing remembering tribute),
+     for `route-review`; item 337 (entry costs other than life, for
+     `remaining-costs`); and item 339 (a life cost payable while its player
+     can't lose life, for `cant-pay-costs`).
 6. `resolution-recipients-and-amounts`.
    - Items 90 and 106: a resolution-created row keeps its targets for its
      rider, and `RetargetSpec::ToFixed` reads them.
