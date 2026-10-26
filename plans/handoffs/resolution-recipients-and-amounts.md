@@ -11,7 +11,8 @@ duplicate inventory's rows 38 and 39. **Revised at #295's first review
 round (2026-10-26)**: decisions 1, 3, 4 and 5 are settled; 2, 6 and 7 are
 rewritten from the cards up. **At the second round** (the same day): 2 and
 7 are settled, decision 6 answers the owner's question, and the PR splits in
-two behind a vocabulary census ("The split, and the census before it").
+two behind a vocabulary census ("The split, and the census before it"). At
+the third, decision 6 is settled: every decision is now taken.
 
 ## Where the work sits
 
@@ -553,7 +554,8 @@ opponent" body is a target per opponent, 57 cards (decision 5).
      not a target; this widens that overload, and a rider's author counts
      instances across two resolutions.
 
-   **Recommended: (a).** Naming the subject for what it is,
+   **Settled: (a)** (the owner, at #295's third review round, 2026-10-26).
+   Naming the subject for what it is,
    `EffectRecipient::ReplacedSubject` reading `RiderFacts`, is filed at
    `names-and-hygiene-sweeps`.
 
