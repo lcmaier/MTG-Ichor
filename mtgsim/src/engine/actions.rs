@@ -1032,11 +1032,19 @@ impl GameState {
         };
         let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
+        let mark = self.events.next_seq();
         let proposals = moves.into_iter().map(|action| (action, ctx.cause)).collect();
         let decided = self.decide_members(proposals, ctx, &AppliedReplacements::EMPTY);
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
+        // The window is dispatched from the record its perform starts at, so a
+        // record made under it now would reach no trigger.
+        debug_assert!(
+            self.events.next_seq() == mark,
+            "deciding the events right before an entry performed {} of them",
+            self.events.next_seq().0 - mark.0
+        );
         let Some(DecidedBatch { members, riders, just_before_entry_window }) = decided? else { return Ok(0) };
         // A move stays a move: no rewrite turns one into an entry (a move onto
         // the battlefield is refused as a proposal), so none has events of its
