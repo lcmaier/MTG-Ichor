@@ -1225,7 +1225,7 @@ route by which item 342's twenty arrived.
 - `You` — **kept** "you" as a set of one, beside `PlayerRef::You`: a relation in the family of `Opponents` and `Everyone`, and `Player(PlayerRef::You)` is refused.
 - `Opponents` — **owns** "every opponent" (CR 102.2, 102.3).
 - `Everyone` — **owns** "every player".
-- `DefendingPlayers` — **owns** "defending player" where no creature settles which (CR 802.2a): every player attacked.
+- `DefendingPlayers` — **owns** "defending player" where no creature settles which (CR 802.2a): every opponent of the attacking player during combat (CR 802.2).
 - `Player` — **holds** a `PlayerRef`: the one player a filter names, "defending player controls", "that player controls".
 - `Fixed` — **owns** "the players fixed as the effect began".
 

@@ -10049,3 +10049,41 @@ folds and 345–347 the gaps the duplicates hid.
      **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
      which adds `Antecedent::Affected`.
 
+349. **The player words the folds admit are refused in the roles that do
+     not read them yet.** `EffectRecipient::Player` and `PlayerSet::Player`
+     hold any `PlayerRef`, and the folds answered only the words the folded
+     arms held. The rest are refused loudly: a recipient naming "an
+     opponent" (one chosen), its owner, the owner of each object acted on or
+     a captured player is an `Err` at resolution ("an opponent loses 2
+     life", "its owner draws a card"); a condition asking the defending
+     players with no creature to settle which (CR 802.2a's choice), or an
+     event's, a remembered or an acted-on player, answers no and asserts in
+     a debug build; a board-free set (`PlayerSet::contains`, which a group,
+     an affected set and a history count ask) asserts the same for a player
+     word or `DefendingPlayers`; and a trigger arm naming one is refused at
+     registration. Each is a reader per role, as item 268's "that player"
+     words are.
+     **Reachability (2026-10-26):** unreachable — no registered card writes
+     any of them.
+     **Sized:** ~60–120 lines and a fixture per role: the recipient's arm
+     resolving its player as the instruction applies (CR 608.2d), the
+     condition's through its referents, `DefendingPlayers` asking the
+     controller (CR 802.2a).
+     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     beside item 268's player words.
+
+350. **A resolution cannot sweep a zone other than the battlefield.**
+     `EffectRecipient::FilteredObjectsIn` names objects in any zones, and the
+     resolution refuses every zone but the battlefield before a primitive
+     reads it, so Rest in Peace's "When this enchantment enters, exile all
+     graveyards", a resolution sweeping every graveyard, cannot be written.
+     Rest in Peace is registered with its replacement alone; its trigger was
+     deferred when it shipped, 2026-08-31.
+     **Reachability (2026-10-26):** unreachable — no registered card sweeps
+     another zone as it resolves.
+     **Sized:** ~40–60 lines: `affected_permanents`' sweep over the named
+     zones in a fixed order, the primitives that read it, and Rest in
+     Peace's trigger with a fixture.
+     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     with the recipients it builds.
+

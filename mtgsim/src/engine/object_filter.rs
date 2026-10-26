@@ -431,9 +431,10 @@ pub(crate) fn player_ref_names(
     Some(match who {
         PlayerRef::You => player == referents.you(),
         PlayerRef::OwnerOf(Antecedent::ThisObject) => player == referents.source_owner()?,
-        // A filter names no object acted on, and no other object's owner is
-        // built; an event's or a remembered player is no filter's, and "an
-        // opponent" chosen is no filter's either: its "an opponent" is any.
+        // A filter's referents name the source alone, so another object's
+        // owner, an acted-on object's, an event's player and a remembered one
+        // are no filter's; and a filter's "an opponent" is any, never one
+        // chosen. Each is a malformed question, loud in a debug build.
         PlayerRef::Owner
         | PlayerRef::OwnerOf(_)
         | PlayerRef::TheEventsPlayer

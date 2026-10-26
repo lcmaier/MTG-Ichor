@@ -147,12 +147,18 @@ pub(super) fn holds(
                         None => return false,
                     }
                 }
-                PlayerSet::DefendingPlayers => {
-                    named = PlayerSet::Fixed((0..game.players.len()).filter(|&player| game.is_defending_player(player)).collect());
+                PlayerSet::Player(PlayerRef::Player(id)) => {
+                    named = PlayerSet::Fixed(vec![*id]);
                     &named
                 }
-                // Another one player a condition names is built with its card.
-                PlayerSet::Player(_) => return false,
+                // Defending player with no creature to settle which is the
+                // controller's choice (CR 802.2a), and an event's, a
+                // remembered or an acted-on player is no condition's to read
+                // yet: each waits for its first card, loud in a debug build.
+                PlayerSet::DefendingPlayers | PlayerSet::Player(_) => {
+                    debug_assert!(false, "a condition asks {players:?}, which no condition reads yet");
+                    return false;
+                }
                 PlayerSet::Nobody | PlayerSet::You | PlayerSet::Opponents | PlayerSet::Everyone | PlayerSet::Fixed(_) => players,
             };
             player_fact_holds(players, player_fact, game, board, source, layer_index, locked_you, owner_if_gone)

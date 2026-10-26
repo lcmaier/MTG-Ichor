@@ -22,7 +22,7 @@ use crate::events::event::{CreatedAt, EventRecord, EventId, GameEvent, LifeChang
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
-use crate::types::effects::{Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet, TokenDef};
+use crate::types::effects::{PlayerRef, Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet, TokenDef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::history::TurnFact;
 use crate::types::mana::ManaType;
@@ -293,6 +293,19 @@ impl ParticipantFilter {
                 let mut subjects = either.subjects();
                 subjects.extend(or.subjects());
                 subjects
+            }
+        }
+    }
+
+    /// The sets its player halves hold.
+    pub fn player_sets(&self) -> Vec<&PlayerSet> {
+        match self {
+            ParticipantFilter::Player(players) => vec![players],
+            ParticipantFilter::Object(_) => Vec::new(),
+            ParticipantFilter::Or(either, or) => {
+                let mut sets = either.player_sets();
+                sets.extend(or.player_sets());
+                sets
             }
         }
     }
@@ -1286,6 +1299,63 @@ impl TriggerEvent {
     /// `caused_by` arm's too. The registry refuses one.
     pub fn names_a_triggering_object(&self) -> bool {
         crate::types::triggers::EventRole::ALL.iter().any(|&role| self.names_in_a_subject(Antecedent::Triggering(role)))
+    }
+
+    /// Whether a player field of the arm, or a participant's player half,
+    /// names a player an arm cannot: an arm's words are its referents' ("you"
+    /// is `PlayerSet::You`, its source's owner, its creature's defending
+    /// player, a player captured by id), so an event's player, a remembered
+    /// one, the owner of an object acted on and an "an opponent" chosen are
+    /// none of an arm's. A `caused_by` arm's too. The registry refuses one.
+    pub fn names_a_player_no_arm_can(&self) -> bool {
+        let arm_can_name = |who: &PlayerRef| {
+            matches!(
+                who,
+                PlayerRef::OwnerOf(Antecedent::ThisObject)
+                    | PlayerRef::DefendingPlayer(Antecedent::ThisObject | Antecedent::ThisObjectsHost)
+                    | PlayerRef::Player(_)
+            )
+        };
+        let sets: Vec<&PlayerSet> = match self {
+            TriggerEvent::ZoneChange { owner: players, .. }
+            | TriggerEvent::DrawsCard { player: players, .. }
+            | TriggerEvent::PhaseBegins { whose: players, .. }
+            | TriggerEvent::StepBegins { whose: players, .. }
+            | TriggerEvent::TurnBegins { whose: players }
+            | TriggerEvent::GainsLife { player: players, .. }
+            | TriggerEvent::LosesLife { player: players, .. }
+            | TriggerEvent::EntersBattlefield { controller: players, .. }
+            | TriggerEvent::ActivatesAbility { player: players, .. }
+            | TriggerEvent::CastsSpell { caster: players, .. }
+            | TriggerEvent::IsCountered { caster: players, .. }
+            | TriggerEvent::PlayerLoses { player: players }
+            | TriggerEvent::ShufflesLibrary { player: players }
+            | TriggerEvent::CreatesToken { owner: players, .. }
+            | TriggerEvent::Scries { player: players } => vec![players],
+            TriggerEvent::ControlChanges { from, to, .. } => vec![from, to],
+            TriggerEvent::BecomesTarget { target: participant, controller: players, .. }
+            | TriggerEvent::CountersPutOn { subject: participant, by: players, .. }
+            | TriggerEvent::CountersRemovedFrom { subject: participant, by: players, .. } => {
+                let mut sets = participant.player_sets();
+                sets.push(players);
+                sets
+            }
+            TriggerEvent::DamageDealt { recipient: participant, .. } | TriggerEvent::DamageIsPrevented { recipient: participant, .. } => {
+                participant.player_sets()
+            }
+            TriggerEvent::Attacks { defender, .. } => defender.iter().flat_map(ParticipantFilter::player_sets).collect(),
+            TriggerEvent::AbilityTriggers { caused_by, .. } => {
+                return caused_by.as_deref().is_some_and(TriggerEvent::names_a_player_no_arm_can);
+            }
+            TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::Blocks { .. }
+            | TriggerEvent::BecomesAttached { .. }
+            | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::AbilityResolves { .. } => Vec::new(),
+        };
+        sets.into_iter().any(|players| matches!(players, PlayerSet::Player(who) if !arm_can_name(who)))
     }
 
     /// Whether a field holding a subject names `word`, a `caused_by` arm's

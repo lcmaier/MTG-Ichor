@@ -313,21 +313,14 @@ impl GameState {
                 let Some(defending) = self.defending_player_of(*creature, ctx) else { return Ok(()) };
                 self.resolve_primitive(primitive, recipient, &[ObjectOrPlayerId::Player(defending)], ctx, dp, walk)
             }
-            // "An opponent loses 2 life", "its owner draws a card": the one
-            // player the instruction names as it applies (CR 608.2d). "You"
-            // is the controller every primitive defaults to, below.
+            // The player words a recipient's fold admitted beyond the arms it
+            // folded ("an opponent loses 2 life", "its owner draws") wait for
+            // their first cards; "you" is the controller every primitive
+            // defaults to, below.
             Effect::Atom(
-                primitive,
-                recipient @ EffectRecipient::Player(
-                    who @ (PlayerRef::Opponent
-                    | PlayerRef::OwnerOf(_)
-                    | PlayerRef::Owner
-                    | PlayerRef::Player(_)),
-                ),
-            ) => {
-                let player = self.player_the_instruction_names(who, &[], ctx, dp)?;
-                self.resolve_primitive(primitive, recipient, &[ObjectOrPlayerId::Player(player)], ctx, dp, walk)
-            }
+                _,
+                recipient @ EffectRecipient::Player(PlayerRef::Opponent | PlayerRef::OwnerOf(_) | PlayerRef::Owner | PlayerRef::Player(_)),
+            ) => Err(format!("{recipient:?} on {:?}: a recipient naming this player is not built", ctx.source)),
             // "Each player", "you and that player": every player the group names,
             // in APNAP order (CR 101.4), handed to the primitive as its players.
             // Only a primitive that says what several players at once means takes it.
@@ -344,7 +337,7 @@ impl GameState {
                     ));
                 }
                 let players: Vec<ObjectOrPlayerId> =
-                    self.players_in(group, ctx).into_iter().map(ObjectOrPlayerId::Player).collect();
+                    self.players_in(group, ctx)?.into_iter().map(ObjectOrPlayerId::Player).collect();
                 self.resolve_primitive(primitive, recipient, &players, ctx, dp, walk)
             }
             // "That creature and this creature": each member found as it would
@@ -2790,9 +2783,9 @@ impl GameState {
     /// recipients when one is, else the only opponent still in the game;
     /// with several, an instruction asks
     /// ([`Self::player_the_instruction_names`]), and a read, which cannot
-    /// ask, is loud. Bold Plagiarist's
-    /// "*they* put" is the printed customer, a trigger whose effect names the
-    /// player who triggered it — `Player(id)` once CR 603 fills it.
+    /// ask, is loud. Bold Plagiarist's "*they* put" is the printed customer
+    /// for `TheEventsPlayer`, a trigger whose effect names the player who
+    /// triggered it.
     fn resolve_player_ref(
         &self,
         by: &PlayerRef,
@@ -2891,10 +2884,10 @@ impl GameState {
     /// The players `group` names, over the seats still in the game, each once,
     /// in APNAP order (CR 101.4): the active player first, then the rest in
     /// turn order.
-    fn players_in(&self, group: &PlayerGroup, ctx: &ResolutionContext) -> Vec<PlayerId> {
-        let named = group.named.as_ref().and_then(|who| self.resolve_player_ref(who, &[], ctx).ok());
+    fn players_in(&self, group: &PlayerGroup, ctx: &ResolutionContext) -> Result<Vec<PlayerId>, String> {
+        let named = group.named.as_ref().map(|who| self.resolve_player_ref(who, &[], ctx)).transpose()?;
         let in_group = |player: PlayerId| group.relation.contains(ctx.controller, player) || named == Some(player);
-        self.players_in_game_apnap().into_iter().filter(|&p| in_group(p)).collect()
+        Ok(self.players_in_game_apnap().into_iter().filter(|&p| in_group(p)).collect())
     }
 
     /// A resolving effect's own "if" (CR 608.2c). CR 118.12's answer is the
@@ -3001,7 +2994,7 @@ impl GameState {
     fn players_named_by(&self, recipient: &EffectRecipient, ctx: &ResolutionContext) -> Result<Option<Vec<PlayerId>>, String> {
         Ok(Some(match recipient {
             EffectRecipient::Implicit | EffectRecipient::Player(PlayerRef::You) => vec![ctx.controller],
-            EffectRecipient::EachOf(group) => self.players_in(group, ctx),
+            EffectRecipient::EachOf(group) => self.players_in(group, ctx)?,
             EffectRecipient::Player(PlayerRef::DefendingPlayer(creature)) => self.defending_player_of(*creature, ctx).into_iter().collect(),
             EffectRecipient::Player(PlayerRef::TheEventsPlayer)
             | EffectRecipient::Object(Antecedent::Triggering(_) | Antecedent::Referred)

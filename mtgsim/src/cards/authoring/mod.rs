@@ -3,7 +3,9 @@
 //!
 //! `types/triggers.rs` is shaped for the matcher: every arm carries every
 //! field it could be asked about, and `None` on one means "this arm does not
-//! ask". That convention is right where it is and wrong in a card file,
+//! ask", as `PlayerSet::Everyone` does on a player's: the player fields are
+//! filters, which a set spells, while a replacement pattern's `by` stays an
+//! `Option`. That convention is right where it is and wrong in a card file,
 //! where it leaves the reader to recognize `ZoneChange { from:
 //! Some(Battlefield), to: Some(Graveyard), cause: None, owner: Everyone,
 //! multiplicity: PerOccurrence }` as the word *dies*. The constructors here

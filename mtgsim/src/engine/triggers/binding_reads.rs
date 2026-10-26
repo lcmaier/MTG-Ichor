@@ -157,6 +157,9 @@ impl TriggerDef {
         if arms.iter().any(TriggerEvent::names_a_triggering_object) {
             wrong.push("a triggering event's object, named by an arm, which has no triggering event yet");
         }
+        if arms.iter().any(TriggerEvent::names_a_player_no_arm_can) {
+            wrong.push("a player named by an arm that an arm's words do not name");
+        }
         // CR 120.10's excess is the event's, which a permanent's records sum
         // to, and a player is dealt none.
         for arm in arms {
@@ -571,6 +574,25 @@ mod tests {
         );
         let this_dies = crate::cards::authoring::dies(TriggerSubject::Object(Antecedent::ThisObject));
         assert!(whenever(this_dies, Effect::Sequence(Vec::new())).readings_its_arms_cannot_give().is_empty());
+    }
+
+    /// A player field holds the player words an arm's referents give it.
+    /// "Whenever that player gains life" has no event to take "that player"
+    /// from yet, so as an arm it would never match, and it is refused as it is
+    /// authored; "whenever defending player gains life" is the arm's own
+    /// creature's.
+    #[test]
+    fn a_player_no_arm_can_name_is_refused() {
+        use crate::types::effects::{PlayerRef, PlayerSet};
+        use crate::types::triggers::{Multiplicity, TriggerEvent};
+        let gains = |players| TriggerEvent::GainsLife { player: players, multiplicity: Multiplicity::PerOccurrence };
+        let that_player = gains(PlayerSet::Player(PlayerRef::TheEventsPlayer));
+        assert_eq!(
+            whenever(that_player, Effect::Sequence(Vec::new())).readings_its_arms_cannot_give(),
+            vec!["a player named by an arm that an arm's words do not name"]
+        );
+        let defending = gains(PlayerSet::Player(PlayerRef::DefendingPlayer(Antecedent::ThisObject)));
+        assert!(whenever(defending, Effect::Sequence(Vec::new())).readings_its_arms_cannot_give().is_empty());
     }
 
     /// "Each of up to X target creatures, where X is the number of cards

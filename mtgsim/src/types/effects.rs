@@ -165,9 +165,7 @@ pub enum PlayerRef {
     /// The owner of each object the instruction acts on, read object by
     /// object: Homeward Path's "each player gains control of all creatures
     /// they own" hands each creature to its own owner (CR 108.3), and an
-    /// entering object's counters are put by its owner. Nothing names that
-    /// object yet; its antecedent is the affected object's, which lands with
-    /// `resolution-recipients-and-amounts`.
+    /// entering object's counters are put by its owner.
     Owner,
     /// A specific player
     Player(PlayerId),
@@ -493,16 +491,17 @@ pub enum PlayerSet {
     /// Every player, including the controller — Furnace of Rath, Fog.
     Everyone,
     /// "Defending player" where no creature settles which (CR 802.2a's last
-    /// sentence): every player a creature is attacking during combat (CR
-    /// 506.2, 802.2), for a target's filter or an activation's restriction,
-    /// where which one is the controller's choice. Nobody outside combat.
-    /// Asked with the game, by a filter's reader.
+    /// sentence): every opponent of the attacking player during the combat
+    /// phase (CR 802.2), for a target's filter or an activation's
+    /// restriction, where which one is the controller's choice. Nobody outside
+    /// combat. Asked with the game, by a filter's reader.
     DefendingPlayers,
-    /// The one player a word names: "a creature defending player controls"
-    /// (53 printed), "creatures that player controls" (223). Asked with the
-    /// game and the text's referents, by a filter's or a condition's reader.
-    /// Never `PlayerRef::You`, which is [`Self::You`], nor `PlayerRef::Opponent`,
-    /// which is one chosen opponent no filter can choose.
+    /// The one player a word names: "a creature defending player controls",
+    /// "creatures that player controls". Asked with the game and the text's
+    /// referents, by a filter's or a condition's reader. Never
+    /// `PlayerRef::You`, which is [`Self::You`], nor `PlayerRef::Opponent`,
+    /// which is one chosen opponent no filter can choose: a trigger arm's are
+    /// refused at registration, and a filter's are malformed questions.
     Player(PlayerRef),
     /// A set captured when the effect was created, the way
     /// [`ObjectSet::Fixed`] captures objects: a resolution filling in the
@@ -786,9 +785,8 @@ pub enum Condition {
 /// object "this", "it" or "that creature" refers to. A recipient, a trigger's
 /// subject, a condition and "defending player" each name one
 /// (`ConditionReferents::object_for` finds it for a condition). Each role
-/// answers the words its table row in `cr-coverage-audit.md#4d-words-and-their-spellings`
-/// gives it: a trigger's subject has no triggering event yet, and a
-/// condition no remembered object.
+/// answers the words it can: a trigger's subject has no triggering event
+/// yet, and a condition no remembered object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Antecedent {
     /// "This": the object whose ability it is (CR 113.7a).
@@ -1034,11 +1032,11 @@ pub enum EffectRecipient {
     /// control". The filter is stored verbatim; `compute::object_matches_filter`
     /// resolves the set during the layer walk (CR 109.5).
     ///
-    /// **Another zone than the battlefield is static abilities' only.** A
-    /// resolution that swept one would need a zone sweep at resolution time,
-    /// and no printed card asks for one, so `resolve.rs` refuses it once,
-    /// before any primitive reads it — an arm the engine cannot apply is
-    /// worse than a missing one.
+    /// **Another zone than the battlefield is static abilities' only, for
+    /// now.** A resolution that swept one needs a zone sweep at resolution
+    /// time, which Rest in Peace's "exile all graveyards" asks and none is
+    /// built, so `resolve.rs` refuses it once, before any primitive reads it
+    /// — an arm the engine cannot apply is worse than a missing one.
     FilteredObjectsIn(ObjectFilter, ZoneSet),
     /// "Destroy that creature and this creature" (Loyal Sentry), "destroy it
     /// and all creatures it blocked this turn": each member found as it would
@@ -1125,7 +1123,7 @@ pub enum PickCount {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SelectionFilter {
     /// A player in the set: "target player" is `Everyone`, "target opponent"
-    /// `Opponents` (742 printed cards), its "you" the controller (CR 109.5).
+    /// `Opponents`, its "you" the controller (CR 109.5).
     Player(PlayerSet),
     /// "any target" — creature, player, or planeswalker
     Any,

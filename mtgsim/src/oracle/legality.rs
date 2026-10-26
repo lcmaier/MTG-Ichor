@@ -273,6 +273,8 @@ pub fn enumerate_legal_selections_upto(
     };
 
     match filter {
+        // "Target player" asks nothing of a seat, and castability asks it at
+        // every priority, so it skips the per-seat check.
         SelectionFilter::Player(crate::types::effects::PlayerSet::Everyone) => players().take(limit).collect(),
         // "Target opponent": the seats the set holds, asked as the target
         // will be checked.
