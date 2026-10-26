@@ -9811,7 +9811,11 @@ keyed by its event.
        (`pay_single_cost`), so "whenever an artifact you control becomes
        tapped" matches the Treasure as it is tapped on the battlefield, which
        is right.
-     - For the judges: where one event changes an object and moves it, does a
+     - **Answered: as the event found it** (the owner, at #293's review,
+       2026-10-25): the check's actions are simultaneous (CR 704.3), so the
+       counters come off the creature that dies, and Cloudsculpt Armorer
+       triggers. The question as it was put: where one event changes an
+       object and moves it, does a
        trigger's filter read the object as the event found it (its last known
        information, which CR 704.8 derives from before the check), as the
        damage source is read, or as it is after the event? The board is a
@@ -9825,13 +9829,11 @@ keyed by its event.
      **Reachability (2026-10-25):** unreachable — no registered card puts a
      change to an object and its move in one event (#290's A/B), and the only
      registered counter-removal trigger is Protean Hydra's on itself.
-     **Sized:** ~10–20 lines if the answer is the last known information:
-     `named_subject_matches` reads `ObjectInformation::of(named.id,
-     self.lki(named))`, as the damage arm does; ~40–60 of fixtures, the
-     counter removal above shown failing first. If the answer is the object
-     after the event, the damage arm's read goes back instead.
-     **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`, once
-     the judges answer: a state-based check's one event is that PR's batch.
+     **Sized:** ~10–20 lines: `named_subject_matches` reads
+     `ObjectInformation::of(named.id, self.lki(named))`, as the damage arm
+     does; ~40–60 of fixtures, the counter removal above shown failing first.
+     **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`: a
+     state-based check's one event is that PR's batch.
 
 ### Found by `one-fact-one-type` (2026-10-25)
 

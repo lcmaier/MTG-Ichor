@@ -1050,9 +1050,8 @@ item 124's precedent that a sweep does not ride inside a rules change.
    - Item 134: an entry choice's cost, chosen under CR 614.12b's combined
      payability and paid with those moves.
    - Item 330 (added after #290, the owner): how a trigger's filter reads an
-     object its own event moved. Its first question was answered at #293's
-     review; the second goes to the judges, and the answer decides the build
-     (the item's **Sized:** line).
+     object its own event moved. Both questions were answered at #293's
+     review: a filter reads the object as the event found it.
 6. `resolution-recipients-and-amounts`.
    - Items 90 and 106: a resolution-created row keeps its targets for its
      rider, and `RetargetSpec::ToFixed` reads them.
