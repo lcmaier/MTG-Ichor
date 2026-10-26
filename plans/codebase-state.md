@@ -8828,6 +8828,11 @@ with no batch between them; written at the item 6 audit's pass 5.
      "that player loses 2 life" with no player costs the controller 2. TR-5e's
      two new player readers skip the instruction instead; this item's
      participant reader does the same.
+     **Re-checked 2026-10-26 (#296's census, item 341):** "that player"'s
+     words are arms of `PlayerRef` (`TheEventsPlayer`, `ControllerOf`,
+     `OwnerOf`, `ForEachPlayer`), not a `PlayerAntecedent` beside it; the fold
+     PR adds the arms the existing spellings need, and this item the rest.
+     #295's design note records the change before its player half builds.
      **Slotted:** A6e's cleanup builds it in
      `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
      "that player" names its participant as the object readers do (CR 608.2c)
@@ -9898,7 +9903,9 @@ folds and 345–347 the gaps the duplicates hid.
      `Filter(ObjectFilter::All)`; `HostMatches` becomes
      `Condition::ObjectMatches(Antecedent, ObjectFilter)`, the shape
      `CounterCount` already has. #295's decision 2 had filed the recipient
-     half at `names-and-hygiene-sweeps`; #296's decision 1 moves it here.
+     half at `names-and-hygiene-sweeps`; #296's decision 1 moves it here. A
+     fold holds exactly the families of the arms it folds, so it counts no new
+     one (`engineering-practices.md#what-a-new-type-must-express`).
      **Reachability (2026-10-26):** reachable — not wrong today: each
      spelling reads its object correctly, and the cost is a reader per role
      and a sweep that grows with every card.
@@ -9917,7 +9924,13 @@ folds and 345–347 the gaps the duplicates hid.
      `EffectRecipient::Referred`'s players become. Item 268's
      `ControllerOf`, `ForEachPlayer` and the zone change's two readings are
      then arms of `PlayerRef`, not a `PlayerAntecedent` beside it (#296's
-     decision 2, reopening #295's decision 4).
+     decision 2, reopening #295's decision 4). `NamedPlayers::FirstInstance`
+     ("you and that player", read off instance 0) folds the same way:
+     `PlayerGroup.named` holds a `PlayerRef::TheEventsPlayer`, a rider's being
+     its replaced event's player, so nothing picks by position. The census
+     note had put `PlayerRef::EnchantedPlayer` in this fold too; it moved to
+     item 346, since a player word nothing can be attached to is an arm the
+     engine cannot apply. A fold holds exactly its folded arms' families.
      **Reachability (2026-10-26):** reachable — not wrong today.
      **Sized:** ~295 sites and ~50 lines, ~370–400 carried.
      **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
@@ -9936,10 +9949,19 @@ folds and 345–347 the gaps the duplicates hid.
      "creature defending player controls", 223 "that player controls"),
      never holding `PlayerRef::You`, which stays `PlayerSet::You`;
      `AnyDefendingPlayer` becomes `PlayerSet::DefendingPlayers`; and
-     `Condition::DefendingPlayer` folds into `Condition::Player`.
+     `Condition::DefendingPlayer` folds into `Condition::Player`. The trigger
+     events' own player fields are filters too, read through `player_ref_is`
+     with `PlayerRef::Opponent` as `player != you`: about 20
+     `Option<PlayerRef>` fields on `TriggerEvent` ("whenever an opponent casts
+     a spell", `GainsLife.player`, `TurnBegins.whose`, `ControlChanges`' two)
+     and `ObjectFact::DealtDamageTo.player`. Each becomes a `PlayerSet`, and
+     its `None`, "any player", becomes `PlayerSet::Everyone`, which it already
+     means (found at #296's pre-review).
      **Reachability (2026-10-26):** reachable — not wrong today: every
      registered card reads "an opponent" in the role its reader expects.
-     **Sized:** ~195 sites and ~80 lines, ~315–355 carried.
+     **Sized:** ~195 sites in the filters and ~120–180 in the trigger events'
+     fields, and ~110 lines of readers, ~480–560 carried; it takes the fold
+     PR to ~1,850–2,100 carried.
      **Slotted:** A6e's cleanup, in `card-vocabulary-folds` (#296's decision
      3).
 
@@ -9949,7 +9971,9 @@ folds and 345–347 the gaps the duplicates hid.
      and an object half. They become one `ParticipantFilter`: a player half
      (a `PlayerSet`, item 342), an object half (a `TriggerSubject`), and their
      `Or`. `SelectionFilter` stays apart, holding the same leaves, for a
-     selection's candidates (#296's decision 4).
+     selection's candidates (#296's decision 4). A fold holds exactly its
+     folded arms' families: a participant such as "a planeswalker or battle an
+     opponent controls" is the object half's `ObjectFilter`, as it is today.
      **Reachability (2026-10-26):** reachable — not wrong today.
      **Sized:** ~80 sites and ~60 lines, ~170–200 carried.
      **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
@@ -9977,7 +10001,8 @@ folds and 345–347 the gaps the duplicates hid.
      at three seats, cast from hand.
      **Slotted:** A6e's cleanup, in `card-vocabulary-folds`, with item 342,
      whose `PlayerSet` is the arm's new payload: the one behavior that PR
-     adds.
+     adds, against decision 1's "the fold PR renames", because an arm whose
+     payload its reader ignores is worse than a missing one.
 
 346. **"Enchanted player" can't be written.** CR 303.4m's "enchanted [object
      or player]" is whatever the permanent is attached to, a player for a
@@ -9991,7 +10016,7 @@ folds and 345–347 the gaps the duplicates hid.
      **Sized:** ~200–300 lines and fixtures: a Curse cast on an opponent, its
      trigger naming the enchanted player, and its host leaving the game.
      **Slotted:** `route-review`, which places what the cleanup leaves for the
-     route; Curses are Commander cards, so its row comes before Phase 8.
+     route and gives it its row.
 
 347. **Two target families have no `SelectionFilter` arm.** "Target player or
      planeswalker", 130 printed cards (`o:"target player or planeswalker"`),
