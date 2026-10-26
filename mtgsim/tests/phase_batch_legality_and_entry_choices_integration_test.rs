@@ -4,19 +4,99 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::triggers::{counters_removed_from, triggered_ability, whenever};
-use mtgsim::engine::actions::GameAction;
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_on_battlefield, put_on_battlefield_under, setup_two_player_game, test_ctx, test_dp, vanilla_creature};
+use mtgsim::test_support::{
+    put_in_graveyard, put_on_battlefield, put_on_battlefield_under, setup_two_player_game, static_ability, test_ctx, test_dp,
+    vanilla_creature,
+};
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
+use mtgsim::types::effects::{AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
+use mtgsim::types::replacement::{AuxiliaryMove, EventPattern, PerChosen, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::Zone;
+use mtgsim::ui::choice_types::ChoiceKind;
 
 fn add_counters(game: &mut GameState, object: ObjectId, counter: CounterType, n: u32) {
     game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(object), counter, n, by: 0 }, &test_ctx())
         .expect("on the battlefield");
+}
+
+fn counters(game: &GameState, id: ObjectId, kind: CounterType) -> u32 {
+    game.battlefield.get(&id).map_or(0, |entry| entry.counter_count(kind))
+}
+
+/// Devour, "as this enters, you may sacrifice any number of creatures. It
+/// enters with `per` +1/+1 counters for each" (CR 702.82a).
+fn devour(per: PerChosen) -> Effect {
+    Effect::Replacement(Box::new(ReplacementDef::new(
+        EventPattern::EnterBattlefield { cast: None },
+        ObjectSet::SourceOnly,
+        Rewrite::EnterAfterMoving(AuxiliaryMove {
+            from: Zone::Battlefield,
+            filter: ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            ),
+            to: Zone::Graveyard,
+            act: ZoneChangeAct::Sacrificed,
+            up_to: None,
+            per_chosen: Some((CounterType::PlusOnePlusOne, per)),
+        }),
+    )))
+}
+
+fn devourer(name: &str, per: PerChosen) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .card_type(CardType::Creature)
+        .power_toughness(1, 1)
+        .ability(static_ability(devour(per)))
+        .build()
+}
+
+/// Enter `entering` from its graveyard, answering devour's prompt with `picks`.
+fn reanimate_devouring(game: &mut GameState, entering: ObjectId, picks: Vec<usize>) {
+    let dp = test_dp();
+    dp.expect_pick_n(ChoiceKind::ChooseAuxiliaryZoneChange { entering, source: entering, to: Zone::Graveyard }, picks);
+    game.change_zone(entering, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
+    assert!(dp.is_empty(), "devour asked once");
+}
+
+// ---------------------------------------------------------------------------
+// Devour by a count
+// ---------------------------------------------------------------------------
+
+/// Thromok the Insatiable's "devour X, where X is the number of creatures
+/// devoured this way": its ruling's three creatures give nine counters.
+#[test]
+fn devour_by_the_count_gives_the_count_squared() {
+    let mut game = setup_two_player_game();
+    for _ in 0..3 {
+        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    }
+    let gorger = put_in_graveyard(&mut game, devourer("Fixture Squaring Gorger", PerChosen::Count), 0);
+
+    reanimate_devouring(&mut game, gorger, vec![0, 1, 2]);
+
+    assert_eq!(counters(&game, gorger, CounterType::PlusOnePlusOne), 9);
+    assert_eq!(game.players[0].graveyard.len(), 3, "the three it devoured");
+}
+
+/// Two creatures give four (the ruling's second example), so the count is
+/// read per entry rather than fixed when the ability is written.
+#[test]
+fn devour_by_the_count_reads_this_entrys_count() {
+    let mut game = setup_two_player_game();
+    for _ in 0..3 {
+        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    }
+    let gorger = put_in_graveyard(&mut game, devourer("Fixture Squaring Gorger", PerChosen::Count), 0);
+
+    reanimate_devouring(&mut game, gorger, vec![0, 2]);
+
+    assert_eq!(counters(&game, gorger, CounterType::PlusOnePlusOne), 4);
 }
 
 // ---------------------------------------------------------------------------

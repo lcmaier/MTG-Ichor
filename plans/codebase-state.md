@@ -2497,23 +2497,13 @@ measurement; what follows is what a later phase has to know.
     the chooser field only if the gather cannot give the instance that
     controller.
 
-63. **`per_chosen` is a constant per object, and Thromok the Insatiable's is
-    not.** "Devour X, where X is the number of creatures devoured this way" —
-    X creatures give X² counters, so the multiplier *is* the count. One more
-    shape in the payload (`per_chosen: PerChosen::Fixed(n) | PerChosen::Count`)
-    and no new `Rewrite` arm, which is the growth contract working as intended.
-    ~20 lines with the card. It is one of the 23 printed devour cards; the other
-    22 are `Fixed`, and CR 702.82c's devour-[quality] variants are covered
-    already by the payload's `filter`.
-
-    **Reachability (2026-10-23):** unreachable — Thromok the Insatiable is not
-    registered.
-
-    **Sized:** ~20 lines with the card, as the entry says.
-    **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`, beside
-    items 61 and 62's devour: `PerChosen::Count` with Thromok the Insatiable's
-    fixture, ~20 lines (the owner, at #293's review, 2026-10-25: a filed gap
-    with printed customers takes a route row).
+63. **~~`per_chosen` is a constant per object, and Thromok the Insatiable's is not.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+    archived.
+    `AuxiliaryMove.per_chosen` carries a `PerChosen`: `Fixed(n)` for devour N,
+    `Count` for "devour X, where X is the number of creatures devoured this
+    way", so three creatures give nine counters (Thromok's ruling).
+    **Reachability (2026-10-26):** closed — PR #294.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 63".
 
 64. **~~`PermanentFilter` filters objects in zones where nothing is a
     permanent, and the name now lies.~~ ✅ Renamed to `ObjectFilter` 2026-09-07

@@ -74,8 +74,8 @@ use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
-    AuxiliaryMove, EnterModsTemplate, EventPattern, GameActionTemplate, ReplacementDef,
-    Rewrite,
+    AuxiliaryMove, EnterModsTemplate, EventPattern, GameActionTemplate, PerChosen,
+    ReplacementDef, Rewrite,
 };
 use crate::types::zones::{Zone, ZoneChangeAct};
 
@@ -680,7 +680,7 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
                     // lives. Marking the def `optional` instead would ask twice
                     // and let a decline spend CR 614.5's one opportunity.
                     up_to: None,
-                    per_chosen: Some((CounterType::PlusOnePlusOne, 3)),
+                    per_chosen: Some((CounterType::PlusOnePlusOne, PerChosen::Fixed(3))),
                 }),
             ))),
         })

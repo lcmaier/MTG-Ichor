@@ -38,7 +38,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{
-    AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite,
+    AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, PerChosen, ReplacementDef, Rewrite,
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
@@ -124,7 +124,7 @@ fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
                 to: Zone::Graveyard,
                 act: ZoneChangeAct::Sacrificed,
                 up_to: None,
-                per_chosen: Some((CounterType::PlusOnePlusOne, n)),
+                per_chosen: Some((CounterType::PlusOnePlusOne, PerChosen::Fixed(n))),
             }),
         )))))
         .build()

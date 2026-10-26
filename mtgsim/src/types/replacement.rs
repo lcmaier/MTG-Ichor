@@ -895,11 +895,10 @@ pub enum Rewrite {
     /// Mimeoplasm Revered One, Frankenstein's Monster. They differ only in the
     /// payload's fields.
     ///
-    /// **Two of the 23 the payload does not reach**, and neither wants a new
-    /// arm: Thromok the Insatiable's "devour X, where X is the number of
-    /// creatures devoured this way" makes the multiplier *be* the count
-    /// (`codebase-state.md` item 63), and Frankenstein's Monster exiles exactly
-    /// X with a "if you can't" failure branch. **Sweep is not one of these** —
+    /// **One of the 23 the payload does not reach**, and it wants no new arm:
+    /// Frankenstein's Monster exiles exactly X with a "if you can't" failure
+    /// branch. Thromok the Insatiable's "devour X, where X is the number of
+    /// creatures devoured this way" is `PerChosen::Count`. **Sweep is not one of these** —
     /// "return any number of Mountains you control to their owner's hand" is an
     /// instruction of a resolving spell, not a modification of an entry, so it
     /// is a `Primitive` and never reaches CR 614.13.
@@ -1242,7 +1241,7 @@ impl AmountRewrite {
 ///
 /// **Where per-mechanic variety lives, so [`Rewrite`] does not grow again.**
 /// Devour N is `(Battlefield, creatures you control) → Graveyard, Sacrificed`
-/// with `per_chosen: Some((PlusOnePlusOne, N))`; Sutured Ghoul is
+/// with `per_chosen: Some((PlusOnePlusOne, PerChosen::Fixed(N)))`; Sutured Ghoul is
 /// `(Graveyard, creature cards) → Exile, Exiled` with `per_chosen: None`. The
 /// ~20 "as ~ enters, choose" cards with a board consequence are the same five
 /// fields.
@@ -1279,15 +1278,31 @@ pub struct AuxiliaryMove {
     pub up_to: Option<u32>,
 
     /// CR 122.6a — what the entering permanent is given per object chosen.
-    /// Devour 3 is `Some((PlusOnePlusOne, 3))`; Sutured Ghoul is `None`,
-    /// because its power and toughness come from a *linked* ability (CR 614.14,
-    /// 607) and not from the entry.
-    ///
-    /// **A constant per object, which Thromok the Insatiable is not**: "devour
-    /// X, where X is the number of creatures devoured this way" makes the
-    /// multiplier the count itself, so X creatures give X² counters. One more
-    /// shape here and no new [`Rewrite`] arm — `codebase-state.md` item 63.
-    pub per_chosen: Option<(CounterType, u32)>,
+    /// Devour 3 is `Some((PlusOnePlusOne, PerChosen::Fixed(3)))`; Sutured
+    /// Ghoul is `None`, because its power and toughness come from a *linked*
+    /// ability (CR 614.14, 607) and not from the entry.
+    pub per_chosen: Option<(CounterType, PerChosen)>,
+}
+
+/// How many counters an [`AuxiliaryMove`] gives per object moved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PerChosen {
+    /// Devour N's N (CR 702.82a).
+    Fixed(u32),
+    /// The number moved: Thromok the Insatiable's "devour X, where X is the
+    /// number of creatures devoured this way", so X creatures give X²
+    /// counters (its ruling).
+    Count,
+}
+
+impl PerChosen {
+    /// The counters for each of `moved` objects.
+    pub fn each(self, moved: u32) -> u32 {
+        match self {
+            PerChosen::Fixed(n) => n,
+            PerChosen::Count => moved,
+        }
+    }
 }
 
 /// What an entry replacement *adds*, before its amounts are evaluated

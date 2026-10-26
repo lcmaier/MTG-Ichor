@@ -3290,7 +3290,7 @@ fn apply_auxiliary_move(
     let moved = game.execute_actions_new_batch(batch, &ctx.caused_by(cause))?.len() as u32;
 
     Ok(match aux.per_chosen {
-        Some((counter, per)) if moved > 0 => EnterMods::with_counters(counter, moved * per),
+        Some((counter, per)) if moved > 0 => EnterMods::with_counters(counter, moved * per.each(moved)),
         _ => EnterMods::NONE,
     })
 }
