@@ -180,7 +180,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         | ChoiceKind::ApplyOptionalEffect { .. }
         | ChoiceKind::AllocateNextDamage { .. }
         | ChoiceKind::ChooseDamageSource { .. }
-        | ChoiceKind::ChooseEnteringController { .. }
+        | ChoiceKind::ChoosePlayerAsItEnters { .. }
         | ChoiceKind::ChooseOpponent { .. }
         | ChoiceKind::ChooseEnteringDefender { .. }
         | ChoiceKind::ChooseAuxiliaryZoneChange { .. }

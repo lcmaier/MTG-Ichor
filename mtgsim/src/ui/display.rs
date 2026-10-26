@@ -30,7 +30,7 @@ use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPl
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaSymbol, ManaType};
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, Rejection};
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, EntryRole, Rejection};
 use crate::ui::decision::PriorityAction;
 
 /// The name the object has now, through the layers (`get_effective_name`): a
@@ -458,9 +458,10 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
             format!("Choose which event triggers {}'s delayed ability", n(source))
         }
         ChoiceKind::ChooseOpponent { source } => format!("Choose the opponent {} names", n(source)),
-        ChoiceKind::ChooseEnteringController { object } => {
-            format!("Choose the opponent who controls {} as it enters", n(object))
-        }
+        ChoiceKind::ChoosePlayerAsItEnters { object, role, .. } => match role {
+            EntryRole::Controller => format!("Choose the opponent who controls {} as it enters", n(object)),
+            EntryRole::CounterPutter => format!("Choose the opponent who may put counters on {} as it enters", n(object)),
+        },
         ChoiceKind::ChooseEnteringDefender { object } => {
             format!("Choose what {} attacks as it enters", n(object))
         }
@@ -773,6 +774,7 @@ pub(crate) fn entry_offer_words(offer: &EntryOffer) -> String {
             Cost::RemoveCounters(_, n) => format!("remove {n} counters"),
             Cost::AddCounters(_, n) => format!("put {n} counters"),
         },
+        EntryOffer::PutCounters { counter, n } => format!("put {n} {counter:?} counters on it"),
     }
 }
 

@@ -11,21 +11,22 @@ use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_graveyard, put_in_hand, put_on_battlefield, put_on_battlefield_under, setup_two_player_game, static_ability,
-    test_ctx, test_dp, vanilla_creature,
+    put_in_graveyard, put_in_hand, put_on_battlefield, put_on_battlefield_under, setup_game, setup_two_player_game,
+    static_ability, test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::costs::Cost;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, TokenDef,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
 use mtgsim::types::replacement::{
-    AmountRewrite, AuxiliaryMove, EnterModsTemplate, EventPattern, PerChosen, ReplacementDef, Rewrite,
+    AmountRewrite, AuxiliaryMove, EnterModsTemplate, EntryCountersTemplate, EventPattern, PerChosen, ReplacementDef,
+    Rewrite,
 };
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, EntryOffer};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 
 fn add_counters(game: &mut GameState, object: ObjectId, counter: CounterType, n: u32) {
     game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(object), counter, n, by: 0 }, &test_ctx())
@@ -353,6 +354,103 @@ fn a_shockland_is_payable_at_exactly_its_cost() {
 
     assert!(!tapped(&game, land));
     assert_eq!(game.players[0].life_total, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Tribute: an opponent of your choice may put the counters
+// ---------------------------------------------------------------------------
+
+/// Tribute 2 (CR 702.104a): "As this creature enters, choose an opponent.
+/// That player may put an additional two +1/+1 counters on it as it enters."
+fn tribute_beast() -> Arc<CardData> {
+    CardDataBuilder::new("Fixture Tribute Beast")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+            EventPattern::EnterBattlefield { cast: None },
+            ObjectSet::SourceOnly,
+            Rewrite::EnterWith(EnterModsTemplate {
+                status: None,
+                counters: vec![EntryCountersTemplate {
+                    counter: CounterType::PlusOnePlusOne,
+                    amount: AmountExpr::Fixed(2),
+                    by: Some(PlayerRef::Opponent),
+                    optional: true,
+                }],
+                edits: Vec::new(),
+                unless_paid: None,
+            }),
+        )))))
+        .build()
+}
+
+fn the_putter(object: ObjectId) -> ChoiceKind {
+    ChoiceKind::ChoosePlayerAsItEnters { object, source: object, role: EntryRole::CounterPutter }
+}
+
+fn the_counters(object: ObjectId) -> ChoiceKind {
+    ChoiceKind::AcceptAsItEnters { object, source: object, offer: EntryOffer::PutCounters { counter: CounterType::PlusOnePlusOne, n: 2 } }
+}
+
+/// Who put the counters `object` entered with (CR 122.6a), off its record.
+fn who_put_counters_on(game: &GameState, mark: usize, object: ObjectId) -> Vec<usize> {
+    game.recorded_events()
+        .records_from(mark)
+        .iter()
+        .filter_map(|r| match &r.event {
+            GameEvent::CountersPutOn { subject: ObjectOrPlayer::Object(on), by, .. } if on.id == object => Some(*by),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Three seats: the entering creature's controller chooses player 2, who puts
+/// the counters on (CR 702.104a), so they are player 2's (CR 122.6a).
+#[test]
+fn tribute_asks_its_controller_for_an_opponent_who_may_put_the_counters() {
+    let mut game = setup_game(3);
+    let beast = put_in_graveyard(&mut game, tribute_beast(), 0);
+    let dp = test_dp();
+    dp.expect_choice(the_putter(beast), vec![ChoiceOption::Player(2)]);
+    dp.expect_pick_n(the_counters(beast), vec![0]);
+    let mark = game.recorded_events().len();
+
+    game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
+
+    assert!(dp.is_empty());
+    assert_eq!(counters(&game, beast, CounterType::PlusOnePlusOne), 2);
+    assert_eq!(who_put_counters_on(&game, mark, beast), vec![2]);
+}
+
+/// The chosen opponent declines, and it enters with none: tribute wasn't paid
+/// (CR 702.104b).
+#[test]
+fn tributes_chosen_opponent_may_decline() {
+    let mut game = setup_game(3);
+    let beast = put_in_graveyard(&mut game, tribute_beast(), 0);
+    let dp = test_dp();
+    dp.expect_choice(the_putter(beast), vec![ChoiceOption::Player(1)]);
+    dp.expect_pick_n(the_counters(beast), vec![]);
+
+    game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
+
+    assert!(dp.is_empty());
+    assert_eq!(counters(&game, beast, CounterType::PlusOnePlusOne), 0);
+}
+
+/// Two seats: the one opponent is the choice, unasked, and only the "may" is.
+#[test]
+fn tribute_with_one_opponent_asks_only_whether_to_put_them() {
+    let mut game = setup_two_player_game();
+    let beast = put_in_graveyard(&mut game, tribute_beast(), 0);
+    let dp = test_dp();
+    dp.expect_pick_n(the_counters(beast), vec![0]);
+    let mark = game.recorded_events().len();
+
+    game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
+
+    assert!(dp.is_empty());
+    assert_eq!(who_put_counters_on(&game, mark, beast), vec![1]);
 }
 
 // ---------------------------------------------------------------------------

@@ -1347,13 +1347,14 @@ pub struct EntryCountersTemplate {
     /// controller, and is what every printed "enters with" writes; a
     /// `Some` is resolved against the effect when it is applied
     /// (`pipeline::player_putting_counters`): `You` is the effect's controller, `Owner`
-    /// the entering object's owner, `Player` itself, and `Opponent` the only
-    /// one there is. No printed card names one (Scryfall, 2026-09-14), and
-    /// that is why the field exists rather than why it does not: the rule
-    /// states it, a card can print it next set, and a custom card can write
-    /// it — the CR is the customer and a printed card is the test
-    /// (`engineering-practices.md#gaps-a-phase-finds`).
+    /// the entering object's owner, `Player` itself, and `Opponent` the one
+    /// the effect's controller chooses among the opponents still in the game
+    /// as it applies, tribute's "choose an opponent" (CR 702.104a).
     pub by: Option<PlayerRef>,
+    /// "That player **may** put": the putter puts them or declines, asked as
+    /// the effect applies (tribute, CR 702.104a). `false` for every "enters
+    /// with", which no player chooses.
+    pub optional: bool,
 }
 
 impl EnterModsTemplate {
@@ -1384,7 +1385,7 @@ impl EnterModsTemplate {
     pub fn with_counter_amount(counter: CounterType, amount: AmountExpr) -> Self {
         EnterModsTemplate {
             status: None,
-            counters: vec![EntryCountersTemplate { counter, amount, by: None }],
+            counters: vec![EntryCountersTemplate { counter, amount, by: None, optional: false }],
             edits: Vec::new(),
             unless_paid: None,
         }
@@ -1401,11 +1402,11 @@ impl EnterModsTemplate {
         // Destructured in full, so that a new field here is a compile error
         // at the one function whose premise assumes every field is a status
         // or a constant amount (`codebase-state.md` item 47's condition (a)).
-        // A putter is neither and reads nothing an application changes; an
-        // edit is a constant, and so is a cost.
+        // A putter is neither and reads nothing an application changes, nor
+        // does its choice to decline; an edit is a constant, and so is a cost.
         let EnterModsTemplate { status: _, counters, edits: _, unless_paid: _ } = self;
         counters.iter().all(|c| {
-            let EntryCountersTemplate { counter: _, amount, by: _ } = c;
+            let EntryCountersTemplate { counter: _, amount, by: _, optional: _ } = c;
             matches!(amount, AmountExpr::Fixed(_))
         })
     }

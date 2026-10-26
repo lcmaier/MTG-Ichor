@@ -9692,27 +9692,15 @@ keyed by its event.
      lines, most in card files.
      **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`.
 
-332. **"An opponent" as the player putting an entering object's counters is
-     refused among several opponents, where CR 702.104a makes it a choice.**
-     `player_putting_counters` (`engine/replacement/pipeline.rs`) names the
-     one opponent there is and returns an `Err` among several, which the entry
-     refuses and the CR 616.1b look-ahead reads as no putter. Tribute is the
-     choice: "As this creature enters, choose an opponent. That player may put
-     an additional N +1/+1 counters on it as it enters" (CR 702.104a). The
-     entering creature's controller chooses before it enters, as CR 614.12a
-     times Xantcha's choice of controller (`entering_controller`), and the
-     chosen player may decline. Its old doc comment called the case an
-     authoring error (the owner, at #291's review, 2026-10-25).
-     **Reachability (2026-10-25):** unreachable — no registered card names an
-     opponent as the putter.
-     **Sized:** a prompt for the choice beside
-     `ask_choose_entering_controller`, the entry asking it where the
-     look-ahead keeps refusing, and the "may": ~40–60 lines and a fixture.
-     CR 702.104b's "if tribute wasn't paid" is the card's.
-     **Slotted:** A6e's cleanup, in `batch-legality-and-entry-choices`, beside its entry
-     choices: the tribute choice asked through the entry's prompt for an
-     opponent, with a three-seat fixture (the owner, at #293's review,
-     2026-10-25: a filed gap with printed customers takes a route row).
+332. **~~"An opponent" as the player putting an entering object's counters is refused among several opponents, where CR 702.104a makes it a choice.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
+     archived.
+     Tribute is a counters row with `by: Some(PlayerRef::Opponent)` and
+     `optional: true`: the entering creature's controller chooses the opponent
+     through `ChoiceKind::ChoosePlayerAsItEnters` (role `CounterPutter`, the
+     answer-shape prompt Xantcha's choice folds into), and that opponent is
+     offered the counters through `AcceptAsItEnters`, then puts them (CR 122.6a).
+     **Reachability (2026-10-26):** closed — PR #294.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 332".
 
 ### Found by `durations-and-control` (2026-10-25)
 

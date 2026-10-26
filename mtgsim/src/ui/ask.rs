@@ -41,7 +41,7 @@ use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, Player
 use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, Rejection};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole, Rejection};
 use super::decision::{DecisionProvider, PriorityAction};
 
 /// The one allocation a forced split admits, or `None` when the player has
@@ -1129,24 +1129,27 @@ pub fn ask_allocate_next_damage(
     allocate_unless_forced(dp, game, chooser, ctx, total, &options, &mins, Some(&maxs), "allocate_next_damage")
 }
 
-/// Choose which of several opponents a permanent enters under (CR 616.1b's
-/// `Rewrite::EnterUnderControlOf(PlayerRef::Opponent)` — Xantcha's "an opponent
-/// of your choice").
+/// Choose which of several opponents an entry replacement names as `object`
+/// enters, for `role`: Xantcha's "an opponent of your choice" to control it
+/// (CR 616.1b's `Rewrite::EnterUnderControlOf(PlayerRef::Opponent)`), or
+/// tribute's opponent, who may put its counters on (CR 702.104a).
 ///
 /// With one opponent the choice is forced, and answered unasked. CR 614.12a
 /// puts the choice before the permanent enters, which holds here because the
 /// CR 616.1 loop that asks runs ahead of the performer.
-pub fn ask_choose_entering_controller(
+pub fn ask_choose_player_as_it_enters(
     dp: &dyn DecisionProvider,
     game: &GameState,
     chooser: PlayerId,
     object: ObjectId,
+    source: ObjectId,
+    role: EntryRole,
     candidates: &[PlayerId],
 ) -> PlayerId {
-    assert!(!candidates.is_empty(), "ask_choose_entering_controller: no opponent to choose for {object}");
+    assert!(!candidates.is_empty(), "ask_choose_player_as_it_enters: no opponent to choose for {object}");
     let options: Vec<ChoiceOption> = candidates.iter().map(|p| ChoiceOption::Player(*p)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseEnteringController { object });
-    let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_entering_controller");
+    let ctx = ChoiceContext::new(ChoiceKind::ChoosePlayerAsItEnters { object, source, role });
+    let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_player_as_it_enters");
     candidates[index[0]]
 }
 
@@ -1185,7 +1188,7 @@ pub fn ask_choose_opponent(
 /// attacks, as it enters, among `candidates`.
 ///
 /// With one candidate the choice is forced, and answered unasked, as
-/// [`ask_choose_entering_controller`]'s is.
+/// [`ask_choose_player_as_it_enters`]'s is.
 pub fn ask_choose_entering_defender(
     dp: &dyn DecisionProvider,
     game: &GameState,

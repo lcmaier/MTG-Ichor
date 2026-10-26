@@ -22,7 +22,7 @@ use crate::types::replacement::{TokenKind, TokenSubstitution};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{
-    AmountRewrite, AuxiliaryMove, CopyDonor, EnterMods, EnterModsTemplate, EntryCounters,
+    AmountRewrite, AuxiliaryMove, CopyDonor, EnterMods, EnterModsTemplate, EntryCounters, EntryCountersTemplate,
     EventPattern, ReplacementDef,
     RetargetSpec, GameActionTemplate, Rewrite, TapStatus, TemplateAmount, Uses,
 };
@@ -32,10 +32,10 @@ use crate::oracle::characteristics::{get_effective_power, get_effective_types, O
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_take_or_leave;
 use crate::ui::ask::ask_accept_as_it_enters;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer};
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
 use crate::ui::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
-use crate::ui::ask::ask_choose_entering_controller;
+use crate::ui::ask::ask_choose_player_as_it_enters;
 use crate::ui::ask::ask_choose_replacement;
 
 use super::entry_copy::enter_as_copy;
@@ -2148,8 +2148,9 @@ fn apply_rewrite(
                     let event = GameAction::EnterBattlefield { object, from, controller, mods, act };
                     return Ok((Some(event), Applied::default()));
                 }
+                let template = entry_counter_choices(game, ctx, chosen, object, controller, &mods, template)?;
                 let extra = evaluate_enter_template(
-                    game, template, chosen, object, controller, &mods,
+                    game, &template, chosen, object, controller, &mods,
                 )?;
                 let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, caused_by_replacement(game, chosen)?);
                 mods.merge(&extra);
@@ -3003,6 +3004,48 @@ fn redirection_is_legal(game: &GameState, to: ObjectOrPlayerId, from: ObjectOrPl
     destination_ok && origin_ok
 }
 
+/// CR 702.104a's choices as an entry applies, for each counters row that has
+/// one: which opponent puts them, where the effect names "an opponent" among
+/// several (asked of the effect's controller), and whether a putter who may
+/// decline puts them (asked of that putter, once the count is known).
+/// Returns the template with each such putter named and each declined row
+/// gone; with no row that chooses, the template itself.
+fn entry_counter_choices<'t>(
+    game: &GameState,
+    ctx: &ActionContext,
+    chosen: &ReplacementInstance,
+    entering: ObjectId,
+    controller: PlayerId,
+    so_far: &EnterMods,
+    template: &'t EnterModsTemplate,
+) -> Result<std::borrow::Cow<'t, EnterModsTemplate>, String> {
+    let chooses = |row: &EntryCountersTemplate| row.optional || matches!(row.by, Some(PlayerRef::Opponent));
+    if !template.counters.iter().any(chooses) {
+        return Ok(std::borrow::Cow::Borrowed(template));
+    }
+    let mut out = EnterModsTemplate { counters: Vec::with_capacity(template.counters.len()), ..template.clone() };
+    for row in &template.counters {
+        let mut row = row.clone();
+        if let Some(PlayerRef::Opponent) = row.by {
+            let putter = named_for_an_entry(game, chosen, entering, &PlayerRef::Opponent, "as the player putting counters on", |opponents| {
+                Ok(ask_choose_player_as_it_enters(ctx.dp, game, chosen.controller, entering, chosen.source, EntryRole::CounterPutter, opponents))
+            })?;
+            row.by = Some(PlayerRef::Player(putter));
+        }
+        if row.optional {
+            let alone = EnterModsTemplate { counters: vec![row.clone()], status: None, edits: Vec::new(), unless_paid: None };
+            let offered = evaluate_enter_template(game, &alone, chosen, entering, controller, so_far)?;
+            let Some(put) = offered.counters.first() else { continue };
+            let offer = EntryOffer::PutCounters { counter: put.counter, n: put.n };
+            if !ask_accept_as_it_enters(ctx.dp, game, put.putter(controller), entering, chosen.source, offer) {
+                continue;
+            }
+        }
+        out.counters.push(row);
+    }
+    Ok(std::borrow::Cow::Owned(out))
+}
+
 /// CR 614.12's "as this enters, you may pay [cost]", asked of the effect's
 /// controller as it applies: offered only when the cost is payable beside
 /// every cost this event's entries chose already (CR 614.12b), and decided,
@@ -3062,7 +3105,7 @@ fn entering_controller(
     player_ref: &PlayerRef,
 ) -> Result<PlayerId, String> {
     named_for_an_entry(game, chosen, object, player_ref, "as the controller of", |opponents| {
-        Ok(ask_choose_entering_controller(ctx.dp, game, chosen.controller, object, opponents))
+        Ok(ask_choose_player_as_it_enters(ctx.dp, game, chosen.controller, object, chosen.source, EntryRole::Controller, opponents))
     })
 }
 
@@ -3247,10 +3290,11 @@ pub(super) fn evaluate_enter_template(
 /// The player who puts an entering object's counters on it, where the effect
 /// names one (CR 122.6a), resolved against the effect applying it.
 ///
-/// "An opponent" names the one opponent there is. Among several it is a
-/// choice, tribute's "choose an opponent. That player may put …" (CR
-/// 702.104a), which is not built: it is refused with an `Err`, which the CR
-/// 616.1b look-ahead reads as no putter.
+/// "An opponent" names the one opponent there is. Among several it is
+/// tribute's choice (CR 702.104a), which the entry makes as the effect
+/// applies (`entry_counter_choices`) and names as a `PlayerRef::Player`; a
+/// read that cannot ask, the CR 616.1b look-ahead, gets an `Err` and reads no
+/// putter.
 fn player_putting_counters(
     game: &GameState,
     chosen: &ReplacementInstance,

@@ -25,7 +25,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::costs::Cost;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -240,7 +240,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::AllocateNextDamage { source: id, remaining: 3 },
         ChoiceKind::ChooseDamageSource { source: id },
         ChoiceKind::ChooseOpponent { source: id },
-        ChoiceKind::ChooseEnteringController { object: id },
+        ChoiceKind::ChoosePlayerAsItEnters { object: id, source: id, role: EntryRole::CounterPutter },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard },
         ChoiceKind::ChooseCopySource { source: id },
         ChoiceKind::CommanderToCommandZoneSba { commander: id },

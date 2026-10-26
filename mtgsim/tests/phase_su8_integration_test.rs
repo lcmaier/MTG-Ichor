@@ -26,7 +26,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::costs::Cost;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -223,7 +223,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ChooseDamageSource { source: object },
         ChoiceKind::ChooseDelayedTriggerEvent { source: object },
         ChoiceKind::ChooseOpponent { source: object },
-        ChoiceKind::ChooseEnteringController { object },
+        ChoiceKind::ChoosePlayerAsItEnters { object, source: object, role: EntryRole::Controller },
         ChoiceKind::ChooseEnteringDefender { object },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: object, source: object, to: Zone::Graveyard },
         ChoiceKind::ChooseCopySource { source: object },
@@ -256,7 +256,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ChooseDamageSource { .. } => 18,
         ChoiceKind::ChooseDelayedTriggerEvent { .. } => 19,
         ChoiceKind::ChooseOpponent { .. } => 20,
-        ChoiceKind::ChooseEnteringController { .. } => 21,
+        ChoiceKind::ChoosePlayerAsItEnters { .. } => 21,
         ChoiceKind::ChooseEnteringDefender { .. } => 22,
         ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 23,
         ChoiceKind::ChooseCopySource { .. } => 24,
@@ -301,11 +301,15 @@ fn every_question_kind_answers_a_why() {
 /// and the why says so, as it says the chooser is not their own opponent
 /// (CR 102.2). Four seats, the fourth gone.
 #[test]
-fn a_departed_player_is_named_at_choose_entering_controller() {
+fn a_departed_player_is_named_at_choose_player_as_it_enters() {
     let mut game = setup_game(4);
     let entering = put_in_hand(&mut game, grizzly_bears(), 0);
     game.player_lost[3] = true;
-    let context = ChoiceContext::new(ChoiceKind::ChooseEnteringController { object: entering });
+    let context = ChoiceContext::new(ChoiceKind::ChoosePlayerAsItEnters {
+        object: entering,
+        source: entering,
+        role: EntryRole::Controller,
+    });
     let options = [ChoiceOption::Player(1), ChoiceOption::Player(2)];
     let question = OpenQuestion { player: 0, context: &context, options: &options };
 

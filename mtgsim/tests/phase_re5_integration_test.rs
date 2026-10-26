@@ -873,11 +873,13 @@ fn winding_constrictor_adds_one_of_each_kind_an_entry_carries() {
                             counter: CounterType::PlusOnePlusOne,
                             amount: AmountExpr::Fixed(1),
                             by: None,
+                            optional: false,
                         },
                         EntryCountersTemplate {
                             counter: CounterType::Charge,
                             amount: AmountExpr::Fixed(1),
                             by: None,
+                            optional: false,
                         },
                     ],
                     edits: Vec::new(),
@@ -977,7 +979,7 @@ fn opponents_creatures_enter_with(counter: CounterType, by: Option<PlayerRef>) -
                 )),
             Rewrite::EnterWith(EnterModsTemplate {
                 status: None,
-                counters: vec![EntryCountersTemplate { counter, amount: AmountExpr::Fixed(1), by }],
+                counters: vec![EntryCountersTemplate { counter, amount: AmountExpr::Fixed(1), by, optional: false }],
                 edits: Vec::new(),
                 unless_paid: None,
             }),
