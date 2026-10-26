@@ -169,7 +169,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 215 |
 | …of them in `PERFORMANCE_POOL` | 124 |
-| `#[test]` functions | 2838 |
+| `#[test]` functions | 2841 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -191,13 +191,13 @@ with less than 20% room is bolded.
 | | |
 |---|---:|
 | Numbered items | 386 |
-| …closed, still recorded | 241 |
-| …open — unreachable, and says why | 99 |
+| …closed, still recorded | 242 |
+| …open — unreachable, and says why | 98 |
 | **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 28 |
 | …open — nothing to build, a record for a later phase | 14 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 143 of 145 |
+| …open, carrying an explicit `**Sized:**` | 142 of 144 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -211,7 +211,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 133 |
+| …slotted to a phase or roadmap row still to come | 132 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

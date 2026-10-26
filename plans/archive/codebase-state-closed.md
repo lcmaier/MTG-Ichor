@@ -9062,3 +9062,55 @@ No field was needed: a granted devour is the entering creature's own ability, fo
     sacrifices (CR 614.13a's "you", CR 109.5), and `grants_devour` asserts it;
     the chooser field only if the gather cannot give the instance that
     controller.
+
+### Item 61 — closed 2026-10-26 by PR #294 (`batch-legality-and-entry-choices`)
+
+Devour's moves are decided as its replacement applies, under a batch id the batch's first opens, and ride on their entry (`BatchMember::before_entering`); phase 2 performs every entry's moves as that one event, right before the entries (Wood Elemental's, Overlaid Terrain's and Shimatsu's rulings), and devour counts what will be performed. An entry replaced after devour chose sacrifices nothing (CR 614.6).
+
+*Original entry:*
+
+61. **Every auxiliary move of one entry event should be one batch, and RC-5
+    ships one per application.** Thunder-Thrash Elder's own ruling
+    (Gatherer, 2008-10-01): "If multiple creatures with devour are entering
+    under your control at the same time, you may use each one's devour ability.
+    A creature you already control can be devoured by only one of them, however.
+    **All creatures devoured this way are sacrificed at the same time.**" The
+    same ruling is where CR 614.13a and 614.13b came from, and RC-5 got those
+    two right and the simultaneity wrong. `apply_auxiliary_move` performs its
+    picks through `execute_actions_new_batch` immediately, so two applications
+    are two batches at two moments; a CR 603.2c "whenever one or more creatures
+    die" would fire twice where the rules fire once.
+
+    **Unreachable today**, and it takes two things that do not exist to reach:
+    a multi-entry batch (item 46) or a second devour ability on one entry
+    (nothing grants devour; the plane in CR 614.13b's example is not a card
+    type this engine has). The fixture in
+    `phase_rc5_integration_test::grants_devour` is the only board that gets
+    there.
+
+    **Not a batch-id relabelling — a deferral, and it has a real cost.** The
+    moves would be collected across phase 1 and performed once, before phase 2
+    performs the entries. But the counters devour arrives with are computed
+    *while applying*, and RC-5 counts what the nested batch actually performed
+    (a dropped move is not a sacrifice, CR 701.21a). Deferred, there is nothing
+    performed yet to count, so the count reverts to what was chosen and the
+    prevented-move case (`test_a_prevented_sacrifice_is_not_counted`) inverts.
+    **Whoever builds this owes an answer to that**, and the CR's own wording —
+    "for each creature sacrificed this way" — is on the side of counting the
+    performed moves, which argues for performing the batch *before* the mods
+    are finalised rather than after. **Sized:** ~150 in `execute_batch_inner`
+    and `apply_auxiliary_move`, plus the count question. Lands with item 46's
+    producer, since neither is testable in a game without the other.
+
+    **Reachability (2026-10-23):** unreachable — a plural entry exists since
+    RE-4 closed item 46 (`GameAction::CreateTokens` proposes every token's
+    entry as one batch), but no registered card creates two creatures with
+    devour at once or grants devour; `grants_devour` in
+    `phase_rc5_integration_test.rs` is the only board.
+    **Slotted:** A6e's cleanup builds it in `batch-legality-and-entry-choices`
+    (the card-homed triage, 2026-10-23; the PR split at #293's review): one entry event's auxiliary moves
+    performed as one batch and counted by what was performed (CR 701.21a; the
+    card's "for each creature sacrificed this way"), with a fixture that
+    creates two creature tokens with devour at once, the plural entry RE-4
+    built, and `grants_devour`. Its check, in debug builds: every auxiliary
+    move of one entry event writes its record into one batch.

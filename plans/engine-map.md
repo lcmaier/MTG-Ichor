@@ -209,12 +209,14 @@ table, the enum and the match disagree.
 | `ProduceMana` | the pool, its one writer; `ManaAdded` | — |
 <!-- arms:end -->
 
-Four doors sit beside `execute_action` `engine/actions.rs:772`:
+Three doors sit beside `execute_action` `engine/actions.rs:772`:
 `execute_actions` for a simultaneous event, `execute_caused_actions`
 `engine/actions.rs:834` for one whose members carry causes of their own (CR
-704.3's state-based actions, CR 610.3d's returns), `execute_actions_decomposing`
-`engine/actions.rs:947` for CR 121.2's draws, and `execute_actions_new_batch`
-`engine/actions.rs:999` for `// AUXILIARY-MOVE:` (CR 614.13). The
+704.3's state-based actions, CR 610.3d's returns), and
+`execute_actions_decomposing` `engine/actions.rs:947` for CR 121.2's draws.
+`// AUXILIARY-MOVE:` marks `decide_before_entering` in `engine/actions.rs`,
+where CR 614.13's moves are decided under a batch id of their own, which
+the entering batch performs them under right before its entries. The
 `// CAST-ROLLBACK:` exemption is `rollback_cast_to_hand`
 `engine/put_on_stack.rs:732`, and `announce_zone_change` has one caller outside
 the arms: `cast_spell`, at CR 601.2i.
@@ -320,7 +322,7 @@ The prompts the engine answers itself, and why: `elisions.md` §2, §3.
 | "Becomes" events fire on the transition only | the `Tap` arm `engine/actions.rs:1706` | CR 603.2e |
 | An observable order goes through the timestamp order | `battlefield_ordered` `state/game_state.rs:1375`, `battlefield_ids_ordered` `state/game_state.rs:1385`, keyed on `PermanentState::timestamp` `state/battlefield.rs:63` | `plans/id-hasher.md` §6; the gate, `engineering-practices.md#invariant-gates` |
 | One performer, one emitter | `move_object` `engine/zones.rs:50`, `announce_zone_change` `engine/actions.rs:2133` | `replacement-architecture.md` §11, item 20 |
-| A simultaneous rule needs a batch | `execute_actions` `engine/actions.rs:821`; `execute_actions_new_batch` `engine/actions.rs:999` | `replacement-architecture.md` §4.2 |
+| A simultaneous rule needs a batch | `execute_actions` `engine/actions.rs:821`; `decide_before_entering` in `engine/actions.rs` | `replacement-architecture.md` §4.2 |
 | No outcome-bearing decision state off `GameState` | §2.6 | `codebase-state.md` item 40 |
 | Never prompt with fewer than two candidates | `Decided::Single` `engine/replacement/pipeline.rs:523` | `replacement-architecture.md` §4.1 |
 | A "can't" is not a replacement effect | `prohibition` `engine/replacement/pipeline.rs:456`, ahead of the gather | `cant-effects-architecture.md` §4.1 |

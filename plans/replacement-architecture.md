@@ -1975,22 +1975,21 @@ Lifelink proposes from inside `perform_action(DealDamage)`, and a second batch i
 there would tell a CR 603.2c trigger that two events happened. RD's CR 120.3
 decomposition is the same shape.
 
-**One exception, and it is the converse of that argument** (RC-5, 2026-09-03).
-CR 614.13's auxiliary zone changes are *not* a result of the entry: they are
-performed while the entry is still being decided, in phase 1, before the entry
-event exists at all. Joining would put a devoured creature's death and the entry
-it paid for into one CR 603.2c event. `execute_actions_new_batch` opens a
-genuinely fresh id; it has one caller, tagged `// AUXILIARY-MOVE:`, and a second
-caller needs the rule that says its events are not a result of the enclosing one.
-
-**A fresh id is right and one-per-application is wrong, corrected on review the
-same day.** Thunder-Thrash Elder's own ruling (2008-10-01) says "all creatures
-devoured this way are sacrificed at the same time" when several devour creatures
-enter together — so the target is one batch per *entry event*, not one per
-`apply_auxiliary_move` call. That is a **deferral**, not a relabelling: the moves
-would have to be collected across phase 1 and performed once, which collides
-with counting what was performed (§10's finding 5). Unreachable from the
-registered pool, sized as `codebase-state.md` item 61.
+**One exception, and it is the converse of that argument** (RC-5, 2026-09-03;
+reshaped at #294's review, 2026-10-26). CR 614.13's other objects that change
+zones are *not* a result of the entry: Wood Elemental's, Overlaid Terrain's and
+Shimatsu's rulings put them right before it, so they are an event of their own.
+Thunder-Thrash Elder's ruling makes it one event for every entry of the batch:
+"all creatures devoured this way are sacrificed at the same time". Each is
+decided as its entry's replacement applies (`decide_before_entering`, tagged
+`// AUXILIARY-MOVE:`), under a fresh batch id the batch's first opens, so the
+count devour reads in the same CR 616.1 loop is what will be performed (a move
+CR 614.6 drops is no sacrifice). The decided moves ride on their entry
+(`BatchMember::before_entering`), and the batch's phase 2 performs all of them
+under that id ahead of its entries, then dispatches it. An entry the loop
+stopped or replaced never happens, and neither do its moves. A second caller
+of the fresh id needs the rule that says its events are not a result of the
+enclosing one.
 
 **Each batch member keeps its own `applied` set.** A first draft had the batch
 share one, and that is wrong: CR 614.5 is per *event*, and batch members are

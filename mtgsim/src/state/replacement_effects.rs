@@ -223,7 +223,7 @@ impl DurationRegistry<RegisteredReplacementEffect> {
 /// Lives on `GameState`; `codebase-state.md` item 40 says why. Empty outside a
 /// batch, and empty in every batch with no entry in it, which is nearly all of
 /// them.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct EntrySelectionScope {
     /// CR 614.13a — every object entering the battlefield in this batch.
     ///
@@ -237,6 +237,15 @@ pub struct EntrySelectionScope {
     /// CR 614.13b — every object already chosen to change zones while applying
     /// an entry replacement in this batch.
     pub chosen: Vec<ObjectId>,
+
+    /// What the entry being decided now has decided to happen right before it
+    /// enters, moved onto its batch member when its CR 616.1 loop ends.
+    pub(crate) before_entering: crate::engine::replacement::BeforeEntering,
+
+    /// The batch id the batch's before-entering events are decided and
+    /// performed under, opened by the first of them so the CR 616.1 loops
+    /// that decide them are traced with the event they make.
+    pub(crate) before_entering_window: Option<crate::events::event::BatchId>,
 }
 
 impl EntrySelectionScope {

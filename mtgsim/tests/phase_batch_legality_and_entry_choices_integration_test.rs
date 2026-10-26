@@ -3,8 +3,11 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::triggers::{counters_removed_from, triggered_ability, whenever};
+use mtgsim::cards::authoring::triggers::{counters_removed_from, dies, triggered_ability, whenever};
+use mtgsim::cards::phase_rc_cards::{containment_priest, thunder_thrash_elder};
+use mtgsim::cards::phase_re_cards::soldier_token;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
+use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
@@ -13,10 +16,10 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, TokenDef,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId};
-use mtgsim::types::replacement::{AuxiliaryMove, EventPattern, PerChosen, ReplacementDef, Rewrite};
+use mtgsim::types::replacement::{AmountRewrite, AuxiliaryMove, EventPattern, PerChosen, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -77,6 +80,138 @@ fn grants_devour_to_creatures(n: u32) -> Arc<CardData> {
             EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
         )))
         .build()
+}
+
+/// Dragon Broodmother's token: "a 1/1 red and green Dragon creature token
+/// with flying and devour 2".
+fn devouring_dragon_token() -> TokenDef {
+    let mut token = soldier_token();
+    token.abilities.push(static_ability(devour(PerChosen::Fixed(2))));
+    token.rules_text = "Devour 2".into();
+    token
+}
+
+/// "Whenever one or more creatures die, you gain 1 life" (CR 603.2c).
+fn gains_when_creatures_die() -> Arc<CardData> {
+    let arm = dies(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))).once_per_event();
+    CardDataBuilder::new("Fixture Mourning Bell")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(arm, Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller))))
+        .build()
+}
+
+/// Corpsejack Menace's "If one or more +1/+1 counters would be put on a
+/// creature you control, twice that many +1/+1 counters are put on it
+/// instead".
+fn doubles_your_plus_one_counters() -> Arc<CardData> {
+    CardDataBuilder::new("Fixture Counter Doubler")
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+            EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
+            ObjectSet::battlefield_filter(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            )),
+            Rewrite::Amount(AmountRewrite::Multiplier(2)),
+        )))))
+        .build()
+}
+
+/// Two of the token above, created at once, the first devouring two
+/// creatures and the second one. `placeholder` stands for each token in the
+/// scripted prompt, which matches the prompt's kind and not its fields: the
+/// tokens have no id until they are created.
+fn create_two_devouring_dragons(game: &mut GameState, placeholder: ObjectId) -> Vec<ObjectId> {
+    let dp = test_dp();
+    let devour_prompt =
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: placeholder, source: placeholder, to: Zone::Graveyard };
+    dp.expect_pick_n(devour_prompt.clone(), vec![0, 1]);
+    dp.expect_pick_n(devour_prompt, vec![0]);
+    let before: Vec<ObjectId> = game.battlefield_ids_ordered();
+    game.execute_action(
+        GameAction::CreateTokens { defs: vec![devouring_dragon_token(), devouring_dragon_token()], controller: 0, attacking: None },
+        &ActionContext::new(&dp),
+    )
+    .expect("the tokens are created");
+    assert!(dp.is_empty(), "each token's devour asked once");
+    game.battlefield_ids_ordered().into_iter().filter(|id| !before.contains(id)).collect()
+}
+
+// ---------------------------------------------------------------------------
+// One entry event's sacrifices are one event, right before the entries
+// ---------------------------------------------------------------------------
+
+/// Two tokens with devour entering together sacrifice everything they devour
+/// at the same moment (Thunder-Thrash Elder's ruling), so "whenever one or
+/// more creatures die" triggers once, and the sacrifices are an event of
+/// their own ahead of the entries (Wood Elemental's ruling).
+#[test]
+fn two_devour_tokens_entering_together_sacrifice_as_one_event() {
+    let mut game = setup_two_player_game();
+    let bell = put_on_battlefield(&mut game, gains_when_creatures_die(), 0);
+    for _ in 0..3 {
+        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    }
+    let mark = game.recorded_events().len();
+
+    let dragons = create_two_devouring_dragons(&mut game, bell);
+
+    assert_eq!(dragons.len(), 2);
+    let mut given: Vec<u32> = dragons.iter().map(|&id| counters(&game, id, CounterType::PlusOnePlusOne)).collect();
+    given.sort();
+    assert_eq!(given, vec![2, 4], "devour 2 for one creature and for two");
+    assert_eq!(game.players[0].graveyard.len(), 3);
+    assert_eq!(game.pending_triggers.len(), 1, "one event of deaths, so one trigger (CR 603.2c)");
+
+    let recorded = game.recorded_events();
+    let batch_of = |pred: &dyn Fn(&GameEvent) -> bool| -> Vec<Option<BatchId>> {
+        recorded.records_from(mark).iter().filter(|r| pred(&r.event)).map(|r| r.stamp.batch).collect()
+    };
+    let died = batch_of(&|e| matches!(e, GameEvent::ZoneChange { to: Zone::Graveyard, .. }));
+    let entered = batch_of(&|e| matches!(e, GameEvent::PermanentEnteredBattlefield { .. }));
+    assert_eq!(died.len(), 3);
+    assert!(died.iter().all(|b| *b == died[0]), "the three sacrifices are one event: {died:?}");
+    assert!(entered.iter().all(|b| *b != died[0]), "and the entries another: {entered:?}");
+}
+
+/// Each token's counters are decided inside its own CR 616.1 loop, where a
+/// doubler reads devour's count: four creatures' worth of counters doubled
+/// is eight, two doubled is four.
+#[test]
+fn a_counter_doubler_doubles_each_devour_tokens_counters() {
+    let mut game = setup_two_player_game();
+    let doubler = put_on_battlefield(&mut game, doubles_your_plus_one_counters(), 0);
+    for _ in 0..3 {
+        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    }
+
+    let dragons = create_two_devouring_dragons(&mut game, doubler);
+
+    let mut given: Vec<u32> = dragons.iter().map(|&id| counters(&game, id, CounterType::PlusOnePlusOne)).collect();
+    given.sort();
+    assert_eq!(given, vec![4, 8]);
+}
+
+/// Devour applies first and chooses a creature, then Containment Priest
+/// replaces the entry with an exile. The entry devour modified never happens
+/// (CR 614.6), so neither does the sacrifice that was part of it.
+#[test]
+fn an_entry_replaced_after_devour_chose_sacrifices_nothing() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, containment_priest(), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
+
+    let dp = test_dp();
+    // The Priest is on the battlefield and devour is the entering Elder's,
+    // gathered after the battlefield sweep: index 1 applies devour first.
+    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
+    dp.expect_pick_n(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![0]);
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it is proposed");
+    assert!(dp.is_empty());
+
+    assert_eq!(game.get_object(elder).expect("its card").zone, Zone::Exile, "the Priest exiled it instead");
+    assert!(game.battlefield.contains_key(&bear), "the sacrifice was part of an entry that never happened");
 }
 
 // ---------------------------------------------------------------------------

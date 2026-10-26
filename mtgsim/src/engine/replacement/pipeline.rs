@@ -124,7 +124,7 @@ struct Applied {
 /// One member of a batch, from its proposal to its performance: CR 704.3
 /// decides every member against one board, then performs them all, and these
 /// are the facts that carries between the two.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct BatchMember {
     /// Its place in the batch as proposed, which phase 2 performs in: CR 101.4
     /// orders the choices, and the events are simultaneous but observable (a
@@ -144,11 +144,53 @@ pub(crate) struct BatchMember {
     /// after it. `None` for every other member, and for a destruction that was
     /// replaced or stopped, which no longer moves anything.
     pub inner_move: Option<Box<BatchMember>>,
+    /// What this entry's replacements decided to happen right before it
+    /// enters. Empty for every member but an entry with a CR 614.13 move.
+    pub before_entering: BeforeEntering,
 }
 
 impl BatchMember {
     pub(crate) fn proposed(place: usize, action: GameAction, cause: EventCause) -> Self {
-        BatchMember { place, event: Some(action), cause, applied: AppliedReplacements::EMPTY, inner_move: None }
+        BatchMember {
+            place,
+            event: Some(action),
+            cause,
+            applied: AppliedReplacements::EMPTY,
+            inner_move: None,
+            before_entering: BeforeEntering::default(),
+        }
+    }
+}
+
+/// The events an entry's replacements decide on as they apply, performed
+/// right before the permanent enters, as an event of their own: CR 614.13's
+/// other objects that change zones, which Wood Elemental's, Overlaid
+/// Terrain's and Shimatsu's rulings put right before the entry. Every entry
+/// of one batch shares that event: "all creatures devoured this way are
+/// sacrificed at the same time" (Thunder-Thrash Elder's ruling).
+///
+/// Decided in phase 1 with the entry, so a count read in the same CR 616.1
+/// loop is what will happen (CR 614.6 drops a move it prevents), and
+/// performed in phase 2 ahead of the entries.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct BeforeEntering {
+    /// Decided, in the order they perform.
+    pub members: Vec<BatchMember>,
+    /// The riders the replacements on them queued (CR 615.5), run once they
+    /// have been performed.
+    pub riders: Vec<Rider>,
+}
+
+impl BeforeEntering {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.members.is_empty() && self.riders.is_empty()
+    }
+
+    /// `more` after these, renumbered to follow them.
+    pub(crate) fn absorb(&mut self, more: BeforeEntering) {
+        let first = self.members.len();
+        self.members.extend(more.members.into_iter().enumerate().map(|(i, member)| BatchMember { place: first + i, ..member }));
+        self.riders.extend(more.riders);
     }
 }
 
@@ -2048,11 +2090,11 @@ fn is_unpreventable(game: &GameState, unpreventable: bool, subject: Option<Objec
 /// members at once, and `None` for every other arm.
 ///
 /// **`&mut` because of that last one, and only that one.** CR 614.13 is the
-/// rules' own statement that applying an entry replacement may change the
-/// board, so a rewrite is no longer a pure function of the event. Every other
-/// arm still is, and the mutation goes through `execute_actions_new_batch`
-/// rather than a direct write — the chokepoint invariant does not have an
-/// exception here.
+/// rules' own statement that applying an entry replacement may move other
+/// objects, so a rewrite is no longer a pure function of the event. Every
+/// other arm still is. The moves are decided here and held on `GameState`
+/// (`decide_before_entering`), and the batch performs them right before its
+/// entries, so nothing here changes the board.
 fn apply_rewrite(
     game: &mut GameState,
     ctx: &ActionContext,
@@ -3210,8 +3252,8 @@ fn named_for_an_entry(
     })
 }
 
-/// CR 614.13's application: choose a number of objects, move them, and report
-/// what the entering permanent gets for it.
+/// CR 614.13's application: choose a number of objects, decide their moves,
+/// and report what the entering permanent gets for it.
 ///
 /// The three things §9 said did not exist, in order.
 ///
@@ -3221,17 +3263,18 @@ fn named_for_an_entry(
 ///    creature unsacrificeable removes it from the list rather than letting it
 ///    be chosen and then refusing the move — the count would be wrong either
 ///    way, and only one of them is a *choice* the player was allowed to make.
-/// 2. **The moves.** Proposed, never written: `execute_actions_new_batch` puts
+/// 2. **The moves.** Proposed, never written: `decide_before_entering` puts
 ///    them through the whole CR 614 pipeline with fresh applied sets
 ///    (CR 614.5), so a finality counter still exiles a devoured creature and
-///    Kalitas still gets its Zombie.
-/// 3. **The count.** What was *performed*, not what was picked. A move a
-///    replacement dropped entirely never happened (CR 614.6), so it is not a
+///    Kalitas still gets its Zombie. They are decided now and performed right
+///    before the entry, with every other entry's of the batch.
+/// 3. **The count.** What will be performed, not what was picked. A move a
+///    replacement dropped entirely never happens (CR 614.6), so it is not a
 ///    creature that was sacrificed; a move some effect redirected still is one.
 ///
-/// CR 614.13b is recorded **before** the moves, so a nested batch cannot lose
-/// it and the state a fork would need at the next prompt is already in
-/// `GameState` (`codebase-state.md` item 40).
+/// CR 614.13b is recorded **before** the moves are decided, and the decided
+/// moves wait on `GameState::entry_selection`, so the state a fork would need
+/// at the next prompt is already in `GameState` (`codebase-state.md` item 40).
 fn apply_auxiliary_move(
     game: &mut GameState,
     ctx: &ActionContext,
@@ -3273,11 +3316,7 @@ fn apply_auxiliary_move(
     }
     game.entry_selection.chosen.extend(picked.iter().copied());
 
-    // AUXILIARY-MOVE: CR 614.13's moves are not a result of the entry — they
-    // are performed while it is still being decided — so they get their own
-    // batch id rather than joining the one this pipeline is inside
-    // (`replacement-architecture.md` §4.2).
-    let batch: Vec<GameAction> = picked
+    let moves: Vec<GameAction> = picked
         .iter()
         .map(|&id| GameAction::ZoneChange {
             object: id,
@@ -3286,7 +3325,7 @@ fn apply_auxiliary_move(
             act: aux.act,
         })
         .collect();
-    let moved = game.execute_actions_new_batch(batch, &ctx.caused_by(cause))?.len() as u32;
+    let moved = game.decide_before_entering(moves, &ctx.caused_by(cause))?;
 
     Ok(match aux.per_chosen {
         Some((counter, per)) if moved > 0 => EnterMods::with_counters(counter, moved * per.each(moved)),
