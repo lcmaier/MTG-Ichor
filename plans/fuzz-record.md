@@ -103,8 +103,9 @@ a rule's own action, a change of control announced before the next effect
 a resolution writes, the control sweep's view held once, CR 302.6's clock
 seeded from the entry turn, and `GainControl` naming who gains control;
 A6e's cleanup PR 5, its first half). No card moves and neither pool moved,
-so no table is re-recorded. One `close_out.py` sitting, **main** `5b57860`
-(#292's merge) against **engine** `70d6919`, every item's commit.
+so no table is re-recorded. Two `close_out.py` sittings against **main**
+`5b57860` (#292's merge): **engine** `70d6919`, every item's commit, and
+then `d94532f`, with the pre-review's fixes.
 
 **Predictions, before any arm ran:**
 - gameplay identical on both pools at two seats and four, unless a game
@@ -118,13 +119,13 @@ so no table is re-recorded. One `close_out.py` sitting, **main** `5b57860`
 
 | | 2 seats | 4 seats |
 |---|---|---|
-| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
-| `Restriction queries`, `main` → engine, performance / stress | 978 → 993 / 929 → 941 | 1,894 → 1,924 / 1,934 → 1,964 |
+| gameplay rows, engine vs `main`, performance / stress (both sittings) | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Restriction queries`, `main` → engine, performance / stress (both sittings) | 978 → 993 / 929 → 941 | 1,894 → 1,924 / 1,934 → 1,964 |
 | `Memo hits`, `main` → engine, performance / stress | 55,460 → 55,486 / 57,261 → 57,393 | 156,468 → 156,584 / 183,182 → 183,472 |
 | audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,027 |
-| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7443 M → 0.7448 M, **+0.07%** |
+| instructions / decision, `d94532f` vs `main`, callgrind, the Commander board | | 0.7442 M → 0.7443 M, **+0.02%** (`70d6919`: +0.07%) |
 | clone floors, held memory and the round trip (CI's release step) | | pass, as `main` |
-| audited smoke, engine, 1,000 games at seed 777, performance / stress: errors, panics, turn limits | 0 / 0 | 0 / 0 |
+| audited smoke, both arms, 1,000 games at seed 777, performance / stress: errors, panics, turn limits | 0 / 0 | 0 / 0 |
 
 The restriction queries are the state-based check asking the new axis of
 each member it gathers; the memo hits, the frames those questions and the
