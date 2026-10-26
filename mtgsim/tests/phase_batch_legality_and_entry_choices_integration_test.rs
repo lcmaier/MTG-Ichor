@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::triggers::{counters_removed_from, dies, triggered_ability, whenever};
-use mtgsim::cards::phase_rc_cards::{containment_priest, thunder_thrash_elder};
+use mtgsim::cards::phase_rc_cards::{containment_priest, master_biomancer, thunder_thrash_elder};
 use mtgsim::cards::phase_re_cards::soldier_token;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::{BatchId, GameEvent};
@@ -239,6 +239,28 @@ fn an_entry_replaced_after_devour_chose_sacrifices_nothing() {
 
     assert_eq!(game.get_object(elder).expect("its card").zone, Zone::Exile, "the Priest exiled it instead");
     assert!(game.battlefield.contains_key(&bear), "the sacrifice was part of an entry that never happened");
+}
+
+/// Thunder-Thrash Elder devours Master Biomancer, and Biomancer's own effect
+/// still applies to the Elder's entry. Nothing is performed until the entry's
+/// choices are all made, so Biomancer is on the battlefield when CR 616.1f
+/// asks what else applies: it is an object that "will also change zones"
+/// (CR 614.13a), and it leaves with the sacrifice, right before the Elder
+/// enters. Three counters for devour, two for Biomancer's power.
+#[test]
+fn a_devoured_permanents_own_entry_effect_still_applies() {
+    let mut game = setup_two_player_game();
+    let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
+    let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
+    let dp = test_dp();
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(elder)]);
+    dp.expect_pick_n(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![0]);
+
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
+
+    assert!(dp.is_empty(), "devour first, then Biomancer's effect alone: {:?}", dp.asked());
+    assert_eq!(game.get_object(biomancer).expect("its card").zone, Zone::Graveyard, "devoured");
+    assert_eq!(counters(&game, elder, CounterType::PlusOnePlusOne), 5);
 }
 
 // ---------------------------------------------------------------------------

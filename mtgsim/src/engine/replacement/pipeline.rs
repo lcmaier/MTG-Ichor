@@ -173,7 +173,10 @@ impl BatchMember {
 ///
 /// Decided in phase 1 with the entry, so a count read in the same CR 616.1
 /// loop is what will happen (CR 614.6 drops a move it prevents), and
-/// performed in phase 2 ahead of the entries.
+/// performed in phase 2 ahead of the entries. Until then an object chosen to
+/// move is where it was, so its own effects still apply to the entry: a
+/// devoured Master Biomancer still gives the devouring creature its counters
+/// (CR 616.1f, and 614.13a's objects that "will also change zones").
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BeforeEntering {
     /// Decided, in the order they perform.
