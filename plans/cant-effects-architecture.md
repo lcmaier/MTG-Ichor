@@ -78,7 +78,7 @@ not hidden.
 `engine::replacement::is_blocked` was a `bool`-returning match over `GameAction`,
 consulted at the top of every CR 616.1f iteration and winning over the pipeline.
 (RB's name and RB's shape, written up before RS-1; the mechanism is
-`engine::restriction::is_prohibited` asked with a `Query::Event` since 68bfdad,
+`engine::restriction::is_prohibited` asked with a `Query::EventHappens` since 68bfdad,
 which is this section's argument carried out.)
 Three things about it are *right* and this design keeps all three:
 
@@ -232,7 +232,7 @@ one shared vocabulary rather than four bespoke checks.
 | Restriction | Where it would be checked | Today |
 |---|---|---|
 | Indestructible | `restriction::predicate`'s `keyword_restrictions`, asked by `prohibition` at the pipeline's top | ✅ a keyword-derived `Restriction::Event` (RS-1) |
-| Can't be regenerated | `gather.rs::push_if_applicable`, asking `is_prohibited` with `Query::TryApplyReplacement` | ✅ a registered `Restriction::ApplyReplacement` (RS-1) |
+| Can't be regenerated | `gather.rs::push_if_applicable`, asking `is_prohibited` with `Query::ReplacementApplies` | ✅ a registered `Restriction::ApplyReplacement` (RS-1) |
 | Defender | `oracle/legality.rs::can_attack`, which `validate_attackers` asks | ✅ hardcoded |
 | Flying vs. non-reach blocker | `can_block`, `engine/combat/validation.rs` | ✅ hardcoded |
 | Menace, Intimidate | — | ❌ flag exists, nothing reads it |
@@ -570,11 +570,11 @@ restriction ability without having a replacement one.
 /// CR 101.2 — is this prohibited right now?
 ///
 /// The one reader of every restriction. `is_blocked` became
-/// `is_prohibited(game, &Query::Event { action, cause, lookahead })`.
+/// `is_prohibited(game, &Query::EventHappens { action, cause, lookahead })`.
 pub fn is_prohibited(game: &GameState, query: &Query) -> bool;
 ```
 
-As built (`engine/restriction/predicate.rs`), `Query::Event` carries the
+As built (`engine/restriction/predicate.rs`), `Query::EventHappens` carries the
 proposal's cause, for a "can't" scoped by source (Sigarda), and CR 614.17d's
 look-ahead frame when the caller holds one; `is_prohibited` is the `is_some` of
 `prohibition`, which names the restriction that matched (§3.7).
@@ -1126,7 +1126,7 @@ have will take place."
 **Site.** `gather.rs::push_if_applicable`, where CR 701.19c already lives.
 
 **What changes.** The `game.cant_be_regenerated.contains(&id)` lookup becomes
-`is_prohibited(game, &Query::TryApplyReplacement { .. })`, and the
+`is_prohibited(game, &Query::ReplacementApplies { .. })`, and the
 `GameState` `HashSet` goes away (§6.4). `ReplacementDef::is_regeneration` gains
 its second reader — which its own doc calls "the smell" — and that is correct
 here rather than a violation: the field's doc says it is a *rules-level
@@ -1354,7 +1354,7 @@ records that collapsing those variants breaks 614.12 silently. It now breaks
 614.17d silently too. Same rule, second customer.
 
 **Landed 2026-09-02 (RC-4), in two shapes rather than one.** `is_prohibited`
-takes the CR 614.12 frame — `Query::Event::lookahead`, or one derived from the
+takes the CR 614.12 frame — `Query::EventHappens::lookahead`, or one derived from the
 action — and `set_affects` matches a `Filter` about an entering permanent
 against it. The population above splits on *which event* the "can't" watches:
 

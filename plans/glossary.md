@@ -141,7 +141,7 @@ right for that name and made this pair.
 forbids, checked ahead of the replacement pipeline and winning over it
 (CR 101.2). Sense 2 had a function — RB's `engine::replacement::is_blocked`,
 which RS-1 deleted; the mechanism is `engine::restriction::is_prohibited` asked
-with a `Query::Event`. Four pointers outlived the name, and a grep after one
+with a `Query::EventHappens`. Four pointers outlived the name, and a grep after one
 lands on sense 1.
 
 **window** — **(1)** the records one dispatch matches over: every record one

@@ -446,7 +446,7 @@ pub(crate) fn apply_replacements(
             // iteration because CR 614.17c lets a self-replacement change the event's type.
             let prohibited = prohibition(
                 game,
-                &Query::Event {
+                &Query::EventHappens {
                     action: event,
                     // What caused this event, for a "can't" that names a source (Sigarda's
                     // family).
@@ -2026,7 +2026,7 @@ fn is_unpreventable(game: &GameState, unpreventable: bool, subject: Option<Objec
     unpreventable
         || is_prohibited(
             game,
-            &Query::TryApplyReplacement { kind: ReplacementKindFilter::Prevention, subject },
+            &Query::ReplacementApplies { kind: ReplacementKindFilter::Prevention, subject },
         )
 }
 
@@ -3057,7 +3057,7 @@ pub(super) fn strip_prohibited_counters(
         };
         let refused = is_prohibited(
             game,
-            &Query::Event { action: &action, cause, lookahead: Some(&frame) },
+            &Query::EventHappens { action: &action, cause, lookahead: Some(&frame) },
         );
         if !refused {
             kept.counters.push(*row);
@@ -3362,7 +3362,7 @@ pub(crate) fn not_auxiliary(
     // axis-1 question.
     prohibition(
         game,
-        &Query::Event {
+        &Query::EventHappens {
             action: &GameAction::ZoneChange { object: id, from: aux.from, to: aux.to, act: aux.act },
             cause,
             lookahead: None,

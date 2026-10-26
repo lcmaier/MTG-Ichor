@@ -204,7 +204,7 @@ fn gather_sweeping(
     game.diagnostics.record_replacement_gather();
 
     // What *caused* this event, for [`ReplacementDef::by`] — the same value the
-    // pipeline hands `Query::Event::cause`, since a "can't" and a replacement
+    // pipeline hands `Query::EventHappens::cause`, since a "can't" and a replacement
     // print one predicate.
     let cause = ctx.cause;
 
@@ -650,7 +650,7 @@ fn push_if_applicable(
     if instance.def.is_regeneration
         && is_prohibited(
             game,
-            &Query::TryApplyReplacement {
+            &Query::ReplacementApplies {
                 kind: ReplacementKindFilter::Regeneration,
                 subject: p.subject,
             },
