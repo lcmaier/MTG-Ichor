@@ -3256,7 +3256,8 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     `EffectRecipient` arm, `resolve_rider` building a context that carries
     both, and the no-op check.
     **Slotted:** A6e's cleanup builds it in
-    `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+    `resolution-players-and-riders` (the card-homed triage, 2026-10-23;
+    split from row 6 at #295's review):
     the row's targets threaded onto `ReplacementInstance` and `Rider`, a
     `then` recipient for what the effect targeted, and the rider's
     existence-and-type check (the three rulings above), with a fixture
@@ -3525,7 +3526,8 @@ audit is at the end.
      lines, and it lands with the first card that needs it. Not stubbed: the
      arm does not exist, so no card can silently do nothing.
      **Slotted:** A6e's cleanup builds it in
-     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+     `resolution-players-and-riders` (the card-homed triage, 2026-10-23;
+     split from row 6 at #295's review):
      on item 90's targets, `RetargetSpec::ToFixed` and its fill, with a
      fixture that redirects damage to a target chosen at cast, CR 614.9's
      destination re-check applying.
@@ -8829,7 +8831,8 @@ with no batch between them; written at the item 6 audit's pass 5.
      two new player readers skip the instruction instead; this item's
      participant reader does the same.
      **Slotted:** A6e's cleanup builds it in
-     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+     `resolution-players-and-riders` (the card-homed triage, 2026-10-23;
+     split from row 6 at #295's review):
      "that player" names its participant as the object readers do (CR 608.2c)
      and the existing `TriggeringPlayer` uses migrate, with fixtures for a
      stolen creature dying under "whenever a creature an opponent controls
@@ -8909,7 +8912,8 @@ with no batch between them; written at the item 6 audit's pass 5.
      each player as the instruction's named player, ~60 lines of code and ~80
      of tests.
      **Slotted:** A6e's cleanup builds it in
-     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+     `resolution-players-and-riders` (the card-homed triage, 2026-10-23;
+     split from row 6 at #295's review):
      `Effect::ForEach` over a players `Selector` that binds each player as the
      instruction's named player, with a three-seat fixture "for each opponent,
      create a 1/1 token tapped and attacking that player"; encore's attack
@@ -9247,7 +9251,8 @@ scan of the history log, and the place in a turn that reads a tally since
      **Sized:** the exhaustive match `DealDamage` got, with "no player" an
      answer that does nothing: ~60–80 lines over the resolver and its 12
      call sites, and a fixture for each board, shown failing first.
-     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     **Slotted:** A6e's cleanup, in `resolution-players-and-riders` (split
+     from row 6 at #295's review),
      beside item 268's "that player" and row 39's `named_player` (the owner
      had put it beside item 291, 2026-10-20).
 
@@ -9426,7 +9431,7 @@ row 57 is item 297.
      **Sized:** ~8 lines, its two callers and a fixture: an
      `is_attacking_player` beside `is_defending_player`, read at both sites.
      **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `resolution-recipients-and-amounts`.
+     `resolution-players-and-riders` (split from row 6 at #295's review).
 
 308. **A condition's "you" is read through two different channel lists, and
      a Layer 2 dependency is missed.** CR 109.5's "you" is the source's
@@ -9656,7 +9661,8 @@ keyed by its event.
      **Sized:** ~10–20 lines and a fixture: the rider's context names its
      replacement's source, and the T4 board (a return made inside a rider's
      batch) then shows CR 603.7a's filter failing first.
-     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`.
+     **Slotted:** A6e's cleanup, in `resolution-players-and-riders` (split
+     from row 6 at #295's review).
 
 ### Found by `record-existences` (2026-10-25)
 

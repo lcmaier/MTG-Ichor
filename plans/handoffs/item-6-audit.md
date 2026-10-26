@@ -196,7 +196,10 @@ pass re-reads what it touches: a number here is a starting point.
   §13d decision 1b). The next PR is `durations-and-control` (5), then
   `batch-legality-and-entry-choices` (5b): row 5 split in two at #293's
   review, which takes the cleanup one PR past its planned four (the owner,
-  2026-10-25).
+  2026-10-25). PR 6, `resolution-recipients-and-amounts`, stopped at its
+  design note as #295, and its second review round split it in two behind
+  a census of the card-authoring vocabulary (the owner, 2026-10-26): two
+  PRs more.
 
 ## 1. Why this audit is bigger than the last
 
@@ -787,7 +790,9 @@ about.
 | 4 | `one-fact-one-type` | One type for each thing written as several, and `Condition` holding predicates only | 291, 296, 326, 327 | 46 | ~1,550–1,800 | ~1,550–1,850 | identical | the replacement gather's membership test |
 | 5 | `durations-and-control` | "For as long as" ended with its object, the control sweep's announcements and record, a recipient for `GainControl`, and CR 514.2's wipe asking a restriction (split from `batches-durations-and-control` at #293's review; item 148 to `ironworks-loop` there) | 17, 20, 300, 324, 325, "Before Layers" 13 | — | ~670–965 | ~810–1,390 | both differ: 300's wide form announces Ray of Command's steal before its delayed trigger is created, attributed game by game | the duration sweep per departure, and the settlement per row a resolution writes |
 | 5b | `batch-legality-and-entry-choices` | An entry event's moves and costs decided as they apply and performed as one event right before the entries, entry choices asked by answer shape (split from 5 at #293's review) | 61, 62, 63, 134, 330, 332 (63 and 332 from first-card slots at #293's review; 26 retired at #294's) | — | ~780–1,145 | ~945–1,660 | identical | phase 2's per-member read of the moves riding on it |
-| 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329, 334 (334 filed at #294's review) | 38 | ~1,230, ~1,340–1,410 with 334 | ~1,500–1,800, ~1,640–2,080 with 334 | identical | castability's assignment (155) |
+| 6 | `vocabulary-census-and-register` | Every word the card-authoring types use for an object, a player or an amount, each type that spells it, folded or kept with its reason, and a gate that fails a new arm spelling a word the register holds (added at #295's review) | — | — | its census's | — | identical | none |
+| 6a | `resolution-recipients-and-amounts` | Which object an instruction acts on and what it reads off it: targets held as the existence chosen, one `ValueOf`, what a payment used, a `Group` holding players and a target, castability's assignment (split at #295's review) | 30, 94, 155, 269, 281, 299, 334 (334 filed at #294's review) | — | ~530–800 | ~665–1,210 | identical | castability's assignment (155) |
+| 6b | `resolution-players-and-riders` | Which player an instruction names, "for each player", and what a rider remembers (split from 6a at #295's review) | 90, 106, 268, 272, 292, 307, 329 | 38 | ~760–1,020 | ~930–1,490 | identical | none; 268 owes the audited smoke |
 | 7 | `layers-combat-and-counters` | The triage's layer, combat and counter builds, one record check among them | 12, 86, 117, 184, 190, 205, 206, 308, 322, 323, "Before Layers" 16, "Before card breadth" 1, 3, 5 and 6 (12 from a first-card slot at #293's review) | 41, 44, 50 | ~1,330 | ~1,650–2,000 | identical | the layer walk |
 | 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 285 (284 closed as moot at #294's review); the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
 
@@ -1071,6 +1076,15 @@ item 124's precedent that a sweep does not ride inside a rules change.
      `remaining-costs`); and item 339 (a life cost payable while its player
      can't lose life, for `cant-pay-costs`).
 6. `resolution-recipients-and-amounts`.
+   - Split at its design stop (#295's second review round, the owner,
+     2026-10-26), for the load of fourteen items reshaping seven types at
+     once: first `vocabulary-census-and-register`, which counts the other
+     spellings of the words this PR folds before anything is built; then
+     6a, objects (items 30, 94, 155, 269, 281, 299 and 334, on #295); then
+     6b, `resolution-players-and-riders`, players and riders (items 90,
+     106, 268, 272, 292, 307 and 329, and row 38). The design note,
+     `plans/handoffs/resolution-recipients-and-amounts.md`, holds both
+     halves' decisions; 6b's landing deletes it.
    - Items 90 and 106: a resolution-created row keeps its targets for its
      rider, and `RetargetSpec::ToFixed` reads them.
    - Item 94: prevention rows per player.

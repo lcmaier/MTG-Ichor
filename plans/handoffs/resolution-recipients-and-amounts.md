@@ -9,7 +9,9 @@ landing deletes it. Every size and count below was read against `ac583da4`
 resolution-recipients-and-amounts`, lists 14 open items; with them go the
 duplicate inventory's rows 38 and 39. **Revised at #295's first review
 round (2026-10-26)**: decisions 1, 3, 4 and 5 are settled; 2, 6 and 7 are
-rewritten from the cards up.
+rewritten from the cards up. **At the second round** (the same day): 2 and
+7 are settled, decision 6 answers the owner's question, and the PR splits in
+two behind a vocabulary census ("The split, and the census before it").
 
 ## Where the work sits
 
@@ -65,11 +67,36 @@ the tree on 2026-10-26; item 155 had no size line and is sized here.
 That's **about 1,290–1,820 sized** and **1,600–2,700 carried**, against the
 brief's 1,350–1,430 and 1,640–2,080. What grew: decision 2's sweep, decision
 4's three migrations, decision 6's renamed literals, item 155's search and
-decision 1's test literals. The top of the carried range crosses 2,500 only
-if every item overruns at 2×. The band is tracked at each commit and a
-crossing flagged at once. If it crosses, the split line is the replacement
-half (items 90, 106 and 329, about 320–420 lines), which shares no type with
-the rest. Decision 5's option (b) adds 250–400 and would need that split.
+decision 1's test literals.
+
+## The split, and the census before it
+
+Decided at #295's second review round (the owner, 2026-10-26), for the load
+of fourteen items reshaping seven types in one review. Three PRs, in order:
+
+1. **`vocabulary-census-and-register`**, docs and a gate. The card-authoring
+   types spell the same few words once per type: "this object" four times
+   (`EffectRecipient::ThisObject`, `Antecedent::ThisObject`,
+   `ObjectSet::SourceOnly`, `TriggerSubject::ThisObject`), "you" three times,
+   "defending player" three, the attached permanent three, a rider's "that
+   much" twice. The concept census (#287) asked this of the game's fields
+   and stopped at these types. This census lists every arm by the word it
+   spells, folds each group into a named PR or keeps it with its reason,
+   and adds a gate that fails a new arm spelling a word the register holds.
+   It runs first because it can widen decisions 2 and 4: any widening comes
+   back to this note as a review round before 6a builds.
+2. **6a, `resolution-recipients-and-amounts`** (this branch, #295): which
+   object an instruction acts on and what it reads off it. Decisions 1, 2, 3
+   and 7, and item 155. Items 30, 94, 155, 269, 281, 299 and 334: about
+   530–800 lines sized, 665–1,210 carried.
+3. **6b, `resolution-players-and-riders`**, a branch of its own after 6a
+   merges: which player an instruction names, "for each player", and what a
+   rider remembers. Decisions 4, 5 and 6, item 292 with row 39, item 307 and
+   row 38. Items 90, 106, 268, 272, 292, 307 and 329: about 760–1,020 lines
+   sized, 930–1,490 carried. 6b's player words use 6a's `Antecedent` arms,
+   which is the order's reason. Its landing deletes this note.
+
+Both builds are under the band's 1,500-line floor, as #294's split was.
 
 ## The census
 
@@ -622,8 +649,9 @@ opponent" body is a target per opponent, 57 cards (decision 5).
   **predicted identical**, since no registered card exiles, returns or
   shuffles a target, reads a player whose binding finds nobody, or uses a
   word this PR adds; and the callgrind budget, whose hot path is item 155's
-  search and decision 1's existences, both on the "another target" spells.
-- The big audited smoke (decision 4 changes what a binding names):
+  search and decision 1's existences, both on the "another target" spells,
+  which are 6a's; 6b has no hot path.
+- In 6b only, the big audited smoke (decision 4 changes what a binding names):
   `fuzz_games --audit`, 1,000 games at seed 777, both pools.
 - `specdb owed --phase "Phase 7"` clean.
 - The dev GUI's tests only if a `ChoiceKind` changes; none is planned.
