@@ -1228,7 +1228,7 @@ route by which item 342's twenty arrived.
 #### `PlayerRef`
 - `You` — **owns** "you" (CR 109.5).
 - `Opponent` — **owns** "an opponent", one chosen as the instruction applies (CR 608.2d); its reading as any opponent in a filter moves to `PlayerSet::Opponents` (item 342).
-- `Owner` — **folds** into `OwnerOf(Antecedent::ThisObject)` (item 341).
+- `Owner` — **folds**: the source's owner, a filter's reading, into `OwnerOf(Antecedent::ThisObject)`, and the owner of each object an instruction acts on into `OwnerOf(Antecedent::Affected)` (items 341, 348).
 - `Player` — **owns** a player captured by id.
 - `DefendingPlayer` — **owns** "defending player" (CR 508.5), holding an `Antecedent`.
 - `AnyDefendingPlayer` — **folds** into `PlayerSet::DefendingPlayers` (item 342).

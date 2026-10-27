@@ -9910,17 +9910,18 @@ folds and 345–347 the gaps the duplicates hid.
      spelling reads its object correctly, and the cost is a reader per role
      and a sweep that grows with every card.
      **Sized:** ~390 sites and ~95 lines of readers, ~530–580 carried.
-     **Slotted:** A6e's cleanup, in `card-vocabulary-folds` (#296's decision
-     1), ahead of `resolution-recipients-and-amounts`, which adds #295's
-     `Antecedent` arms on it.
+     **Slotted:** `route-review`, which decides whether one spelling per word
+     is still worth a sweep. #297 built this fold (`08eae9bd`) and was closed
+     unmerged on 2026-10-27: its only payoff was one spelling, and the call
+     sites grew longer and the readers more generic.
 
 341. **The player an instruction acts on is spelled apart from `PlayerRef`.**
      `EffectRecipient::Controller`, `TriggeringPlayer` and `DefendingPlayer`
      name one player beside `PlayerRef::You` and `PlayerRef::DefendingPlayer`,
-     and `PlayerRef::Owner` names only the source's owner.
+     and `PlayerRef::Owner` is read two ways (item 348).
      `EffectRecipient::Player(PlayerRef)` folds the three; `PlayerRef` gains
      `TheEventsPlayer` (what `TriggeringPlayer` reads), `OwnerOf(Antecedent)`
-     (`Owner` becomes `OwnerOf(ThisObject)`) and `ReferredPlayer`, which
+     (the source's `Owner` becomes `OwnerOf(ThisObject)`) and `ReferredPlayer`, which
      `EffectRecipient::Referred`'s players become. Item 268's
      `ControllerOf`, `ForEachPlayer` and the zone change's two readings are
      then arms of `PlayerRef`, not a `PlayerAntecedent` beside it (#296's
@@ -9933,7 +9934,8 @@ folds and 345–347 the gaps the duplicates hid.
      engine cannot apply. A fold holds exactly its folded arms' families.
      **Reachability (2026-10-26):** reachable — not wrong today.
      **Sized:** ~295 sites and ~50 lines, ~370–400 carried.
-     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
+     **Slotted:** `route-review`, as item 340 is; #297's version is
+     `d4fc7ec2`.
 
 342. **"An opponent" reads as any opponent in a filter and as one chosen
      opponent in an instruction.** `object_filter.rs` reads
@@ -9962,8 +9964,9 @@ folds and 345–347 the gaps the duplicates hid.
      **Sized:** ~195 sites in the filters and ~120–180 in the trigger events'
      fields, and ~110 lines of readers, ~480–560 carried; it takes the fold
      PR to ~1,850–2,100 carried.
-     **Slotted:** A6e's cleanup, in `card-vocabulary-folds` (#296's decision
-     3).
+     **Slotted:** `route-review`, beside item 345, whose payload this
+     `PlayerSet` is. Of #297's folds this is the one with a hazard behind it;
+     its version is `e8fd921c`.
 
 343. **A trigger arm's "a player or a permanent" is three types.**
      `DamageRecipient`, `DefenderFilter` and `ObjectOrPlayerSubject` each test
@@ -9976,7 +9979,8 @@ folds and 345–347 the gaps the duplicates hid.
      opponent controls" is the object half's `ObjectFilter`, as it is today.
      **Reachability (2026-10-26):** reachable — not wrong today.
      **Sized:** ~80 sites and ~60 lines, ~170–200 carried.
-     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
+     **Slotted:** `route-review`, as item 340 is; #297's version is
+     `a11b49db`.
 
 344. **Two enums each spell one arm twice.**
      `EffectRecipient::FilteredPermanents` is the battlefield case of
@@ -9986,7 +9990,8 @@ folds and 345–347 the gaps the duplicates hid.
      `FilteredObjectsIn` become one of `zones != BATTLEFIELD`.
      **Reachability (2026-10-26):** reachable — not wrong today.
      **Sized:** ~220 sites and ~20 lines, ~250–260 carried.
-     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`.
+     **Slotted:** `route-review`, as item 340 is; #297's version is
+     `d284ff44`.
 
 345. **"Target opponent" can't be written.** `SelectionFilter::Player`
      admits any player, where its three trigger-side siblings each carry a
@@ -9999,10 +10004,9 @@ folds and 345–347 the gaps the duplicates hid.
      an opponent, since none can be written.
      **Sized:** ~40–60 lines and a fixture "target opponent loses 2 life"
      at three seats, cast from hand.
-     **Slotted:** A6e's cleanup, in `card-vocabulary-folds`, with item 342,
-     whose `PlayerSet` is the arm's new payload: the one behavior that PR
-     adds, against decision 1's "the fold PR renames", because an arm whose
-     payload its reader ignores is worse than a missing one.
+     **Slotted:** `route-review`, with item 342, whose `PlayerSet` is the
+     arm's new payload. #297's version is `fd07d50b`, about 150 lines with its
+     fixture, and needs none of the other folds.
 
 346. **"Enchanted player" can't be written.** CR 303.4m's "enchanted [object
      or player]" is whatever the permanent is attached to, a player for a
@@ -10029,5 +10033,51 @@ folds and 345–347 the gaps the duplicates hid.
      **Reachability (2026-10-26):** unreachable — no registered card targets
      either.
      **Sized:** ~60–100 lines and a fixture for each.
+     **Slotted:** `route-review`.
+
+348. **`PlayerRef::Owner` is read two ways.** In a filter it is the source's
+     owner (`object_filter.rs`, Xantcha's "its owner"). As an instruction's
+     player it is the owner of each object the instruction acts on: Homeward
+     Path's "each player gains control of all creatures they own", read per
+     moved object by `GainControl`'s Layer 2 row (CR 108.3), and the putter
+     of an entering object's counters (`named_for_an_entry`). Each reader is
+     right for its role, as item 342's two readings of "an opponent" are.
+     The per-object reading's antecedent is the object acted on, #295's
+     `Antecedent::Affected`; item 341's `OwnerOf(ThisObject)` takes the
+     source's. Found building #297.
+     **Reachability (2026-10-27):** unreachable — no registered card names
+     the owner of the objects it acts on.
+     **Sized:** ~20–30 lines: the arm's two readers and one fixture site.
+     **Slotted:** `route-review`, with item 341.
+
+349. **A delayed trigger's intervening "if" can't name the object it
+     remembers.** CR 603.7c lets a delayed trigger refer to an object, and
+     CR 603.4 checks its "if" as it triggers and again as it resolves.
+     Grinning Totem's "At the beginning of your next upkeep, if you haven't
+     played it, put it into its owner's graveyard" and Mnemonic Betrayal's
+     "if any of those cards remain exiled" name it in the condition; the
+     query `o:/at the beginning of (the|your) next [a-z ]+, if /` finds 8
+     (`game:paper -is:funny`, 2026-10-27). `Antecedent` holds `ThisObject`
+     and `Triggering`, so `ConditionReferents::object_for` has no word for a
+     remembered object (#297's decision 7).
+     **Reachability (2026-10-27):** unreachable — no registered delayed
+     trigger has an intervening "if".
+     **Sized:** ~40–80 lines: the remembered objects in the condition's
+     referents, and a fixture of Grinning Totem's shape. Both printed cards
+     also need `casting-from-other-zones`' "you may play that card".
+     **Slotted:** `route-review`.
+
+350. **A resolution cannot sweep a zone other than the battlefield.**
+     `EffectRecipient::FilteredObjectsIn` names objects in any zones, and the
+     resolution refuses every zone but the battlefield (item 344's four
+     refusals), so Rest in Peace's "When this enchantment enters, exile all
+     graveyards", a resolution sweeping every graveyard, cannot be written.
+     Rest in Peace is registered with its replacement alone; its trigger was
+     deferred when it shipped, 2026-08-31. Found at #297's pre-review.
+     **Reachability (2026-10-27):** unreachable — no registered card sweeps
+     another zone as it resolves.
+     **Sized:** ~40–60 lines: the sweep over the named zones in a fixed
+     order, the primitives that read it, and Rest in Peace's trigger with a
+     fixture.
      **Slotted:** `route-review`.
 
