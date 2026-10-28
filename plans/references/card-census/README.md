@@ -1,7 +1,7 @@
 # The card census — what every Commander card needs from the engine
 
-> **Status:** run 2026-10-26 against the tree at #296's branch, Forge at
-> `0dc8c669` (2026-10-26), for `route-review`. Moved here from that session's
+> **Status:** run 2026-10-26 against that day's tree, Forge at `0dc8c669`
+> (2026-10-26), for `route-review`. Moved here from that session's
 > scratchpad on 2026-10-27. **Authority:** the counts in `results/` are these
 > scripts' output, and the verdicts are `mapping.py`'s table, a reading of the
 > engine's enums and a grep. On what exists, `codebase-state.md` wins.
