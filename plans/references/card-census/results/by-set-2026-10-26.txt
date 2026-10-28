@@ -1,0 +1,71 @@
+32382 first printings joined to a Forge script (of 32518)
+
+== The first sets, in release order ==
+released   set   type         cards census-ok top1000  named steps it needs
+1993-08-05 lea   core           289       210      26  combat-restrictions 15, route-review: unless pays 8, cant-be-targeted 7, combat-requirements 5, information-model 5, route-review: modal 4, any-color-plus-painlands-plus-signets 3, as-though-effects 2, chosen-color-plus-could-produce 2, remaining-costs 2, casting-from-other-zones 2, cant-cast-play-or-activate 1, spell-copies 1, backlog: for-each 1, permission-design 1
+1993-10-04 leb   core             2         2       1  
+1993-12-17 arn   expansion       75        46       1  combat-restrictions 8, route-review: unless pays 4, backlog: dice 3, backlog: for-each 2, any-color-plus-painlands-plus-signets 2, remaining-costs 2, cant-be-targeted 1, information-model 1, cant-cast-play-or-activate 1, route-review: modal 1, game-formats 1
+1994-03-04 atq   expansion       85        58       6  remaining-costs 4, combat-restrictions 3, route-review: unless pays 3, route-review: modal 2, cant-be-targeted 1, information-model 1, permission-design 1, backlog: dice 1
+1994-06-01 leg   expansion      306       170       3  combat-restrictions 24, route-review: unless pays 18, cant-be-targeted 10, remaining-costs 10, route-review: modal 8, information-model 8, backlog: for-each 4, chosen-color-plus-could-produce 3, casting-from-other-zones 3, backlog: choose a name 2, permission-design 2, as-though-effects 2, backlog: infect and wither 2, spell-copies 1, cant-cast-play-or-activate 1, combat-requirements 1, divided-among-targets 1, backlog: repeat 1
+1994-07-15 pdrc  promo            1         0       0  
+1994-08-01 drk   expansion      119        72       3  combat-restrictions 15, route-review: unless pays 11, backlog: for-each 4, cant-be-targeted 3, information-model 3, route-review: modal 2, chosen-color-plus-could-produce 2, permission-design 2, remaining-costs 2, token-copies 1, cant-cast-play-or-activate 1, backlog: repeat 1, backlog: dice 1, backlog: infect and wither 1, any-color-plus-painlands-plus-signets 1
+1994-11-01 fem   expansion      102        43       1  remaining-costs 19, combat-restrictions 10, route-review: unless pays 10, backlog: for-each 4, cant-be-targeted 3, route-review: modal 2, backlog: dice 2, any-color-plus-painlands-plus-signets 2, cant-cast-play-or-activate 1, as-though-effects 1, permission-design 1, information-model 1
+1994-11-01 phpr  promo            2         1       0  combat-restrictions 1
+1995-01-01 phpr  promo            1         1       0  
+1995-03-01 phpr  promo            1         1       0  
+1995-05-01 phpr  promo            1         0       0  backlog: dice 1
+1995-06-03 ice   expansion      346       177      13  route-review: unless pays 52, combat-restrictions 32, information-model 17, any-color-plus-painlands-plus-signets 13, remaining-costs 11, chosen-color-plus-could-produce 7, casting-from-other-zones 6, route-review: modal 6, cant-be-targeted 4, backlog: for-each 4, permission-design 4, divided-among-targets 4, backlog: repeat 3, backlog: dice 3, backlog: choose a name 2, combat-requirements 2, cant-cast-play-or-activate 2, as-though-effects 1
+1995-10-01 hml   expansion      115        63       0  combat-restrictions 11, cant-be-targeted 7, route-review: unless pays 5, any-color-plus-painlands-plus-signets 5, information-model 4, remaining-costs 4, backlog: for-each 3, chosen-color-plus-could-produce 2, backlog: infect and wither 1, cant-cast-play-or-activate 1, spell-copies 1, route-review: modal 1, as-though-effects 1, backlog: dice 1, permission-design 1
+
+== Each named step: the first set that needs it, and how widely ==
+  as-though-effects                          first 1993-08-05 lea   Limited Edition Alpha        sets   95  cards   139
+  cant-be-targeted                           first 1993-08-05 lea   Limited Edition Alpha        sets  114  cards   372
+  combat-requirements                        first 1993-08-05 lea   Limited Edition Alpha        sets  138  cards   325
+  route-review: unless pays                  first 1993-08-05 lea   Limited Edition Alpha        sets  166  cards  1030
+  route-review: modal                        first 1993-08-05 lea   Limited Edition Alpha        sets  165  cards   935
+  combat-restrictions                        first 1993-08-05 lea   Limited Edition Alpha        sets  185  cards  1583
+  chosen-color-plus-could-produce            first 1993-08-05 lea   Limited Edition Alpha        sets  119  cards   330
+  information-model                          first 1993-08-05 lea   Limited Edition Alpha        sets  199  cards  2433
+  remaining-costs                            first 1993-08-05 lea   Limited Edition Alpha        sets  191  cards  2577
+  cant-cast-play-or-activate                 first 1993-08-05 lea   Limited Edition Alpha        sets  102  cards   165
+  casting-from-other-zones                   first 1993-08-05 lea   Limited Edition Alpha        sets  186  cards  1859
+  spell-copies                               first 1993-08-05 lea   Limited Edition Alpha        sets  120  cards   344
+  backlog: for-each                          first 1993-08-05 lea   Limited Edition Alpha        sets  137  cards   285
+  any-color-plus-painlands-plus-signets      first 1993-08-05 lea   Limited Edition Alpha        sets  179  cards  1369
+  permission-design                          first 1993-08-05 lea   Limited Edition Alpha        sets   80  cards   129
+  backlog: dice                              first 1993-12-17 arn   Arabian Nights               sets   58  cards   169
+  game-formats                               first 1993-12-17 arn   Arabian Nights               sets   19  cards   122
+  backlog: choose a name                     first 1994-06-01 leg   Legends                      sets   53  cards    67
+  backlog: infect and wither                 first 1994-06-01 leg   Legends                      sets   21  cards   173
+  divided-among-targets                      first 1994-06-01 leg   Legends                      sets   89  cards   125
+  backlog: repeat                            first 1994-06-01 leg   Legends                      sets   39  cards    49
+  token-copies                               first 1994-08-01 drk   The Dark                     sets  134  cards   405
+  split-and-adventure-style-cards            first 2000-10-02 inv   Invasion                     sets   32  cards   329
+  face-down-and-morph                        first 2002-10-07 ons   Onslaught                    sets   29  cards   362
+  double-faced-cards                         first 2002-10-07 ons   Onslaught                    sets   47  cards   585
+  mana-provenance                            first 2004-06-04 5dn   Fifth Dawn                   sets   25  cards    87
+  convoke-delve-improvise                    first 2005-10-07 rav   Ravnica: City of Guilds      sets   35  cards   167
+  hybrid-and-phyrexian-payment               first 2005-10-07 rav   Ravnica: City of Guilds      sets   58  cards   755
+  backlog: snow                              first 2006-07-21 csp   Coldsnap                     sets    3  cards    37
+  backlog: bestow                            first 2013-09-27 ths   Theros                       sets    5  cards    43
+  backlog: voting                            first 2014-06-06 cns   Conspiracy                   sets   10  cards    33
+  merging-and-meld                           first 2016-07-22 emn   Eldritch Moon                sets    5  cards    51
+  multiplayer-rules                          first 2016-08-26 cn2   Conspiracy: Take the Crown   sets   11  cards    61
+  backlog: energy                            first 2016-09-30 kld   Kaladesh                     sets    6  cards   102
+  route-review: costs to attack              first 2017-04-28 akh   Amonkhet                     sets    7  cards    28
+  command-zone-casting                       first 2018-08-10 c18   Commander 2018               sets   11  cards    16
+  backlog: dungeons                          first 2021-07-23 afc   Forgotten Realms Commander   sets    3  cards    60
+
+== 213 breadth mechanics, by how many sets need them ==
+  1 set       73 mechanics,   345 cards
+  2-4 sets    73 mechanics,  1154 cards
+  5-9 sets    37 mechanics,   782 cards
+  10+ sets    30 mechanics,  1385 cards
+  the 10+ set ones: param:duration_UntilTheEndOfYourNextTurn (50 sets, 101 cards, first tmp), api:MultiplyCounter (43 sets, 53 cards, first 5dn), amount:ChosenNumber (42 sets, 62 cards, first lea), param:duration_UntilEndOfCombat (38 sets, 44 cards, first lea), api:ChangeTargets (37 sets, 43 cards, first drk), api:ChooseNumber (36 sets, 51 cards, first lea), kw:Chapter (31 sets, 228 cards, first dom), api:Phases (29 sets, 55 cards, first arn), api:ExchangeControl (29 sets, 30 cards, first leg), api:MoveCounter (26 sets, 32 cards, first mir), api:EachDamage (25 sets, 27 cards, first mmq), api:TwoPiles (24 sets, 29 cards, first lea), kw:You may choose not to untap CARDNAME during your untap step. (24 sets, 45 cards, first arn), trig:AttackerUnblocked (22 sets, 41 cards, first arn), static:CombatDamageToughness (22 sets, 22 cards, first lrw), api:Proliferate (21 sets, 92 cards, first som), param:duration_UntilUntaps (19 sets, 29 cards, first atq), static:AssignCombatDamageAsUnblocked (18 sets, 19 cards, first p02), api:ChangeZone[Stack->Hand] (18 sets, 29 cards, first dst), static:UntapOtherPlayer (15 sets, 15 cards, first lgn), kw:Banding (12 sets, 39 cards, first lea), api:ChangeZone[Stack->Library] (12 sets, 21 cards, first 5dn), api:ChangeText (11 sets, 12 cards, first lea), kw:A deck can have any number of cards named CARDNAME. (11 sets, 11 cards, first 5dn), kw:Split second (11 sets, 24 cards, first tsp), param:duration_UntilYourNextEndStep (11 sets, 14 cards, first snc), amount:Domain (10 sets, 55 cards, first inv), kw:Overload (10 sets, 27 cards, first rtr), trig:BecomeMonstrous (10 sets, 19 cards, first ths), api:AlterAttribute (10 sets, 116 cards, first mkc)
+
+== Where EDHREC's top 1,000 were first printed ==
+  1993-2002:  161 of the top 1,000;  5957 cards in all
+  2003-2010:  190 of the top 1,000;  5294 cards in all
+  2011-2017:  220 of the top 1,000;  5796 cards in all
+  2018-2026:  421 of the top 1,000; 15335 cards in all
+  by set type: {'expansion': 733, 'draft_innovation': 105, 'core': 88, 'commander': 58, 'starter': 5, 'archenemy': 1, 'planechase': 1, 'funny': 1}

@@ -1,0 +1,92 @@
+31 Commander products since 2018-01-01, fewest distinct blockers first
+
+code  released   cards  ok% steps mechs  name
+mic   2021-09-24   149   54    14     6  Midnight Hunt Commander
+brc   2022-11-18   172   54    15     6  The Brothers' War Commander
+drc   2025-02-14   163   33    14     7  Aetherdrift Commander
+dmc   2022-09-09   192   44    18     4  Dominaria United Commander
+scd   2022-12-02   332   57    16     6  Starter Commander Decks
+voc   2021-11-19   150   54    19     5  Crimson Vow Commander
+ecc   2026-01-23   153   32    16     8  Lorwyn Eclipsed Commander
+nec   2022-02-18   139   46    16     9  Neon Dynasty Commander
+eoc   2025-08-01   170   36    14    11  Edge of Eternities Commander
+40k   2022-10-07   281   42    17     9  Warhammer 40,000 Commander
+onc   2023-02-10   144   38    16    11  Phyrexia: All Will Be One Commander
+woc   2023-09-08   143   47    20     8  Wilds of Eldraine Commander
+fdc   2024-11-15   317   67    17    11  Foundations Commander
+c18   2018-08-10   292   46    23     7  Commander 2018
+otc   2024-04-19   306   30    22     8  Outlaws of Thunder Junction Commander
+c21   2021-04-23   329   44    18    13  Commander 2021
+dsc   2024-09-27   346   37    20    12  Duskmourn: House of Horror Commander
+cm2   2018-06-08   274   53    21    14  Commander Anthology Volume II
+c19   2019-08-23   287   32    24    11  Commander 2019
+afc   2021-07-23   275   44    19    16  Forgotten Realms Commander
+c20   2020-04-17   322   43    23    13  Commander 2020
+lcc   2023-11-17   313   44    21    15  The Lost Caverns of Ixalan Commander
+m3c   2024-06-14   319   33    20    17  Modern Horizons 3 Commander
+mkc   2024-02-09   304   40    23    15  Murders at Karlov Manor Commander
+fic   2025-06-13   334   41    21    17  Final Fantasy Commander
+blc   2024-08-02   312   43    24    16  Bloomburrow Commander
+ncc   2022-04-29   350   37    23    18  New Capenna Commander
+soc   2026-04-24   375   43    24    18  Secrets of Strixhaven Commander
+tdc   2025-04-11   373   43    24    21  Tarkir: Dragonstorm Commander
+ltc   2023-06-23   341   39    22    24  Tales of Middle-earth Commander
+moc   2023-04-21   388   36    25    22  March of the Machine Commander
+
+Named steps, by how many of the 31 products need them:
+   31/31  route-review: modal  (254 cards across all)
+   31/31  any-color-plus-painlands-plus-signets  (1166 cards across all)
+   31/31  casting-from-other-zones  (607 cards across all)
+   31/31  information-model  (822 cards across all)
+   31/31  combat-restrictions  (280 cards across all)
+   31/31  route-review: unless pays  (206 cards across all)
+   31/31  remaining-costs  (614 cards across all)
+   31/31  chosen-color-plus-could-produce  (171 cards across all)
+   30/31  token-copies  (192 cards across all)
+   28/31  backlog: for-each  (113 cards across all)
+   27/31  convoke-delve-improvise  (76 cards across all)
+   27/31  hybrid-and-phyrexian-payment  (118 cards across all)
+   26/31  combat-requirements  (84 cards across all)
+   24/31  spell-copies  (112 cards across all)
+   21/31  split-and-adventure-style-cards  (49 cards across all)
+   19/31  divided-among-targets  (33 cards across all)
+   19/31  cant-be-targeted  (42 cards across all)
+   16/31  face-down-and-morph  (91 cards across all)
+   15/31  as-though-effects  (30 cards across all)
+   13/31  permission-design  (15 cards across all)
+   12/31  mana-provenance  (18 cards across all)
+   12/31  multiplayer-rules  (36 cards across all)
+   11/31  command-zone-casting  (16 cards across all)
+   10/31  backlog: voting  (20 cards across all)
+    9/31  cant-cast-play-or-activate  (15 cards across all)
+    8/31  double-faced-cards  (19 cards across all)
+    7/31  backlog: repeat  (8 cards across all)
+    5/31  game-formats  (24 cards across all)
+    4/31  backlog: bestow  (7 cards across all)
+    4/31  backlog: dice  (24 cards across all)
+    3/31  merging-and-meld  (7 cards across all)
+    3/31  backlog: infect and wither  (24 cards across all)
+    3/31  route-review: costs to attack  (4 cards across all)
+    2/31  backlog: energy  (37 cards across all)
+    1/31  backlog: choose a name  (2 cards across all)
+    1/31  backlog: dungeons  (5 cards across all)
+    1/31  backlog: snow  (1 cards across all)
+
+scd, Starter Commander Decks: the steps its cards need, by cards
+   50  any-color-plus-painlands-plus-signets
+   21  remaining-costs
+   17  information-model
+   13  route-review: modal
+   12  casting-from-other-zones
+    8  route-review: unless pays
+    6  convoke-delve-improvise
+    5  combat-requirements
+    4  backlog: for-each
+    4  token-copies
+    3  combat-restrictions
+    3  chosen-color-plus-could-produce
+    3  hybrid-and-phyrexian-payment
+    1  command-zone-casting
+    1  permission-design
+    1  spell-copies
+  and breadth mechanics: api:Amass 6, amount:Devotion 1, param:duration_UntilTheEndOfYourNextTurn 1, kw:Overload 1, api:ChangeZone[Stack->Library] 1, api:ChangeTargets 1
