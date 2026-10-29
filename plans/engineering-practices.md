@@ -139,11 +139,12 @@ it is, rename it. Every name a PR adds is read against this list:
   CR's.** Each concept's key, owner and holders are the register,
   `cr-coverage-audit.md#4c-concepts-and-their-owners`; `check_type_surface.py`
   fails a new holder of a registered concept until the register has its line.
-- **A word a card's text spells has one spelling.** Before a new arm or enum in
-  the types a card is written in, ask whether another role already spells its
-  word: hold the shared word type, or keep the arm with its reason.
-  `cr-coverage-audit.md#4d-words-and-their-spellings` lines every arm, and
-  `check_type_surface.py` fails one without its line.
+- **A word a card's text spells is folded only for a hazard or a behavior.**
+  Before a new arm or enum in the types a card is written in, ask whether
+  another role already spells its word, and whether the two read it the same
+  way: one word read two ways is a finding; two spellings read alike are not
+  worth a sweep (`route-review`, 2026-10-29).
+  `cr-coverage-audit.md#4d-words-and-their-spellings` is the dated census.
 
 ## Counts in docs
 
