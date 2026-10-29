@@ -4301,7 +4301,7 @@ The layer system's designated single-point change site is `oracle/characteristic
    moves with the board, are a design inside the layer walk, and
    `engineering-practices.md#gaps-a-phase-finds` (2026-10-20) puts a design on
    the route, not in a card's registration. Rune of Might is a printed customer
-   (`plans/references/card-census/authoring-check.md`). Item 7g, merged here,
+   (`plans/references/card-census/README.md`'s authoring check). Item 7g, merged here,
    is the same per-pass derivation.
 
 7a. **Frame cache is live.** — ✅ closed, archived.

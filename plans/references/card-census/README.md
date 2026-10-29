@@ -18,7 +18,7 @@ card is "authorable" when every need is built.
 held on the registered cards (210 of 213 authorable, the three misses real).
 But the census matches a need's name, not its parameters, and an authoring
 check that wrote 20 random "authorable" cards against the engine passed 7
-(`authoring-check.md`). The census's 48% authorable over 32,080 Commander-legal
+(a throwaway crate, 2026-10-26, not kept). The census's 48% authorable over 32,080 Commander-legal
 cards is closer to 17% (somewhere in 9–27% at that sample size). The blocker
 ranking, which reads only the missing verdicts, stands.
 
@@ -52,9 +52,8 @@ python -I residue.py cards_needs.json all_cards.json 80 --examples
 `registered_map.tsv` maps each registered card to its Forge script, for the
 calibration: `match_registered.py` writes it from `git -C forge ls-files` (paths
 relative to `cardsfolder`) and a list of the registered names, one per line,
-from `mtgsim/src/cards/registry.rs`. `enum_variants.py <src> EnumName …` prints
-an enum's arms, which is how `mapping.py`'s verdicts were read off the tree.
-The Scryfall fetches take several minutes each and sleep between pages.
+from `mtgsim/src/cards/registry.rs`. The Scryfall fetches take several minutes
+each and sleep between pages.
 
 `residue.py`'s `80` is how many unclear needs it lists. **When the engine
 moves, `mapping.py` is what goes stale.** Re-read a verdict against the tree
@@ -71,8 +70,14 @@ costs to attack were renamed to their rows after the run (`route-review`,
 - `results/by-set-2026-10-26.txt`: each card by its first printing, in release
   order. Of the 37 steps and backlog entries the census names, 22 are first
   needed by a set printed in 1993–1994, so authoring in release order meets
-  most of the route in its first year of sets.
+  most of the route in its first year of sets. Its first line's 136 first
+  printings with no Forge script are 95 unreleased cards (Star Trek, one
+  Marvel card), 4 tokens and dungeons, 7 meld results Forge scripts under their
+  front halves, 29 Secret Lair commanders and one Unfinity card: 37 legal in
+  Commander, one of them in `tdc` (Baldin, Century Herdmaster), which the
+  decks' gap census reads against the tree like every other.
 - `results/precons-2026-10-26.txt`: each Commander product since 2018, ranked by
   how many distinct steps and mechanics its decks need, with Starter Commander
   Decks' (`scd`) and Tarkir: Dragonstorm Commander's (`tdc`) needs by step.
-- `results/authoring-check-sample.json`: the 20 cards the authoring check drew.
+  `precons.py` re-ranks the products when the card work after v0.5 picks its
+  next ones.
