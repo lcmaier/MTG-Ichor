@@ -1001,27 +1001,31 @@ the ids. Each reached enum is in one class below. The `words` class is the
 entries under "The words", one per enum, a line per arm; every other class
 spells no word for a thing, for the reason it gives.
 
-**The rule** (decided at the census's review, 2026-10-26): one spelling per
-word. A role holds the shared word type (`Antecedent` for an object,
-`PlayerRef` for one player, `PlayerSet` for players a filter admits) where it
-answers several of its words, and keeps its own arm where it answers one or
-is a closed algebra (`Rewrite`'s payloads, `CLAUDE.md`'s growth contract). A
-second spelling is kept only with its reason, or waits for the item that
-folds it.
+**The rule** (decided at the census's review, 2026-10-26; narrowed at
+`route-review`, 2026-10-29, its decision 4): a second spelling is folded
+where it hides a hazard, one word read two ways (items 342 and 348), or
+blocks a behavior ("target opponent", item 345). One spelling alone is not
+a reason to sweep: #297 built those folds and was closed unmerged, the call
+sites longer and the readers more generic, so their lines read **kept**. A
+role holds the shared word type (`Antecedent` for an object, `PlayerRef` for
+one player, `PlayerSet` for players a filter admits) where it answers
+several of its words, and keeps its own arm where it answers one or is a
+closed algebra (`Rewrite`'s payloads, `CLAUDE.md`'s growth contract).
 
-**How an entry reads, and what the check fails.** Each arm's line gives one
-verdict in bold: **owns** (the one spelling of its word), **holds** (an arm
-wrapping a shared word type), **kept** (a second spelling, with its reason),
-**folds** (a second spelling, with the open item that folds it) or **not a
-word** (it names no object, player or amount, with what it is instead). An
-arm's line does not wrap, so the check reads it whole.
-`check_type_surface.py`'s third check fails a reached enum in no class, a
-class naming an enum no longer reached, an arm with no line or a line naming
-no arm, a line with no verdict, and a **folds** line whose item is closed or
-missing: a landed fold rewrites its lines. **It lines fields too** ("The
-fields", below): every field elsewhere whose type is a word type, so a new
-`Option<PlayerRef>` on a trigger event fails until it has its line, the
-route by which item 342's twenty arrived.
+**How an entry reads.** Each arm's line gives one verdict in bold: **owns**
+(the one spelling of its word), **holds** (an arm wrapping a shared word
+type), **kept** (a second spelling, with its reason), **folds** (a second
+spelling, with the open item that folds it) or **not a word** (it names no
+object, player or amount, with what it is instead). "The fields", below,
+lines every field elsewhere whose type is a word type, the route by which
+item 342's twenty arrived.
+
+**A dated record, not a gate** (`route-review`, 2026-10-29, its decision 5).
+`check_type_surface.py`'s third check held every arm and field to a line
+here; with one spelling no longer swept, a line per arm the decks add is
+upkeep that buys nothing, so the check is gone. The register is the census
+of 2026-10-26, kept true where a fold lands or an item closes, and re-run
+with `plans/references/vocabulary-census.py` when a design needs it.
 
 ### The classes
 
@@ -1099,7 +1103,7 @@ route by which item 342's twenty arrived.
 - `ModeChosen` — **not a word**: a fact about the modes chosen (CR 700.2).
 - `All` — **not a word**: a conjunction of conditions.
 - `Not` — **not a word**: a negation.
-- `HostMatches` — **folds** into `ObjectMatches(Antecedent, ObjectFilter)` (item 340).
+- `HostMatches` — **kept**: the spellings read alike, so #297's fold into `ObjectMatches(Antecedent, ObjectFilter)` was retired with item 340 (`route-review`, 2026-10-29).
 - `SourceUntapped` — **kept** "this object is untapped": the feeds table reads it as entry state (`Condition::reads_entry_state`), which a general leaf would hide.
 - `SourceTapped` — **kept** "this object is tapped", for the same reason.
 - `CounterCount` — **holds** an `Antecedent`.
@@ -1126,14 +1130,14 @@ route by which item 342's twenty arrived.
 - `Itself` — **kept** "this spell": a cost effect's subject answers no other object word (CR 113.6d).
 
 #### `DamageRecipient`
-- `Any` — **folds** into `ParticipantFilter` (item 343).
-- `Player` — **folds** into `ParticipantFilter` (item 343).
-- `Object` — **folds** into `ParticipantFilter` (item 343).
+- `Any` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Player` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Object` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
 
 #### `DefenderFilter`
-- `Player` — **folds** into `ParticipantFilter` (item 343).
-- `Permanent` — **folds** into `ParticipantFilter` (item 343).
-- `Or` — **folds** into `ParticipantFilter` (item 343).
+- `Player` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Permanent` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Or` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
 
 #### `DiscardChooser`
 - `Affected` — **owns** "the discarding player chooses" (CR 701.9b).
@@ -1150,20 +1154,20 @@ route by which item 342's twenty arrived.
 
 #### `EffectRecipient`
 - `Implicit` — **not a word**: an instruction that names nothing.
-- `ThisObject` — **folds** into `Object(Antecedent::ThisObject)` (item 340).
-- `Controller` — **folds** into `Player(PlayerRef::You)` (item 341).
+- `ThisObject` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::ThisObject)` was retired with item 340 (`route-review`, 2026-10-29).
+- `Controller` — **kept**: the spellings read alike, so #297's fold into `Player(PlayerRef::You)` was retired with item 341 (`route-review`, 2026-10-29).
 - `Target` — **owns** "target [something]" (CR 115.1), holding a `SelectionFilter`.
 - `Choose` — **owns** "choose [something]" (CR 608.2d), holding a `SelectionFilter`.
 - `SameInstanceAs` — **owns** "that target", an instance announced earlier (CR 115.3); a recipient refuses `Antecedent::TargetOfInstance`, its value-reading twin.
-- `Triggering` — **folds** into `Object(Antecedent::Triggering)` (item 340).
-- `TriggeringPlayer` — **folds** into `Player(PlayerRef::TheEventsPlayer)` (item 341).
-- `Referred` — **folds** into `Object(Antecedent::Referred)` and `Player(PlayerRef::ReferredPlayer)` (items 340, 341).
+- `Triggering` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::Triggering)` was retired with item 340 (`route-review`, 2026-10-29).
+- `TriggeringPlayer` — **kept**: the spellings read alike, so #297's fold into `Player(PlayerRef::TheEventsPlayer)` was retired with item 341 (`route-review`, 2026-10-29).
+- `Referred` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::Referred)` and `Player(PlayerRef::ReferredPlayer)` was retired with items 340 and 341 (`route-review`, 2026-10-29).
 - `AttackedBy` — **owns** "the player or planeswalker it's attacking" (CR 506.3), holding an `Antecedent`.
-- `DefendingPlayer` — **folds** into `Player(PlayerRef::DefendingPlayer)` (item 341).
+- `DefendingPlayer` — **kept**: the spellings read alike, so #297's fold into `Player(PlayerRef::DefendingPlayer)` was retired with item 341 (`route-review`, 2026-10-29).
 - `EachOf` — **holds** a `PlayerGroup`, whose relation is a `PlayerSet`: "each opponent" acts on every player in it.
-- `FilteredPermanents` — **folds** into a constructor of `FilteredObjectsIn` (item 344).
+- `FilteredPermanents` — **kept**: the spellings read alike, so #297's fold into a constructor of `FilteredObjectsIn` was retired with item 344 (`route-review`, 2026-10-29).
 - `FilteredObjectsIn` — **owns** "every object matching [a filter] in [zones]".
-- `Host` — **folds** into `Object(Antecedent::ThisObjectsHost)` (item 340).
+- `Host` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::ThisObjectsHost)` was retired with item 340 (`route-review`, 2026-10-29).
 - `Group` — **not a word**: a union of recipients, acted on at once (CR 608.2f).
 - `ChosenBy` — **owns** "a [permanent] of their choice" as the effect applies (CR 608.2d), holding a `Choice`.
 
@@ -1190,7 +1194,7 @@ route by which item 342's twenty arrived.
 
 #### `NamedPlayers`
 - `Nobody` — **not a word**: no player named.
-- `FirstInstance` — **folds** into `PlayerGroup.named` holding a `PlayerRef::TheEventsPlayer`, a rider's being its replaced event's player (item 341).
+- `FirstInstance` — **folds** into `PlayerGroup.named` naming the event's player, a rider's being its replaced event's player, since it reads a player by position (item 351).
 
 #### `ObjectFilter`
 - `All` — **not a word**: no criterion.
@@ -1212,8 +1216,8 @@ route by which item 342's twenty arrived.
 - `Not` — **not a word**: a complement.
 
 #### `ObjectOrPlayerSubject`
-- `Object` — **folds** into `ParticipantFilter` (item 343).
-- `Player` — **folds** into `ParticipantFilter` (item 343).
+- `Object` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Player` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
 
 #### `ObjectSet`
 - `SourceOnly` — **kept** "this object": a static's affected set answers only "this object" and "its host".
@@ -1228,7 +1232,7 @@ route by which item 342's twenty arrived.
 #### `PlayerRef`
 - `You` — **owns** "you" (CR 109.5).
 - `Opponent` — **owns** "an opponent", one chosen as the instruction applies (CR 608.2d); its reading as any opponent in a filter moves to `PlayerSet::Opponents` (item 342).
-- `Owner` — **folds** into `OwnerOf(Antecedent::ThisObject)` (item 341).
+- `Owner` — **folds**: read two ways, the source's owner in a filter and the owner of each object an instruction acts on, which the resolution row's `PlayerAntecedent` tells apart (item 348).
 - `Player` — **owns** a player captured by id.
 - `DefendingPlayer` — **owns** "defending player" (CR 508.5), holding an `Antecedent`.
 - `AnyDefendingPlayer` — **folds** into `PlayerSet::DefendingPlayers` (item 342).
@@ -1250,7 +1254,7 @@ route by which item 342's twenty arrived.
 - `You` — **kept** "under your control": with `Owner`, CR 610.3c's default and its one alternative.
 
 #### `SelectionFilter`
-- `Creature` — **folds** into a constructor of `Permanent` (item 344).
+- `Creature` — **kept**: the spellings read alike, so #297's fold into a constructor of `Permanent` was retired with item 344 (`route-review`, 2026-10-29).
 - `Player` — **owns** "a player" as a candidate (`EffectRecipient::Target` owns "target"); it takes a `PlayerSet` for "target opponent" (item 345).
 - `Any` — **owns** "any target" (CR 115.4), the CR's own name for its candidates.
 - `Permanent` — **holds** an `ObjectFilter`.
@@ -1271,11 +1275,11 @@ route by which item 342's twenty arrived.
 - `ReplacedAmount` — **kept** "that much", beside `AmountExpr::ReplacedAmount`, for the same reason.
 
 #### `TriggerSubject`
-- `ThisObject` — **folds** into `Object(Antecedent::ThisObject)` (item 340).
-- `Host` — **folds** into `Object(Antecedent::ThisObjectsHost)` (item 340).
+- `ThisObject` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::ThisObject)` was retired with item 340 (`route-review`, 2026-10-29).
+- `Host` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::ThisObjectsHost)` was retired with item 340 (`route-review`, 2026-10-29).
 - `Filter` — **holds** an `ObjectFilter`.
-- `Any` — **folds** into `Filter(ObjectFilter::All)` (item 340).
-- `Referred` — **folds** into `Object(Antecedent::Referred)` (item 340).
+- `Any` — **kept**: the spellings read alike, so #297's fold into `Filter(ObjectFilter::All)` was retired with item 340 (`route-review`, 2026-10-29).
+- `Referred` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::Referred)` was retired with item 340 (`route-review`, 2026-10-29).
 
 ### The fields
 

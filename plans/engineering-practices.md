@@ -139,11 +139,12 @@ it is, rename it. Every name a PR adds is read against this list:
   CR's.** Each concept's key, owner and holders are the register,
   `cr-coverage-audit.md#4c-concepts-and-their-owners`; `check_type_surface.py`
   fails a new holder of a registered concept until the register has its line.
-- **A word a card's text spells has one spelling.** Before a new arm or enum in
-  the types a card is written in, ask whether another role already spells its
-  word: hold the shared word type, or keep the arm with its reason.
-  `cr-coverage-audit.md#4d-words-and-their-spellings` lines every arm, and
-  `check_type_surface.py` fails one without its line.
+- **A word a card's text spells is folded only for a hazard or a behavior.**
+  Before a new arm or enum in the types a card is written in, ask whether
+  another role already spells its word, and whether the two read it the same
+  way: one word read two ways is a finding; two spellings read alike are not
+  worth a sweep (`route-review`, 2026-10-29).
+  `cr-coverage-audit.md#4d-words-and-their-spellings` is the dated census.
 
 ## Counts in docs
 
@@ -236,6 +237,10 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
   holds.** What is still filed is slotted to a named phase or roadmap row,
   a mechanical fix as much as one that needs a design decision: a gap with
   printed customers waits on the route, never on a card's registration.
+- **When a card needs a mechanic, its whole CR section is built**, with a
+  fixture for each rule no card at hand prints: one kicker card builds CR
+  702.33. A keyword on a base rule builds both whole; a sibling keyword on
+  the same base waits for its own row (`route-review`, 2026-10-29).
 
 ### Landing a phase
 
@@ -597,7 +602,7 @@ A `&CardData` handed to a function; iteration through a local bound to a map,
 or a write through a `&mut` a helper returned; the `std` hash maps off
 `GameState` (CI's three-process determinism step catches a leak there);
 `devgui/`; a swallowed `Result` and registry membership. Review owns them.
-Making event fields private is `route-review`'s question.
+Making event fields private is `names-and-hygiene-sweeps`' question.
 
 ### Randomness
 

@@ -2269,7 +2269,7 @@ stack without a target ... a second ability triggers and you pick a
 target") and its last is the count ("you can't sacrifice multiple creatures
 to deal damage multiple times"). 603.12a's "one or more times" is
 `OncePerEvent` over that window; its payment loop is a cost paid at
-resolution, which `roadmap-v2.md` `route-review` gives an owner (§13).
+resolution, which `modes-plus-choice-kinds` owns (§13).
 
 `resolution_records` is also where "this way" and "that many" look ("you
 gain life equal to the damage dealt this way", "discard any number, then
@@ -2833,7 +2833,7 @@ written on `Does` alone (§6.4).
 order (CR 101.4) and is `Does` if any did; it is built with its first card.
 Item 24's sized `IfYouDo { did, didnt }` is not built, since two conditionals
 read one answer. "Unless [a player] pays [cost]" is a payment inside a
-resolution with no owner yet: `roadmap-v2.md` `route-review` gives it one. Strict
+resolution, which `modes-plus-choice-kinds` owns. Strict
 Proctor, Frost Titan and every ward wait for it (§13).
 
 ### 6.3 The bound facts, LKI, and CR 603.6's "unable to be found"
@@ -3860,7 +3860,7 @@ Items 16, 275, 289 and 290 closed.
 A history row grew from 104 to 112 bytes. The "dealt this way" family the
 design counted at 4 is 24 cards. Review asked the phase's loose ends built
 rather than filed: two were, and item 288 needs CR 607.2h's linked
-abilities and the prevented damage's sources, so it went to `route-review`.
+abilities and the prevented damage's sources, so it went to `linked-abilities`.
 
 **Measured** (`fuzz-record.md`, TR-5d's block). The arm without item 275
 plays `main`'s games on every table at +0.13% instructions per decision;
@@ -3869,7 +3869,7 @@ together. The two cards' stress distortion is small. TR-5h's held-memory
 gate is asserted over every game together (the owner, 2026-10-20): 3,923 B
 a turn.
 
-**What it leaves.** Item 288, at `route-review`. TR-5g followed it.
+**What it leaves.** Item 288, at `linked-abilities`. TR-5g followed it.
 
 **Trace page:** no — excess is a fact the batch decides on its record.
 → `plans/archive/triggers-architecture-landed.md`, "TR-5d".
@@ -4033,7 +4033,7 @@ their trigger half lands.
 | **TR-4** | TR-4a: 603.6e-002; 122.8-001; 122.9-001. TR-4b: 603.10c-001, -002, -003; 603.2e-002. TR-4c: 603.6e-001; 400.7f-001. TR-4d: 603.10d-001; 603.10e-001; 603.9-001 (2026-10-12, §12) | 12 |
 | **TR-5** | TR-5e: 508.2a-001, moved from TR-5a at its design (2026-10-16). TR-5b: 122.7-001. TR-5d: 120.10-001, moved from TR-5c at its review (2026-10-18). TR-5g: 603.2d-001 (2026-10-12, §12), split from TR-5d at its design (2026-10-18) | 4 |
 | **TR-6** | 603.8-001, -002 (both covered at its close) | 2 |
-| **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — `cant-cast-play-or-activate`'s); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001, BOUNDARY-707.7-001 (linked — §2.2, `breadth-features`); 603.12a-001 and 605.3a-002 (a cost paid at resolution, "unless [a player] pays" — no owner until `roadmap-v2.md` `route-review` gives it one; 702.21a-001, -002 (ward = TR-5's event and that payment), Strict Proctor and Frost Titan wait with them); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.9g-001 (copies — CV-2, `spell-copies`, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (convoke's payment — `convoke-delve-improvise`; a grant at cast that outlives its source — `route-review` gives it an owner); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and `hybrid-and-phyrexian-payment`'s); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
+| **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — `cant-cast-play-or-activate`'s); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001, BOUNDARY-707.7-001 (linked — §2.2, `linked-abilities`); 603.12a-001 and 605.3a-002 (a cost paid at resolution, "unless [a player] pays" — `modes-plus-choice-kinds`; 702.21a-001, -002 (ward = TR-5's event and that payment), Strict Proctor and Frost Titan wait with them); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.9g-001 (copies — CV-2, `spell-copies`, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (convoke's payment — `convoke-delve-improvise`; a grant at cast that outlives its source — `permission-design`); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and `hybrid-and-phyrexian-payment`'s); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
 
 Ninety-three of the 133 Phase 7 atoms are owed across the six phases and RH-3 (plus
 the two from outside the phase TR-1 claims, 121.2c-001, which TR-2a claims,
@@ -4102,7 +4102,7 @@ line here, and its text is in the archive.
        and epoch) is the per-ability memory 607.2a's "the exiled cards" needs,
    and §2.2 should reuse it rather than mint a second one. Miracle's
    603.11 shape waits there (§16). Kept here at the item 6 audit: §2.2 is
-   `breadth-features`'s to build, and `route-review` only decides it.
+   `linked-abilities`' to design and build (`route-review`, 2026-10-29).
 13. **Prompts inside a resolution or a batch are not fork points.**
     Placement's prompts run at a priority grant with the queue on
     `GameState` (§5.2); a vote or a CR 616.1 choice keeps its continuation
@@ -4147,9 +4147,8 @@ line here, and its text is in the archive.
 
 - **Modes on a triggered ability** (603.3c) — `backlog.md` §2.7, which
   builds on §5.4's placement.
-- **"Unless [a player] pays"** — no owner yet; `roadmap-v2.md` `route-review` gives it
-  one. Ward (702.21a), Strict Proctor and Frost Titan register with it, on
-  TR-5's event.
+- **"Unless [a player] pays"** — `modes-plus-choice-kinds`. Ward (702.21a),
+  Strict Proctor and Frost Titan register with it, on TR-5's event.
 - **Linked abilities** (603.11, 607) — `backlog.md` §2.2; miracle's
   "reveal ... as you draw it" is a trigger customer, and Phyrexian
   Vindicator's another (`codebase-state.md` item 288).
@@ -4267,22 +4266,24 @@ and MA-1 with MA-2.
   5. Each phase heading in §12 records its decision.
 - **The `owed` gate was armed at TR-6's close** and read clean through the
   close-out; three atoms §13 deferred to owners that never named them went
-  to `route-review`, which does.
+  to `route-review`, which named `modes-plus-choice-kinds` and
+  `linked-abilities` (2026-10-29).
 
 ### What stays open, and where each waits
 
-- §15: 9 (`merging-and-meld`), 10 (`backlog.md` §2.9, `information-model`), 11 (`remaining-costs`), 12 (§2.2, `breadth-features`) and
+- §15: 9 (`merging-and-meld`), 10 (`backlog.md` §2.9, `information-model`), 11 (`remaining-costs`), 12 (§2.2, `linked-abilities`) and
   13 (items 40 and 233); 5 is `backlog.md` §2.49 and 15 is item 299.
-- §16, each bullet with its owner; "unless [a player] pays" has none until
-  `route-review`.
+- §16, each bullet with its owner; "unless [a player] pays" is
+  `modes-plus-choice-kinds`'.
 - §13: 37 atoms deferred, each with its owner; `owed` clean.
 - `codebase-state.md`'s wrong-today items: 59 (`breadth-features`), 204 and 207 (beside
   `card-layer-cleanup`), 211 (`mana-payment-solver`) and 297 (A6e).
 
 ### What comes next inherits
 
-`route-review` decides "unless [a player] pays", CR 607's linked abilities, modal
-triggers and the AI harness's type decisions before anything is built
-around them; `information-model-design` designs the information model, which §16's per-viewer
-visibility waits on. Items 40 and 233 are the debt a fork-based harness
+`route-review` (2026-10-29) placed "unless [a player] pays" and modal triggers
+in `modes-plus-choice-kinds`, CR 607's linked abilities in `linked-abilities`
+and the AI harness's type decisions in `pausing-at-a-decision`, each designed
+before anything is built around it; `information-model-design` designs the
+information model, which §16's per-viewer visibility waits on. Items 40 and 233 are the debt a fork-based harness
 inherits.

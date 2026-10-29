@@ -1,0 +1,263 @@
+== Calibration: registered cards ==
+{'authorable': 210, 'blocked': 3}
+  blocked    Hanweir Garrison: layout:Meld
+  blocked    Mirrorweave: mana:hybrid
+  blocked    Nephalia Academy: api:Reveal
+
+== Letter all: 32080 Commander-legal cards with a Forge script; 37 without ==
+  without a script (sample): Aisha of Sparks and Smoke; Arvinox, the Mind Flail; Baldin, Century Herdmaster; Bjorna, Nightfall Alchemist; Bohn, Beguiling Balladeer; Brisela, Voice of Nightmares; Casal, Lurkwood Pathfinder // Casal, Pathbreaker Owlbear; Cecily, Haunted Mage; Chittering Host; Elmar, Ulvenwald Informant; Enkira, Hostile Scavenger; Evin, Waterdeep Opportunist
+
+-- letter all, Commander-legal: 32080 cards --
+  authorable 15385   48.0%
+  unclear      764    2.4%
+  blocked    15819   49.3%
+  digital      112    0.3%
+  blocker                                      blocks  alone
+  phase-8-breadth                                3349   1957
+  remaining-costs                                2554   1437
+  information-model                              2394   1135
+  casting-from-other-zones                       1832    765
+  combat-restrictions                            1567    974
+  any-color-plus-painlands-plus-signets          1352    802
+  route-review: unless pays                      1018    520
+  route-review: modal                             915    534
+  hybrid-and-phyrexian-payment                    748    360
+  double-faced-cards                              583    226
+  token-copies                                    393    225
+  cant-be-targeted                                369    255
+  face-down-and-morph                             361    257
+  spell-copies                                    340    168
+  split-and-adventure-style-cards                 328    182
+  chosen-color-plus-could-produce                 327    166
+  combat-requirements                             322    167
+  backlog: for-each                               282     96
+  backlog: infect and wither                      173    103
+  backlog: dice                                   168     92
+  convoke-delve-improvise                         167    124
+  cant-cast-play-or-activate                      161     83
+  as-though-effects                               136     87
+  permission-design                               128     62
+  divided-among-targets                           125     60
+  game-formats                                    122     63
+  backlog: energy                                 102     64
+  mana-provenance                                  86     41
+  backlog: choose a name                           67      8
+  backlog: dungeons                                60     38
+  multiplayer-rules                                60     33
+  merging-and-meld                                 51     30
+  backlog: repeat                                  48      9
+  backlog: bestow                                  43     32
+  backlog: snow                                    37     23
+  backlog: voting                                  33     14
+  route-review: costs to attack                    28      0
+  command-zone-casting                             16      7
+
+-- letter all, EDHREC rank <= 5000: 4990 cards --
+  authorable  2006   40.2%
+  unclear      135    2.7%
+  blocked     2849   57.1%
+  digital        0    0.0%
+  blocker                                      blocks  alone
+  phase-8-breadth                                 567    290
+  any-color-plus-painlands-plus-signets           554    319
+  information-model                               531    266
+  remaining-costs                                 397    182
+  casting-from-other-zones                        350    140
+  route-review: modal                             190     97
+  route-review: unless pays                       173     72
+  combat-restrictions                             150     82
+  token-copies                                    134     78
+  double-faced-cards                              117     38
+  chosen-color-plus-could-produce                 100     40
+  spell-copies                                     81     35
+  hybrid-and-phyrexian-payment                     77     18
+  backlog: for-each                                64     31
+  cant-be-targeted                                 52     30
+  cant-cast-play-or-activate                       41     26
+  split-and-adventure-style-cards                  38     22
+  combat-requirements                              37     18
+  backlog: infect and wither                       37     22
+  as-though-effects                                32     20
+  convoke-delve-improvise                          29     13
+  backlog: dice                                    26      6
+  face-down-and-morph                              25     15
+  multiplayer-rules                                19     11
+  game-formats                                     16      9
+  divided-among-targets                            12      6
+  backlog: repeat                                  12      3
+  permission-design                                10      2
+  merging-and-meld                                  8      5
+  backlog: energy                                   7      1
+  mana-provenance                                   7      2
+  backlog: voting                                   4      2
+  backlog: bestow                                   4      3
+  command-zone-casting                              2      0
+  backlog: dungeons                                 2      1
+  route-review: costs to attack                     1      0
+  backlog: choose a name                            1      0
+
+-- Unlock curve, letter all, Commander-legal (unclear = blocking) --
+  today                                        15385   48.1%
+  + phase-8-breadth                            17340   54.2%
+  + remaining-costs                            18863   59.0%
+  + information-model                          20231   63.3%
+  + casting-from-other-zones                   21545   67.4%
+  + combat-restrictions                        22774   71.2%
+  + any-color-plus-painlands-plus-signets      23806   74.5%
+  + route-review: modal                        24532   76.7%
+  + route-review: unless pays                  25302   79.1%
+  + hybrid-and-phyrexian-payment               25870   80.9%
+  + double-faced-cards                         26326   82.4%
+  + token-copies                               26658   83.4%
+  + cant-be-targeted                           26980   84.4%
+  + face-down-and-morph                        27307   85.4%
+  + split-and-adventure-style-cards            27595   86.3%
+  + chosen-color-plus-could-produce            27881   87.2%
+  + spell-copies                               28164   88.1%
+  + combat-requirements                        28437   89.0%
+  + backlog: for-each                          28669   89.7%
+  + convoke-delve-improvise                    28830   90.2%
+  + backlog: infect and wither                 28991   90.7%
+  + backlog: dice                              29128   91.1%
+  + cant-cast-play-or-activate                 29258   91.5%
+  + as-though-effects                          29382   91.9%
+  + permission-design                          29503   92.3%
+  + divided-among-targets                      29614   92.6%
+  + game-formats                               29725   93.0%
+  + backlog: energy                            29826   93.3%
+  + mana-provenance                            29911   93.6%
+  + backlog: choose a name                     29973   93.8%
+  + backlog: dungeons                          30028   93.9%
+  + multiplayer-rules                          30077   94.1%
+  + backlog: repeat                            30122   94.2%
+  + backlog: bestow                            30162   94.4%
+  + merging-and-meld                           30201   94.5%
+  + backlog: snow                              30238   94.6%
+  + backlog: voting                            30265   94.7%
+  + route-review: costs to attack              30288   94.7%
+  + command-zone-casting                       30304   94.8%
+  + (unclear needs)                            31968  100.0%
+
+-- Unlock curve, letter all, Commander-legal (unclear = built) --
+  today                                        16149   50.5%
+  + phase-8-breadth                            18271   57.2%
+  + remaining-costs                            19863   62.1%
+  + information-model                          21316   66.7%
+  + casting-from-other-zones                   22723   71.1%
+  + combat-restrictions                        23998   75.1%
+  + any-color-plus-painlands-plus-signets      25061   78.4%
+  + route-review: modal                        25820   80.8%
+  + route-review: unless pays                  26622   83.3%
+  + hybrid-and-phyrexian-payment               27233   85.2%
+  + double-faced-cards                         27724   86.7%
+  + token-copies                               28072   87.8%
+  + face-down-and-morph                        28409   88.9%
+  + cant-be-targeted                           28750   89.9%
+  + split-and-adventure-style-cards            29054   90.9%
+  + spell-copies                               29360   91.8%
+  + chosen-color-plus-could-produce            29667   92.8%
+  + combat-requirements                        29962   93.7%
+  + backlog: for-each                          30221   94.5%
+  + backlog: infect and wither                 30389   95.1%
+  + convoke-delve-improvise                    30552   95.6%
+  + backlog: dice                              30705   96.0%
+  + cant-cast-play-or-activate                 30843   96.5%
+  + as-though-effects                          30975   96.9%
+  + permission-design                          31101   97.3%
+  + divided-among-targets                      31221   97.7%
+  + game-formats                               31342   98.0%
+  + backlog: energy                            31444   98.4%
+  + mana-provenance                            31530   98.6%
+  + backlog: choose a name                     31597   98.8%
+  + backlog: dungeons                          31657   99.0%
+  + multiplayer-rules                          31717   99.2%
+  + merging-and-meld                           31768   99.4%
+  + backlog: repeat                            31816   99.5%
+  + backlog: bestow                            31859   99.7%
+  + backlog: snow                              31896   99.8%
+  + route-review: costs to attack              31924   99.9%
+  + backlog: voting                            31952   99.9%
+  + command-zone-casting                       31968  100.0%
+
+-- Unlock curve, letter all, EDHREC rank <= 5000 (unclear = blocking) --
+  today                                         2006   40.2%
+  + any-color-plus-painlands-plus-signets       2325   46.6%
+  + phase-8-breadth                             2629   52.7%
+  + information-model                           2923   58.6%
+  + remaining-costs                             3189   63.9%
+  + casting-from-other-zones                    3448   69.1%
+  + route-review: modal                         3597   72.1%
+  + route-review: unless pays                   3713   74.4%
+  + combat-restrictions                         3831   76.8%
+  + token-copies                                3943   79.0%
+  + double-faced-cards                          4029   80.7%
+  + chosen-color-plus-could-produce             4111   82.4%
+  + hybrid-and-phyrexian-payment                4177   83.7%
+  + spell-copies                                4241   85.0%
+  + backlog: for-each                           4296   86.1%
+  + cant-be-targeted                            4342   87.0%
+  + backlog: infect and wither                  4378   87.7%
+  + cant-cast-play-or-activate                  4413   88.4%
+  + split-and-adventure-style-cards             4446   89.1%
+  + combat-requirements                         4478   89.7%
+  + as-though-effects                           4509   90.4%
+  + convoke-delve-improvise                     4538   90.9%
+  + backlog: dice                               4558   91.3%
+  + face-down-and-morph                         4576   91.7%
+  + multiplayer-rules                           4591   92.0%
+  + game-formats                                4604   92.3%
+  + divided-among-targets                       4616   92.5%
+  + backlog: repeat                             4627   92.7%
+  + permission-design                           4637   92.9%
+  + backlog: energy                             4644   93.1%
+  + mana-provenance                             4651   93.2%
+  + merging-and-meld                            4657   93.3%
+  + backlog: bestow                             4661   93.4%
+  + backlog: voting                             4664   93.5%
+  + command-zone-casting                        4666   93.5%
+  + backlog: dungeons                           4668   93.5%
+  + route-review: costs to attack               4669   93.6%
+  + backlog: choose a name                      4670   93.6%
+  + (unclear needs)                             4990  100.0%
+
+== Unclear needs: 456 distinct; the most common ==
+   224 static:Continuous[other]
+    67 layout:Prepare
+    56 api:ChangeZone[All->Battlefield]
+    50 static:Continuous[hidden_keyword]
+    36 static:OptionalCost
+    19 api:ReplaceSplitDamage
+    11 api:DigMultiple
+    11 amount:Adamant
+    11 amount:PromisedGift
+    11 amount:wasCastFromGraveyard
+    11 amount:wasCastFromYourHandByYou
+    10 api:ProtectionAll
+    10 api:GainControlVariant
+    10 api:Endure
+    10 api:ChangeZoneAll[Library->Exile]
+    10 trig:Phase[Untap]
+    10 cost:Mana
+    10 api:Recruit
+    10 trig:DamageAll
+    10 trig:DayTimeChanges
+    10 static:IgnoreLegendRule
+    10 api:AddOrRemoveCounter
+    10 api:ChangeZoneAll[Battlefield->Library]
+    10 static:IgnoreLandWalk
+    10 api:ChangeZoneAll[Library->Hand]
+     9 api:TimeTravel
+     9 amount:Blessing
+     9 trig:RingTemptsYou
+     9 trig:TurnBegin
+     9 amount:CountersAddedThisTurn
+     9 amount:OptionalGenericCostPaid
+     9 cost:Unattach
+     9 api:ChangeZoneAll[Library->Graveyard]
+     9 param:duration_UntilYourNextUpkeep
+     9 api:ChangeZone[Hand,Graveyard->Battlefield]
+     9 amount:Delirium
+     9 api:ChangeZoneAll[Library->Battlefield]
+     8 api:ChangeZone[All->Battlefield,hidden]
+     8 amount:ValidBattlefield,Graveyard
+     8 api:Unattach

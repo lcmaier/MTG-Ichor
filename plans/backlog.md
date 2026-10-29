@@ -123,7 +123,8 @@ is `hybrid-and-phyrexian-payment`, a sized slot. The entry is kept as written fo
   read a cost the cost pipeline does not yet record.
 - **Atoms** — 10 re-filed to `Backlog`, all session S5; 20 in the corpus, the
   remainder correctly filed at Phase 8 and later.
-- **Owner** — none yet.
+- **Owner** — `linked-abilities`, which graduates this entry to a doc of its
+  own (`route-review`, 2026-10-29).
 - **Two records an entry makes, and nothing keeps either**
   (`cr-coverage-audit.md` §4a, 2026-09-24).
   - **An "as it enters" choice:** a color, a creature type, a player or an
@@ -167,9 +168,9 @@ is `hybrid-and-phyrexian-payment`, a sized slot. The entry is kept as written fo
   Two customers are already in the tree, each a one-off this design takes
   over: `PermanentState::x_value`, CR 107.3m's X carried into an entry's
   abilities as a field of its own, and `codebase-state.md` item 338, which
-  finds nothing remembering whether tribute was paid. `route-review` is
-  where CR 607 is given an owner, beside item 335's "as this enters"
-  abstraction.
+  finds nothing remembering whether tribute was paid. `linked-abilities`
+  owns CR 607, beside item 335's "as this enters" abstraction
+  (`route-review`, 2026-10-29).
 
 ### 2.3 Casting from a non-hand zone — ✅ graduated 2026-10-05 to `permission-architecture.md`
 
@@ -536,7 +537,7 @@ RD-3 built CR 609.7a's chosen source. The card is one mechanism short.
 | **Size** | ≈ 30 mechanical sites plus new logic in `next_damage_shares` — above `replacement-architecture.md` §9's ~300–400 estimate, which did not contain the allocation half |
 | **Blocks** | Harm's Way; and, since RE-6, the choice Exquisite Archangel's first ruling offers — see the second customer below. Divine Deflection is a *pooled* amount, not a split, and waits on `AmountExpr::X` and `codebase-state.md` item 90 |
 | **Atoms** | none filed under `Backlog`; CR 614.9's atoms are covered by RD-4's whole-event redirects |
-| **Owner** | `replacement-architecture.md` §9's RD-5 section, which carries the shape, the site table and the gate that closed |
+| **Owner** | `partial-damage-redirection`, a row after v0.5 (`route-review`, 2026-10-29); `replacement-architecture.md` §9's RD-5 section carries the shape, the site table and the gate that closed |
 
 **Why it is here rather than on the route** — and it is a *number*, which is
 the only reason §9 allows for excluding one card. RD-5's gate said the split
@@ -658,7 +659,8 @@ critical path, which lists neither; that is the owner's line to add.
   itself modifiable, so the count needs a hook rather than being a pure query
   (Altar of the Pantheon, "your devotion to each color is increased by one").
 - **Atoms** — 7, not re-filed.
-- **Owner** — none yet.
+- **Owner** — `modes-plus-choice-kinds`, with the other choice kinds
+  (`route-review`, 2026-10-29); devotion stays a breadth mechanic.
 
 ### 2.8 Where an ability functions, and when it can be activated — ✅ graduated 2026-10-05 to `permission-architecture.md`
 
@@ -1347,9 +1349,9 @@ mechanic rather than a migration, which is why it is here and not in
   amount, and the `DecisionProvider` a prompt that returns numbers rather than
   indices. ~500–700 lines with Arc Lightning as its consumer (the atoms are
   written around its numbers) and Forked Bolt as the cheap pooled option at one
-  mana. `roadmap-v2.md` row **`divided-among-targets`**, back-stopped before Phase 8's breadth,
-  where the 48 "divided as you choose" cards live; it blocks nothing on the
-  spine.
+  mana. `roadmap-v2.md` row **`divided-among-targets`**, built inside
+  `modes-plus-choice-kinds` since `route-review` (2026-10-29), before the
+  decks, three of whose cards divide.
 - **The rest of this entry is the record of the design as it was sized**, kept
   because the atoms and the card counts are still what A4j is sized against.
 
@@ -2075,7 +2077,7 @@ mechanic rather than a migration, which is why it is here and not in
   seams, and the census of printed mandatory loops by shape that the design
   starts with.
 - **Owner** — `roadmap-v2.md` `loop-detection`, slotted last before Phase 8 at TR-6's design
-  review (the owner, 2026-10-21). This entry graduates to `loop-detection`'s architecture
+  review (the owner, 2026-10-21), and after v0.5 since `route-review` (2026-10-29). This entry graduates to `loop-detection`'s architecture
   doc when its design lands. Raised at RE-4's review (R21).
 
 ### 2.29 The suppression predicate as a commutation table — ✅ graduated 2026-09-14 (RE-5's review, theme B)
@@ -2777,7 +2779,7 @@ named them.
 | **Size** | unsized: a design first, against the copy track's shapes, then about a PR per mechanic, casting path included |
 | **Blocks** | about 150 Adventure cards (Scryfall, 2026-09-29: `is:adventure game:paper -is:funny` returns 151, `t:adventure` returns 138), 19 Prototype (`keyword:prototype`), and 13 Omen (`t:omen`) |
 | **Atoms** | 33 in the corpus (CR 715, 718, 720, 702.160) |
-| **Owner** | the copy track: filed with CV-2b (the owner, 2026-09-29). Designed with `double-faced-cards`'s card model beside `permission-design`, and built after `double-faced-cards` (`roadmap-v2.md` §3a, "From triggers to Phase 8", 2026-10-12) |
+| **Owner** | the copy track: filed with CV-2b (the owner, 2026-09-29). Designed in `card-and-object-model` beside `permission-design`, and built after v0.5 with the rest of `split-and-adventure-style-cards` (`roadmap-v2.md` §3a, "From triggers to v0.5", re-routed 2026-10-29) |
 
 ### 2.42 The board editor's other advanced settings — history, a card's lines, setup actions
 
