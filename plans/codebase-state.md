@@ -865,7 +865,7 @@ here. None is blocking RB.
     **Sized:** the two `unwrap_or(0)` reads (`sba.rs:242`, `:254`)
     become an explicit `None` arm whose answer CR 721.2c decides, ~10 lines plus
     a test; lands with the first Station card (Phase 8).
-    **Slotted:** A6e's cleanup, in `layers-combat-and-counters`, beside
+    **Slotted:** `layers-combat-and-counters`, beside
     "Before card breadth" 1's noncreature P/T (CR 208.3): both are the
     `Option` a permanent's power and toughness are, and the station cards'
     rulings, fetched there, decide the `None` arm (the owner, at #293's
@@ -1280,12 +1280,13 @@ registered card returns an object.
     counter on a card outside the battlefield (suspend, off-battlefield
     keyword counters and Skullbriar are unregistered), and `counters` is still
     `PermanentState`'s.
-    **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23):
-    moving `counters` onto `GameObject` is a design, not a card's mechanical
-    fix: what CR 613.7c's `CounterStack.timestamp` means off the battlefield,
-    and the clone cost of a map on every object in every zone. Its first
-    customer, suspend, casts from exile, which is permission's later builds,
-    so `route-review` places it beside them.
+    **Slotted:** `layers-combat-and-counters`, beside "Before card breadth" 3's
+    named counters, so the counter store is decided once (`route-review`,
+    2026-10-29): moving `counters` onto `GameObject` is a design, not a card's
+    mechanical fix: what CR 613.7c's `CounterStack.timestamp` means off the
+    battlefield, and the clone cost of a map on every object in every zone. Its
+    first customer, suspend, casts from exile, which `casting-from-other-zones`
+    builds.
 
 24. **~~`ReplacementDef.then` is rich enough; the `Effect` tree is not
     (`rb-review.md` F4).~~ — ✅ CLOSED 2026-09-26 (TR-2b).** — archived.
@@ -1409,10 +1410,10 @@ section never asked.
     at resolution time, with the object-reaching arms reading `ctx.targets`
     through it — is ~150–250 lines; lands with the first set-phrased rider
     (RD/RE) or the first mass-removal spell, whichever comes first.
-    **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23):
-    what is left is a design, `EffectRecipient::Choose` answered at resolution
-    (CR 608.2d) across the object-reaching arms and a set the event names
-    ("each of them"), with the count above first, which decides between one
+    **Slotted:** `modes-plus-choice-kinds` (`route-review`, 2026-10-29): what
+    is left is a design, `EffectRecipient::Choose` answered at resolution (CR
+    608.2d) across the object-reaching arms and a set the event names ("each of
+    them"), with the count above first, which decides between one
     `recipients_for` and per-arm treatment.
     **Partly built (2026-10-14, A6m's first PR, #249):** `affected_permanents`
     resolves a `FilteredPermanents` recipient as the effect resolves, for every
@@ -1558,7 +1559,7 @@ section never asked.
 
     **Reachability (2026-09-03):** unreachable — nothing reads it: no sunburst,
     no spell copy (`spell-copies`) and no CR 700.14 card is registered.
-    **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`
+    **Slotted:** `resolution-recipients-and-amounts`
     (re-slotted 2026-10-24 by the concept census, which found the concept
     keyed and unowned, `cr-coverage-audit.md#4c-concepts-and-their-owners`):
     the payment's chosen objects and players beside `CostChoices`, with
@@ -1590,8 +1591,9 @@ section never asked.
 
     **Sized:** owned by `backlog.md` §2.7, one phase; the field
     costs nothing until then.
-    **Slotted:** `breadth-features`, whose `backlog.md` §2.7 modal spells are the field's first
-    writer and reader.
+    **Slotted:** `modes-plus-choice-kinds`, whose modes are the field's first
+    writer and reader, named by identity rather than position (`route-review`,
+    2026-10-29); it was `breadth-features`' `backlog.md` §2.7.
 
 32. **`DeckLimits` is configured and never consulted (found 2026-08-31 by the
     D3b slice-2 triage).** `GameConfig` carries `min_deck_size`,
@@ -2413,8 +2415,9 @@ measurement; what follows is what a later phase has to know.
     unchanged, and the loud 0/0 stays in the stress pool on purpose — taking
     the Ghoul out is a pool move for a wrong answer the §2.2 phase fixes
     whole.
-    **Slotted:** `breadth-features`, the lattice's `backlog.md` §2.2 linked abilities (CR 607),
-    whose per-pair exile record Sutured Ghoul's `*/*` CDA reads.
+    **Slotted:** `linked-abilities`, whose per-pair exile record Sutured
+    Ghoul's `*/*` CDA reads (`route-review`, 2026-10-29); it was
+    `breadth-features`' `backlog.md` §2.2.
 
 60. **~~Master Biomancer's Mutant clause is unimplemented, and it is not one
     field.~~ — ✅ CLOSED 2026-09-28 (RG).** — archived. The Mutant is a
@@ -2852,12 +2855,12 @@ one, so nothing was wrong in practice and nothing moved.
     Offering an order that bricks the payment is what would make 732.1's
     cancellation load-bearing, and building the cancellation is the
     alternative to that constraint rather than a companion to it.
-    **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23),
-    with "Before card breadth" item 4's CR 613.7m: each is an order the CR
-    hands a player ("in any order", "in the order of that player's choice")
-    that the engine takes today, and when one is asked is one design, asked
-    only where the orders' outcomes differ, and here only among orders that
-    complete. Its board stays Omnath, Locus of Mana beside Momentous Fall
+    **Slotted:** `modes-plus-choice-kinds` (`route-review`, 2026-10-29), with
+    "Before card breadth" item 4's CR 613.7m: each is an order the CR hands a
+    player ("in any order", "in the order of that player's choice") that the
+    engine takes today, and when one is asked is one design, asked only where
+    the orders' outcomes differ, and here only among orders that complete. Its
+    board stays Omnath, Locus of Mana beside Momentous Fall
     (`ATOM-601.2h-003`).
 
 80. **CR 601.2h's second payment group is not modelled, and nothing was
@@ -2905,9 +2908,10 @@ one, so nothing was wrong in practice and nothing moved.
     **Sized:** with modal spells (`backlog.md` §2.3's neighbourhood), not
     before. Nothing here changes until then; the note exists so that "keyword
     means optional" is not inferred from the variant list.
-    **Slotted:** `breadth-features`'s `backlog.md` §2.7 modal spells, then the first spree card
+    **Slotted:** `modes-plus-choice-kinds`' modes, then the first spree card
     (Scryfall: `keyword:spree`), whose per-mode costs are a `Mandatory`
-    additional cost.
+    additional cost (`route-review`, 2026-10-29); it was `breadth-features`'
+    `backlog.md` §2.7.
 
 82. **CR 704.5p's first sentence is not implemented: an Equipment that becomes
     a creature stays attached.** — ✅ closed, archived.
@@ -3149,7 +3153,7 @@ consequences, and only the first was designed:
     player-side counter this item waited on (`backlog.md` §2.16), so each
     keyword is a flag, a result and a block in `perform_action`'s
     `DealDamage` arm; `backlog.md` §2.6 names the three.
-    **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+    **Slotted:** `layers-combat-and-counters` builds it (the
     card-homed triage, 2026-10-23): infect, wither and toxic as keyword flags,
     and CR 120.3b, 120.3d and 120.3g as `DamageResults` flags proposing
     `GameAction::AddCounters`, a player's through `CounterSubject::Player`,
@@ -3169,11 +3173,12 @@ consequences, and only the first was designed:
     was filed 2026-09-08 because no doc owned CR 310 at all. The 120.3h result
     itself is one flag on `DamageResults` and one block, the same shape as
     120.3c; everything else about battles is the size.
-    **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23):
-    CR 310 is a design, the protector a second control-like relation
-    `ObjectFilter` has no leaf for, a battle attacked with its protector as
-    the defending player (CR 506.2, 508.5), and the 120.3h result one flag
-    inside it (`backlog.md` §2.23).
+    **Slotted:** `breadth-features`, after v0.5, since no Tarkir: Dragonstorm
+    Commander card is a battle (`route-review`, 2026-10-29): CR 310 is a
+    design, the protector a second control-like relation `ObjectFilter` has no
+    leaf for, a battle attacked with its protector as the defending player (CR
+    506.2, 508.5), and the 120.3h result one flag inside it (`backlog.md`
+    §2.23).
 
 ### Found by the RD-1 review (2026-09-08)
 
@@ -3255,8 +3260,7 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     **Sized:** ~80–120 — a field on the instance and the rider, one
     `EffectRecipient` arm, `resolve_rider` building a context that carries
     both, and the no-op check.
-    **Slotted:** A6e's cleanup builds it in
-    `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+    **Slotted:** `resolution-recipients-and-amounts` builds it (the card-homed triage, 2026-10-23):
     the row's targets threaded onto `ReplacementInstance` and `Rider`, a
     `then` recipient for what the effect targeted, and the rider's
     existence-and-type check (the three rulings above), with a fixture
@@ -3314,8 +3318,7 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     `EffectRecipient::EachOf(PlayerGroup)` exists now (item 122's), and
     `CreateReplacement` refuses it by name. What is left is the per-player
     rows, ~15 lines, with Kitsune Palliator.
-    **Slotted:** A6e's cleanup builds it in
-    `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+    **Slotted:** `resolution-recipients-and-amounts` builds it (the card-homed triage, 2026-10-23):
     per-player rows in `CreateReplacement` over
     `EffectRecipient::EachOf(PlayerGroup)`, ~15 lines, with a fixture shield
     for "each creature and each player", a row per player as CR 615.11's are
@@ -3524,8 +3527,7 @@ audit is at the end.
      resolution-side fill, which is item 90's — so it is item 90 plus ~20
      lines, and it lands with the first card that needs it. Not stubbed: the
      arm does not exist, so no card can silently do nothing.
-     **Slotted:** A6e's cleanup builds it in
-     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+     **Slotted:** `resolution-recipients-and-amounts` builds it (the card-homed triage, 2026-10-23):
      on item 90's targets, `RetargetSpec::ToFixed` and its fill, with a
      fixture that redirects damage to a target chosen at cast, CR 614.9's
      destination re-check applying.
@@ -3641,7 +3643,7 @@ named RE PR.
      justifies it, ~10 lines; the care is that CR 305.2 counts land plays per
      *turn* and no rule places the reset, so the move needs an argument rather
      than a hunch.
-     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+     **Slotted:** `layers-combat-and-counters` builds it (the
      card-homed triage, 2026-10-23): the land-drop reset moves to
      `on_turn_begin`, since CR 305.2's one land is per turn, with a fixture
      "skip your untap step" and a land played in the turn that skipped it.
@@ -3691,12 +3693,12 @@ named RE PR.
      per eligible card per player. **Unblocked as of LK.** The care is the
      ordering ruling above and CR 103.6's interaction with mulligans, which are
      themselves stubbed.
-     **Slotted:** `route-review`, the route review, at the card-homed triage
-     (2026-10-23): CR 103.6's step is designed beside CR 103.5's mulligans,
-     which `route-review` places (`setup-architecture.md` names both as its neighbors): a
-     pregame step between `Game::setup`'s opening hands and
-     `start_first_turn`, its `DecisionProvider` question and Gemstone Caverns'
-     ordering ruling. Leyline of the Void gets its first clause there.
+     **Slotted:** `game-formats` (`route-review`, 2026-10-29): CR 103.6's step
+     is designed beside CR 103.5's mulligans, in `setup-architecture.md`, which
+     names both as its neighbors: a pregame step between `Game::setup`'s
+     opening hands and `start_first_turn`, its `DecisionProvider` question and
+     Gemstone Caverns' ordering ruling. Leyline of the Void gets its first
+     clause there.
 
 120. **~~`AbilityDef` has no named constructors.~~ — ✅ CLOSED 2026-10-09 (PR
      #238).** — archived.
@@ -4293,13 +4295,14 @@ The layer system's designated single-point change site is `oracle/characteristic
    ~150–250 lines in `apply_effects`, plus CR 613.7a's timestamp for a grantee
    set that moves with the board; lands with the first such card — an
    Aura-granted static after LH, or an Archetype-class lord.
-   **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23):
-   the gather that unions the registry with rows derived from each frame, and
-   CR 613.7a's timestamp for a grantee set that moves with the board, are a
-   design inside the layer walk, and `engineering-practices.md#gaps-a-phase-finds`
-   (2026-10-20) puts a design on the route, not in a card's registration.
-   `roadmap-v2.md` §3a had kept it with its first card on 2026-10-12. Item 7g,
-   merged here, is the same per-pass derivation.
+   **Slotted:** `text-changing-effects`, the other design in the layer walk
+   (`route-review`, 2026-10-29): the gather that unions the registry with rows
+   derived from each frame, and CR 613.7a's timestamp for a grantee set that
+   moves with the board, are a design inside the layer walk, and
+   `engineering-practices.md#gaps-a-phase-finds` (2026-10-20) puts a design on
+   the route, not in a card's registration. Rune of Might is a printed customer
+   (`plans/references/card-census/authoring-check.md`). Item 7g, merged here,
+   is the same per-pass derivation.
 
 7a. **Frame cache is live.** — ✅ closed, archived.
     **Reachability (2026-09-03):** closed — and the cross-call half is
@@ -4326,9 +4329,10 @@ The layer system's designated single-point change site is `oracle/characteristic
     **Sized:** `ContinuousEffectDraft` consumed by `add`, the
     struct plus ~26 mechanical sites, ~100 lines; a quiet PR of its own, pairing
     with main item 64's rename.
-    **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`, which takes the
-`ContinuousEffectDraft` refactor before Phase 8 grows its literals (44 on
-`50c459d4`).
+    **Slotted:** `card-layer-cleanup`, which takes the `ContinuousEffectDraft`
+    refactor before the decks grow its literals (44 on `50c459d4`), since every
+    card writes them (`route-review`, 2026-10-29); it was the audit's
+    `names-and-hygiene-sweeps`.
 
 7f. **Conditional static abilities — ✅ done (2026-09-06, LI-3).** `Effect::Conditional` lowers to its inner atom's rows, registered unconditionally, and the condition stays on the ability where CR 604.2's existence check already looks: `board::static_ability_still_exists` evaluates it against the pass's *live* board at the row's layer, so a condition reading types sees layer 4 applied. No field on `ContinuousEffect` and no second registry (`layers-architecture.md` §13b decision 5). `engine/layers/condition.rs` is the evaluator; `Condition` gained one leaf, `HostMatches(ObjectFilter)`, for "as long as enchanted permanent is …". **Kird Ape** is the consumer and is in `PERFORMANCE_POOL`. The historical note below is the reason the answer had to be an existence check rather than a gate, and it is kept.
 
@@ -4478,7 +4482,7 @@ The layer system's designated single-point change site is `oracle/characteristic
     registrations, `would_be_rows`, `register_copied_static_effects`), or
     the lowering splits a multi-recipient `Sequence` into one group per
     recipient; with the first card that needs it.
-    **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+    **Slotted:** `layers-combat-and-counters` builds it (the
     card-homed triage, 2026-10-23): beside item 184,
     `EffectGroup::StaticAbility` keyed by the atom too, so one static ability
     over two recipient sets is two effects with two locked sets (CR 613.6),
@@ -4553,7 +4557,7 @@ first.
    **Sized:** a battlefield-only type gate in
    `get_effective_power`/`get_effective_toughness`, ~10 lines plus a test, with
    the first Vehicle.
-   **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+   **Slotted:** `layers-combat-and-counters` builds it (the
 card-homed triage, 2026-10-23): a battlefield-only creature-type gate in
 `get_effective_power`/`get_effective_toughness` (CR 208.3; off the battlefield
 a card keeps its printed P/T), with a fixture creature that loses the creature
@@ -4591,7 +4595,7 @@ type.
    **Sized:** `CounterType::Named(&'static str)` and moving
    `Charge` across the line, ~80 lines, with the first card that needs a named
    counter.
-   **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+   **Slotted:** `layers-combat-and-counters` builds it (the
 card-homed triage, 2026-10-23): `CounterType::Named` with `Charge` and
 `Growth` moved across the line, and CR 122.1a's other +X/+Y kinds given their
 arms at the two catch-alls above, with a fixture that puts a named counter and
@@ -4628,11 +4632,11 @@ one that puts a +1/+0 counter. The newtype question is decided there.
    (`layers-architecture.md` §13a); 613.7m is a decision point (the active
    player orders their own), ~60 lines inside `CreateTokens`' performer, with
    the first distinguishable creation; 613.7n rides LH-2.
-   **Slotted:** `route-review`, the route review, at the card-homed triage (2026-10-23),
-   with item 79: CR 613.7m's "in the order of that player's choice" is an
-   order the engine takes today, and asking it only where the orders' outcomes
-   differ is the same design as CR 601.2h's payment order. Its APNAP half,
-   across players, needs no choice.
+   **Slotted:** `modes-plus-choice-kinds` (`route-review`, 2026-10-29), with
+   item 79: CR 613.7m's "in the order of that player's choice" is an order the
+   engine takes today, and asking it only where the orders' outcomes differ is
+   the same design as CR 601.2h's payment order. Its APNAP half, across
+   players, needs no choice.
 
 5. **Layer 7c is not order-independent in Magic, and 19 cards say so (recorded 2026-08-24).** `compute.rs` applies ±1/±1 counters after the 7c registry slice without a timestamp merge. That is correct while every 7c modification is an addition — but CR 701.10a makes "double [a creature's] power" a 7c continuous effect whose addend depends on what already applied, so two doublings, or a doubling and a pump, are order-dependent by timestamp. Scryfall: **19 cards** match the doubling shape (Bulk Up, Epic Fight, Exponential Growth, Unnatural Growth…), before looser wordings. Inexpressible today — `AmountExpr` has no affected-power leaf — so nothing is wrong now. The first doubling card needs that leaf **and** the timestamp merge Layer 6's keyword counters already use. The comment at the code site was corrected 2026-08-24; it used to claim order-independence as a property of the layer.
 
@@ -4642,7 +4646,7 @@ one that puts a +1/+0 counter. The newtype question is decided there.
 
    **Sized:** the leaf plus a 7c timestamp merge in the shape Layer
    6's keyword counters use, ~100–150 lines, with the first doubling card.
-   **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+   **Slotted:** `layers-combat-and-counters` builds it (the
 card-homed triage, 2026-10-23): the affected-power leaf and a 7c timestamp
 merge in the shape Layer 6's keyword counters use (CR 701.10a's doubling is a
 7c effect whose addend reads what applied before it), with a fixture doubling
@@ -4656,7 +4660,7 @@ beside a pump, in both timestamp orders.
    **Sized:** read `blocker_damage_divisions` in
    that arm instead of the first living attacker, ~40–60 lines, with
    the first "can block an additional creature" card.
-   **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+   **Slotted:** `layers-combat-and-counters` builds it (the
 card-homed triage, 2026-10-23): the multi-block arm reads
 `blocker_damage_divisions` (CR 510.1d), and the same board tells CR 509.3a's
 once per blocker from 509.3b's once per creature blocked, with a fixture "can
@@ -5303,9 +5307,10 @@ What the *shape* says, as opposed to what one endpoint suggested:
 
     **Reachability (2026-10-22):** reachable — not wrong; a performance question
     on paths a measured game runs thousands of times a turn.
-    **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`, which reads the
-    `.clone()` sites in `engine/layers/` and `engine/replacement/` first, with
-    a fuzz A/B behind it.
+    **Slotted:** `names-and-hygiene-sweeps`, the cleanup before release in
+    Phase 10 (`route-review`, 2026-10-29), which reads the `.clone()` sites in
+    `engine/layers/` and `engine/replacement/` first, with a fuzz A/B behind
+    it.
 
 ### Found by RE-6 — the game's end (2026-09-12)
 
@@ -5367,13 +5372,13 @@ migration.
      which is what §8c's "two customers before a leaf" asks for before that
      facility is built. Until then the engine's answer is the graveyard and
      this line is the record that the choice is missing.
-     **Slotted:** `route-review`, the route review, at the card-homed triage
-     (2026-10-23): `backlog.md` §2.25's facility, a replacement whose result
-     is more than one event, inserted as members in phase 1, with CR 704.7's
-     collapse of two members moving one object turned into a prompt, is a
-     design with two customers (Harm's Way, Exquisite Archangel's ruling) and
-     no row; `replacement-architecture.md` §9's RD-5 section holds its shape
-     and the gate that closed.
+     **Slotted:** `partial-damage-redirection`, a row after v0.5
+     (`route-review`, 2026-10-29): `backlog.md` §2.25's facility, a replacement
+     whose result is more than one event, inserted as members in phase 1, with
+     CR 704.7's collapse of two members moving one object turned into a prompt,
+     is a design with two customers (Harm's Way, Exquisite Archangel's ruling);
+     `replacement-architecture.md` §9's RD-5 section holds its shape and the
+     gate that closed.
 
 ### Found by RE-4 — tokens (2026-09-13)
 
@@ -6852,8 +6857,9 @@ place.
      `StackEntry.chosen_modes` — once per cast, which is the rate the stored
      list was built to take castability *off*. The stored list stays the
      pre-601.2b one, and today a `Modal` node declares nothing in it.
-     **Slotted:** `breadth-features`, whose `backlog.md` §2.7 modal spells make the cast walk
-     only the chosen modes, `StackEntry.chosen_modes` its input.
+     **Slotted:** `modes-plus-choice-kinds`, whose modes make the cast walk
+     only the chosen modes (`route-review`, 2026-10-29); it was
+     `breadth-features`' `backlog.md` §2.7.
 
 154. **`ObjectFilter::OtherThanInstance` is only asked of a `Permanent`
      filter, so "another target" over `SelectionFilter::Any` or `Player` is
@@ -6881,9 +6887,10 @@ place.
      it. That is the shape CR 601.2c actually describes, so it is a
      simplification as well as a widening; it was not done here because it
      touches `EffectRecipient`, which 146 sites construct.
-     **Slotted:** `breadth-features`, with `backlog.md` §2.7's modal spells, eight of which
-     print "each mode must target a different player": the exclusion moves to
-     the clause.
+     **Slotted:** `modes-plus-choice-kinds`, eight of whose modal cards print
+     "each mode must target a different player": the exclusion moves to the
+     clause (`route-review`, 2026-10-29); it was `breadth-features`'
+     `backlog.md` §2.7.
 
 155. **`every_instance_has_a_choice` feeds instances forward greedily, which
      is exact for the shapes that print and not in general.** An "another
@@ -6909,8 +6916,7 @@ place.
      returns one card, Combine Guildmage, and it reuses one filter — so the
      reachability line above stands. This is the sentence a card author checks
      a new "another target" card against.
-     **Slotted:** A6e's cleanup builds it in
-     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+     **Slotted:** `resolution-recipients-and-amounts` builds it (the card-homed triage, 2026-10-23):
      castability asks for an assignment of every instance at once (CR 601.2c),
      so a later clause narrower than one it excludes is not refused, with a
      fixture "target creature" then "another target creature you control" on
@@ -6994,7 +7000,7 @@ place.
      the `ObjectFilter` leaf to the clause, so a `Player` or `Any` filter can
      carry it) plus §2.7's mode work. The copy axis is CV's and is sized there.
      **Slotted:** `spell-copies`, whose CR 707.10d/e per-target copies carry the copy
-     axis; the modal axis is item 154's, at `breadth-features`.
+     axis; the modal axis is item 154's, at `modes-plus-choice-kinds`.
 
 159. **~~`SelectionFilter::Spell` accepts an activated ability on the stack,
      and `Primitive::CounterSpell` then puts the ephemeral ability object into
@@ -7573,7 +7579,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      each row evaluates its own filter and the lock records their union; later
      layers apply the union. With the first registered card of the shape, or
      before it.
-     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+     **Slotted:** `layers-combat-and-counters` builds it (the
      card-homed triage, 2026-10-23): beside "Before Layers" item 16, within
      the layer an effect starts in each row evaluates its own filter and the
      lock records their union (CR 613.6), with the throwaway fixture's shape
@@ -7675,10 +7681,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      blocker's half of `can_block`.
 
      **Sized:** the candidates are unsized until each is confirmed.
-     **Slotted:** `roadmap-v2.md` `route-review`, the route review after triggers, which
-     places it among the rows before Phase 8's card breadth (the owner,
-     2026-10-22, at #274's merge: confirming a candidate is a read and a
-     merge, which is cleanup, so it left A6h's docs audit).
+     **Slotted:** `layers-combat-and-counters` (`route-review`, 2026-10-29),
+     since most of its open candidates are layer and combat code; that keeps it
+     before card breadth, where the owner placed it (2026-10-22, at #274's
+     merge: confirming a candidate is a read and a merge, which is cleanup, so
+     it left A6h's docs audit).
 
 ### Found by building CV-2b (2026-09-29)
 
@@ -7717,7 +7724,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      amounts on the primitive and on `EffectModification::SetPowerToughness`,
      27 and 13 sites, or a one-sided primitive for CDAs alone), the key split
      into `Power` and `Toughness`, and a test with a one-sided copy exception.
-     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+     **Slotted:** `layers-combat-and-counters` builds it (the
      card-homed triage, 2026-10-23): a CDA that names the side it defines (CR
      604.3a(1)), `cda::CdaCharacteristic`'s key split into `Power` and
      `Toughness`, and a fixture one-sided copy exception beside a one-sided
@@ -7971,7 +7978,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** ~30–60 lines with the first such card: the CDA in
      `engine/layers/cda.rs`, or an `EffectModification` arm, each calling
      `Subtypes::insert_every_creature_type`.
-     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+     **Slotted:** `layers-combat-and-counters` builds it (the
      card-homed triage, 2026-10-23): changeling's CDA in
      `engine/layers/cda.rs` (CR 702.73a) and a Layer 4 `EffectModification`
      arm for "gains all creature types", each calling
@@ -7995,7 +8002,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      "for the entire time the object's card type is removed", so whether a
      later effect that gives the type back gives the subtypes back is read
      against the rulings before it is built.
-     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters` (the
+     **Slotted:** `layers-combat-and-counters` builds it (the
      card-homed triage, 2026-10-23): after Layer 4's type arms a subtype stays
      only while a type it belongs to remains (CR 205.1a, 205.3m), with
      ATOM-205.1a-004's fixture, the registered Dryad Arbor made noncreature by
@@ -8252,8 +8259,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      item 242's, the `can_pay` pair item 243's, the two `ui/ask.rs` wrappers
      item 246's, and `static_replacement` and `intrinsic_mana_ability` `card-layer-cleanup`'s
      ("Before card breadth" item 10). The first two stay here.
-     **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`, which takes
-     the first two cleanups.
+     **Slotted:** `names-and-hygiene-sweeps`, the cleanup before release in
+     Phase 10 (`route-review`, 2026-10-29), which takes the first two cleanups.
 
 ### Found by SU-8, what happened, from the trace (2026-10-06)
 
@@ -8354,13 +8361,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      704.5m, `ObjectSet::Host`, the why panel, and TR-4b's: an entry's
      `EnterMods.attached_to` and the attachment records), ~150 lines with the
      first Curse.
-     **Slotted:** `route-review`, the route review, at the card-homed triage
-     (2026-10-23): an attachment that can name a player is a design, the
-     host's type on `PermanentState::attached_to` and `GameAction::Attach` and
-     every reader of it (CR 704.5m, `ObjectSet::Host`, the why panel, TR-4b's
-     attachment records), and `engineering-practices.md#gaps-a-phase-finds` (2026-10-20) puts
-     a design on the route, not in a card's registration; #234's slot with the
-     first Curse predates that rule.
+     **Slotted:** `card-and-object-model`, which designs an attachment that can
+     name a player and builds it before the decks for Curse of Opulence
+     (`route-review`, 2026-10-29): the host's type on
+     `PermanentState::attached_to` and `GameAction::Attach` and every reader of
+     it (CR 704.5m, `ObjectSet::Host`, the why panel, TR-4b's attachment
+     records). #234's slot with the first Curse predates the rule that puts a
+     design on the route.
 
 228. **~~An Aura that enters attached is attached by a direct write, and
      announces nothing.~~ — ✅ CLOSED 2026-10-14 (PR #252, TR-4b).** —
@@ -8757,8 +8764,9 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and `route-revi
      2026-10-15, at #253's review). A design, not a patch; a harness bound
      (~30 lines, a game past an object count ends as a harness outcome beside
      the turn limit) is only a stopgap for the fuzz runs.
-     **Slotted:** `route-review`, the route review, which gives `backlog.md` §2.28's
-     `GameNumber` an owner beside its token board for the performance floors.
+     **Slotted:** `loop-detection` (`route-review`, 2026-10-29), whose shortcut
+     half owns `backlog.md` §2.28's `GameNumber`; the token board for the
+     performance floors is a reading for the item 6 audit's readiness.
 
 265. **A card cast from a graveyard carries no frame.** CR 601.2a's move is
      silent (`// CAST-ROLLBACK:`) and announced at 601.2i, so no batch frames
@@ -8833,8 +8841,7 @@ with no batch between them; written at the item 6 audit's pass 5.
      `OwnerOf`, `ForEachPlayer`), not a `PlayerAntecedent` beside it; the fold
      PR adds the arms the existing spellings need, and this item the rest.
      #295's design note records the change before its player half builds.
-     **Slotted:** A6e's cleanup builds it in
-     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+     **Slotted:** `resolution-recipients-and-amounts` builds it (the card-homed triage, 2026-10-23):
      "that player" names its participant as the object readers do (CR 608.2c)
      and the existing `TriggeringPlayer` uses migrate, with fixtures for a
      stolen creature dying under "whenever a creature an opponent controls
@@ -8858,7 +8865,7 @@ with no batch between them; written at the item 6 audit's pass 5.
      files' literals: one `AmountExpr::ValueOf(which object, which value)`,
      the object word shared with `Antecedent` (`ConditionObject` until
      TR-5e's review) and TR-5e's `AttackedBy`.
-     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     **Slotted:** `resolution-recipients-and-amounts`,
      beside item 299, which reads `SourcePower` at resolution.
 
 270. **~~"Defending player" for a creature that left combat and stayed on the battlefield names nobody.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f).** — archived.
@@ -8913,8 +8920,7 @@ with no batch between them; written at the item 6 audit's pass 5.
      **Sized:** `Effect::ForEach` built, with a players `Selector` that binds
      each player as the instruction's named player, ~60 lines of code and ~80
      of tests.
-     **Slotted:** A6e's cleanup builds it in
-     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+     **Slotted:** `resolution-recipients-and-amounts` builds it (the card-homed triage, 2026-10-23):
      `Effect::ForEach` over a players `Selector` that binds each player as the
      instruction's named player, with a three-seat fixture "for each opponent,
      create a 1/1 token tapped and attacking that player"; encore's attack
@@ -9006,7 +9012,7 @@ Number 277 was withdrawn in #260 and is not reused.
      **Sized:** the arm's watched side, ~20 lines; the entry's blocking (its
      controller's choice of attacker, CR 509.4a's refusal) and its record,
      ~60; ~80 of tests, ATOM-509.4-001 among them.
-     **Slotted:** A6e's cleanup builds it in `layers-combat-and-counters`
+     **Slotted:** `layers-combat-and-counters` builds it
      with the combat builds, the arm's watched side decided first (moved
      there on 2026-10-23 by PR #284, which built CR 509.3c's half).
 
@@ -9064,8 +9070,7 @@ Number 277 was withdrawn in #260 and is not reused.
      target.
      **Sized:** the instance walk into `Group`, and the member's fizzle,
      ~30 lines of code and ~50 of tests.
-     **Slotted:** A6e's cleanup builds it in
-     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+     **Slotted:** `resolution-recipients-and-amounts` builds it (the card-homed triage, 2026-10-23):
      the instance walk into `Group` and the target member's own fizzle (CR
      608.2b), with a fixture "exile this creature and target creature without
      flying that's attacking you".
@@ -9112,8 +9117,8 @@ Number 277 was withdrawn in #260 and is not reused.
      **Reachability (2026-10-22):** reachable — not wrong: a reader's cost.
      **Sized:** sort the 88 by the rule, then a struct or a split for each
      that fails, mechanical; ~150–300 lines, counted before it runs.
-     **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`, beside its
-     naming sweep.
+     **Slotted:** `names-and-hygiene-sweeps`, the cleanup before release in
+     Phase 10 (`route-review`, 2026-10-29), beside its naming sweep.
 
 ### Found by TR-5h (2026-10-19)
 
@@ -9145,10 +9150,12 @@ scan of the history log, and the place in a turn that reads a tally since
      a count of draws, deaths, attacks or damage.
      **Sized:** a word per fact naming its objects, as `cast <card>` does,
      each ~40 lines with its test.
-     **Slotted:** `route-review`, whose audit of the scenario format reads it
-     first (`roadmap-v2.md`): a word per narrowed fact, Caller of the Claw's
-     deaths the first (the owner, at #293's review, 2026-10-25: a filed gap
-     with printed customers takes a route row).
+     **Slotted:** `pausing-at-a-decision` (`route-review`, 2026-10-29), whose
+     design opens with the route-review row's audit of the scenario format and
+     the dev GUI together against what the engine now records, since a paused
+     game is saved in that format: a word per narrowed fact, Caller of the
+     Claw's deaths the first (the owner, at #293's review, 2026-10-25: a filed
+     gap with printed customers takes a route row).
 
 ### Found by TR-5d (2026-10-19)
 
@@ -9180,10 +9187,10 @@ scan of the history log, and the place in a turn that reads a tally since
      `by` naming a linked static ability or a remembered effect, and CR
      607.2h's link; then ~100–150 lines of code and ~150 of tests, with
      Phyrexian Vindicator and Samite Ministration.
-     **Slotted:** `route-review`, the route review, where CR 607's linked abilities are
-     decided (`roadmap-v2.md`); moved from "the first registered card" at
-     TR-5d's review (the owner, 2026-10-20), since the record's shape and the
-     link are design questions rather than a card's.
+     **Slotted:** `linked-abilities` (`route-review`, 2026-10-29), which
+     designs CR 607's links; moved from "the first registered card" at TR-5d's
+     review (the owner, 2026-10-20), since the record's shape and the link are
+     design questions rather than a card's.
 
 289. **~~No amount reads the damage, or its excess, that a resolution
      dealt.~~ — ✅ CLOSED 2026-10-20 (PR #263, TR-5d's review).** — archived.
@@ -9252,7 +9259,7 @@ scan of the history log, and the place in a turn that reads a tally since
      **Sized:** the exhaustive match `DealDamage` got, with "no player" an
      answer that does nothing: ~60–80 lines over the resolver and its 12
      call sites, and a fixture for each board, shown failing first.
-     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     **Slotted:** `resolution-recipients-and-amounts`,
      beside item 268's "that player" and row 39's `named_player` (the owner
      had put it beside item 291, 2026-10-20).
 
@@ -9347,8 +9354,7 @@ scan of the history log, and the place in a turn that reads a tally since
      a cost reduction.
      **Sized:** ~20 lines: the arm, and a test whose source is sacrificed
      before its ability resolves.
-     **Slotted:** A6e's cleanup builds it in
-     `resolution-recipients-and-amounts` (the card-homed triage, 2026-10-23):
+     **Slotted:** `resolution-recipients-and-amounts` builds it (the card-homed triage, 2026-10-23):
      `AmountExpr::SourcePower` at resolution reads the source's power while it
      is on the battlefield and its kept last known information once it has
      left (CR 113.7a), with a fixture "{T}: this creature deals damage equal
@@ -9430,8 +9436,7 @@ row 57 is item 297.
      enter under the attacking player.
      **Sized:** ~8 lines, its two callers and a fixture: an
      `is_attacking_player` beside `is_defending_player`, read at both sites.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `resolution-recipients-and-amounts`.
+     **Slotted:** `resolution-recipients-and-amounts`.
 
 308. **A condition's "you" is read through two different channel lists, and
      a Layer 2 dependency is missed.** CR 109.5's "you" is the source's
@@ -9443,8 +9448,7 @@ row 57 is item 297.
      **Reachability (2026-10-22):** unreachable — no registered static
      lowers to a Layer 2 row.
      **Sized:** ~5 lines and a Layer 2 fixture.
-     **Slotted:** A6e, the cleanup of item 6's close audit, in
-     `layers-combat-and-counters`.
+     **Slotted:** `layers-combat-and-counters`.
 
 309. **~~A template naming a referred object its arm never remembers is made
      empty, and never triggers, with no error.~~ — ✅ CLOSED 2026-10-25 (PR
@@ -9596,7 +9600,7 @@ keyed by its event.
      performers writes both ends.
      **Sized:** ~15–25 lines: a debug check, at a batch's close, that each
      end is the other's inverse.
-     **Slotted:** A6e's cleanup, in `layers-combat-and-counters`, beside merge
+     **Slotted:** `layers-combat-and-counters`, beside merge
      row 41's attachments.
 
 323. **A block is held from both ends, written in two places.**
@@ -9606,7 +9610,7 @@ keyed by its event.
      combat (`GameState::remove_from_combat`), each writing both ends.
      **Reachability (2026-10-24):** reachable — not wrong today.
      **Sized:** ~15–25 lines: item 322's debug check over the combat's blocks.
-     **Slotted:** A6e's cleanup, in `layers-combat-and-counters`, beside
+     **Slotted:** `layers-combat-and-counters`, beside
      "Before card breadth" 6's multi-block damage, which reads both ends.
 
 324. **~~The last control sweep's view is held twice.~~ — ✅ CLOSED 2026-10-25
@@ -9661,7 +9665,7 @@ keyed by its event.
      **Sized:** ~10–20 lines and a fixture: the rider's context names its
      replacement's source, and the T4 board (a return made inside a rider's
      batch) then shows CR 603.7a's filter failing first.
-     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`.
+     **Slotted:** `resolution-recipients-and-amounts`.
 
 ### Found by `record-existences` (2026-10-25)
 
@@ -9695,7 +9699,9 @@ keyed by its event.
      body; the registration's stamp; and every static body that writes the
      variant, each read as a static ability's or a resolution's: ~80–120
      lines, most in card files.
-     **Slotted:** A6e's cleanup, in `names-and-hygiene-sweeps`.
+     **Slotted:** `layers-combat-and-counters` (`route-review`, 2026-10-29):
+     what a static ability's duration means is a layer fact, not a name, so it
+     left the audit's `names-and-hygiene-sweeps`.
 
 332. **~~"An opponent" as the player putting an entering object's counters is refused among several opponents, where CR 702.104a makes it a choice.~~ — ✅ CLOSED 2026-10-26 (PR #294, `batch-legality-and-entry-choices`).** —
      archived.
@@ -9756,7 +9762,7 @@ keyed by its event.
      longer that existence (CR 400.7, 608.2b): ~60–100 lines over
      `targeting.rs` and the resolver's readers, and two fixtures, the
      destroy-then-exile above and the flicker, shown failing first.
-     **Slotted:** A6e's cleanup, in `resolution-recipients-and-amounts`,
+     **Slotted:** `resolution-recipients-and-amounts`,
      beside item 292, its player twin: an instruction acting on a target
      that is gone does nothing.
 
@@ -9798,8 +9804,8 @@ keyed by its event.
      **Sized:** a design first: the instruction form, the half the entry
      reads back, and its CR 607 record, decided before `breadth-features`
      builds on the payloads; the build is sized there.
-     **Slotted:** `route-review`, beside CR 607's linked abilities and the
-     card parser's design.
+     **Slotted:** `linked-abilities`, beside CR 607's links (`route-review`,
+     2026-10-29); the card parser it was also beside is declined for v0.5.
 
 336. **CR 616.1's ordering prompt names an effect by its source, so two
      effects of one object are one option twice.** `ask_choose_replacement`
@@ -9817,8 +9823,8 @@ keyed by its event.
      **Sized:** an option naming the effect (its source and its ability, or
      its instance id), read by the prompt, the log and the dev GUI's option
      list: ~40–80 lines and the fixture the Elder already is.
-     **Slotted:** `route-review`, with the AI harness's `DecisionProvider`
-     shape, which decides how an option names what it is.
+     **Slotted:** `pausing-at-a-decision`, whose design decides how an option
+     names what it is (`route-review`, 2026-10-29).
 
 337. **An entry choice's cost is paid only in life.** `EnterModsTemplate`'s
      `unless_paid` carries any `Cost`, and `pays_as_object_enters` refuses every
@@ -9851,8 +9857,8 @@ keyed by its event.
      **Sized:** the chosen opponent and the answer kept with the entering
      permanent, and a `Condition` leaf reading them at the trigger and at
      resolution (CR 603.4): ~60–100 lines and a fixture.
-     **Slotted:** `route-review`, beside CR 607's linked abilities (item 335's
-     design), since a remembered entry choice is one of them.
+     **Slotted:** `linked-abilities`, since a remembered entry choice is one of
+     CR 607's links, item 335's design (`route-review`, 2026-10-29).
 
 339. **A life cost passes the payability check when its player can't lose
      life.** CR 119.8 says a player who can't lose life can't pay a cost
@@ -9888,54 +9894,23 @@ word it spells, and whether that word is spelled elsewhere
 (`cr-coverage-audit.md#4d-words-and-their-spellings`). Items 340–344 are its
 folds and 345–347 the gaps the duplicates hid.
 
-340. **"This object" and the other object words are spelled once per role.**
-     `EffectRecipient` spells "this object", "enchanted creature", a
-     trigger's participant and the object a delayed trigger remembers as
-     arms of its own; `TriggerSubject` spells three of them again, and
-     `Condition::HostMatches` a fourth way, beside `Antecedent`, which
-     already holds two. The register's role table shows these three roles
-     answer several object words each, so they hold the one word type.
-     `Antecedent` gains `ThisObjectsHost` and `Referred`'s object half;
-     `EffectRecipient::Object(Antecedent)` and
-     `TriggerSubject::Object(Antecedent)` fold the arms, a recipient refusing
-     `Antecedent::TargetOfInstance` (`SameInstanceAs` stays its spelling) and
-     `Antecedent::Affected`; `TriggerSubject::Any` becomes
-     `Filter(ObjectFilter::All)`; `HostMatches` becomes
-     `Condition::ObjectMatches(Antecedent, ObjectFilter)`, the shape
-     `CounterCount` already has. #295's decision 2 had filed the recipient
-     half at `names-and-hygiene-sweeps`; #296's decision 1 moves it here. A
-     fold holds exactly the families of the arms it folds, so it counts no new
-     one (`engineering-practices.md#what-a-new-type-must-express`).
-     **Reachability (2026-10-26):** reachable — not wrong today: each
-     spelling reads its object correctly, and the cost is a reader per role
-     and a sweep that grows with every card.
-     **Sized:** ~390 sites and ~95 lines of readers, ~530–580 carried.
-     **Slotted:** `route-review`, which decides whether one spelling per word
-     is still worth a sweep. #297 built this fold (`08eae9bd`) and was closed
-     unmerged on 2026-10-27: its only payoff was one spelling, and the call
-     sites grew longer and the readers more generic.
+340. **~~"This object" and the other object words are spelled once per role.~~ — ✅ CLOSED 2026-10-29 (PR #298, retired).** — archived.
+     Retired at `route-review` (the owner, 2026-10-29, its decision 4): one
+     spelling per word was its only payoff, and #297, which built it, made the
+     call sites longer and the readers more generic. The spellings stay apart
+     on purpose, and `cr-coverage-audit.md#4d-words-and-their-spellings`
+     records them so.
+     **Reachability (2026-10-29):** closed — PR #298.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 340".
 
-341. **The player an instruction acts on is spelled apart from `PlayerRef`.**
-     `EffectRecipient::Controller`, `TriggeringPlayer` and `DefendingPlayer`
-     name one player beside `PlayerRef::You` and `PlayerRef::DefendingPlayer`,
-     and `PlayerRef::Owner` is read two ways (item 348).
-     `EffectRecipient::Player(PlayerRef)` folds the three; `PlayerRef` gains
-     `TheEventsPlayer` (what `TriggeringPlayer` reads), `OwnerOf(Antecedent)`
-     (the source's `Owner` becomes `OwnerOf(ThisObject)`) and `ReferredPlayer`, which
-     `EffectRecipient::Referred`'s players become. Item 268's
-     `ControllerOf`, `ForEachPlayer` and the zone change's two readings are
-     then arms of `PlayerRef`, not a `PlayerAntecedent` beside it (#296's
-     decision 2, reopening #295's decision 4). `NamedPlayers::FirstInstance`
-     ("you and that player", read off instance 0) folds the same way:
-     `PlayerGroup.named` holds a `PlayerRef::TheEventsPlayer`, a rider's being
-     its replaced event's player, so nothing picks by position. The census
-     note had put `PlayerRef::EnchantedPlayer` in this fold too; it moved to
-     item 346, since a player word nothing can be attached to is an arm the
-     engine cannot apply. A fold holds exactly its folded arms' families.
-     **Reachability (2026-10-26):** reachable — not wrong today.
-     **Sized:** ~295 sites and ~50 lines, ~370–400 carried.
-     **Slotted:** `route-review`, as item 340 is; #297's version is
-     `d4fc7ec2`.
+341. **~~The player an instruction acts on is spelled apart from `PlayerRef`.~~ — ✅ CLOSED 2026-10-29 (PR #298, retired).** — archived.
+     Retired at `route-review` (the owner, 2026-10-29, its decision 4): its
+     folds bought one spelling, as item 340's did; its one hazard,
+     `NamedPlayers::FirstInstance` naming a player by position, is item 351.
+     The spellings stay apart on purpose, and
+     `cr-coverage-audit.md#4d-words-and-their-spellings` records them so.
+     **Reachability (2026-10-29):** closed — PR #298.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 341".
 
 342. **"An opponent" reads as any opponent in a filter and as one chosen
      opponent in an instruction.** `object_filter.rs` reads
@@ -9964,34 +9939,27 @@ folds and 345–347 the gaps the duplicates hid.
      **Sized:** ~195 sites in the filters and ~120–180 in the trigger events'
      fields, and ~110 lines of readers, ~480–560 carried; it takes the fold
      PR to ~1,850–2,100 carried.
-     **Slotted:** `route-review`, beside item 345, whose payload this
-     `PlayerSet` is. Of #297's folds this is the one with a hazard behind it;
-     its version is `e8fd921c`.
+     **Slotted:** `multiplayer-rules`, beside item 345, whose payload this
+     `PlayerSet` is (`route-review`, 2026-10-29). Of #297's folds this is the
+     one with a hazard behind it, since the one-opponent reading asserts at
+     three seats; its version is `e8fd921c`.
 
-343. **A trigger arm's "a player or a permanent" is three types.**
-     `DamageRecipient`, `DefenderFilter` and `ObjectOrPlayerSubject` each test
-     the object or player that played a part in an event, with a player half
-     and an object half. They become one `ParticipantFilter`: a player half
-     (a `PlayerSet`, item 342), an object half (a `TriggerSubject`), and their
-     `Or`. `SelectionFilter` stays apart, holding the same leaves, for a
-     selection's candidates (#296's decision 4). A fold holds exactly its
-     folded arms' families: a participant such as "a planeswalker or battle an
-     opponent controls" is the object half's `ObjectFilter`, as it is today.
-     **Reachability (2026-10-26):** reachable — not wrong today.
-     **Sized:** ~80 sites and ~60 lines, ~170–200 carried.
-     **Slotted:** `route-review`, as item 340 is; #297's version is
-     `a11b49db`.
+343. **~~A trigger arm's "a player or a permanent" is three types.~~ — ✅ CLOSED 2026-10-29 (PR #298, retired).** — archived.
+     Retired at `route-review` (the owner, 2026-10-29, its decision 4): one
+     type for the three bought one spelling, as item 340's did. The spellings
+     stay apart on purpose, and
+     `cr-coverage-audit.md#4d-words-and-their-spellings` records them so.
+     **Reachability (2026-10-29):** closed — PR #298.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 343".
 
-344. **Two enums each spell one arm twice.**
-     `EffectRecipient::FilteredPermanents` is the battlefield case of
-     `FilteredObjectsIn`, and `SelectionFilter::Creature` is
-     `Permanent(ObjectFilter::ByType(Creature))`. Each becomes a constructor
-     of the general arm, and the resolution's four refusals of
-     `FilteredObjectsIn` become one of `zones != BATTLEFIELD`.
-     **Reachability (2026-10-26):** reachable — not wrong today.
-     **Sized:** ~220 sites and ~20 lines, ~250–260 carried.
-     **Slotted:** `route-review`, as item 340 is; #297's version is
-     `d284ff44`.
+344. **~~Two enums each spell one arm twice.~~ — ✅ CLOSED 2026-10-29 (PR #298, retired).** — archived.
+     Retired at `route-review` (the owner, 2026-10-29, its decision 4): each
+     pair already means the same thing and is read the same way, so the fold
+     bought one spelling, as item 340's did. The spellings stay apart on
+     purpose, and `cr-coverage-audit.md#4d-words-and-their-spellings` records
+     them so.
+     **Reachability (2026-10-29):** closed — PR #298.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 344".
 
 345. **"Target opponent" can't be written.** `SelectionFilter::Player`
      admits any player, where its three trigger-side siblings each carry a
@@ -10004,9 +9972,10 @@ folds and 345–347 the gaps the duplicates hid.
      an opponent, since none can be written.
      **Sized:** ~40–60 lines and a fixture "target opponent loses 2 life"
      at three seats, cast from hand.
-     **Slotted:** `route-review`, with item 342, whose `PlayerSet` is the
-     arm's new payload. #297's version is `fd07d50b`, about 150 lines with its
-     fixture, and needs none of the other folds.
+     **Slotted:** `multiplayer-rules`, with item 342, whose `PlayerSet` is the
+     arm's new payload (`route-review`, 2026-10-29); four Tarkir: Dragonstorm
+     Commander cards say "target opponent". #297's version is `fd07d50b`, about
+     150 lines with its fixture, and needs none of the other folds.
 
 346. **"Enchanted player" can't be written.** CR 303.4m's "enchanted [object
      or player]" is whatever the permanent is attached to, a player for a
@@ -10019,8 +9988,9 @@ folds and 345–347 the gaps the duplicates hid.
      enchants a player.
      **Sized:** ~200–300 lines and fixtures: a Curse cast on an opponent, its
      trigger naming the enchanted player, and its host leaving the game.
-     **Slotted:** `route-review`, which places what the cleanup leaves for the
-     route and gives it its row.
+     **Slotted:** `card-and-object-model`, with item 227's attachment to a
+     player, built before the decks for Curse of Opulence (`route-review`,
+     2026-10-29).
 
 347. **Two target families have no `SelectionFilter` arm.** "Target player or
      planeswalker", 130 printed cards (`o:"target player or planeswalker"`),
@@ -10033,7 +10003,8 @@ folds and 345–347 the gaps the duplicates hid.
      **Reachability (2026-10-26):** unreachable — no registered card targets
      either.
      **Sized:** ~60–100 lines and a fixture for each.
-     **Slotted:** `route-review`.
+     **Slotted:** `resolution-recipients-and-amounts`, the targets row
+     (`route-review`, 2026-10-29).
 
 348. **`PlayerRef::Owner` is read two ways.** In a filter it is the source's
      owner (`object_filter.rs`, Xantcha's "its owner"). As an instruction's
@@ -10048,7 +10019,8 @@ folds and 345–347 the gaps the duplicates hid.
      **Reachability (2026-10-27):** unreachable — no registered card names
      the owner of the objects it acts on.
      **Sized:** ~20–30 lines: the arm's two readers and one fixture site.
-     **Slotted:** `route-review`, with item 341.
+     **Slotted:** `multiplayer-rules`, beside item 342's two readings of "an
+     opponent" (`route-review`, 2026-10-29).
 
 349. **A delayed trigger's intervening "if" can't name the object it
      remembers.** CR 603.7c lets a delayed trigger refer to an object, and
@@ -10065,7 +10037,9 @@ folds and 345–347 the gaps the duplicates hid.
      **Sized:** ~40–80 lines: the remembered objects in the condition's
      referents, and a fixture of Grinning Totem's shape. Both printed cards
      also need `casting-from-other-zones`' "you may play that card".
-     **Slotted:** `route-review`.
+     **Slotted:** `linked-abilities`, since the object a delayed trigger
+     remembers (CR 603.7c) is the kind of reference its links hold
+     (`route-review`, 2026-10-29).
 
 350. **A resolution cannot sweep a zone other than the battlefield.**
      `EffectRecipient::FilteredObjectsIn` names objects in any zones, and the
@@ -10079,5 +10053,24 @@ folds and 345–347 the gaps the duplicates hid.
      **Sized:** ~40–60 lines: the sweep over the named zones in a fixed
      order, the primitives that read it, and Rest in Peace's trigger with a
      fixture.
-     **Slotted:** `route-review`.
+     **Slotted:** `resolution-recipients-and-amounts`, beside the recipients it
+     builds (`route-review`, 2026-10-29).
+
+### Found by `route-review` (2026-10-29)
+
+351. **`NamedPlayers::FirstInstance` names a player by position.** "You and
+     that player" (Alms Collector's rider) reads its player off the first
+     instance of the instruction's targets (`players_in`,
+     `engine/resolve.rs`), so a rider or an instruction whose first instance
+     names no player, or names a different one, picks whoever is at index 0.
+     CR 608.2c's "that player" is the participant the text refers to, as item
+     268 reads it. The fix names the player by what it is: the event's
+     player, and a rider's replaced event's player. Split from item 341 when
+     its folds were retired at `route-review`.
+     **Reachability (2026-10-29):** reachable — not wrong today: the one
+     registered rider that says it has one instance, its player.
+     **Sized:** ~20–40 lines: the arm, its reader in `players_in`, its
+     constructor and a fixture rider with two instances.
+     **Slotted:** `multiplayer-rules`, beside items 342 and 348's readings of
+     a player word (`route-review`, 2026-10-29).
 

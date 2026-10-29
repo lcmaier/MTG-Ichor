@@ -9190,3 +9190,101 @@ Tribute is a counters row with `by: Some(PlayerRef::Opponent)` and `optional: tr
      choices: the tribute choice asked through the entry's prompt for an
      opponent, with a three-seat fixture (the owner, at #293's review,
      2026-10-25: a filed gap with printed customers takes a route row).
+
+### Item 340 — closed 2026-10-29 by PR #298 (`route-review`), retired
+
+Retired at `route-review` (the owner, 2026-10-29, its decision 4): one spelling per word was its only payoff, and #297, which built it, made the call sites longer and the readers more generic. The spellings stay apart on purpose, and `cr-coverage-audit.md#4d-words-and-their-spellings` records them so.
+
+*Original entry:*
+
+340. **"This object" and the other object words are spelled once per role.**
+     `EffectRecipient` spells "this object", "enchanted creature", a
+     trigger's participant and the object a delayed trigger remembers as
+     arms of its own; `TriggerSubject` spells three of them again, and
+     `Condition::HostMatches` a fourth way, beside `Antecedent`, which
+     already holds two. The register's role table shows these three roles
+     answer several object words each, so they hold the one word type.
+     `Antecedent` gains `ThisObjectsHost` and `Referred`'s object half;
+     `EffectRecipient::Object(Antecedent)` and
+     `TriggerSubject::Object(Antecedent)` fold the arms, a recipient refusing
+     `Antecedent::TargetOfInstance` (`SameInstanceAs` stays its spelling) and
+     `Antecedent::Affected`; `TriggerSubject::Any` becomes
+     `Filter(ObjectFilter::All)`; `HostMatches` becomes
+     `Condition::ObjectMatches(Antecedent, ObjectFilter)`, the shape
+     `CounterCount` already has. #295's decision 2 had filed the recipient
+     half at `names-and-hygiene-sweeps`; #296's decision 1 moves it here. A
+     fold holds exactly the families of the arms it folds, so it counts no new
+     one (`engineering-practices.md#what-a-new-type-must-express`).
+     **Reachability (2026-10-26):** reachable — not wrong today: each
+     spelling reads its object correctly, and the cost is a reader per role
+     and a sweep that grows with every card.
+     **Sized:** ~390 sites and ~95 lines of readers, ~530–580 carried.
+     **Slotted:** `route-review`, which decides whether one spelling per word
+     is still worth a sweep. #297 built this fold (`08eae9bd`) and was closed
+     unmerged on 2026-10-27: its only payoff was one spelling, and the call
+     sites grew longer and the readers more generic.
+
+### Item 341 — closed 2026-10-29 by PR #298 (`route-review`), retired
+
+Retired at `route-review` (the owner, 2026-10-29, its decision 4): its folds bought one spelling, as item 340's did; its one hazard, `NamedPlayers::FirstInstance` naming a player by position, is item 351. The spellings stay apart on purpose, and `cr-coverage-audit.md#4d-words-and-their-spellings` records them so.
+
+*Original entry:*
+
+341. **The player an instruction acts on is spelled apart from `PlayerRef`.**
+     `EffectRecipient::Controller`, `TriggeringPlayer` and `DefendingPlayer`
+     name one player beside `PlayerRef::You` and `PlayerRef::DefendingPlayer`,
+     and `PlayerRef::Owner` is read two ways (item 348).
+     `EffectRecipient::Player(PlayerRef)` folds the three; `PlayerRef` gains
+     `TheEventsPlayer` (what `TriggeringPlayer` reads), `OwnerOf(Antecedent)`
+     (the source's `Owner` becomes `OwnerOf(ThisObject)`) and `ReferredPlayer`, which
+     `EffectRecipient::Referred`'s players become. Item 268's
+     `ControllerOf`, `ForEachPlayer` and the zone change's two readings are
+     then arms of `PlayerRef`, not a `PlayerAntecedent` beside it (#296's
+     decision 2, reopening #295's decision 4). `NamedPlayers::FirstInstance`
+     ("you and that player", read off instance 0) folds the same way:
+     `PlayerGroup.named` holds a `PlayerRef::TheEventsPlayer`, a rider's being
+     its replaced event's player, so nothing picks by position. The census
+     note had put `PlayerRef::EnchantedPlayer` in this fold too; it moved to
+     item 346, since a player word nothing can be attached to is an arm the
+     engine cannot apply. A fold holds exactly its folded arms' families.
+     **Reachability (2026-10-26):** reachable — not wrong today.
+     **Sized:** ~295 sites and ~50 lines, ~370–400 carried.
+     **Slotted:** `route-review`, as item 340 is; #297's version is
+     `d4fc7ec2`.
+
+### Item 343 — closed 2026-10-29 by PR #298 (`route-review`), retired
+
+Retired at `route-review` (the owner, 2026-10-29, its decision 4): one type for the three bought one spelling, as item 340's did. The spellings stay apart on purpose, and `cr-coverage-audit.md#4d-words-and-their-spellings` records them so.
+
+*Original entry:*
+
+343. **A trigger arm's "a player or a permanent" is three types.**
+     `DamageRecipient`, `DefenderFilter` and `ObjectOrPlayerSubject` each test
+     the object or player that played a part in an event, with a player half
+     and an object half. They become one `ParticipantFilter`: a player half
+     (a `PlayerSet`, item 342), an object half (a `TriggerSubject`), and their
+     `Or`. `SelectionFilter` stays apart, holding the same leaves, for a
+     selection's candidates (#296's decision 4). A fold holds exactly its
+     folded arms' families: a participant such as "a planeswalker or battle an
+     opponent controls" is the object half's `ObjectFilter`, as it is today.
+     **Reachability (2026-10-26):** reachable — not wrong today.
+     **Sized:** ~80 sites and ~60 lines, ~170–200 carried.
+     **Slotted:** `route-review`, as item 340 is; #297's version is
+     `a11b49db`.
+
+### Item 344 — closed 2026-10-29 by PR #298 (`route-review`), retired
+
+Retired at `route-review` (the owner, 2026-10-29, its decision 4): each pair already means the same thing and is read the same way, so the fold bought one spelling, as item 340's did. The spellings stay apart on purpose, and `cr-coverage-audit.md#4d-words-and-their-spellings` records them so.
+
+*Original entry:*
+
+344. **Two enums each spell one arm twice.**
+     `EffectRecipient::FilteredPermanents` is the battlefield case of
+     `FilteredObjectsIn`, and `SelectionFilter::Creature` is
+     `Permanent(ObjectFilter::ByType(Creature))`. Each becomes a constructor
+     of the general arm, and the resolution's four refusals of
+     `FilteredObjectsIn` become one of `zones != BATTLEFIELD`.
+     **Reachability (2026-10-26):** reachable — not wrong today.
+     **Sized:** ~220 sites and ~20 lines, ~250–260 carried.
+     **Slotted:** `route-review`, as item 340 is; #297's version is
+     `d284ff44`.
