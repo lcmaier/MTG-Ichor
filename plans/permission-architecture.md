@@ -237,10 +237,12 @@ Named here so the design session starts from them; none is answered.
 | **`command-zone-casting` — casting from the command zone** | sized by `permission-design`: CR 903.8's command zone, since `game-formats` needs it | — | — |
 | **`casting-from-other-zones` — flashback and the other casts from elsewhere** | sized by `permission-design`: the cast-from-elsewhere families, alternative costs an effect provides, `codebase-state.md` item 203 | — | — |
 
-**Slot** (`roadmap-v2.md` §3a, "From triggers to Phase 8"; `CLAUDE.md`
-owns the order): after triggers, `route-review` comes first. Then `cant-be-targeted` and
-`cant-cast-play-or-activate`, the second with `permission-design` designing its reasons beside it so each check's reasons are
-designed once (the owner, 2026-10-05), and a card's characteristic sets
-designed beside `permission-design`. Then `command-zone-casting`, CR 903.8's command zone, which `game-formats` needs,
-then `game-formats`. `casting-from-other-zones` (flashback and the other cast-from-elsewhere
-families) has its own step, after `ironworks-loop` and before `double-faced-cards`.
+**Slot** (`roadmap-v2.md` §3a, "From triggers to v0.5"; `CLAUDE.md`
+owns the order): `permission-design` comes after `information-model`, with
+`card-and-object-model`, a card's characteristic sets, designed beside it,
+and `cant-cast-play-or-activate`'s reasons too, so each check's reasons are
+designed once (the owner, 2026-10-05). Then `command-zone-casting`, CR
+903.8's command zone, which `game-formats` needs, then `game-formats`.
+`casting-from-other-zones` (flashback and the other cast-from-elsewhere
+families) comes with the decks, `tarkir-dragonstorm-decks`, whose 37 cards
+need it (`route-review`, 2026-10-29).

@@ -597,7 +597,7 @@ A `&CardData` handed to a function; iteration through a local bound to a map,
 or a write through a `&mut` a helper returned; the `std` hash maps off
 `GameState` (CI's three-process determinism step catches a leak there);
 `devgui/`; a swallowed `Result` and registry membership. Review owns them.
-Making event fields private is `route-review`'s question.
+Making event fields private is `names-and-hygiene-sweeps`' question.
 
 ### Randomness
 

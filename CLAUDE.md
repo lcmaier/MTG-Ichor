@@ -133,18 +133,19 @@ The regression is `tests/determinism_test.rs`; CI's three runs under three `MTGS
 merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same route with the *why*.
 
 1–5, 6a, 6b, 7, 7a — the layer system, replacement effects (CR 614–616) and CR 113.6's zones, in place. → `layers-architecture.md`, `replacement-architecture.md`
-5b. "Can't" effects (CR 101.2/614.17/613.11): the phases its doc names, beside the spine; `cant-be-targeted` any time
-5c. Copy effects (CR 707/712/708/729 + Layer 1): the phases its doc names, beside the spine; `merging-and-meld` back-stopped before Phase 8
-6. Triggered abilities (CR 603): the rest of `roadmap-v2.md` §3a's A rows, then `information-model-design`, reviewed before any build
-**After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
-`route-review`; four-player Commander end to end — `cant-be-targeted`; `cant-cast-play-or-activate`; `permission-design` with a card's characteristic sets designed beside it;
-`command-zone-casting`; `game-formats`; `multiplayer-rules`; `information-model` — then what Phase 8 is gated on: `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half;
-`hybrid-and-phyrexian-payment`, `remaining-costs`; `mana-ability-costs`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `mana-payment-solver`; `mana-provenance`; `ironworks-loop`;
-`casting-from-other-zones`; `double-faced-cards`, then `split-and-adventure-style-cards`; `token-copies`, `spell-copies`; `face-down-and-morph`; `merging-and-meld`; `divided-among-targets`; `loop-detection`.
-Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
+5b. "Can't" effects (CR 101.2/614.17/613.11) and 5c. copy effects (CR 707/712/708/729 + Layer 1): the phases their docs name, at their steps below
+6. Triggered abilities (CR 603): the rest of `roadmap-v2.md` §3a's A rows
+**After 6, in order** (`roadmap-v2.md` §3a, "From triggers to v0.5", has each step's why):
+`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `modes-plus-choice-kinds`; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`, `information-model`;
+`permission-design` with `card-and-object-model` beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`; `cant-be-targeted`; `cant-cast-play-or-activate`;
+`combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half; `layers-combat-and-counters`; `rulings-for-every-card`;
+then `tarkir-dragonstorm-decks`: its gap census; `mana-ability-costs`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
+`casting-from-other-zones`; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks; `mana-payment-solver`.
+**v0.5 is Tarkir: Dragonstorm Commander's five decks at one five-seat table**, in the dev GUI and over the CLI (owner, 2026-10-29).
+After it, ordered at its close: the rest of the route's rows, wider card work and Phase 9's remainder; then Phase 10.
 
-**v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
-AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
+**v1 is two use cases** (owner, 2026-08-24): 4-player Commander through the GUI built for players, Phase 10, which is when
+v1 is done (2026-10-29), and highly parallel AI games over the CLI. **Write new systems N-player-shaped from the start**.
 
 ## Spec database
 

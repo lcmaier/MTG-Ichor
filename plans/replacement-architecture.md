@@ -533,8 +533,8 @@ sacrifice: "If a spell or ability an opponent controls states that something
 happens unless you sacrifice a permanent (as Mogis, God of Slaughter does), you
 can't choose to sacrifice a permanent." So its cause is the `Effect`, not
 `Cost`. Whether "an effect causes" (Library of Leng) includes it
-has no ruling; it goes with CR 118.12a's "unless", which `roadmap-v2.md` `route-review`
-gives an owner.
+has no ruling; it goes with CR 118.12a's "unless", which `modes-plus-choice-kinds`
+owns.
 
 **Three copies of the fact fold into it.**
 - `DestructionSource` (`Effect(ObjectId)` or `StateBasedAction`) is the
@@ -1016,7 +1016,7 @@ spell or ability did (§2b.4, `codebase-state.md` item 261, built in A6r).
 Open:
 - **A payment inside a resolution** (CR 118.12): its cause is the `Effect`, by
   Sigarda's ruling. Whether "an effect causes" (Library of Leng) includes it
-  has no ruling, and it goes with "unless", which `route-review` gives an owner.
+  has no ruling, and it goes with "unless", which `modes-plus-choice-kinds` owns.
 - **A rider's records and "one or more"**: decision 5 makes an event and its
   rider two events. CR 615.5 says "immediately afterward" of a prevention
   effect's rider, and §4.1a reads every `then` that way. If a judge reads a
