@@ -197,6 +197,15 @@ pass re-reads what it touches: a number here is a starting point.
   `batch-legality-and-entry-choices` (5b): row 5 split in two at #293's
   review, which takes the cleanup one PR past its planned four (the owner,
   2026-10-25).
+- The census ahead of row 6, `vocabulary-census-and-register`, ran as #296;
+  the folds it found, #297, closed unmerged (the owner, 2026-10-27).
+  `route-review`, #298 (2026-10-29), then took pass 6, scheduling, and took
+  rows 6–8 out of the audit: rows 6 and 7 are route rows of their own,
+  `resolution-recipients-and-amounts` (its design note carried from #295 to
+  `plans/handoffs/`) and `layers-combat-and-counters`, and row 8 split
+  between `card-layer-cleanup` and `names-and-hygiene-sweeps`. What is left
+  is pass 4, readiness, in two PRs; its second writes §3's two records and
+  deletes this file.
 
 ## 1. Why this audit is bigger than the last
 
@@ -300,7 +309,7 @@ sessions are ordinary ones, one PR at a time in the main folder:
 | 5c. Names for the phases ahead | plain; the design reviewed first | pass 5c | 1 |
 | 6. A6e's cleanup | plain, a session per themed PR | 3's cleanup, with the triage's builds | 8, by the plan in pass 3 (2026-10-23), and three more at #284's review: the store of last known information, the rules page and the concept census |
 | 7. Readiness | plain; measurement | 4 | 2 |
-| 8. Scheduling | plain | 6 | 1 |
+| 8. Scheduling | plain | 6 | 1, taken by `route-review` (#298) |
 
 A fix session may still spawn a single verifier for a doubtful finding; it
 runs no fan-out of its own. Sessions 4 and 5 commute. A finding whose
@@ -789,9 +798,9 @@ about.
 | 5b | `batch-legality-and-entry-choices` | An entry event's moves and costs decided as they apply and performed as one event right before the entries, entry choices asked by answer shape (split from 5 at #293's review) | 61, 62, 63, 134, 330, 332 (63 and 332 from first-card slots at #293's review; 26 retired at #294's) | — | ~780–1,145 | ~945–1,660 | identical | phase 2's per-member read of the moves riding on it |
 | 6 census | `vocabulary-census-and-register` | Every arm of the types a card's text is written in, lined by the word it spells, and a third check in `check_type_surface.py` that fails a new arm or enum without its line (added at #295's review; #296) | — | — | docs and Python | — | identical | none |
 | 6 folds | `card-vocabulary-folds` | The census's folds, renames only but item 345: one object word, `PlayerRef` as the player word, filters' players as a `PlayerSet`, one `ParticipantFilter`, two arms spelled twice; before row 6 builds, so it writes each word once (#296's decision 1). **Built as #297 and closed unmerged (the owner, 2026-10-27)**: the folds bought one spelling at the cost of longer call sites. Its items, and the three it found (348–350), are slotted to `route-review` | 340, 341, 342, 343, 344, 345 | — | ~1,700–1,800 | ~1,850–2,100 | identical | the castability fold's `Creature` constructor, and the dispatch's player tests |
-| 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329, 334 (334 filed at #294's review) | 38 | ~1,230, ~1,340–1,410 with 334 | ~1,500–1,800, ~1,640–2,080 with 334 | identical | castability's assignment (155) |
-| 7 | `layers-combat-and-counters` | The triage's layer, combat and counter builds, one record check among them | 12, 86, 117, 184, 190, 205, 206, 308, 322, 323, "Before Layers" 16, "Before card breadth" 1, 3, 5 and 6 (12 from a first-card slot at #293's review) | 41, 44, 50 | ~1,330 | ~1,650–2,000 | identical | the layer walk |
-| 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items | "Before Layers" 7d, 215, 239, 285 (284 closed as moot at #294's review); the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
+| 6 | `resolution-recipients-and-amounts` | The triage's recipient, target and amount builds. **Left the audit at `route-review` (#298, 2026-10-29)**, a route row of its own | 30, 90, 94, 106, 155, 268, 269, 272, 281, 292, 299, 307, 329, 334 (334 filed at #294's review) | 38 | ~1,230, ~1,340–1,410 with 334 | ~1,500–1,800, ~1,640–2,080 with 334 | identical | castability's assignment (155) |
+| 7 | `layers-combat-and-counters` | The triage's layer, combat and counter builds, one record check among them. **Left the audit at `route-review` (#298, 2026-10-29)**, a route row of its own | 12, 86, 117, 184, 190, 205, 206, 308, 322, 323, "Before Layers" 16, "Before card breadth" 1, 3, 5 and 6 (12 from a first-card slot at #293's review) | 41, 44, 50 | ~1,330 | ~1,650–2,000 | identical | the layer walk |
+| 8 | `names-and-hygiene-sweeps` | Names that read at the call site, and the hygiene pass's last items. **Left the audit at `route-review` (#298, 2026-10-29)**: what every card writes went to `card-layer-cleanup`, item 331 to `layers-combat-and-counters`, and the rest is a route row in Phase 10, before release | "Before Layers" 7d, 215, 239, 285 (284 closed as moot at #294's review); the naming sweep; `AbilityDef.instances` | — | ~830–1,200 | ~1,200–2,200 | identical | 239's clones, 215's shared checks at priority |
 
 That is **60 items and 40 merge rows in 9 PRs**, about 11,000–14,000
 lines carried, since `record-existences` was split from
@@ -2144,6 +2153,15 @@ it first; then a proposed order for what follows. §3b re-derived; `rust-notes`'
 open artifact, the Rust notes, placed. The pass proposes; the owner
 decides. One PR, which writes §3's two records and deletes this file.
 
+**Taken by `route-review` (#298, 2026-10-29).** The route review asked the
+same question, so the two ran once: the order is `roadmap-v2.md`'s "From
+triggers to v0.5", each step's cards counted by the card census
+(`plans/references/card-census/`). The table's atoms column was dropped,
+since each row's design stop reads its atoms and `owed` gates them; §3b
+stays a record; `rust-notes` went to `names-and-hygiene-sweeps`. §3's two
+records and this file's deletion moved to readiness's second PR, the
+audit's last.
+
 ## 5. A6e's items, by pass
 
 | Item | What | Pass |
@@ -2207,4 +2225,4 @@ changed.
 | 4. Readiness (2) | | |
 | 5. Docs audit, A6h (5) | #275, #276, #277, #278, #279 | re-cut at #274's merge; item 188 to `route-review`. PR 1, the contracts: `CLAUDE.md`, `engine-map.md` (re-pinned to `22113bbb`, §1.2 read) and every contract-change row, contested ones dispositioned. PR 2, the older subsystem docs (#276): layers, replacement, cant-effects, copy and cost — every remaining row fixed, 11 contested dispositioned, the unread sections read. PR 3, the newer subsystem docs, the registers and the source comments (#277): every remaining row fixed, the contested ones and pass 3's dedup claims dispositioned, the unread sections read, item 316 filed. PR 4, item 185 (#278): the inventory `plans/elisions.md`, the record of each question not asked, the shortcuts' audits; item 185 closed, item 317 filed; the trace pages split out. PR 5, the two trace pages (#279): TR-4d's control sweep and TR-5h's history log, from traced runs at `50f0b8b8`, linked from §12, `codebase-state.md` and `engineering-practices.md#trace-pages`. Done |
 | 5c. Names for the phases ahead (1) | #282 | added at #274's merge; one PR: the design reviewed, then the sweep — the scheme in `engineering-practices.md#naming-a-phase`, the record of the codes, the board reading names with every item's home unchanged, the hexproof phase split, `game-formats` widened, Phase 9's remainder put to `route-review` |
-| 6. Scheduling (1) | | |
+| 6. Scheduling (1) | #298 | taken by `route-review`, with the owner's two review rounds: the route to v0.5 (Tarkir: Dragonstorm Commander's five decks at one table), a row for every open item `route-review` and rows 6–8 held, items 340, 341, 343 and 344 retired, the word register's check dropped; §3's records and this file's deletion moved to readiness's second PR |

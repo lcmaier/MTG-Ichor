@@ -248,6 +248,7 @@ discipline. → `engineering-practices.md#the-spec-database`.
 is an open plate.
 
 - `plans/handoffs/item-6-audit.md`
+- `plans/handoffs/resolution-recipients-and-amounts.md`
 - `plans/handoffs/route-review.md`
 
 ## What this file deliberately does not know

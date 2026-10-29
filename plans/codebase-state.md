@@ -10071,6 +10071,7 @@ folds and 345–347 the gaps the duplicates hid.
      registered rider that says it has one instance, its player.
      **Sized:** ~20–40 lines: the arm, its reader in `players_in`, its
      constructor and a fixture rider with two instances.
-     **Slotted:** `multiplayer-rules`, beside items 342 and 348's readings of
-     a player word (`route-review`, 2026-10-29).
+     **Slotted:** `resolution-recipients-and-amounts`, beside item 268,
+     whose `PlayerAntecedent` (its design note's decision 4) already folds
+     this arm (`route-review`, 2026-10-29).
 
