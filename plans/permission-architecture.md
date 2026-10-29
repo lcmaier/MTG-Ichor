@@ -241,7 +241,8 @@ Named here so the design session starts from them; none is answered.
 owns the order): `permission-design` comes after `information-model`, with
 `card-and-object-model`, a card's characteristic sets, designed beside it,
 and `cant-cast-play-or-activate`'s reasons too, so each check's reasons are
-designed once (the owner, 2026-10-05). Then `command-zone-casting`, CR
+designed once (the owner, 2026-10-05), and CR 610.5's grant at cast, an
+ability a spell gains as it is cast that outlives its source. Then `command-zone-casting`, CR
 903.8's command zone, which `game-formats` needs, then `game-formats`.
 `casting-from-other-zones` (flashback and the other cast-from-elsewhere
 families) comes with the decks, `tarkir-dragonstorm-decks`, whose 37 cards

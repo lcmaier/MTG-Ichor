@@ -7,9 +7,12 @@ and `linked-abilities`, whose types it writes. Every decision below stands
 as taken, with two changes since. The census ran (#296) and its folds did
 not land (#297, closed), so decision 4's `PlayerAntecedent` stands again
 where #296's decision 2 had moved it into item 341's `PlayerRef` arms, and
-item 341 is retired. And item 351, `NamedPlayers::FirstInstance`'s pick by
-position, rides with item 268, as decision 4's table already folds it. The
-counts and lines are `ac583da4`'s, re-read at the build.
+item 341 is retired; items 348 (`PlayerRef::Owner` read two ways) and 351
+(`NamedPlayers::FirstInstance`'s pick by position) ride with item 268, as
+decision 4's table already migrates both. The close-out's filings below
+that named `route-review` now name their rows, and item 340's fold, which
+it filed at `names-and-hygiene-sweeps`, is retired. The counts and lines
+are `ac583da4`'s, re-read at the build.
 
 **Opened 2026-10-26**: row 6 of the cleanup that closes the item 6 audit
 (A6e, the audit of critical-path item 6, triggered abilities):
@@ -286,8 +289,8 @@ opponent" body is a target per opponent, 57 cards (decision 5).
    `Triggering(EventRole)` today. An object word an instruction acts on still
    needs its recipient arm. This PR's new words are read as values only, and
    `TargetOfInstance` mirrors `SameInstanceAs`, which exists. One
-   `EffectRecipient::Object(Antecedent)`, folding the two mirrors, is filed at
-   `names-and-hygiene-sweeps`.
+   `EffectRecipient::Object(Antecedent)`, folding the two mirrors, was item
+   340's fold, retired at `route-review` (2026-10-29): the mirrors stay.
 
 3. **Item 30: what a payment used, and how a reader names it.**
 
@@ -442,7 +445,8 @@ opponent" body is a target per opponent, 57 cards (decision 5).
      built, and filed: the choices (a `ChoiceScope` arm for that player's
      permanents), "unless that player" (a construct of its own), friend or
      foe, and the 57 per-player targets, at `multiplayer-rules`. `Objects`
-     stays refused, filed at `route-review` with the same decide-then-perform
+     stays refused, filed at `tarkir-dragonstorm-decks`, whose census counts
+     seven "for each" cards, with the same decide-then-perform
      answer, which it needs too. *Code*: the enum, the walk's arm, the
      decision for `CreateToken`, the registration refusal. *Upkeep*: each
      further body is one instruction taught to decide without performing.
@@ -674,12 +678,14 @@ opponent" body is a target per opponent, 57 cards (decision 5).
 Each with its reachability and size, at the slot named:
 - the target per player, and the other "for each player" bodies (choices,
   "unless that player", friend or foe), at `multiplayer-rules` (decision 5);
-- "for each [object]" at resolution, at `route-review` (decision 5);
+- "for each [object]" at resolution, at `tarkir-dragonstorm-decks`, whose
+  census counts seven "for each" cards (decision 5);
 - "for each opponent who does": a player's answer to an earlier "may",
   recorded per player (Tempt with …), at `multiplayer-rules`;
 - the payment acts other than a sacrifice, at `remaining-costs` and
   `convoke-delve-improvise` (decision 3);
-- `EffectRecipient::Object(Antecedent)`, `DefendingPlayerOf(Antecedent)` and
-  `EffectRecipient::ReplacedSubject`, at `names-and-hygiene-sweeps`
-  (decisions 2, 4 and 6);
-- the exiled and chosen object words (decision 2's table), at `route-review`.
+- `DefendingPlayerOf(Antecedent)` and `EffectRecipient::ReplacedSubject`, at
+  `names-and-hygiene-sweeps` (decisions 4 and 6); `EffectRecipient::Object(Antecedent)`,
+  decision 2's, was item 340's fold and is retired;
+- the exiled and chosen object words (decision 2's table), at
+  `linked-abilities`, which owns CR 607's "exiled with" and "the chosen".

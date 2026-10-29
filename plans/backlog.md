@@ -1349,9 +1349,9 @@ mechanic rather than a migration, which is why it is here and not in
   amount, and the `DecisionProvider` a prompt that returns numbers rather than
   indices. ~500–700 lines with Arc Lightning as its consumer (the atoms are
   written around its numbers) and Forked Bolt as the cheap pooled option at one
-  mana. `roadmap-v2.md` row **`divided-among-targets`**, back-stopped before Phase 8's breadth,
-  where the 48 "divided as you choose" cards live; it blocks nothing on the
-  spine.
+  mana. `roadmap-v2.md` row **`divided-among-targets`**, built inside
+  `modes-plus-choice-kinds` since `route-review` (2026-10-29), before the
+  decks, three of whose cards divide.
 - **The rest of this entry is the record of the design as it was sized**, kept
   because the atoms and the card counts are still what A4j is sized against.
 
@@ -2077,7 +2077,7 @@ mechanic rather than a migration, which is why it is here and not in
   seams, and the census of printed mandatory loops by shape that the design
   starts with.
 - **Owner** — `roadmap-v2.md` `loop-detection`, slotted last before Phase 8 at TR-6's design
-  review (the owner, 2026-10-21). This entry graduates to `loop-detection`'s architecture
+  review (the owner, 2026-10-21), and after v0.5 since `route-review` (2026-10-29). This entry graduates to `loop-detection`'s architecture
   doc when its design lands. Raised at RE-4's review (R21).
 
 ### 2.29 The suppression predicate as a commutation table — ✅ graduated 2026-09-14 (RE-5's review, theme B)

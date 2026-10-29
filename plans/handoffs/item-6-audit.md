@@ -1501,6 +1501,8 @@ Measurement, no workflow, on the tree A6e's cleanup leaves.
   at 79,898 lines against 44,342 on 2026-09-15, and 76 release-active sites
   against 60, without checking that both runs counted alike. Item 142 holds
   the baseline.
+- **A token board for the floors**: the three floors read on a board of many
+  tokens as well, from the route review's list (`codebase-state.md` item 264).
 - **k**, an AI observation's cost per decision, with
   `plans/references/ai-performance-floors.md`'s throwaway probe, before A6f.
 
@@ -2158,7 +2160,7 @@ same question, so the two ran once: the order is `roadmap-v2.md`'s "From
 triggers to v0.5", each step's cards counted by the card census
 (`plans/references/card-census/`). The table's atoms column was dropped,
 since each row's design stop reads its atoms and `owed` gates them; §3b
-stays a record; `rust-notes` went to `names-and-hygiene-sweeps`. §3's two
+stays a record; `rust-notes` keeps its own row, any time. §3's two
 records and this file's deletion moved to readiness's second PR, the
 audit's last.
 
