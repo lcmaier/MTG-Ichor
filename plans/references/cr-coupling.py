@@ -20,6 +20,9 @@ REF_HEAD = re.compile(r"\b(?:rules?|section)\s+(\d{3}(?:\.\d+[a-z]?)?(?:(?:,\s*(
 NUM = re.compile(r"\d{3}(?:\.\d+[a-z]?)?")
 TITLE = re.compile(r"^(\d{3})\.\s+(.+)$")
 SUBTITLE = re.compile(r"^(70[12])\.(\d+)\.\s+(.+)$")
+#: A 701/702 entry's title ("702.37. Morph") is a few words; a longer line
+#: under the same numbering is a rule's text, not a keyword's name.
+KEYWORD_TITLE_MAX = 60
 
 def unit_of(num):
     sec = num[:3]
@@ -37,7 +40,7 @@ for l in lines:
     if m and not RULE.match(l):
         titles[m.group(1)] = m.group(2).strip()
     m2 = SUBTITLE.match(l)
-    if m2 and not m2.group(3)[:1].isdigit() and len(m2.group(3)) < 60:
+    if m2 and not m2.group(3)[:1].isdigit() and len(m2.group(3)) < KEYWORD_TITLE_MAX:
         titles[m2.group(1) + "." + m2.group(2)] = m2.group(3).strip()
     m = RULE.match(l)
     if m:

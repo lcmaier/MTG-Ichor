@@ -90,3 +90,30 @@ scd, Starter Commander Decks: the steps its cards need, by cards
     1  permission-design
     1  spell-copies
   and breadth mechanics: api:Amass 6, amount:Devotion 1, param:duration_UntilTheEndOfYourNextTurn 1, kw:Overload 1, api:ChangeZone[Stack->Library] 1, api:ChangeTargets 1
+
+tdc, Tarkir: Dragonstorm Commander: the steps its cards need, by cards
+   62  any-color-plus-painlands-plus-signets
+   39  information-model
+   37  casting-from-other-zones
+   28  remaining-costs
+   16  route-review: modal
+   10  token-copies
+    9  spell-copies
+    8  hybrid-and-phyrexian-payment
+    7  backlog: for-each
+    7  combat-restrictions
+    6  convoke-delve-improvise
+    5  as-though-effects
+    4  chosen-color-plus-could-produce
+    4  combat-requirements
+    3  divided-among-targets
+    3  route-review: unless pays
+    2  cant-cast-play-or-activate
+    2  permission-design
+    1  backlog: voting
+    1  cant-be-targeted
+    1  command-zone-casting
+    1  face-down-and-morph
+    1  route-review: costs to attack
+    1  split-and-adventure-style-cards
+  and breadth mechanics: static:CombatDamageToughness 3, kw:Mobilize 2, param:duration_UntilEndOfCombat 2, param:duration_UntilTheEndOfYourNextTurn 2, trig:BecomeMonstrous 2, amount:ChosenNumber 1, amount:YourCountersExperience 1, api:ChangeZone[Stack->Hand] 1, api:ChooseNumber 1, api:Connive 1, api:Proliferate 1, cost:Exert 1, kw:Battle cry 1, kw:Demonstrate 1, kw:Dethrone 1, kw:Dredge 1, kw:Fabricate 1, kw:Harmonize 1, kw:Mentor 1, kw:Riot 1, static:UntapOtherPlayer 1

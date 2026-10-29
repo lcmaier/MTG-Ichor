@@ -56,8 +56,11 @@ from `mtgsim/src/cards/registry.rs`. `enum_variants.py <src> EnumName …` print
 an enum's arms, which is how `mapping.py`'s verdicts were read off the tree.
 The Scryfall fetches take several minutes each and sleep between pages.
 
-**When the engine moves, `mapping.py` is what goes stale.** Re-read a verdict
-against the tree before quoting a count it produced.
+`residue.py`'s `80` is how many unclear needs it lists. **When the engine
+moves, `mapping.py` is what goes stale.** Re-read a verdict against the tree
+before quoting a count it produced. Its owners for modes, "unless pays" and
+costs to attack were renamed to their rows after the run (`route-review`,
+2026-10-29), so `results/` still reads "route-review: modal" and the like.
 
 ## The results
 
@@ -71,5 +74,5 @@ against the tree before quoting a count it produced.
   most of the route in its first year of sets.
 - `results/precons-2026-10-26.txt`: each Commander product since 2018, ranked by
   how many distinct steps and mechanics its decks need, with Starter Commander
-  Decks' (`scd`) needs by step.
+  Decks' (`scd`) and Tarkir: Dragonstorm Commander's (`tdc`) needs by step.
 - `results/authoring-check-sample.json`: the 20 cards the authoring check drew.

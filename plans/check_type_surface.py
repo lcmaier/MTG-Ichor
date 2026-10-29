@@ -24,10 +24,6 @@ each query over the types `GameState` holds, transitively, and `GameAction`'s
 proposals, stopping at the register's card-text types and at a borrow, and
 fails a holding type the register does not list, or a count that differs.
 
-**The words a card's text spells are not checked**
-(`cr-coverage-audit.md#4d-words-and-their-spellings`). A third check held
-every arm to a line there until `route-review` (2026-10-29) retired one
-spelling per word as a reason to sweep; the register is a dated record.
 
 **Why per type and never per field.** On 2026-09-24 the owner turned down a
 gate on the fields of the record structs: they are the most-edited in the

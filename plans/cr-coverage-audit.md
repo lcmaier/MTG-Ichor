@@ -1103,7 +1103,7 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - `ModeChosen` — **not a word**: a fact about the modes chosen (CR 700.2).
 - `All` — **not a word**: a conjunction of conditions.
 - `Not` — **not a word**: a negation.
-- `HostMatches` — **kept**: spelled apart on purpose; #297's fold into `ObjectMatches(Antecedent, ObjectFilter)` was retired with item 340 (`route-review`, 2026-10-29).
+- `HostMatches` — **kept**: the spellings read alike, so #297's fold into `ObjectMatches(Antecedent, ObjectFilter)` was retired with item 340 (`route-review`, 2026-10-29).
 - `SourceUntapped` — **kept** "this object is untapped": the feeds table reads it as entry state (`Condition::reads_entry_state`), which a general leaf would hide.
 - `SourceTapped` — **kept** "this object is tapped", for the same reason.
 - `CounterCount` — **holds** an `Antecedent`.
@@ -1130,14 +1130,14 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - `Itself` — **kept** "this spell": a cost effect's subject answers no other object word (CR 113.6d).
 
 #### `DamageRecipient`
-- `Any` — **kept**: spelled apart on purpose; #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
-- `Player` — **kept**: spelled apart on purpose; #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
-- `Object` — **kept**: spelled apart on purpose; #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Any` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Player` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Object` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
 
 #### `DefenderFilter`
-- `Player` — **kept**: spelled apart on purpose; #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
-- `Permanent` — **kept**: spelled apart on purpose; #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
-- `Or` — **kept**: spelled apart on purpose; #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Player` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Permanent` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Or` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
 
 #### `DiscardChooser`
 - `Affected` — **owns** "the discarding player chooses" (CR 701.9b).
@@ -1154,20 +1154,20 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 
 #### `EffectRecipient`
 - `Implicit` — **not a word**: an instruction that names nothing.
-- `ThisObject` — **kept**: spelled apart on purpose; #297's fold into `Object(Antecedent::ThisObject)` was retired with item 340 (`route-review`, 2026-10-29).
-- `Controller` — **kept**: spelled apart on purpose; #297's fold into `Player(PlayerRef::You)` was retired with item 341 (`route-review`, 2026-10-29).
+- `ThisObject` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::ThisObject)` was retired with item 340 (`route-review`, 2026-10-29).
+- `Controller` — **kept**: the spellings read alike, so #297's fold into `Player(PlayerRef::You)` was retired with item 341 (`route-review`, 2026-10-29).
 - `Target` — **owns** "target [something]" (CR 115.1), holding a `SelectionFilter`.
 - `Choose` — **owns** "choose [something]" (CR 608.2d), holding a `SelectionFilter`.
 - `SameInstanceAs` — **owns** "that target", an instance announced earlier (CR 115.3); a recipient refuses `Antecedent::TargetOfInstance`, its value-reading twin.
-- `Triggering` — **kept**: spelled apart on purpose; #297's fold into `Object(Antecedent::Triggering)` was retired with item 340 (`route-review`, 2026-10-29).
-- `TriggeringPlayer` — **kept**: spelled apart on purpose; #297's fold into `Player(PlayerRef::TheEventsPlayer)` was retired with item 341 (`route-review`, 2026-10-29).
-- `Referred` — **kept**: spelled apart on purpose; #297's fold into `Object(Antecedent::Referred)` and `Player(PlayerRef::ReferredPlayer)` was retired with items 340 and 341 (`route-review`, 2026-10-29).
+- `Triggering` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::Triggering)` was retired with item 340 (`route-review`, 2026-10-29).
+- `TriggeringPlayer` — **kept**: the spellings read alike, so #297's fold into `Player(PlayerRef::TheEventsPlayer)` was retired with item 341 (`route-review`, 2026-10-29).
+- `Referred` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::Referred)` and `Player(PlayerRef::ReferredPlayer)` was retired with items 340 and 341 (`route-review`, 2026-10-29).
 - `AttackedBy` — **owns** "the player or planeswalker it's attacking" (CR 506.3), holding an `Antecedent`.
-- `DefendingPlayer` — **kept**: spelled apart on purpose; #297's fold into `Player(PlayerRef::DefendingPlayer)` was retired with item 341 (`route-review`, 2026-10-29).
+- `DefendingPlayer` — **kept**: the spellings read alike, so #297's fold into `Player(PlayerRef::DefendingPlayer)` was retired with item 341 (`route-review`, 2026-10-29).
 - `EachOf` — **holds** a `PlayerGroup`, whose relation is a `PlayerSet`: "each opponent" acts on every player in it.
-- `FilteredPermanents` — **kept**: spelled apart on purpose; #297's fold into a constructor of `FilteredObjectsIn` was retired with item 344 (`route-review`, 2026-10-29).
+- `FilteredPermanents` — **kept**: the spellings read alike, so #297's fold into a constructor of `FilteredObjectsIn` was retired with item 344 (`route-review`, 2026-10-29).
 - `FilteredObjectsIn` — **owns** "every object matching [a filter] in [zones]".
-- `Host` — **kept**: spelled apart on purpose; #297's fold into `Object(Antecedent::ThisObjectsHost)` was retired with item 340 (`route-review`, 2026-10-29).
+- `Host` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::ThisObjectsHost)` was retired with item 340 (`route-review`, 2026-10-29).
 - `Group` — **not a word**: a union of recipients, acted on at once (CR 608.2f).
 - `ChosenBy` — **owns** "a [permanent] of their choice" as the effect applies (CR 608.2d), holding a `Choice`.
 
@@ -1216,8 +1216,8 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - `Not` — **not a word**: a complement.
 
 #### `ObjectOrPlayerSubject`
-- `Object` — **kept**: spelled apart on purpose; #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
-- `Player` — **kept**: spelled apart on purpose; #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Object` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
+- `Player` — **kept**: the spellings read alike, so #297's fold into `ParticipantFilter` was retired with item 343 (`route-review`, 2026-10-29).
 
 #### `ObjectSet`
 - `SourceOnly` — **kept** "this object": a static's affected set answers only "this object" and "its host".
@@ -1232,7 +1232,7 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 #### `PlayerRef`
 - `You` — **owns** "you" (CR 109.5).
 - `Opponent` — **owns** "an opponent", one chosen as the instruction applies (CR 608.2d); its reading as any opponent in a filter moves to `PlayerSet::Opponents` (item 342).
-- `Owner` — **folds**: read two ways, the source's owner in a filter and the owner of each object an instruction acts on, which item 348 tells apart.
+- `Owner` — **folds**: read two ways, the source's owner in a filter and the owner of each object an instruction acts on, which the resolution row's `PlayerAntecedent` tells apart (item 348).
 - `Player` — **owns** a player captured by id.
 - `DefendingPlayer` — **owns** "defending player" (CR 508.5), holding an `Antecedent`.
 - `AnyDefendingPlayer` — **folds** into `PlayerSet::DefendingPlayers` (item 342).
@@ -1254,7 +1254,7 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - `You` — **kept** "under your control": with `Owner`, CR 610.3c's default and its one alternative.
 
 #### `SelectionFilter`
-- `Creature` — **kept**: spelled apart on purpose; #297's fold into a constructor of `Permanent` was retired with item 344 (`route-review`, 2026-10-29).
+- `Creature` — **kept**: the spellings read alike, so #297's fold into a constructor of `Permanent` was retired with item 344 (`route-review`, 2026-10-29).
 - `Player` — **owns** "a player" as a candidate (`EffectRecipient::Target` owns "target"); it takes a `PlayerSet` for "target opponent" (item 345).
 - `Any` — **owns** "any target" (CR 115.4), the CR's own name for its candidates.
 - `Permanent` — **holds** an `ObjectFilter`.
@@ -1275,11 +1275,11 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - `ReplacedAmount` — **kept** "that much", beside `AmountExpr::ReplacedAmount`, for the same reason.
 
 #### `TriggerSubject`
-- `ThisObject` — **kept**: spelled apart on purpose; #297's fold into `Object(Antecedent::ThisObject)` was retired with item 340 (`route-review`, 2026-10-29).
-- `Host` — **kept**: spelled apart on purpose; #297's fold into `Object(Antecedent::ThisObjectsHost)` was retired with item 340 (`route-review`, 2026-10-29).
+- `ThisObject` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::ThisObject)` was retired with item 340 (`route-review`, 2026-10-29).
+- `Host` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::ThisObjectsHost)` was retired with item 340 (`route-review`, 2026-10-29).
 - `Filter` — **holds** an `ObjectFilter`.
-- `Any` — **kept**: spelled apart on purpose; #297's fold into `Filter(ObjectFilter::All)` was retired with item 340 (`route-review`, 2026-10-29).
-- `Referred` — **kept**: spelled apart on purpose; #297's fold into `Object(Antecedent::Referred)` was retired with item 340 (`route-review`, 2026-10-29).
+- `Any` — **kept**: the spellings read alike, so #297's fold into `Filter(ObjectFilter::All)` was retired with item 340 (`route-review`, 2026-10-29).
+- `Referred` — **kept**: the spellings read alike, so #297's fold into `Object(Antecedent::Referred)` was retired with item 340 (`route-review`, 2026-10-29).
 
 ### The fields
 
