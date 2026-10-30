@@ -10352,9 +10352,18 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
        client shows a person.
      The third is what a viewer sees, and `information-model-design`
      decides what each viewer may see, so that design is where its home is
-     settled. One tangle to read first: 16 engine files import `display`,
-     so part of it may be the engine's own names for its logs and traces
-     rather than a client's. Found at #299's review (the owner: "the UI
+     settled. **What the engine takes from `display`, read import by import
+     (2026-10-30, at #299's review): no rule reads it**, since nothing
+     branches on its text. The engine's own output borrows its words: the
+     trace sink's `name` and `text` fields (`state/trace.rs`,
+     `engine/trace_records.rs`, the restriction's `as_recorded`), the
+     audits' disagreement messages (`engine/triggers/audit.rs`,
+     `engine/triggers/state.rs`) and `Game::event_log`. Two saved formats
+     go further and *parse* through it: `.scenario` files and the decision
+     log both spell a step with `scenario::position_word`, which is
+     `display::step_name` lower-cased, and read it back by matching that
+     spelling, so a wording change in a client's table stops saved files
+     loading. Found at #299's review (the owner: "the UI
      module of this project has already gotten a little overgrown compared
      to the rest of the engine"), when this PR's census hook nearly added a
      sixteenth file to it.
