@@ -928,21 +928,21 @@ impl AgentCensus {
 #[derive(Debug, Default, Clone, Copy)]
 struct ObservationCost {
     observations: u64,
-    tokens: u64,
+    rows: u64,
     nanos: u64,
 }
 
 impl ObservationCost {
     fn add(&mut self, other: ObservationCost) {
         self.observations += other.observations;
-        self.tokens += other.tokens;
+        self.rows += other.rows;
         self.nanos += other.nanos;
     }
 }
 
 /// One row of an observation: an object, a card in the seat's hand, or a
 /// player, as fixed-width integers, the shape a policy network reads.
-type Token = [i32; 16];
+type ObservationRow = [i32; 16];
 
 /// `--observe`'s builder for one game: at each decision, the observation the
 /// floors reference names as k's naive probe, rebuilt from scratch over the
@@ -953,26 +953,26 @@ type Token = [i32; 16];
 /// one buffer the game reuses, as a harness writes into a preallocated array.
 #[derive(Default)]
 struct Observer {
-    tokens: RefCell<Vec<Token>>,
+    rows: RefCell<Vec<ObservationRow>>,
     cost: std::cell::Cell<ObservationCost>,
 }
 
 impl Observer {
     fn observe(&self, game: &GameState, seat: PlayerId) {
         let started = Instant::now();
-        let mut tokens = self.tokens.borrow_mut();
-        tokens.clear();
+        let mut rows = self.rows.borrow_mut();
+        rows.clear();
         for zone in ZoneSet::ALL.iter().filter(Zone::is_public) {
-            tokens.extend(game.zone_ids_ordered(zone).into_iter().filter_map(|id| object_token(game, id, zone)));
+            rows.extend(game.zone_ids_ordered(zone).into_iter().filter_map(|id| object_row(game, id, zone)));
         }
         if let Some(player) = game.players.get(seat) {
-            tokens.extend(player.hand.iter().filter_map(|&id| object_token(game, id, Zone::Hand)));
+            rows.extend(player.hand.iter().filter_map(|&id| object_row(game, id, Zone::Hand)));
         }
-        tokens.extend(game.players.iter().map(player_token));
-        std::hint::black_box(&*tokens);
+        rows.extend(game.players.iter().map(player_row));
+        std::hint::black_box(&*rows);
         let mut cost = self.cost.get();
         cost.observations += 1;
-        cost.tokens += tokens.len() as u64;
+        cost.rows += rows.len() as u64;
         cost.nanos += started.elapsed().as_nanos() as u64;
         self.cost.set(cost);
     }
@@ -980,7 +980,7 @@ impl Observer {
 
 /// An object as its effective characteristics say it is (one layer read),
 /// and on the battlefield as its permanent's state does.
-fn object_token(game: &GameState, id: ObjectId, zone: Zone) -> Option<Token> {
+fn object_row(game: &GameState, id: ObjectId, zone: Zone) -> Option<ObservationRow> {
     let chars = compute_characteristics(game, id)?;
     let bits = |positions: &mut dyn Iterator<Item = u32>| positions.fold(0i32, |bits, at| bits | 1 << at);
     let permanent = game.battlefield.get(&id);
@@ -1006,9 +1006,9 @@ fn object_token(game: &GameState, id: ObjectId, zone: Zone) -> Option<Token> {
 
 /// A player: life, poison, and how many cards each zone they own holds,
 /// the hidden two by count alone.
-fn player_token(player: &mtgsim::state::player::PlayerState) -> Token {
-    let mut token = [0; 16];
-    token[..7].copy_from_slice(&[
+fn player_row(player: &mtgsim::state::player::PlayerState) -> ObservationRow {
+    let mut row = [0; 16];
+    row[..7].copy_from_slice(&[
         2,
         player.id as i32,
         player.life_total as i32,
@@ -1017,7 +1017,7 @@ fn player_token(player: &mtgsim::state::player::PlayerState) -> Token {
         player.library.len() as i32,
         player.graveyard.len() as i32,
     ]);
-    token
+    row
 }
 
 /// The census's count and the observation's build, where a prompt reaches
@@ -1759,8 +1759,8 @@ fn main() {
         let observation_us = each(cost.nanos as f64 / 1e3);
         let engine_us = each(cpu_total.as_secs_f64() * 1e6 - cost.nanos as f64 / 1e3);
         println!(
-            "Observation:     {observation_us:.2} µs each, {:.0} tokens, {:.1} a game",
-            each(cost.tokens as f64),
+            "Observation:     {observation_us:.2} µs each, {:.0} rows, {:.1} a game",
+            each(cost.rows as f64),
             cost.observations as f64 / args.games as f64
         );
         println!("k:               {:.3}, against the engine's {engine_us:.2} µs a decision", observation_us / engine_us);
