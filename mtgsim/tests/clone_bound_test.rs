@@ -239,7 +239,7 @@ fn a_commander_clone_takes_microseconds() {
                 if heaviest.len() < HEAVIEST || heaviest.last().is_some_and(|lightest| bytes > lightest.0) {
                     let at = format!("{}, turn {} {}", board.name, game.turn_number, named(prompt));
                     heaviest.push((bytes, at, game.clone()));
-                    heaviest.sort_by(|a, b| b.0.cmp(&a.0));
+                    heaviest.sort_by_key(|heavy| std::cmp::Reverse(heavy.0));
                     heaviest.truncate(HEAVIEST);
                 }
             };
