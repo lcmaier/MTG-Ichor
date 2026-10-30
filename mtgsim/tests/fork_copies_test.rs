@@ -13,21 +13,11 @@
 //! every decision.
 
 use std::cell::{Cell, RefCell};
-use std::sync::Arc;
 
-use rand::SeedableRng;
-use rand::rngs::StdRng;
-
-use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::objects::card_data::CardData;
-use mtgsim::state::game::Game;
-use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
-use mtgsim::types::ids::PlayerId;
-use mtgsim::ui::ask::{forced_allocation, only_number, only_order, only_pick};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
-use mtgsim::ui::decision::{DecisionProvider, SeatMode};
+use mtgsim::test_support::deal_commander_game;
+use mtgsim::ui::each_decision::OnEachDecision;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -37,22 +27,17 @@ use mtgsim::ui::random::RandomDecisionProvider;
 const MAX_MEAN_CHUNKS: f64 = 4.0;
 
 /// Keeps the state as the last decision left it, and at each decision counts
-/// the chunks the game has copied since: what reaches the agent under
-/// `ManaWindowStop`, so it sits inside it. A decision is a prompt with two or
-/// more legal answers by the engine's own predicates.
-struct ChunksSinceTheLastDecision<D> {
-    inner: D,
+/// the chunks the game has copied since.
+#[derive(Default)]
+struct ChunksSinceTheLastDecision {
     last: RefCell<Option<GameState>>,
     intervals: Cell<usize>,
     chunks: Cell<usize>,
     most: Cell<usize>,
 }
 
-impl<D> ChunksSinceTheLastDecision<D> {
-    fn at(&self, game: &GameState, forced: bool) {
-        if forced {
-            return;
-        }
+impl ChunksSinceTheLastDecision {
+    fn at(&self, game: &GameState) {
         if let Some(last) = self.last.borrow().as_ref() {
             let copied = game.objects.chunks_not_shared_with(&last.objects)
                 + game.battlefield.chunks_not_shared_with(&last.battlefield)
@@ -67,37 +52,6 @@ impl<D> ChunksSinceTheLastDecision<D> {
     }
 }
 
-impl<D: DecisionProvider> DecisionProvider for ChunksSinceTheLastDecision<D> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        self.at(game, only_pick(options.len(), bounds).is_some());
-        self.inner.pick_n(game, player, context, options, bounds)
-    }
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
-        self.at(game, only_number(min, max).is_some());
-        self.inner.pick_number(game, player, context, min, max)
-    }
-    fn allocate(
-        &self,
-        game: &GameState,
-        player: PlayerId,
-        context: &ChoiceContext,
-        total: u64,
-        buckets: &[ChoiceOption],
-        per_bucket_mins: &[u64],
-        per_bucket_maxs: Option<&[u64]>,
-    ) -> Vec<u64> {
-        self.at(game, forced_allocation(total, per_bucket_mins, per_bucket_maxs).is_some());
-        self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
-    }
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        self.at(game, only_order(items.len()).is_some());
-        self.inner.choose_ordering(game, player, context, items)
-    }
-    fn seat_mode(&self, player: PlayerId) -> SeatMode {
-        self.inner.seat_mode(player)
-    }
-}
-
 #[test]
 #[cfg_attr(debug_assertions, ignore = "release only: CI runs it with --release")]
 fn a_fork_copies_only_the_chunks_it_writes() {
@@ -106,26 +60,16 @@ fn a_fork_copies_only_the_chunks_it_writes() {
     // `close_out.py`'s first four `performance` games, as `clone_bound_test`
     // builds them.
     for game_seed in 12345..12349u64 {
-        let mut deck_rng = StdRng::seed_from_u64(game_seed);
-        let decks: Vec<Vec<Arc<CardData>>> = (0..4).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, 100)).collect();
-        let mut config = GameConfig::test();
-        config.starting_life = 40;
-        let mut game = Game::new(config, decks).expect("game creation");
-        game.reseed(game_seed ^ 0x9E37_79B9_7F4A_7C15);
-        let dp = ManaWindowStop::new(ChunksSinceTheLastDecision {
-            inner: RandomDecisionProvider::seeded(game_seed ^ 0xD1B5_4A32_D192_ED03),
-            last: RefCell::new(None),
-            intervals: Cell::new(0),
-            chunks: Cell::new(0),
-            most: Cell::new(0),
-        });
+        let (mut game, agents) = deal_commander_game(&registry, game_seed);
+        let reading = ChunksSinceTheLastDecision::default();
+        // Inside `ManaWindowStop`, so it sees what reaches the agent.
+        let dp = ManaWindowStop::new(OnEachDecision::new(RandomDecisionProvider::seeded(agents), |game, _| reading.at(game)));
         game.setup(&dp).expect("setup");
         let mut turns = 0;
         while !game.is_over() && turns < 200 {
             game.run_turn(&dp).expect("turn");
             turns += 1;
         }
-        let reading = dp.inner();
         intervals += reading.intervals.get();
         chunks += reading.chunks.get();
         most = most.max(reading.most.get());

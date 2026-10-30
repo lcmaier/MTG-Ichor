@@ -68,7 +68,7 @@ use super::decision::{DecisionProvider, PriorityAction};
 /// the only thing standing between a caller bug and an unpayable split that
 /// `ManaPool::pay` refuses and CR 601.2 rewinds — `codebase-state.md` 16c's
 /// failure, which this guard must not reintroduce.
-pub fn forced_allocation(
+pub(crate) fn forced_allocation(
     total: u64,
     per_bucket_mins: &[u64],
     per_bucket_maxs: Option<&[u64]>,
@@ -237,9 +237,7 @@ pub(crate) fn pick_fits(indices: &[usize], options_len: usize, bounds: (usize, u
 /// one only when the count is fixed and admits one combination, take none or
 /// take every option, so a lone candidate offered as "take it or not" is a
 /// decision and a forced list is not, whichever way the caller spelled it.
-/// Public, with its three siblings, for a provider that counts decisions where
-/// they reach it (`clone_bound_test`'s and `fork_copies_test`'s).
-pub fn only_pick(options_len: usize, bounds: (usize, usize)) -> Option<Vec<usize>> {
+pub(crate) fn only_pick(options_len: usize, bounds: (usize, usize)) -> Option<Vec<usize>> {
     match bounds {
         (0, 0) => Some(Vec::new()),
         (min, max) if min == max && min == options_len => Some((0..options_len).collect()),
@@ -303,7 +301,7 @@ pub(crate) fn number_fits(value: u64, min: u64, max: u64) -> Result<(), String> 
 
 /// The one number a `pick_number` admits, or `None`: one number to name is
 /// no decision.
-pub fn only_number(min: u64, max: u64) -> Option<u64> {
+pub(crate) fn only_number(min: u64, max: u64) -> Option<u64> {
     (max <= min).then_some(min)
 }
 
@@ -474,7 +472,7 @@ pub(crate) fn order_fits(order: &[usize], items_len: usize) -> Result<(), String
 
 /// The one order a `choose_ordering` admits, or `None`: one item has one
 /// order.
-pub fn only_order(items_len: usize) -> Option<Vec<usize>> {
+pub(crate) fn only_order(items_len: usize) -> Option<Vec<usize>> {
     (items_len < 2).then(|| (0..items_len).collect())
 }
 

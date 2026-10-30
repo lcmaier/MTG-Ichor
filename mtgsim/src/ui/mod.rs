@@ -5,6 +5,7 @@ pub mod display;
 pub mod cli;
 pub mod random;
 pub mod mana_window_stop;
+pub mod each_decision;
 pub mod auto_payer;
 pub mod full_control;
 pub mod auto_yield;
