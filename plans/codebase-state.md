@@ -6189,11 +6189,10 @@ Commander-scale board closes item 69.
      `ManaWindowStop` answers, and that count is floor 1's
      (`engineering-practices.md#the-floors`).
 
-     **The census provider**, this item's counters read where they reach the
-     agent: a provider inside `ManaWindowStop` counting by `ui::ask`'s own
-     predicates reproduces `fuzz_games`' counts to the decimal, so its games
-     are the sitting's, and every prompt that reaches the agent is a
-     decision. At Commander scale on `performance`, 437 of 480 a game:
+     **The census**, this item's counters read where they reach the agent:
+     `fuzz_games --census` puts `ui::each_decision`'s hook inside
+     `ManaWindowStop`, deciding by `ui::ask`'s own predicates, and changes no
+     game. Every prompt that reaches the agent is a decision. At Commander scale on `performance`, 437 of 480 a game:
      priority 167, mana windows 162, attacks 43, targets 23, blocks 21, the
      rest under 4 each. The mana window is still 37% of what an agent is
      handed (lever 5).
@@ -6213,27 +6212,29 @@ Commander-scale board closes item 69.
 
      **The levers, re-ranked by instruction share**: callgrind over the
      200-game Commander board at item 6's close (66.3 G instructions, 0.6906
-     M a decision), inclusive, so they overlap:
+     M a decision), inclusive, so they overlap. Largest first, each by the
+     label it has above, or by its item if it is new:
 
-     1. **The layer walk**, 32.2%: `pass_into_memo` 27.9%, the frames
-        dropped 3.6% (3.8 M through `Arc::drop_slow`). The 7a residual.
-     2. **The state-based check**, 28.4%, 7.7% of it item 352's regrowth;
-        lever 3, the per-permanent questions, is the rest.
-     3. **The priority candidates**, 19.4%: lever 4's pre-check.
-     4. **The replacement gather's sweep**, 17.2%, and 30.5% on the token
-        board (item 354): lever 9, last on 2026-09-15, and first wherever
-        the permanents grow.
-     5. **The ordered lists**, 12.4% and 8.2%: item 352's regrowth (9.4%,
-        measured at −6.3% instructions for about 25 lines), then lever 6's
-        sort. **First by return per line.**
-     6. **The mana window**: `activatable_abilities_with` 10.9%, the window
-        itself 7.6% (lever 5).
-     7. **Trigger dispatch**, 8.8%: item 6's own cost, new on the list.
-     8. **The history**, 4.8% advancing it and 4.2% drafting its rows.
-     9. **CR 614.12's look-ahead**, 4.7%, and 13.7% on the token board.
-     10. **The rejected targets' strings**, 4.1% (item 353).
+     - **The layer walk**, 32.2%: `pass_into_memo` 27.9%, the frames
+       dropped 3.6% (3.8 M through `Arc::drop_slow`). What the layer memo
+       left; no lever above names it.
+     - **Lever 3, the state-based check**, 28.4%, 7.7% of it item 352's
+       regrowth and the rest the per-permanent questions.
+     - **Lever 4, the priority candidates**, 19.4%: the pre-check.
+     - **Lever 9, the replacement gather's sweep**, 17.2%, and 30.5% on the
+       token board (item 354): last on 2026-09-15, first wherever the
+       permanents grow.
+     - **Item 352, the ordered lists' regrowth**, 9.4% of the two lists'
+       12.4% and 8.2%, measured at −6.3% instructions for about 25 lines:
+       **first by return per line**. **Lever 6**, their sort, is the rest.
+     - **Lever 5, the mana window**: `activatable_abilities_with` 10.9%, the
+       window itself 7.6%.
+     - **Trigger dispatch**, 8.8%: item 6's own cost, new on the list.
+     - **The history**, 4.8% advancing it and 4.2% drafting its rows.
+     - **CR 614.12's look-ahead**, 4.7%, and 13.7% on the token board.
+     - **Item 353, the rejected targets' strings**, 4.1%.
 
-     The allocator (lever 7) is not an instruction row; lever 8's log
+     Lever 7, the allocator, is not an instruction row; lever 8's log
      window is built (item 42); `random_deck`'s 2.9% is the harness's.
      **Slotted:** Phase 10, profile-driven performance: the levers above
      not yet pulled, item 352 apart; each spine close's readiness pass
@@ -6545,12 +6546,16 @@ Commander-scale board closes item 69.
      | the token board, 25 / 50 / 100 Goblins a seat, 20 `performance` games each | 4,951 / 3,416 / 3,736 | 33 / 32 / 29 | 6.1 / 5.8 / 6.1 | at most 2.00 / 1.84 / 1.76 |
      | `clone_fixture_test`'s four boards | 4 | 14 | 8.7 | 0.55–0.62 at 200 permanents to 4.43–5.57 at 8,000 stacked triggers |
 
-     **Reading.** The clone no longer grows with the game, the board or the
-     tokens: 400 Goblins cost a clone less than the pooled board does, since
-     the permanents sit in shared chunks and the games are shorter. Against
-     this table's 2026-09-15 rows, a clone between turns is 1.8 µs where it
-     was 3.3–6.1 without the log, and 36 allocations at its worst checkpoint
-     where the log made 1,662.
+     **Reading.** The clone no longer grows with the turn count, the board or
+     the tokens, only with the ids the game has minted (item 355): 400
+     Goblins cost a clone less than the pooled board does, since the
+     permanents sit in shared chunks and the games are shorter. Against this
+     table's 2026-09-15 columns without the log, a clone between turns is 1.8
+     µs where it was 3.3–6.1, at the same 14–36 allocations; the log's
+     1,662 went with item 42. The instruments are in the tree since this
+     pass: `clone_bound_test` and `clone_fixture_test` count every row in
+     CI, the token board included, and their ignored tests time them
+     (`spine-phase-audit.md`'s readiness pass).
 
 What is *not* a ledger line: the 24 asks classified for the fork model are
 `backlog.md` §2.22's table, beside the middleware census that will consume
@@ -10233,8 +10238,7 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      (`engineering-practices.md#one-record-never-two-kept-in-step`).
      Answer-preserving.
      **Slotted:** Phase 10, profile-driven performance, beside item 138's
-     levers; or with item 352, if the owner wants the two answer-preserving
-     fixes in one PR.
+     levers.
 
 354. **Floor 1 fails on a board of many tokens.** `fuzz_games --tokens N`
      gives each seat N 1/1 Goblins before the first turn. On `performance` at
@@ -10253,9 +10257,9 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      of the pooled boards reaches 50 tokens a seat, and a Commander token
      deck does: the board is the harness's flag, not a fuzz game's.
      **Sized:** a design, not a patch. Each sweep needs the permanents that
-     can answer it found without visiting the rest: the gather's own index
-     (item 138's lever 9, re-ranked by this board), the same for the
-     restriction query, and lever 6's order kept per epoch. Each index must
+     can answer it found without visiting the rest: an index for the gather
+     (item 138's lever 9), the same for the restriction query, and the
+     timestamp order kept per epoch (lever 6). Each index must
      be read off the effective ability list (`CLAUDE.md`'s gather rule), so
      its invalidation is the layer memo's epoch; roughly 150–300 lines each.
      **Slotted:** Phase 10, profile-driven performance, with item 138's
@@ -10278,6 +10282,7 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      item 264's exponential board mints.
      **Sized:** ~80–120 lines in `state/shared_stores.rs`: the outer vector
      chunked once more, one load per read; answer-preserving.
-     **Slotted:** `loop-detection`, whose shortcut stops a loop minting ids;
-     the second level lands there if a fixture still needs it.
+     **Slotted:** `loop-detection`: its shortcut is what stops a loop minting
+     ids, so its design decides between the shortcut alone and the second
+     level beside it, against item 264's board.
 

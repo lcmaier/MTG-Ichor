@@ -47,9 +47,9 @@ room; the two tables must name the same floors.
 <!-- floor readings: begin -->
 | Floor | Reading | Read on | Where |
 |---|---|---|---|
-| 1. Decisions per loaded physical core-second | 11900 | 2026-10-29 | the tree item 6 left (`98b7538e`) on `performance` at Commander scale, 200 games, counted where a decision reaches the agent (437 a game; `ui::ask` counts 480): 14,070 on one thread, 7.08 times the one-thread wall on 16 threads over 8 physical cores. MTG Arena held 1.5 cores, and #225's tree read 10% under its own last reading in the same sitting |
+| 1. Decisions per loaded physical core-second | 11900 | 2026-10-29 | the tree item 6 left (`98b7538e`) on `performance` at Commander scale, 200 games, counted by `fuzz_games --census` (437 a game reach the agent; `ui::ask` counts 480): 13,430 a core-second on one thread by the wall (14,070 by CPU a game) times 7.08, the 16-thread speed-up, over 8 physical cores. MTG Arena held 1.5 cores, and #225's tree read 10% under its own last reading in the same sitting, so the bold on the board is partly the sitting's |
 | 2. Allocations per clone | 39 | 2026-10-29 | the same tree: `clone_bound_test` in release at 192 checkpoints and all 10,675 decisions over 24 Commander games, the worst `stress` 777's mana window at turn 41; `clone_fixture_test`'s boards at most 14, the token board at most 33 |
-| 2. Microseconds per clone | 5.6 | 2026-10-29 | the median of five means of 2,000 clone-and-drops under the System allocator, the worst of three runs: `clone_fixture_test`'s 8,000 stacked triggers (4.4–5.6). The 192 checkpoints read at most 1.83, the 20 decisions heaviest by bytes 1.97 (`clone-architecture.md` decision 6(d)), the token board 2.00 |
+| 2. Microseconds per clone | 5.6 | 2026-10-29 | the median of five means of 2,000 clone-and-drops, the worst of three runs: `clone_fixture_test`'s 8,000 stacked triggers (4.4–5.6). The 192 checkpoints read at most 1.83, the 20 decisions heaviest by bytes 1.97 (`clone-architecture.md` decision 6(d)), the token board 2.00. Read by a probe under the System allocator; the clone tests' ignored tests read the same within that spread |
 | 3. Kilobytes per clone | 8.7 | 2026-10-29 | the same readings, the worst `clone_fixture_test`'s 8,000 stacked triggers; at most 6.6 at a decision and 6.1 on the token board |
 <!-- floor readings: end -->
 
@@ -100,10 +100,10 @@ one means the engine's cost model moved
 (`audit/throughput-and-floors`: the ratchet at item 6's close, the census,
 the three floors with a token board, the contention read and the levers
 re-ranked; `codebase-state.md` items 138 and 143, items 352–355 filed). The
-tree item 6 left, `98b7538e`, with this PR's two harness commits, which move
-no game: `fuzz_games --tokens`, and the clone instruments counting a
-decision by the engine's predicates. No pool changed, so no table is
-re-recorded. MTG Arena held about 1.5 of the 16 threads through every
+tree item 6 left, `98b7538e`, with this PR's harness and instrument
+commits, which move no game: `fuzz_games --tokens` and `--census`, and the
+clone instruments counting a decision by the engine's predicates. No pool
+changed, so no table is re-recorded. MTG Arena held about 1.5 of the 16 threads through every
 sitting.
 
 **The ratchet**, five rounds interleaved with #225's merge `6b6d61e`, floor
@@ -127,11 +127,11 @@ three rounds (item 352). The rest is the games: 21 cards joined
 games reads 0.6734 M → 0.6906 M instructions a decision; the CPU rose about
 8% more than that.
 
-**Floor 1, by the census**: a provider inside `ManaWindowStop` counting by
-`ui::ask`'s predicates, its counts `fuzz_games`' to the decimal. 43 of the
-Commander board's 480 decisions are windows the stop answers, so 437 reach
-the agent: 14,070 per core-second on one thread, 7.08 times the one-thread
-wall on 16 threads, **11,900 loaded, 19% room**. #225's tree read 14,100
+**Floor 1, by the census** (`fuzz_games --census`, a hook inside
+`ManaWindowStop` deciding by `ui::ask`'s predicates). 43 of the Commander
+board's 480 decisions are windows the stop answers, so 437 reach the agent:
+14,070 per core-second on one thread by CPU a game and 13,430 by the wall;
+7.08 times the one-thread wall on 16 threads, so **11,900 loaded, 19% room**. #225's tree read 14,100
 loaded here by `ui::ask`'s count against its 15,700 of 2026-10-06, so this
 sitting reads about 10% low loaded and 4.5% at one thread.
 
@@ -143,7 +143,7 @@ three points, so item 6 did not change how the engine scales.
 **The token board** (`--tokens N`: N 1/1 Goblins each seat, before the first
 turn), `performance` at Commander scale, 200 games, three rounds:
 
-| Goblins a seat | decisions, reaching the agent | turns | µs / decision | one thread | loaded | CPU / turn, p50 / p99 |
+| Goblins a seat | decisions, reaching the agent | turns | µs / decision | one thread, by CPU a game | loaded, by the 16-thread wall | CPU / turn, p50 / p99 |
 |---:|---:|---:|---:|---:|---:|---|
 | 0 | 437 | 69.1 | 72.6 | 13,780 | 11,630 | 0.44 / 0.76 ms |
 | 25 | 292 | 37.2 | 72.0 | 13,880 | 11,580 | 0.57 / 1.11 ms |
@@ -161,7 +161,9 @@ worst checkpoint and 1.87–1.97 at the 20 heaviest decisions, by the median
 of five means of 2,000; 4.4–5.6 µs and 8.7 KB on the 8,000 stacked triggers.
 The churn board's clone grows with the ids minted, 2.6 → 5.5 KB from 4,000
 tokens to 16,000 (item 355). `fork_copies_test` reads 1,815 intervals, 2.34
-chunks on average.
+chunks on average. The probe's instruments are in the tree since this PR:
+`clone_bound_test` counts the token board in CI too (14,025 decisions), and
+the clone tests' ignored tests time every row above.
 
 **Measured 2026-10-26 for items 61, 62, 63, 134, 330 and 332** (#294,
 `batch-legality-and-entry-choices`: an entry's sacrifices and payments

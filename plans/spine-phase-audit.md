@@ -73,8 +73,13 @@ readiness.
    dated reading beside the previous close's, never worse per decision
    without a written reason; then the three floors
    (`engineering-practices.md#the-floors`). Instruments:
-   - **the census provider**, counting decisions where they reach the agent;
-   - **the clone timer** with a counting allocator, at item 143's checkpoints;
+   - **the census**, `fuzz_games --census`, counting decisions where they
+     reach the agent;
+   - **the clone timer**, `clone_bound_test`'s and `clone_fixture_test`'s
+     ignored tests, at item 143's checkpoints, the heaviest decisions and the
+     fixture boards;
+   - **the token board**, `fuzz_games --tokens 50` at Commander scale, read
+     beside each floor (the clone tests count it in CI);
    - **the fork record-and-replay**: record every answer, clone at a round
      start, replay, compare the logs verbatim (item 41's test);
    - **`plans/panic_surface.py`**: the engine's release-active panic surface,

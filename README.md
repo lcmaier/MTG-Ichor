@@ -195,8 +195,9 @@ cd mtgsim && cargo run --bin fuzz_games -- --games 500 --seed 42 --threads 8
 
 Flags: `--games N`, `--max-turns N`, `--seed N`, `--threads N`, `--players N`, `--pool
 performance|stress`, `--require NAMES`, `--copies N`, `--deck-size N`, `--life N`,
-`--scenario <file>`, `--no-auto-pay`, `--audit`, `--trace <path>`, `--trace-game N`,
-`--verbose`, `--dump-events <path>`.
+`--tokens N` (1/1 Goblins each seat starts with), `--scenario <file>`, `--no-auto-pay`,
+`--census` (the decisions that reach the agent, by kind), `--audit`, `--trace <path>`,
+`--trace-game N`, `--verbose`, `--dump-events <path>`.
 
 Two card pools. `performance` is a frozen pool every recorded baseline was measured on
 and is the default, because an A/B against a pool that moved is not an A/B; `stress` is
