@@ -117,8 +117,12 @@ round:
 | `stress`, 60 cards | 442 · 398 | 21.27 ms | 20,780 | 48.1 | 548, 21.53 ms, 25,450, 39.3 µs |
 | `stress`, Commander | 713 · 629 | 39.73 ms | 17,950 | 55.7 | 912, 48.56 ms, 18,780, 53.2 µs |
 
-**Worse per decision than #225's tree on every board, and why.** On the
-Commander board, 7.2 of the 10.6 points are CL-1's (`0bb30e2d`): its table's
+**Worse per decision than #225's tree on every board, and why.** #225's is
+the last tree CPU time was read on: CI checks floors 2 and 3 (allocations
+and bytes) on every push, and each PR's close-out held its instructions per
+decision within the budget (0.7530 M at #225, 0.7515 M here, on the budget's
+board), but nothing between two readiness passes reads time, and time is
+what moved. On the Commander board, 7.2 of the 10.6 points are CL-1's (`0bb30e2d`): its table's
 iterator reports no length, so the ordered lists regrow on every call. A
 throwaway arm giving it one reads 0.7515 M → 0.7040 M instructions a decision
 on the budget's board, counters identical, and 30.93 → 28.70 ms a game over
