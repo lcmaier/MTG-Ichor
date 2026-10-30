@@ -10337,3 +10337,32 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      (`engineering-practices.md#the-spine-phase-audit`): both narrow the same
      sweep and share one A/B.
 
+357. **`ui/` holds three kinds of code under one name.** About 7,100 lines
+     of code and 2,200 of tests (2026-10-30), more than `oracle` and `events`
+     together:
+     - **the engine's question boundary**: `ask`, `choice_types` and
+       `decision`, about 2,500 lines, the `DecisionProvider` surface every
+       client and agent answers through;
+     - **agent-side policies**: `random`, `mana_window_stop`, `auto_payer`,
+       `auto_yield`, `full_control`, `auto_order_triggers` and `replay`,
+       decorators a seat chooses, read by the harness, the dev GUI and the
+       tests;
+     - **client rendering and explanation**: `display`, `why`,
+       `what_happened`, `waiting` and `cli`, about 3,200 lines of text a
+       client shows a person.
+     The third is what a viewer sees, and `information-model-design`
+     decides what each viewer may see, so that design is where its home is
+     settled. One tangle to read first: 16 engine files import `display`,
+     so part of it may be the engine's own names for its logs and traces
+     rather than a client's. Found at #299's review (the owner: "the UI
+     module of this project has already gotten a little overgrown compared
+     to the rest of the engine"), when this PR's census hook nearly added a
+     sixteenth file to it.
+     **Reachability (2026-10-30):** nothing owed — a structure question;
+     every reader works.
+     **Sized:** the decision at `information-model-design`'s stop; then the
+     moves, mechanical: the rendering group alone is imported by 13 other
+     files in `src`, 19 in `tests` and 6 in the dev GUI (2026-10-30), a
+     path sweep through `plans/replace_exact.py`.
+     **Slotted:** `information-model-design`, at its design stop.
+
