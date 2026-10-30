@@ -11,7 +11,6 @@ use crate::state::game_state::{initial_step, next_step, GameState, Phase, PhaseT
 use crate::types::effects::CounterType;
 use crate::types::history::{HistorySpan, TurnFact};
 use crate::types::ids::PlayerId;
-use crate::ui::display::{phase_name, step_name};
 
 impl Scenario {
     /// Read a scenario file, refusing the first line the grammar does not.
@@ -116,13 +115,32 @@ pub(super) fn draw_step_skipped(state: &GameState, turn: u32) -> bool {
     turn == 1 && starting_player_skips_first_draw(state)
 }
 
-/// A position as `step` spells it: `format_phase`'s name, lower case.
+/// A position as a saved file spells it: a scenario's `step` line and the
+/// decision log's. **The format's own words**, not a client's: a saved file is
+/// read back by matching them, so they change only when the format does, and
+/// `a_saved_position_is_spelled_as_the_format_was_written` pins them.
 pub fn position_word(position: Phase) -> String {
-    match position.step {
-        Some(step) => step_name(step),
-        None => phase_name(position.phase_type),
-    }
-    .to_lowercase()
+    let word = match position.step {
+        Some(StepType::Untap) => "untap",
+        Some(StepType::Upkeep) => "upkeep",
+        Some(StepType::Draw) => "draw",
+        Some(StepType::BeginCombat) => "begin combat",
+        Some(StepType::DeclareAttackers) => "declare attackers",
+        Some(StepType::DeclareBlockers) => "declare blockers",
+        Some(StepType::FirstStrikeDamage) => "first strike damage",
+        Some(StepType::CombatDamage) => "combat damage",
+        Some(StepType::EndCombat) => "end combat",
+        Some(StepType::End) => "end",
+        Some(StepType::Cleanup) => "cleanup",
+        None => match position.phase_type {
+            PhaseType::Beginning => "beginning",
+            PhaseType::Precombat => "precombat main",
+            PhaseType::Combat => "combat",
+            PhaseType::Postcombat => "postcombat main",
+            PhaseType::Ending => "ending",
+        },
+    };
+    word.to_string()
 }
 
 /// A line with a head before its colon.
@@ -602,6 +620,32 @@ mod tests {
 
     fn refused(text: &str) -> ScenarioError {
         Scenario::parse(text).expect_err(text)
+    }
+
+    /// The words a saved scenario or decision log holds for each position of
+    /// a natural turn. Changing one is a format change: every saved file at
+    /// that position stops loading.
+    #[test]
+    fn a_saved_position_is_spelled_as_the_format_was_written() {
+        let words: Vec<String> = turn_positions().map(position_word).collect();
+        assert_eq!(
+            words,
+            [
+                "untap",
+                "upkeep",
+                "draw",
+                "precombat main",
+                "begin combat",
+                "declare attackers",
+                "declare blockers",
+                "first strike damage",
+                "combat damage",
+                "end combat",
+                "postcombat main",
+                "end",
+                "cleanup",
+            ]
+        );
     }
 
     #[test]

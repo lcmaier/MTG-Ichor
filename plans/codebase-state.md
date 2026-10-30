@@ -10360,10 +10360,14 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      audits' disagreement messages (`engine/triggers/audit.rs`,
      `engine/triggers/state.rs`) and `Game::event_log`. Two saved formats
      go further and *parse* through it: `.scenario` files and the decision
-     log both spell a step with `scenario::position_word`, which is
+     log both spell a step with `scenario::position_word`, which was
      `display::step_name` lower-cased, and read it back by matching that
-     spelling, so a wording change in a client's table stops saved files
-     loading. Found at #299's review (the owner: "the UI
+     spelling, so a wording change in a client's table stopped saved files
+     loading: "Declare Blockers Step" made the shipped template refuse its
+     own `step declare blockers`. **Fixed in #299**: the formats keep their
+     own table, pinned by `a_saved_position_is_spelled_as_the_format_was_written`,
+     and the same wording change leaves every saved file loading. What is
+     left is the output's borrowing above. Found at #299's review (the owner: "the UI
      module of this project has already gotten a little overgrown compared
      to the rest of the engine"), when this PR's census hook nearly added a
      sixteenth file to it.
