@@ -131,8 +131,8 @@ three rounds (item 352). The rest is the games: 21 cards joined
 games reads 0.6734 M → 0.6906 M instructions a decision; the CPU rose about
 8% more than that.
 
-**Floor 1, by the census** (`fuzz_games --census`, a hook inside
-`ManaWindowStop` deciding by `ui::ask`'s predicates). 43 of the Commander
+**Floor 1, by the census** (`fuzz_games --census`, counting every prompt
+inside `ManaWindowStop`). 43 of the Commander
 board's 480 decisions are windows the stop answers, so 437 reach the agent:
 14,070 per core-second on one thread by CPU a game and 13,430 by the wall;
 7.08 times the one-thread wall on 16 threads, so **11,900 loaded, 19% room**. #225's tree read 14,100

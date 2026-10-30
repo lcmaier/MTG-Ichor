@@ -51,9 +51,8 @@ use mtgsim::cards::phase_lj_cards::teferi_flash_clause;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{create_goblins_for_each_seat, deal_commander_game, put_on_battlefield};
+use mtgsim::test_support::{create_goblins_for_each_seat, deal_commander_game, put_on_battlefield, AtEachPrompt};
 use mtgsim::ui::choice_types::ChoiceContext;
-use mtgsim::ui::each_decision::OnEachDecision;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -121,7 +120,7 @@ fn boards<'a>(stress: &'a CardRegistry, performance: &'a CardRegistry) -> Vec<Bo
 /// at the end.
 fn play(board: &Board, at_decision: impl Fn(&GameState, &ChoiceContext), mut at_checkpoint: impl FnMut(&GameState, String)) {
     let (mut game, agents) = deal_commander_game(board.registry, board.seed);
-    let dp = ManaWindowStop::new(OnEachDecision::new(RandomDecisionProvider::seeded(agents), at_decision));
+    let dp = ManaWindowStop::new(AtEachPrompt::new(RandomDecisionProvider::seeded(agents), at_decision));
     game.setup(&dp).expect("setup");
     if let Some(card) = board.row {
         put_on_battlefield(&mut game.state, card(), 0);

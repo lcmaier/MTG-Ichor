@@ -16,8 +16,7 @@ use std::cell::{Cell, RefCell};
 
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::deal_commander_game;
-use mtgsim::ui::each_decision::OnEachDecision;
+use mtgsim::test_support::{deal_commander_game, AtEachPrompt};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -63,7 +62,7 @@ fn a_fork_copies_only_the_chunks_it_writes() {
         let (mut game, agents) = deal_commander_game(&registry, game_seed);
         let reading = ChunksSinceTheLastDecision::default();
         // Inside `ManaWindowStop`, so it sees what reaches the agent.
-        let dp = ManaWindowStop::new(OnEachDecision::new(RandomDecisionProvider::seeded(agents), |game, _| reading.at(game)));
+        let dp = ManaWindowStop::new(AtEachPrompt::new(RandomDecisionProvider::seeded(agents), |game, _| reading.at(game)));
         game.setup(&dp).expect("setup");
         let mut turns = 0;
         while !game.is_over() && turns < 200 {

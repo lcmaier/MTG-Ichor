@@ -6190,9 +6190,10 @@ Commander-scale board closes item 69.
      (`engineering-practices.md#the-floors`).
 
      **The census**, this item's counters read where they reach the agent:
-     `fuzz_games --census` puts `ui::each_decision`'s hook inside
-     `ManaWindowStop`, deciding by `ui::ask`'s own predicates, and changes no
-     game. Every prompt that reaches the agent is a decision. At Commander scale on `performance`, 437 of 480 a game:
+     `fuzz_games --census` counts every prompt inside `ManaWindowStop` and
+     changes no game. Every prompt that reaches the random agent is a
+     decision, since `ui::ask` answers a one-answer prompt itself and only a
+     seat that stops at every priority point is shown a `Pass`-only one. At Commander scale on `performance`, 437 of 480 a game:
      priority 167, mana windows 162, attacks 43, targets 23, blocks 21, the
      rest under 4 each. The mana window is still 37% of what an agent is
      handed (lever 5).

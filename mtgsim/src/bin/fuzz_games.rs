@@ -117,13 +117,13 @@ use mtgsim::scenario::{Scenario, SetupActions, SetupDriver};
 use mtgsim::state::game::{Game, Halt, RandomStreams};
 use mtgsim::state::diagnostics::TriggerDispatchWork;
 use mtgsim::state::game_config::GameConfig;
+use mtgsim::state::game_state::GameState;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::types::colors::Color;
-use mtgsim::types::ids::{IdMap, ObjectId};
+use mtgsim::types::ids::{IdMap, ObjectId, PlayerId};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceContext;
-use mtgsim::ui::decision::DecisionProvider;
-use mtgsim::ui::each_decision::OnEachDecision;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -904,6 +904,50 @@ impl AgentCensus {
     }
 }
 
+/// Counts every prompt into the census, then asks `inner`. Innermost, under
+/// `ManaWindowStop`, so it is asked what reaches the agent, and each of those
+/// is a decision: `ui::ask` answers a prompt with one legal answer itself,
+/// and the random agent's seat is never shown a `Pass`-only priority prompt.
+struct Counted<D> {
+    inner: D,
+    census: Rc<AgentCensus>,
+}
+
+impl<D: DecisionProvider> DecisionProvider for Counted<D> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+        self.census.count(context);
+        self.inner.pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+        self.census.count(context);
+        self.inner.pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.census.count(context);
+        self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        self.census.count(context);
+        self.inner.choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.inner.seat_mode(player)
+    }
+}
+
 /// Compose the provider stack. **The one place that knows its shape.**
 ///
 /// The stop and nothing else, deliberately: `RandomDecisionProvider`'s tap
@@ -915,8 +959,8 @@ fn build_stack(dp_seed: u64, cfg: MiddlewareConfig) -> (Box<dyn DecisionProvider
     let provider = RandomDecisionProvider::seeded(dp_seed);
     let census = cfg.census.then(|| Rc::new(AgentCensus::default()));
     let stack: Box<dyn DecisionProvider> = match (cfg.auto_pay, census.clone()) {
-        (true, Some(census)) => Box::new(ManaWindowStop::new(OnEachDecision::new(provider, move |_, context| census.count(context)))),
-        (false, Some(census)) => Box::new(OnEachDecision::new(provider, move |_, context| census.count(context))),
+        (true, Some(census)) => Box::new(ManaWindowStop::new(Counted { inner: provider, census })),
+        (false, Some(census)) => Box::new(Counted { inner: provider, census }),
         (true, None) => Box::new(ManaWindowStop::new(provider)),
         (false, None) => Box::new(provider),
     };
