@@ -10318,9 +10318,21 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      22.93), three interleaved rounds.
      **Reachability (2026-10-29):** reachable — not wrong; a cost, on every
      game whose board has a printed replacement source.
-     **Sized:** ~10–30 lines in `gather.rs`, answer-preserving: the walk over
-     the printed set, and a count of replacement counters kept beside the
-     counters so the check is not itself a walk.
+     **The shape is the trigger dispatcher's, not the probe's switch** (the
+     owner, #299's review: the probe is all-or-nothing, and one named grant
+     anywhere or one shield counter puts every proposal back on the whole
+     walk). The dispatcher already finds its candidates leg by leg:
+     `trigger_sources` files each printed source under the kinds of event it
+     reads and `battlefield_readers` asks the file for the window's kinds,
+     `named_trigger_carriers` reads the objects a named grant or copy row
+     puts an ability on, and only a row over a filter walks the zones it
+     names. The gather has the second leg for the zones off the battlefield
+     already, and none of the first.
+     **Sized:** ~80–150 lines, answer-preserving: `replacement_ability_sources`
+     filed under the kinds of `GameAction` its printed patterns watch, read
+     by the proposal's kind; the named rows' objects on the battlefield
+     leg too; the permanents holding a replacement counter filed where
+     counters change; a filter row's zones walked as today.
      **Slotted:** A6e, readiness's second PR, beside item 352, as a small fix
      (`engineering-practices.md#the-spine-phase-audit`): both narrow the same
      sweep and share one A/B.
