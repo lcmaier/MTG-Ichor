@@ -47,10 +47,10 @@ room; the two tables must name the same floors.
 <!-- floor readings: begin -->
 | Floor | Reading | Read on | Where |
 |---|---|---|---|
-| 1. Decisions per loaded physical core-second | 15700 | 2026-10-06 | #225's pooled tree on `performance` at Commander scale, 200 games: 17,900 on one thread, 7.26 times that on 16 threads over 8 physical cores |
-| 2. Allocations per clone | 37 | 2026-10-21 | CL-1's tree: `clone_bound_test` in release at 188 checkpoints and 10,253 decisions over 24 Commander games, the worst `performance` 12353's decision at turn 31, and `clone_fixture_test`'s boards, at most 14 |
-| 2. Microseconds per clone | 1.8 | 2026-10-21 | CL-1's tree, the same 188 checkpoints, at each the median of five means of 2,000 clone-and-drops under the System allocator; the worst checkpoint of three runs, which read 1.75, 1.69 and 1.73. At decisions it is A6e's readiness pass's (`clone-architecture.md` decision 6(d)) |
-| 3. Kilobytes per clone | 8.7 | 2026-10-21 | the same readings, the worst `clone_fixture_test`'s 8,000 stacked triggers; at most 6.7 at a decision |
+| 1. Decisions per loaded physical core-second | 11900 | 2026-10-29 | the tree item 6 left (`98b7538e`) on `performance` at Commander scale, 200 games, counted where a decision reaches the agent (437 a game; `ui::ask` counts 480): 14,070 on one thread, 7.08 times the one-thread wall on 16 threads over 8 physical cores. MTG Arena held 1.5 cores, and #225's tree read 10% under its own last reading in the same sitting |
+| 2. Allocations per clone | 39 | 2026-10-29 | the same tree: `clone_bound_test` in release at 192 checkpoints and all 10,675 decisions over 24 Commander games, the worst `stress` 777's mana window at turn 41; `clone_fixture_test`'s boards at most 14, the token board at most 33 |
+| 2. Microseconds per clone | 5.6 | 2026-10-29 | the median of five means of 2,000 clone-and-drops under the System allocator, the worst of three runs: `clone_fixture_test`'s 8,000 stacked triggers (4.4–5.6). The 192 checkpoints read at most 1.83, the 20 decisions heaviest by bytes 1.97 (`clone-architecture.md` decision 6(d)), the token board 2.00 |
+| 3. Kilobytes per clone | 8.7 | 2026-10-29 | the same readings, the worst `clone_fixture_test`'s 8,000 stacked triggers; at most 6.6 at a decision and 6.1 on the token board |
 <!-- floor readings: end -->
 
 ### The floors' standing history
@@ -60,9 +60,9 @@ what moved it; a new reading is added to its row.
 
 | Floor | Standing |
 |---|---|
-| 1. ≥ 10,000 decisions per loaded physical core-second, Commander scale | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block) |
-| 2. Full-state clone ≤ 10 µs | **Holds** (item 180's fix, 2026-09-25): ≤ 40 allocations over the clone test's 24 games, ≤ 39 since item 183's half fix, `stress` seeds and the budget's own board, worst at `performance` 12358's turn 50. `performance` 12350 read 68 at turn 100 while every fork copied the registry rows' payloads, and reads 34 with them shared (`codebase-state.md` item 180). Time, from the bounded-state PR on the `stress` seeds: ≤ 8.5 µs over three sittings of five Commander games, against up to 1,479 allocations and 136 µs with the log. Since LL a row reaching the hidden zones reads 7.7–9.3 µs at its worst, against 7.1–7.3 without one (item 181, closed). A clone that rebuilds a spiked map (item 183) reads 7.8 µs at its worst on an idle machine, 6.8 before it. A clone taken during a deep stack is back-stopped before Phase 8 (item 183, `roadmap-v2.md` B10). **Read mid-turn at B10's design** (2026-10-21, `clone-architecture.md` §2): 78 allocations at a 22-trigger ordering, 3 of the clone test's 10,253 decisions over 64, none read by the test; 32,014 allocations and 8.2 ms on an 8,000-trigger wipe. **Shared since CL-1** (2026-10-21): at most 37 allocations over those 10,253 decisions and 34 between turns, 14 on the 8,000-trigger stack |
-| 3. ≤ 128 KB per state | **Holds** (the same PR): ≤ 107.1 KB at the end of a 168-turn game, the history bounded by the table; ≤ 112.4 KB with a row reaching the hidden zones (item 181). Breached on one fixture board by item 182, `stress` 12351 under Teferi's clause at 150.4 KB after a stack 29 deep, since a clone copied the maps' high-water capacity. **Holds again since that half of item 183 was fixed** (2026-09-26): ≤ 90.7 KB over the clone test's 210 readings, that game at 73.2. A clone during a deep stack is B10's: 10 MB on an 8,000-trigger wipe, 125 KB at 200 permanents, and 101 KB with no objects left after 2,000 tokens came and went, the layer memo's frames (`clone-architecture.md` §2.4, §2.5). **Since CL-1** (2026-10-21): at most 6.7 KB at every decision and 6.0 between turns, 8.7 KB on the 8,000-trigger stack, 1.5 KB after 4,000 tokens came and went, the memo bounded by the store |
+| 1. ≥ 10,000 decisions per loaded physical core-second, Commander scale | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block). **Read at item 6's close by the census** (2026-10-29): 11,900 loaded and 14,070 on one thread, counting only what reaches the agent; by `ui::ask`'s count 15,450 on one thread against #225's tree's 17,100 in the same sitting, 7 points of it item 352's regrowth. **Fails on the token board from 50 tokens a seat**: 5,700 loaded at 50 and 2,000 at 100 (`codebase-state.md` item 354) |
+| 2. Full-state clone ≤ 10 µs | **Holds** (item 180's fix, 2026-09-25): ≤ 40 allocations over the clone test's 24 games, ≤ 39 since item 183's half fix, `stress` seeds and the budget's own board, worst at `performance` 12358's turn 50. `performance` 12350 read 68 at turn 100 while every fork copied the registry rows' payloads, and reads 34 with them shared (`codebase-state.md` item 180). Time, from the bounded-state PR on the `stress` seeds: ≤ 8.5 µs over three sittings of five Commander games, against up to 1,479 allocations and 136 µs with the log. Since LL a row reaching the hidden zones reads 7.7–9.3 µs at its worst, against 7.1–7.3 without one (item 181, closed). A clone that rebuilds a spiked map (item 183) reads 7.8 µs at its worst on an idle machine, 6.8 before it. A clone taken during a deep stack is back-stopped before Phase 8 (item 183, `roadmap-v2.md` B10). **Read mid-turn at B10's design** (2026-10-21, `clone-architecture.md` §2): 78 allocations at a 22-trigger ordering, 3 of the clone test's 10,253 decisions over 64, none read by the test; 32,014 allocations and 8.2 ms on an 8,000-trigger wipe. **Shared since CL-1** (2026-10-21): at most 37 allocations over those 10,253 decisions and 34 between turns, 14 on the 8,000-trigger stack. **Read at item 6's close** (2026-10-29), every decision by the engine's predicates: at most 39 allocations over 10,675 decisions and 36 between turns; 1.70–1.83 µs at the worst checkpoint, 1.87–1.97 at the 20 heaviest decisions, 4.4–5.6 on the 8,000-trigger stack; the token board at most 33 and 2.0 µs |
+| 3. ≤ 128 KB per state | **Holds** (the same PR): ≤ 107.1 KB at the end of a 168-turn game, the history bounded by the table; ≤ 112.4 KB with a row reaching the hidden zones (item 181). Breached on one fixture board by item 182, `stress` 12351 under Teferi's clause at 150.4 KB after a stack 29 deep, since a clone copied the maps' high-water capacity. **Holds again since that half of item 183 was fixed** (2026-09-26): ≤ 90.7 KB over the clone test's 210 readings, that game at 73.2. A clone during a deep stack is B10's: 10 MB on an 8,000-trigger wipe, 125 KB at 200 permanents, and 101 KB with no objects left after 2,000 tokens came and went, the layer memo's frames (`clone-architecture.md` §2.4, §2.5). **Since CL-1** (2026-10-21): at most 6.7 KB at every decision and 6.0 between turns, 8.7 KB on the 8,000-trigger stack, 1.5 KB after 4,000 tokens came and went, the memo bounded by the store. **Read at item 6's close** (2026-10-29): at most 6.6 KB at a decision and 6.2 between turns, 8.7 on the 8,000-trigger stack, 2.6 after the 4,000 tokens, 6.1 on the token board at up to 400 Goblins |
 
 ## How to read the cost rows
 
@@ -95,6 +95,73 @@ one means the engine's cost model moved
   got longer".
 
 ## The records, newest first
+
+**Measured 2026-10-29 for the item 6 audit's readiness, part 1**
+(`audit/throughput-and-floors`: the ratchet at item 6's close, the census,
+the three floors with a token board, the contention read and the levers
+re-ranked; `codebase-state.md` items 138 and 143, items 352–355 filed). The
+tree item 6 left, `98b7538e`, with this PR's two harness commits, which move
+no game: `fuzz_games --tokens`, and the clone instruments counting a
+decision by the engine's predicates. No pool changed, so no table is
+re-recorded. MTG Arena held about 1.5 of the 16 threads through every
+sitting.
+
+**The ratchet**, five rounds interleaved with #225's merge `6b6d61e`, floor
+1's last reading; seed 12345, 200 games, four seats, one thread, the median
+round:
+
+| board | decisions / game, `ui::ask` · reaching the agent | CPU / game | per core-second | µs / decision | `6b6d61e`, same sitting |
+|---|---|---:|---:|---:|---|
+| `performance`, 60 cards | 359 · 329 | 17.64 ms | 20,350 | 49.1 | 388, 16.28 ms, 23,830, 42.0 µs |
+| `performance`, Commander | 480 · 437 | 31.07 ms | 15,450 | 64.7 | 564, 32.99 ms, 17,100, 58.5 µs |
+| `stress`, 60 cards | 442 · 398 | 21.27 ms | 20,780 | 48.1 | 548, 21.53 ms, 25,450, 39.3 µs |
+| `stress`, Commander | 713 · 629 | 39.73 ms | 17,950 | 55.7 | 912, 48.56 ms, 18,780, 53.2 µs |
+
+**Worse per decision than #225's tree on every board, and why.** On the
+Commander board, 7.2 of the 10.6 points are CL-1's (`0bb30e2d`): its table's
+iterator reports no length, so the ordered lists regrow on every call. A
+throwaway arm giving it one reads 0.7515 M → 0.7040 M instructions a decision
+on the budget's board, counters identical, and 30.93 → 28.70 ms a game over
+three rounds (item 352). The rest is the games: 21 cards joined
+`performance` (103 → 124), 69 turns a game against 83. Callgrind over the 200
+games reads 0.6734 M → 0.6906 M instructions a decision; the CPU rose about
+8% more than that.
+
+**Floor 1, by the census**: a provider inside `ManaWindowStop` counting by
+`ui::ask`'s predicates, its counts `fuzz_games`' to the decimal. 43 of the
+Commander board's 480 decisions are windows the stop answers, so 437 reach
+the agent: 14,070 per core-second on one thread, 7.08 times the one-thread
+wall on 16 threads, **11,900 loaded, 19% room**. #225's tree read 14,100
+loaded here by `ui::ask`'s count against its 15,700 of 2026-10-06, so this
+sitting reads about 10% low loaded and 4.5% at one thread.
+
+**The contention read** (CPU a game against one worker; wall speed-up):
+`performance` 60 cards +42% at 8 workers and +122% at 16, 5.37× and 6.71×;
+Commander +36% and +112%, 5.76× and 7.08×. #225's tree reads the same within
+three points, so item 6 did not change how the engine scales.
+
+**The token board** (`--tokens N`: N 1/1 Goblins each seat, before the first
+turn), `performance` at Commander scale, 200 games, three rounds:
+
+| Goblins a seat | decisions, reaching the agent | turns | µs / decision | one thread | loaded | CPU / turn, p50 / p99 |
+|---:|---:|---:|---:|---:|---:|---|
+| 0 | 437 | 69.1 | 72.6 | 13,780 | 11,630 | 0.44 / 0.76 ms |
+| 25 | 292 | 37.2 | 72.0 | 13,880 | 11,580 | 0.57 / 1.11 ms |
+| 50 | 189 | 20.4 | 141.0 | 7,090 | 5,700 | 1.47 / 2.76 ms |
+| 100 | 185 | 12.3 | 363.8 | 2,750 | 2,020 | 6.32 / 13.68 ms |
+
+Floor 1 fails from 50 a seat: 1.70 M instructions a decision against 0.69 M,
+the replacement gather's sweep 30.5% of them, the restriction sweep 14.0%,
+CR 614.12's look-ahead 13.7% (item 354). Floors 2 and 3 hold on it.
+
+**Floors 2 and 3** (item 143's table has the rows): at most 39 allocations
+over all 10,675 decisions of the clone test's 24 games (the instruments read
+10,268 before this PR) and 36 between turns; 6.6 KB; 1.70–1.83 µs at the
+worst checkpoint and 1.87–1.97 at the 20 heaviest decisions, by the median
+of five means of 2,000; 4.4–5.6 µs and 8.7 KB on the 8,000 stacked triggers.
+The churn board's clone grows with the ids minted, 2.6 → 5.5 KB from 4,000
+tokens to 16,000 (item 355). `fork_copies_test` reads 1,815 intervals, 2.34
+chunks on average.
 
 **Measured 2026-10-26 for items 61, 62, 63, 134, 330 and 332** (#294,
 `batch-legality-and-entry-choices`: an entry's sacrifices and payments
