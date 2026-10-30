@@ -54,6 +54,7 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::put_on_battlefield;
 use mtgsim::types::ids::PlayerId;
+use mtgsim::ui::ask::{forced_allocation, only_number, only_order, only_pick};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -75,9 +76,11 @@ const CHECKPOINTS: [u32; 10] = [1, 10, 20, 30, 40, 50, 60, 80, 100, 150];
 /// `fuzz_games`' turn limit.
 const MAX_TURNS: u32 = 200;
 
-/// A clone's cost at each prompt with two or more answers: what reaches the
-/// agent under `ManaWindowStop`, so it sits inside it. The game's answers are
-/// the inner provider's, so the games are `fuzz_games`' still.
+/// A clone's cost at each prompt with two or more legal answers, decided by
+/// the engine's own predicates: what reaches the agent under `ManaWindowStop`,
+/// so it sits inside it. A lone option offered as "take it or not" is one of
+/// them. The game's answers are the inner provider's, so the games are
+/// `fuzz_games`' still.
 struct CloneAtEachDecision<D> {
     inner: D,
     /// The decisions read, and the worst: (allocations, bytes, where).
@@ -87,8 +90,8 @@ struct CloneAtEachDecision<D> {
 }
 
 impl<D> CloneAtEachDecision<D> {
-    fn at(&self, game: &GameState, answers: usize, prompt: &str) {
-        if answers < 2 {
+    fn at(&self, game: &GameState, forced: bool, prompt: &str) {
+        if forced {
             return;
         }
         let (allocations, bytes) = clone_cost(game);
@@ -111,11 +114,11 @@ fn named(context: &ChoiceContext) -> String {
 
 impl<D: DecisionProvider> DecisionProvider for CloneAtEachDecision<D> {
     fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        self.at(game, options.len(), &named(context));
+        self.at(game, only_pick(options.len(), bounds).is_some(), &named(context));
         self.inner.pick_n(game, player, context, options, bounds)
     }
     fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
-        self.at(game, (max - min + 1) as usize, &named(context));
+        self.at(game, only_number(min, max).is_some(), &named(context));
         self.inner.pick_number(game, player, context, min, max)
     }
     fn allocate(
@@ -128,11 +131,11 @@ impl<D: DecisionProvider> DecisionProvider for CloneAtEachDecision<D> {
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        self.at(game, buckets.len(), &named(context));
+        self.at(game, forced_allocation(total, per_bucket_mins, per_bucket_maxs).is_some(), &named(context));
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
     fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        self.at(game, items.len(), &named(context));
+        self.at(game, only_order(items.len()).is_some(), &named(context));
         self.inner.choose_ordering(game, player, context, items)
     }
     fn seat_mode(&self, player: PlayerId) -> SeatMode {

@@ -25,6 +25,7 @@ use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::PlayerId;
+use mtgsim::ui::ask::{forced_allocation, only_number, only_order, only_pick};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -37,7 +38,8 @@ const MAX_MEAN_CHUNKS: f64 = 4.0;
 
 /// Keeps the state as the last decision left it, and at each decision counts
 /// the chunks the game has copied since: what reaches the agent under
-/// `ManaWindowStop`, so it sits inside it.
+/// `ManaWindowStop`, so it sits inside it. A decision is a prompt with two or
+/// more legal answers by the engine's own predicates.
 struct ChunksSinceTheLastDecision<D> {
     inner: D,
     last: RefCell<Option<GameState>>,
@@ -47,8 +49,8 @@ struct ChunksSinceTheLastDecision<D> {
 }
 
 impl<D> ChunksSinceTheLastDecision<D> {
-    fn at(&self, game: &GameState, answers: usize) {
-        if answers < 2 {
+    fn at(&self, game: &GameState, forced: bool) {
+        if forced {
             return;
         }
         if let Some(last) = self.last.borrow().as_ref() {
@@ -67,11 +69,11 @@ impl<D> ChunksSinceTheLastDecision<D> {
 
 impl<D: DecisionProvider> DecisionProvider for ChunksSinceTheLastDecision<D> {
     fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        self.at(game, options.len());
+        self.at(game, only_pick(options.len(), bounds).is_some());
         self.inner.pick_n(game, player, context, options, bounds)
     }
     fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
-        self.at(game, (max - min + 1) as usize);
+        self.at(game, only_number(min, max).is_some());
         self.inner.pick_number(game, player, context, min, max)
     }
     fn allocate(
@@ -84,11 +86,11 @@ impl<D: DecisionProvider> DecisionProvider for ChunksSinceTheLastDecision<D> {
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        self.at(game, buckets.len());
+        self.at(game, forced_allocation(total, per_bucket_mins, per_bucket_maxs).is_some());
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
     fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        self.at(game, items.len());
+        self.at(game, only_order(items.len()).is_some());
         self.inner.choose_ordering(game, player, context, items)
     }
     fn seat_mode(&self, player: PlayerId) -> SeatMode {
