@@ -406,6 +406,8 @@ timing sitting (the budget reads instructions).
   readiness reading of decisions per core-second, never worse without a reason.
 - **Instructions, not time**: a timing sitting spreads 2–6%, wider than the
   budget, while instructions repeat to ~0.01%. Stalls are read at readiness.
+- **A total can hold while two functions cancel**, so the close-out lists each
+  one whose inclusive share moved half a point; one past the budget gets a line.
 - Adopted 2026-09-15, in instructions since 2026-09-25; the calibration is
   `fuzz-record.md`, "Calibrated 2026-09-25".
 

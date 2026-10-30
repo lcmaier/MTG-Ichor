@@ -8,7 +8,8 @@ close_out - the measuring half of the close-out (engineering-practices.md#the-cl
 Builds each arm in its own worktree and target dir, refusing two identical binaries (a stale
 or shared build reads IDENTICAL having measured nothing); runs `fuzz_ab.py --rounds 0` on both
 pools, audited, at two seats and four; reads callgrind instructions per decision, the first arm
-against `--cpu`; runs `--require` on the last arm; prints the `fuzz-record.md` block's tables; and
+against `--cpu`, and the functions whose share moved even when the total did not; runs
+`--require` on the last arm; prints the `fuzz-record.md` block's tables; and
 lists the copies the last arm made against the first (`similar_functions.py --against`).
 """
 
@@ -80,6 +81,45 @@ def cpu(pair):
     return out
 
 
+#: A function whose inclusive instructions per decision move by this share of
+#: the baseline's total is listed, whatever the total does; at most
+#: `MOVERS_LISTED` of them, largest first.
+MOVER_POINTS = 0.5
+MOVERS_LISTED = 10
+
+
+def movers(dirs):
+    """The functions whose inclusive instructions per decision moved, baseline arm first.
+
+    The budget reads the total, and a total can hold while two rows cancel: CL-1
+    added ~9 points of vector regrowth and saved as much in lookups, and read
+    -0.05% (`codebase-state.md` item 352). Inclusive, because a regrowth's cost
+    is spread over dozens of allocator and copy rows too small to list alone and
+    shows whole only on the function that grows; so a row includes its callees,
+    and a row that moved more than the total is half of a cancellation. A row
+    over 90% of its own arm's total is a frame every instruction runs under,
+    and is left out. Keyed by file and function, the arm directory taken out of
+    the path.
+    """
+    per_decision = []
+    for d in dirs:
+        text = sh(WSL + [f"cd ~/{d} && ([ movers.txt -nt cg.out ] || callgrind_annotate --inclusive=yes --auto=no cg.out"
+                         f" 2>/dev/null | c++filt > movers.txt) && cat movers.txt && grep -E '^\\s+Decisions:' run.txt"])
+        decisions = int(re.search(r"^\s+Decisions:\s+(\d+)", text, re.M).group(1)) * CPU_GAMES
+        rows = {}
+        for m in re.finditer(r"^\s*([\d,]+) \(\s*[\d.]+%\)\s+(\S.*?)(?: \[[^]]*\])?$", text, re.M):
+            rows.setdefault(re.sub(r"/home/[^/]+/[^/]+/", "", m.group(2)), int(m.group(1).replace(",", "")) / decisions)
+        frames = {key for key, value in rows.items() if value >= 0.9 * rows.get("PROGRAM TOTALS", 0)}
+        per_decision.append((rows, frames))
+    (base, base_frames), (arm, arm_frames) = per_decision
+    total = base.get("PROGRAM TOTALS", 0) or 1
+    moved = [(key, base.get(key, 0.0), arm.get(key, 0.0)) for key in (base.keys() | arm.keys()) - base_frames - arm_frames]
+    moved = [m for m in moved if abs(m[2] - m[1]) >= MOVER_POINTS / 100 * total]
+    moved.sort(key=lambda m: -abs(m[2] - m[1]))
+    moved = moved[:MOVERS_LISTED]
+    return [(key, b, a, (a - b) / total * 100) for key, b, a in moved]
+
+
 def table(arms, out):
     base = arms[0][0]
 
@@ -146,6 +186,12 @@ def main():
         b, a = cpu([arms[0]] + [arm for arm in arms if arm[0] == target])
         print(f"| instructions / decision, {target} vs {arms[0][0]}, callgrind, `{CPU_BOARD}` | | "
               f"{b / 1e6:.4f} M → {a / 1e6:.4f} M, **{(a / b - 1) * 100:+.2f}%** |")
+        for key, before, after, points in movers([f"close-out-{arms[0][0]}", f"close-out-{target}"]):
+            function = key.split(".rs:", 1)[-1][:90]
+            # A row only one build has is code inlined differently, or a function new or gone.
+            one_arm = ", one arm only" if not before or not after else ""
+            print(f"| moved ≥ {MOVER_POINTS} points, inclusive: `{function}` | | "
+                  f"{before / 1e3:,.1f} K → {after / 1e3:,.1f} K, {points:+.1f} points{one_arm} |")
     for seats in (2, 4) if args.require else ():
         flags = [arms[-1][1], "--games", "200", "--seed", "12345", "--require", args.require] + (["--players", "4"] if seats == 4 else [])
         first = subprocess.run(flags, capture_output=True, text=True, encoding="utf-8", errors="replace")
