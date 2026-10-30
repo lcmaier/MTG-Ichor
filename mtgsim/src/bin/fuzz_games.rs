@@ -12,6 +12,7 @@
 //        cargo run --bin fuzz_games -- -r "Soul Warden" --copies 8   (a heavy board)
 //        cargo run --bin fuzz_games -- --no-auto-pay          (CR 605.3a raw)
 //        cargo run --bin fuzz_games -- --scenario scenarios/template.scenario
+//        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --tokens 50
 //
 // `--require` takes a comma-separated list **and repeats**: the union of every
 // flag, deduplicated, in the order given. Repeating is how a card whose name
@@ -102,8 +103,11 @@ use std::time::Instant;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
+use mtgsim::cards::phase_re_cards::goblin_token;
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
+use mtgsim::engine::actions::{ActionContext, GameAction};
+use mtgsim::events::cause::EventCause;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::scenario::{Scenario, SetupActions, SetupDriver};
@@ -173,6 +177,11 @@ struct Args {
     /// Starting life, `--life`. Twenty by default; forty is Commander's
     /// (CR 903.7), and it changes no RNG draw, only how long a game runs.
     life: i64,
+    /// 1/1 Goblin creature tokens each seat starts with, `--tokens`: the
+    /// performance floors' token board (`engineering-practices.md#the-floors`).
+    /// Created after setup, one event per seat, so they are on the
+    /// battlefield before the first turn. None by default.
+    tokens: usize,
     /// Attach the trace sink (`state::trace`) to every game and write each
     /// game's JSON lines to `DIR/game-<n>-seed-<seed>.jsonl`, `--trace DIR`.
     /// One file per game rather than one file, so a threaded run's output
@@ -241,6 +250,7 @@ fn parse_args() -> Args {
         players: 2,
         deck_size: 60,
         life: 20,
+        tokens: 0,
         trace: None,
         trace_game: None,
         audit: false,
@@ -393,6 +403,18 @@ fn parse_args() -> Args {
                         Ok(n) if n > 0 => n,
                         _ => {
                             eprintln!("--life wants a positive number, not {:?}", args[i]);
+                            std::process::exit(2);
+                        }
+                    };
+                }
+            }
+            "--tokens" => {
+                i += 1;
+                if i < args.len() {
+                    result.tokens = match args[i].parse::<usize>() {
+                        Ok(n) => n,
+                        Err(_) => {
+                            eprintln!("--tokens wants a number, not {:?}", args[i]);
                             std::process::exit(2);
                         }
                     };
@@ -862,9 +884,10 @@ fn build_stack(dp_seed: u64, cfg: MiddlewareConfig) -> Box<dyn DecisionProvider>
     }
 }
 
-/// The board every game is dealt onto — seats, deck size and starting life.
+/// The board every game is dealt onto — seats, deck size, starting life and
+/// the tokens each seat starts with.
 ///
-/// One value rather than three parameters: they are set together by three
+/// One value rather than four parameters: they are set together by four
 /// flags, read together by `run_one_game`, and each new one would otherwise
 /// thread through two signatures and three call sites.
 #[derive(Clone, Copy)]
@@ -872,6 +895,7 @@ struct TableConfig {
     players: usize,
     deck_size: usize,
     life: i64,
+    tokens: usize,
     /// `--copies`, on the way to `random_deck`.
     required_copies: usize,
 }
@@ -977,6 +1001,18 @@ fn run_one_game(
         let dp = &*dp;
         if start.is_none() {
             game.setup(dp).expect("Failed to setup game");
+            // Without the flag no creation is proposed, not even an empty one,
+            // so every recorded table's games stay byte-identical.
+            let seats_with_tokens = if table.tokens > 0 { table.players } else { 0 };
+            for controller in 0..seats_with_tokens {
+                let create = GameAction::CreateTokens { defs: vec![goblin_token(); table.tokens], controller, attacking: None };
+                let by_the_harness = ActionContext { dp, cause: EventCause::Harness };
+                if let Err(e) = game.state.execute_action(create, &by_the_harness) {
+                    finish_trace(&game);
+                    let log = if keep_event_log { Some(game.event_log_snapshot()) } else { None };
+                    return Err((format!("Token setup error: {e}"), log));
+                }
+            }
         } else if let Err(halt) = game.until_stopped(|game| game.resume_turn_at_priority(&SetupDriver::new(setup, dp))) {
             finish_trace(&game);
             let log = if keep_event_log { Some(game.event_log_snapshot()) } else { None };
@@ -1178,6 +1214,13 @@ fn main() {
     if args.life != 20 {
         println!("Life: {}", args.life);
     }
+    if args.tokens > 0 {
+        if args.scenario.is_some() {
+            eprintln!("--tokens is for dealt decks; a --scenario states its own board");
+            std::process::exit(2);
+        }
+        println!("Tokens: {} 1/1 Goblins each", args.tokens);
+    }
     // Off the default for the payer line's reason; `fuzz_ab.py` drops a row
     // the baseline does not print, so an arm with the sink on still reads
     // `IDENTICAL` on everything the game did.
@@ -1292,6 +1335,7 @@ fn main() {
             players: args.players,
             deck_size: args.deck_size,
             life: args.life,
+            tokens: args.tokens,
             required_copies: args.copies,
         },
         &TraceConfig { dir: args.trace.clone(), only: args.trace_game },
