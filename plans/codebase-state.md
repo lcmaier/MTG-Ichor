@@ -6223,7 +6223,8 @@ Commander-scale board closes item 69.
      - **Lever 4, the priority candidates**, 19.4%: the pre-check.
      - **Lever 9, the replacement gather's sweep**, 17.2%, and 30.5% on the
        token board (item 354): last on 2026-09-15, first wherever the
-       permanents grow.
+       permanents grow. Its walk over permanents that cannot answer is item
+       356, measured at −5.0% CPU here.
      - **Item 352, the ordered lists' regrowth**, 9.4% of the two lists'
        12.4% and 8.2%, measured at −6.3% instructions for about 25 lines:
        **first by return per line**. **Lever 6**, their sort, is the rest.
@@ -10246,22 +10247,30 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      costs 73 µs with no tokens, 72 at 25 a seat, **141 at 50** and **364 at
      100**: 7,090 and 2,750 decisions per core-second, about 5,700 and 2,000
      loaded, against the floor's 10,000. A turn's CPU climbs from 0.44
-     ms at the median to 6.3 ms. It is the per-event sweeps, multiplied by
-     events that grow with the permanents: callgrind on the 50-a-seat board
-     reads 1.70 M instructions a decision against 0.69 M, the replacement
-     gather's sweep 30.5% of them, the restriction sweep 14.0%, CR 614.12's
-     look-ahead for each entering token 13.7%, and the two ordered lists
-     19.9% (item 352's regrowth and the sort). Floors 2 and 3 hold on the
-     same boards: at most 33 allocations, 6.1 KB and 2.0 µs a clone.
+     ms at the median to 6.3 ms. Callgrind on the 50-a-seat board reads 1.70
+     M instructions a decision against 0.69 M, in three parts, each
+     multiplied by events that grow with the permanents:
+     - **the replacement gather visiting every permanent**, 30.5%: 19.5% its
+       own loop over permanents that cannot answer, 10.0% its ordered list.
+       Split out as item 356, with item 352's regrowth (2026-10-29, at
+       #299's review);
+     - **a board-wide layer pass each time the epoch has moved**: the
+       restriction query's keyword check on each event's subject is 13.8%,
+       405,000 `has_keyword` calls at about 22,800 instructions each, and
+       CR 614.12's look-ahead for each entering token 13.7%;
+     - the sorts the layer pass and the other sweeps pay (lever 6).
+     Items 352 and 356 measured on this board, each alone: 4.7% and 11.2%
+     less CPU. Floors 2 and 3 hold on the same boards: at most 33
+     allocations, 6.1 KB and 2.0 µs a clone.
      **Reachability (2026-10-29):** reachable — not wrong; a cost. No seed
      of the pooled boards reaches 50 tokens a seat, and a Commander token
      deck does: the board is the harness's flag, not a fuzz game's.
-     **Sized:** a design, not a patch. Each sweep needs the permanents that
-     can answer it found without visiting the rest: an index for the gather
-     (item 138's lever 9), the same for the restriction query, and the
-     timestamp order kept per epoch (lever 6). Each index must
-     be read off the effective ability list (`CLAUDE.md`'s gather rule), so
-     its invalidation is the layer memo's epoch; roughly 150–300 lines each.
+     **Sized:** what is left after items 352 and 356 is a design, not a
+     patch: how much of the board a change to one object invalidates, so a
+     query about one object does not pay a pass over all of them (item 138's
+     layer-walk row), and the timestamp order kept per epoch (lever 6).
+     Either is read off the effective ability lists, so its invalidation is
+     the layer memo's epoch; roughly 150–300 lines each.
      **Slotted:** Phase 10, profile-driven performance, with item 138's
      levers re-ranked on both boards (2026-10-29).
 
@@ -10285,4 +10294,33 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      **Slotted:** `loop-detection`: its shortcut is what stops a loop minting
      ids, so its design decides between the shortcut alone and the second
      level beside it, against item 264's board.
+
+356. **The replacement gather visits every permanent when only its printed
+     sources can answer.** `gather_sweeping` (`engine/replacement/gather.rs`)
+     walks the whole battlefield in timestamp order on every proposed event,
+     and for each permanent asks whether it is in
+     `replacement_ability_sources`, the permanents that printed a
+     replacement ability, and whether its counters make replacements (CR
+     122.1c's shield counter). A permanent can answer by a third route only
+     through a grant or a copy of a replacement ability, which the
+     continuous-effects summary already names (`unattributed_replacement_zones`
+     for a filter's zones, `any_named_unattributed_replacement` for named
+     objects), and those legs keep today's whole walk. Without them, and with
+     no replacement counter in play, only the printed sources can answer, so
+     the walk can be over that set in timestamp order. Split from item 354
+     at #299's review.
+     **A throwaway arm prices it**: that walk, about 8 lines, plays every
+     game and cost row identically on `performance` and `stress` at
+     Commander scale and on the 50-a-seat token board, an audited 100-game
+     `stress` run is clean, and it reads 5.0% less CPU on the Commander board
+     (30.07 → 28.58 ms a game) and 11.2% less on the token board (25.82 →
+     22.93), three interleaved rounds.
+     **Reachability (2026-10-29):** reachable — not wrong; a cost, on every
+     game whose board has a printed replacement source.
+     **Sized:** ~10–30 lines in `gather.rs`, answer-preserving: the walk over
+     the printed set, and a count of replacement counters kept beside the
+     counters so the check is not itself a walk.
+     **Slotted:** A6e, readiness's second PR, beside item 352, as a small fix
+     (`engineering-practices.md#the-spine-phase-audit`): both narrow the same
+     sweep and share one A/B.
 

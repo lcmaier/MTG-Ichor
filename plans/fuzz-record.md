@@ -155,8 +155,13 @@ turn), `performance` at Commander scale, 200 games, three rounds:
 | 100 | 185 | 12.3 | 363.8 | 2,750 | 2,020 | 6.32 / 13.68 ms |
 
 Floor 1 fails from 50 a seat: 1.70 M instructions a decision against 0.69 M,
-the replacement gather's sweep 30.5% of them, the restriction sweep 14.0%,
-CR 614.12's look-ahead 13.7% (item 354). Floors 2 and 3 hold on it.
+the replacement gather's walk over every permanent 30.5% of them, a
+board-wide layer pass under the restriction query's keyword check 13.8%,
+CR 614.12's look-ahead 13.7% (item 354). Floors 2 and 3 hold on it. Measured
+at #299's review, each alone and three rounds against this tree: a gather
+walking only its printed sources reads 5.0% less CPU on the Commander board
+and 11.2% less on this one, every game and cost row identical (item 356);
+item 352's size hint reads 4.7% less on this one.
 
 **Floors 2 and 3** (item 143's table has the rows): at most 39 allocations
 over all 10,675 decisions of the clone test's 24 games (the instruments read
