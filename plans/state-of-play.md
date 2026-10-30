@@ -170,7 +170,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 215 |
 | …of them in `PERFORMANCE_POOL` | 124 |
-| `#[test]` functions | 2854 |
+| `#[test]` functions | 2856 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -248,6 +248,7 @@ discipline. → `engineering-practices.md#the-spec-database`.
 is an open plate.
 
 - `plans/handoffs/item-6-audit.md`
+- `plans/handoffs/readiness-close.md`
 - `plans/handoffs/resolution-recipients-and-amounts.md`
 
 ## What this file deliberately does not know
