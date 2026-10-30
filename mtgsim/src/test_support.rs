@@ -30,6 +30,15 @@
 
 use std::sync::Arc;
 
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+
+use crate::cards::phase_re_cards::goblin_token;
+use crate::cards::random_deck::random_deck;
+use crate::cards::registry::CardRegistry;
+use crate::engine::actions::GameAction;
+use crate::state::game::{Game, RandomStreams};
+use crate::state::game_config::GameConfig;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::objects::object::GameObject;
 use crate::state::battlefield::{AttackTarget, AttackingInfo, PermanentState, BlockingInfo};
@@ -49,6 +58,7 @@ use crate::engine::layers::types::{
 };
 use crate::types::effects::Duration;
 use crate::types::zones::Zone;
+use crate::ui::choice_types::{ChoiceContext, ChoiceOption};
 use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use crate::state::trace::{TraceHandle, TraceSink};
 
@@ -74,6 +84,85 @@ pub fn setup_game(num_players: usize) -> GameState {
     game.active_player = 0;
     game.record_events();
     game
+}
+
+/// `fuzz_games`' game `game_seed` on the Commander board, four 100-card decks
+/// at 40 life, dealt and shuffled but not set up, with the seed its agents draw
+/// from (`RandomStreams`): the clone instruments' games. The caller builds its
+/// provider from that seed and sets the game up with it. Unlike `fuzz_games`,
+/// the first player draws (`GameConfig::test`).
+pub fn deal_commander_game(registry: &CardRegistry, game_seed: u64) -> (Game, u64) {
+    let mut deck_rng = StdRng::seed_from_u64(game_seed);
+    let RandomStreams { game: shuffle_seed, agents } = RandomStreams::from_seed(game_seed);
+    let decks = (0..4).map(|_| random_deck(registry, &mut deck_rng, &[], 1, 100)).collect();
+    let mut config = GameConfig::test();
+    config.starting_life = 40;
+    let mut game = Game::new(config, decks).expect("game creation");
+    game.reseed(shuffle_seed);
+    (game, agents)
+}
+
+/// `n` 1/1 Goblin tokens for each seat, one creation event per seat:
+/// `fuzz_games --tokens`' board.
+pub fn create_goblins_for_each_seat(game: &mut GameState, n: usize, dp: &dyn DecisionProvider) {
+    for controller in 0..game.players.len() {
+        let create = GameAction::CreateTokens { defs: vec![goblin_token(); n], controller, attacking: None };
+        game.execute_action(create, &ActionContext::new(dp)).expect("creating the Goblins");
+    }
+}
+
+/// Calls `hook` with the board and the prompt at every prompt, then asks `D`:
+/// the clone instruments' reading point, inside `ManaWindowStop` so it sees
+/// what reaches the agent.
+///
+/// **Every prompt it sees is a decision** under a seat that does not stop at
+/// every priority point (the random agent's): `ui::ask` answers a prompt
+/// with one legal answer itself, and only such a seat is shown a `Pass`-only
+/// priority prompt (`engine::priority`).
+pub struct AtEachPrompt<D, F> {
+    inner: D,
+    hook: F,
+}
+
+impl<D, F: Fn(&GameState, &ChoiceContext)> AtEachPrompt<D, F> {
+    pub fn new(inner: D, hook: F) -> Self {
+        AtEachPrompt { inner, hook }
+    }
+}
+
+impl<D: DecisionProvider, F: Fn(&GameState, &ChoiceContext)> DecisionProvider for AtEachPrompt<D, F> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+        (self.hook)(game, context);
+        self.inner.pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+        (self.hook)(game, context);
+        self.inner.pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        (self.hook)(game, context);
+        self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        (self.hook)(game, context);
+        self.inner.choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.inner.seat_mode(player)
+    }
 }
 
 /// Make `player` the active player, as though the natural rotation had reached

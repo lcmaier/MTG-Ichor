@@ -170,7 +170,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 215 |
 | …of them in `PERFORMANCE_POOL` | 124 |
-| `#[test]` functions | 2851 |
+| `#[test]` functions | 2854 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -182,23 +182,23 @@ with less than 20% room is bolded.
 
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
-| 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 57% | 2026-10-06 |
-| 2. Allocations per clone | ≤ 64 | 37 | 73% | 2026-10-21 |
-| 2. Microseconds per clone | ≤ 10 | 1.8 | 456% | 2026-10-21 |
-| 3. Kilobytes per clone | ≤ 128 | 8.7 | 1371% | 2026-10-21 |
+| **1. Decisions per loaded physical core-second** | ≥ 10000 | 11900 | **19%** | 2026-10-29 |
+| 2. Allocations per clone | ≤ 64 | 39 | 64% | 2026-10-29 |
+| 2. Microseconds per clone | ≤ 10 | 5.6 | 79% | 2026-10-29 |
+| 3. Kilobytes per clone | ≤ 128 | 8.7 | 1371% | 2026-10-29 |
 
 ## Debt — `codebase-state.md`'s Deferred Migrations
 
 | | |
 |---|---:|
-| Numbered items | 402 |
+| Numbered items | 408 |
 | …closed, still recorded | 248 |
 | …open — unreachable, and says why | 106 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 30 |
-| …open — nothing to build, a record for a later phase | 14 |
+| …open — reachable, not wrong (perf, a name, a harness) | 35 |
+| …open — nothing to build, a record for a later phase | 15 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 152 of 154 |
+| …open, carrying an explicit `**Sized:**` | 158 of 160 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -212,7 +212,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 142 |
+| …slotted to a phase or roadmap row still to come | 148 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

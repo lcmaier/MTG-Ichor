@@ -6140,10 +6140,10 @@ Commander-scale board closes item 69.
         shuffles a one-element list), so the skip is stream-neutral and an
         engine-side version would be A/B-identical by construction.
 
-     **Reachability (2026-09-16):** reachable — not wrong; a ratchet whose
-     instrument now exists, so the next reading is the harness's rather than a
-     probe's. What is still owed is the *target* half: a reading at each spine
-     close, beside the one restated above.
+     **Reachability (2026-10-29):** reachable — not wrong; a ratchet whose
+     instrument exists, read by the harness at item 6's close (below). What
+     stays owed is the *target* half: a reading at each spine close, beside
+     the last.
 
      **Sized:** ~~the instrument, ~80 lines across `state/diagnostics.rs`,
      `ui/ask.rs`, `bin/fuzz_games.rs` and `plans/fuzz_ab.py`~~ — **built
@@ -6160,9 +6160,87 @@ Commander-scale board closes item 69.
      not compare, but the sorts are still the largest single row, and the
      largest cost on a per-event path that grows with the board: the trigger
      dispatcher's own scans read 0.06% (`battlefield_readers`) and below.
-     **Slotted:** A6e, item 6's close audit, whose readiness pass takes the
-     next decisions-per-core-second reading; the levers not yet pulled are
-     Phase 10's.
+
+     **Read at item 6's close (2026-10-29, the audit's readiness pass;
+     `fuzz-record.md`, its block of that date).** The tree item 6 left
+     (`98b7538e`), five rounds interleaved with #225's merge (`6b6d61e`,
+     floor 1's last reading), seed 12345, 200 games, four seats, one thread;
+     MTG Arena held about 1.5 cores throughout:
+
+     | | decisions / game | CPU / game | per core-second | µs / decision | #225's tree, same sitting |
+     |---|---:|---:|---:|---:|---|
+     | `performance`, 4 seats | 359 | 17.6 ms | 20,350 | 49 | 23,830, 42 µs |
+     | `stress`, 4 seats | 442 | 21.3 ms | 20,780 | 48 | 25,450, 39 µs |
+     | **`performance`, Commander scale** | **480** | **31.1 ms** | **15,450** | 65 | 17,100, 58 µs |
+     | `stress`, Commander scale | 713 | 39.7 ms | 17,950 | 56 | 18,780, 53 µs |
+
+     **2.3 and 2.4 times the first reading** on `performance` (8,790 and
+     6,420), and **worse per decision than #225's tree on every board**:
+     +17% and +11% on `performance`, +22% and +5% on `stress`. The reason, on
+     the Commander board: CL-1's table iterator reports no length, so the
+     ordered lists regrow on every call (item 352), 7.2 points of CPU by a
+     throwaway arm's sitting. The rest is the games: 21 cards joined
+     `performance` after #225 (103 → 124), so these games run 69 turns where
+     #225's ran 83. Callgrind over the 200 games reads 0.6734 M → 0.6906 M
+     instructions a decision (+2.6%), the regrowth +62,000 and trigger
+     dispatch +41,000 among the rows that moved, and the CPU rose about 8%
+     more than the instructions did. `ui::ask`'s count stays the ratchet's;
+     the agent is handed 9% fewer at Commander scale, the windows
+     `ManaWindowStop` answers, and that count is floor 1's
+     (`engineering-practices.md#the-floors`).
+
+     **The census**, this item's counters read where they reach the agent:
+     `fuzz_games --census` counts every prompt inside `ManaWindowStop` and
+     changes no game. Every prompt that reaches the random agent is a
+     decision, since `ui::ask` answers a one-answer prompt itself and only a
+     seat that stops at every priority point is shown a `Pass`-only one. At Commander scale on `performance`, 437 of 480 a game:
+     priority 167, mana windows 162, attacks 43, targets 23, blocks 21, the
+     rest under 4 each. The mana window is still 37% of what an agent is
+     handed (lever 5).
+
+     **The contention read** (lever 7): CPU a game at 8 and 16 workers
+     against one, and the wall-clock speed-up:
+
+     | | 8 workers | 16 workers | #225's tree, 8 / 16 |
+     |---|---|---|---|
+     | `performance`, 4 seats | +42%, 5.37× | +122%, 6.71× | +41%, 5.55× / +129%, 6.62× |
+     | `performance`, Commander scale | +36%, 5.76× | +112%, 7.08× | +33%, 5.94× / +114%, 6.83× |
+
+     The 2026-09-15 reading of the first row was +31% and +90%, 6.0× and
+     8.2×. Both trees read alike here, so the triggers track did not change
+     how the engine scales; the gap to 2026-09-15 is this sitting's
+     background load and games a third the size. Rank 1 for a batch still.
+
+     **The levers, re-ranked by instruction share**: callgrind over the
+     200-game Commander board at item 6's close (66.3 G instructions, 0.6906
+     M a decision), inclusive, so they overlap. Largest first, each by the
+     label it has above, or by its item if it is new:
+
+     - **The layer walk**, 32.2%: `pass_into_memo` 27.9%, the frames
+       dropped 3.6% (3.8 M through `Arc::drop_slow`). What the layer memo
+       left; no lever above names it.
+     - **Lever 3, the state-based check**, 28.4%, 7.7% of it item 352's
+       regrowth and the rest the per-permanent questions.
+     - **Lever 4, the priority candidates**, 19.4%: the pre-check.
+     - **Lever 9, the replacement gather's sweep**, 17.2%, and 30.5% on the
+       token board (item 354): last on 2026-09-15, first wherever the
+       permanents grow. Its walk over permanents that cannot answer is item
+       356, measured at −5.0% CPU here.
+     - **Item 352, the ordered lists' regrowth**, 9.4% of the two lists'
+       12.4% and 8.2%, measured at −6.3% instructions for about 25 lines:
+       **first by return per line**. **Lever 6**, their sort, is the rest.
+     - **Lever 5, the mana window**: `activatable_abilities_with` 10.9%, the
+       window itself 7.6%.
+     - **Trigger dispatch**, 8.8%: item 6's own cost, new on the list.
+     - **The history**, 4.8% advancing it and 4.2% drafting its rows.
+     - **CR 614.12's look-ahead**, 4.7%, and 13.7% on the token board.
+     - **Item 353, the rejected targets' strings**, 4.1%.
+
+     Lever 7, the allocator, is not an instruction row; lever 8's log
+     window is built (item 42); `random_deck`'s 2.9% is the harness's.
+     **Slotted:** Phase 10, profile-driven performance: the levers above
+     not yet pulled, item 352 apart; each spine close's readiness pass
+     reads the ratchet again (`spine-phase-audit.md`).
 
 139. **~~A retry re-prompt offers a list computed before the rejected action
      changed the board~~ ✅ CLOSED 2026-09-16 (A4h) — the enumeration moved
@@ -6453,6 +6531,34 @@ Commander-scale board closes item 69.
      **Sized:** item 42's window; nothing else — the no-log clone is already
      at the floor `Arc<CardData>` sets.
 
+     **Extended at item 6's close (2026-10-29, the audit's readiness pass).**
+     A clone holds no log since item 42's window and shares its stores since
+     CL-1, so this close's row is the whole clone. Allocations and bytes are
+     counted exactly by `clone_bound_test`'s allocator with the hash seed
+     pinned; time is the median of five means of 2,000 clone-and-drops under
+     the System allocator, three runs. The decisions are every prompt with
+     two or more legal answers, by the engine's own predicates (the two clone
+     instruments counted options until this pass, and read 10,268 of these
+     10,675):
+
+     | board | readings | allocations, worst | KB, worst | µs: median / worst, three runs |
+     |---|---:|---:|---:|---|
+     | the clone test's 24 Commander games, between turns | 192 | 36 | 6.2 | 1.21–1.25 / 1.70–1.83 |
+     | the same games, at every decision | 10,675 | 39 | 6.6 | the 20 heaviest by bytes: 1.65–1.73 / 1.87–1.97 |
+     | the token board, 25 / 50 / 100 Goblins a seat, 20 `performance` games each | 4,951 / 3,416 / 3,736 | 33 / 32 / 29 | 6.1 / 5.8 / 6.1 | at most 2.00 / 1.84 / 1.76 |
+     | `clone_fixture_test`'s four boards | 4 | 14 | 8.7 | 0.55–0.62 at 200 permanents to 4.43–5.57 at 8,000 stacked triggers |
+
+     **Reading.** The clone no longer grows with the turn count, the board or
+     the tokens, only with the ids the game has minted (item 355): 400
+     Goblins cost a clone less than the pooled board does, since the
+     permanents sit in shared chunks and the games are shorter. Against this
+     table's 2026-09-15 columns without the log, a clone between turns is 1.8
+     µs where it was 3.3–6.1, at the same 14–36 allocations; the log's
+     1,662 went with item 42. The instruments are in the tree since this
+     pass: `clone_bound_test` and `clone_fixture_test` count every row in
+     CI, the token board included, and their ignored tests time them
+     (`spine-phase-audit.md`'s readiness pass).
+
 What is *not* a ledger line: the 24 asks classified for the fork model are
 `backlog.md` §2.22's table, beside the middleware census that will consume
 them; item 69 is closed by the Commander-scale measurement and evicted; item
@@ -6461,8 +6567,8 @@ profile's recipe is `layers-architecture.md` §12's instrument paragraph and
 `spine-phase-audit.md`'s readiness pass, not here, because it is a
 procedure and not a migration.
      **Slotted:** none — a record of the Commander-scale clone table, which
-     `spine-phase-audit.md`'s readiness pass extends at each close
-     (A6e).
+     `spine-phase-audit.md`'s readiness pass extends at each close; item 6's
+     row is above.
 
 ### Found by the post-RE audit's pass 4 review — the UUID review (2026-09-16)
 
@@ -8765,8 +8871,10 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and `route-revi
      (~30 lines, a game past an object count ends as a harness outcome beside
      the turn limit) is only a stopgap for the fuzz runs.
      **Slotted:** `loop-detection` (`route-review`, 2026-10-29), whose shortcut
-     half owns `backlog.md` §2.28's `GameNumber`; the token board for the
-     performance floors is a reading for the item 6 audit's readiness.
+     half owns `backlog.md` §2.28's `GameNumber`. The performance floors were
+     read on a token board at the item 6 audit's readiness (2026-10-29,
+     `fuzz_games --tokens`): floors 2 and 3 hold, and floor 1 fails from 50
+     tokens a seat, which is item 354's.
 
 265. **A card cast from a graveyard carries no frame.** CR 601.2a's move is
      silent (`// CAST-ROLLBACK:`) and announced at 601.2i, so no batch frames
@@ -10079,4 +10187,195 @@ folds and 345–347 the gaps the duplicates hid.
      **Slotted:** `resolution-recipients-and-amounts`, beside item 268,
      whose `PlayerAntecedent` (its design note's decision 4) already folds
      this arm (`route-review`, 2026-10-29).
+
+### Found by the item 6 audit, pass 4 — readiness (2026-10-29)
+
+The ratchet's reading at item 6's close and the three floors, with a token
+board (`fuzz-record.md`, the block of this date; items 138 and 143).
+
+352. **The battlefield's ordered lists regrow on every call.** CL-1
+     (`0bb30e2d`, 2026-10-21) made the battlefield an `ObjectTable`, whose
+     `iter()` is a `filter_map` and `flat_map` chain over the chunks, so its
+     size hint's lower bound is 0, though the table keeps its `len`. Every
+     `collect` from it grows by doubling: `battlefield_ordered`,
+     `battlefield_ids_ordered` and each caller collecting the table directly.
+     The map it replaced reported its length. On the 200-game Commander board
+     `finish_grow` is 13.5% of all instructions; the two ordered collects are
+     9.4% of them, reached mostly from the state-based check (7.7%, 851,000
+     calls) and `activatable_abilities_with` (4.4%). At #225's tree regrowth
+     was 31,000 instructions a decision; at item 6's close it is 93,000.
+     **A throwaway arm prices the fix**: the same chain with the table's
+     length as its size hint reads 6.33% fewer instructions on the budget's
+     board (0.7515 M → 0.7040 M a decision, every counter identical) and 7.2%
+     less CPU in a three-round sitting (30.93 → 28.70 ms a game). That is
+     most of what the ratchet lost per decision since #225 (item 138's
+     reading of this date).
+     **Reachability (2026-10-29):** reachable — not wrong; a cost, on every
+     game.
+     **Sized:** ~25 lines: an iterator on `ObjectTable` that counts down from
+     `len` and reports it, `ExactSizeIterator` too, so `keys()`, `values()`
+     and every collect inherit it; no caller changes. Answer-preserving, so
+     its arm is `IDENTICAL` on every gameplay and cost row.
+     **Slotted:** A6e, readiness's second PR, as a small fix (an audit ships
+     docs and small fixes, `engineering-practices.md#the-spine-phase-audit`):
+     it is the ratchet's own regression, read before `card-layer-cleanup`
+     moves the tree.
+
+353. **A target enumeration formats the reason for every candidate it
+     rejects.** `enumerate_legal_selections_upto` (`oracle/legality.rs`)
+     keeps a candidate when `validate_selection(..).is_ok()`, and each of
+     the seven validators below it (`engine/targeting.rs`, with
+     `require_on_battlefield`) builds its `Err` with `format!`. So every
+     rejected permanent costs a formatted, allocated and dropped `String`:
+     1.8 M of them over the 200-game Commander board, **4.1% of all
+     instructions** in `format_inner` under `validate_selection`, before the
+     allocator's share. The enumeration wants a yes or no, and the reason is
+     read only where a cast is refused.
+     **Reachability (2026-10-29):** reachable — not wrong; a cost, at every
+     prompt that offers targets, growing with the battlefield.
+     **Sized:** ~60–100 lines: the validators return a typed reason (the
+     object, the rule, what it failed), rendered by `Display` only where a
+     caller reports it, and the enumeration asks the same checks for a
+     `bool`. One set of checks, not a second predicate kept in step
+     (`engineering-practices.md#one-record-never-two-kept-in-step`).
+     Answer-preserving.
+     **Slotted:** Phase 10, profile-driven performance, beside item 138's
+     levers.
+
+354. **Floor 1 fails on a board of many tokens.** `fuzz_games --tokens N`
+     gives each seat N 1/1 Goblins before the first turn. On `performance` at
+     Commander scale, 200 games, one thread, a decision reaching the agent
+     costs 73 µs with no tokens, 72 at 25 a seat, **141 at 50** and **364 at
+     100**: 7,090 and 2,750 decisions per core-second, about 5,700 and 2,000
+     loaded, against the floor's 10,000. A turn's CPU climbs from 0.44
+     ms at the median to 6.3 ms. Callgrind on the 50-a-seat board reads 1.70
+     M instructions a decision against 0.69 M, in three parts, each
+     multiplied by events that grow with the permanents:
+     - **the replacement gather visiting every permanent**, 30.5%: 19.5% its
+       own loop over permanents that cannot answer, 10.0% its ordered list.
+       Split out as item 356, with item 352's regrowth (2026-10-29, at
+       #299's review);
+     - **a board-wide layer pass each time the epoch has moved**: the
+       restriction query's keyword check on each event's subject is 13.8%,
+       405,000 `has_keyword` calls at about 22,800 instructions each, and
+       CR 614.12's look-ahead for each entering token 13.7%;
+     - the sorts the layer pass and the other sweeps pay (lever 6).
+     Items 352 and 356 measured on this board, each alone: 4.7% and 11.2%
+     less CPU. Floors 2 and 3 hold on the same boards: at most 33
+     allocations, 6.1 KB and 2.0 µs a clone.
+     **Reachability (2026-10-29):** reachable — not wrong; a cost. No seed
+     of the pooled boards reaches 50 tokens a seat, and a Commander token
+     deck does: the board is the harness's flag, not a fuzz game's.
+     **Sized:** what is left after items 352 and 356 is a design, not a
+     patch: how much of the board a change to one object invalidates, so a
+     query about one object does not pay a pass over all of them (item 138's
+     layer-walk row), and the timestamp order kept per epoch (lever 6).
+     Either is read off the effective ability lists, so its invalidation is
+     the layer memo's epoch; roughly 150–300 lines each.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's
+     levers re-ranked on both boards (2026-10-29).
+
+355. **A clone grows with every id the game has minted.** CL-1's tables are
+     indexed by id and an id is never reused, so each table's vector of chunk
+     pointers is as long as the highest id ever minted, 8 bytes per 32 ids,
+     whatever is still in the game. `clone_fixture_test`'s churn board reads
+     it: 2.6 KB after 4,000 tokens came and went, 3.6 KB after 8,000 and 5.5
+     KB after 16,000, with nothing left on the battlefield. Floor 3 is
+     "bounded by the board's high-water mark and never by the turn count", so
+     this is the floor's one unbounded term. `clone-architecture.md`
+     decision 1 names the answer (a second level of chunks, 8 bytes per
+     1,024 ids) and defers it "until a fixture needs it"; no item held it.
+     **Reachability (2026-10-29):** reachable — not wrong: no pooled game
+     comes near the floor. The longest of the clone test's games and the
+     token board mint at most 806 ids, so the term is about 0.25 KB a table;
+     128 KB is about 500,000 ids, which only an unshortcut loop (CR 732) or
+     item 264's exponential board mints.
+     **Sized:** ~80–120 lines in `state/shared_stores.rs`: the outer vector
+     chunked once more, one load per read; answer-preserving.
+     **Slotted:** `loop-detection`: its shortcut is what stops a loop minting
+     ids, so its design decides between the shortcut alone and the second
+     level beside it, against item 264's board.
+
+356. **The replacement gather visits every permanent when only its printed
+     sources can answer.** `gather_sweeping` (`engine/replacement/gather.rs`)
+     walks the whole battlefield in timestamp order on every proposed event,
+     and for each permanent asks whether it is in
+     `replacement_ability_sources`, the permanents that printed a
+     replacement ability, and whether its counters make replacements (CR
+     122.1c's shield counter). A permanent can answer by a third route only
+     through a grant or a copy of a replacement ability, which the
+     continuous-effects summary already names (`unattributed_replacement_zones`
+     for a filter's zones, `any_named_unattributed_replacement` for named
+     objects), and those legs keep today's whole walk. Without them, and with
+     no replacement counter in play, only the printed sources can answer, so
+     the walk can be over that set in timestamp order. Split from item 354
+     at #299's review.
+     **A throwaway arm prices it**: that walk, about 8 lines, plays every
+     game and cost row identically on `performance` and `stress` at
+     Commander scale and on the 50-a-seat token board, an audited 100-game
+     `stress` run is clean, and it reads 5.0% less CPU on the Commander board
+     (30.07 → 28.58 ms a game) and 11.2% less on the token board (25.82 →
+     22.93), three interleaved rounds.
+     **Reachability (2026-10-29):** reachable — not wrong; a cost, on every
+     game whose board has a printed replacement source.
+     **The shape is the trigger dispatcher's, not the probe's switch** (the
+     owner, #299's review: the probe is all-or-nothing, and one named grant
+     anywhere or one shield counter puts every proposal back on the whole
+     walk). The dispatcher already finds its candidates leg by leg:
+     `trigger_sources` files each printed source under the kinds of event it
+     reads and `battlefield_readers` asks the file for the window's kinds,
+     `named_trigger_carriers` reads the objects a named grant or copy row
+     puts an ability on, and only a row over a filter walks the zones it
+     names. The gather has the second leg for the zones off the battlefield
+     already, and none of the first.
+     **Sized:** ~80–150 lines, answer-preserving: `replacement_ability_sources`
+     filed under the kinds of `GameAction` its printed patterns watch, read
+     by the proposal's kind; the named rows' objects on the battlefield
+     leg too; the permanents holding a replacement counter filed where
+     counters change; a filter row's zones walked as today.
+     **Slotted:** A6e, readiness's second PR, beside item 352, as a small fix
+     (`engineering-practices.md#the-spine-phase-audit`): both narrow the same
+     sweep and share one A/B.
+
+357. **`ui/` holds three kinds of code under one name.** About 7,100 lines
+     of code and 2,200 of tests (2026-10-30), more than `oracle` and `events`
+     together:
+     - **the engine's question boundary**: `ask`, `choice_types` and
+       `decision`, about 2,500 lines, the `DecisionProvider` surface every
+       client and agent answers through;
+     - **agent-side policies**: `random`, `mana_window_stop`, `auto_payer`,
+       `auto_yield`, `full_control`, `auto_order_triggers` and `replay`,
+       decorators a seat chooses, read by the harness, the dev GUI and the
+       tests;
+     - **client rendering and explanation**: `display`, `why`,
+       `what_happened`, `waiting` and `cli`, about 3,200 lines of text a
+       client shows a person.
+     The third is what a viewer sees, and `information-model-design`
+     decides what each viewer may see, so that design is where its home is
+     settled. **What the engine takes from `display`, read import by import
+     (2026-10-30, at #299's review): no rule reads it**, since nothing
+     branches on its text. The engine's own output borrows its words: the
+     trace sink's `name` and `text` fields (`state/trace.rs`,
+     `engine/trace_records.rs`, the restriction's `as_recorded`), the
+     audits' disagreement messages (`engine/triggers/audit.rs`,
+     `engine/triggers/state.rs`) and `Game::event_log`. Two saved formats
+     go further and *parse* through it: `.scenario` files and the decision
+     log both spell a step with `scenario::position_word`, which was
+     `display::step_name` lower-cased, and read it back by matching that
+     spelling, so a wording change in a client's table stopped saved files
+     loading: "Declare Blockers Step" made the shipped template refuse its
+     own `step declare blockers`. **Fixed in #299**: the formats keep their
+     own table, pinned by `a_saved_position_is_spelled_as_the_format_was_written`,
+     and the same wording change leaves every saved file loading. What is
+     left is the output's borrowing above. Found at #299's review (the owner: "the UI
+     module of this project has already gotten a little overgrown compared
+     to the rest of the engine"), when this PR's census hook nearly added a
+     sixteenth file to it.
+     **Reachability (2026-10-30):** nothing owed — a structure question;
+     every reader works.
+     **Sized:** the decision at `information-model-design`'s stop; then the
+     moves, mechanical: the rendering group alone is imported by 13 other
+     files in `src`, 19 in `tests` and 6 in the dev GUI (2026-10-30), a
+     path sweep through `plans/replace_exact.py`.
+     **Slotted:** `information-model-design`, at its design stop.
 

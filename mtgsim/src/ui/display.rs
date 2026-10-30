@@ -836,7 +836,7 @@ pub fn format_phase(game: &GameState) -> String {
     }
 }
 
-/// A phase as a person reads it, which a scenario's `step` word reuses.
+/// A phase as a person reads it.
 pub fn phase_name(phase: PhaseType) -> &'static str {
     match phase {
         PhaseType::Beginning => "Beginning",
