@@ -43,6 +43,11 @@
 //!   equip ability was offered on a creatureless board, rejected, and
 //!   blacklisted — and a fresh enumeration offered it right back, which is the
 //!   blacklist deciding the prompt (item 150).
+//!
+//! **The log is half of the replay; the state the branch ends in is the
+//! other.** A part of the state forked wrong shows in the log only once it
+//! changes an event before the turn cap, so each branch's end state is
+//! compared with the original's too, part by part ([`outcome_parts`]).
 
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -79,6 +84,13 @@ const NONLAND_PERCENT: usize = 60;
 const TWO_SEAT_SEED: u64 = 64;
 const FOUR_SEAT_SEED: u64 = 52;
 const COMMANDER_SEED: u64 = 6;
+
+/// The seeds `fork_sweep_over_many_seeds` found forking with what the three
+/// above never hold at a fork: a delayed trigger waiting, at four seats on
+/// `stress` (9 of the game's forks), and an "until" exile's return, at two on
+/// `performance` (13).
+const DELAYED_TRIGGER_SEED: u64 = 38;
+const RETURN_SEED: u64 = 52;
 
 // ---------------------------------------------------------------------------
 // The fork recorder
@@ -335,10 +347,37 @@ fn play_out(game: &mut Game, dp: &dyn DecisionProvider) {
 // The assertion
 // ---------------------------------------------------------------------------
 
+/// The game a branch must end in, part by part: what the triggers work added
+/// (the history, the delayed triggers, the returns, the last known
+/// information), the stores a fork shares with the game it came from, and the
+/// state's own random stream. Rendered with `Debug`, so a field a part gains is
+/// compared with it. Two things are left out because a replay may differ in
+/// them: the diagnostics count the work, and a resumed branch asks the layer
+/// memo again; and the event recorder's handle names its branch.
+fn outcome_parts(state: &GameState) -> [(&'static str, String); 10] {
+    [
+        ("the history", format!("{:?}", state.history)),
+        ("the delayed triggers", format!("{:?}", state.delayed_triggers)),
+        ("the returns", format!("{:?}", state.until_returns)),
+        ("the last known information", format!("{:?}", state.lki_store)),
+        ("the objects", format!("{:?}", state.objects)),
+        ("the battlefield", format!("{:?}", state.battlefield)),
+        ("the stack", format!("{:?}", state.stack)),
+        ("the stack's entries", format!("{:?}", state.stack_entries)),
+        ("the waiting triggers", format!("{:?}", state.pending_triggers)),
+        ("the random stream", format!("{:?}", state.rng)),
+    ]
+}
+
 /// How one seeded game's forks came out.
+#[derive(Default)]
 struct Run {
     /// Branch points taken — "every round-start fork", counted.
     forks: usize,
+    /// Of those, the forks taken while a delayed trigger waited, and while a
+    /// return did: whether the board reached the state the triggers work added.
+    holding_a_delayed_trigger: usize,
+    holding_a_return: usize,
     /// One line per branch that did not replay its original, in fork order.
     diverged: Vec<String>,
 }
@@ -363,6 +402,7 @@ fn fork_every_round_start(board: &Board, seed: u64) -> Run {
         board.name,
         original.len()
     );
+    let original_parts = outcome_parts(&game.state);
 
     let forks = recorder.forks.into_inner();
     assert!(
@@ -372,8 +412,10 @@ fn fork_every_round_start(board: &Board, seed: u64) -> Run {
     );
 
     let config = board.config();
-    let mut diverged = Vec::new();
+    let mut run = Run { forks: forks.len(), ..Run::default() };
     for fork in &forks {
+        run.holding_a_delayed_trigger += usize::from(!fork.state.delayed_triggers.is_empty());
+        run.holding_a_return += usize::from(!fork.state.until_returns.is_empty());
         let mut branch = Game {
             state: fork.state.clone(),
             config: config.clone(),
@@ -386,6 +428,17 @@ fn fork_every_round_start(board: &Board, seed: u64) -> Run {
 
         let replayed = branch.event_log_snapshot();
         if replayed == original {
+            let ended_apart = original_parts
+                .iter()
+                .zip(outcome_parts(&branch.state))
+                .find(|((_, original), (_, branch))| original != branch);
+            if let Some(((part, _), _)) = ended_apart {
+                run.diverged.push(format!(
+                    "{} seed {seed}: the branch forked at prompt {} logged the original's \
+                     events and ended with {part} different",
+                    board.name, fork.prompt,
+                ));
+            }
             continue;
         }
         let at = replayed
@@ -398,7 +451,7 @@ fn fork_every_round_start(board: &Board, seed: u64) -> Run {
         // and the game still went elsewhere. Only the first has ever been seen,
         // and which of the two it is is the whole diagnosis.
         let same_prompt = replay.first_priority.borrow().as_deref() == Some(&fork.offered[..]);
-        diverged.push(format!(
+        run.diverged.push(format!(
             "{} seed {seed}: the branch forked at prompt {} played a different game \
              ({}). First difference at event {at} of {}/{} (branch/original): \
              branch {:?}, original {:?}. Offered at the fork: {:?}; offered to the \
@@ -418,37 +471,35 @@ fn fork_every_round_start(board: &Board, seed: u64) -> Run {
             replay.first_priority.borrow(),
         ));
     }
-
-    Run {
-        forks: forks.len(),
-        diverged,
-    }
+    run
 }
 
-/// Every branch of every seed replays its original. Returns the branch count,
-/// which the callers assert is a board still playing Magic.
-fn every_fork_replays(board: &Board, seeds: &[u64]) -> usize {
-    let mut forks = 0;
-    let mut diverged: Vec<String> = Vec::new();
+/// Every branch of every seed replays its original. Returns the seeds' runs
+/// added up, whose counts the callers assert are a board still playing Magic.
+fn every_fork_replays(board: &Board, seeds: &[u64]) -> Run {
+    let mut total = Run::default();
     for &seed in seeds {
         let run = fork_every_round_start(board, seed);
-        forks += run.forks;
-        diverged.extend(run.diverged);
+        total.forks += run.forks;
+        total.holding_a_delayed_trigger += run.holding_a_delayed_trigger;
+        total.holding_a_return += run.holding_a_return;
+        total.diverged.extend(run.diverged);
     }
     assert!(
-        diverged.is_empty(),
-        "{} of {forks} branches did not replay the game they were forked from.\n{}",
-        diverged.len(),
-        diverged.join("\n"),
+        total.diverged.is_empty(),
+        "{} of {} branches did not replay the game they were forked from.\n{}",
+        total.diverged.len(),
+        total.forks,
+        total.diverged.join("\n"),
     );
-    forks
+    total
 }
 
 /// Two seats on the `performance` pool — §3's timing board, and the one the A/B
 /// reads.
 #[test]
 fn a_fork_at_a_round_start_replays_the_game_at_two_seats() {
-    let forks = every_fork_replays(&performance_board(2), &[TWO_SEAT_SEED]);
+    let forks = every_fork_replays(&performance_board(2), &[TWO_SEAT_SEED]).forks;
     assert!(forks > 40, "only {forks} forks — the board stopped playing");
 }
 
@@ -456,7 +507,7 @@ fn a_fork_at_a_round_start_replays_the_game_at_two_seats() {
 /// round passes over a player who has left (CR 800.4j).
 #[test]
 fn a_fork_at_a_round_start_replays_the_game_at_four_seats() {
-    let forks = every_fork_replays(&stress_board(4), &[FOUR_SEAT_SEED]);
+    let forks = every_fork_replays(&stress_board(4), &[FOUR_SEAT_SEED]).forks;
     assert!(forks > 40, "only {forks} forks — the board stopped playing");
 }
 
@@ -464,8 +515,21 @@ fn a_fork_at_a_round_start_replays_the_game_at_four_seats() {
 /// reads the ratchet on, and the one whose object count is v1's.
 #[test]
 fn a_fork_at_a_round_start_replays_the_game_at_commander_scale() {
-    let forks = every_fork_replays(&commander_board(), &[COMMANDER_SEED]);
+    let forks = every_fork_replays(&commander_board(), &[COMMANDER_SEED]).forks;
     assert!(forks > 40, "only {forks} forks — the board stopped playing");
+}
+
+/// A fork taken while a delayed trigger waits (CR 603.7) or an "until" exile's
+/// return does (CR 610.3): state a branch must carry whole, and which the three
+/// boards above never hold at a fork. Each board asserts it still reaches what
+/// it was picked for, so a pool change that stops it fails here rather than
+/// leaving the test asserting nothing about them.
+#[test]
+fn a_fork_holding_a_delayed_trigger_or_a_return_replays_the_game() {
+    let delayed = every_fork_replays(&stress_board(4), &[DELAYED_TRIGGER_SEED]).holding_a_delayed_trigger;
+    assert!(delayed > 0, "stress seed {DELAYED_TRIGGER_SEED} no longer forks with a delayed trigger waiting");
+    let returns = every_fork_replays(&performance_board(2), &[RETURN_SEED]).holding_a_return;
+    assert!(returns > 0, "performance seed {RETURN_SEED} no longer forks with a return waiting");
 }
 
 /// The guard on the three above: a fork test passes trivially if a branch could
@@ -513,28 +577,39 @@ fn a_branch_that_reseeds_its_provider_is_not_a_replay() {
 ///
 /// Read 2026-09-16 at four trees, 192 games each: `main` 119 diverging branches
 /// over 69 of the games; item 139's fix alone 38 over 22; item 150's alone 92
-/// over 54; **both, 0 of 13,530 branches**.
+/// over 54; **both, 0 of 13,530 branches**. Read again 2026-10-30 at item 6's
+/// close, the end states compared too: 0 of 13,174, with 42 forked while a
+/// delayed trigger waited and 13 while a return did.
 #[test]
-#[ignore = "a sweep, not a gate — the three board tests are the gate"]
+#[ignore = "a sweep, not a gate — the board tests are the gate"]
 fn fork_sweep_over_many_seeds() {
-    let mut forks = 0;
-    let mut diverged = 0;
+    let mut total = Run::default();
     for board in [performance_board(2), stress_board(4), commander_board()] {
         for seed in 1u64..=64 {
             let run = fork_every_round_start(&board, seed);
             eprintln!(
-                "{} seed {seed}: {} forks, {} did not replay",
+                "{} seed {seed}: {} forks, {} with a delayed trigger waiting, {} with a return, {} did not replay",
                 board.name,
                 run.forks,
+                run.holding_a_delayed_trigger,
+                run.holding_a_return,
                 run.diverged.len()
             );
             for line in &run.diverged {
                 eprintln!("  {line}");
             }
-            forks += run.forks;
-            diverged += run.diverged.len();
+            total.forks += run.forks;
+            total.holding_a_delayed_trigger += run.holding_a_delayed_trigger;
+            total.holding_a_return += run.holding_a_return;
+            total.diverged.extend(run.diverged);
         }
     }
-    eprintln!("{forks} forks over 192 games, {diverged} did not replay");
-    assert_eq!(diverged, 0);
+    eprintln!(
+        "{} forks over 192 games, {} with a delayed trigger waiting, {} with a return, {} did not replay",
+        total.forks,
+        total.holding_a_delayed_trigger,
+        total.holding_a_return,
+        total.diverged.len()
+    );
+    assert!(total.diverged.is_empty());
 }
