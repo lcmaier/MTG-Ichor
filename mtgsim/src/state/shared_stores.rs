@@ -252,25 +252,62 @@ impl<T: ForkCopy> ObjectTable<T> {
         taken.map(Holding::release)
     }
 
-    /// Every item, in id order.
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = (ObjectId, &T)> + '_ {
-        self.chunks.iter().enumerate().filter_map(|(index, chunk)| Some((index, chunk.as_ref()?))).flat_map(|(index, chunk)| {
-            LiveSlots(chunk.live).map(move |slot| {
-                let entry = chunk.slots[slot].as_ref().map(Holding::item);
-                (ObjectId::from_table_slot((index * CHUNK + slot) as u64), entry)
+    /// Every item, in id order. The walk reports how many items are left, so
+    /// a `collect` from it allocates once.
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = (ObjectId, &T)> + ExactSizeIterator + '_ {
+        let items = self
+            .chunks
+            .iter()
+            .enumerate()
+            .filter_map(|(index, chunk)| Some((index, chunk.as_ref()?)))
+            .flat_map(|(index, chunk)| {
+                LiveSlots(chunk.live).map(move |slot| {
+                    let entry = chunk.slots[slot].as_ref().map(Holding::item);
+                    (ObjectId::from_table_slot((index * CHUNK + slot) as u64), entry)
+                })
             })
-        })
-        .filter_map(|(id, entry)| Some((id, entry?)))
+            .filter_map(|(id, entry)| Some((id, entry?)));
+        Counted { items, left: self.len }
     }
 
-    pub fn keys(&self) -> impl DoubleEndedIterator<Item = ObjectId> + '_ {
+    pub fn keys(&self) -> impl DoubleEndedIterator<Item = ObjectId> + ExactSizeIterator + '_ {
         self.iter().map(|(id, _)| id)
     }
 
-    pub fn values(&self) -> impl DoubleEndedIterator<Item = &T> + '_ {
+    pub fn values(&self) -> impl DoubleEndedIterator<Item = &T> + ExactSizeIterator + '_ {
         self.iter().map(|(_, value)| value)
     }
 }
+
+/// A table's walk with its length: a chain over the chunks cannot say how
+/// many items are left, since a chunk's live slots are known only as it is
+/// reached, so the table's `len` is counted down instead.
+struct Counted<I> {
+    items: I,
+    left: usize,
+}
+
+impl<I: Iterator> Iterator for Counted<I> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<I::Item> {
+        let item = self.items.next()?;
+        self.left = self.left.saturating_sub(1);
+        Some(item)
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.left, Some(self.left))
+    }
+}
+
+impl<I: DoubleEndedIterator> DoubleEndedIterator for Counted<I> {
+    fn next_back(&mut self) -> Option<I::Item> {
+        let item = self.items.next_back()?;
+        self.left = self.left.saturating_sub(1);
+        Some(item)
+    }
+}
+
+impl<I: Iterator> ExactSizeIterator for Counted<I> {}
 
 /// For the fork-copies test alone: no engine code may ask whether a chunk is
 /// shared (`clone-architecture.md` decision 7).
@@ -561,6 +598,22 @@ mod tests {
         assert_eq!(table.remove(&id(33)), Some(33));
         assert_eq!(table.remove(&id(33)), None);
         assert_eq!(table.values().copied().collect::<Vec<_>>(), [1, 100]);
+    }
+
+    /// What a `collect` sizes its first allocation by: the items left, from
+    /// either end, across chunks and the gaps a removal leaves.
+    #[test]
+    fn a_table_walk_reports_how_many_items_are_left() {
+        let mut table = table([100, 1, 33, 64, 2]);
+        table.remove(&id(64));
+        let mut walk = table.iter();
+        assert_eq!(walk.size_hint(), (4, Some(4)));
+        walk.next();
+        walk.next_back();
+        assert_eq!(walk.len(), 2);
+        assert_eq!(walk.map(|(id, _)| id.raw()).collect::<Vec<_>>(), [2, 33]);
+        assert_eq!((table.keys().len(), table.values().len()), (4, 4));
+        assert_eq!(ObjectTable::<u64>::default().iter().size_hint(), (0, Some(0)));
     }
 
     #[test]
