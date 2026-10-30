@@ -13,6 +13,7 @@
 //        cargo run --bin fuzz_games -- --no-auto-pay          (CR 605.3a raw)
 //        cargo run --bin fuzz_games -- --scenario scenarios/template.scenario
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --tokens 50
+//        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --census
 //
 // `--require` takes a comma-separated list **and repeats**: the union of every
 // flag, deduplicated, in the order given. Repeating is how a card whose name
@@ -95,8 +96,10 @@
 // 8-core/16-thread machine, and per-game cost inflates from two workers onward.
 // Default to physical cores. `codebase-state.md` carries the measured curve.
 
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
 use std::panic;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -118,7 +121,9 @@ use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::types::colors::Color;
 use mtgsim::types::ids::{IdMap, ObjectId};
 use mtgsim::types::zones::Zone;
+use mtgsim::ui::choice_types::ChoiceContext;
 use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::each_decision::OnEachDecision;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -177,11 +182,15 @@ struct Args {
     /// Starting life, `--life`. Twenty by default; forty is Commander's
     /// (CR 903.7), and it changes no RNG draw, only how long a game runs.
     life: i64,
-    /// 1/1 Goblin creature tokens each seat starts with, `--tokens`: the
-    /// performance floors' token board (`engineering-practices.md#the-floors`).
+    /// 1/1 Goblin creature tokens each seat starts with, `--tokens`: the token
+    /// board the readiness pass reads the floors on (`spine-phase-audit.md`).
     /// Created after setup, one event per seat, so they are on the
     /// battlefield before the first turn. None by default.
-    tokens: usize,
+    tokens_per_seat: usize,
+    /// Count the decisions that reach the agent, by prompt kind, `--census`:
+    /// floor 1's count (`engineering-practices.md#the-floors`). Off by
+    /// default; on, it changes no game.
+    census: bool,
     /// Attach the trace sink (`state::trace`) to every game and write each
     /// game's JSON lines to `DIR/game-<n>-seed-<seed>.jsonl`, `--trace DIR`.
     /// One file per game rather than one file, so a threaded run's output
@@ -250,7 +259,8 @@ fn parse_args() -> Args {
         players: 2,
         deck_size: 60,
         life: 20,
-        tokens: 0,
+        tokens_per_seat: 0,
+        census: false,
         trace: None,
         trace_game: None,
         audit: false,
@@ -353,6 +363,9 @@ fn parse_args() -> Args {
             "--audit" => {
                 result.audit = true;
             }
+            "--census" => {
+                result.census = true;
+            }
             "--players" => {
                 i += 1;
                 if i < args.len() {
@@ -411,7 +424,7 @@ fn parse_args() -> Args {
             "--tokens" => {
                 i += 1;
                 if i < args.len() {
-                    result.tokens = match args[i].parse::<usize>() {
+                    result.tokens_per_seat = match args[i].parse::<usize>() {
                         Ok(n) => n,
                         Err(_) => {
                             eprintln!("--tokens wants a number, not {:?}", args[i]);
@@ -461,6 +474,9 @@ struct GameStats {
     /// agreed on. Zero without the flag.
     audited_dispatches: u64,
     audited_triggers: u64,
+    /// `--census`: the decisions that reached the agent, by the prompt's kind.
+    /// Empty without the flag.
+    agent_decisions: BTreeMap<String, u64>,
     /// `--require` reachability: `(name, cast, resolved)`, in the order the
     /// flag listed them. Empty unless the flag is set.
     ///
@@ -718,6 +734,8 @@ struct AggregateStats {
     total_audited_dispatches: u64,
     total_audited_triggers: u64,
     total_trigger_dispatch: TriggerDispatchWork,
+    /// `--census`'s counts, summed.
+    total_agent_decisions: BTreeMap<String, u64>,
 }
 
 impl AggregateStats {
@@ -751,6 +769,9 @@ impl AggregateStats {
         self.total_trigger_dispatch.matches += game.trigger_dispatch.matches;
         self.total_audited_dispatches += game.audited_dispatches;
         self.total_audited_triggers += game.audited_triggers;
+        for (kind, count) in &game.agent_decisions {
+            *self.total_agent_decisions.entry(kind.clone()).or_default() += count;
+        }
         if self.reach.is_empty() {
             self.reach = game.reach.iter().map(|(n, _, _)| (n.clone(), 0, 0, 0)).collect();
         }
@@ -866,6 +887,21 @@ struct MiddlewareConfig {
     /// Stack `ui::ManaWindowStop`: decline CR 601.2g's window once the locked
     /// mana component is covered. On by default; `--no-auto-pay` drops it.
     auto_pay: bool,
+    /// `--census`: count innermost, under every decorator that answers.
+    census: bool,
+}
+
+/// `--census`'s count for one game: the decisions that reach the agent, by
+/// the prompt's kind.
+#[derive(Default)]
+struct AgentCensus(RefCell<BTreeMap<String, u64>>);
+
+impl AgentCensus {
+    fn count(&self, context: &ChoiceContext) {
+        let kind = format!("{:?}", context.kind);
+        let name = kind.split(|c: char| !c.is_alphanumeric()).next().unwrap_or_default();
+        *self.0.borrow_mut().entry(name.to_string()).or_default() += 1;
+    }
 }
 
 /// Compose the provider stack. **The one place that knows its shape.**
@@ -874,20 +910,23 @@ struct MiddlewareConfig {
 /// preference and generic split are its own measured policies
 /// (`codebase-state.md` 16d), and a payer answering them would consume its RNG
 /// stream differently, moving every counter for reasons that are not the
-/// engine's.
-fn build_stack(dp_seed: u64, cfg: MiddlewareConfig) -> Box<dyn DecisionProvider> {
+/// engine's. The census answers nothing, so it moves nothing.
+fn build_stack(dp_seed: u64, cfg: MiddlewareConfig) -> (Box<dyn DecisionProvider>, Option<Rc<AgentCensus>>) {
     let provider = RandomDecisionProvider::seeded(dp_seed);
-    if cfg.auto_pay {
-        Box::new(ManaWindowStop::new(provider))
-    } else {
-        Box::new(provider)
-    }
+    let census = cfg.census.then(|| Rc::new(AgentCensus::default()));
+    let stack: Box<dyn DecisionProvider> = match (cfg.auto_pay, census.clone()) {
+        (true, Some(census)) => Box::new(ManaWindowStop::new(OnEachDecision::new(provider, move |_, context| census.count(context)))),
+        (false, Some(census)) => Box::new(OnEachDecision::new(provider, move |_, context| census.count(context))),
+        (true, None) => Box::new(ManaWindowStop::new(provider)),
+        (false, None) => Box::new(provider),
+    };
+    (stack, census)
 }
 
 /// The board every game is dealt onto — seats, deck size, starting life and
 /// the tokens each seat starts with.
 ///
-/// One value rather than four parameters: they are set together by four
+/// One value rather than a parameter each: they are set together by their
 /// flags, read together by `run_one_game`, and each new one would otherwise
 /// thread through two signatures and three call sites.
 #[derive(Clone, Copy)]
@@ -895,7 +934,7 @@ struct TableConfig {
     players: usize,
     deck_size: usize,
     life: i64,
-    tokens: usize,
+    tokens_per_seat: usize,
     /// `--copies`, on the way to `random_deck`.
     required_copies: usize,
 }
@@ -997,15 +1036,15 @@ fn run_one_game(
                 sink.flush().ok();
             }
         };
-        let dp = build_stack(dp_seed, middleware);
+        let (dp, census) = build_stack(dp_seed, middleware);
         let dp = &*dp;
         if start.is_none() {
             game.setup(dp).expect("Failed to setup game");
             // Without the flag no creation is proposed, not even an empty one,
             // so every recorded table's games stay byte-identical.
-            let seats_with_tokens = if table.tokens > 0 { table.players } else { 0 };
+            let seats_with_tokens = if table.tokens_per_seat > 0 { table.players } else { 0 };
             for controller in 0..seats_with_tokens {
-                let create = GameAction::CreateTokens { defs: vec![goblin_token(); table.tokens], controller, attacking: None };
+                let create = GameAction::CreateTokens { defs: vec![goblin_token(); table.tokens_per_seat], controller, attacking: None };
                 let by_the_harness = ActionContext { dp, cause: EventCause::Harness };
                 if let Err(e) = game.state.execute_action(create, &by_the_harness) {
                     finish_trace(&game);
@@ -1074,6 +1113,7 @@ fn run_one_game(
                 let (dispatches, triggers) = game.state.dispatch_audit_counts().unwrap_or((0, 0));
                 s.audited_dispatches = dispatches;
                 s.audited_triggers = triggers;
+                s.agent_decisions = census.map(|census| census.0.take()).unwrap_or_default();
                 s
             },
         ))
@@ -1214,12 +1254,12 @@ fn main() {
     if args.life != 20 {
         println!("Life: {}", args.life);
     }
-    if args.tokens > 0 {
+    if args.tokens_per_seat > 0 {
         if args.scenario.is_some() {
             eprintln!("--tokens is for dealt decks; a --scenario states its own board");
             std::process::exit(2);
         }
-        println!("Tokens: {} 1/1 Goblins each", args.tokens);
+        println!("Tokens: {} 1/1 Goblins each", args.tokens_per_seat);
     }
     // Off the default for the payer line's reason; `fuzz_ab.py` drops a row
     // the baseline does not print, so an arm with the sink on still reads
@@ -1330,12 +1370,12 @@ fn main() {
         args.threads,
         &required,
         &args.require,
-        MiddlewareConfig { auto_pay: args.auto_pay },
+        MiddlewareConfig { auto_pay: args.auto_pay, census: args.census },
         TableConfig {
             players: args.players,
             deck_size: args.deck_size,
             life: args.life,
-            tokens: args.tokens,
+            tokens_per_seat: args.tokens_per_seat,
             required_copies: args.copies,
         },
         &TraceConfig { dir: args.trace.clone(), only: args.trace_game },
@@ -1613,6 +1653,12 @@ fn main() {
         // boundary.
         println!("  Decisions:        {:>8.0}", agg_stats.avg(agg_stats.total_decisions));
         println!("  Priority decisions: {:>6.0}", agg_stats.avg(agg_stats.total_priority_decisions));
+        // `--census`: the first row less the prompts a decorator answered,
+        // which is what an agent is handed and floor 1 counts.
+        if args.census {
+            let at_the_agent = agg_stats.total_agent_decisions.values().sum();
+            println!("  Decisions at the agent: {:.1}", agg_stats.avg(at_the_agent));
+        }
         // Priority actions offered, begun and reversed (CR 732.1), per game:
         // an over-offer's price, each one a re-ask the seat did not need.
         println!("  Actions reversed: {:>8.1}", agg_stats.avg(agg_stats.total_actions_reversed));
@@ -1627,6 +1673,17 @@ fn main() {
         println!("  Windows past gate: {:>7.1}", agg_stats.avg(work.windows));
         println!("  Candidate visits: {:>8.1}", agg_stats.avg(work.candidates));
         println!("  Trigger matches:  {:>8.1}", agg_stats.avg(work.matches));
+    }
+
+    // `--census`'s kinds, per game, most first.
+    if args.census {
+        println!();
+        println!("=== Census (--census, decisions at the agent per game) ===");
+        let mut kinds: Vec<(&String, &u64)> = agg_stats.total_agent_decisions.iter().collect();
+        kinds.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+        for (kind, count) in kinds {
+            println!("  {kind:<32} {:>8.2}", agg_stats.avg(*count));
+        }
     }
 
     // `--require`'s answer, and the reason the mode exists: `PERFORMANCE_POOL`

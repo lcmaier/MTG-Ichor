@@ -43,11 +43,9 @@ pub enum EventCause {
     StateBasedAction(StateBasedAction),
     /// A rule acting with no action taken.
     GameRule(GameRule),
-    /// A test or a tool moving objects directly; never the engine. Made by
-    /// `ActionContext::new`, which compiles only for tests, and by `fuzz_games`'
-    /// `--tokens` board before the first turn. It satisfies no source filter,
-    /// so a cause-sensitive test that forgot to name a real cause fails rather
-    /// than passing by accident.
+    /// A test or a tool moving objects directly; never the engine. It
+    /// satisfies no source filter, so a cause-sensitive test that forgot to
+    /// name a real cause fails rather than passing by accident.
     Harness,
 }
 

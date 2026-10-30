@@ -77,7 +77,9 @@ pub struct ActionContext<'a> {
 
 impl<'a> ActionContext<'a> {
     /// A test or a tool moving objects directly (`EventCause::Harness`). Not
-    /// compiled for the engine, so production cannot fall back to it.
+    /// compiled for the engine, so production cannot fall back to it; a
+    /// harness binary, built without tests, writes the cause out where it
+    /// needs one (`fuzz_games --tokens`).
     #[cfg(any(test, feature = "test-support"))]
     pub fn new(dp: &'a dyn DecisionProvider) -> Self {
         ActionContext { dp, cause: EventCause::Harness }
