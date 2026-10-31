@@ -223,10 +223,12 @@ fn a_permanent_is_a_holder_while_it_has_a_replacement_counter() {
     assert!(!holds(&game), "its last replacement counter is gone");
 }
 
-/// A permanent that arrives with a shield counter is a holder as it lands,
-/// and the shield stops the destruction (CR 122.1c); leaving takes it out.
+/// The entry keeps the holders list too, not only `add_counters`: a permanent
+/// that enters with a shield counter is a holder as it lands, so the shield
+/// stops a destruction (CR 122.1c). Leaving takes it off the list, since its
+/// counters cease to exist (CR 122.2).
 #[test]
-fn a_shield_counter_a_permanent_arrives_with_shields_it() {
+fn a_permanent_that_enters_with_a_shield_counter_is_a_holder_as_it_lands() {
     let mut game = setup_two_player_game();
     let bear = game.add_object(GameObject::new(vanilla_creature(2, 2, &[]), 0, Zone::Battlefield));
     let mods = EnterMods { counters: vec![EntryCounters { counter: CounterType::Shield, n: 1, by: None }], ..EnterMods::NONE };
