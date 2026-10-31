@@ -8134,16 +8134,15 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      resolved at 441). Moonlace's half is read from its source.
 
      **Widened by `card-layer-cleanup`'s design note (2026-10-31):** the two
-     are a family. Thirteen card functions registered nowhere carry nine
-     printed cards' names: five variants named Altar's Reap, the four
-     `*_spell` stand-ins (Liquimetal Torque, Ensoul Artifact, Call to Serve,
-     On Serra's Wings), Underground Sea, Inside Out, Bull Rush and Zhalfirin
-     Shapecraft (Scryfall `/cards/collection`). None is dealt, so none
+     are a family. Eight card functions registered nowhere carry eight
+     printed cards' names: the four `*_spell` stand-ins (Liquimetal Torque,
+     Ensoul Artifact, Call to Serve, On Serra's Wings), Underground Sea,
+     Inside Out, Bull Rush and Zhalfirin Shapecraft (Scryfall `/cards/collection`). None is dealt, so none
      changes a game; each is read against its card.
 
      **Sized:** ~20–40 lines for the two: each becomes a fixture with an
      invented name and its own text, and the real card is registered only if
-     written whole. The thirteen: an invented name for each that differs from
+     written whole. The eight: an invented name for each that differs from
      its card; a printing filed in its set, and registered with its rulings
      read if the engine can play it, for each that matches. The pool's names change, so it is a pool change with its
      re-record (`engineering-practices.md#cards-and-pools`). **Slotted:** the test-card

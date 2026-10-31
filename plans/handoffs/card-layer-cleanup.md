@@ -32,7 +32,7 @@ shapes move under it, each read off the board and none proposed through
   become their libraries"). `setup-architecture.md` owns it (decision 5).
 
 Two fixes travel beside it and do change games: fixtures that wear real
-cards' names (item 204: two pooled, and 13 unregistered this note's census
+cards' names (item 204: two pooled, and 8 unregistered this note's census
 found), and fourteen creatures without their printed creature types (item
 207). Decision 6 puts them in a PR of their own.
 
@@ -45,7 +45,7 @@ five open items; a sixth names the phase.
 |---|---|---|
 | "Before card breadth" item 10 (`codebase-state.md#before-card-breadth-phase-8`) | No shared ability helpers, cards filed by the engine phase that first needed them, fixtures mixed with printings, instructions written as literals | decisions 1, 2, 4 and 7 |
 | "Before Layers" item 7d (`codebase-state.md#before-layers-cr-613--now-during-layers`) | A `ContinuousEffect` row carries `id: 0` until the registry overwrites it | decision 3 |
-| Main item 204 | Cerulean Wisps and Moonlace, test cards with real names that do less than their text; 13 unregistered functions share the shape | decision 6 |
+| Main item 204 | Cerulean Wisps and Moonlace, test cards with real names that do less than their text; 8 unregistered functions share the shape | decision 6 |
 | Main item 207 | Fourteen registered creatures lack their printed creature types; Thornweald Archer is no Elf to Elvish Warmaster | decision 6 |
 | Main item 209 | Scripted test answers are positions in the option list | its own PR after the cleanup, as its Slotted line says; test-only, so nothing here waits on it |
 | Main item 215's third cleanup, its card half | `static_replacement` written in three card files; `intrinsic_mana_ability` beside `mana_ability_single`. A6l, the duplicate-function inventory, moved this half here | decision 1's ability words: one `static_ability` and one `tap_for` |
@@ -93,7 +93,7 @@ already slotted beside the phase.
 |---|---|---|---|---|
 | 1 | `card-ability-words` | Decisions 2 and 3, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | about −2,300 / +1,300 | one |
 | 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them | about −1,400 / +1,000 | one |
-| 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the 13 misnamed functions each filed once, the decklist and its readers | the move counted by decision 7; the rest about +1,400 / −900 | one, long |
+| 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the 8 misnamed functions each filed once, the decklist and its readers | the move counted by decision 7; the rest about +1,400 / −900 | one, long |
 | 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered | about +150 / −40, more per printing registered; both pools re-recorded | short |
 | 5 | `scripted-answers-by-identity` | Item 209 | about 670 changed lines | one |
 
@@ -398,7 +398,7 @@ PR 5's are the tests.
    | A registered token, dealt as a land card | 1 | Everywhere, first printed among Duskmourn's tokens (`tdsk`) | `dual_lands` |
    | A token definition a printed card's effect makes (CR 111.3: its text is the effect's) | 6, three of them made by cards in two sets | the Saproling (Verdant Force, Bramble Elemental) | beside one of its makers |
    | A registered fixture | 1 | Loyalty Probe, for CR 704.5i | `phase_rd_cards` |
-   | An unregistered card function | 51, 13 of them under 9 printed cards' names | `flight_clause`; five variants named Altar's Reap, `dual_land_ub` named Underground Sea | 11 phase files |
+   | An unregistered card function | 51, 8 of them under printed cards' names | `flight_clause`; `dual_land_ub` named Underground Sea | 11 phase files |
    | …of which the fixtures pool deals | 5 | `fixture_curtain` | `phase_history_and_frame_records_cards::CASTABLE` |
    | A keyword's ability word (CR 702.6a) | 1 | `equip`, which three equipment call | `phase_lh_cards`; moves to `authoring` beside `persist` |
 
@@ -430,7 +430,7 @@ PR 5's are the tests.
      whose path it exists to test, and one no doc owns by the CR subject it
      exists for. By destination: `layers` 19 (the layer phases' files),
      `cost` 7, `triggers` 9 (history records and state triggers),
-     `replacement` 3, and `state_based_actions` 1 (Loyalty Probe); the 13
+     `replacement` 3, and `state_based_actions` 1 (Loyalty Probe); the 8
      misnamed functions go where PR 3's reading sends them, below.
    - **A token definition** is filed in `cards::tokens`, named by what it
      makes, since a token's text is its maker's effect (CR 111.3) and
@@ -441,7 +441,7 @@ PR 5's are the tests.
    - **The phase files' module docs** do not move: what one says about a
      card goes to that card's doc comment, and the rest is the engine
      phase's history, which the architecture docs hold.
-   - **The 13 functions under printed names** are read against their cards
+   - **The 8 functions under printed names** are read against their cards
      in PR 3 and filed once: one that differs takes an invented name in
      `cards::fixtures`, one that matches is a printing in its set. Neither
      is dealt, so neither changes a game.
@@ -545,9 +545,9 @@ PR 5's are the tests.
    printed types. Each changes what both pools deal, so each owes a test
    shown failing on the tree before it and a re-record of both tables.
 
-   **Item 204 is a family, not two cards.** Decision 4's census found 13
-   unregistered card functions under 9 printed cards' names: five Altar's
-   Reap variants, the four `*_spell` stand-ins (Liquimetal Torque, Ensoul
+   **Item 204 is a family, not two cards.** Decision 4's census found 8
+   unregistered card functions under 8 printed cards' names: the four
+   `*_spell` stand-ins (Liquimetal Torque, Ensoul
    Artifact, Call to Serve, On Serra's Wings), Underground Sea, Inside Out,
    Bull Rush and Zhalfirin Shapecraft. `engineering-practices.md#cards-and-pools`
    forbids a fixture that wears a real name while behaving differently.
@@ -653,7 +653,7 @@ PR 5's are the tests.
 
 - Item 10, item 7d and item 215's card half close with PR 3; items 204 and
   207 with PR 4, both re-slotted there by decision 6; item 209 with PR 5.
-  Item 204's body already names the 13 (this note's commit).
+  Item 204's body already names the 8 (this note's commits).
 - Decision 2 (b): `permission-architecture.md#3-what-it-must-express-at-v1`'s
   who-may-activate line names `Activation`, and its when-beyond-priority
   line names it as the home `permission-design` grows.
