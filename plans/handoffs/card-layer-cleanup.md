@@ -271,8 +271,8 @@ PR 5's are the tests.
 
    **Settled: (a)** (the owner, at #301's first review round, 2026-10-31),
    with a continuous change's duration and its "and" as suffixes, which the
-   same round asked for over a prefix helper. **Open: where a word sits in
-   its file**, recommended by its CR rule.
+   same round asked for over a prefix helper. A word sits in its file by its
+   CR rule (the owner, at the second round, 2026-10-31).
 
 2. **Where an activation's facts live: costs and the restriction on the two
    activated kinds.**
@@ -430,8 +430,9 @@ PR 5's are the tests.
      stores the list to avoid; the close-out's instruction counts would
      price it. *Upkeep*: nothing can go stale.
 
-   **Recommended: (a).** (c) is the cleanest shape, but it reopens a cost the
-   tree already decided against, for a staleness (a) closes.
+   **Settled: (a)** (the owner, at #301's second review round,
+   2026-10-31). (c) is the cleanest shape, but it reopens a cost the tree
+   already decided against, for a staleness (a) closes.
 
    **3b. The row id.**
 
@@ -477,9 +478,51 @@ PR 5's are the tests.
    does the same for one registry of three, by a second copy of its fields.
    An ability's id stays `AbilityId::UNASSIGNED` until `build`, since tests
    set real ones and the card words write the default, so no card file
-   names it. An object's stays `ObjectId::UNASSIGNED` until `add_object`,
-   the same shape as a row's today. Changing that is not this cleanup's:
-   an object's id is read at hundreds of sites.
+   names it.
+
+   **What (b) changes, against today** (asked at the second round):
+
+   - *The code*: `Registered<T> { id, row: T }`, dereferencing to `T`;
+     `DurationRegistry` stores `Arc<Registered<T>>` and `add(row: T)`
+     returns the id; `DurationRow` loses `id` and `set_id`, in its three
+     implementations and its two test rows. The 42 `id: 0` lines go, and
+     the two renames touch 49 uses. A function that reads a row's id takes
+     the wrapper: the row types are named in 31 signatures in 6 files, and
+     about 22 reads take an id. A function that only applies an effect keeps
+     taking `&ContinuousEffect`, and can no longer read an id it has no use
+     for.
+   - *Readers*: `row.layer` and every other field read stays as it is,
+     through `Deref`, and no code destructures a row. `Deref` on a wrapper
+     that is not a pointer is the one shape a reader meets here and nowhere
+     else; without it, every field read through the registry would change.
+   - *Behavior*: none. Ids come from the same counter in the same order, so
+     every `EffectId`, CR 613.7's id tiebreak in `effects_in_layer`, CR
+     614.5's applied sets and the close-out's rows are unchanged.
+   - *Performance and the clone*: none. The id moves from inside the row to
+     beside it, behind the same `Arc`, so a fork shares a row as it does
+     today (`clone-architecture.md`).
+   - *Item 7d*: closed by another shape than its **Sized:** line's draft,
+     which its close-out entry records.
+
+   **Objects, and whether stopping at rows is halfway.** The smell item 7d
+   names is a call site writing a meaningless value, and only a value built
+   as a literal has one. The 42 row literals each write `id: 0`. A
+   `GameObject` is built through one door, `GameObject::new`: 199 calls,
+   none of which writes an id, since `new` writes `ObjectId::UNASSIGNED`
+   itself and `add_object` stamps the id and the timestamp as it stores the
+   object, keyed by that id, in its `ObjectTable`. After decision 3a an
+   ability is built the same way, through `AbilityDef::new`. So the rule
+   the tree would follow is one rule: **a value built as a literal at many
+   sites has no field its store assigns; a value built through one
+   constructor may keep that field, and the constructor writes it.** Objects
+   and abilities are the second kind, rows the first. What objects keep is
+   a state the type allows and the store never holds, an unadded object,
+   seen only between `new` and `add_object`. Removing it is the object
+   store's own change: the id duplicates the table's key, and dropping it
+   would pass the key beside every `GameObject` read that uses its id,
+   across the engine. A row could instead go the objects' way, its id
+   private behind a constructor, but a continuous-effect row has nine named
+   fields, and nine positional arguments read worse than the literal.
 
 4. **The per-set layout, the fixtures, and how a test names a card.**
 
@@ -705,10 +748,11 @@ PR 5's are the tests.
    - (c) **Before PR 1**, so every cleanup PR is measured on fixed data.
      204's fixtures are then written in a phase file and moved.
 
-   **Recommended: (b)**, which departs from both Slotted lines: the owner's
-   later lesson from #297 (2026-10-27) puts behavior in its own small PR,
-   and a three-arm close-out is the cost (a) carries. Both items are
-   re-slotted to PR 4 if it stands.
+   **Settled: (b)** (the owner, at #301's second review round,
+   2026-10-31), which departs from both Slotted lines: the owner's later
+   lesson from #297 (2026-10-27) puts behavior in its own small PR, and a
+   three-arm close-out is the cost (a) carries. Both items are re-slotted
+   to PR 4 at the close-out.
 
 7. **How the move counts against the band.**
 
