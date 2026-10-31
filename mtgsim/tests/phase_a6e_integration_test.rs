@@ -1,6 +1,6 @@
-//! Item 356, built (`replacement-architecture.md`, "Where replacement effects
-//! come from"): the replacement gather finds its candidates by the kind of
-//! action a proposal is, the trigger dispatcher's shape.
+//! The replacement gather finds its candidates by the kind of action a
+//! proposal is, the trigger dispatcher's shape (`replacement-architecture.md`,
+//! "Where replacement effects come from").
 //!
 //! **The battlefield leg** asks only the permanents that could answer: the
 //! printed sources filed under the proposal's kind, the objects a named grant
@@ -285,7 +285,7 @@ fn a_permanent_holds_a_replacement_counter_from_the_first_to_the_last() {
 fn a_shield_counter_a_permanent_arrives_with_shields_it() {
     let mut game = setup_two_player_game();
     let bear = game.add_object(GameObject::new(vanilla_creature(2, 2, &[]), 0, Zone::Battlefield));
-    let mods = EnterMods { counters: vec![EntryCounters { counter: CounterType::Shield, n: 1, by: None }], ..EnterMods::default() };
+    let mods = EnterMods { counters: vec![EntryCounters { counter: CounterType::Shield, n: 1, by: None }], ..EnterMods::NONE };
     place_on_battlefield(&mut game, bear, 0, &mods);
     assert!(game.replacement_counter_holders.contains(&bear));
 

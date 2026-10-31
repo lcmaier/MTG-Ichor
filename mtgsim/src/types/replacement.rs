@@ -712,8 +712,7 @@ impl EventPattern {
             // Entering is the zone change onto the battlefield (CR 614.1c), so a
             // pattern whose destination admits it watches an entry too; no entry
             // comes from the battlefield, which is where "leaves the battlefield"
-            // starts. Read off `to`, the 196 "dies or put into a graveyard"
-            // patterns are never asked at an entry.
+            // starts. A pattern ending in a graveyard is never asked at an entry.
             EventPattern::ZoneChange { change, .. } => {
                 let enters = change.to.is_none_or(|to| to == Zone::Battlefield) && change.from != Some(Zone::Battlefield);
                 if enters { one(Kind::ZoneChange).with(Kind::EnterBattlefield) } else { one(Kind::ZoneChange) }

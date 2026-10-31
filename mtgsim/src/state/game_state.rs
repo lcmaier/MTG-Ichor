@@ -517,7 +517,8 @@ pub struct GameState {
     /// direction only — CR 305.7 or Humility can take the printed ability away
     /// without touching the map, which costs a walk and never an answer. The
     /// gather's other legs are `RegistryScopeSummary`'s zones and named kinds
-    /// for a Layer 6 grant or a copy (`copy-effects-architecture.md` §4.7);
+    /// for a Layer 6 grant or a copy
+    /// (`copy-effects-architecture.md#47-the-three-etb-scans-a-copy-defeats--rb-review-i9-and-its-twin`);
     /// Layer 3 is the route still without one.
     ///
     /// **Engine-maintained.** `perform_entry` files and

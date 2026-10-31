@@ -941,8 +941,14 @@ impl ObservationCost {
 }
 
 /// One row of an observation: an object, a card in the seat's hand, or a
-/// player, as fixed-width integers, the shape a policy network reads.
+/// player, as fixed-width integers, the shape a policy network reads. Its
+/// first integer says which.
 type ObservationRow = [i32; 16];
+
+/// The first integer of an object's row, a card in the seat's hand included.
+const OBJECT_ROW: i32 = 1;
+/// The first integer of a player's row.
+const PLAYER_ROW: i32 = 2;
 
 /// `--observe`'s builder for one game: at each decision, the observation the
 /// floors reference names as k's naive probe, rebuilt from scratch over the
@@ -985,7 +991,7 @@ fn object_row(game: &GameState, id: ObjectId, zone: Zone) -> Option<ObservationR
     let bits = |positions: &mut dyn Iterator<Item = u32>| positions.fold(0i32, |bits, at| bits | 1 << at);
     let permanent = game.battlefield.get(&id);
     Some([
-        1,
+        OBJECT_ROW,
         id.raw() as i32,
         zone as i32,
         chars.controller as i32,
@@ -1009,7 +1015,7 @@ fn object_row(game: &GameState, id: ObjectId, zone: Zone) -> Option<ObservationR
 fn player_row(player: &mtgsim::state::player::PlayerState) -> ObservationRow {
     let mut row = [0; 16];
     row[..7].copy_from_slice(&[
-        2,
+        PLAYER_ROW,
         player.id as i32,
         player.life_total as i32,
         player.counters.values().sum::<u32>() as i32,
@@ -1032,7 +1038,8 @@ struct AtTheAgent<D> {
 }
 
 impl<D> AtTheAgent<D> {
-    fn reached(&self, game: &GameState, player: PlayerId, context: &ChoiceContext) {
+    /// A decision has reached the agent: count it, and build what the agent sees.
+    fn on_decision(&self, game: &GameState, player: PlayerId, context: &ChoiceContext) {
         if let Some(census) = &self.census {
             census.count(context);
         }
@@ -1044,12 +1051,12 @@ impl<D> AtTheAgent<D> {
 
 impl<D: DecisionProvider> DecisionProvider for AtTheAgent<D> {
     fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        self.reached(game, player, context);
+        self.on_decision(game, player, context);
         self.inner.pick_n(game, player, context, options, bounds)
     }
 
     fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
-        self.reached(game, player, context);
+        self.on_decision(game, player, context);
         self.inner.pick_number(game, player, context, min, max)
     }
 
@@ -1063,12 +1070,12 @@ impl<D: DecisionProvider> DecisionProvider for AtTheAgent<D> {
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        self.reached(game, player, context);
+        self.on_decision(game, player, context);
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
     fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        self.reached(game, player, context);
+        self.on_decision(game, player, context);
         self.inner.choose_ordering(game, player, context, items)
     }
 

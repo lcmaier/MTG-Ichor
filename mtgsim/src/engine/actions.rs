@@ -750,6 +750,8 @@ impl GameActionKind {
 /// under in `GameState::replacement_ability_sources`, and what a named grant
 /// or copy row's abilities watch (`RegistryScopeSummary`). Built as
 /// `EventKindMask` is, as many words wide as [`GameActionKind::WORDS`] says.
+/// `Default` only because `RegistryScopeSummary` derives it; a filing spells
+/// its empty value [`Self::EMPTY`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct GameActionKindMask([u64; GameActionKind::WORDS]);
 
