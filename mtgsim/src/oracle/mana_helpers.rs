@@ -122,7 +122,7 @@ fn can_cast_with(
     // requires targets if no legal target exists. Asked of the card, not
     // the spell ability — an Aura's target is its enchant ability
     // (CR 303.4a) and it has no spell ability to ask.
-    if !every_instance_has_a_choice(game, &obj.card_data.spell_instances, player_id, card_id) {
+    if !every_instance_has_a_choice(game, obj.card_data.spell_instances(), player_id, card_id) {
         return Err(CannotCast::NoLegalTarget);
     }
 
@@ -342,7 +342,7 @@ fn can_activate_as_its_controller(
     // and has none is not activatable, `can_cast`'s check. `UpTo` stays, zero
     // targets being legal; the oracle filters only what a static read proves
     // illegal (`dp-middleware-and-candidate-enumeration.md` §2).
-    if !every_instance_has_a_choice(game, &ability.instances, player_id, source_id) {
+    if !every_instance_has_a_choice(game, ability.instances(), player_id, source_id) {
         return Err(CannotActivate::NoLegalTarget);
     }
 

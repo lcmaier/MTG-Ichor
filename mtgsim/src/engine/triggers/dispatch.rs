@@ -1649,7 +1649,7 @@ impl GameState {
                     identity: AbilityIdentity { source: candidate.object, ability: ability.id },
                     def,
                     stated_zones: ability.effect.stated_zones(),
-                    instances: &ability.instances,
+                    instances: ability.instances(),
                 });
             }
         }

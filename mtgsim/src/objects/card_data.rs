@@ -50,10 +50,11 @@ pub struct CardData {
     /// the castability pre-check, the announcement and CR 608.2b's re-check
     /// all read this, so all three see `enchant_filter`.
     ///
-    /// Written by `CardDataBuilder::build` and nothing else. A `CardData` is
-    /// built once and shared behind an `Arc`, so this is computed once per card
-    /// rather than once per card in hand per priority pass.
-    pub spell_instances: Vec<EffectRecipient>,
+    /// Written by `CardDataBuilder::build` and nothing else, which its
+    /// privacy keeps true. A `CardData` is built once and shared behind an
+    /// `Arc`, so this is computed once per card rather than once per card in
+    /// hand per priority pass.
+    spell_instances: Vec<EffectRecipient>,
     /// Alternative costs this card can be cast for (rule 118.9).
     /// A player may choose at most one when casting.
     pub alternative_costs: Vec<AlternativeCost>,
@@ -63,6 +64,15 @@ pub struct CardData {
     /// "X can't be 0" (Ertai's Meddling, Mind Grind): the least X its caster
     /// may announce for its mana cost's X is 1 (CR 601.2b).
     pub x_cant_be_zero: bool,
+}
+
+impl CardData {
+    /// CR 601.2c's instances of "target" for this card cast as a spell, in
+    /// printed order: its spell abilities', or an Aura's enchant ability
+    /// (CR 303.4a).
+    pub fn spell_instances(&self) -> &[EffectRecipient] {
+        &self.spell_instances
+    }
 }
 
 /// The type of an ability
@@ -126,18 +136,15 @@ pub struct AbilityDef {
     pub costs: Vec<Cost>,
     pub effect: Effect,
     /// CR 601.2c's instances of "target" that `effect` declares, in printed
-    /// order — [`Effect::instances`], stored.
+    /// order — [`Effect::instances`], stored, since every priority check
+    /// reads it ([`Self::instances`]).
     ///
-    /// **A struct literal writes `Vec::new()` here, and `CardDataBuilder::build`
-    /// overwrites it** on every def it can reach from the card, the way it
-    /// stamps `id`: the printed list, then every def nested in an effect. A
-    /// def that never meets the builder keeps the empty list, which is the
-    /// right answer for every one that exists — CR 305.6's synthesized mana
-    /// ability and the static abilities the test helpers build announce
-    /// nothing. A runtime-built def with a targeting effect would announce
-    /// nothing too, silently: `cards::registry`'s test is the gate for every
-    /// def a card carries, and a new runtime birth site owes the same check.
-    pub instances: Vec<EffectRecipient>,
+    /// Private, so nothing but this module writes it: [`Self::new`] reads it
+    /// off the effect it is given, and `CardDataBuilder::build` reads it
+    /// again on every def it reaches, after an author's word has wrapped the
+    /// effect (`authoring::functioning_in`). An ability built at run time has
+    /// its list from birth.
+    instances: Vec<EffectRecipient>,
     /// CR 602.5d. Meaningful only when `ability_type` is `Activated`; every
     /// other kind carries `None`.
     pub activation_restriction: ActivationRestriction,
@@ -185,11 +192,17 @@ impl AbilityDef {
             rules_text: rules_text.into(),
             ability_type,
             costs: Vec::new(),
+            instances: effect.instances(),
             effect,
-            instances: Vec::new(),
             activation_restriction: ActivationRestriction::None,
             is_characteristic_defining: false,
         }
+    }
+
+    /// CR 601.2c's instances of "target" its effect declares, in printed
+    /// order.
+    pub fn instances(&self) -> &[EffectRecipient] {
+        &self.instances
     }
 
     /// CR 305.6's "{T}: Add [mana symbol].", the ability a basic land type

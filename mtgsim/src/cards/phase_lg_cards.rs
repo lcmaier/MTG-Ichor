@@ -79,7 +79,7 @@ mod tests {
         // the haste land on a different creature from the steal, and would ask
         // the player three times.
         assert_eq!(
-            card.spell_instances.len(),
+            card.spell_instances().len(),
             1,
             "\"that creature\" and \"it\" are back-references, not new clauses"
         );

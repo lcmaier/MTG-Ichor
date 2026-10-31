@@ -797,7 +797,7 @@ fn rancor_returns_to_its_owners_hand_when_its_creature_dies() {
 /// `aura` on the stack as `controller`'s spell, its enchant clause targeting
 /// `target`, as `cast_spell` leaves it.
 fn aura_spell_targeting(game: &mut GameState, aura: Arc<CardData>, controller: PlayerId, target: ObjectId) -> ObjectId {
-    let enchant = aura.spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let enchant = aura.spell_instances().last().cloned().expect("an Aura announces its enchant clause");
     let id = put_spell_on_stack(game, aura, controller);
     let chosen = TargetInstance::from_announcement(game, enchant, &[ObjectOrPlayerId::Object(target)]).unwrap();
     game.stack_entries.get_mut(&id).unwrap().chosen_targets = vec![chosen];

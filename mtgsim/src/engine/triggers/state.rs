@@ -142,7 +142,7 @@ impl GameState {
                     def: Arc::clone(def),
                     stated_zones: ability.effect.stated_zones(),
                     source_card: Arc::clone(&object.card_data),
-                    instances: ability.instances.clone(),
+                    instances: ability.instances().to_vec(),
                 });
             }
         }

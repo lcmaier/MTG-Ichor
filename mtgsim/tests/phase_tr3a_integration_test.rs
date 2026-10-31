@@ -300,7 +300,7 @@ fn a_spell_creates_a_delayed_trigger_that_fires_at_the_next_end_step() {
             EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
         )),
     );
-    assert!(doom.spell_instances.is_empty(), "the delayed trigger's target is not the spell's");
+    assert!(doom.spell_instances().is_empty(), "the delayed trigger's target is not the spell's");
     resolve_spell(&mut game, doom, 0);
     assert_eq!(game.delayed_triggers.len(), 1, "registered as the spell resolved");
     assert!(game.pending_triggers.is_empty(), "and nothing has happened");

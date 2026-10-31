@@ -1653,7 +1653,7 @@ mod instance_references {
 
         fn check(what: &str, def: &crate::objects::card_data::AbilityDef) {
             assert_eq!(
-                def.instances,
+                def.instances(),
                 def.effect.instances(),
                 "{what}: the stored instance list is not the walk's"
             );
@@ -1686,7 +1686,7 @@ mod instance_references {
                     .unwrap_or_default(),
             };
             assert_eq!(
-                card.spell_instances, expected,
+                card.spell_instances(), expected,
                 "{name}: the stored spell-level instance list is not the card's"
             );
         }

@@ -382,7 +382,7 @@ mod tests {
         // the same exemption engine/cast.rs runs under.
         let effect = crate::objects::card_data::spell_effect(&card_data.abilities).unwrap();
         let recipient = card_data
-            .spell_instances
+            .spell_instances()
             .last()
             .cloned()
             .expect("the helper's cards all announce one instance");
@@ -646,7 +646,7 @@ mod tests {
         targets: Vec<ObjectOrPlayerId>,
     ) -> crate::types::ids::ObjectId {
         let recipient = card_data
-            .spell_instances
+            .spell_instances()
             .last()
             .cloned()
             .expect("the helper's cards all announce one instance");

@@ -101,7 +101,7 @@ impl GameState {
         } else {
             return Err(format!("Card '{}' has no spell ability", card_data.name));
         };
-        let instances = &card_data.spell_instances;
+        let instances = card_data.spell_instances();
 
         // --- 601.2a: Move to stack ---
         // Capture the origin first: once the card is on the stack its `zone`
@@ -492,7 +492,7 @@ impl GameState {
         };
         // Off the def the effective list carries, never `card_data.abilities`:
         // a granted ability exists in no `CardData` (CLAUDE.md).
-        let instances = &ability.instances;
+        let instances = ability.instances();
 
         // Create a new object on the stack representing the ability (rule 602.2a)
         // Abilities on the stack are not cards — they have no CardData.
@@ -1067,10 +1067,9 @@ mod tests {
     fn test_cast_x_spell_with_no_payable_x_is_reversed_at_the_announcement() {
         use crate::types::costs::AdditionalCost;
         let mut game = GameState::new(2, 20);
-        let kicked = std::sync::Arc::new(crate::objects::card_data::CardData {
-            additional_costs: vec![AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[], 2))])],
-            ..(*crate::cards::phase_ma2_cards::blaze()).clone()
-        });
+        let mut kicked = (*crate::cards::phase_ma2_cards::blaze()).clone();
+        kicked.additional_costs = vec![AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[], 2))])];
+        let kicked = std::sync::Arc::new(kicked);
         let obj = GameObject::new(kicked, 0, Zone::Hand);
         let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);

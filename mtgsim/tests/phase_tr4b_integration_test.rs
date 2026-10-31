@@ -382,7 +382,7 @@ fn a_fortification_stays_on_a_land_and_is_unattached_from_a_creature() {
 /// after CR 601.2c: its enchant clause (CR 303.4a) is its one instance.
 fn aura_spell_targeting(game: &mut GameState, controller: PlayerId, target: ObjectId) -> ObjectId {
     let aura = put_spell_on_stack(game, holy_strength(), controller);
-    let enchant = holy_strength().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let enchant = holy_strength().spell_instances().last().cloned().expect("an Aura announces its enchant clause");
     let chosen = TargetInstance::from_announcement(game, enchant, &[ObjectOrPlayerId::Object(target)]).unwrap();
     game.stack_entries.get_mut(&aura).unwrap().chosen_targets = vec![chosen];
     aura
@@ -725,7 +725,7 @@ fn an_aura_that_takes_a_creature_triggers_siona_as_the_creature_it_made_yours() 
     let start = life(&game);
 
     let aura = put_spell_on_stack(&mut game, control_aura(), 0);
-    let enchant = control_aura().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let enchant = control_aura().spell_instances().last().cloned().expect("an Aura announces its enchant clause");
     let chosen = TargetInstance::from_announcement(&game, enchant, &[ObjectOrPlayerId::Object(theirs)]).unwrap();
     game.stack_entries.get_mut(&aura).unwrap().chosen_targets = vec![chosen];
     game.resolve_top_of_stack(&test_dp()).unwrap();
