@@ -1562,7 +1562,7 @@ the failure mode that shows up as a card silently doing nothing:
 2. **Static abilities functioning in other zones** (CR 113.6). The same read
    off a different candidate list — **RF, 2026-09-16** (§9): the objects
    whose printed ability functions where they are
-   (`GameState::zone_replacement_ability_sources`), plus the zones a Layer 6
+   (`GameState::off_battlefield_replacement_ability_sources`), plus the zones a Layer 6
    grant or a copy row can reach, in CR 613.7d timestamp order, each ability
    asked `zone_function::functions_in` of the zone its object is in. Not a
    walk of the zones: a library is ~60 objects a seat and a gather runs
@@ -4019,7 +4019,7 @@ the PR refused, the pieces measured, and the A/B. Trace page:
 `plans/traces/rf-a-source-off-the-battlefield.html`.*
 
 **Shipped:** the read leg for §3.3's source 2 —
-`GameState::zone_replacement_ability_sources`, a map the registration doors
+`GameState::off_battlefield_replacement_ability_sources`, a map the registration doors
 keep (`arrive_in_zone`, `place_on_battlefield`, and the new `create_in_zone`
 for a card created in a zone) from each object off the battlefield to its
 printed replacement defs, swept after the battlefield in CR 613.7d timestamp

@@ -364,7 +364,7 @@ hold no fact about the game:
 - the five fast-path gates over printed abilities, which are indexes and fall
   under `CLAUDE.md`'s gate rule: `cost_modification_ability_sources`,
   `restriction_ability_sources`, `trigger_sources`,
-  `zone_replacement_ability_sources`, `zone_trigger_sources`;
+  `off_battlefield_replacement_ability_sources`, `off_battlefield_trigger_sources`;
 - the layer walk's cache, `layer_epoch` and `layer_memo`;
 - three instruments nothing may branch on: `diagnostics`, `dispatch_audit`,
   `trace`;
@@ -505,7 +505,7 @@ is derivable; where each name was read is not, and the gate needs the names.
     `result`, `starting_life`;
   - no fact about the game (pass 3's remainder): `cost_modification_ability_sources`,
     `restriction_ability_sources`, `trigger_sources`,
-    `zone_replacement_ability_sources`, `zone_trigger_sources`, `layer_epoch`,
+    `off_battlefield_replacement_ability_sources`, `off_battlefield_trigger_sources`, `layer_epoch`,
     `layer_memo`, `diagnostics`, `dispatch_audit`, `trace`, `nesting`,
     `next_trigger_id`, `next_object_id`.
 - **Added by TR-2a (2026-09-24)**, each asked §2's question as it landed:
@@ -570,7 +570,7 @@ is derivable; where each name was read is not, and the gate needs the names.
     from, which a client keeps a waiting return by; no fact about the game.
 - **Added by TR-4c (2026-10-15)**:
   - `newcomer_trigger_sources`: a fast-path gate over printed abilities, the
-    zone map's sibling for an object whose every trigger is on itself
+    off-battlefield map's sibling for an object whose every trigger is on itself
     moving, which only the window that moved it can trigger; an index, no
     fact about the game, under `CLAUDE.md`'s gate rule as the five above.
 - **Added by TR-4d (2026-10-15)**:

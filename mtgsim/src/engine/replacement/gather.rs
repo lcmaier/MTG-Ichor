@@ -10,7 +10,7 @@
 //!    the event" at the one instant that matters.
 //! 2. **Static abilities functioning in other zones** (CR 113.6) — the same
 //!    read, off a set of the objects whose printed ability functions where
-//!    they are (`GameState::zone_replacement_ability_sources`) plus the zones
+//!    they are (`GameState::off_battlefield_replacement_ability_sources`) plus the zones
 //!    a Layer 6 grant or a copy can reach, because a library is not a list
 //!    the gather can afford to walk. Every ability is asked
 //!    `zone_function::functions_in` of the zone its object is in, which is
@@ -284,7 +284,7 @@ fn gather_sweeping(
     if sweep == Sweep::Gated
         && permanents.is_empty()
         && named.is_empty()
-        && game.zone_replacement_ability_sources.is_empty()
+        && game.off_battlefield_replacement_ability_sources.is_empty()
         && unattributed_zones.is_empty()
         && game.replacement_effects.is_empty()
     {
@@ -326,7 +326,7 @@ fn gather_sweeping(
 
     // --- Source 2: static abilities functioning off the battlefield --------
     // (CR 113.6.) Source 1's read over a candidate list, never a zone, one
-    // way on per gate leg: printed (`zone_replacement_ability_sources`, its
+    // way on per gate leg: printed (`off_battlefield_replacement_ability_sources`, its
     // frame read only when a def could apply to this proposal), named (a grant
     // or copy row's `SourceOnly` or `Fixed` objects) and zoned (a `Filter` row's
     // zones walked whole, while such a row exists). In CR 613.7d order, the
@@ -350,7 +350,7 @@ fn gather_sweeping(
             // every gather for an order nothing reads.
             // ORDER-FREE: sorted by timestamp next.
             let mut sources: Vec<(Timestamp, ObjectId, &[ReplacementDef])> = game
-                .zone_replacement_ability_sources
+                .off_battlefield_replacement_ability_sources
                 .iter()
                 .map(|(&id, printed)| (game.object_timestamp(id), id, &printed[..]))
                 .collect();
@@ -359,7 +359,7 @@ fn gather_sweeping(
         } else {
             // ORDER-FREE: the matches are sorted below, and untraced no walk
             // records the order it was asked in.
-            for (&id, printed) in game.zone_replacement_ability_sources.iter() {
+            for (&id, printed) in game.off_battlefield_replacement_ability_sources.iter() {
                 if could_apply(id, printed) {
                     elsewhere.push((game.object_timestamp(id), id));
                 }
@@ -1272,7 +1272,7 @@ mod tests {
             .build();
         let orb = put_spell_on_stack(&mut game, card, 0);
         assert!(
-            game.zone_replacement_ability_sources.contains_key(&orb),
+            game.off_battlefield_replacement_ability_sources.contains_key(&orb),
             "filed on the stack, where the ability functions"
         );
 

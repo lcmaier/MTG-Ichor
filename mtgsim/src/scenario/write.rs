@@ -108,7 +108,7 @@ impl<'g> Writer<'g> {
             replacement_effects,
             replacement_ability_sources: _, // the gates, rebuilt by the doors
             replacement_counter_holders: _,
-            zone_replacement_ability_sources: _,
+            off_battlefield_replacement_ability_sources: _,
             restrictions,
             restriction_ability_sources: _,
             cost_modification_ability_sources: _,
@@ -131,7 +131,7 @@ impl<'g> Writer<'g> {
             next_until_return_id: _,
             history,                // the players' rows in `write_players`, the abilities' `this turn:` lines in `cards`; the combat's is a report
             trigger_sources: _,     // the dispatcher's gates
-            zone_trigger_sources: _,
+            off_battlefield_trigger_sources: _,
             newcomer_trigger_sources: _,
             look_back_snapshots: _, // a window's, empty outside one
             control_effects_at_last_sweep: _, // the control sweep's, settled at load

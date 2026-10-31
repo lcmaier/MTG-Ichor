@@ -3,7 +3,7 @@
 //!
 //! The dispatcher reaches its answer through shortcuts: a gate on the kinds
 //! of record a window carries, three candidate sets kept as objects move
-//! (printed sources on the battlefield, the zone map, the zones a granting
+//! (printed sources on the battlefield, the off-battlefield map, the zones a granting
 //! or copying row reaches), a look-back snapshot taken only when a batch
 //! departs an ability list's source, and an object's LKI off its record.
 //! Every wrong answer it has had was a shortcut that left something out, and

@@ -1792,7 +1792,7 @@ fn dread_shaped() -> Arc<CardData> {
 /// Dread in a graveyard is a trigger candidate because its "from anywhere"
 /// ability functions there. Its damage trigger does not, so a creature
 /// dealing damage to its owner must not trigger it. Registration already
-/// knew — `zone_trigger_sources` holds the one ability id — and the matcher
+/// knew — `off_battlefield_trigger_sources` holds the one ability id — and the matcher
 /// read only the map's keys.
 #[test]
 fn a_battlefield_only_trigger_is_not_asked_from_the_graveyard() {

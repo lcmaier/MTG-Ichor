@@ -1060,7 +1060,7 @@ recomputed from the registry on every mutation, so it cannot drift at all.
 > reaches) and `named_unattributed_replacement_kinds` (a row naming its
 > objects, by the kinds of action its abilities answer, since the item 6
 > audit's close), read by `gather` beside `replacement_ability_sources` and
-> `zone_replacement_ability_sources`. The reasoning above, that the summary
+> `off_battlefield_replacement_ability_sources`. The reasoning above, that the summary
 > cannot drift where the set could, is why the leg is on the summary.
 
 **Leg 2 — `register_static_effects`, and this one nobody had found.**

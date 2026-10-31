@@ -581,7 +581,7 @@ pub struct GameState {
     /// **Engine-maintained.** `register_static_effects` inserts from
     /// `arrive_in_zone` and `create_in_zone`; `cleanup_zone_state` removes on
     /// leaving any zone but the battlefield.
-    pub zone_replacement_ability_sources: IdMap<ObjectId, Arc<[ReplacementDef]>>,
+    pub off_battlefield_replacement_ability_sources: IdMap<ObjectId, Arc<[ReplacementDef]>>,
 
     /// Every CR 101.2 "can't" a resolution has created.
     ///
@@ -769,17 +769,17 @@ pub struct GameState {
     /// Objects off the battlefield with a printed triggered ability that
     /// functions where they are (CR 113.6k, derived by
     /// `zone_function::functioning_zones`) — Guile's "from anywhere" in a
-    /// graveyard. Kept by the same doors as `zone_replacement_ability_sources`,
+    /// graveyard. Kept by the same doors as `off_battlefield_replacement_ability_sources`,
     /// and filed by kind as `trigger_sources` is, so the state check asks only
     /// the objects with a state trigger.
-    pub zone_trigger_sources: IdMap<ObjectId, EventKindMask>,
+    pub off_battlefield_trigger_sources: IdMap<ObjectId, EventKindMask>,
     /// Objects off the battlefield whose printed triggered ability that
     /// functions where they are triggers only on the object itself moving
     /// (`TriggerDef::triggers_only_on_this_object_moving`): Guerrilla Tactics in
     /// a library or a graveyard. Only the window that brings such an object
     /// where it is can trigger it, so the dispatcher asks it only as one of
-    /// that window's newcomers, and the zone map, which every window asks,
-    /// stays empty of it. Kept by the zone map's doors.
+    /// that window's newcomers, and the off-battlefield map, which every window asks,
+    /// stays empty of it. Kept by the off-battlefield map's doors.
     pub newcomer_trigger_sources: IdSet<ObjectId>,
     /// Surviving objects' ability lists from before a batch that removed the
     /// source of an effect that copies, grants or removes abilities: what CR
@@ -1068,7 +1068,7 @@ impl GameState {
             replacement_effects: ReplacementEffectRegistry::new(),
             replacement_ability_sources: IdMap::default(),
             replacement_counter_holders: IdSet::default(),
-            zone_replacement_ability_sources: IdMap::default(),
+            off_battlefield_replacement_ability_sources: IdMap::default(),
             restrictions: RestrictionRegistry::new(),
             restriction_ability_sources: IdSet::default(),
             cost_modification_ability_sources: IdSet::default(),
@@ -1091,7 +1091,7 @@ impl GameState {
             next_until_return_id: 1,
             history,
             trigger_sources: IdMap::default(),
-            zone_trigger_sources: IdMap::default(),
+            off_battlefield_trigger_sources: IdMap::default(),
             newcomer_trigger_sources: IdSet::default(),
             look_back_snapshots: Vec::new(),
             control_effects_at_last_sweep: false,
@@ -2103,13 +2103,13 @@ impl GameState {
             Some(values) => (Arc::clone(&values.abilities), &values.types, values.name.as_str()),
             None => (Arc::clone(&card.abilities), &card.types, card.name.as_str()),
         };
-        let mut zone_replacement_defs = Vec::new();
+        let mut off_battlefield_replacement_defs = Vec::new();
 
         for ability in abilities.iter() {
             // CR 603 — a triggered ability generates no row either; what the
             // dispatcher needs is to know this object is worth asking about,
             // filed by where it will look (`engine::triggers::dispatch`):
-            // the battlefield set, or the zone map when CR 113.6k puts the
+            // the battlefield set, or the off-battlefield map when CR 113.6k puts the
             // ability's function somewhere else. The same CR 113.6 gate as
             // the static path below, on the arrived-with types for the same reason.
             if let Some(def) = ability.effect.as_trigger() {
@@ -2122,7 +2122,7 @@ impl GameState {
                     } else if def.triggers_only_on_this_object_moving() {
                         self.newcomer_trigger_sources.insert(id);
                     } else {
-                        *self.zone_trigger_sources.entry(id).or_default() |= def.record_kinds();
+                        *self.off_battlefield_trigger_sources.entry(id).or_default() |= def.record_kinds();
                     }
                 }
                 continue;
@@ -2155,7 +2155,7 @@ impl GameState {
                 } else if zone == Zone::Battlefield {
                     *self.replacement_ability_sources.entry(id).or_insert(GameActionKindMask::EMPTY) |= kinds;
                 } else {
-                    zone_replacement_defs.push(def.clone());
+                    off_battlefield_replacement_defs.push(def.clone());
                 }
             }
 
@@ -2214,8 +2214,8 @@ impl GameState {
             }
         }
 
-        if !zone_replacement_defs.is_empty() {
-            let filed = self.zone_replacement_ability_sources.insert(id, zone_replacement_defs.into());
+        if !off_battlefield_replacement_defs.is_empty() {
+            let filed = self.off_battlefield_replacement_ability_sources.insert(id, off_battlefield_replacement_defs.into());
             debug_assert!(filed.is_none(), "{card_name} was filed in its last zone and never removed");
         }
     }

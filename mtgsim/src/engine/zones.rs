@@ -607,8 +607,8 @@ impl GameState {
             self.continuous_effects.remove_static_by_source(id);
             // The gather's zone-leg candidate set is per zone (CR 113.6): the object
             // stops being one here, and `arrive_in_zone` decides again where it lands.
-            self.zone_replacement_ability_sources.remove(&id);
-            self.zone_trigger_sources.remove(&id);
+            self.off_battlefield_replacement_ability_sources.remove(&id);
+            self.off_battlefield_trigger_sources.remove(&id);
             self.newcomer_trigger_sources.remove(&id);
         }
     }

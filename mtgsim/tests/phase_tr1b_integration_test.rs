@@ -245,7 +245,7 @@ fn the_audit_agrees_over_a_printed_source() {
     assert_audited(&game, 1);
 }
 
-/// A card in a graveyard whose trigger functions there (`zone_trigger_sources`)
+/// A card in a graveyard whose trigger functions there (`off_battlefield_trigger_sources`)
 /// — Dread's two boards: its "from anywhere" trigger fires after the move, and
 /// its damage trigger is not asked from the graveyard (F1).
 #[test]
