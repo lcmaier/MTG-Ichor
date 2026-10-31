@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_ability};
+use crate::cards::authoring::{spell_ability, static_restriction};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -24,7 +24,7 @@ use crate::types::effects::{
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::EventPattern;
-use crate::types::restriction::{Restriction, RestrictionDef, SourceFilter};
+use crate::types::restriction::{Restriction, SourceFilter};
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 
 /// Sigarda, Host of Herons — {2}{G}{W}{W}
@@ -96,9 +96,9 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
         .power_toughness(5, 5)
         .keyword_flag(KeywordFlag::Flying)
         .rules_text("Flying, hexproof\nSpells and abilities your opponents control can't cause you to sacrifice permanents.")
-        .ability(static_ability(
+        .ability(static_restriction(
             "Spells and abilities your opponents control can't cause you to sacrifice permanents.",
-            Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+            Restriction::Event {
                 // CR 701.21a — "its controller moves it from the battlefield
                 // directly to its owner's graveyard".
                 pattern: EventPattern::ZoneChange {
@@ -107,7 +107,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
                 },
                 affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
-            }))),
+            },
         ))
         .build()
 }

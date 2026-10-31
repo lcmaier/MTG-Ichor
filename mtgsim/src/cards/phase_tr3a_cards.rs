@@ -20,8 +20,8 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{at_beginning_of, whenever, Whose};
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{at_beginning_of, spell_ability, whenever, Whose};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
@@ -29,14 +29,6 @@ use crate::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn};
 
-/// One paragraph of an instant: a spell ability (CR 113.2c).
-fn spell_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef::new(
-        AbilityType::Spell,
-        rules_text,
-        effect,
-    )
-}
 
 /// Final Fortune — {R}{R}
 /// Instant

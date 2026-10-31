@@ -26,8 +26,8 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{spell_ability, static_ability};
+use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
@@ -38,13 +38,6 @@ use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
-fn spell_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef::new(
-        AbilityType::Spell,
-        rules_text,
-        effect,
-    )
-}
 
 /// "If [this] would be put into a graveyard from anywhere, reveal [this] and
 /// shuffle it into its owner's library instead." — one clause, and each of

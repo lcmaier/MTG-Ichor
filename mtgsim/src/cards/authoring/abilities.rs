@@ -9,6 +9,7 @@ use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
 use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount};
 use crate::types::replacement::ReplacementDef;
+use crate::types::restriction::{Restriction, RestrictionDef};
 
 /// A spell ability (CR 113.3a): one paragraph of an instant's or sorcery's
 /// text, followed as the spell resolves.
@@ -27,6 +28,12 @@ pub fn static_ability(rules_text: impl Into<AbilityText>, effect: Effect) -> Abi
 /// source's effective ability list on every gather.
 pub fn static_replacement(rules_text: impl Into<AbilityText>, def: ReplacementDef) -> AbilityDef {
     static_ability(rules_text, Effect::Replacement(Box::new(def)))
+}
+
+/// A static "can't" (CR 101.2, 614.17), read off its source's effective
+/// ability list by `engine::restriction::is_prohibited` at each proposal.
+pub fn static_restriction(rules_text: impl Into<AbilityText>, what: Restriction) -> AbilityDef {
+    static_ability(rules_text, Effect::Restriction(Box::new(RestrictionDef::new(what))))
 }
 
 /// An activated ability (CR 113.3b): "[Cost]: [Effect.]"

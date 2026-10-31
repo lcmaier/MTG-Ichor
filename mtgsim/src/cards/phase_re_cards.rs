@@ -312,7 +312,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, spell_ability, static_ability, static_replacement};
+use crate::cards::authoring::{activated_ability, spell_ability, static_ability, static_replacement, static_restriction};
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
@@ -342,14 +342,6 @@ fn static_conditional_replacement(rules_text: &'static str, condition: Condition
     )
 }
 
-/// A static "can't" (CR 101.2, 614.17) — read off the source's *effective*
-/// ability list by `engine::restriction::is_prohibited` at each proposal.
-fn static_restriction(rules_text: &'static str, what: Restriction) -> AbilityDef {
-    static_ability(
-        rules_text,
-        Effect::Restriction(Box::new(RestrictionDef::new(what))),
-    )
-}
 
 
 /// "Skip [unit]" as CR 614.10 defines it: *"instead of doing [something], do
