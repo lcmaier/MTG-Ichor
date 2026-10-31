@@ -532,8 +532,8 @@ pub struct GameState {
     /// list: such a counter works on a permanent that lost its abilities
     /// (Balustrade Wurm's ruling, 2024-09-20).
     ///
-    /// **Kept by the counters' only writers**, all in `state/` and nowhere else
-    /// by construction ([`Counters`](crate::state::battlefield::Counters)):
+    /// **Kept by the counters' only writers**, all in `state/`, since nothing
+    /// outside it can change a [`Counters`](crate::state::battlefield::Counters):
     /// `add_counters` and `insert_battlefield_entity` file a permanent as one
     /// arrives, `remove_counters` takes it out with its last, and
     /// `cleanup_zone_state` as it leaves. A stale member costs a read and never

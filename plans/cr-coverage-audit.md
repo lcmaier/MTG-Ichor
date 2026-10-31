@@ -842,7 +842,7 @@ type `bool` named `tapped`; type `bool` named `flipped`; type `bool` named
 CR 122.1, 122.2. **Key:** an existence or a player, and a kind. **Query:**
 type `CounterType`
 - `Counters` — owner, a permanent's: `PermanentState`'s, read anywhere and
-  written only inside `state/`, where its writers keep
+  changed only inside `state/`, where its writers keep
   `replacement_counter_holders`.
 - `PlayerState` — owner, a player's.
 - `PermanentFacts` — moment: in an `Lki`.

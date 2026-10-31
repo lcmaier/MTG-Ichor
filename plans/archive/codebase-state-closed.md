@@ -9291,7 +9291,7 @@ Retired at `route-review` (the owner, 2026-10-29, its decision 4): each pair alr
 
 ### Item 22 — closed 2026-10-30 by PR #300 (`audit/readiness-close`)
 
-Built with item 356 (`6c7f2215`). `PermanentState.counters` is a `Counters`, read anywhere as the map and written only inside `state/`, by `GameState::add_counters`, `remove_counters` and an entry's own counters; `GameState::replacement_counter_holders` is kept by those writers and by `cleanup_zone_state`. The fear this entry recorded, a writer that skips the set, is now a compile error, and a debug build checks at every gather that every holder is indexed. Three tests that wrote counters directly moved to `GameState`'s writers. The owner chose it at the design stop as a counter registry's interface, the store itself left to `layers-combat-and-counters` (`replacement-architecture.md#33-where-replacement-effects-come-from`, decision 4).
+Built with item 356 (`6c7f2215`). `PermanentState.counters` is a `Counters`, read anywhere as the map and written only inside `state/`, by `GameState::add_counters`, `remove_counters` and an entry's own counters; `GameState::replacement_counter_holders` is kept by those writers and by `cleanup_zone_state`. The fear this entry recorded, a writer that skips the set, is now a compile error for every write but replacing a permanent's whole field with a clone of another's, which nothing does; a debug build checks at every gather that every holder is indexed. Three tests that wrote counters directly moved to `GameState`'s writers. The owner chose it at the design stop as a counter registry's interface, the store itself left to `layers-combat-and-counters` (`replacement-architecture.md#33-where-replacement-effects-come-from`, decision 4).
 
 *Original entry:*
 

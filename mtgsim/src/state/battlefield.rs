@@ -24,16 +24,28 @@ pub struct CounterStack {
     pub timestamp: Timestamp,
 }
 
-/// A permanent's counters (CR 122), kind by kind: read anywhere as the map,
-/// **written only inside `state/`**, through `GameState::add_counters`,
-/// `remove_counters` and an entry's own counters. Each of those writes bumps
-/// the layer epoch (a counter is a layer-walk input) and keeps
+/// A permanent's counters (CR 122), kind by kind, read anywhere as the map.
+///
+/// **Changed only inside `state/`**, by `GameState::add_counters`,
+/// `remove_counters` and an entry's own counters: each bumps the layer epoch
+/// (a counter is a layer-walk input) and keeps
 /// `GameState::replacement_counter_holders`, which the gather reads in place
-/// of every permanent's counters; a write anywhere else would serve a stale
-/// frame or leave a shield that silently stops nothing, so it does not
-/// compile. The map's own writes are `PermanentState`'s two methods.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// of every permanent's counters. Outside `state/` no method changes the map
+/// and none makes one, so no counter can be put on or taken off there. What
+/// still compiles is replacing a permanent's whole field with a clone of
+/// another's; nothing does, and a debug build's check at every gather
+/// (`replacement_counter_holders_cover_the_board`) would catch the shield it
+/// left unindexed.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Counters(HashMap<CounterType, CounterStack>);
+
+impl Counters {
+    /// A permanent with no counters, as every permanent enters before its
+    /// entry's own are put on.
+    pub(in crate::state) fn none() -> Counters {
+        Counters(HashMap::new())
+    }
+}
 
 impl std::ops::Deref for Counters {
     type Target = HashMap<CounterType, CounterStack>;
@@ -284,7 +296,7 @@ impl PermanentState {
             damaged_by_deathtouch: false,
             attacking: None,
             blocking: None,
-            counters: Counters::default(),
+            counters: Counters::none(),
             x_value: None,
             attached_to: None,
             attached_by: Vec::new(),
@@ -336,7 +348,6 @@ impl PermanentState {
         entity
     }
 
-    /// Clear combat state (called at end of combat step)
     /// Add `n` counters of the given type, timestamped per CR 613.7c.
     ///
     /// `GameState::add_counters` is the route, which allocates the timestamp;
