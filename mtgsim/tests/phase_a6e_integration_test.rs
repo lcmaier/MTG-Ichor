@@ -1,6 +1,6 @@
-//! Item 356, built (`plans/handoffs/readiness-close.md`): the replacement
-//! gather finds its candidates by the kind of action a proposal is, the
-//! trigger dispatcher's shape.
+//! Item 356, built (`replacement-architecture.md`, "Where replacement effects
+//! come from"): the replacement gather finds its candidates by the kind of
+//! action a proposal is, the trigger dispatcher's shape.
 //!
 //! **The battlefield leg** asks only the permanents that could answer: the
 //! printed sources filed under the proposal's kind, the objects a named grant

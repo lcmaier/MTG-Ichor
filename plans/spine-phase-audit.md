@@ -86,6 +86,9 @@ readiness.
      apart from the unit-test tails; a surface growing faster than the engine
      is the finding;
    - **the three-run contention read**: `--threads 1`, 8 and 16 at 200 games;
+   - **k**, `fuzz_games --observe`: a naive AI observation built at each
+     decision that reaches the agent, its cost against the engine's, since
+     floor 1 scales by 1 + k (`plans/references/ai-performance-floors.md`);
    - **callgrind under WSL** (`layers-architecture.md` §12's instrument
      paragraph, `plans/profile/`): the instruction count is the reading that
      travels between machines, and the milliseconds stay in this pass.
@@ -110,7 +113,7 @@ readiness.
 - **Discovery may fan out; fixing stays sequential.** A read-only discovery
   workflow finds, then independent verifiers try to refute each finding, each
   agent with a budget and a stop rule, and only survivors become work; the
-  output is a list, never a diff (`plans/handoffs/item-6-audit.md` §2).
+  output is a list, never a diff (`git show 7a2c8ae5:plans/handoffs/item-6-audit.md`, §2).
 - **At the trace-page decision**, each phase of the item is decided on its
   heading (`engineering-practices.md#trace-pages`), and
   `check_glossary.py --suggest` is triaged.
@@ -132,4 +135,25 @@ scans, read off a profile. Item 6's was A6k.
   "Was critical-path item 5 done, and what sits before item 6? — audited
   2026-09-15". Where each pass's output went:
   `archive/engineering-practices-records.md#9-the-spine-phase-audit--a-close-is-audited-not-declared`.
-- **The item 6 audit**, opened 2026-10-22: `plans/handoffs/item-6-audit.md`.
+- **The item 6 audit**, 2026-10-22 → 2026-10-30, at critical-path item 6's
+  close: `git show 7a2c8ae5:plans/handoffs/item-6-audit.md`, and
+  `codebase-state.md`, "Was critical-path item 6 done, and what sits before
+  `information-model-design`? — audited 2026-10-30". Run as the plan (#270), a
+  read-only discovery (#271), then each pass its own PRs: the close-out
+  (#272), the eviction (#273), hygiene (#274) and the cleanup it scheduled
+  (#283–#291, #296), the card-homed triage (#280), the docs audit (A6h,
+  #275–#279), names for the phases ahead (#282), readiness (#299, #300);
+  scheduling was `route-review`'s (#298).
+  **What the next run adds:**
+  - **A docs pass and a names pass from the plan.** This run added both, and
+    the card-homed triage, after it began.
+  - **The ratchet read first, against the last close's tree.** Between two
+    closes CI reads allocations and bytes and each PR its instructions, and
+    nothing reads time: CL-1's regrowth (item 352) cost 7 points a decision
+    and was found only here.
+  - **Every lever one subsystem's doc hands another is an item with a
+    slot.** `triggers-architecture.md#112-the-same-probe-at-commander-scale-and-what-it-says-is-next`
+    named the replacement gather "the bigger lever" on 2026-09-22 in a paragraph, and it waited five
+    weeks for the token board (item 356). The next run greps the
+    architecture docs for a lever, a fix or a sweep they hand elsewhere and
+    checks each has its item.

@@ -1588,8 +1588,8 @@ between them.
 
 #### The candidates by kind — four decisions (the item 6 audit's close, 2026-10-30)
 
-Its design note was `plans/handoffs/readiness-close.md`, deleted at the close;
-the census behind it is `plans/references/replacement-kinds-census.py`, which
+Its design note was `plans/handoffs/readiness-close.md`, deleted at the close
+(`git show 7a2c8ae5:plans/handoffs/readiness-close.md`); the census behind it is `plans/references/replacement-kinds-census.py`, which
 puts each Commander-legal card in a family by the clause its replacement
 watches.
 

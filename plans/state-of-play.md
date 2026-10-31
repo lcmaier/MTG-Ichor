@@ -182,7 +182,7 @@ with less than 20% room is bolded.
 
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
-| **1. Decisions per loaded physical core-second** | ≥ 10000 | 11900 | **19%** | 2026-10-29 |
+| 1. Decisions per loaded physical core-second | ≥ 10000 | 15180 | 52% | 2026-10-30 |
 | 2. Allocations per clone | ≤ 64 | 39 | 64% | 2026-10-29 |
 | 2. Microseconds per clone | ≤ 10 | 5.6 | 79% | 2026-10-29 |
 | 3. Kilobytes per clone | ≤ 128 | 8.7 | 1371% | 2026-10-29 |
@@ -192,13 +192,13 @@ with less than 20% room is bolded.
 | | |
 |---|---:|
 | Numbered items | 408 |
-| …closed, still recorded | 248 |
+| …closed, still recorded | 251 |
 | …open — unreachable, and says why | 106 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 35 |
+| …open — reachable, not wrong (perf, a name, a harness) | 32 |
 | …open — nothing to build, a record for a later phase | 15 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 158 of 160 |
+| …open, carrying an explicit `**Sized:**` | 155 of 157 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -212,7 +212,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 148 |
+| …slotted to a phase or roadmap row still to come | 145 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
@@ -247,8 +247,6 @@ discipline. → `engineering-practices.md#the-spec-database`.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- `plans/handoffs/item-6-audit.md`
-- `plans/handoffs/readiness-close.md`
 - `plans/handoffs/resolution-recipients-and-amounts.md`
 
 ## What this file deliberately does not know

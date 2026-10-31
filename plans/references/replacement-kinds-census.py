@@ -3,9 +3,9 @@
     python plans/references/replacement-kinds-census.py            # the counts
     python plans/references/replacement-kinds-census.py --names    # each family's cards and the clause that put them there
 
-Behind `plans/handoffs/readiness-close.md`'s census (item 356, the gather filed by
-the kind of action), and `replacement-architecture.md`'s "Where replacement
-effects come from" once that note lands.
+Behind item 356's census, the gather filed by the kind of action
+(`replacement-architecture.md`, "Where replacement effects come from"; the
+design note's table is `git show 7a2c8ae5:plans/handoffs/readiness-close.md`).
 
 WHAT IT COUNTS
 --------------
