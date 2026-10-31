@@ -304,7 +304,7 @@ fn test_the_capture_excludes_counters_status_and_later_layers() {
         "CR 707.2 — tapped is a status, not a characteristic"
     );
     assert_eq!(
-        game.battlefield[&copyist].counters.get(&CounterType::PlusOnePlusOne),
+        game.battlefield[&copyist].counters().get(&CounterType::PlusOnePlusOne),
         None,
         "CR 707.2 — counters are not copied"
     );

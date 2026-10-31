@@ -2070,7 +2070,7 @@ impl Lki {
         let permanent = permanent.map(|entry| {
             // ORDER-FREE: sorted next.
             let mut counters: Vec<(CounterType, u32)> =
-                entry.counters.iter().map(|(&kind, stack)| (kind, stack.count)).filter(|&(_, n)| n > 0).collect();
+                entry.counters().iter().map(|(&kind, stack)| (kind, stack.count)).filter(|&(_, n)| n > 0).collect();
             counters.sort_unstable_by_key(|&(kind, _)| kind);
             PermanentFacts {
                 tapped: entry.tapped,

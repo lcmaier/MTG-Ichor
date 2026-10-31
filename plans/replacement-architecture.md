@@ -1614,17 +1614,19 @@ below, and `backlog.md` §2.5 holds the families no `GameAction` carries yet.
    objects are read, on both legs, only for a proposal of a kind its
    abilities answer (`named_replacement_carriers`).
 4. **The holders of a replacement counter as an index**, kept by the
-   counters' only writers: `PermanentState.counters` is a `Counters`, which
-   no code outside `state/` can change or make, so no counter is put on or
-   taken off anywhere else. A whole-field replacement with a clone of
-   another permanent's still compiles; nothing does it, and a debug build
-   checks the index against a scan at every gather. **The writes are a
-   counter registry's write side** (the owner, at the design stop: "(a) now
-   with the flexibility to upgrade into (b)"): the store itself is
+   counters' only writers: `PermanentState.counters` is private to `state/`,
+   read through `PermanentState::counters`, and a `Counters` has no method
+   that changes it, so a counter write anywhere else does not compile. A
+   debug build checks the index against a scan at every gather. The scenario
+   writer, which names every field by its growth contract, names this one
+   through `PermanentFields`, a borrowed view `state/` builds. **The writes
+   are a counter registry's write side** (the owner, at the design stop:
+   "(a) now with the flexibility to upgrade into (b)"): the store itself is
    `layers-combat-and-counters`' to decide, with counters off the
    battlefield (`codebase-state.md` item 23) and named counters, and the
-   index becomes the registry's own then. Its readers read the map off the
-   permanent, so that move rewrites each read's path.
+   index becomes the registry's own then. Reads go through the accessor on
+   the permanent, so the store's move changes them where the read API it
+   picks takes an id instead.
 
 ### 3.4 `ReplacementEffectRegistry`
 

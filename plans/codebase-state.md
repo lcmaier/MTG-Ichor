@@ -1230,9 +1230,10 @@ registered card returns an object.
     until CR 704.5q joins the chokepoint (`rb-review.md` D2).~~ — ✅ CLOSED
     2026-10-30 (PR #300, `audit/readiness-close`), with item 356.** — archived.
     `GameState::replacement_counter_holders` is kept by the counters' only
-    writers, all in `state/`: `PermanentState.counters` is a `Counters`,
-    which no code outside `state/` can change or make, and a debug build
-    checks the index against a scan at every gather.
+    writers, all in `state/`: `PermanentState.counters` is private to
+    `state/` and a `Counters` has no method that changes it, so a counter
+    write elsewhere does not compile, and a debug build checks the index
+    against a scan at every gather.
     **Reachability (2026-10-30):** closed — PR #300.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 22".
 

@@ -239,7 +239,7 @@ mod tests {
         assert_eq!(predicted.timestamp, placed.timestamp);
         assert!(placed.tapped && predicted.tapped);
         for kind in [CounterType::PlusOnePlusOne, CounterType::Charge] {
-            let stack = |p: &crate::state::battlefield::PermanentState| p.counters.get(&kind).map(|s| (s.count, s.timestamp));
+            let stack = |p: &crate::state::battlefield::PermanentState| p.counters().get(&kind).map(|s| (s.count, s.timestamp));
             assert_eq!(stack(&predicted), stack(&placed), "{kind:?} and its CR 613.7c timestamp");
         }
         let copy = |p: &crate::state::battlefield::PermanentState| p.entered_as.copy.clone().expect("entered as a copy");

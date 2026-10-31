@@ -30,12 +30,11 @@ pub struct CounterStack {
 /// `remove_counters` and an entry's own counters: each bumps the layer epoch
 /// (a counter is a layer-walk input) and keeps
 /// `GameState::replacement_counter_holders`, which the gather reads in place
-/// of every permanent's counters. Outside `state/` no method changes the map
-/// and none makes one, so no counter can be put on or taken off there. What
-/// still compiles is replacing a permanent's whole field with a clone of
-/// another's; nothing does, and a debug build's check at every gather
-/// (`replacement_counter_holders_cover_the_board`) would catch the shield it
-/// left unindexed.
+/// of every permanent's counters. A write anywhere else does not compile:
+/// `PermanentState`'s field is private to `state/`, read through
+/// `PermanentState::counters`, and this type has no method that changes it.
+/// So "move all counters onto another creature" cannot be written as a field
+/// assignment that skips the index, the epoch and CR 614's pipeline at once.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Counters(HashMap<CounterType, CounterStack>);
 
@@ -122,9 +121,9 @@ pub struct PermanentState {
     pub attacking: Option<AttackingInfo>,
     pub blocking: Option<BlockingInfo>,
 
-    /// Its counters (CR 122): read anywhere, written only inside `state/`
-    /// ([`Counters`]).
-    pub counters: Counters,
+    /// Its counters (CR 122), read through [`Self::counters`] and written only
+    /// inside `state/` ([`Counters`]).
+    pub(in crate::state) counters: Counters,
 
     /// The value of X chosen when this permanent was cast (rule 107.3f).
     /// Carried from StackEntry on resolution. None for non-X spells.
@@ -278,7 +277,90 @@ impl AttackTarget {
     }
 }
 
+/// Every field of a [`PermanentState`], borrowed: what the scenario writer
+/// names one by one under its growth contract
+/// (`setup-architecture.md#52-later-and-the-growth-contract`), since
+/// `counters` is private to `state/` and cannot be named there. Built by
+/// [`PermanentState::fields`], whose destructure names every field, so a field
+/// the state gains fails to compile there until it is added here, and then
+/// fails in the writer until the writer answers it.
+pub struct PermanentFields<'a> {
+    pub object_id: &'a ObjectId,
+    pub controller: &'a PlayerId,
+    pub timestamp: &'a Timestamp,
+    pub tapped: &'a bool,
+    pub flipped: &'a bool,
+    pub face_down: &'a bool,
+    pub phased_out: &'a bool,
+    pub entered_battlefield_turn: &'a u32,
+    pub damage_marked: &'a u32,
+    pub damaged_by_deathtouch: &'a bool,
+    pub attacking: &'a Option<AttackingInfo>,
+    pub blocking: &'a Option<BlockingInfo>,
+    pub counters: &'a Counters,
+    pub x_value: &'a Option<u64>,
+    pub attached_to: &'a Option<ObjectId>,
+    pub attached_by: &'a Vec<ObjectId>,
+    pub cast: &'a Option<CastFacts>,
+    pub cost_choices: &'a CostChoices,
+    pub entered_as: &'a EnteredAs,
+    pub announced_control: &'a AnnouncedControl,
+}
+
 impl PermanentState {
+    /// Its counters (CR 122), kind by kind.
+    pub fn counters(&self) -> &Counters {
+        &self.counters
+    }
+
+    /// Every field, borrowed ([`PermanentFields`]).
+    pub fn fields(&self) -> PermanentFields<'_> {
+        let PermanentState {
+            object_id,
+            controller,
+            timestamp,
+            tapped,
+            flipped,
+            face_down,
+            phased_out,
+            entered_battlefield_turn,
+            damage_marked,
+            damaged_by_deathtouch,
+            attacking,
+            blocking,
+            counters,
+            x_value,
+            attached_to,
+            attached_by,
+            cast,
+            cost_choices,
+            entered_as,
+            announced_control,
+        } = self;
+        PermanentFields {
+            object_id,
+            controller,
+            timestamp,
+            tapped,
+            flipped,
+            face_down,
+            phased_out,
+            entered_battlefield_turn,
+            damage_marked,
+            damaged_by_deathtouch,
+            attacking,
+            blocking,
+            counters,
+            x_value,
+            attached_to,
+            attached_by,
+            cast,
+            cost_choices,
+            entered_as,
+            announced_control,
+        }
+    }
+
     pub fn new(object_id: ObjectId, controller: PlayerId, current_turn: u32) -> Self {
         PermanentState {
             object_id,

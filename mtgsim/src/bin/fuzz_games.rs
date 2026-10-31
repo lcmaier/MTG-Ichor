@@ -1006,7 +1006,7 @@ fn object_row(game: &GameState, id: ObjectId, zone: Zone) -> Option<ObservationR
         chars.abilities.len() as i32,
         permanent.map_or(0, |p| i32::from(p.tapped) | i32::from(p.attacking.is_some()) << 1 | i32::from(p.blocking.is_some()) << 2),
         permanent.map_or(0, |p| p.damage_marked as i32),
-        permanent.map_or(0, |p| p.counters.values().map(|stack| stack.count as i32).sum()),
+        permanent.map_or(0, |p| p.counters().values().map(|stack| stack.count as i32).sum()),
     ])
 }
 

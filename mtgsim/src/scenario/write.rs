@@ -1,6 +1,7 @@
 //! A game's state written as a [`Scenario`] (`setup-architecture.md` §4.3).
 //!
-//! Every field of `GameState`, `PlayerState`, `PermanentState` and
+//! Every field of `GameState`, `PlayerState`, `PermanentState` (through
+//! `PermanentFields`, since its counters are private to `state/`) and
 //! `GameObject` is named below with no `..`, so a field the engine adds fails
 //! to compile here until it is answered (§5.2's growth contract): written as
 //! a word, reported in [`WrittenBoard::unwritten`], or bound to `_` as the
@@ -13,7 +14,7 @@ use crate::state::history_log::{RowFact, FIRST_TURN};
 use crate::engine::layers::intrinsic::intrinsic_entry_counter_kind;
 use crate::engine::layers::types::EffectOrigin;
 use crate::objects::object::GameObject;
-use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
+use crate::state::battlefield::{AttackTarget, CostChoices, PermanentFields};
 use crate::state::game_state::{GameState, StepType, TurnPlan};
 use crate::state::player::PlayerState;
 use crate::types::history::{HistorySpan, TurnFact};
@@ -405,7 +406,7 @@ impl<'g> Writer<'g> {
         }
         stamps.extend(state.exile.iter().chain(&state.command).chain(&permanents).map(|&id| (state.object_timestamp(id), id, None)));
         for &id in &permanents {
-            stamps.extend(state.battlefield[&id].counters.iter().map(|(kind, stack)| (stack.timestamp, id, Some(*kind))));
+            stamps.extend(state.battlefield[&id].counters().iter().map(|(kind, stack)| (stack.timestamp, id, Some(*kind))));
         }
         stamps.sort_by_key(|&(stamp, _, _)| stamp);
         let mut references: Vec<(usize, CardWord)> = Vec::new();
@@ -501,7 +502,7 @@ impl<'g> Writer<'g> {
         let mut line = self.object_line(id);
         let state = self.state;
         let Some(entry) = state.battlefield.get(&id) else { return (line, None) };
-        let PermanentState {
+        let PermanentFields {
             object_id: _,
             controller,
             timestamp: _,           // the file's order
@@ -522,7 +523,7 @@ impl<'g> Writer<'g> {
             cost_choices,
             entered_as,
             announced_control: _, // every change is announced at a prompt; settled at load
-        } = entry;
+        } = entry.fields();
         let obj = &state.objects[&id];
         let card = line.card.to_string();
         let mut words = CardWord::seats(*controller, obj.owner);

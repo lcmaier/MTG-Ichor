@@ -871,7 +871,7 @@ fn valiant_triggers_the_first_time_its_controller_targets_it_each_turn() {
     let mut game = stocked(2);
     let mouse = put_on_battlefield(&mut game, valiant_fixture(), 0);
     let thaumaturgist = put_on_battlefield(&mut game, merfolk_thaumaturgist(), 1);
-    let counters = |game: &GameState| game.battlefield[&mouse].counters.get(&CounterType::PlusOnePlusOne).map_or(0, |c| c.count);
+    let counters = |game: &GameState| game.battlefield[&mouse].counters().get(&CounterType::PlusOnePlusOne).map_or(0, |c| c.count);
 
     thaumaturgist_at(&mut game, 1, thaumaturgist, mouse);
     resolve_all(&mut game);
@@ -901,7 +901,7 @@ fn valiant_triggers_again_next_turn() {
     game.begin_turn(3, 0);
     cast_at(&mut game, 0, giant_growth(), &[(ManaType::Green, 1)], &[mouse]);
     resolve_all(&mut game);
-    assert_eq!(game.battlefield[&mouse].counters.get(&CounterType::PlusOnePlusOne).map_or(0, |c| c.count), 2);
+    assert_eq!(game.battlefield[&mouse].counters().get(&CounterType::PlusOnePlusOne).map_or(0, |c| c.count), 2);
 }
 
 /// Kira's "for the first time each turn" names no controller: the first
