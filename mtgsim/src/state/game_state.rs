@@ -519,6 +519,23 @@ pub struct GameState {
     /// silently stops working.
     pub replacement_ability_sources: IdSet<ObjectId>,
 
+    /// The permanents holding a counter that generates a replacement effect:
+    /// a shield, stun or finality counter (CR 122.1c/d/h,
+    /// `CounterType::makes_a_replacement`). The gather's counter leg reads
+    /// these in place of every permanent's counters. Not hung off the ability
+    /// list: such a counter works on a permanent that lost its abilities
+    /// (Balustrade Wurm's ruling, 2024-09-20).
+    ///
+    /// **Kept by the counters' only writers**, all in `state/` and nowhere else
+    /// by construction ([`Counters`](crate::state::battlefield::Counters)):
+    /// `add_counters` and `insert_battlefield_entity` file a permanent as one
+    /// arrives, `remove_counters` takes it out with its last, and
+    /// `cleanup_zone_state` as it leaves. A stale member costs a read and never
+    /// an answer; a missing one is a shield that stops nothing, which
+    /// [`Self::replacement_counter_holders_cover_the_board`] asserts at every
+    /// gather in a debug build.
+    pub replacement_counter_holders: IdSet<ObjectId>,
+
     /// Objects **off the battlefield** that printed a static ability whose
     /// body is an `Effect::Replacement` and that **functions in the zone the
     /// object is in** (CR 113.6) — Darksteel Colossus in a library, Nexus of
@@ -1043,6 +1060,7 @@ impl GameState {
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementEffectRegistry::new(),
             replacement_ability_sources: IdSet::default(),
+            replacement_counter_holders: IdSet::default(),
             zone_replacement_ability_sources: IdMap::default(),
             restrictions: RestrictionRegistry::new(),
             restriction_ability_sources: IdSet::default(),
@@ -1448,6 +1466,9 @@ impl GameState {
     /// board without ETB hooks.
     pub(crate) fn insert_battlefield_entity(&mut self, id: ObjectId, mut entry: PermanentState) {
         entry.timestamp = self.object_timestamp(id);
+        if entry.holds_a_replacement_counter() {
+            self.replacement_counter_holders.insert(id);
+        }
         // Spelled through a local so the sweep that routed every other
         // `battlefield.insert` here did not route this one into itself.
         let battlefield = &mut self.battlefield;
@@ -1711,6 +1732,9 @@ impl GameState {
         if let Some(entry) = self.battlefield.get_mut(&id) {
             entry.add_counters(counter_type, n, timestamp);
         }
+        if counter_type.makes_a_replacement() {
+            self.replacement_counter_holders.insert(id);
+        }
         self.bump_layer_epoch();
     }
 
@@ -1726,10 +1750,22 @@ impl GameState {
             return 0;
         };
         let removed = entry.remove_counters(counter_type, n);
+        if !entry.holds_a_replacement_counter() {
+            self.replacement_counter_holders.remove(&id);
+        }
         if removed > 0 {
             self.bump_layer_epoch();
         }
         removed
+    }
+
+    /// Whether every permanent holding a counter that generates a replacement
+    /// effect is in [`Self::replacement_counter_holders`]: the index may hold
+    /// more, never fewer. A scan of the board, so a debug build's check, asked
+    /// at every gather.
+    pub(crate) fn replacement_counter_holders_cover_the_board(&self) -> bool {
+        // ORDER-FREE: whether all are.
+        self.battlefield.iter().all(|(id, entry)| !entry.holds_a_replacement_counter() || self.replacement_counter_holders.contains(&id))
     }
 
     /// How many counters of `counter_type` `subject` has: a permanent's, or a

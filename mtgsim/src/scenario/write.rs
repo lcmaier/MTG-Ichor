@@ -106,6 +106,7 @@ impl<'g> Writer<'g> {
             continuous_effects,
             replacement_effects,
             replacement_ability_sources: _, // the gates, rebuilt by the doors
+            replacement_counter_holders: _,
             zone_replacement_ability_sources: _,
             restrictions,
             restriction_ability_sources: _,

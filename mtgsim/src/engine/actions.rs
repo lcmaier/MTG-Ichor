@@ -2018,10 +2018,9 @@ impl GameState {
                                 "Cannot put counters on {}: not on the battlefield", object
                             ));
                         }
+                        // A CR 122.1 replacement counter files the permanent among
+                        // `replacement_counter_holders` in the writer itself.
                         self.add_counters(object, counter, n);
-                        // A permanent that just gained a CR 122.1 replacement counter is a
-                        // replacement source now, and nothing has to be recorded: counters are
-                        // scanned, not cached (`gather::any_replacement_counter`).
                     }
                     ObjectOrPlayerId::Player(player) => {
                         self.get_player_mut(player)?.add_counters(counter, n);

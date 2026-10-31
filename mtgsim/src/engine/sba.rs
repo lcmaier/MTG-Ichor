@@ -1257,8 +1257,7 @@ mod tests {
         );
 
         // Remove all loyalty counters to simulate damage
-        game.battlefield.get_mut(&pw_id).unwrap()
-            .remove_counters(crate::types::effects::CounterType::Loyalty, 3);
+        game.remove_counters(pw_id, crate::types::effects::CounterType::Loyalty, 3);
         assert_eq!(
             game.battlefield.get(&pw_id).unwrap()
                 .counter_count(crate::types::effects::CounterType::Loyalty),

@@ -24,6 +24,32 @@ pub struct CounterStack {
     pub timestamp: Timestamp,
 }
 
+/// A permanent's counters (CR 122), kind by kind: read anywhere as the map,
+/// **written only inside `state/`**, through `GameState::add_counters`,
+/// `remove_counters` and an entry's own counters. Each of those writes bumps
+/// the layer epoch (a counter is a layer-walk input) and keeps
+/// `GameState::replacement_counter_holders`, which the gather reads in place
+/// of every permanent's counters; a write anywhere else would serve a stale
+/// frame or leave a shield that silently stops nothing, so it does not
+/// compile. The map's own writes are `PermanentState`'s two methods.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Counters(HashMap<CounterType, CounterStack>);
+
+impl std::ops::Deref for Counters {
+    type Target = HashMap<CounterType, CounterStack>;
+    fn deref(&self) -> &HashMap<CounterType, CounterStack> {
+        &self.0
+    }
+}
+
+impl<'a> IntoIterator for &'a Counters {
+    type Item = (&'a CounterType, &'a CounterStack);
+    type IntoIter = std::collections::hash_map::Iter<'a, CounterType, CounterStack>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 /// Battlefield-specific state for a permanent.
 ///
 /// This is stored separately from the GameObject itself — the object just knows
@@ -84,8 +110,9 @@ pub struct PermanentState {
     pub attacking: Option<AttackingInfo>,
     pub blocking: Option<BlockingInfo>,
 
-    // Counters (rule 122)
-    pub counters: HashMap<CounterType, CounterStack>,
+    /// Its counters (CR 122): read anywhere, written only inside `state/`
+    /// ([`Counters`]).
+    pub counters: Counters,
 
     /// The value of X chosen when this permanent was cast (rule 107.3f).
     /// Carried from StackEntry on resolution. None for non-X spells.
@@ -257,7 +284,7 @@ impl PermanentState {
             damaged_by_deathtouch: false,
             attacking: None,
             blocking: None,
-            counters: HashMap::new(),
+            counters: Counters::default(),
             x_value: None,
             attached_to: None,
             attached_by: Vec::new(),
@@ -312,17 +339,18 @@ impl PermanentState {
     /// Clear combat state (called at end of combat step)
     /// Add `n` counters of the given type, timestamped per CR 613.7c.
     ///
-    /// Prefer `GameState::add_counters`, which allocates the timestamp for you.
-    /// This is the low-level form, for callers that already hold one.
+    /// `GameState::add_counters` is the route, which allocates the timestamp;
+    /// this is the low-level form, for `state/`'s callers that already hold one.
     ///
     /// CR 613.7c's second sentence — "if that object already has a counter of
     /// that kind on it, each counter of that kind receives a new timestamp
     /// identical to that of the new counter" — is the `entry.timestamp =`
     /// below, and it is also why one timestamp per *kind* is exact rather than
     /// a simplification: counters of one kind can never disagree.
-    pub fn add_counters(&mut self, counter_type: CounterType, n: u32, timestamp: Timestamp) {
+    pub(in crate::state) fn add_counters(&mut self, counter_type: CounterType, n: u32, timestamp: Timestamp) {
         let entry = self
             .counters
+            .0
             .entry(counter_type)
             .or_insert(CounterStack { count: 0, timestamp });
         // No rule caps a count, but the type does.
@@ -331,16 +359,24 @@ impl PermanentState {
     }
 
     /// Remove up to `n` counters of the given type. Returns the number actually removed.
-    pub fn remove_counters(&mut self, counter_type: CounterType, n: u32) -> u32 {
-        let Some(entry) = self.counters.get_mut(&counter_type) else {
+    pub(in crate::state) fn remove_counters(&mut self, counter_type: CounterType, n: u32) -> u32 {
+        let Some(entry) = self.counters.0.get_mut(&counter_type) else {
             return 0;
         };
         let removed = entry.count.min(n);
         entry.count -= removed;
         if entry.count == 0 {
-            self.counters.remove(&counter_type);
+            self.counters.0.remove(&counter_type);
         }
         removed
+    }
+
+    /// Whether it carries a counter that generates a replacement effect (CR
+    /// 122.1c/d/h), which is what files it in
+    /// `GameState::replacement_counter_holders`.
+    pub fn holds_a_replacement_counter(&self) -> bool {
+        // ORDER-FREE: whether any does.
+        self.counters.keys().any(|kind| kind.makes_a_replacement())
     }
 
     /// Returns the number of counters of the given type (0 if none).

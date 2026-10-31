@@ -560,6 +560,8 @@ impl GameState {
             self.replacement_effects.remove_rows_ending_with(id);
             self.restrictions.remove_rows_ending_with(id);
             self.replacement_ability_sources.remove(&id);
+            // Its counters cease to exist as it leaves (CR 122.2).
+            self.replacement_counter_holders.remove(&id);
             self.restriction_ability_sources.remove(&id);
             // And the cost-effect sweep's, for the same reason again.
             self.cost_modification_ability_sources.remove(&id);

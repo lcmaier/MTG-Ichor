@@ -634,6 +634,12 @@ is derivable; where each name was read is not, and the gate needs the names.
     body's gap, not the store's: CR 400.7d's facts about how a spell was
     cast, which §3.11 leaves out until a leaf reads mana spent. A move
     nothing reads is not framed, which no rule asks about later.
+- **Added by the item 6 audit's close (2026-10-30)**:
+  - `replacement_counter_holders`: the permanents holding a shield, stun or
+    finality counter (CR 122.1c/d/h), which the replacement gather reads in
+    place of every permanent's counters. An index over `Counters`, no fact
+    about the game, under `CLAUDE.md`'s gate rule as the five above; kept by
+    the counters' only writers, all in `state/`.
 
 ---
 
@@ -831,7 +837,9 @@ type `bool` named `tapped`; type `bool` named `flipped`; type `bool` named
 #### Counters
 CR 122.1, 122.2. **Key:** an existence or a player, and a kind. **Query:**
 type `CounterType`
-- `PermanentState` — owner, a permanent's.
+- `Counters` — owner, a permanent's: `PermanentState`'s, read anywhere and
+  written only inside `state/`, where its writers keep
+  `replacement_counter_holders`.
 - `PlayerState` — owner, a player's.
 - `PermanentFacts` — moment: in an `Lki`.
 - `EntryCounters` — hand-over: the counters a permanent enters with (CR
