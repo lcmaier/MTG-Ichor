@@ -469,10 +469,27 @@ PR 5's are the tests.
      named and checked, and one spelling covers all three stores; a row id
      can no longer be mistaken for a count.
 
-   **Recommended: (b)**, revised at #301's first review round, where the
-   owner asked why a row carries an unassigned id at all: it need not.
-   The caller builds a row with no id, and the registry pairs it with one as
-   it adds it, in all three registries. The two row types take names that
+   **Recommended: (c)**, revised again at the second round. The owner found
+   (b) a wrapper type that clutters every registry read, and a shape that
+   leaves objects and rows spelling "the store fills this in" two ways.
+   (c) is that one spelling across all three stores: an object writes
+   `ObjectId::UNASSIGNED`, an ability `AbilityId::UNASSIGNED`, and a row
+   `EffectId::UNASSIGNED` or `ReplacementEffectId::UNASSIGNED`, through the
+   aliases, each read as its own registry's id. It adds no type a reader
+   meets and renames nothing. What it costs, measured: `RowId` becomes a
+   newtype deriving what `ObjectId` derives plus `Ord`, since CR 613.7a's
+   sub-order sorts rows by id. The 56 uses of the three names compile
+   through unchanged, the counter's one `+= 1` becomes a method, and the
+   42 `id: 0` lines name the placeholder. No trace, scenario, UI or dev GUI
+   code prints a row id, so no output changes. What it gives up: a row
+   still carries the field before it is added. `add` asserts the field is
+   `UNASSIGNED`, so a row re-added with a stale id fails loudly, and item 7d
+   closes as named and checked rather than removed.
+
+   **(b), as it was recommended at the first round**, when the owner asked
+   why a row carries an unassigned id at all; kept as the record of that
+   answer. The caller builds a row with no id, and the registry pairs it
+   with one as it adds it, in all three registries. The two row types take names that
    say what they are before they are registered (`ReplacementEffectRow`,
    `RestrictionRow`), and `ContinuousEffect` keeps its own. Item 7d's draft
    does the same for one registry of three, by a second copy of its fields.
@@ -504,7 +521,9 @@ PR 5's are the tests.
    - *Item 7d*: closed by another shape than its **Sized:** line's draft,
      which its close-out entry records.
 
-   **Objects, and whether stopping at rows is halfway.** The smell item 7d
+   **Objects, and whether stopping at rows is halfway.** Under (c) the
+   question does not arise, since every store spells its placeholder
+   `UNASSIGNED`. Under (b) it did, and this was the answer. The smell item 7d
    names is a call site writing a meaningless value, and only a value built
    as a literal has one. The 42 row literals each write `id: 0`. A
    `GameObject` is built through one door, `GameObject::new`: 199 calls,
