@@ -93,7 +93,7 @@ already slotted beside the phase.
 |---|---|---|---|---|
 | 1 | `card-ability-words` | Decisions 2 and 3, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | about −2,300 / +1,300 | one |
 | 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them | about −1,400 / +1,000 | one |
-| 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the 8 misnamed functions each filed once, the decklist and its readers | the move counted by decision 7; the rest about +1,400 / −900 | one, long |
+| 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | the move counted by decision 7; the rest about +1,400 / −900 | one, long |
 | 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered | about +150 / −40, more per printing registered; both pools re-recorded | short |
 | 5 | `scripted-answers-by-identity` | Item 209 | about 670 changed lines | one |
 
@@ -354,9 +354,9 @@ PR 5's are the tests.
    same under every option, since the words hide the defaults; what differs
    is the type every later activated card is written against.
 
-   **Recommended: (b)**, and with it the permission doc's §3 line for who
-   may activate names `Activation` instead of `AbilityDef`. That is the
-   owner's question here: whether `Activation` replaces that planned field.
+   **Settled: (b)** (the owner, at #301's first review round, 2026-10-31),
+   and with it the permission doc's §3 line for who may activate names
+   `Activation` instead of `AbilityDef`.
 
 3. **The values a literal writes and a store overwrites.**
 
@@ -385,6 +385,26 @@ PR 5's are the tests.
      restriction rows.
 
    **3a. The instances.**
+
+   **What they are, from Magic.** A player casting Lightning Bolt is asked
+   for one target, "any target": CR 601.2c's instances of the word
+   "target". The engine reads that list off the ability twice. Whether an
+   ability can be activated at all needs a legal choice for each instance,
+   asked at every priority check (`every_instance_has_a_choice`, called from
+   `can_activate` in `oracle/mana_helpers.rs`). The announcement then asks
+   for each in order (`engine/put_on_stack.rs`). So each ability stores the
+   list, and a spell its card's (`spell_instances`).
+
+   Today Lightning Bolt's literal (`cards/alpha.rs`) writes the list empty,
+   `instances: Vec::new()`, and `CardDataBuilder::build` overwrites it with
+   `[Target(Any, Exactly(1))]`. Every card literal writes that empty list
+   for the builder to replace. An ability the engine makes at run time
+   without the builder keeps whatever list it was given, and one with a
+   target would never be asked for it. Under (a) the card writes
+   `spell_ability("Lightning Bolt deals 3 damage to any target.",
+   deal_damage(any_target(), 3))`. The list is computed from the effect as
+   the ability is built, and nothing outside `objects::card_data` can write
+   it, so nothing can write it wrong.
 
    - (a) **Both lists private to `objects::card_data`**, read through
      `instances()` and `spell_instances()`. `AbilityDef::new(kind, text,
@@ -415,6 +435,13 @@ PR 5's are the tests.
 
    **3b. The row id.**
 
+   It is assigned as it is added: `DurationRegistry::add` stamps it. The
+   placeholder exists only because `id` is a field of the row the caller
+   builds, and Rust makes a caller write every field, so it writes `0` for
+   `add` to overwrite. Assigning it only as the row is added means the value
+   the caller builds has no `id` at all. (a) and (b) do that; (c) only names
+   the placeholder.
+
    - (a) **`ContinuousEffectDraft`, as item 7d planned**: the row's fields
      less `id`, consumed by `add`, which builds the row. *Code*: a second
      struct of nine fields and its conversion; the 35 literals and 6
@@ -441,18 +468,26 @@ PR 5's are the tests.
      named and checked, and one spelling covers all three stores; a row id
      can no longer be mistaken for a count.
 
-   **Recommended: (c).** Item 7d's draft fixes one registry of three by a
-   second copy of its fields, and (b) gives rows a shape objects and
-   abilities do not have. Rows that a caller never sets an id on are the
-   case for (b); the engine's two other stores, which answer the same
-   question with `UNASSIGNED`, are the case for (c).
+   **Recommended: (b)**, revised at #301's first review round, where the
+   owner asked why a row carries an unassigned id at all: it need not.
+   The caller builds a row with no id, and the registry pairs it with one as
+   it adds it, in all three registries. The two row types take names that
+   say what they are before they are registered (`ReplacementEffectRow`,
+   `RestrictionRow`), and `ContinuousEffect` keeps its own. Item 7d's draft
+   does the same for one registry of three, by a second copy of its fields.
+   An ability's id stays `AbilityId::UNASSIGNED` until `build`, since tests
+   set real ones and the card words write the default, so no card file
+   names it. An object's stays `ObjectId::UNASSIGNED` until `add_object`,
+   the same shape as a row's today. Changing that is not this cleanup's:
+   an object's id is read at hundreds of sites.
 
 4. **The per-set layout, the fixtures, and how a test names a card.**
 
    | What the layout must hold | Count | Example | Holds today |
    |---|---:|---|---|
    | Printings, filed by their first paper set that is no promo, memorabilia or box set | 214 in 91 sets, 50 of them holding one card | Limited Edition Alpha (`lea`): 38 | 58 files named for engine phases or card types |
-   | A set whose Scryfall code no file or module can be named | 15 codes begin with a digit, and Conflux's `con` is a reserved file name on Windows, of Scryfall's 1,004 paper sets; no code is a Rust keyword. In the tree, Fifth Dawn (`5dn`) alone, with 5 cards | `5dn`, Tenth Edition's `10e`, `con` | — |
+   | A set whose Scryfall code cannot name a Rust module | 15 of Scryfall's 1,004 paper sets begin with a digit; no code is a Rust keyword. In the tree, Fifth Dawn (`5dn`) alone, with 5 cards | `5dn`, Tenth Edition's `10e` | — |
+   | A set whose code cannot name a file everywhere | Conflux's `con`, which Windows reserves | — | — |
    | A registered token, dealt as a land card | 1 | Everywhere, first printed among Duskmourn's tokens (`tdsk`) | `dual_lands` |
    | A token definition a printed card's effect makes (CR 111.3: its text is the effect's) | 6, three of them made by cards in two sets | the Saproling (Verdant Force, Bramble Elemental) | beside one of its makers |
    | A registered fixture | 1 | Loyalty Probe, for CR 704.5i | `phase_rd_cards` |
@@ -480,16 +515,26 @@ PR 5's are the tests.
 
    **What builds as item 10 planned, each with its one rule:**
 
-   - **A set** is one file under `cards/sets/`, named by its Scryfall code,
-     which is what the import pipeline will emit. A code that cannot name a
-     file and a module on every platform (a leading digit, or a name
-     Windows reserves) takes the prefix `set_`: `set_5dn.rs`.
+   - **A set** is one file in a folder for its release year, named by its
+     release month and day and its Scryfall code (the owner, at #301's first
+     review round): Alpha is `cards/sets/1993/08_05_lea.rs`. A folder lists
+     its sets in the order they came out, the order in which new abilities
+     built on old ones. A file's name need not be a Rust identifier, so
+     `sets/mod.rs` declares each set by its code, in release order,
+     `#[path = "1993/08_05_lea.rs"] pub mod lea;`, and the registry and
+     `printings` name a set by its code. A code that cannot name a module
+     takes the prefix `set_` in the module name only (`set_5dn`); Conflux's
+     `con` is no file name problem once the file begins with its date. Two
+     sets released the same day sort by code (Tarkir: Dragonstorm's `tdm`
+     and its Commander decks' `tdc`). The date is Scryfall's `released_at`
+     for the set, which PR 3's `classify_cards.py --list` prints beside each
+     code.
    - **A fixture** is filed in `cards::fixtures` by the architecture doc
      whose path it exists to test, and one no doc owns by the CR subject it
      exists for. By destination: `layers` 19 (the layer phases' files),
      `cost` 7, `triggers` 9 (history records and state triggers),
-     `replacement` 3, and `state_based_actions` 1 (Loyalty Probe); the 8
-     misnamed functions go where PR 3's reading sends them, below.
+     `replacement` 3, and `state_based_actions` 1 (Loyalty Probe), with the
+     8 misnamed functions among them until PR 4 settles each (decision 6).
    - **A token definition** is filed in `cards::tokens`, named by what it
      makes, since a token's text is its maker's effect (CR 111.3) and
      makers come from several sets. A registered token, which is dealt as a
@@ -499,10 +544,8 @@ PR 5's are the tests.
    - **The phase files' module docs** do not move: what one says about a
      card goes to that card's doc comment, and the rest is the engine
      phase's history, which the architecture docs hold.
-   - **The 8 functions under printed names** are read against their cards
-     in PR 3 and filed once: one that differs takes an invented name in
-     `cards::fixtures`, one that matches is a printing in its set. Neither
-     is dealt, so neither changes a game.
+   - **The 8 functions under printed names** move into `cards::fixtures`
+     as they are, and PR 4 settles each (decision 6).
 
    The genuine choice is **how a test or the dev GUI names a card**:
 
@@ -519,8 +562,8 @@ PR 5's are the tests.
      function name would be an ambiguity error where the name is used,
      which is the error wanted.
 
-   **Recommended: (b).** Filing serves change (item 10), and a test is not
-   where a set changes.
+   **Settled: (b)** (the owner, at #301's first review round, 2026-10-31),
+   with the sets filed by year and release date as above.
 
 5. **The decklist: its format, and what reads it first.**
 
@@ -589,10 +632,24 @@ PR 5's are the tests.
      card but basic lands, CR 903.5a–b), and prints the names the registry
      lacks, which step 13's census starts from.
 
-   **Recommended: format (a), reader (b).** The route's decision holds, and a
-   list whose shape is checked from the day it lands is one the census can
-   trust; the two spellings of the commander are the cost of pasting 500
-   lines from their source rather than rewriting them.
+   **Settled: format (a), reader (b)** (the owner, at #301's first review
+   round, 2026-10-31).
+
+   **Which formats may name a commander, and the variants after v0.5**
+   (asked in the same round). The parser reads sections and judges none;
+   whether a section is legal is the format's, and `game-formats`, the row
+   that makes formats data, validates a `Decklist` against its format as
+   it builds `DeckLimits`' check ("Before Commander" item 2, main item 32).
+   A `Commander` section is legal only in a format whose rules designate a
+   commander, which the CR gives as Commander (903), its Brawl option
+   (903.12, of which Standard Brawl is a format, not a CR rule) and
+   Commander Draft (903.13); every other format refuses one, with its line.
+   The other variants keep objects outside the deck that a decklist would
+   list: a planar deck (Planechase, CR 901), a vanguard card (902), a scheme
+   deck (Archenemy, 904), conspiracies (905), an Attraction deck (717). The
+   parser refuses a header it does not know. So each variant's section
+   arrives with that variant's own format design, Vanguard's after v1 among
+   them, and this PR builds only v0.5's four.
 
 6. **Items 204 and 207: commits in the move's PR, or a PR of their own.**
 
@@ -605,14 +662,30 @@ PR 5's are the tests.
 
    **Item 204 is a family, not two cards.** Decision 4's census found 8
    unregistered card functions under 8 printed cards' names: the four
-   `*_spell` stand-ins (Liquimetal Torque, Ensoul
-   Artifact, Call to Serve, On Serra's Wings), Underground Sea, Inside Out,
-   Bull Rush and Zhalfirin Shapecraft. `engineering-practices.md#cards-and-pools`
-   forbids a fixture that wears a real name while behaving differently.
-   PR 3 reads and files each once (decision 4), and none changes a game.
-   One that matches its card is then a printing the cards-and-pools rule
-   registers once the engine can play it, with its rulings read; that is a
-   pool change, so it goes with the two fixes below.
+   `*_spell` stand-ins (Liquimetal Torque, Ensoul Artifact, Call to Serve,
+   On Serra's Wings), Underground Sea, Inside Out, Bull Rush and Zhalfirin
+   Shapecraft. `engineering-practices.md#cards-and-pools` forbids a fixture
+   that wears a real name while behaving differently.
+
+   **What each of the ten becomes** (the owner, at #301's first review
+   round): most were bootstrap cards, written before fixtures were a
+   practice. One the engine can express now is written whole, as its card,
+   with its rulings read, and registered, since writing a card and
+   registering it are one act. One it cannot express keeps its narrow shape
+   as a fixture: its function takes the suffix `_fixture`, and its card name
+   the same word (`cerulean_wisps_fixture`, "Cerulean Wisps Fixture"), so
+   neither reads as the printed card. The four `*_spell` stand-ins are
+   fixtures by purpose whatever the engine can do, since each gives a test
+   a spell with a permanent's effect (`liquimetal_coating_spell`'s doc:
+   "Modeled as an instant spell for testing"), and take the suffix.
+
+   **How that bears on the choice below**: it settles what each fix is, not
+   where it lands. Every one of the ten either moves a pool's stream (the
+   two pooled ones, renamed or rewritten, and any card registered) or moves
+   nothing (an unregistered one renamed), so they go together with item
+   207. PR 3 moves the 8 into `cards::fixtures` as they are, which keeps it
+   a pure move; one written whole moves again, into its set, in the fixes'
+   commits.
 
    **What is recorded**: item 207's Slotted line says "as its own commit
    after the move" (the owner, 2026-10-02), which is (a); item 204's, "with
@@ -624,7 +697,7 @@ PR 5's are the tests.
      *Upkeep*: one PR whose identical-or-not answer depends on which commit
      is asked.
    - (b) **One PR of their own, right after the move**, ~150 lines with the
-     tests, more for each printing registered. *Close-out*: PR 3's two arms
+     tests, more for each card written whole. *Close-out*: PR 3's two arms
      read identical, and PR 4 re-records once for everything that moves a
      stream. Its edits land in the files they stay in: 204's fixtures are
      born in `cards::fixtures`, and the fourteen are edited in their set
