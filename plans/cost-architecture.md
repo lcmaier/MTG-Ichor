@@ -693,7 +693,7 @@ about it.
 CR 602.2b applies 601.2f–h to activated abilities, so Training Grounds and
 Heartstone are `CostSubject::ActivatedAbilities(ObjectFilter)` — a second
 subject with a second call site (`put_on_stack.rs::activate_ability` pays
-`ability.costs` directly and does not pass through `assemble_total_cost`).
+`ability.costs()` directly and does not pass through `assemble_total_cost`).
 **This is where the one-mana floor lives**: every one of the eight cards that
 print "this effect can't reduce the mana in that cost to less than one mana"
 — Agatha of the Vile Cauldron, Biomancer's Familiar, Convergence of Dominion,

@@ -132,15 +132,20 @@ From the census's rules pass (`cast-census.md` §2):
   the prohibiting source, beside it.
 - **Who may activate, per ability** (602.2): its controller, any player, or
   only an opponent. A field on `Activation`, the cost and restriction both
-  activated kinds carry since `card-layer-cleanup` (CR 602.1; a mana ability
-  is an activated ability, CR 605.1a), read by `can_begin_to_activate` with
-  the player. The enumeration walks every permanent the player could
+  activated kinds carry (CR 602.1; a mana ability is an activated ability,
+  CR 605.1a), read by `can_begin_to_activate` with the player. The enumeration walks every permanent the player could
   activate an ability of, not only theirs (`codebase-state.md` "Before card
   breadth" item 2, graduated here).
 - **When, beyond priority** (602.5): once or twice each turn, during a step
   or a turn, if a condition holds (`Condition` exists), once. They grow
-  `Activation`'s one `restriction` into the list 57 printed abilities need
-  (Akul the Unrepentant's two). 602.5b keeps a
+  `Activation`'s one `restriction` into the list two restrictions on one
+  ability need (Akul the Unrepentant; 57 cards by `o:/activate only [^\n]*
+  and only/`, `game:paper -is:funny`, 2026-10-31). A mana ability carries a
+  restriction too (Mox Opal, the Verge lands: 60 cards by
+  `o:/: add [^\n]*activate only/`, the same day), and nothing reads one
+  today: `can_begin_to_activate` refuses a mana ability before it asks, and
+  the mana window asks nothing, so the mana window's check (CR 602.5 through
+  605.3a) is this design's to add. 602.5b keeps a
   limit across a change of control, and 602.5c keeps an acquired ability's
   limit to that instance. 606.3's loyalty limit is per permanent and counts
   every player's activations.

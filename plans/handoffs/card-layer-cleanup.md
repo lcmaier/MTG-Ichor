@@ -220,7 +220,10 @@ PR 5's are the tests.
      type with its seven durations and five continuations, ~550 lines with
      their doc lines, and ~80 for the ability words, in
      `cards/authoring/abilities.rs`, `instructions.rs` and `recipients.rs`.
-     *Performance*: none; a card is built once, and built equal. *Upkeep*: a
+     *Performance*: a card is built once, and built equal; but an ability
+     the engine makes in the layer walk is built on every pass, and PR 1
+     measured what that and decision 2's larger kind cost: +1.28%
+     instructions a decision (`fuzz-record.md`), inside the budget. *Upkeep*: a
      card adds a word only when it prints a new verb or a new recipient, and
      a new recipient works with every verb at once. The parser's table is
      two tables, phrase to verb and phrase to recipient, which is how Oracle
@@ -268,7 +271,8 @@ PR 5's are the tests.
    - The engine never calls the card words. It builds the abilities it makes
      through `AbilityDef`'s own constructor (decision 3), and CR 305.6's
      ability is `AbilityDef::tap_for(mana)` in `objects::card_data`, beside
-     `tap_to_add_text`, which `authoring` re-exports. So a printed basic
+     `tap_to_add_text`, which a card file reaches through
+     `CardDataBuilder::mana_ability_single`, its one spelling. So a printed basic
      land's ability and the one its land type gives stay one ability, as
      `tap_to_add_text`'s doc asks, and no engine module depends on `cards`.
    - Tests build an ability through `AbilityDef::new` or a card word; under
@@ -343,9 +347,11 @@ PR 5's are the tests.
    - (b) **`AbilityType::Activated(Activation)` and `Mana(Activation)`, with
      `Activation { costs, restriction }`**: CR 602.1's activation as one
      value, holding today's costs and one restriction. *Code*: (a)'s reads,
-     and the 20 reads of `.costs` (in 10 files) read `ability.activation()`,
-     an `Option<&Activation>`; `AbilityType` stops being `Copy`, so a read
-     that copies it out borrows instead. *Upkeep*: an ability that is not
+     and the 20 reads of `.costs` (in 10 files) read `ability.costs()`, which
+     answers no cost for a kind that has none to pay (CR 602.1a), or bind
+     the `Activation` where they have matched the kind already;
+     `AbilityType` stops being `Copy`, so a read that copies it out borrows
+     instead. *Upkeep*: an ability that is not
      activated cannot hold a cost or a restriction, and `permission-design`
      grows one value: a list of restrictions for the 57, and who may
      activate in place of the field its §3 plans on `AbilityDef`.
@@ -422,8 +428,9 @@ PR 5's are the tests.
      readers; every `AbilityDef` literal outside `card_data.rs` must go,
      121 card, 24 engine and 67 test, and the compiler lists each one, so
      the migration is checked, not judged; three struct-update sites
-     (`..spell(..)`) become calls, and the two `CardData` literals go
-     through the builder. *Upkeep*: no def is built with a wrong list, and
+     (`..spell(..)`) become calls, and the two `CardData` struct updates
+     clone the card and assign the field they change. *Upkeep*: no def is
+     built with a wrong list, and
      no literal can write a stamped field again.
    - (b) **Both stay public**, the words writing the defaults. *Code*: the
      card literals only. *Upkeep*: engine and test literals stay legal, and
@@ -562,7 +569,7 @@ PR 5's are the tests.
    | A registered fixture | 1 | Loyalty Probe, for CR 704.5i | `phase_rd_cards` |
    | An unregistered card function | 51, 8 of them under printed cards' names | `flight_clause`; `dual_land_ub` named Underground Sea | 11 phase files |
    | …of which the fixtures pool deals | 5 | `fixture_curtain` | `phase_history_and_frame_records_cards::CASTABLE` |
-   | A keyword's ability word (CR 702.6a) | 1 | `equip`, which three equipment call | `phase_lh_cards`; moves to `authoring` beside `persist` |
+   | A keyword's ability word (CR 702.6a) | 1 | `equip`, which three equipment call | `phase_lh_cards`; moved to `authoring/abilities.rs`, where an activated keyword's word sits; `persist` and `undying`, CR 603's, stay in `triggers.rs` |
 
    `classify_cards.py --first-printings --list`; the sets by
    `api.scryfall.com/sets`, less the digital ones; the names by
@@ -815,10 +822,10 @@ PR 5's are the tests.
   entries sorted, since `CardData`'s sets iterate in a per-process order.
   It compares them with a file written at the base
   (`UPDATE_CARD_FINGERPRINTS=1` rewrites it), and a mismatch names the
-  card. **The file never changes through PRs 1–3.** PR 1's first commit
-  replaces `AbilityDef`'s derived `Debug` with one written against
-  accessors (its kind's name, `costs()`, `restriction()`, its text, effect,
-  flag, id and instances), printing what the derive prints today.
+  card. **The file never changes through PRs 1–3.** A commit before the
+  reshape replaces `AbilityDef`'s derived `Debug` with one written against
+  accessors (its kind's name, `costs()`, the restriction, its text,
+  effect, flag, id and instances), printing what the derive prints today.
   Decisions 2 and 3 then change the fields behind the accessors, not that
   output, so the commit that reshapes the types is checked against the
   base like every other. The derive comes back when the file goes. A

@@ -4770,7 +4770,10 @@ damage is divided only among the attackers it blocks.
     mana, beside `authoring::triggered_ability`), with builder methods for the
     two rare fields, and the migration takes every literal in the card files:
     116 on 2026-09-28, against the 31 static ones counted above. And
-    `activation_restriction` moves into `AbilityType::Activated`, the one kind
+    `activation_restriction` moves into `AbilityType::Activated` (superseded
+    at `card-layer-cleanup`'s design: an `Activation`, its costs and its
+    restriction, on both activated kinds, since a mana ability prints
+    restrictions too), the one kind
     it means anything for. Today 145 literals write
     `ActivationRestriction::None`, 2 printed cards use anything else, and 19
     reads compare `AbilityType::Activated`. Inside `card-layer-cleanup` the edits come before
