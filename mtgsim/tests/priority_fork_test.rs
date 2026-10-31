@@ -47,7 +47,8 @@
 //! **The log is half of the replay; the state the branch ends in is the
 //! other.** A part of the state forked wrong shows in the log only once it
 //! changes an event before the turn cap, so each branch's end state is
-//! compared with the original's too, part by part ([`outcome_parts`]).
+//! compared with the original's too, whole but for what a replay may differ
+//! in (`test_support::replay_outcome`).
 
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -57,6 +58,7 @@ use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, PhaseType, StepType};
+use mtgsim::test_support::replay_outcome;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -347,26 +349,34 @@ fn play_out(game: &mut Game, dp: &dyn DecisionProvider) {
 // The assertion
 // ---------------------------------------------------------------------------
 
-/// The game a branch must end in, part by part: what the triggers work added
-/// (the history, the delayed triggers, the returns, the last known
-/// information), the stores a fork shares with the game it came from, and the
-/// state's own random stream. Rendered with `Debug`, so a field a part gains is
-/// compared with it. Two things are left out because a replay may differ in
-/// them: the diagnostics count the work, and a resumed branch asks the layer
-/// memo again; and the event recorder's handle names its branch.
-fn outcome_parts(state: &GameState) -> [(&'static str, String); 10] {
-    [
-        ("the history", format!("{:?}", state.history)),
-        ("the delayed triggers", format!("{:?}", state.delayed_triggers)),
-        ("the returns", format!("{:?}", state.until_returns)),
-        ("the last known information", format!("{:?}", state.lki_store)),
-        ("the objects", format!("{:?}", state.objects)),
-        ("the battlefield", format!("{:?}", state.battlefield)),
-        ("the stack", format!("{:?}", state.stack)),
-        ("the stack's entries", format!("{:?}", state.stack_entries)),
-        ("the waiting triggers", format!("{:?}", state.pending_triggers)),
-        ("the random stream", format!("{:?}", state.rng)),
-    ]
+/// The field of the state's `Debug` rendering that holds byte `at`: where a
+/// branch's end state first differs, named for the message. A field is read at
+/// the struct's own depth, after its `{ ` or `, `; a string is skipped whole.
+fn field_at(rendered: &str, at: usize) -> String {
+    let bytes = rendered.as_bytes();
+    let (mut depth, mut field, mut i) = (0usize, String::from("the state"), 0usize);
+    while i < at.min(bytes.len()) {
+        match bytes[i] {
+            b'"' => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != b'"' {
+                    i += if bytes[i] == b'\\' { 2 } else { 1 };
+                }
+            }
+            b'{' | b'[' | b'(' => depth += 1,
+            b'}' | b']' | b')' => depth = depth.saturating_sub(1),
+            b' ' if depth == 1 && i > 0 && matches!(bytes[i - 1], b',' | b'{') => {
+                let name: String =
+                    rendered[i + 1..].chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
+                if rendered[i + 1 + name.len()..].starts_with(':') {
+                    field = name;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    field
 }
 
 /// How one seeded game's forks came out.
@@ -402,7 +412,7 @@ fn fork_every_round_start(board: &Board, seed: u64) -> Run {
         board.name,
         original.len()
     );
-    let original_parts = outcome_parts(&game.state);
+    let original_outcome = replay_outcome(&game.state);
 
     let forks = recorder.forks.into_inner();
     assert!(
@@ -428,15 +438,19 @@ fn fork_every_round_start(board: &Board, seed: u64) -> Run {
 
         let replayed = branch.event_log_snapshot();
         if replayed == original {
-            let ended_apart = original_parts
-                .iter()
-                .zip(outcome_parts(&branch.state))
-                .find(|((_, original), (_, branch))| original != branch);
-            if let Some(((part, _), _)) = ended_apart {
+            let outcome = replay_outcome(&branch.state);
+            if outcome != original_outcome {
+                let at = outcome
+                    .bytes()
+                    .zip(original_outcome.bytes())
+                    .position(|(a, b)| a != b)
+                    .unwrap_or_else(|| outcome.len().min(original_outcome.len()));
                 run.diverged.push(format!(
                     "{} seed {seed}: the branch forked at prompt {} logged the original's \
-                     events and ended with {part} different",
-                    board.name, fork.prompt,
+                     events and ended with `{}` different",
+                    board.name,
+                    fork.prompt,
+                    field_at(&original_outcome, at),
                 ));
             }
             continue;

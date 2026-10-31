@@ -2137,11 +2137,11 @@ section never asked.
 
     **Extended 2026-10-30 over item 6's state (the item 6 audit's readiness,
     PR #300, `3ad11939`).** A branch's log can match while its state does not,
-    so each branch's end state is now compared with the original's part by
-    part: the histories, the delayed triggers, the waiting returns, the LKI
-    store, the objects, the battlefield, the stack and its entries, the
-    pending triggers and the random stream. Not the diagnostics, which a
-    resumed branch reads differently, nor the recorder's branch number. A
+    so each branch's end state is now compared with the original's whole
+    (`test_support::replay_outcome`): every field but the ones a faithful
+    replay may differ in that are no part of the game, the diagnostics, the
+    layer memo a resumed branch fills again, and the instruments' handles,
+    the event recorder's naming its branch. A
     fourth gate forks while a delayed trigger or a return waits, which none of
     the three boards ever did (seed 38 on `stress` at four seats, seed 52 on
     `performance` at two). Broken on purpose two ways (a draw from the state's

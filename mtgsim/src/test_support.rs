@@ -1007,6 +1007,24 @@ pub fn put_in_command_zone(game: &mut GameState, card_data: Arc<CardData>, playe
         .expect("create_in_zone refuses only the battlefield")
 }
 
+/// A state's whole outcome as `Debug` renders it, for a fork's replay check:
+/// every field, less the ones a faithful replay may differ in that are no part
+/// of the game. Those are the diagnostics, which count the work; the layer
+/// memo, which a resumed branch fills again; and the instruments' handles, the
+/// event recorder's naming its branch, the trace, the dispatch audit and the
+/// decision log. Blanked on a clone, so a field the state gains is compared
+/// with no edit here.
+pub fn replay_outcome(state: &GameState) -> String {
+    let mut outcome = state.clone();
+    outcome.diagnostics = crate::state::diagnostics::Diagnostics::default();
+    outcome.layer_memo = crate::state::layer_memo::LayerMemo::default();
+    outcome.events = crate::events::event::EventWindow::new();
+    outcome.trace = None;
+    outcome.dispatch_audit = None;
+    outcome.decision_log = crate::state::decision_log::DecisionLogHandle::NONE;
+    format!("{outcome:?}")
+}
+
 /// `id` becomes a permanent under `controller` with `mods`, by fiat: the
 /// entry's performer with no proposal before it, so no replacement effect
 /// sees it, announced as caused by the harness (`EventCause::Harness`). What
