@@ -116,7 +116,7 @@ instructions a decision down 10–14%.
 | `Memo hits`, performance / stress | 55,487 → 53,971 / 57,393 → 55,347 | 156,585 → 152,712 / 183,387 → 176,816 |
 | `Layer frames`, performance / stress | 4,335 → 4,199 / 4,364 → 4,228 | 13,001 → 12,579 / 14,921 → 14,485 |
 | audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
-| instructions / decision, callgrind, the budget's board | | 0.7516 M → 0.6392 M, **−14.95%** |
+| instructions / decision, callgrind, the budget's board | | 0.7516 M → 0.6392 M, **−14.95%**; at the final head after the pre-review's fixes (`316976f9`), 0.7514 M → 0.6370 M, **−15.23%**, every row above identical |
 | moved, inclusive: `gather_sweeping` / `apply_replacements` | | −10.0 / −10.1 points |
 | moved, inclusive: `finish_grow` / `__rust_realloc` | | −8.7 / −8.1 points |
 
