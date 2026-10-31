@@ -27,17 +27,18 @@ use std::sync::Arc;
 use mtgsim::cards::phase_re_cards::{
     eon_hub, meditate, moment_of_silence, time_walk, yawgmoths_bargain,
 };
+use mtgsim::cards::authoring::{at_beginning_of, triggered_ability, whenever, Whose};
 use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData};
+use mtgsim::objects::card_data::{AbilityType, CardData};
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_in_hand, put_on_battlefield, setup_game,
     setup_two_player_game, test_dp,
 };
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
-use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -613,14 +614,13 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
         mtgsim::objects::card_data::CardDataBuilder::new("Draw-Step Trigger Fixture")
             .card_type(mtgsim::types::card_types::CardType::Enchantment)
             .rules_text("At the beginning of your draw step, draw an additional card.")
-            .ability(AbilityDef::new(
-                AbilityType::Triggered,
-                "",
-                Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
+            .ability(triggered_ability(
+                "At the beginning of your draw step, draw an additional card.",
+                whenever(
+                    at_beginning_of(StepType::Draw, Whose::Yours),
+                    Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
                 ),
-            ).with_id(new_ability_id()))
+            ))
             .build()
             .as_ref()
             .clone(),
@@ -638,15 +638,21 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
         (PhaseType::Beginning, Some(StepType::Draw)),
         "a triggered ability replaces nothing: the draw step begins"
     );
-    assert_eq!(
+    let drawn = |game: &GameState| {
         game.recorded_events()
             .records_from(before)
             .iter()
             .filter(|r| matches!(r.event, GameEvent::CardDrawn { .. }))
-            .count(),
-        1,
-        "the turn-based draw happened; the trigger's own draw is item 6's"
-    );
+            .count()
+    };
+    assert_eq!(drawn(&game), 1, "the turn-based draw happened as the step began");
+
+    // And it is a triggered ability: it triggered as the step began (CR
+    // 603.2b), goes on the stack, and draws when it resolves.
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(game.stack.len(), 1, "the trigger is on the stack");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(drawn(&game), 2, "the trigger drew the additional card");
 }
 
 // ---------------------------------------------------------------------------
