@@ -277,7 +277,7 @@ fn gather_sweeping(
         "a permanent holds a replacement counter that `replacement_counter_holders` does not name"
     );
     let permanents = if sweep == Sweep::Everything || unattributed_zones.contains(Zone::Battlefield) {
-        game.battlefield_ids_ordered().into_iter().map(|id| (id, true)).collect()
+        game.battlefield_ids_ordered().into_iter().map(|id| BattlefieldCandidate { id, abilities_could_answer: true }).collect()
     } else {
         battlefield_candidates(game, proposed, &named)
     };
@@ -291,7 +291,7 @@ fn gather_sweeping(
         candidates.extend(entering);
         return candidates;
     }
-    for (id, abilities_could_answer) in permanents {
+    for BattlefieldCandidate { id, abilities_could_answer } in permanents {
         if abilities_could_answer {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             if let Some(chars) = compute_characteristics(game, id) {
@@ -425,20 +425,28 @@ fn gather_sweeping(
     candidates
 }
 
+/// A permanent the battlefield leg asks about a proposal.
+struct BattlefieldCandidate {
+    id: ObjectId,
+    /// Whether its abilities could answer, as well as its counters: a printed
+    /// source filed under the proposal's kind, or a named row's object. A
+    /// holder of a replacement counter and nothing else is asked only for its
+    /// counters.
+    abilities_could_answer: bool,
+}
+
 /// The permanents the battlefield leg asks about a proposal of kind
-/// `proposed`, oldest first (CR 613.7) and each once, with whether its
-/// abilities could answer: a printed source filed under the kind, or a named
-/// row's object, yes; a holder of a replacement counter, only its counters.
+/// `proposed`, oldest first (CR 613.7) and each once.
 ///
 /// Only these can answer. A permanent has a static replacement ability only if
 /// it entered with one (`replacement_ability_sources`, filed by kind) or a row
 /// put one there (a named row here, a `Filter` row's zones walked by the
 /// caller), and a counter makes one only on a holder.
-fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[ObjectId]) -> Vec<(ObjectId, bool)> {
-    let mut asked: Vec<(Timestamp, ObjectId, bool)> = Vec::new();
+fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[ObjectId]) -> Vec<BattlefieldCandidate> {
+    let mut asked: Vec<(Timestamp, BattlefieldCandidate)> = Vec::new();
     let mut ask = |id: ObjectId, abilities_could_answer: bool| {
-        if let Some(entry) = game.battlefield.get(&id) {
-            asked.push((entry.timestamp, id, abilities_could_answer));
+        if let Some(permanent) = game.battlefield.get(&id) {
+            asked.push((permanent.timestamp, BattlefieldCandidate { id, abilities_could_answer }));
         }
     };
     // ORDER-FREE: sorted by timestamp below.
@@ -456,16 +464,16 @@ fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[O
     }
     // Every arrival is stamped from one counter (CR 613.7d), so a permanent's
     // key is its own and a duplicate sorts beside its twin.
-    asked.sort_unstable_by_key(|&(timestamp, _, _)| timestamp);
-    asked.dedup_by(|later, kept| {
-        let twin = later.1 == kept.1;
+    asked.sort_unstable_by_key(|(timestamp, _)| *timestamp);
+    asked.dedup_by(|(_, later), (_, kept)| {
+        let twin = later.id == kept.id;
         if twin {
-            kept.2 |= later.2;
+            kept.abilities_could_answer |= later.abilities_could_answer;
         }
         twin
     });
     debug_assert!(asked.windows(2).all(|pair| pair[0].0 < pair[1].0), "two permanents share a CR 613.7 timestamp");
-    asked.into_iter().map(|(_, id, abilities_could_answer)| (id, abilities_could_answer)).collect()
+    asked.into_iter().map(|(_, candidate)| candidate).collect()
 }
 
 /// The objects that have a replacement ability only because a grant or copy
@@ -1033,7 +1041,10 @@ fn counter_replacements(
     let Some(entry) = game.battlefield.get(&id) else {
         return Vec::new();
     };
-    if entry.counters.is_empty() {
+    // The index's own test, so a kind `makes_a_replacement` leaves out is dead
+    // here as well as unindexed: the card's own test fails, and no gate skips
+    // what this would build.
+    if !entry.holds_a_replacement_counter() {
         return Vec::new();
     }
     let mut out = Vec::new();
