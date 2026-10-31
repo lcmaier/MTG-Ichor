@@ -16,13 +16,13 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::equip;
 use crate::objects::card_data::{ActivationRestriction, AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
-    SelectionFilter, TargetCount,
+    AmountExpr, Duration, Effect, EffectRecipient, Primitive, SelectionFilter,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -91,45 +91,6 @@ pub fn holy_strength() -> Arc<CardData> {
             ),
         })
         .build()
-}
-
-/// "Equip [cost]" — CR 702.6a's activated ability, spelled out: "[Cost]:
-/// Attach this permanent to target creature you control. Activate only as a
-/// sorcery."
-///
-/// `costs` is the whole `[Cost]`, not a generic count: Improvised Arsenal's
-/// equip is `{R}`, Vorpal Sword's `{B}{B}`, 33 printed Equipment mix generic
-/// and colored pips, and the "Equip—[cost]" form is any cost at all — Dark
-/// Knight's Greatsword's "Equip—Pay 3 life" (whose "Activate only once each
-/// turn" is CR 602.5a, `backlog.md` §2.8). Phyrexian and hybrid pips
-/// (Lashwrithe) are §2.18's.
-///
-/// The recipient carries the whole of "creature you control", so CR 608.2b's
-/// re-check at resolution is what CR 301.5b means by "control of the creature
-/// matters ... when it resolves": a creature stolen in response is an illegal
-/// target and the Equipment doesn't move (CR 701.3b). An equip quality
-/// (CR 702.6c, "Equip Knight {1}") is one more conjunct in that filter, not
-/// a new shape; no registered card has one yet.
-pub fn equip(rules_text: &'static str, costs: Vec<Cost>) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::OnlyAsSorcery,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs,
-        effect: Effect::Atom(
-            Primitive::Attach,
-            EffectRecipient::Target(
-                SelectionFilter::Permanent(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                )),
-                TargetCount::Exactly(1),
-            ),
-        ),
-    }
 }
 
 /// Bonesplitter — {1}

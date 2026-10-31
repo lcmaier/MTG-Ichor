@@ -45,10 +45,8 @@
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::objects::card_data::{AbilityDef, AbilityType};
+use crate::objects::card_data::AbilityDef;
 use crate::types::card_types::{CardType, LandType, Subtype, Subtypes};
-use crate::types::costs::Cost;
-use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ManaOutput, Primitive};
 use crate::types::ids::{AbilityId, ObjectId, SynthesizedAbility};
 use crate::types::mana::ManaType;
 
@@ -102,22 +100,7 @@ pub(crate) fn intrinsic_mana_ability(
     land_type: LandType,
 ) -> Option<AbilityDef> {
     let mana_type = intrinsic_mana_type(land_type)?;
-    Some(AbilityDef {
-        rules_text: crate::objects::card_data::tap_to_add_text(mana_type).into(),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: intrinsic_ability_id(object_id, land_type),
-        instances: Vec::new(),
-        ability_type: AbilityType::Mana,
-        costs: vec![Cost::TapSelf],
-        effect: Effect::Atom(
-            Primitive::ProduceMana(ManaOutput {
-                mana: vec![(mana_type, AmountExpr::Fixed(1))],
-                special: vec![],
-            }),
-            EffectRecipient::Implicit,
-        ),
-    })
+    Some(AbilityDef::tap_for(mana_type).with_id(intrinsic_ability_id(object_id, land_type)))
 }
 
 /// The basic land types in `subtypes`, in the order the effect lists them: the
@@ -195,6 +178,9 @@ pub(crate) fn apply_add_subtype(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::objects::card_data::AbilityType;
+    use crate::types::costs::Cost;
+    use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ManaOutput, Primitive};
     use crate::types::ids::new_object_id;
     use std::collections::HashSet;
 

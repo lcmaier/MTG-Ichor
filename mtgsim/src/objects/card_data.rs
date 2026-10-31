@@ -172,6 +172,57 @@ pub struct AbilityDef {
     pub is_characteristic_defining: bool,
 }
 
+impl AbilityDef {
+    /// An ability of `ability_type` whose words are `rules_text` (CR 113.2c)
+    /// and whose effect is `effect`, with no cost, no restriction, and not
+    /// characteristic-defining: what `cards::authoring`'s ability words
+    /// build, and what the engine builds an ability it makes with. Its id is
+    /// [`AbilityId::UNASSIGNED`] until `CardDataBuilder::build` stamps it or
+    /// [`Self::with_id`] sets it.
+    pub fn new(ability_type: AbilityType, rules_text: impl Into<AbilityText>, effect: Effect) -> AbilityDef {
+        AbilityDef {
+            id: AbilityId::UNASSIGNED,
+            rules_text: rules_text.into(),
+            ability_type,
+            costs: Vec::new(),
+            effect,
+            instances: Vec::new(),
+            activation_restriction: ActivationRestriction::None,
+            is_characteristic_defining: false,
+        }
+    }
+
+    /// CR 305.6's "{T}: Add [mana symbol].", the ability a basic land type
+    /// gives and a printed card's with the same words: one function, so the
+    /// two stay one ability (`tap_to_add_text`).
+    pub fn tap_for(mana_type: ManaType) -> AbilityDef {
+        let produce = Primitive::ProduceMana(ManaOutput { mana: vec![(mana_type, AmountExpr::Fixed(1))], special: vec![] });
+        let mut ability = AbilityDef::new(AbilityType::Mana, tap_to_add_text(mana_type), Effect::Atom(produce, EffectRecipient::Implicit));
+        ability.costs = vec![Cost::TapSelf];
+        ability
+    }
+
+    /// This ability, with `id` in place of the one the builder would stamp:
+    /// a test that reads its ability back by id, or an ability the engine
+    /// derives an id for.
+    pub fn with_id(mut self, id: AbilityId) -> AbilityDef {
+        self.id = id;
+        self
+    }
+
+    /// This ability, as one that defines a characteristic (CR 604.3).
+    pub fn characteristic_defining(mut self) -> AbilityDef {
+        self.is_characteristic_defining = true;
+        self
+    }
+
+    /// This ability, activated only as a sorcery (CR 602.5d).
+    pub fn only_as_sorcery(mut self) -> AbilityDef {
+        self.activation_restriction = ActivationRestriction::OnlyAsSorcery;
+        self
+    }
+}
+
 /// An ability's words, and which paragraph of its card's rules text they are.
 /// A card file writes the words (`"Flying".into()`); `CardDataBuilder::build`
 /// finds the paragraph. Words alone cannot say whether two abilities are one
@@ -336,22 +387,7 @@ impl CardDataBuilder {
     /// Shorthand: add a mana ability that taps to produce one mana of the given type.
     /// This is the standard basic land ability.
     pub fn mana_ability_single(mut self, mana_type: ManaType) -> Self {
-        Arc::make_mut(&mut self.data.abilities).push(AbilityDef {
-            rules_text: tap_to_add_text(mana_type).into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Mana,
-            costs: vec![Cost::TapSelf],
-            effect: Effect::Atom(
-                Primitive::ProduceMana(ManaOutput {
-                    mana: vec![(mana_type, AmountExpr::Fixed(1))],
-                    special: vec![],
-                }),
-                EffectRecipient::Implicit,
-            ),
-        });
+        Arc::make_mut(&mut self.data.abilities).push(AbilityDef::tap_for(mana_type));
         self
     }
 

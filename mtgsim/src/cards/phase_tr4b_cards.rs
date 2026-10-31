@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{becomes_attached, becomes_unattached, triggered_ability, whenever};
-use crate::cards::phase_lh_cards::equip;
+use crate::cards::authoring::equip;
 use crate::cards::phase_tr1_cards::saproling_token;
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, CreatureType, EnchantmentType, Subtype};

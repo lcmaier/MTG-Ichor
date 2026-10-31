@@ -10,14 +10,14 @@
 //! Some(Discarded)`) already does, and reads correctly, because its fields
 //! are `Some`. → `triggers-architecture.md` §15 item 14.
 
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
+use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::state::game_state::StepType;
 use crate::types::effects::{
     Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, TokenDef,
 };
 use crate::types::history::CountIs;
 use crate::types::replacement::EntryCounters;
-use crate::types::ids::AbilityId;
+
 use crate::types::card_types::CardType;
 use crate::types::triggers::{
     AttackOccurrence, BlockOccurrence, ObjectOrPlayerSubject, DamageRecipient, TargetedBy, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
@@ -25,7 +25,6 @@ use crate::types::triggers::{
 };
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 
-/// A triggered ability: no cost, the def as its effect.
 /// `ability`, functioning only in `zones` (CR 113.6b): Bridge from Below's
 /// "if this card is in your graveyard", printed as its intervening "if", which
 /// the dispatch and the resolution ask beside the def's own (CR 603.4).
@@ -34,17 +33,9 @@ pub fn functioning_in(zones: ZoneSet, mut ability: AbilityDef) -> AbilityDef {
     ability
 }
 
+/// A triggered ability: no cost, the def as its effect.
 pub fn triggered_ability(rules_text: &'static str, def: TriggerDef) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Triggered,
-        costs: Vec::new(),
-        effect: Effect::Triggered(std::sync::Arc::new(def)),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
+    AbilityDef::new(AbilityType::Triggered, rules_text, Effect::Triggered(std::sync::Arc::new(def)))
 }
 
 /// "Whenever [event], [effect]" with no "if" and no limit. A card with an

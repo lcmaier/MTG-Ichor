@@ -20,7 +20,8 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::{becomes_attached, becomes_unattached, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lh_cards::{bonesplitter, equip, holy_strength};
+use mtgsim::cards::authoring::equip;
+use mtgsim::cards::phase_lh_cards::{bonesplitter, holy_strength};
 use mtgsim::cards::phase_tr4b_cards::{bramble_elemental, grafted_wargear};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
