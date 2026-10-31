@@ -706,36 +706,36 @@ impl EventPattern {
     /// function asks first. Exhaustive, so a new arm names its kinds.
     pub fn action_kinds(&self) -> GameActionKindMask {
         use GameActionKind as Kind;
-        let one = GameActionKindMask::of;
         match self {
-            EventPattern::DealDamage { .. } => one(Kind::DealDamage),
+            EventPattern::DealDamage { .. } => GameActionKindMask::of(Kind::DealDamage),
             // Entering is the zone change onto the battlefield (CR 614.1c), so a
             // pattern whose destination admits it watches an entry too; no entry
             // comes from the battlefield, which is where "leaves the battlefield"
             // starts. A pattern ending in a graveyard is never asked at an entry.
             EventPattern::ZoneChange { change, .. } => {
+                let moves = GameActionKindMask::of(Kind::ZoneChange);
                 let enters = change.to.is_none_or(|to| to == Zone::Battlefield) && change.from != Some(Zone::Battlefield);
-                if enters { one(Kind::ZoneChange).with(Kind::EnterBattlefield) } else { one(Kind::ZoneChange) }
+                if enters { moves.with(Kind::EnterBattlefield) } else { moves }
             }
-            EventPattern::Untap => one(Kind::Untap),
-            EventPattern::Tap => one(Kind::Tap),
-            EventPattern::DrawCards { .. } => one(Kind::DrawCards),
-            EventPattern::DrawCard { .. } => one(Kind::DrawCard),
-            EventPattern::GainLife => one(Kind::GainLife),
-            EventPattern::LoseLife { .. } => one(Kind::LoseLife),
-            EventPattern::EnterBattlefield { .. } => one(Kind::EnterBattlefield),
-            EventPattern::Destroy { .. } => one(Kind::Destroy),
+            EventPattern::Untap => GameActionKindMask::of(Kind::Untap),
+            EventPattern::Tap => GameActionKindMask::of(Kind::Tap),
+            EventPattern::DrawCards { .. } => GameActionKindMask::of(Kind::DrawCards),
+            EventPattern::DrawCard { .. } => GameActionKindMask::of(Kind::DrawCard),
+            EventPattern::GainLife => GameActionKindMask::of(Kind::GainLife),
+            EventPattern::LoseLife { .. } => GameActionKindMask::of(Kind::LoseLife),
+            EventPattern::EnterBattlefield { .. } => GameActionKindMask::of(Kind::EnterBattlefield),
+            EventPattern::Destroy { .. } => GameActionKindMask::of(Kind::Destroy),
             // CR 122.6's second door: counters a permanent enters with are put on it.
-            EventPattern::AddCounters { .. } => one(Kind::AddCounters).with(Kind::EnterBattlefield),
-            EventPattern::RemoveCounters { .. } => one(Kind::RemoveCounters),
-            EventPattern::BeginTurn => one(Kind::BeginTurn),
-            EventPattern::BeginPhase { .. } => one(Kind::BeginPhase),
-            EventPattern::BeginStep { .. } => one(Kind::BeginStep),
-            EventPattern::Scry => one(Kind::Scry),
-            EventPattern::PlayerLoses => one(Kind::PlayerLoses),
-            EventPattern::PlayerWins => one(Kind::PlayerWins),
-            EventPattern::CreateTokens { .. } => one(Kind::CreateTokens),
-            EventPattern::ProduceMana { .. } => one(Kind::ProduceMana),
+            EventPattern::AddCounters { .. } => GameActionKindMask::of(Kind::AddCounters).with(Kind::EnterBattlefield),
+            EventPattern::RemoveCounters { .. } => GameActionKindMask::of(Kind::RemoveCounters),
+            EventPattern::BeginTurn => GameActionKindMask::of(Kind::BeginTurn),
+            EventPattern::BeginPhase { .. } => GameActionKindMask::of(Kind::BeginPhase),
+            EventPattern::BeginStep { .. } => GameActionKindMask::of(Kind::BeginStep),
+            EventPattern::Scry => GameActionKindMask::of(Kind::Scry),
+            EventPattern::PlayerLoses => GameActionKindMask::of(Kind::PlayerLoses),
+            EventPattern::PlayerWins => GameActionKindMask::of(Kind::PlayerWins),
+            EventPattern::CreateTokens { .. } => GameActionKindMask::of(Kind::CreateTokens),
+            EventPattern::ProduceMana { .. } => GameActionKindMask::of(Kind::ProduceMana),
         }
     }
 
