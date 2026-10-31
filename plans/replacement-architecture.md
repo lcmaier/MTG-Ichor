@@ -1591,7 +1591,9 @@ between them.
 Its design note was `plans/handoffs/readiness-close.md`, deleted at the close
 (`git show 7a2c8ae5:plans/handoffs/readiness-close.md`); the census behind it is `plans/references/replacement-kinds-census.py`, which
 puts each Commander-legal card in a family by the clause its replacement
-watches.
+watches. **Its output is the per-family table**, re-derived by running it
+(`--names` lists each family's cards); the facts the decisions rest on are
+below, and `backlog.md` §2.5 holds the families no `GameAction` carries yet.
 
 1. **A kind per `GameAction` variant, and a mask of them**: `GameActionKind`,
    exhaustive over the proposals, and `GameActionKindMask`, built as
