@@ -1,5 +1,11 @@
 # Handoff — `card-layer-cleanup`, the design note
 
+**Resume here: PR 1 of the split, `card-ability-words`, is built on
+`cards/card-layer-cleanup` (#301). Next is PR 2, `card-instruction-words`**:
+decision 1's verbs, recipients and duration suffixes over the 238 card-file
+instructions, and decision 3b, the registry rows' `RowId::UNASSIGNED`, which
+moved here from PR 1 ("The split").
+
 **Opened 2026-10-31** on `cards/card-layer-cleanup`, off `main` at
 `f7fa8a4e` (#300's merge). `card-layer-cleanup` is step 3 of
 `roadmap-v2.md`'s route ("From triggers to v0.5"; its paragraph is under
