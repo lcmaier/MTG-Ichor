@@ -62,7 +62,8 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{activated_ability, static_ability};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
@@ -70,7 +71,6 @@ use crate::types::effects::{
     ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Duration, Effect, EffectRecipient,
     ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
@@ -139,20 +139,14 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
         .subtype(Subtype::Land(LandType::Plains))
         .subtype(Subtype::Land(LandType::Island))
         .rules_text("This land enters tapped.")
-        .ability(AbilityDef {
-            rules_text: "This land enters tapped.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "This land enters tapped.",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
-        })
+        ))
         // CR 305.6 — intrinsic to the land types, modeled as two explicit mana
         // abilities for `dual_lands.rs`'s documented reason.
         .mana_ability_single(ManaType::White)
@@ -206,36 +200,25 @@ pub fn chainbreaker() -> Arc<CardData> {
             "This creature enters with two -1/-1 counters on it.\n\
              {3}, {T}: Remove a -1/-1 counter from target creature.",
         )
-        .ability(AbilityDef {
-            rules_text: "This creature enters with two -1/-1 counters on it.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "This creature enters with two -1/-1 counters on it.",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::MinusOneMinusOne, 2)),
             ))),
-        })
-        .ability(AbilityDef {
-            rules_text: "{3}, {T}: Remove a -1/-1 counter from target creature.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::TapSelf],
-            effect: Effect::Atom(
+        ))
+        .ability(activated_ability(
+            "{3}, {T}: Remove a -1/-1 counter from target creature.",
+            vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::TapSelf],
+            Effect::Atom(
                 Primitive::RemoveCounters(CounterType::MinusOneMinusOne, AmountExpr::Fixed(1)),
                 EffectRecipient::Target(
                     SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)),
                     TargetCount::Exactly(1),
                 ),
             ),
-        })
+        ))
         .build()
 }
 
@@ -280,20 +263,14 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
         .power_toughness(0, 0)
         .keyword_flag(KeywordFlag::Flash)
         .rules_text("Flash\nThis creature enters with three +1/+1 counters on it.")
-        .ability(AbilityDef {
-            rules_text: "This creature enters with three +1/+1 counters on it.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "This creature enters with three +1/+1 counters on it.",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 3)),
             ))),
-        })
+        ))
         .build()
 }
 
@@ -369,15 +346,9 @@ pub fn root_maze() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Enchantment)
         .rules_text("Artifacts and lands enter tapped.")
-        .ability(AbilityDef {
-            rules_text: "Artifacts and lands enter tapped.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "Artifacts and lands enter tapped.",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::Or(
                         Box::new(ObjectFilter::ByType(CardType::Artifact)),
@@ -385,7 +356,7 @@ pub fn root_maze() -> Arc<CardData> {
                     )),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
-        })
+        ))
         .build()
 }
 
@@ -450,15 +421,9 @@ pub fn containment_priest() -> Arc<CardData> {
         .rules_text(
             "Flash\nIf a nontoken creature would enter and it wasn't cast, exile it instead.",
         )
-        .ability(AbilityDef {
-            rules_text: "If a nontoken creature would enter and it wasn't cast, exile it instead.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "If a nontoken creature would enter and it wasn't cast, exile it instead.",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: Some(false) },
                 ObjectSet::battlefield_filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -466,7 +431,7 @@ pub fn containment_priest() -> Arc<CardData> {
                     )),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             ))),
-        })
+        ))
         .build()
 }
 
@@ -569,15 +534,9 @@ pub fn keldon_warlord() -> Arc<CardData> {
             "Keldon Warlord's power and toughness are each equal to the number of \
              non-Wall creatures you control.",
         )
-        .ability(AbilityDef {
-            rules_text: "Keldon Warlord's power and toughness are each equal to the number of non-Wall creatures you control.".into(),
-            is_characteristic_defining: true,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Keldon Warlord's power and toughness are each equal to the number of non-Wall creatures you control.",
+            Effect::Atom(
                 Primitive::SetPowerToughness(
                     non_wall_creatures_you_control.clone(),
                     non_wall_creatures_you_control,
@@ -585,7 +544,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
                 ),
                 EffectRecipient::ThisObject,
             ),
-        })
+        ).characteristic_defining())
         .build()
 }
 
@@ -649,15 +608,9 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Warrior))
         .power_toughness(1, 1)
         .rules_text("Devour 3")
-        .ability(AbilityDef {
-            rules_text: "Devour 3".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "Devour 3",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 // CR 614.12's first sentence — it affects only this permanent,
                 // so it is found on the entering object itself (gather source
@@ -683,7 +636,7 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
                     per_chosen: Some((CounterType::PlusOnePlusOne, PerChosen::Fixed(3))),
                 }),
             ))),
-        })
+        ))
         .build()
 }
 
@@ -749,15 +702,9 @@ pub fn sutured_ghoul() -> Arc<CardData> {
              Sutured Ghoul's power is equal to the total power of the exiled cards and \
              its toughness is equal to their total toughness.",
         )
-        .ability(AbilityDef {
-            rules_text: "As this creature enters, exile any number of creature cards from your graveyard.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "As this creature enters, exile any number of creature cards from your graveyard.",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterAfterMoving(AuxiliaryMove {
@@ -774,7 +721,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
                     per_chosen: None,
                 }),
             ))),
-        })
+        ))
         .build()
 }
 
@@ -840,15 +787,9 @@ pub fn master_biomancer() -> Arc<CardData> {
              +1/+1 counters on it equal to this creature's power and as a Mutant in \
              addition to its other types.",
         )
-        .ability(AbilityDef {
-            rules_text: "Each other creature you control enters with a number of additional +1/+1 counters on it equal to this creature's power and as a Mutant in addition to its other types.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "Each other creature you control enters with a number of additional +1/+1 counters on it equal to this creature's power and as a Mutant in addition to its other types.",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -862,6 +803,6 @@ pub fn master_biomancer() -> Arc<CardData> {
                     ..EnterModsTemplate::with_counter_amount(CounterType::PlusOnePlusOne, AmountExpr::SourcePower)
                 }),
             ))),
-        })
+        ))
         .build()
 }

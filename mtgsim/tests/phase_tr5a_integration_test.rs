@@ -24,7 +24,7 @@ use mtgsim::cards::phase_tr5a_cards::sphere_grid;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::has_keyword;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
@@ -37,7 +37,7 @@ use mtgsim::types::effects::{
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::CountIs;
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
@@ -172,16 +172,11 @@ fn combat_damage_to_a_player(multiplicity: Multiplicity) -> TriggerEvent {
 }
 
 fn static_ability(effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: "".into(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
+    AbilityDef::new(
+        AbilityType::Static,
+        "",
         effect,
-    }
+    )
 }
 
 // ---------------------------------------------------------------------------

@@ -450,13 +450,13 @@ fn sliver_by_cda() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(2, 2)
-        .ability(AbilityDef {
-            is_characteristic_defining: true,
-            ..static_ability(Effect::Atom(
+        .ability(
+            static_ability(Effect::Atom(
                 Primitive::ChangeType(with_subtypes(&[CreatureType::Sliver]), Duration::WhileSourceOnBattlefield),
                 EffectRecipient::ThisObject,
             ))
-        })
+            .characteristic_defining(),
+        )
         .build()
 }
 

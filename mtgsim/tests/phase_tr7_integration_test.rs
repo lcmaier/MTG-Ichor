@@ -12,6 +12,7 @@
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
+
 use mtgsim::cards::authoring::persist;
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cm_cards::thalia_guardian_of_thraben;
@@ -23,7 +24,7 @@ use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::combat::validation::can_block;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_name, get_effective_toughness, has_keyword, has_type};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
@@ -35,7 +36,7 @@ use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
     CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, SelectionFilter, TypeChange,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{CopyDonor, EnterMods, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
@@ -84,15 +85,9 @@ fn human_clone() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Human))
         .power_toughness(0, 0)
         .rules_text(text)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef {
+        .ability(mtgsim::cards::authoring::static_ability(
+            text,
+            Effect::Replacement(Box::new(ReplacementDef {
                 optional: true,
                 ..ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },
@@ -100,7 +95,7 @@ fn human_clone() -> Arc<CardData> {
                     Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::Chosen(SelectionFilter::Creature), except: Vec::new() }),
                 )
             })),
-        })
+        ))
         .build()
 }
 

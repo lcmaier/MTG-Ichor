@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{activated_ability, mana_ability};
 use mtgsim::cards::alpha::{giant_growth, lightning_bolt};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::authoring::{
@@ -18,10 +19,9 @@ use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::phase_tr5c_cards::{cephalid_aristocrat, loyal_sentry};
 use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
+use mtgsim::objects::card_data::AbilityType;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::ManaOutput;
-use mtgsim::types::ids::AbilityId;
 use mtgsim::types::card_types::{EnchantmentType, Subtype};
 use mtgsim::types::mana::ManaType;
 use mtgsim::ui::display::{format_record, log_lines};
@@ -1007,16 +1007,11 @@ fn shaman_fixture() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Shaman")
         .card_type(CardType::Creature)
         .power_toughness(1, 2)
-        .ability(AbilityDef {
-            rules_text: "{T}: Target player gains 1 life. Add {C}.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::TapSelf],
-            effect: Effect::Sequence(vec![gain, add]),
-        })
+        .ability(activated_ability(
+            "{T}: Target player gains 1 life. Add {C}.",
+            vec![Cost::TapSelf],
+            Effect::Sequence(vec![gain, add]),
+        ))
         .build()
 }
 
@@ -1085,19 +1080,14 @@ fn a_source_sacrificed_as_a_cost_is_read_as_it_was() {
 /// `card` with "[{T},] Sacrifice this artifact: Add {C}."
 fn with_a_sacrifice_for_mana(card: CardDataBuilder, costs: &[Cost]) -> Arc<CardData> {
     let text = if costs.contains(&Cost::TapSelf) { "{T}, Sacrifice this artifact: Add {C}." } else { "Sacrifice this artifact: Add {C}." };
-    card.ability(AbilityDef {
-        rules_text: text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Mana,
-        costs: costs.iter().cloned().chain([Cost::SacrificeSelf]).collect(),
-        effect: Effect::Atom(
+    card.ability(mana_ability(
+        text,
+        costs.iter().cloned().chain([Cost::SacrificeSelf]).collect(),
+        Effect::Atom(
             Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
             EffectRecipient::Implicit,
         ),
-    })
+    ))
     .build()
 }
 

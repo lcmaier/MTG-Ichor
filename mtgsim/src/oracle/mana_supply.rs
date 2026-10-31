@@ -1369,6 +1369,7 @@ fn views(ways: &[ManaBag], asked: ManaTypes) -> Vec<ManaBag> {
 
 #[cfg(test)]
 mod tests {
+    use crate::cards::authoring::mana_ability;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 
@@ -1385,7 +1386,7 @@ mod tests {
     use crate::cards::phase_rc_cards::chainbreaker;
     use crate::cards::phase_re9_cards::{deep_water, doubling_cube, mana_reflection, pale_moon};
     use crate::cards::phase_tr1_cards::wild_growth;
-    use crate::objects::card_data::{ActivationRestriction, CardData, CardDataBuilder};
+    use crate::objects::card_data::{CardData, CardDataBuilder};
     use crate::test_support::{put_on_battlefield, put_on_battlefield_this_turn, setup_two_player_game, test_dp};
     use crate::types::card_types::CardType;
     use crate::types::effects::ManaOutput;
@@ -1529,19 +1530,14 @@ mod tests {
     fn an_outlet_that_is_not_its_own_fodder_counts_only_its_fodder() {
         let altar = CardDataBuilder::new("Ashnod's Altar")
             .card_type(CardType::Artifact)
-            .ability(AbilityDef {
-                rules_text: "Sacrifice a creature: Add {C}{C}.".into(),
-                is_characteristic_defining: false,
-                activation_restriction: ActivationRestriction::None,
-                id: AbilityId::UNASSIGNED,
-                instances: Vec::new(),
-                ability_type: AbilityType::Mana,
-                costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
-                effect: Effect::Atom(
+            .ability(mana_ability(
+                "Sacrifice a creature: Add {C}{C}.",
+                vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
+                Effect::Atom(
                     Primitive::ProduceMana(ManaOutput { mana: vec![(Colorless, AmountExpr::Fixed(2))], special: vec![] }),
                     EffectRecipient::Implicit,
                 ),
-            })
+            ))
             .build();
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, altar, 0);
@@ -1686,16 +1682,11 @@ mod tests {
     fn land_making(name: &str, output: ManaOutput) -> Arc<CardData> {
         CardDataBuilder::new(name)
             .card_type(CardType::Land)
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: ActivationRestriction::None,
-                id: AbilityId::UNASSIGNED,
-                instances: Vec::new(),
-                ability_type: AbilityType::Mana,
-                costs: vec![Cost::TapSelf],
-                effect: Effect::Atom(Primitive::ProduceMana(output), EffectRecipient::Implicit),
-            })
+            .ability(mana_ability(
+                "",
+                vec![Cost::TapSelf],
+                Effect::Atom(Primitive::ProduceMana(output), EffectRecipient::Implicit),
+            ))
             .build()
     }
 
@@ -1728,22 +1719,17 @@ mod tests {
         let morgue_toad = CardDataBuilder::new("Morgue Toad")
             .card_type(CardType::Creature)
             .power_toughness(2, 2)
-            .ability(AbilityDef {
-                rules_text: "Sacrifice this creature: Add {U}{R}.".into(),
-                is_characteristic_defining: false,
-                activation_restriction: ActivationRestriction::None,
-                id: AbilityId::UNASSIGNED,
-                instances: Vec::new(),
-                ability_type: AbilityType::Mana,
-                costs: vec![Cost::SacrificeSelf],
-                effect: Effect::Atom(
+            .ability(mana_ability(
+                "Sacrifice this creature: Add {U}{R}.",
+                vec![Cost::SacrificeSelf],
+                Effect::Atom(
                     Primitive::ProduceMana(ManaOutput {
                         mana: vec![(Blue, AmountExpr::Fixed(1)), (Red, AmountExpr::Fixed(1))],
                         special: Vec::new(),
                     }),
                     EffectRecipient::Implicit,
                 ),
-            })
+            ))
             .build();
         let mut game = setup_two_player_game();
         let land = put_on_battlefield(&mut game, forest(), 0);

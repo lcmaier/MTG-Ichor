@@ -5,14 +5,14 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::phase_rs_cards::diabolic_edict;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, setup_two_player_game, RecordingDecisionProvider};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
-use mtgsim::types::ids::AbilityId;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -31,19 +31,13 @@ fn heap_free_instant() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Instant)
         .rules_text("Target player loses 1 life.")
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "",
+            Effect::Atom(
                 Primitive::LoseLife(AmountExpr::Fixed(1)),
                 EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 

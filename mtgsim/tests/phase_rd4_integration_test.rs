@@ -13,6 +13,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::static_ability;
 use mtgsim::cards::phase_rd_cards::{
     angel_of_suffering, mending_hands, palisade_giant, pariah, pinpoint_avalanche,
     reflect_damage, reverse_damage,
@@ -20,7 +21,7 @@ use mtgsim::cards::phase_rd_cards::{
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::objects::card_data::{
-    AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
+    CardData, CardDataBuilder,
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
@@ -192,35 +193,23 @@ fn leyline_fixture() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("Players can't gain life.\nDamage can't be prevented.")
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+        .ability(static_ability(
+            "",
+            Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::GainLife,
                 affected: AffectedSet::players(PlayerSet::Everyone),
                 by: None,
             }))),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Restriction(Box::new(RestrictionDef::new(
+        ).with_id(new_ability_id()))
+        .ability(static_ability(
+            "",
+            Effect::Restriction(Box::new(RestrictionDef::new(
                 Restriction::ApplyReplacement {
                     kind: ReplacementKindFilter::Prevention,
                     affected: AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
                 },
             ))),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 

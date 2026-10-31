@@ -141,12 +141,11 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_replacement;
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{activated_ability, spell_ability, static_replacement};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::ids::AbilityId;
 use crate::types::effects::{
     AffectedSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
     PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
@@ -442,19 +441,6 @@ pub fn loyalty_probe() -> Arc<CardData> {
 // RD-2 — CR 615.7 prevention shields
 // ---------------------------------------------------------------------------
 
-/// A spell or activated ability whose whole effect is one atom.
-fn one_shot(rules_text: &'static str, ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type,
-        costs,
-        effect,
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
-}
 
 /// "Prevent the next `n` damage that would be dealt to … this turn" — the def
 /// every count-carrying card here shares.
@@ -517,9 +503,7 @@ pub fn mending_hands() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text("Prevent the next 4 damage that would be dealt to any target this turn.")
-        .ability(one_shot("Prevent the next 4 damage that would be dealt to any target this turn.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Prevent the next 4 damage that would be dealt to any target this turn.",
             Effect::Atom(prevent_the_next_this_turn(4), any_target()),
         ))
         .build()
@@ -544,8 +528,7 @@ pub fn samite_healer() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Cleric))
         .power_toughness(1, 1)
         .rules_text("{T}: Prevent the next 1 damage that would be dealt to any target this turn.")
-        .ability(one_shot("{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
-            AbilityType::Activated,
+        .ability(activated_ability("{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
             vec![Cost::TapSelf],
             Effect::Atom(prevent_the_next_this_turn(1), any_target()),
         ))
@@ -582,9 +565,7 @@ pub fn safe_passage() -> Arc<CardData> {
         .rules_text(
             "Prevent all damage that would be dealt to you and creatures you control this turn.",
         )
-        .ability(one_shot("Prevent all damage that would be dealt to you and creatures you control this turn.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Prevent all damage that would be dealt to you and creatures you control this turn.",
             Effect::Atom(
                 Primitive::CreateReplacement(
                     Box::new(
@@ -634,8 +615,7 @@ pub fn samite_censer_bearer() -> Arc<CardData> {
             "{W}, Sacrifice this creature: Prevent the next 1 damage that would be dealt to \
              each creature you control this turn.",
         )
-        .ability(one_shot("{W}, Sacrifice this creature: Prevent the next 1 damage that would be dealt to each creature you control this turn.",
-            AbilityType::Activated,
+        .ability(activated_ability("{W}, Sacrifice this creature: Prevent the next 1 damage that would be dealt to each creature you control this turn.",
             vec![Cost::Mana(ManaCost::build(&[ManaType::White], 0)), Cost::SacrificeSelf],
             Effect::Atom(
                 prevent_the_next_this_turn(1),
@@ -720,8 +700,7 @@ pub fn circle_of_protection_red() -> Arc<CardData> {
             "{1}: The next time a red source of your choice would deal damage to you this \
              turn, prevent that damage.",
         )
-        .ability(one_shot("{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
-            AbilityType::Activated,
+        .ability(activated_ability("{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
             vec![Cost::Mana(ManaCost::build(&[], 1))],
             Effect::Atom(
                 Primitive::CreateReplacement(
@@ -768,9 +747,7 @@ pub fn reverse_damage() -> Arc<CardData> {
             "The next time a source of your choice would deal damage to you this turn, \
              prevent that damage. You gain life equal to the damage prevented this way.",
         )
-        .ability(one_shot("The next time a source of your choice would deal damage to you this turn, prevent that damage. You gain life equal to the damage prevented this way.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("The next time a source of your choice would deal damage to you this turn, prevent that damage. You gain life equal to the damage prevented this way.",
             Effect::Atom(
                 Primitive::CreateReplacement(
                     Box::new(
@@ -820,8 +797,7 @@ pub fn dark_sphere() -> Arc<CardData> {
             "{T}, Sacrifice this artifact: The next time a source of your choice would deal \
              damage to you this turn, prevent half that damage, rounded down.",
         )
-        .ability(one_shot("{T}, Sacrifice this artifact: The next time a source of your choice would deal damage to you this turn, prevent half that damage, rounded down.",
-            AbilityType::Activated,
+        .ability(activated_ability("{T}, Sacrifice this artifact: The next time a source of your choice would deal damage to you this turn, prevent half that damage, rounded down.",
             vec![Cost::TapSelf, Cost::SacrificeSelf],
             Effect::Atom(
                 Primitive::CreateReplacement(
@@ -962,9 +938,7 @@ pub fn pyroclasm() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text("Pyroclasm deals 2 damage to each creature.")
-        .ability(one_shot("Pyroclasm deals 2 damage to each creature.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Pyroclasm deals 2 damage to each creature.",
             Effect::Atom(
                 Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
                 EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
@@ -994,9 +968,7 @@ pub fn fog() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Instant)
         .rules_text("Prevent all combat damage that would be dealt this turn.")
-        .ability(one_shot("Prevent all combat damage that would be dealt this turn.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Prevent all combat damage that would be dealt this turn.",
             Effect::Atom(
                 Primitive::CreateReplacement(
                     Box::new(
@@ -1222,9 +1194,7 @@ pub fn pinpoint_avalanche() -> Arc<CardData> {
             "Pinpoint Avalanche deals 4 damage to target creature. The damage can't be \
              prevented.",
         )
-        .ability(one_shot("Pinpoint Avalanche deals 4 damage to target creature. The damage can't be prevented.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Pinpoint Avalanche deals 4 damage to target creature. The damage can't be prevented.",
             Effect::Atom(
                 Primitive::DealDamage { amount: AmountExpr::Fixed(4), unpreventable: true },
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
@@ -1262,9 +1232,7 @@ pub fn reflect_damage() -> Arc<CardData> {
             "The next time a source of your choice would deal damage this turn, that damage \
              is dealt to that source's controller instead.",
         )
-        .ability(one_shot("The next time a source of your choice would deal damage this turn, that damage is dealt to that source's controller instead.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("The next time a source of your choice would deal damage this turn, that damage is dealt to that source's controller instead.",
             Effect::Atom(
                 Primitive::CreateReplacement(
                     Box::new(
@@ -1290,6 +1258,7 @@ pub fn reflect_damage() -> Arc<CardData> {
 #[cfg(test)]
 mod tests {
     use crate::engine::targeting::ChosenTargets;
+    use crate::objects::card_data::AbilityType;
     use super::*;
     use crate::engine::actions::{ActionContext, GameAction};
     use crate::types::ids::ObjectOrPlayerId;

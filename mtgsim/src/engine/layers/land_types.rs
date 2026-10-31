@@ -177,6 +177,7 @@ pub(crate) fn apply_add_subtype(
 
 #[cfg(test)]
 mod tests {
+    use crate::cards::authoring::mana_ability;
     use super::*;
     use crate::objects::card_data::AbilityType;
     use crate::types::costs::Cost;
@@ -201,22 +202,17 @@ mod tests {
             subtypes,
             supertypes: HashSet::new(),
             keyword_flags: HashSet::new(),
-            abilities: Arc::new(vec![AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Mana,
-                costs: vec![Cost::TapSelf],
-                effect: Effect::Atom(
+            abilities: Arc::new(vec![mana_ability(
+                "",
+                vec![Cost::TapSelf],
+                Effect::Atom(
                     Primitive::ProduceMana(ManaOutput {
                         mana: vec![(ManaType::Blue, AmountExpr::Fixed(1))],
                         special: vec![],
                     }),
                     EffectRecipient::Implicit,
                 ),
-            }]),
+            ).with_id(crate::types::ids::new_ability_id())]),
             power: None,
             toughness: None,
             loyalty: None,

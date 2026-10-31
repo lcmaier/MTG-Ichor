@@ -2,13 +2,13 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::spell_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
     Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -37,15 +37,9 @@ pub fn act_of_treason() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text("Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn.")
-        .ability(AbilityDef {
-            rules_text: "Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            "Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn.",
+            Effect::Sequence(vec![
                 // One instance of "target" and three atoms (CR 115.3): the
                 // card says "target creature" once, and "that creature" and
                 // "it" are back-references to it, not new clauses.
@@ -59,7 +53,7 @@ pub fn act_of_treason() -> Arc<CardData> {
                     EffectRecipient::SameInstanceAs(0),
                 ),
             ]),
-        })
+        ))
         .build()
 }
 

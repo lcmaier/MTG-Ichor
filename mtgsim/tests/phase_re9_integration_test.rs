@@ -25,6 +25,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{mana_ability, static_ability};
 use mtgsim::cards::phase5_pre_cards::dark_ritual;
 use mtgsim::cards::phase_cm_cards::krark_clan_ironworks;
 use mtgsim::cards::phase_re9_cards::{
@@ -33,7 +34,7 @@ use mtgsim::cards::phase_re9_cards::{
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{
-    AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
+    CardData, CardDataBuilder,
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
@@ -69,16 +70,11 @@ const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affec
 fn mana_land(name: &str, output: ManaOutput) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Land)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Mana,
-            costs: vec![Cost::TapSelf],
-            effect: Effect::Atom(Primitive::ProduceMana(output), EffectRecipient::Implicit),
-        })
+        .ability(mana_ability(
+            "",
+            vec![Cost::TapSelf],
+            Effect::Atom(Primitive::ProduceMana(output), EffectRecipient::Implicit),
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -143,22 +139,17 @@ fn barren_waste() -> Arc<CardData> {
 fn plain_rock() -> Arc<CardData> {
     CardDataBuilder::new("Plain Rock")
         .card_type(CardType::Artifact)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Mana,
-            costs: vec![Cost::TapSelf],
-            effect: Effect::Atom(
+        .ability(mana_ability(
+            "",
+            vec![Cost::TapSelf],
+            Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))],
                     special: Vec::new(),
                 }),
                 EffectRecipient::Implicit,
             ),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -166,16 +157,10 @@ fn plain_rock() -> Arc<CardData> {
 fn static_enchantment(name: &str, def: ReplacementDef) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(def)),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        .ability(static_ability(
+            "",
+            Effect::Replacement(Box::new(def)),
+        ).with_id(new_ability_id()))
         .build()
 }
 

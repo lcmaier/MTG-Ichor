@@ -613,20 +613,14 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
         mtgsim::objects::card_data::CardDataBuilder::new("Draw-Step Trigger Fixture")
             .card_type(mtgsim::types::card_types::CardType::Enchantment)
             .rules_text("At the beginning of your draw step, draw an additional card.")
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                id: new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Triggered,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(AbilityDef::new(
+                AbilityType::Triggered,
+                "",
+                Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(1)),
                     EffectRecipient::Controller,
                 ),
-                is_characteristic_defining: false,
-                activation_restriction:
-                    mtgsim::objects::card_data::ActivationRestriction::None,
-            })
+            ).with_id(new_ability_id()))
             .build()
             .as_ref()
             .clone(),

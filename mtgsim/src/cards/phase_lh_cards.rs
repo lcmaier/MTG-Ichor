@@ -16,15 +16,15 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::static_ability;
 use crate::cards::authoring::equip;
-use crate::objects::card_data::{ActivationRestriction, AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, Primitive, SelectionFilter,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -73,15 +73,9 @@ pub fn holy_strength() -> Arc<CardData> {
         // CR 702.5a — "Enchant creature" is the Aura's targeting restriction,
         // and CR 303.4a makes it the spell's target.
         .enchant_filter(SelectionFilter::Creature)
-        .ability(AbilityDef {
-            rules_text: "Enchanted creature gets +1/+2.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Enchanted creature gets +1/+2.",
+            Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(1),
                     AmountExpr::Fixed(2),
@@ -89,7 +83,7 @@ pub fn holy_strength() -> Arc<CardData> {
                 ),
                 EffectRecipient::Host,
             ),
-        })
+        ))
         .build()
 }
 
@@ -134,15 +128,9 @@ pub fn bonesplitter() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 1))
         .rules_text("Equipped creature gets +2/+0.
 Equip {1}")
-        .ability(AbilityDef {
-            rules_text: "Equipped creature gets +2/+0.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Equipped creature gets +2/+0.",
+            Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(2),
                     AmountExpr::Fixed(0),
@@ -150,7 +138,7 @@ Equip {1}")
                 ),
                 EffectRecipient::Host,
             ),
-        })
+        ))
         .ability(equip("Equip {1}", vec![Cost::Mana(ManaCost::build(&[], 1))]))
         .build()
 }
@@ -181,19 +169,13 @@ pub fn cobbled_wings() -> Arc<CardData> {
         .subtype(Subtype::Artifact(ArtifactType::Equipment))
         .mana_cost(ManaCost::build(&[], 2))
         .rules_text("Equipped creature has flying.\nEquip {1}")
-        .ability(AbilityDef {
-            rules_text: "Equipped creature has flying.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Equipped creature has flying.",
+            Effect::Atom(
                 Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
                 EffectRecipient::Host,
             ),
-        })
+        ))
         .ability(equip("Equip {1}", vec![Cost::Mana(ManaCost::build(&[], 1))]))
         .build()
 }
@@ -224,15 +206,9 @@ pub fn loxodon_warhammer() -> Arc<CardData> {
         .subtype(Subtype::Artifact(ArtifactType::Equipment))
         .mana_cost(ManaCost::build(&[], 3))
         .rules_text("Equipped creature gets +3/+0 and has trample and lifelink.\nEquip {3}")
-        .ability(AbilityDef {
-            rules_text: "Equipped creature gets +3/+0 and has trample and lifelink.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(static_ability(
+            "Equipped creature gets +3/+0 and has trample and lifelink.",
+            Effect::Sequence(vec![
                 equipped(Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(3),
                     AmountExpr::Fixed(0),
@@ -241,7 +217,7 @@ pub fn loxodon_warhammer() -> Arc<CardData> {
                 equipped(Primitive::GrantKeywordFlag(KeywordFlag::Trample, Duration::WhileSourceOnBattlefield)),
                 equipped(Primitive::GrantKeywordFlag(KeywordFlag::Lifelink, Duration::WhileSourceOnBattlefield)),
             ]),
-        })
+        ))
         .ability(equip("Equip {3}", vec![Cost::Mana(ManaCost::build(&[], 3))]))
         .build()
 }

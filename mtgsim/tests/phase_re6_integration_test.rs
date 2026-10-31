@@ -14,6 +14,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{spell_ability, static_ability};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::phase_re_cards::{
     exquisite_archangel, laboratory_maniac, platinum_angel, rhox_faithmender,
@@ -407,19 +408,13 @@ fn a_departed_player_is_not_a_legal_target_and_the_spell_fizzles() {
     fill_library(&mut game, 2, 5);
     let draw_for_target = CardDataBuilder::new("Fixture Draw")
         .card_type(mtgsim::types::card_types::CardType::Instant)
-        .ability(mtgsim::objects::card_data::AbilityDef {
-            rules_text: "".into(),
-            id: mtgsim::types::ids::new_ability_id(),
-            instances: Vec::new(),
-            ability_type: mtgsim::objects::card_data::AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "",
+            Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
                 EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
             ),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-        })
+        ).with_id(mtgsim::types::ids::new_ability_id()))
         .build();
     // Targeted while P2 was in the game; P2 leaves before it resolves.
     let spell = stage_spell_with(
@@ -465,13 +460,9 @@ fn exile_reaches_a_card_in_a_graveyard() {
 #[test]
 fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
     let mut game = setup_game(2);
-    let gain_instead = mtgsim::objects::card_data::AbilityDef {
-        rules_text: "".into(),
-        id: mtgsim::types::ids::new_ability_id(),
-        instances: Vec::new(),
-        ability_type: mtgsim::objects::card_data::AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Replacement(Box::new(
+    let gain_instead = static_ability(
+        "",
+        Effect::Replacement(Box::new(
             mtgsim::types::replacement::ReplacementDef::new(
                 EventPattern::PlayerLoses,
                 PlayerSet::You,
@@ -482,9 +473,7 @@ fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
                 EffectRecipient::Controller,
             )),
         )),
-        is_characteristic_defining: false,
-        activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-    };
+    ).with_id(mtgsim::types::ids::new_ability_id());
     let mirror = CardDataBuilder::new("Fixture Mirror")
         .card_type(mtgsim::types::card_types::CardType::Artifact)
         .ability(gain_instead)
@@ -511,13 +500,9 @@ fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
 #[test]
 fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
     let mut game = setup_game(2);
-    let cant_lose_while_decked = mtgsim::objects::card_data::AbilityDef {
-        rules_text: "".into(),
-        id: mtgsim::types::ids::new_ability_id(),
-        instances: Vec::new(),
-        ability_type: mtgsim::objects::card_data::AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Conditional(
+    let cant_lose_while_decked = static_ability(
+        "",
+        Effect::Conditional(
             mtgsim::types::effects::Condition::Player {
                 players: mtgsim::types::effects::PlayerSet::You,
                 fact: mtgsim::types::effects::PlayerFact::LibraryEmpty,
@@ -528,9 +513,7 @@ fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
                 by: None,
             })))),
         ),
-        is_characteristic_defining: false,
-        activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-    };
+    ).with_id(mtgsim::types::ids::new_ability_id());
     let fixture = CardDataBuilder::new("Fixture Angel")
         .card_type(mtgsim::types::card_types::CardType::Artifact)
         .ability(cant_lose_while_decked)

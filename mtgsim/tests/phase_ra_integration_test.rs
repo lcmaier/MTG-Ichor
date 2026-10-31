@@ -9,13 +9,14 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::static_ability;
 use mtgsim::cards::{alpha, basic_lands, creatures, phase5_pre_cards};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
 use mtgsim::events::cause::{EventCause, GameRule, StateBasedAction};
 use mtgsim::events::event::{BatchId, GameEvent, ResolutionStamp};
 use mtgsim::objects::card_data::{
-    AbilityDef, AbilityType, CardData, CardDataBuilder,
+    CardData, CardDataBuilder,
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
@@ -52,15 +53,9 @@ fn self_anthem_creature() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "",
+            Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(1),
                     AmountExpr::Fixed(1),
@@ -71,7 +66,7 @@ fn self_anthem_creature() -> Arc<CardData> {
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
             ),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 

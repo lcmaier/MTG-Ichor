@@ -14,6 +14,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::activated_ability;
 use mtgsim::cards::authoring::{at_beginning_of, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::creatures::grizzly_bears;
@@ -30,7 +31,7 @@ use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
@@ -569,22 +570,17 @@ fn the_first_time_each_turn_is_the_records_place_in_its_turn() {
 /// counter on this creature. If this is the third time this ability has
 /// resolved this turn, you gain 3 life."
 fn kindling_pilgrim() -> Arc<CardData> {
-    let ability = AbilityDef {
-        rules_text: "".into(),
-        id: new_ability_id(),
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs: Vec::new(),
-        effect: Effect::Sequence(vec![
+    let ability = activated_ability(
+        "",
+        Vec::new(),
+        Effect::Sequence(vec![
             counter_on(EffectRecipient::ThisObject),
             Effect::Conditional(
                 Condition::ResolvedThisTurn(3),
                 Box::new(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Controller)),
             ),
         ]),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    };
+    ).with_id(new_ability_id());
     creature_with_ability("Kindling Pilgrim", 1, 1, ability)
 }
 
@@ -935,16 +931,11 @@ fn free_spell(name: &str, card_type: CardType) -> Arc<CardData> {
 
 /// The spell ability a fixture instant or sorcery carries.
 fn spell_ability(effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: "".into(),
-        id: new_ability_id(),
-        instances: Vec::new(),
-        ability_type: AbilityType::Spell,
-        costs: Vec::new(),
+    AbilityDef::new(
+        AbilityType::Spell,
+        "",
         effect,
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
+    ).with_id(new_ability_id())
 }
 
 /// Cast `card` from `player`'s hand for free, then resolve it and whatever

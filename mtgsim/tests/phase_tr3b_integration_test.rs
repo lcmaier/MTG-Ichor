@@ -19,6 +19,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{activated_ability, spell_ability};
 use mtgsim::cards::authoring::{
     at_beginning_of, dies, enters, leaves_the_battlefield, triggered_ability, whenever, Whose,
 };
@@ -30,7 +31,7 @@ use mtgsim::cards::phase_tr1_cards::soul_warden;
 use mtgsim::cards::phase_tr3b_cards::{banishing_light, flickerwisp};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_power};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
@@ -43,7 +44,7 @@ use mtgsim::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
     TargetCount, TokenDef,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId, UntilReturnId};
+use mtgsim::types::ids::{ObjectId, PlayerId, UntilReturnId};
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
@@ -66,16 +67,11 @@ fn activate_and_resolve(game: &mut GameState, player: PlayerId, source: ObjectId
 
 /// An activated ability with no cost but `{T}`.
 fn tap_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs: vec![Cost::TapSelf],
+    activated_ability(
+        rules_text,
+        vec![Cost::TapSelf],
         effect,
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
+    )
 }
 
 fn sacrifice(game: &mut GameState, id: ObjectId) {
@@ -740,13 +736,9 @@ fn calix_instant() -> Arc<CardData> {
     CardDataBuilder::new("Calix's Edict")
         .mana_cost(mtgsim::types::mana::ManaCost::build(&[ManaType::White], 0))
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            text,
+            Effect::Atom(
                 Primitive::ExileUntil {
                     until: Box::new(leaves_the_battlefield(TriggerSubject::Referred).into()),
                     refers_to: Some(EffectRecipient::Target(SelectionFilter::Permanent(yours), TargetCount::Exactly(1))),
@@ -754,9 +746,7 @@ fn calix_instant() -> Arc<CardData> {
                 },
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        ))
         .build()
 }
 
@@ -1048,19 +1038,13 @@ fn cloudshift_shape() -> Arc<CardData> {
     CardDataBuilder::new("Cloud Step")
         .mana_cost(mtgsim::types::mana::ManaCost::build(&[ManaType::White], 0))
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            text,
+            Effect::Sequence(vec![
                 Effect::Atom(Primitive::Exile, target_your_creature()),
                 Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::You, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::SameInstanceAs(0)),
             ]),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        ))
         .build()
 }
 

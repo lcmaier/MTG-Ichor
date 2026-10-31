@@ -14,16 +14,16 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::{spell_ability, static_ability};
 use crate::cards::authoring::{dies, functioning_in, triggered_ability, whenever};
 use crate::cards::phase_rb_cards::zombie_token;
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount, TypeChange,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::restriction::SourceFilter;
@@ -92,32 +92,20 @@ pub fn guerrilla_tactics() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Instant)
         .rules_text("Guerrilla Tactics deals 2 damage to any target.\nWhen a spell or ability an opponent controls causes you to discard this card, it deals 4 damage to any target.")
-        .ability(AbilityDef {
-            rules_text: spell.into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: deals_damage_to_any_target(2),
-        })
+        .ability(spell_ability(
+            spell,
+            deals_damage_to_any_target(2),
+        ))
         .ability(triggered_ability(trigger, whenever(discarded, deals_damage_to_any_target(4))))
         .build()
 }
 
 /// A static ability of an Aura, on the creature it enchants.
 fn enchanted_creature(rules_text: &'static str, primitives: Vec<Primitive>) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Sequence(primitives.into_iter().map(|p| Effect::Atom(p, EffectRecipient::Host)).collect()),
-    }
+    static_ability(
+        rules_text,
+        Effect::Sequence(primitives.into_iter().map(|p| Effect::Atom(p, EffectRecipient::Host)).collect()),
+    )
 }
 
 /// Angelic Destiny — {2}{W}{W}

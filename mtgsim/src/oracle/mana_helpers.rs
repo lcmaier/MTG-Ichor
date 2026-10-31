@@ -492,8 +492,9 @@ fn every_instance_has_a_choice(
 
 #[cfg(test)]
 mod tests {
+    use crate::cards::authoring::spell_ability;
     use super::*;
-    use crate::objects::card_data::{AbilityDef, CardDataBuilder};
+    use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::{GameState, Phase, PhaseType};
@@ -530,19 +531,13 @@ mod tests {
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build();
         let obj = GameObject::new(bolt, 0, Zone::Hand);
         let card_id = game.add_object(obj);
@@ -564,19 +559,13 @@ mod tests {
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build();
         let obj = GameObject::new(bolt, 0, Zone::Hand);
         let card_id = game.add_object(obj);
@@ -652,19 +641,13 @@ mod tests {
         let spell = CardDataBuilder::new("Shock Plus")
             .card_type(CardType::Instant)
             .mana_cost(ManaCost::build(&[ManaType::Red], 1))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build();
         let obj = GameObject::new(spell, 0, Zone::Hand);
         let card_id = game.add_object(obj);
@@ -686,19 +669,13 @@ mod tests {
         let sorcery = CardDataBuilder::new("Lava Axe")
             .card_type(CardType::Sorcery)
             .mana_cost(ManaCost::build(&[ManaType::Red], 4))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(5), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build();
         let obj = GameObject::new(sorcery, 0, Zone::Hand);
         let card_id = game.add_object(obj);

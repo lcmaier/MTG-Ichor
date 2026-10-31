@@ -2726,16 +2726,11 @@ mod tests {
 
         /// A static `AbilityDef` with the given body.
         fn static_ability(effect: Effect) -> AbilityDef {
-            AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Static,
-                costs: Vec::new(),
+            AbilityDef::new(
+                AbilityType::Static,
+                "",
                 effect,
-            }
+            ).with_id(new_ability_id())
         }
 
         /// "Creatures you control get +1/+1", as an atom.

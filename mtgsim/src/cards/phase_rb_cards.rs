@@ -17,14 +17,14 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::static_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     TokenDef,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
@@ -95,15 +95,9 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
         .power_toughness(3, 4)
         .keyword_flag(KeywordFlag::Lifelink)
         .rules_text("Lifelink\nIf a nontoken creature an opponent controls would die, instead exile that card and create a 2/2 black Zombie creature token.\n{2}{B}, Sacrifice another Vampire or Zombie: Put two +1/+1 counters on Kalitas.")
-        .ability(AbilityDef {
-            rules_text: "If a nontoken creature an opponent controls would die, instead exile that card and create a 2/2 black Zombie creature token.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(
+        .ability(static_ability(
+            "If a nontoken creature an opponent controls would die, instead exile that card and create a 2/2 black Zombie creature token.",
+            Effect::Replacement(Box::new(
                 ReplacementDef::new(
                     // CR 700.4's "dies", not CR 701.8's "destroyed".
                     EventPattern::ZoneChange {
@@ -127,7 +121,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                     EffectRecipient::Controller,
                 )),
             )),
-        })
+        ))
         .build()
     // The {2}{B} sacrifice ability is deliberately absent: it needs
     // `AdditionalCost::Sacrifice` with a subtype filter, which is cost work
@@ -199,15 +193,9 @@ pub fn rest_in_peace() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("When this enchantment enters, exile all graveyards.\nIf a card or token would be put into a graveyard from anywhere, exile it instead.")
-        .ability(AbilityDef {
-            rules_text: "If a card or token would be put into a graveyard from anywhere, exile it instead.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "If a card or token would be put into a graveyard from anywhere, exile it instead.",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     object: None,
@@ -218,7 +206,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
                 ObjectSet::filter_in(ObjectFilter::All, ZoneSet::ALL),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             ))),
-        })
+        ))
         .build()
 }
 
@@ -274,15 +262,9 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("If this card is in your opening hand, you may begin the game with it on the battlefield.\nIf a card would be put into an opponent's graveyard from anywhere, exile it instead.")
-        .ability(AbilityDef {
-            rules_text: "If a card would be put into an opponent's graveyard from anywhere, exile it instead.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "If a card would be put into an opponent's graveyard from anywhere, exile it instead.",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     object: None,
@@ -300,7 +282,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
                 ),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             ))),
-        })
+        ))
         .build()
 }
 

@@ -17,8 +17,9 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::{spell_ability, static_ability};
 use crate::cards::authoring::{another, at_beginning_of, triggered_ability, Whose};
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -26,7 +27,6 @@ use crate::types::effects::{
     CharacteristicEdit, CopyException, CopyRoles, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
     CopyDonor, EnterModsTemplate, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite,
@@ -88,15 +88,9 @@ pub fn cytoshape() -> Arc<CardData> {
             "Choose a nonlegendary creature on the battlefield. Target creature \
              becomes a copy of that creature until end of turn.",
         )
-        .ability(AbilityDef {
-            rules_text: "Choose a nonlegendary creature on the battlefield. Target creature becomes a copy of that creature until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Choose a nonlegendary creature on the battlefield. Target creature becomes a copy of that creature until end of turn.",
+            Effect::Atom(
                 Primitive::Copy {
                     roles: CopyRoles::RecipientsCopyChosen(SelectionFilter::Permanent(nonlegendary_creature())),
                     except: Vec::new(),
@@ -104,7 +98,7 @@ pub fn cytoshape() -> Arc<CardData> {
                 },
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -160,15 +154,9 @@ pub fn mirrorform() -> Arc<CardData> {
             "Each nonland permanent you control becomes a copy of target \
              non-Aura permanent.",
         )
-        .ability(AbilityDef {
-            rules_text: "Each nonland permanent you control becomes a copy of target non-Aura permanent.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Each nonland permanent you control becomes a copy of target non-Aura permanent.",
+            Effect::Atom(
                 Primitive::Copy {
                     roles: CopyRoles::FilteredCopyRecipient {
                         // "Each nonland permanent you control" — and no
@@ -195,7 +183,7 @@ pub fn mirrorform() -> Arc<CardData> {
                     TargetCount::Exactly(1),
                 ),
             ),
-        })
+        ))
         .build()
 }
 
@@ -254,15 +242,9 @@ pub fn mirrorweave() -> Arc<CardData> {
             "Each other creature becomes a copy of target nonlegendary creature \
              until end of turn.",
         )
-        .ability(AbilityDef {
-            rules_text: "Each other creature becomes a copy of target nonlegendary creature until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Each other creature becomes a copy of target nonlegendary creature until end of turn.",
+            Effect::Atom(
                 // "Each **other** creature" — `exclude_donor` is the word
                 // "other", and it is a field rather than structure because
                 // Mirrorform prints the same shape without it.
@@ -281,7 +263,7 @@ pub fn mirrorweave() -> Arc<CardData> {
                     TargetCount::Exactly(1),
                 ),
             ),
-        })
+        ))
         .build()
 }
 
@@ -327,15 +309,9 @@ pub fn clone() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Shapeshifter))
         .power_toughness(0, 0)
         .rules_text("You may have this creature enter as a copy of any creature on the battlefield.")
-        .ability(AbilityDef {
-            rules_text: "You may have this creature enter as a copy of any creature on the battlefield.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef {
+        .ability(static_ability(
+            "You may have this creature enter as a copy of any creature on the battlefield.",
+            Effect::Replacement(Box::new(ReplacementDef {
                 optional: true,
                 ..ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },
@@ -346,7 +322,7 @@ pub fn clone() -> Arc<CardData> {
                     }),
                 )
             })),
-        })
+        ))
         .build()
 }
 
@@ -400,15 +376,9 @@ pub fn spark_double() -> Arc<CardData> {
              except it enters with an additional +1/+1 counter on it if it's a creature, it enters \
              with an additional loyalty counter on it if it's a planeswalker, and it isn't legendary.",
         )
-        .ability(AbilityDef {
-            rules_text: "You may have this creature enter as a copy of a creature or planeswalker you control, except it enters with an additional +1/+1 counter on it if it's a creature, it enters with an additional loyalty counter on it if it's a planeswalker, and it isn't legendary.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef {
+        .ability(static_ability(
+            "You may have this creature enter as a copy of a creature or planeswalker you control, except it enters with an additional +1/+1 counter on it if it's a creature, it enters with an additional loyalty counter on it if it's a planeswalker, and it isn't legendary.",
+            Effect::Replacement(Box::new(ReplacementDef {
                 optional: true,
                 ..ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },
@@ -432,7 +402,7 @@ pub fn spark_double() -> Arc<CardData> {
                     }),
                 )
             })),
-        })
+        ))
         .build()
 }
 

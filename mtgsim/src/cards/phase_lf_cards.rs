@@ -2,7 +2,8 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{mana_ability, static_ability};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
@@ -10,7 +11,6 @@ use crate::types::effects::{
     Primitive,
 };
 use crate::types::costs::Cost;
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Humility — {2}{W}{W}
@@ -50,15 +50,9 @@ pub fn humility() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("All creatures lose all abilities and have base power and toughness 1/1.")
-        .ability(AbilityDef {
-            rules_text: "All creatures lose all abilities and have base power and toughness 1/1.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(static_ability(
+            "All creatures lose all abilities and have base power and toughness 1/1.",
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
                     creatures.clone(),
@@ -72,7 +66,7 @@ pub fn humility() -> Arc<CardData> {
                     creatures,
                 ),
             ]),
-        })
+        ))
         .build()
 }
 
@@ -103,22 +97,17 @@ pub fn humility() -> Arc<CardData> {
 /// CLAUDE.md and had no card able to test it end to end until now.
 pub fn citanul_hierophants() -> Arc<CardData> {
     // The granted body: `{T}: Add {G}`, exactly what a Forest carries.
-    let granted = AbilityDef {
-        rules_text: "{T}: Add {G}.".into(),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Mana,
-        costs: vec![Cost::TapSelf],
-        effect: Effect::Atom(
+    let granted = mana_ability(
+        "{T}: Add {G}.",
+        vec![Cost::TapSelf],
+        Effect::Atom(
             Primitive::ProduceMana(ManaOutput {
                 mana: vec![(ManaType::Green, AmountExpr::Fixed(1))],
                 special: vec![],
             }),
             EffectRecipient::Implicit,
         ),
-    };
+    );
 
     CardDataBuilder::new("Citanul Hierophants")
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
@@ -126,15 +115,9 @@ pub fn citanul_hierophants() -> Arc<CardData> {
         .card_type(CardType::Creature)
         .power_toughness(3, 2)
         .rules_text("Creatures you control have \"{T}: Add {G}.\"")
-        .ability(AbilityDef {
-            rules_text: "Creatures you control have \"{T}: Add {G}.\"".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Creatures you control have \"{T}: Add {G}.\"",
+            Effect::Atom(
                 Primitive::GrantAbility(
                     std::sync::Arc::new(granted),
                     Duration::WhileSourceOnBattlefield,
@@ -144,7 +127,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
             ),
-        })
+        ))
         .build()
 }
 

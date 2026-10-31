@@ -14,13 +14,13 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{spell_ability, static_ability};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     AffectedSet, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::EventPattern;
@@ -96,15 +96,9 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
         .power_toughness(5, 5)
         .keyword_flag(KeywordFlag::Flying)
         .rules_text("Flying, hexproof\nSpells and abilities your opponents control can't cause you to sacrifice permanents.")
-        .ability(AbilityDef {
-            rules_text: "Spells and abilities your opponents control can't cause you to sacrifice permanents.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+        .ability(static_ability(
+            "Spells and abilities your opponents control can't cause you to sacrifice permanents.",
+            Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 // CR 701.21a — "its controller moves it from the battlefield
                 // directly to its owner's graveyard".
                 pattern: EventPattern::ZoneChange {
@@ -114,7 +108,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
                 affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
             }))),
-        })
+        ))
         .build()
 }
 
@@ -150,17 +144,11 @@ pub fn diabolic_edict() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Instant)
         .rules_text("Target player sacrifices a creature of their choice.")
-        .ability(AbilityDef {
-            rules_text: "Target player sacrifices a creature of their choice.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
+        .ability(spell_ability(
+            "Target player sacrifices a creature of their choice.",
             // What is sacrificed is chosen as it resolves, by the target (CR
             // 115.1) and from their own creatures (CR 701.21a).
-            effect: Effect::Atom(
+            Effect::Atom(
                 Primitive::Sacrifice,
                 EffectRecipient::ChosenBy(Box::new(Choice {
                     chooser: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
@@ -169,6 +157,6 @@ pub fn diabolic_edict() -> Arc<CardData> {
                     acts_on: ChoiceSide::Chosen,
                 })),
             ),
-        })
+        ))
         .build()
 }

@@ -342,11 +342,12 @@ fn binding_reads_are_named(
 
 #[cfg(test)]
 mod tests {
+    use crate::cards::authoring::spell_ability;
     use crate::test_support::place_on_battlefield;
     use crate::engine::targeting::TargetInstance;
     use crate::types::replacement::EnterMods;
     use crate::types::ids::ObjectOrPlayerId;
-    use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
+    use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::{GameState, StackEntry};
     use crate::types::card_types::CardType;
@@ -360,19 +361,13 @@ mod tests {
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Blue)
             .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(3)),
                     EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build()
     }
 

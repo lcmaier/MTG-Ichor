@@ -15,14 +15,13 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::static_ability;
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, ColorChange, Condition, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerFact, PlayerRef, PlayerSet, Primitive,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
@@ -69,19 +68,13 @@ pub fn yixlid_jailer() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Wizard))
         .power_toughness(2, 1)
         .rules_text("Cards in graveyards lose all abilities.")
-        .ability(AbilityDef {
-            rules_text: "Cards in graveyards lose all abilities.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Cards in graveyards lose all abilities.",
+            Effect::Atom(
                 Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
                 EffectRecipient::FilteredObjectsIn(ObjectFilter::All, ZoneSet::GRAVEYARD),
             ),
-        })
+        ))
         .build()
 }
 
@@ -113,15 +106,9 @@ pub fn scarwood_treefolk() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Treefolk))
         .power_toughness(3, 5)
         .rules_text("This creature enters tapped.")
-        .ability(AbilityDef {
-            rules_text: "This creature enters tapped.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(
+        .ability(static_ability(
+            "This creature enters tapped.",
+            Effect::Replacement(Box::new(
                 crate::types::replacement::ReplacementDef::new(
                     crate::types::replacement::EventPattern::EnterBattlefield { cast: None },
                     crate::types::effects::ObjectSet::SourceOnly,
@@ -130,7 +117,7 @@ pub fn scarwood_treefolk() -> Arc<CardData> {
                     ),
                 ),
             )),
-        })
+        ))
         .build()
 }
 

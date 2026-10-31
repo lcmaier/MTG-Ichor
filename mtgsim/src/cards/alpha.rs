@@ -11,11 +11,11 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::spell_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::*;
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Lightning Bolt — {R}
@@ -27,19 +27,13 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .rules_text("Lightning Bolt deals 3 damage to any target.")
-        .ability(AbilityDef {
-            rules_text: "Lightning Bolt deals 3 damage to any target.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Lightning Bolt deals 3 damage to any target.",
+            Effect::Atom(
                 Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                 EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -52,19 +46,13 @@ pub fn ancestral_recall() -> Arc<CardData> {
         .color(Color::Blue)
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
         .rules_text("Target player draws three cards.")
-        .ability(AbilityDef {
-            rules_text: "Target player draws three cards.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Target player draws three cards.",
+            Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(3)),
                 EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -77,19 +65,13 @@ pub fn counterspell() -> Arc<CardData> {
         .color(Color::Blue)
         .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 0))
         .rules_text("Counter target spell.")
-        .ability(AbilityDef {
-            rules_text: "Counter target spell.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Counter target spell.",
+            Effect::Atom(
                 Primitive::CounterSpell,
                 EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -102,19 +84,13 @@ pub fn burst_of_energy() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .rules_text("Untap target permanent.")
-        .ability(AbilityDef {
-            rules_text: "Untap target permanent.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Untap target permanent.",
+            Effect::Atom(
                 Primitive::Untap,
                 EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -127,15 +103,9 @@ pub fn giant_growth() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .rules_text("Target creature gets +3/+3 until end of turn.")
-        .ability(AbilityDef {
-            rules_text: "Target creature gets +3/+3 until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Target creature gets +3/+3 until end of turn.",
+            Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(3),
                     AmountExpr::Fixed(3),
@@ -143,7 +113,7 @@ pub fn giant_growth() -> Arc<CardData> {
                 ),
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -156,22 +126,16 @@ pub fn volcanic_upheaval() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 3))
         .rules_text("Destroy target land.")
-        .ability(AbilityDef {
-            rules_text: "Destroy target land.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Destroy target land.",
+            Effect::Atom(
                 Primitive::Destroy,
                 EffectRecipient::Target(SelectionFilter::Permanent(
                     ObjectFilter::ByType(CardType::Land)),
                     TargetCount::Exactly(1),
                 ),
             ),
-        })
+        ))
         .build()
 }
 

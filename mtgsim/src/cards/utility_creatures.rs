@@ -6,14 +6,14 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::activated_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Merfolk Thaumaturgist — {2}{U}
@@ -39,18 +39,13 @@ pub fn merfolk_thaumaturgist() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue], 2))
         .power_toughness(1, 2)
         .rules_text("{T}: Switch target creature's power and toughness until end of turn.")
-        .ability(AbilityDef {
-            rules_text: "{T}: Switch target creature's power and toughness until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::TapSelf],
-            effect: Effect::Atom(
+        .ability(activated_ability(
+            "{T}: Switch target creature's power and toughness until end of turn.",
+            vec![Cost::TapSelf],
+            Effect::Atom(
                 Primitive::SwitchPowerToughness(Duration::UntilEndOfTurn),
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }

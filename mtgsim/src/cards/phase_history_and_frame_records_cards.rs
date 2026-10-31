@@ -14,9 +14,9 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::spell_ability;
+use crate::cards::authoring::{spell_ability, static_ability};
 use crate::cards::authoring::triggers::{leaves_the_battlefield, triggered_ability, whenever};
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
@@ -76,13 +76,10 @@ pub fn fixture_mourning_ink() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text(text)
-        .ability(AbilityDef {
-            ability_type: AbilityType::Static,
-            ..spell_ability(text, Effect::Atom(
-                Primitive::ChangeColor(ColorChange::Add(Color::Black), Duration::WhileSourceOnBattlefield),
-                EffectRecipient::FilteredObjectsIn(ObjectFilter::ThisTurn(ObjectFact::Died), ZoneSet::GRAVEYARD),
-            ))
-        })
+        .ability(static_ability(text, Effect::Atom(
+            Primitive::ChangeColor(ColorChange::Add(Color::Black), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredObjectsIn(ObjectFilter::ThisTurn(ObjectFact::Died), ZoneSet::GRAVEYARD),
+        )))
         .build()
 }
 

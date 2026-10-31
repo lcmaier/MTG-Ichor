@@ -10,15 +10,15 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::static_ability;
 use crate::cards::authoring::{triggered_ability, whenever};
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
 };
 use crate::types::history::CountIs;
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
@@ -78,15 +78,9 @@ pub fn sphere_grid() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text(&format!("{trigger_text}\n{unlock_text}"))
         .ability(triggered_ability(trigger_text, whenever(deals_combat_damage_to_a_player, counter_on_that_creature)))
-        .ability(AbilityDef {
-            rules_text: unlock_text.into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![grant(KeywordFlag::Reach), grant(KeywordFlag::Trample)]),
-        })
+        .ability(static_ability(
+            unlock_text,
+            Effect::Sequence(vec![grant(KeywordFlag::Reach), grant(KeywordFlag::Trample)]),
+        ))
         .build()
 }

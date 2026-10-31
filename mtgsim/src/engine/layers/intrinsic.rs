@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::lookahead::compute_as_entering;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData};
+use crate::objects::card_data::{AbilityDef, AbilityType, CardData};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::effects::{AmountExpr, CounterType, Effect, ObjectSet};
@@ -43,20 +43,15 @@ pub(super) fn add_intrinsic_entry_abilities(chars: &mut EffectiveCharacteristics
         return;
     }
     let loyalty = chars.loyalty.filter(|n| *n > 0).unwrap_or(0) as u32;
-    Arc::make_mut(&mut chars.abilities).push(AbilityDef {
-        id: AbilityId::derived_on(object, SynthesizedAbility::PlaneswalkerLoyalty),
-        rules_text: "This permanent enters with a number of loyalty counters on it equal to its printed loyalty number.".into(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Replacement(Box::new(ReplacementDef::new(
+    Arc::make_mut(&mut chars.abilities).push(AbilityDef::new(
+        AbilityType::Static,
+        "This permanent enters with a number of loyalty counters on it equal to its printed loyalty number.",
+        Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::Loyalty, loyalty)),
         ))),
-        instances: Vec::new(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    });
+    ).with_id(AbilityId::derived_on(object, SynthesizedAbility::PlaneswalkerLoyalty)));
 }
 
 /// Is `ability` an intrinsic "enters with" ability this module gave `object`?

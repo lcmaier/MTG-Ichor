@@ -9,12 +9,13 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::static_ability;
 use mtgsim::cards::phase_rc_cards::{
     adaptive_shimmerer, chainbreaker, idyllic_beachfront, root_maze,
 };
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     place_bare, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game,
@@ -67,20 +68,14 @@ fn enters_with(
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Bear))
         .power_toughness(power, toughness)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(mods),
             ))),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -299,34 +294,22 @@ fn test_two_entry_replacements_accumulate() {
     let data = CardDataBuilder::new("Twice-Modified Bear")
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
-        })
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        ).with_id(new_ability_id()))
+        .ability(static_ability(
+            "",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::Charge, 2)),
             ))),
-        })
+        ).with_id(new_ability_id()))
         .build();
 
     // Two candidates, so CR 616.1 applies — and until RC-4 this was the first
@@ -383,20 +366,14 @@ fn orb_shaped() -> Arc<CardData> {
         .color(mtgsim::types::colors::Color::Green)
         .card_type(CardType::Artifact)
         .rules_text("Permanents enter tapped.")
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::All),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -791,22 +768,16 @@ fn kismet_shaped() -> Arc<CardData> {
         .color(mtgsim::types::colors::Color::Green)
         .card_type(CardType::Enchantment)
         .rules_text("Permanents your opponents control enter tapped.")
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::ByController(
                         mtgsim::types::effects::PlayerRef::Opponent,
                     )),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 

@@ -18,6 +18,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::activated_ability;
 use mtgsim::cards::authoring::{attacks, dies, leaves_the_battlefield, persist, triggered_ability, undying, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cv_cards;
@@ -27,7 +28,7 @@ use mtgsim::cards::phase_tr1_cards::blood_artist;
 use mtgsim::cards::phase_tr4a_cards::{compost, demonic_vigor, strangleroot_geist};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness, has_type};
 use mtgsim::state::battlefield::CostChoices;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
@@ -43,7 +44,7 @@ use mtgsim::types::effects::{
     AmountExpr, Antecedent, ColorChange, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup,
     PlayerRef, PlayerSet, Primitive, ReturnUnder, SelectionFilter, TargetCount, TypeChange,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
     DamageRecipient, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, Referred,
@@ -792,16 +793,11 @@ fn a_sacrificed_source_puts_as_many_counters_as_it_had() {
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .card_type(CardType::Creature)
         .power_toughness(1, 1)
-        .ability(AbilityDef {
-            rules_text: "Sacrifice this creature: Put a number of +1/+1 counters equal to the number it had on target creature.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::SacrificeSelf],
-            effect: put_as_many_as_it_had(),
-        })
+        .ability(activated_ability(
+            "Sacrifice this creature: Put a number of +1/+1 counters equal to the number it had on target creature.",
+            vec![Cost::SacrificeSelf],
+            put_as_many_as_it_had(),
+        ))
         .build();
     let a = put_on_battlefield(&mut game, a_card, 0);
     add_counters(&mut game, a, CounterType::PlusOnePlusOne, 2);

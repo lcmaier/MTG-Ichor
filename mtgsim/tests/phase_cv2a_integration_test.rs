@@ -22,6 +22,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{activated_ability, spell_ability};
 use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cm_cards::thalia_guardian_of_thraben;
@@ -36,7 +37,7 @@ use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::engine::layers::types::{EffectModification, Layer, PtValue};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_controller, get_effective_name, get_effective_power,
@@ -378,16 +379,10 @@ fn idle_thought() -> Arc<CardData> {
     CardDataBuilder::new("Idle Thought")
         .card_type(CardType::Instant)
         .mana_cost(ManaCost::build(&[], 0))
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(Vec::new()),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        .ability(spell_ability(
+            "",
+            Effect::Sequence(Vec::new()),
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -477,16 +472,11 @@ fn a_clone_copies_no_counters_status_or_noncopy_effects() {
 #[test]
 fn a_clone_of_an_animated_artifact_is_that_artifact() {
     let mut game = setup_two_player_game();
-    let staff_ability = AbilityDef {
-        rules_text: "".into(),
-        id: new_ability_id(),
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs: vec![mtgsim::types::costs::Cost::Mana(ManaCost::from_symbols(vec![ManaSymbol::X]))],
-        effect: Effect::Sequence(Vec::new()),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    };
+    let staff_ability = activated_ability(
+        "",
+        vec![mtgsim::types::costs::Cost::Mana(ManaCost::from_symbols(vec![ManaSymbol::X]))],
+        Effect::Sequence(Vec::new()),
+    ).with_id(new_ability_id());
     let staff_card = CardDataBuilder::new("Chimeric Staff")
         .card_type(CardType::Artifact)
         .mana_cost(ManaCost::build(&[], 4))

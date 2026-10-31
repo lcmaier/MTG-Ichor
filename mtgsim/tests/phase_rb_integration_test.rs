@@ -8,13 +8,14 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::static_ability;
 use mtgsim::test_support::place_on_battlefield;
 use mtgsim::cards::phase_rb_cards::{
     kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
 };
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
@@ -72,20 +73,14 @@ fn undying_probe(name: &str) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::Destroy { source: None },
                 ObjectSet::SourceOnly,
                 Rewrite::Prevent,
             ))),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -324,15 +319,9 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability(
+            "",
+            Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                     object: None,
@@ -340,7 +329,7 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
                 ObjectSet::SourceOnly,
                 Rewrite::Prevent,
             ))),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -783,16 +772,10 @@ fn replacement_creature(name: &str, def: ReplacementDef) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(def)),
-        })
+        .ability(static_ability(
+            "",
+            Effect::Replacement(Box::new(def)),
+        ).with_id(new_ability_id()))
         .build()
 }
 

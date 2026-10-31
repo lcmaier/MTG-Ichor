@@ -9,12 +9,12 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::static_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{ObjectFilter, ObjectSet, 
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, Primitive, };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
 
@@ -58,13 +58,9 @@ pub fn tarmogoyf() -> Arc<CardData> {
             "Tarmogoyf's power is equal to the number of card types among cards in all \
              graveyards and its toughness is equal to that number plus 1.",
         )
-        .ability(AbilityDef {
-            rules_text: "Tarmogoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1.".into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Tarmogoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1.",
+            Effect::Atom(
                 Primitive::SetPowerToughness(
                     card_types_in_graveyards(),
                     AmountExpr::Plus(Box::new(card_types_in_graveyards()), 1),
@@ -72,9 +68,7 @@ pub fn tarmogoyf() -> Arc<CardData> {
                 ),
                 EffectRecipient::ThisObject,
             ),
-            is_characteristic_defining: true,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        })
+        ).characteristic_defining())
         .build()
 }
 
@@ -100,18 +94,12 @@ pub fn culling_drone() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Drone))
         .power_toughness(2, 2)
         .rules_text("Devoid\nIngest")
-        .ability(AbilityDef {
-            rules_text: "Devoid".into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Devoid",
+            Effect::Atom(
                 Primitive::ChangeColor(ColorChange::RemoveAll, Duration::WhileSourceOnBattlefield),
                 EffectRecipient::ThisObject,
             ),
-            is_characteristic_defining: true,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        })
+        ).characteristic_defining())
         .build()
 }

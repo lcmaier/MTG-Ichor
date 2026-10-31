@@ -39,8 +39,9 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::activated_ability;
 use crate::objects::card_data::{
-    AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
+    CardData, CardDataBuilder,
 };
 use crate::state::game_state::PhaseType;
 use crate::types::card_types::CardType;
@@ -49,7 +50,6 @@ use crate::types::costs::Cost;
 use crate::types::effects::{
     Effect, EffectRecipient, ExtraPhasesAfter, ObjectFilter, PlayerRef, Primitive,
 };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// "creatures you control" — CR 109.5's "you" is the source's controller.
@@ -115,18 +115,13 @@ pub fn aggravated_assault() -> Arc<CardData> {
              there is an additional combat phase followed by an additional main \
              phase. Activate only as a sorcery.",
         )
-        .ability(AbilityDef {
-            rules_text: "{3}{R}{R}: Untap all creatures you control. After this main phase, there is an additional combat phase followed by an additional main phase. Activate only as a sorcery.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::OnlyAsSorcery,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::Mana(ManaCost::build(
+        .ability(activated_ability(
+            "{3}{R}{R}: Untap all creatures you control. After this main phase, there is an additional combat phase followed by an additional main phase. Activate only as a sorcery.",
+            vec![Cost::Mana(ManaCost::build(
                 &[ManaType::Red, ManaType::Red],
                 3,
             ))],
-            effect: Effect::Sequence(vec![
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::Untap,
                     EffectRecipient::FilteredPermanents(creatures_you_control()),
@@ -139,6 +134,6 @@ pub fn aggravated_assault() -> Arc<CardData> {
                     EffectRecipient::Controller,
                 ),
             ]),
-        })
+        ).only_as_sorcery())
         .build()
 }

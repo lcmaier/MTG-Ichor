@@ -8,13 +8,14 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::scenario::Scenario;
 use mtgsim::engine::layers::compute_characteristics;
@@ -42,16 +43,10 @@ fn free_spell(name: &str, card_type: CardType, effect: Effect) -> Arc<CardData> 
     let builder = CardDataBuilder::new(name).card_type(card_type).mana_cost(ManaCost::build(&[], 0));
     match card_type {
         CardType::Instant | CardType::Sorcery => builder
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                id: new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
+            .ability(spell_ability(
+                "",
                 effect,
-                is_characteristic_defining: false,
-                activation_restriction: ActivationRestriction::None,
-            })
+            ).with_id(new_ability_id()))
             .build(),
         _ => builder.build(),
     }

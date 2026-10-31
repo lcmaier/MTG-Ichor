@@ -11,12 +11,12 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::mana_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::keywords::KeywordFlag;
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ManaOutput, Primitive};
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Sol Ring — {1}
@@ -34,15 +34,10 @@ pub fn sol_ring() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .mana_cost(ManaCost::build(&[], 1))
         .rules_text("{T}: Add {C}{C}.")
-        .ability(AbilityDef {
-            rules_text: "{T}: Add {C}{C}.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Mana,
-            costs: vec![Cost::TapSelf],
-            effect: Effect::Atom(
+        .ability(mana_ability(
+            "{T}: Add {C}{C}.",
+            vec![Cost::TapSelf],
+            Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     // One ability producing two, not two abilities producing one:
                     // `{C}{C}` is a single activation, and a mana ability that
@@ -52,7 +47,7 @@ pub fn sol_ring() -> Arc<CardData> {
                 }),
                 EffectRecipient::Implicit,
             ),
-        })
+        ))
         .build()
 }
 

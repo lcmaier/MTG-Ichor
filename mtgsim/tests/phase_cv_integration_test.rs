@@ -16,6 +16,7 @@
 
 use std::sync::Arc;
 
+
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
 use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
 use mtgsim::cards::phase_rc_cards::containment_priest;
@@ -23,7 +24,7 @@ use mtgsim::cards::phase_re_cards::laboratory_maniac;
 use mtgsim::engine::layers::copy::copiable_values;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_controller, get_effective_name, get_effective_power,
@@ -760,15 +761,9 @@ fn restriction_creature() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(3, 3)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+        .ability(mtgsim::cards::authoring::static_ability(
+            "",
+            Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
@@ -776,7 +771,7 @@ fn restriction_creature() -> Arc<CardData> {
                 affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
             }))),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 

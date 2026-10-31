@@ -10,11 +10,11 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::cards::authoring::spell_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 /// Blaze — {X}{R}
@@ -28,18 +28,12 @@ pub fn blaze() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)]))
         .rules_text("Blaze deals X damage to any target.")
-        .ability(AbilityDef {
-            rules_text: "Blaze deals X damage to any target.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Blaze deals X damage to any target.",
+            Effect::Atom(
                 Primitive::DealDamage { amount: AmountExpr::X, unpreventable: false },
                 EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }

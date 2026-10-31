@@ -18,7 +18,7 @@ use std::sync::Arc;
 use mtgsim::cards::alpha::lightning_bolt;
 use mtgsim::cards::artifacts::sol_ring;
 use mtgsim::cards::authoring::{
-    another, at_beginning_of, attacks, dies, enters, triggered_ability, whenever, Whose,
+    another, at_beginning_of, attacks, dies, enters, spell_ability, triggered_ability, whenever, Whose,
 };
 use mtgsim::cards::basic_lands::{forest, plains, swamp};
 use mtgsim::cards::creatures::grizzly_bears;
@@ -38,7 +38,7 @@ use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::engine::triggers::{could_be_a_mana_ability, visible_to_all};
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::state::game_state::{
@@ -46,8 +46,7 @@ use mtgsim::state::game_state::{
 };
 use mtgsim::test_support::{
     creature_with_ability, fill_library, install_trace, put_in_hand, put_in_library,
-    put_on_battlefield, put_spell_on_stack, registered, setup_game, setup_two_player_game,
-    static_ability, test_ctx, test_dp, vanilla_creature, StackWatcher,
+    put_on_battlefield, put_spell_on_stack, registered, setup_game, setup_two_player_game, test_ctx, test_dp, vanilla_creature, StackWatcher,
     effect_ctx,
 };
 use mtgsim::types::card_types::CardType;
@@ -2162,10 +2161,7 @@ fn a_resolving_spell_reads_its_own_kicker() {
             .card_type(CardType::Instant)
             .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
             .additional_cost(kicker_red())
-            .ability(AbilityDef {
-                ability_type: AbilityType::Spell,
-                ..static_ability(Effect::Conditional(Condition::SpellWasKicked, Box::new(gain_one())))
-            })
+            .ability(spell_ability("", Effect::Conditional(Condition::SpellWasKicked, Box::new(gain_one()))).with_id(new_ability_id()))
             .build()
     };
     let (game, _) = cast_from_exact_pool(insight(), &[ManaType::Blue, ManaType::Red], true);

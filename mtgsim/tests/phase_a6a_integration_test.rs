@@ -12,6 +12,7 @@
 use std::cell::Cell;
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::authoring::{at_beginning_of, dies, triggered_ability, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::registry::CardRegistry;
@@ -19,7 +20,7 @@ use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, StepType};
@@ -326,16 +327,10 @@ fn free_instant() -> Arc<CardData> {
     CardDataBuilder::new("Idle Thought")
         .card_type(CardType::Instant)
         .mana_cost(ManaCost::build(&[], 0))
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(Vec::new()),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        .ability(spell_ability(
+            "",
+            Effect::Sequence(Vec::new()),
+        ).with_id(new_ability_id()))
         .build()
 }
 

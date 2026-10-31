@@ -114,16 +114,11 @@ pub struct TriggerMultiplierDef {
 impl TriggerMultiplierDef {
     /// The static ability whose body this is, which a card file writes.
     pub fn into_ability(self, rules_text: &'static str) -> crate::objects::card_data::AbilityDef {
-        crate::objects::card_data::AbilityDef {
-            rules_text: rules_text.into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: crate::objects::card_data::AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::TriggerMultiplier(Box::new(self)),
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            is_characteristic_defining: false,
-        }
+        crate::objects::card_data::AbilityDef::new(
+            crate::objects::card_data::AbilityType::Static,
+            rules_text,
+            Effect::TriggerMultiplier(Box::new(self)),
+        )
     }
 
     /// What the count cannot read, which the registry refuses: a state for

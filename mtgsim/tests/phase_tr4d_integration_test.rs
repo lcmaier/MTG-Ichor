@@ -23,6 +23,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::activated_ability;
 use mtgsim::cards::alpha::counterspell;
 use mtgsim::cards::authoring::{
     an_opponent_gains_control_of, at_beginning_of, loses_the_game, triggered_ability, whenever, you_lose_control_of, Whose,
@@ -38,7 +39,7 @@ use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer,
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
@@ -54,7 +55,7 @@ use mtgsim::types::effects::{
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, TriggerEvent, TriggerSubject,
@@ -400,16 +401,11 @@ fn an_arm_naming_no_act_ignores_a_card_kept_in_its_zone() {
 
 /// An artifact whose `{T}` ability resolves `effect`.
 fn totem(name: &str, effect: Effect) -> Arc<CardData> {
-    let ability = AbilityDef {
-        rules_text: "".into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs: vec![Cost::TapSelf],
+    let ability = activated_ability(
+        "",
+        vec![Cost::TapSelf],
         effect,
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    };
+    );
     CardDataBuilder::new(name).card_type(CardType::Artifact).ability(ability).build()
 }
 

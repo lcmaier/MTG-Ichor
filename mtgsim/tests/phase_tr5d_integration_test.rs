@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::authoring::{at_beginning_of, damage_to_is_prevented, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_rd_cards::{mending_hands, safe_passage};
 use mtgsim::cards::phase_tr5d_cards::{goblin_negotiation, selfless_squire};
@@ -25,7 +26,7 @@ use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GeneratedBy};
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
@@ -40,7 +41,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::history::ObjectFact;
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::types::keywords::KeywordFlag;
@@ -869,16 +870,10 @@ fn a_riders_damage_during_the_resolution_is_not_dealt_this_way() {
 fn fixture_sorcery(effect: Effect) -> Arc<CardData> {
     CardDataBuilder::new("Fixture Sorcery")
         .card_type(CardType::Sorcery)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
+        .ability(spell_ability(
+            "",
             effect,
-        })
+        ))
         .build()
 }
 

@@ -33,23 +33,17 @@ use crate::types::colors::Color;
 use crate::types::effects::{
     Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
 fn spell_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Spell,
-        costs: Vec::new(),
+    AbilityDef::new(
+        AbilityType::Spell,
+        rules_text,
         effect,
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
+    )
 }
 
 /// "If [this] would be put into a graveyard from anywhere, reveal [this] and

@@ -262,19 +262,14 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-        .ability(AbilityDef {
-            rules_text: "Lightning Bolt deals 3 damage to any target.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(AbilityDef::new(
+            AbilityType::Spell,
+            "Lightning Bolt deals 3 damage to any target.",
+            Effect::Atom(
                 Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                 EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             ),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -941,16 +936,11 @@ pub fn fixed_target_bounds(recipient: &EffectRecipient) -> crate::types::effects
 /// question. Clone the returned def to put the *same* ability on an object
 /// twice — a fresh call would give a second id and prove nothing.
 pub fn static_ability(effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: "".into(),
-        id: new_ability_id(),
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
+    AbilityDef::new(
+        AbilityType::Static,
+        "",
         effect,
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
+    ).with_id(new_ability_id())
 }
 
 /// A creature named `name` with the given P/T carrying `ability` as printed

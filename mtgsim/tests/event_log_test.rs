@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{activated_ability, spell_ability};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cv_cards::clone;
 use mtgsim::cards::phase_lh_cards::holy_strength;
@@ -25,7 +26,7 @@ use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;
 use mtgsim::scenario::Scenario;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
     fill_library, lightning_bolt, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp,
@@ -35,7 +36,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId, UntilReturnId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId, UntilReturnId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{DelayedDuration, EventKind};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
@@ -340,19 +341,14 @@ fn thaumaturgist_for_red() -> Arc<CardData> {
     CardDataBuilder::new("Thaumaturgist for Red")
         .card_type(CardType::Creature)
         .power_toughness(1, 2)
-        .ability(AbilityDef {
-            rules_text: "{R}: Switch target creature's power and toughness until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 0))],
-            effect: Effect::Atom(
+        .ability(activated_ability(
+            "{R}: Switch target creature's power and toughness until end of turn.",
+            vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 0))],
+            Effect::Atom(
                 Primitive::SwitchPowerToughness(Duration::UntilEndOfTurn),
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -363,19 +359,13 @@ fn chosen_pump() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .color(Color::Green)
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "Choose a creature. It gets +2/+2 until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Choose a creature. It gets +2/+2 until end of turn.",
+            Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::UntilEndOfTurn),
                 EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 

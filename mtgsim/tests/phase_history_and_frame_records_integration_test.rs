@@ -2,6 +2,7 @@
 //! object that is gone, and the history log's rows as every "this turn"
 //! fact's one store (`plans/handoffs/item-6-audit.md`, pass 3's cleanup).
 
+use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::authoring::triggers::{becomes_blocked, becomes_blocked_by, blocks, triggered_ability, whenever};
 use mtgsim::cards::phase_history_and_frame_records_cards::{fixture_first_creature_tithe, fixture_mourners_tithe};
 use mtgsim::cards::phase_lh_cards::holy_strength;
@@ -10,7 +11,7 @@ use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{GameEvent, UnattachRoute};
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_colors, get_effective_power};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
@@ -23,7 +24,7 @@ use mtgsim::types::effects::{
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
@@ -214,16 +215,10 @@ fn one_drop(name: &'static str, card_type: CardType) -> std::sync::Arc<CardData>
     match card_type {
         CardType::Creature => builder.power_toughness(1, 1).build(),
         _ => builder
-            .ability(AbilityDef {
-                rules_text: "You gain 0 life.".into(),
-                is_characteristic_defining: false,
-                activation_restriction: ActivationRestriction::None,
-                id: AbilityId::UNASSIGNED,
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(0)), EffectRecipient::Controller),
-            })
+            .ability(spell_ability(
+                "You gain 0 life.",
+                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(0)), EffectRecipient::Controller),
+            ))
             .build(),
     }
 }
@@ -360,19 +355,13 @@ fn fixture_count_of_the_dead(name: &'static str, of: ObjectFilter) -> std::sync:
     CardDataBuilder::new(name)
         .mana_cost(ManaCost::build(&[], 1))
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "",
+            Effect::Atom(
                 Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(died))),
                 EffectRecipient::Controller,
             ),
-        })
+        ))
         .build()
 }
 

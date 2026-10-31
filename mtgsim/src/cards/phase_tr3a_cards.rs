@@ -21,27 +21,21 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{at_beginning_of, whenever, Whose};
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn};
 
 /// One paragraph of an instant: a spell ability (CR 113.2c).
 fn spell_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Spell,
-        costs: Vec::new(),
+    AbilityDef::new(
+        AbilityType::Spell,
+        rules_text,
         effect,
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
+    )
 }
 
 /// Final Fortune — {R}{R}

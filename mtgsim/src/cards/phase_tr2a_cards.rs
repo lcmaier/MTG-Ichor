@@ -13,8 +13,9 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::activated_ability;
 use crate::cards::authoring::{another, at_beginning_of, dies, triggered_ability, Whose};
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -24,7 +25,6 @@ use crate::types::effects::{
     PlayerGroup, PlayerRef, PlayerSet, Primitive, TokenDef,
 };
 use crate::types::history::{CountIs, HistoryCount, TurnFact};
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
@@ -188,13 +188,10 @@ pub fn elvish_warmaster() -> Arc<CardData> {
         was_cast: None,
         multiplicity: Multiplicity::OncePerEvent,
     };
-    let pump = AbilityDef {
-        rules_text: "{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of turn.".into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs: vec![Cost::Mana(ManaCost::build(&[ManaType::Green, ManaType::Green], 5))],
-        effect: Effect::Sequence(vec![
+    let pump = activated_ability(
+        "{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of turn.",
+        vec![Cost::Mana(ManaCost::build(&[ManaType::Green, ManaType::Green], 5))],
+        Effect::Sequence(vec![
             Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::UntilEndOfTurn),
                 EffectRecipient::FilteredPermanents(elves_you_control()),
@@ -204,9 +201,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
                 EffectRecipient::FilteredPermanents(elves_you_control()),
             ),
         ]),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    };
+    );
     CardDataBuilder::new("Elvish Warmaster")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .color(Color::Green)
@@ -244,18 +239,13 @@ pub fn temple_bell() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 3))
         .card_type(CardType::Artifact)
         .rules_text("{T}: Each player draws a card.")
-        .ability(AbilityDef {
-            rules_text: "{T}: Each player draws a card.".into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::TapSelf],
-            effect: Effect::Atom(
+        .ability(activated_ability(
+            "{T}: Each player draws a card.",
+            vec![Cost::TapSelf],
+            Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
                 EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone)),
             ),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        ))
         .build()
 }

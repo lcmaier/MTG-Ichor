@@ -13,6 +13,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::authoring::{at_beginning_of, draws_a_card, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_rd_cards::safe_passage;
 use mtgsim::cards::phase_tr2b_cards::{cosis_trickster, nykthos_paragon, psychosis_crawler};
@@ -21,7 +22,7 @@ use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
     card_of_type, creature_with_ability, fill_library, put_in_hand, put_in_library, put_on_battlefield,
@@ -130,16 +131,10 @@ fn cast_a_spell(game: &mut GameState, player: PlayerId) {
     let spell = CardDataBuilder::new("Idle Thought")
         .mana_cost(ManaCost::build(&[], 0))
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(Vec::new()),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        .ability(spell_ability(
+            "",
+            Effect::Sequence(Vec::new()),
+        ).with_id(new_ability_id()))
         .build();
     cast(game, player, spell);
 }
