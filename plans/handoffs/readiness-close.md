@@ -70,56 +70,93 @@ static ability, an activated ability's shield, a resolution's, and a "can't"
 asks the kinds through `pattern_watches`, so the kinds must hold every
 pairing any of them makes.
 
-Counted 2026-10-30 on Scryfall, each query under `game:paper -is:funny`,
-`unique=cards`, `total_cards` off page one; a second phrasing for each family
-that read zero, and for the entering families since 2024's wording drops
-"the battlefield".
+**Recounted 2026-10-30 at the owner's review**, by
+`plans/references/replacement-kinds-census.py` over every Commander-legal
+paper card (32,115; `cast-census.py`'s corpus, fetched 2026-10-05). The first
+count was a Scryfall query per family that matched a word anywhere in a
+card's text. So it counted triggered abilities: the discard row's 17 were 7
+replacements and 10 triggers, Ajani's Last Stand among them. And it missed
+every family whose wording lacks the word: madness, regeneration, protection,
+and every permanent that enters tapped. The recount puts a card in a family
+by the clause its replacement watches:
+- the event inside a "would … instead" sentence;
+- a "causes you to discard … instead" or "tapped for mana … instead" one;
+- a prevention, a skip, or an entry modification;
+- a keyword whose CR 702 definition is a replacement.
 
-| What the kinds must do | Family | Query | Cards | Example | Arm today |
-|---|---|---|---:|---|---|
-| **One kind** | prevent damage | `o:prevent o:damage` | 523 | Abuna Acolyte | `DealDamage` |
-| | damage replaced | `o:"would deal" o:damage o:instead` | 84 | Aegis of Honor | `DealDamage` |
-| | dies, or put into a graveyard | `o:/would (die\|be put into [a-z ]*graveyard)/` | 193 | Rest in Peace | `ZoneChange`, its `to` a graveyard |
-| | leaves the battlefield | `o:"would leave the battlefield"` | 15 | From the Catacombs | `ZoneChange` |
-| | a discard | `o:"causes you to discard"` | 17 | Dodecapod | `ZoneChange`, its act |
-| | enters | `o:"would enter"` | 16 | Containment Priest | `EnterBattlefield` |
-| | others enter tapped | `o:/(creatures\|permanents\|lands\|artifacts)[^.]* enter tapped/` | 26 | Archon of Emeria | `EnterBattlefield` |
-| | draw | `o:"would draw"` | 49 | Abundance | `DrawCard`, `DrawCards` |
-| | gain life / lose life | `o:"would gain life"` / `o:"would lose life"` | 21 / 2 | Angel of Vitality | `GainLife`, `LoseLife` |
-| | tokens | `o:/would (create\|be created)/ o:token` | 34 | Anointed Procession | `CreateTokens` |
-| | skip a turn, phase or step | `o:/skip (your\|their\|each\|that player.s)/` | 31 | Chronatog | `BeginTurn`, `BeginPhase`, `BeginStep` |
-| | mana | `o:/(would add\|would produce\|produces? (twice\|three times))/ o:mana` | 4 | Mana Reflection | `ProduceMana` |
-| | untap | `o:/would (untap\|become untapped)/` | 2 | Freyalise's Winds | `Untap` |
-| | destroy | `o:"would be destroyed"` | 7 | Crackling Emergence | `Destroy` |
-| | scry / lose the game | `o:"would scry"` / `o:"would lose the game"` | 2 / 4 | Eligeth / Lich's Mirror | `Scry`, `PlayerLoses` |
-| | can't win | `o:"can't win the game"` | 9 | Abyssal Persecutor | `PlayerWins`, through `Restriction::Event` |
-| **Two kinds** | counters put on | `o:counters o:/would (be put\|put)/` | 34 | Hardened Scales | `AddCounters`, and an entry: "Doubling Season affects permanents that enter with counters" (ruling, 2024-11-08) |
-| | enter with additional counters | `o:"enter with" o:additional` | 9 | Bard Class | the same two |
-| | can't enter | `o:"can't enter"` | 6 | Grafdigger's Cage | `ZoneChange` whose `to` admits the battlefield, and an entry |
-| **An arm, no printed card** | becomes tapped | `o:/would (tap\|become tapped)/`, `o:/can.t (become tapped\|be tapped)/` | 0, 0 | — | `Tap`, kept in the kinds as every arm is |
-| **No pattern arm** | a shuffle | `o:"would shuffle"`, `o:shuffle o:instead o:would` | 0, 16 (all zone changes: Blightsteel Colossus) | — | none; nor for becoming blocked, a creation into a zone, attaching, unattaching, a token ceasing to exist, a draw game |
-| **No `GameAction` arm yet** | a search | `o:"would search"` | 1 | Aven Mindcensor | `backlog.md` §2.5 |
-| | a die roll | `o:/would roll/` | 7 | Barbarian Class | `backlog.md` §2.31 |
-| | a mill's number | `o:"would mill"` | 2 | Bruvac the Grandiloquent | none: a line in `backlog.md` §2.5 (CR 701's keyword actions) at this PR's close |
-| **Not indexed by kind** | shield / stun / finality counters | `o:"shield counter"` / `o:"stun counter"` / `o:"finality counter"` | 28 / 99 / 44 | Boon of Safety | source 5, from the counter |
-| | a copy | `o:/(enter\|enters\|becomes?) as a copy of/` | 64 | Spark Double | a named copy row; an entry copy is the printed leg |
-| | a grant by name | `o:/(has\|have\|gains?) "[^"]*instead/` | 12 | Bewitching Leechcraft | a named grant row, its `Host` |
-| | a grant over a filter | `o:/(creatures\|permanents)[^".]* (have\|gain) "[^"]*instead/` | 1 | Scion of Halaster | a `Filter` row's zones, walked |
+Reminder text is stripped first, so a keyword counts once. "If … instead"
+with no event in the "if" (kicker, "if you control a Mountain") is a spell
+modifying its own effect, and is not counted. Every card of each family
+under 40 was read, and a seeded sample of 10 to 12 from each larger one.
 
-**Reading.** Every printed family watches one `GameAction` kind or two, and
-every pairing is already one arm of `pattern_watches`: the kinds add no
-vocabulary, they index what the arms pair. A zone-change pattern watches an
-entry only when its destination admits the battlefield, so the kinds read
-the pattern's `to`: filed by the arm alone, the 193 "dies or put into a
-graveyard" patterns would be asked at every entry, each Goblin of the token
-board's included. The three families with no `GameAction` arm each arrive
-with a variant, so a proposal's kind must be an exhaustive match a new
-variant cannot compile past. The rulings read for the table set two more
-constraints: a counter pattern watches an entry (Hardened Scales, Doubling
-Season), and a shield or finality counter works on a permanent that lost its
-abilities ("If that permanent loses its abilities and then would go to a
-graveyard, it will still be exiled instead", Balustrade Wurm, 2024-09-20), so
-the counter route may not hang off the ability list.
+**Static** is the battlefield file's population: the clause is printed on a
+permanent, not in a triggered ability, not behind an activation cost, not
+inside a quoted grant, and not a one-shot. It is read off the line's shape,
+so it is approximate.
+
+| What the kinds must do | Family | Cards | Static | Example | Arm today |
+|---|---|---:|---:|---|---|
+| **One kind** | damage prevented | 490 | 138 | Callous Giant | `DealDamage` |
+| | protection (CR 702.16e) | 193 | 190 | White Knight | `DealDamage` |
+| | damage replaced | 142 | 74 | Furnace of Rath | `DealDamage` |
+| | dies, or put into a graveyard | 196 | 76 | Rest in Peace | `ZoneChange`, its `to` a graveyard |
+| | discard; madness | 7; 61 | 7; 35 | Wilt-Leaf Liege | `ZoneChange`, its act |
+| | leaves the battlefield; unearth | 15; 56 | 1; 56 | From the Catacombs | `ZoneChange` |
+| | leaves the stack: flashback, jump-start, aftermath, harmonize, rebound, buyback; countered | 338; 1 | 1; 1 | Guile | `ZoneChange` from the stack, its act |
+| | would enter | 16 | 12 | Containment Priest | `EnterBattlefield` |
+| | others enter tapped | 27 | 24 | Archon of Emeria | `EnterBattlefield` |
+| | others enter with counters | 33 | 25 | Bard Class | `EnterBattlefield` (the first count put it with the two-kind rows; an "enters with" rewrite watches only the entry) |
+| | draw; dredge | 47; 14 | 35; 10 | Abundance | `DrawCard`, `DrawCards` |
+| | gain life / lose life | 21 / 2 | 20 / 2 | Rain of Gore | `GainLife`, `LoseLife` |
+| | tokens | 31 | 27 | Anointed Procession | `CreateTokens` |
+| | skip, or begin, a turn, phase or step | 44 | 29 | Stasis | `BeginTurn`, `BeginPhase`, `BeginStep` |
+| | mana | 16 | 9 | Mana Reflection | `ProduceMana` |
+| | regenerate; umbra armor; "would be destroyed" | 270; 15; 3 | 18; 15; 0 | Cudgel Troll | `Destroy` |
+| | untap / scry / lose the game | 2 / 2 / 4 | 2 / 2 / 3 | Eligeth, Crossroads Augur / Lich's Mirror | `Untap`, `Scry`, `PlayerLoses` |
+| | can't lose / can't win the game | 11 / 9 | 6 / 5 | Platinum Angel / Abyssal Persecutor | `PlayerLoses` / `PlayerWins`, through `Restriction::Event` |
+| **Two kinds** | counters put on, a player's too (energy, poison) | 31 | 29 | Hardened Scales | `AddCounters`, and an entry: "Doubling Season affects permanents that enter with counters" (ruling, 2024-11-08) |
+| | can't enter | 5 | 5 | Grafdigger's Cage | `ZoneChange` whose `to` admits the battlefield, and an entry |
+| **Its own entry only** | enters tapped; enters with counters; as it enters; a keyword (amplify, modular, sunburst, riot and ten more) | 761; 448; 301; 205 | 761; 415; 300; 205 | Blood Crypt | `EnterBattlefield` over `SourceOnly`, read by source 1a as the card enters. **1,587 cards have no other replacement** |
+| **No arm, or no `GameAction`, yet** | life total reduced | 9 | 6 | Enduring Angel | none: damage and life loss in one pattern |
+| | mana empties (CR 500.4) | 5 | 5 | Kruphix, God of Horizons | none |
+| | explore, connive, learn, planeswalk, assemble, copy a spell, proliferate | 2, 1, 1, 1, 1, 1, 1 | all | Topography Tracker | none: a keyword action with no `GameAction` |
+| | search / a die roll or coin flip / a mill's number | 1 / 8 / 2 | 1 / 6 / 2 | Aven Mindcensor / Barbarian Class / Bruvac the Grandiloquent | `backlog.md` §2.5 / §2.31 / a line in §2.5 at this PR's close |
+| **An arm, no printed card** | becomes tapped | 0 | — | — | `Tap`, kept in the kinds as every arm is |
+| **A `GameAction`, no arm, no printed card** | a shuffle, becoming blocked, a creation into a zone, attaching, unattaching, a token ceasing to exist, a draw game | 0 | — | — | none; each has a kind no pattern's kinds hold |
+| **Not indexed by kind** | shield / stun / finality counters, cards that put one | 28 / 91 / 40 | | Boon of Safety | source 5, from the counter |
+| | becomes a copy | 86 | 10 | Cytoshape | a named copy row (decision 3) |
+| | enters as a copy; a token copy | 59; 279 | | Spark Double | filed as printed: an entry copy is the object's own |
+| | protection granted to named objects / over a filter | 121 / 28 | | Mother of Runes / Akroma's Will | a named grant row (decision 3) / a `Filter` row's zones |
+| | a quoted replacement granted | 21 | | Bewitching Leechcraft / Pulmonic Sliver | a named row / a `Filter` row, as the grant says |
+
+**Reading.** Every printed family that has an arm watches one `GameAction`
+kind or two, and every pairing is already one arm of `pattern_watches`: the
+kinds add no vocabulary, they index what the arms pair. A zone-change pattern
+watches an entry only when its destination admits the battlefield, so the
+kinds read the pattern's `to`. Filed by the arm alone, the 196 "dies or put
+into a graveyard" cards would be asked at every entry, each Goblin of the
+token board's included.
+
+**The largest family is one the first count missed, and it watches nothing
+from the battlefield.** 1,587 cards replace only their own entry: every
+tapland, every "enters with N counters", every "as this enters, choose". CR
+614.12 reads that ability off the card as it enters, which is source 1a, and
+a permanent already on the battlefield cannot enter again without becoming a
+new object (CR 400.7). So the file leaves the entry out of a `SourceOnly`
+def's kinds, and a def left with none is filed nowhere (decision 1). The
+trigger side does the same for a trigger that fires only on its own object
+moving: it is asked only as a newcomer, never from the zone map
+(`newcomer_trigger_sources`).
+
+Twelve families have no arm, and all but "life total reduced" have no
+`GameAction` either. Each arrives with a variant, so a proposal's kind must be an exhaustive
+match that a new variant cannot compile past. The rulings read for the table
+set two more constraints:
+- A counter pattern watches an entry (Hardened Scales, Doubling Season).
+- A shield or finality counter works on a permanent that lost its abilities
+  ("If that permanent loses its abilities and then would go to a graveyard,
+  it will still be exiled instead", Balustrade Wurm, 2024-09-20). So the
+  counter route may not hang off the ability list.
 
 **What overrides it.** No rule lets a card change which event another effect
 watches: CR 614.1 makes that the effect's text. A text-changing effect (CR
@@ -184,9 +221,24 @@ kinds of proposal its printed patterns watch.
   source per gather. No new type; but each source costs a pattern and
   affected-set check per gather, which can read the subject's frame.
 
-**Recommended: (a).** It is the shape the owner named, it costs a bit test
-where the others cost a check or a read, and a variant cannot be added
-without saying its kind. **The zone leg keeps its printed defs**, and under
+**Chosen: (a)** (the owner, 2026-10-30). It is the shape the owner named, it
+costs a bit test where the others cost a check or a read, and a variant
+cannot be added without saying its kind.
+
+**Added at the review, from the recount: an object's own entry is never
+filed.** A `SourceOnly` def's kinds leave out `EnterBattlefield` wherever
+the def is filed. Its own entry is source 1a's (CR 614.12), and on any other
+leg the object cannot be the one entering (CR 400.7). A def left with no
+kind is filed nowhere. A tapland on the battlefield then costs nothing,
+where under the arm's kinds alone it would be asked at every entry.
+Mowu's "if one or more +1/+1 counters would be put on ~" keeps
+`AddCounters`. And a board whose only replacement sources are taplands
+passes no gate: the gather passed its gate on 90–99% of calls at Commander
+scale because a pooled tapland was a source
+(`triggers-architecture.md#112-the-same-probe-at-commander-scale-and-what-it-says-is-next`).
+About 15 lines, and a test that a tapland is not filed.
+
+**The zone leg keeps its printed defs**, and under
 decision 2(a) its check opens with the same kind test, since
 `printed_could_apply` asks `pattern_watches`. Its def check is finer than a
 kind: a Darksteel Colossus in a library watches zone changes into a
@@ -220,14 +272,16 @@ pairing the match has) or the gate over-approximates (harmless).
   action of every kind and requires the two to agree. About 70 lines of
   sample actions, and the agreement holds only for the samples.
 
-**Recommended: (a)**, `engineering-practices.md#one-record-never-two-kept-in-step`.
+**Chosen: (a)** (the owner, 2026-10-30),
+`engineering-practices.md#one-record-never-two-kept-in-step`.
 
 ### 3. The named rows' objects on the battlefield leg
 
 The problem: today a grant or copy row over named objects
 (`RegistryScopeSummary::any_named_unattributed_replacement`) sends the gather
-back to the whole walk. 64 copy cards and 12 grants by name make that the
-common case wherever a Clone resolves. While the flag is set, the zone leg
+back to the whole walk. 86 cards make a permanent become a copy, 121 grant
+protection to named objects (Mother of Runes) and 21 grant a quoted
+replacement, which makes that the common case on a Commander board. While the flag is set, the zone leg
 also scans every continuous-effect row on every gather, and each copy row's
 captured ability list (`puts_a_replacement_ability`), to find the named
 objects.
@@ -246,71 +300,124 @@ objects.
   are derived there, once. About 40 lines. Performance: no row scan for a
   proposal no named row's ability watches, on both legs.
 
-**Recommended: (b).** It is the dispatcher's shape, the owner's ask; it takes
-the row scan off the zone leg too; and its derivation runs at a registry
-change, not at a gather. (a) is smaller, but leaves a per-gather scan on
-every board with a Clone.
+**Chosen: (b)** (the owner, 2026-10-30). It is the dispatcher's shape; it
+takes the row scan off the zone leg too; and its derivation runs at a
+registry change, not at a gather. A row's kinds leave out its own entry, as
+decision 1's file does. Protection granted by name will watch only damage
+once it lands as CR 702.16e's prevention (`backlog.md` §2.6), so a Mother of
+Runes activation will not open the board to the walk for a draw or a land
+drop.
 
-### 4. The permanents holding a replacement counter
+### 4. Where the gather finds a replacement counter
 
 The problem: a shield, stun or finality counter makes a replacement on any
-permanent (source 5), and today `any_replacement_counter` scans the
-battlefield for one on every gather that passes the board gate, and the walk
-then asks every permanent. Its doc records why it is computed rather than
-cached: a set kept beside the counters drifts at any write that skips it.
-Item 22 sized the set and found it sound since TR-5b took CR 704.5q's counter
-annihilation through the `RemoveCounters` arm. Read today: a permanent's
-counters are written by `GameState::add_counters` and `remove_counters`
-(`perform_action`'s two arms and the scenario builder), by
-`PermanentState::entering` as a permanent arrives with counters, and by
-nothing else but two tests, which put +1/+1 counters directly.
+permanent (source 5, CR 122.1c/d/h). Today `any_replacement_counter` scans
+the battlefield for one on every gather that passes the board gate, and the
+walk then asks every permanent's counters. The scan exits early on a
+permanent with no counters. But a Commander board almost always has counters
+somewhere, and more each year (the owner, at review), so the early exit
+fires less and less, while the three kinds the gather wants stay rare: 28, 91
+and 40 cards put one. The gather needs the holders of three kinds without
+visiting every other permanent.
 
-- **(a) A set, with the write path narrowed so no other writer compiles.**
-  `GameState::replacement_counter_holders`, written by the two `GameState`
-  writers, by `insert_battlefield_entity` for an arriving permanent's
+Read today: a permanent's counters live on `PermanentState`, inside the
+battlefield's shared chunks, so a fork copies none of them. They are written
+by `GameState::add_counters` and `remove_counters` (`perform_action`'s two
+arms and the scenario builder), by `PermanentState::entering` as a permanent
+arrives with counters, and by nothing else but two tests, which put +1/+1
+counters directly. The scan's doc says why it is computed: a set kept beside
+the counters drifts at any write that skips it.
+
+- **(a) An index of the three kinds' holders, behind one read and write
+  path.** `GameState::replacement_counter_holders`, written by the two
+  `GameState` writers, by `insert_battlefield_entity` for an arrival's
   counters, and by `cleanup_zone_state` as a permanent leaves.
-  `PermanentState::counters` becomes private to `state/`, read through a
-  `counters()` accessor, and `PermanentState`'s own two writers
-  `pub(in crate::state)`, so a write anywhere outside `state/` does not
-  compile. About 40 lines, and a mechanical sweep of the field's readers
-  (about 15 in `src` outside `state/`, 6 in `tests`, the dev GUI's snapshot) and
-  the two tests moved to `GameState::add_counters`. A debug assertion at each
-  gather that the set is the scan's answer guards what `state/` itself writes.
-- **(b) The same set, kept at the writers by convention.** About 40 lines and
-  no sweep; drift is caught by the debug assertion, which runs in every debug
-  test and in CI's two `release-checked` fuzz steps (`ci.yml`, "debug
-  assertions on"), and by the audit's whole walk under `--audit`, but a new
-  writer compiles silently.
+  `PermanentState::counters` becomes private to `state/` and is read through
+  accessors there. A write outside `state/` does not compile, and a debug
+  assertion at each gather that the index is the scan's answer guards what
+  `state/` itself writes. The counters stay in the shared chunks. About 40
+  lines, and a sweep of about 15 readers in `src`, 6 in `tests` and the dev
+  GUI's snapshot; the two tests move to `GameState::add_counters`.
+  Performance: a fork pays nothing while the index is empty and one
+  allocation while any permanent holds one of the three kinds. Upkeep: two
+  records inside one module, kept in step by its three writers.
+- **(b) A counter registry: one owner of every permanent's counters, indexed
+  by kind.** `GameState.counters: CounterRegistry`, with two private halves:
+  per object, kind → `CounterStack`; per kind, the objects holding one.
+  Only its own `add`, `remove` and `clear` (as a permanent leaves, CR 122.2)
+  write either half. `of(id)`, `count(id, kind)` and `holders(kind)` read it,
+  and `PermanentState::counters` goes. Nothing outside the type can write
+  either half, so the index cannot drift: one record. The gather asks
+  `holders` for three kinds, and any later "which permanents have a +1/+1
+  counter" reader asks the same (proliferate's choice, CR 704.5q's
+  annihilation, a filter's "with a counter on it").
+  Performance:
+  - The per-object half leaves the battlefield's shared chunks, so a fork
+    copies it unless it gets chunks of its own. As a plain map that is one
+    allocation for the map and one per holder: about 10 more on a
+    counter-rich four-seat board, against floor 2's 39 of 64. As an
+    `ObjectTable`, which the battlefield is, it is one or two.
+  - The index costs a fork one allocation per kind present.
+
+  About 150–200 lines, and the same readers rewritten to ask by id. Scope:
+  this is the counter store `route-review` (2026-10-29) slotted to
+  `layers-combat-and-counters`, to be decided once with its other two
+  customers:
+  - counters on a card off the battlefield (item 23): 71 suspend cards put
+    time counters on a card in exile, and Skullbriar keeps its counters
+    across zones;
+  - named counters ("Before card breadth" item 3, `CounterType::Named`).
+
+  Built here and battlefield-only, it fixes the store's shape before those
+  two exist. Built here for every zone, it brings item 23's open question
+  into this PR: what CR 613.7c's counter timestamp means for a card off the
+  battlefield. The PR grows to about 1,000–1,100 lines.
 - **(c) Keep it computed, without the sort.** One pass over the battlefield's
   permanents per gather, collecting the holders; no drift possible. About 10
   lines. Performance: a pass over every permanent per gather, which on the
   50-Goblin board is 200 reads a proposal.
 
-**Recommended: (a).** The old doc's fear was a writer that skips the set, and
-(a) makes that writer fail to compile instead of failing a fuzz run. The set
-costs a fork nothing while it is empty and one allocation while any permanent
-holds a replacement counter, against floor 2's 39 of 64 allocations a clone;
-the close's floors re-read it.
+**Recommended: (a), shaped as (b)'s interface.** Its readers go through
+accessors in `state/`, and its writes through `state/`'s three writers. Those
+are the registry's read and write sides. When `layers-combat-and-counters`
+decides the store with its other two customers, the storage moves behind
+them, and the index becomes the registry's own. Built now, (b) would decide
+the store with one customer of three. If you would rather have the registry
+now, it would go in its own `ObjectTable`, battlefield-only, with item 23's
+timestamp question filed against it.
 
 ## Size
 
 Re-counted against the tree: item 356's **Sized:** line said 80–150 lines and
-item 22's about 15. As recommended: about 110 for the type and its tables,
-50 for the battlefield leg (less `any_replacement_counter`), 40 for the named
-rows by kind, 40 for the holders and their check, and about 30 lines of
-mechanical sweep: about 270 lines of code. Tests, 80–120: a printed source
-that becomes a copy of another, offered once; a copied replacement found beside a printed
-source of another kind; a named row whose ability watches another kind read
-for none of this proposal's; a shield counter put on mid-game, one an
-arriving permanent brings, and the holder gone when its last one is removed.
-The branch already holds about 420 lines of code and tests (k's flag at about
-200, twice its estimate; the fork test at about 140), so the PR lands near
-770–810, under the 1,500–2,500 band and above the brief's 300–450.
+item 22's about 15. As chosen, with decision 4 as recommended:
+- about 110 for the type and its tables;
+- 15 for leaving an object's own entry out;
+- 50 for the battlefield leg, less `any_replacement_counter`;
+- 40 for the named rows by kind;
+- 40 for the holders and their check;
+- about 30 lines of mechanical sweep.
+
+That is about 285 lines of code. Tests, 90–130:
+- a printed source that becomes a copy of another, offered once;
+- a copied replacement found beside a printed source of another kind;
+- a named row whose ability watches another kind, read for none of this
+  proposal's;
+- a tapland on the battlefield, filed nowhere;
+- a shield counter put on mid-game, one an arriving permanent brings, and the
+  holder gone when its last one is removed.
+
+The branch already holds about 420 lines of code and tests (k's flag at
+about 200, twice its estimate; the fork test at about 140), so the PR lands
+near 800–850. That is under the 1,500–2,500 band and above the brief's
+300–450. The recount's script, about 260 lines in `plans/references/`, is a
+research tool and not in that count. Decision 4(b) would add about 150–200.
 
 ## Where each piece lands after the build
 
 - `replacement-architecture.md#33-where-replacement-effects-come-from`:
-  sources 1 and 5 as built, the four decisions under it.
+  sources 1 and 5 as built, the four decisions under it, and the recount's
+  table with `plans/references/replacement-kinds-census.py` named as its
+  instrument.
 - `engine-map.md#23-the-gates-and-the-three-legs-a-new-source-extends`: the
   replacement row's printed leg filed by kind, its named leg by kind on the
   battlefield too.
