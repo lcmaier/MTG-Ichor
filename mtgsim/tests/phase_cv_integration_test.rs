@@ -31,7 +31,7 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    place_bare, put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature,
+    copy_onto, place_bare, put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
@@ -46,7 +46,6 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -698,68 +697,6 @@ fn test_a_turn_bounded_copy_and_its_derived_rows_expire_together() {
 // Shared fixtures for the tests above
 // ---------------------------------------------------------------------------
 
-/// Cytoshape `donor` onto `target`, picking the donor deterministically by id
-/// rather than by prompt index.
-fn copy_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
-    struct PickById(ObjectId);
-    impl DecisionProvider for PickById {
-        fn pick_n(
-            &self,
-            _game: &GameState,
-            _player: PlayerId,
-            ctx: &ChoiceContext,
-            options: &[ChoiceOption],
-            _bounds: (usize, usize),
-        ) -> Vec<usize> {
-            assert!(
-                matches!(ctx.kind, ChoiceKind::ChooseCopySource { .. }),
-                "unexpected prompt: {:?}",
-                ctx.kind
-            );
-            let idx = options
-                .iter()
-                .position(|o| matches!(o, ChoiceOption::Object(id) if *id == self.0))
-                .expect("donor was not offered as a candidate");
-            vec![idx]
-        }
-        fn pick_number(
-            &self,
-            _g: &GameState,
-            _p: PlayerId,
-            _c: &ChoiceContext,
-            min: u64,
-            _max: u64,
-        ) -> u64 {
-            min
-        }
-        fn allocate(
-            &self,
-            _g: &GameState,
-            _p: PlayerId,
-            _c: &ChoiceContext,
-            total: u64,
-            buckets: &[ChoiceOption],
-            _mins: &[u64],
-            _maxs: Option<&[u64]>,
-        ) -> Vec<u64> {
-            let mut out = vec![0; buckets.len()];
-            if !out.is_empty() {
-                out[0] = total;
-            }
-            out
-        }
-        fn choose_ordering(
-            &self,
-            _g: &GameState,
-            _p: PlayerId,
-            _c: &ChoiceContext,
-            items: &[ChoiceOption],
-        ) -> Vec<usize> {
-            (0..items.len()).collect()
-        }
-    }
-    resolve_spell(game, cytoshape(), 0, vec![target], &PickById(donor));
-}
 
 /// A Giant-Growth-shaped Layer 7c row, registered the way a resolution does.
 fn pump(game: &mut GameState, id: ObjectId, power: i32, toughness: i32) {

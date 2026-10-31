@@ -11,24 +11,19 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_cv_cards::cytoshape;
 use mtgsim::cards::phase_rb_cards::rest_in_peace;
 use mtgsim::engine::actions::{GameAction, GameActionKind, GameActionKindMask};
-use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    creature_with_ability, effect_ctx, place_on_battlefield, put_in_hand, put_on_battlefield,
+    copy_onto, creature_with_ability, effect_ctx, place_on_battlefield, put_in_hand, put_on_battlefield,
     setup_two_player_game, static_ability, test_ctx, vanilla_creature,
 };
 use mtgsim::types::effects::{CounterType, Effect, ObjectFilter, ObjectSet};
-use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::replacement::{EnterMods, EntryCounters, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use mtgsim::ui::decision::DecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -80,62 +75,6 @@ fn deal_damage(game: &mut GameState, source: ObjectId, target: ObjectId, amount:
     .unwrap();
 }
 
-/// Cytoshape resolving: `target` becomes a copy of `donor` until end of turn,
-/// through a copy row that names `target`.
-fn copy_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
-    struct PickById(ObjectId);
-    impl DecisionProvider for PickById {
-        fn pick_n(
-            &self,
-            _game: &GameState,
-            _player: PlayerId,
-            ctx: &ChoiceContext,
-            options: &[ChoiceOption],
-            _bounds: (usize, usize),
-        ) -> Vec<usize> {
-            assert!(matches!(ctx.kind, ChoiceKind::ChooseCopySource { .. }), "unexpected prompt: {:?}", ctx.kind);
-            let idx = options
-                .iter()
-                .position(|o| matches!(o, ChoiceOption::Object(id) if *id == self.0))
-                .unwrap_or_else(|| panic!("the donor was not offered"));
-            vec![idx]
-        }
-        fn pick_number(&self, _g: &GameState, _p: PlayerId, _c: &ChoiceContext, min: u64, _max: u64) -> u64 {
-            min
-        }
-        fn allocate(
-            &self,
-            _g: &GameState,
-            _p: PlayerId,
-            _c: &ChoiceContext,
-            total: u64,
-            buckets: &[ChoiceOption],
-            _mins: &[u64],
-            _maxs: Option<&[u64]>,
-        ) -> Vec<u64> {
-            let mut out = vec![0; buckets.len()];
-            if let Some(first) = out.first_mut() {
-                *first = total;
-            }
-            out
-        }
-        fn choose_ordering(&self, _g: &GameState, _p: PlayerId, _c: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-            (0..items.len()).collect()
-        }
-    }
-    let card = cytoshape();
-    let spell = game.add_object(GameObject::new(card.clone(), 0, Zone::Stack));
-    let ctx = ResolutionContext {
-        source: spell,
-        ability_source: None,
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![ObjectOrPlayerId::Object(target)]),
-        replaced_event: None,
-        trigger: None,
-    };
-    game.resolve_effect(&card.abilities[0].effect, &ctx, &PickById(donor)).unwrap();
-}
 
 // ---------------------------------------------------------------------------
 // The kinds a pattern watches, and what a source is filed under
