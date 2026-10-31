@@ -344,7 +344,7 @@ disagree on a board their text did not foresee.
 1. **A ruling is the default for the card it names.**
 2. **The CR's text wins over a contradicting ruling only once Wizards has
    acknowledged the contradiction or its staff sided with the text**, and a
-   later rules change the ruling predates counts as siding with the text
+   later change to the rule the ruling contradicts counts as siding with it
    (Glasspool Mimic's 2020 ruling, superseded with Marvel's Spider-Man in
    2025); until then the ruling is followed, and the conflict is a row here
    marked open.
