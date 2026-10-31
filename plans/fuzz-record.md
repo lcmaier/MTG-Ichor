@@ -96,6 +96,40 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-10-31 for `card-layer-cleanup`'s first PR, the ability words**
+(`cards/card-layer-cleanup`, PR #301: every `AbilityDef` built by a word or
+`AbilityDef::new`, the instance lists private, the activated kinds' `Activation`,
+and the card fingerprints). No pool changed, so no table is re-recorded. One
+`close_out.py` sitting against **main** `f7fa8a4e` (#300's merge): **engine**
+`74537953`, every code commit.
+
+**Predictions, before any arm ran**: every gameplay row `IDENTICAL`, the cost
+rows unchanged, instructions a decision within ±1%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
+| instructions / decision, callgrind, the budget's board | | 0.6371 M → 0.6452 M, **+1.28%** |
+| moved, inclusive: `AbilityDef::tap_for` | | 0.0 → 7.5 K, +1.2 points, new |
+| moved, inclusive: `run_pass` / `write_affected` / `apply_resolved` / `perform` | | +0.7 / +0.6 / +0.6 / +0.6 points |
+| moved, inclusive: `memcpy` | | +0.6 points |
+| moved, inclusive: `get_effective_abilities` / `ManaAbilityWindowOffer::read` | | +5.1 / −3.3 points, each in one arm only: an inlining boundary moved |
+
+**The one move past its prediction**: +1.28% against ±1%, inside the
+budget's 2.5 points at identical counters. Two causes, both measured. CR
+305.6's ability a land type grants is built in the layer walk, and
+`AbilityDef::tap_for` now computes its instances of "target" as every
+ability is built (an empty walk), which is the new 1.2 points. And the kind
+now carries its `Activation` inline: `AbilityType` grew from 1 byte to 40 and
+`AbilityDef` from 616 to 632, read by a throwaway `size_of` probe at both
+arms, and every ability copied into a layer frame moves the 16 bytes, which
+is the `memcpy` row and the layer pass's.
+
+**CI's other sittings, run locally**: the release clone, history and
+scenario tests pass; the `release-checked` stress sitting (50 games, seed
+12345) exits clean.
+
 **Measured 2026-10-30 for the item 6 audit's readiness, part 2**
 (`audit/readiness-close`, PR #300: items 352 and 356 with item 22, item 41's
 fork test over item 6's state, item 142 reconciled, k as `fuzz_games
