@@ -8,6 +8,7 @@ use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType};
 use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
 use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount};
+use crate::types::replacement::ReplacementDef;
 
 /// A spell ability (CR 113.3a): one paragraph of an instant's or sorcery's
 /// text, followed as the spell resolves.
@@ -19,6 +20,13 @@ pub fn spell_ability(rules_text: impl Into<AbilityText>, effect: Effect) -> Abil
 /// functions.
 pub fn static_ability(rules_text: impl Into<AbilityText>, effect: Effect) -> AbilityDef {
     AbilityDef::new(AbilityType::Static, rules_text, effect)
+}
+
+/// A static ability whose effect is a replacement effect (CR 614.1a): never
+/// a resolution, so it carries no `Duration`, and it is re-derived off its
+/// source's effective ability list on every gather.
+pub fn static_replacement(rules_text: impl Into<AbilityText>, def: ReplacementDef) -> AbilityDef {
+    static_ability(rules_text, Effect::Replacement(Box::new(def)))
 }
 
 /// An activated ability (CR 113.3b): "[Cost]: [Effect.]"

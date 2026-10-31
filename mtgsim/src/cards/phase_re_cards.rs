@@ -312,6 +312,7 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::static_replacement;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
@@ -331,22 +332,6 @@ use crate::types::replacement::{
 };
 use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
 use crate::types::zones::{DrawFilter, Zone};
-
-/// A static ability whose effect is a replacement effect — never a resolution,
-/// so it carries no `Duration` and is re-derived off the source's *effective*
-/// ability list on every gather.
-fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Replacement(Box::new(def)),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
-}
 
 /// A static ability whose replacement effect exists only while `condition`
 /// holds — CR 604.2's "as long as", asked by `replacement::gather` at each

@@ -63,6 +63,7 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::static_replacement;
 use crate::objects::card_data::{
     AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
 };
@@ -79,22 +80,6 @@ use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
     AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
 };
-
-/// A static ability whose effect is a replacement effect — never a resolution,
-/// so it carries no `Duration` and is re-derived off the source's *effective*
-/// ability list on every gather.
-fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Replacement(Box::new(def)),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
-}
 
 /// CR 106.12's "tapped for mana", optionally of a permanent matching `source`.
 fn tapped_for_mana(source: Option<ObjectFilter>) -> EventPattern {

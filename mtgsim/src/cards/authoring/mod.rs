@@ -21,7 +21,7 @@
 pub mod abilities;
 pub mod triggers;
 
-pub use abilities::{activated_ability, equip, mana_ability, spell_ability, static_ability};
+pub use abilities::{activated_ability, equip, mana_ability, spell_ability, static_ability, static_replacement};
 pub use triggers::{
     activates_an_ability_of, an_opponent_gains_control_of, another, at_beginning_of, attacks, attacks_alone, attacks_and_isnt_blocked, attacks_defender, becomes_attached,
     becomes_blocked, becomes_blocked_by, becomes_the_target_of, becomes_unattached, blocks, blocks_a_creature, counters_put_on, creates_a_token, counters_removed_from, damage_to_is_prevented, dies, draws_a_card, enters, functioning_in, is_attacked, is_sacrificed, leaves_the_battlefield, loses_the_game, persist,

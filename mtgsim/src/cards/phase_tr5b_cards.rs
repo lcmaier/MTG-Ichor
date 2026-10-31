@@ -11,6 +11,7 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::static_replacement;
 use crate::cards::authoring::{at_beginning_of, counters_put_on, counters_removed_from, triggered_ability, whenever, Whose};
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -26,20 +27,6 @@ use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, TriggerCondition, TriggerDef, TriggerSubject};
-
-/// A static ability carrying one replacement effect.
-fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Replacement(Box::new(def)),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
-}
 
 fn a_creature_you_control() -> ObjectFilter {
     ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))

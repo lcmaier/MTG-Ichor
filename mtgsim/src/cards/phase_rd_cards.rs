@@ -141,6 +141,7 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::static_replacement;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -156,29 +157,6 @@ use crate::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, RetargetSpec, Rewrite, Rounding,
     SourcePattern,
 };
-
-/// The static ability wrapper every card in this file uses.
-///
-/// Local rather than shared with `test_support::static_ability`: that one is a
-/// test helper, and a card file must not depend on one. It is the **second**
-/// named helper of this shape in `src/cards/` (`phase_li_cards::static_ability`
-/// is the first) and the shape is written out inline **31** more times, which
-/// is the argument for the hoist `codebase-state.md` "Before card breadth"
-/// item 10 now records: these belong in a `cards::helpers` module beside the
-/// real card list, not duplicated per phase file and not borrowed from
-/// `test_support`.
-fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Replacement(Box::new(def)),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
-}
 
 /// "A permanent or player" — CR 614.1's two kinds of subject, as the pair of
 /// sets that says "everything".

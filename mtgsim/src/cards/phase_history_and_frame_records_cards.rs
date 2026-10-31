@@ -14,15 +14,15 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::spell_ability;
 use crate::cards::authoring::triggers::{leaves_the_battlefield, triggered_ability, whenever};
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
 use crate::types::zones::ZoneSet;
@@ -37,20 +37,6 @@ pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 5] = [
     ("Fixture First Creature's Tithe", fixture_first_creature_tithe),
 ];
 
-/// A spell's one ability, `effect`.
-fn spell(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Spell,
-        costs: Vec::new(),
-        effect,
-    }
-}
-
 /// Fixture Curtain — {W}, instant: "Target creature becomes blocked." CR
 /// 509.1h's status, which only an unblocked attacking creature takes.
 pub fn fixture_curtain() -> Arc<CardData> {
@@ -60,7 +46,7 @@ pub fn fixture_curtain() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(spell(text, Effect::Atom(Primitive::BecomeBlocked, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)))))
+        .ability(spell_ability(text, Effect::Atom(Primitive::BecomeBlocked, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)))))
         .build()
 }
 
@@ -74,7 +60,7 @@ pub fn fixture_token_tally() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 1))
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(spell(text, Effect::Atom(
+        .ability(spell_ability(text, Effect::Atom(
             Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(died))),
             EffectRecipient::Controller,
         )))
@@ -92,7 +78,7 @@ pub fn fixture_mourning_ink() -> Arc<CardData> {
         .rules_text(text)
         .ability(AbilityDef {
             ability_type: AbilityType::Static,
-            ..spell(text, Effect::Atom(
+            ..spell_ability(text, Effect::Atom(
                 Primitive::ChangeColor(ColorChange::Add(Color::Black), Duration::WhileSourceOnBattlefield),
                 EffectRecipient::FilteredObjectsIn(ObjectFilter::ThisTurn(ObjectFact::Died), ZoneSet::GRAVEYARD),
             ))

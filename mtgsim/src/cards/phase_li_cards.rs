@@ -19,6 +19,7 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::static_ability;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -42,19 +43,6 @@ fn adds(types: &[CardType], subtypes: &[Subtype], supertypes: &[Supertype]) -> T
         add_supertypes: supertypes.to_vec(),
         remove_supertypes: Vec::new(),
         set_supertypes: None,
-    }
-}
-
-fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect,
     }
 }
 

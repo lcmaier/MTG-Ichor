@@ -26,6 +26,7 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::static_ability;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -37,20 +38,6 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
-
-/// `codebase-state.md` item 120's constructor, the copy this file owes it.
-fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect,
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
-}
 
 fn spell_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {

@@ -342,32 +342,13 @@ pub fn urborg_effect() -> Arc<CardData> {
 /// Deliberately has NO Basic supertype, so Blood Moon's "nonbasic lands" filter
 /// matches it.
 pub fn dual_land_ub() -> Arc<CardData> {
-    fn mana_ability(mana_type: ManaType) -> AbilityDef {
-        AbilityDef {
-            rules_text: crate::objects::card_data::tap_to_add_text(mana_type).into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Mana,
-            costs: vec![crate::types::costs::Cost::TapSelf],
-            effect: Effect::Atom(
-                Primitive::ProduceMana(crate::types::effects::ManaOutput {
-                    mana: vec![(mana_type, AmountExpr::Fixed(1))],
-                    special: vec![],
-                }),
-                EffectRecipient::Implicit,
-            ),
-        }
-    }
-
     CardDataBuilder::new("Underground Sea")
         .card_type(CardType::Land)
         .subtype(Subtype::Land(LandType::Island))
         .subtype(Subtype::Land(LandType::Swamp))
         .rules_text("{T}: Add {U}. {T}: Add {B}.")
-        .ability(mana_ability(ManaType::Blue))
-        .ability(mana_ability(ManaType::Black))
+        .ability(AbilityDef::tap_for(ManaType::Blue))
+        .ability(AbilityDef::tap_for(ManaType::Black))
         .build()
 }
 
