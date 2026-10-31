@@ -469,7 +469,8 @@ PR 5's are the tests.
      named and checked, and one spelling covers all three stores; a row id
      can no longer be mistaken for a count.
 
-   **Recommended: (c)**, revised again at the second round. The owner found
+   **Settled: (c)** (the owner, at #301's third review round,
+   2026-10-31), revised again at the second round. The owner found
    (b) a wrapper type that clutters every registry read, and a shape that
    leaves objects and rows spelling "the store fills this in" two ways.
    (c) is that one spelling across all three stores: an object writes
@@ -489,8 +490,8 @@ PR 5's are the tests.
    **(b), as it was recommended at the first round**, when the owner asked
    why a row carries an unassigned id at all; kept as the record of that
    answer. The caller builds a row with no id, and the registry pairs it
-   with one as it adds it, in all three registries. The two row types take names that
-   say what they are before they are registered (`ReplacementEffectRow`,
+   with one as it adds it, in all three registries. The two row types take
+   names that say what they are before they are registered (`ReplacementEffectRow`,
    `RestrictionRow`), and `ContinuousEffect` keeps its own. Item 7d's draft
    does the same for one registry of three, by a second copy of its fields.
    An ability's id stays `AbilityId::UNASSIGNED` until `build`, since tests
