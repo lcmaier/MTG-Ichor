@@ -4909,6 +4909,11 @@ damage is divided only among the attackers it blocks.
     **Slotted:** `card-layer-cleanup`, which moves cards to per-set files and fixtures to
     `cards::fixtures`, and rebuilds every ability and instruction literal from
     `cards/authoring/`.
+    **The abilities landed in its first PR (2026-10-31):** every
+    `AbilityDef` outside `objects::card_data` is built by a word in
+    `cards/authoring/abilities.rs` or by `AbilityDef::new`, and the private
+    copies are gone. The instructions and the move are its next two PRs
+    (`plans/handoffs/card-layer-cleanup.md`, "The split").
 
 ### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
 
@@ -8451,6 +8456,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      item 242's, the `can_pay` pair item 243's, the two `ui/ask.rs` wrappers
      item 246's, and `static_replacement` and `intrinsic_mana_ability` `card-layer-cleanup`'s
      ("Before card breadth" item 10). The first two stay here.
+     **The card half landed in `card-layer-cleanup`'s first PR (2026-10-31):**
+     `static_replacement` is one word in `cards/authoring/abilities.rs`, and
+     CR 305.6's ability is `AbilityDef::tap_for`, which `mana_ability_single`
+     and `intrinsic_mana_ability` both call.
      **Slotted:** `names-and-hygiene-sweeps`, the cleanup before release in
      Phase 10 (`route-review`, 2026-10-29), which takes the first two cleanups.
 
@@ -10422,4 +10431,22 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      files in `src`, 19 in `tests` and 6 in the dev GUI (2026-10-30), a
      path sweep through `plans/replace_exact.py`.
      **Slotted:** `information-model-design`, at its design stop.
+
+### Found by `card-layer-cleanup`'s first PR (2026-10-31)
+
+358. **The card fingerprints and `AbilityDef`'s written-out `Debug` are the
+     cleanup's scaffolding.** `tests/card_data_fingerprint_test.rs` holds
+     every card's value to `tests/card_fingerprints.txt`, written at the
+     cleanup's base, so each of its mechanical PRs is checked rather than
+     judged. `AbilityDef`'s `Debug` is written out to print what the derive
+     printed before decision 2 moved the costs and the restriction into the
+     activated kinds, which is what keeps that file unchanged through the
+     reshape. Both go together: once the file goes, the `Debug` is derived
+     again, and prints the kind as it now is.
+     **Reachability (2026-10-31):** nothing owed in a game — test
+     scaffolding; every fingerprint matches.
+     **Sized:** ~200 lines out (the test and its file) and ~20 back to a
+     derive.
+     **Slotted:** `card-layer-cleanup`, at its last mechanical PR's
+     close-out (the move, PR 3 of its design note's split).
 

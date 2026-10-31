@@ -131,12 +131,16 @@ From the census's rules pass (`cast-census.md` §2):
   NotOnBattlefield`, in CR 601.3's and 113.6's words. `cant-cast-play-or-activate`'s reason names
   the prohibiting source, beside it.
 - **Who may activate, per ability** (602.2): its controller, any player, or
-  only an opponent. A field on `AbilityDef`, read by `can_begin_to_activate`
-  with the player. The enumeration walks every permanent the player could
+  only an opponent. A field on `Activation`, the cost and restriction both
+  activated kinds carry since `card-layer-cleanup` (CR 602.1; a mana ability
+  is an activated ability, CR 605.1a), read by `can_begin_to_activate` with
+  the player. The enumeration walks every permanent the player could
   activate an ability of, not only theirs (`codebase-state.md` "Before card
   breadth" item 2, graduated here).
 - **When, beyond priority** (602.5): once or twice each turn, during a step
-  or a turn, if a condition holds (`Condition` exists), once. 602.5b keeps a
+  or a turn, if a condition holds (`Condition` exists), once. They grow
+  `Activation`'s one `restriction` into the list 57 printed abilities need
+  (Akul the Unrepentant's two). 602.5b keeps a
   limit across a change of control, and 602.5c keeps an acquired ability's
   limit to that instance. 606.3's loyalty limit is per permanent and counts
   every player's activations.

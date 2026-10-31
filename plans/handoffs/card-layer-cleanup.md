@@ -91,8 +91,8 @@ already slotted beside the phase.
 
 | # | PR | What | Size, code plus tests (larger side) | Session |
 |---|---|---|---|---|
-| 1 | `card-ability-words` | Decisions 2 and 3, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | about −2,300 / +1,300 | one |
-| 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them | about −1,400 / +1,000 | one |
+| 1 | `card-ability-words` | Decisions 2 and 3a, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | built (#301): −2,560 / +1,557, 60 past the band, almost all of it deleted boilerplate | one |
+| 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them; decision 3b, the registry rows' id | about −1,500 / +1,100 | one |
 | 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | the move counted by decision 7; the rest about +1,400 / −900 | one, long |
 | 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered | about +150 / −40, more per printing registered; both pools re-recorded | short |
 | 5 | `scripted-answers-by-identity` | Item 209 | about 670 changed lines | one |
@@ -101,11 +101,11 @@ The estimates assume each ability's effect body stays where it is when its
 literal becomes a word, so that a literal's boilerplate lines are deleted and
 its effect's lines are untouched. Measured that way the 212 literals are
 −2,138 / +672. Rewriting the effect bodies too would make PR 1 −3,282 /
-+1,420, past the band, which is why the instructions are PR 2. PR 2 sits at
-the band's floor; folding the decklist or the registry rows into it to clear
-the floor would put an unrelated concept in one PR, which #297
-(`card-vocabulary-folds`, six folds the owner could not review as one)
-showed costs more than a small PR.
++1,420, past the band, which is why the instructions are PR 2. **Decision 3b
+moved from PR 1 to PR 2 during PR 1's build** (2026-10-31): PR 1 measured
+−2,430 before decision 2, decision 3a's privacy made every test literal
+part of it, and 3b, the registry rows' id, touches no ability. PR 2 sat at
+the band's floor without it.
 
 **Every PR carries a consumer**: PR 1's and PR 2's are the card files,
 PR 3's is the decklists, PR 4's are Elvish Warmaster and its fixtures,
@@ -846,10 +846,11 @@ PR 5's are the tests.
 
 ## Filed at the close-out, if the decisions stand
 
-- Item 10, item 7d and item 215's card half close with PR 3; items 204 and
-  207 with PR 4, both re-slotted there by decision 6; item 209 with PR 5.
-  Item 204's body already names the 8 (this note's commits).
-- Decision 2 (b): `permission-architecture.md#3-what-it-must-express-at-v1`'s
+- Item 215's card half closed with PR 1. Item 7d closes with PR 2, item 10
+  and main item 358 (the fingerprints) with PR 3; items 204 and 207 with
+  PR 4, both re-slotted there by decision 6; item 209 with PR 5. Item 204's
+  body already names the 8 (this note's commits).
+- Decision 2 (b), done in PR 1: `permission-architecture.md#3-what-it-must-express-at-v1`'s
   who-may-activate line names `Activation`, and its when-beyond-priority
   line names it as the home `permission-design` grows.
 - Decision 5: `setup-architecture.md` gains the decklist's section (PR 3),
