@@ -142,45 +142,83 @@ PR 5's are the tests.
    | A duration (CR 611.2a) | 46 until end of turn, 60 while the source is on the battlefield, 5 indefinite | | | | `Duration::` written out |
    | One duration over two changes to one recipient | 3 cards | "becomes red and gains haste until end of turn" | | | two atoms, the second on `SameInstanceAs(0)` |
 
-   The printed cards, by verb (Scryfall, `game:paper -is:funny`, 2026-10-31):
+   The printed cards, by verb and by who it acts on (Scryfall,
+   `game:paper -is:funny`, 2026-10-31):
 
-   | Verb | Cards | Of which with another recipient, or another shape |
+   | Verb | Any recipient | Recipients counted apart |
    |---|---:|---|
-   | Draw N cards | 3,411 | "target player draws" 104, "each player draws" 43 |
-   | Deal N damage to any target | 558 | to target creature 395 |
-   | Gets +N/+N until end of turn | 1,678 | "gets … and gains … until end of turn" 404 |
+   | Draw cards | 3,708 | a target player 113, each player 50, a player the effect names ("that player", "its controller") 46 |
+   | Deal damage | — | any target 675, a target creature 502, a target player 230, "each …" 505 |
+   | Gets +N/+N until end of turn | 1,920 | with a second change ("and gains …", "and is …") 431, 184 of them on a target |
 
-   Queries: `o:/\bdraws? (a|one|two|three|four|five|six|seven|x) cards?/`,
-   `o:"target player draws"`, `o:"each player draws"`,
-   `o:/deals \d+ damage to any target/`, `o:/deals \d+ damage to target creature/`,
-   `o:/gets [+-]\d+\/[+-]\d+ until end of turn/`,
-   `o:/gets [+-]\d+\/[+-]\d+ and gains [^.]* until end of turn/`.
-   A verb recurs across thousands of cards, and its recipient varies within
-   the verb, so the recipient is the axis a word must not fix.
+   Queries, each taking any amount: `o:/\bdraws? [^.]*\bcards?\b/`,
+   `o:/\btarget (player|opponent) draws\b/`, `o:/\beach (player|opponent) draws\b/`,
+   `o:/\b(that player|its controller|its owner|defending player|the chosen player) draws\b/`,
+   `o:/deals [^.]*damage to any target/`, `o:/deals [^.]*damage to target creature/`,
+   `o:/deals [^.]*damage to target (player|opponent)/`,
+   `o:/deals [^.]*damage to each (opponent|player|creature|other)/`,
+   `o:/gets [+-][0-9x]+\/[+-][0-9x]+ until end of turn/`,
+   `o:/gets [+-][0-9x]+\/[+-][0-9x]+ and (gains|has|loses|is|becomes) [^.]* until end of turn/`.
+   Blood for the Blood God!'s "draw eight cards" and The Ten Rings' "draw
+   cards equal to the difference" are in the first; the first count of
+   this table stopped at "seven" and at a numeral, and missed both.
 
-   - (a) **A word per verb, its recipient, amount and duration as
-     arguments, and a word per recipient.** "Target player draws three
-     cards" is `draw_cards(target_player(), 3)`, Lightning Bolt
-     `deal_damage(any_target(), 3)`, Giant Growth
-     `modify_power_toughness(target_creature(), 3, 3, until_end_of_turn())`.
-     One duration over several changes to one recipient is one call:
-     `for_duration(until_end_of_turn(), target_creature(), [gets(1, 2),
-     is_also(Angel)])` builds the atoms, the first on the recipient and each
-     later one on its back-reference (`SameInstanceAs` for a target, the
-     same recipient otherwise). The ability words are `spell_ability(text,
-     effect)`, `static_ability(text, effect)`, `activated_ability(text,
-     costs, effect)`, `mana_ability(text, costs, effect)`, today's
+   **What the counts can carry.** Each is a floor: a regex misses a pronoun
+   subject ("they draw"), a sentence that names its player before the
+   verb, and every phrasing nobody thought to write. So no total here
+   decides anything. What decides is the pairing: each verb prints with
+   several recipients, which the floors show, and which the tree counts
+   exactly (67 card-file instructions act on "you" through 16 verbs, 44 on
+   a target through 24). The recipient is the axis a word must not fix.
+
+   - (a) **A word per verb, its recipient and amount as arguments, and a
+     word per recipient.** "Target player draws three cards" is
+     `draw_cards(target_player(), 3)`, and Lightning Bolt
+     `deal_damage(any_target(), 3)`.
+
+     **A continuous change takes its duration as a suffix, as the text
+     prints it**, and a second change to the same object is a suffix too:
+
+     | Card | Its text | Its words |
+     |---|---|---|
+     | Giant Growth | "Target creature gets +3/+3 until end of turn." | `gets(target_creature(), 3, 3).until_end_of_turn()` |
+     | Kindled Fury | "Target creature gets +1/+0 and gains first strike until end of turn." | `gets(target_creature(), 1, 0).and_gains(FirstStrike).until_end_of_turn()` |
+     | Moonlace | "Target spell or permanent becomes colorless." | `becomes_colorless(target_spell_or_permanent()).until_end_of_game()`, CR 611.2a's default when the text states none |
+     | Glorious Anthem | "Creatures you control get +1/+1." | `static_ability(text, gets(creatures_you_control(), 1, 1))`: no suffix, since a static ability's effect lasts while the ability does (CR 611.3a) and the static word stamps it |
+
+     A change word returns a change awaiting its duration, which is not an
+     `Effect`: a spell that forgets "until end of turn" does not compile,
+     and only `static_ability` takes one bare. The continuation methods
+     follow the text's own verbs, `.and_gets`, `.and_gains`, `.and_loses`,
+     `.and_is`, `.and_becomes`.
+
+     **What the chain writes for you is the back-reference.** Kindled Fury
+     has one target, chosen once as the spell is cast (CR 601.2c), and its
+     second change is to that same creature. The engine holds the two
+     changes as two instructions, and the second one's recipient cannot be
+     "target creature" again, which would be a second target the player
+     chooses. It is `SameInstanceAs(0)`: "whatever was chosen for this
+     effect's first target". That pointer back at an earlier instruction's
+     target is the back-reference, and today a card file writes it by hand.
+     `.and_gains` puts it there: the same target as `SameInstanceAs`, or the
+     same recipient when it names no target ("this creature gets … and
+     gains …").
+
+     The ability words are `spell_ability(text, effect)`,
+     `static_ability(text, effect)`, `activated_ability(text, costs,
+     effect)`, `mana_ability(text, costs, effect)`, today's
      `triggered_ability`, the keyword words (`equip`, today's `persist` and
      `undying`), and `tap_for(mana)` for CR 305.6's ability, with
      `.characteristic_defining()` and `.only_as_sorcery()` for the two rare
-     fields. *Code*: about 49 verb words, 12 recipient words and the
-     duration helper with its small change type, ~500 lines with their doc
-     lines, and ~80 for the ability words, in `cards/authoring/abilities.rs`,
-     `instructions.rs` and `recipients.rs`. *Performance*: none; a card is
-     built once, and built equal. *Upkeep*: a card adds a word only when it
-     prints a new verb or a new recipient, and a new recipient works with
-     every verb at once. The parser's table is two tables, phrase to verb
-     and phrase to recipient, which is how Oracle text composes them.
+     fields. *Code*: about 49 verb words, 12 recipient words, the change
+     type with its seven durations and five continuations, ~550 lines with
+     their doc lines, and ~80 for the ability words, in
+     `cards/authoring/abilities.rs`, `instructions.rs` and `recipients.rs`.
+     *Performance*: none; a card is built once, and built equal. *Upkeep*: a
+     card adds a word only when it prints a new verb or a new recipient, and
+     a new recipient works with every verb at once. The parser's table is
+     two tables, phrase to verb and phrase to recipient, which is how Oracle
+     text composes them.
    - (b) **A word per printed phrase, its recipient fixed**: `draw_cards(3)`
      for "you", `target_player_draws(3)`, `each_player_draws(1)`, which is
      the shape of the owner's examples (`skip_your_next_turn()`). It reads
@@ -194,13 +232,33 @@ PR 5's are the tests.
      trigger event, never a card. `CardDataBuilder` owns the card: item 10's
      line, "a helper here returns an `AbilityDef` and nothing else", widened
      to the instruction's parts.
-   - Combinators are the enum written out (`Effect::Sequence`, `Optional`,
-     `Conditional`, `ForEach`), but for the duration helper, which the 404
-     printed "gets … and gains … until end of turn" cards earn.
-   - A filter gets a word only for a phrase three cards print, the card at
-     hand and two more: `engineering-practices.md#cards-and-pools`' rule for
-     a word that becomes structural, which `authoring::another` meets.
-   - A word lands with its first card, never ahead of it.
+   - **Joining one-shot instructions is the enum written out**, with no word
+     of its own. Night's Whisper, "You draw two cards and lose 2 life", is
+     `Effect::Sequence(vec![draw_cards(you(), 2), lose_life(you(), 2)])`;
+     "you may draw a card" is `Effect::Optional { .. }` around
+     `draw_cards(you(), 1)`; "if you control a Forest, …" is
+     `Effect::Conditional(condition, ..)`. The card files write 40
+     sequences, 12 conditionals, 7 optionals and 3 for-eaches. A one-shot's
+     "and" carries nothing to the instruction after it, since each names
+     its own player ("you lose 2 life"), so a `.and()` there would save only
+     the `vec!`. A continuous "and" carries the recipient and the duration
+     to the next change, which is the work that earns the chain.
+   - A filter gets a word for a phrase two cards print. The repetition is
+     the reason, as it is for `authoring::another`. The rule that asks for
+     two more cards (`engineering-practices.md#cards-and-pools`) is for a
+     word that becomes structure, a type or an arm the engine branches on,
+     where a wrong word costs a redesign. A filter word is a name over types
+     that exist, and a wrong one is inlined again.
+   - A word lands with its first card, never ahead of it, and **sits in its
+     file by its CR rule, not by when it landed**: each file follows the CR
+     section it names (`instructions.rs` by CR 701's keyword actions in
+     701's order, then the plain verbs by their rules, 119 for life, 120 for
+     damage, 121 for drawing; `recipients.rs` by CR 115 and 109). A word for
+     a 1993 card that lands after the `tdc` decks goes where its rule
+     puts it, and every word's doc cites that rule. The alternatives were
+     the order of the earliest card printing each word, which re-sorts the
+     file whenever an older card arrives, and the alphabet, which is stable
+     but scatters the words one rule groups.
    - The engine never calls the card words. It builds the abilities it makes
      through `AbilityDef`'s own constructor (decision 3), and CR 305.6's
      ability is `AbilityDef::tap_for(mana)` in `objects::card_data`, beside
@@ -211,10 +269,10 @@ PR 5's are the tests.
      decision 3's privacy a literal no longer compiles outside
      `objects::card_data`.
 
-   **Recommended: (a).** (b) is the owner's example spelled out, but "skip
-   your next turn" names no recipient a card could vary, and "draw" does: 67
-   card-file instructions act on "you" through 16 verbs, and 44 on a target
-   through 24.
+   **Settled: (a)** (the owner, at #301's first review round, 2026-10-31),
+   with a continuous change's duration and its "and" as suffixes, which the
+   same round asked for over a prefix helper. **Open: where a word sits in
+   its file**, recommended by its CR rule.
 
 2. **Where an activation's facts live: costs and the restriction on the two
    activated kinds.**
