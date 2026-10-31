@@ -1002,8 +1002,10 @@ before it, and the transform half adds the back face to 903.4d's identity.
   tapped Glasspool Shore. Glasspool Mimic's ruling of 2020-09-25 says a modal
   double-faced card "can't be transformed or be put onto the battlefield
   transformed", but the baseline CR has no such rule: 712.9 lets every
-  double-faced card but a meld card transform. The CR wins, and the ledger
-  gives that ruling a disposition when the card is registered. The Mimic is a
+  double-faced card but a meld card transform. Wizards dropped the rule with
+  Marvel's Spider-Man (2025) and said it reaches older cards, so the CR wins:
+  the Mimic's test answers that ruling with a `// RULING-DEVIATION:` and a row
+  in `engineering-practices.md#when-a-ruling-and-the-cr-disagree`. The Mimic is a
   staged board in the transform half and is registered with the modal half,
   which plays its land face (712.12).
 - **The modal half's card is Sea Gate Restoration // Sea Gate, Reborn**: a
