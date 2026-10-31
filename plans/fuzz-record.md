@@ -110,7 +110,7 @@ rows unchanged, instructions a decision within ±1%.
 |---|---|---|
 | gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
 | audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
-| instructions / decision, callgrind, the budget's board | | 0.6371 M → 0.6452 M, **+1.28%** |
+| instructions / decision, callgrind, the budget's board | | 0.6371 M → 0.6452 M, **+1.28%**; at the final head after the pre-review's fixes (`83f8b080`), 0.6373 M → 0.6462 M, **+1.40%**, every row above identical |
 | moved, inclusive: `AbilityDef::tap_for` | | 0.0 → 7.5 K, +1.2 points, new |
 | moved, inclusive: `run_pass` / `write_affected` / `apply_resolved` / `perform` | | +0.7 / +0.6 / +0.6 / +0.6 points |
 | moved, inclusive: `memcpy` | | +0.6 points |
@@ -124,7 +124,9 @@ ability is built (an empty walk), which is the new 1.2 points. And the kind
 now carries its `Activation` inline: `AbilityType` grew from 1 byte to 40 and
 `AbilityDef` from 616 to 632, read by a throwaway `size_of` probe at both
 arms, and every ability copied into a layer frame moves the 16 bytes, which
-is the `memcpy` row and the layer pass's.
+is the `memcpy` row and the layer pass's. The final head's extra 0.1 point
+is `EffectiveCharacteristics`' drop glue, its inclusive share moving between
+functions in one arm only: where the compiler inlined it.
 
 **CI's other sittings, run locally**: the release clone, history and
 scenario tests pass; the `release-checked` stress sitting (50 games, seed
