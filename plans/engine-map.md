@@ -228,7 +228,10 @@ reader skips its sweep behind a gate. Each gate has three legs, one per route
 onto that list: **printed** (a set registration fills, an entry copy's list
 included), **granted** (a Layer 6 row) and **copied** (a layer 1 row). A new
 route onto the list needs a leg on every gate, or the ability is dead on every
-board the gate skips. Layer 3, text change, is the route with no leg yet.
+board the gate skips. Layer 3, text change, is the route with no leg yet. A
+face change in place (transforming, turning face up, merging) changes the
+printed leg without an arrival, so the build that brings one files every face
+as the object arrives or files again at the change (`copy-effects-architecture.md` §4.7).
 
 | Gate | Where | Printed | Granted, copied |
 |---|---|---|---|

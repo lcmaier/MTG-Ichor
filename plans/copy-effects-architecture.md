@@ -1100,6 +1100,16 @@ recomputed from the registry on every mutation, so it cannot drift at all.
 > `off_battlefield_replacement_ability_sources`. The reasoning above, that the summary
 > cannot drift where the set could, is why the leg is on the summary.
 
+**A face change in place is a route onto the list too (2026-10-31).**
+Transforming (CR 701.27), turning face up (708), merging (729) and flipping
+(710) change what a permanent printed without an arrival, and
+`register_static_effects` files the printed legs only as an object arrives. So
+the build that brings each one either files every face a permanent could show
+as it arrives, a superset that costs a wasted read and never an answer, or
+re-files the printed legs at the change. Ojer Taq is the first test (§4.5): it
+returns as the Temple, whose face has no replacement, and its token tripler
+must work from the moment it transforms.
+
 **Leg 2 — `register_static_effects`, and this one nobody had found.**
 `game_state.rs:737` "Reads printed abilities on purpose" — deliberately, to
 avoid circularity inside `place_on_battlefield`, and that reasoning is sound for
