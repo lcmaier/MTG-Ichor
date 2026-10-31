@@ -821,5 +821,5 @@ fn test_blood_moon_makes_dryad_arbor_a_mountain_dryad() {
     assert!(is_creature(&game, arbor));
     let abilities = get_effective_abilities(&game, arbor);
     assert_eq!(abilities.len(), 1, "CR 305.7: its own abilities are gone, the intrinsic one is here");
-    assert_eq!(abilities[0].ability_type, AbilityType::Mana);
+    assert!(matches!(abilities[0].ability_type, AbilityType::Mana(_)));
 }

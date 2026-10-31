@@ -1655,9 +1655,9 @@ mod tests {
     fn samite_censer_bearer_costs_white_and_itself() {
         let card = samite_censer_bearer();
         let ability = &card.abilities[0];
-        assert_eq!(ability.ability_type, AbilityType::Activated);
+        assert!(matches!(ability.ability_type, AbilityType::Activated(_)));
         assert_eq!(
-            ability.costs,
+            ability.costs(),
             vec![Cost::Mana(ManaCost::build(&[ManaType::White], 0)), Cost::SacrificeSelf]
         );
         assert!(matches!(

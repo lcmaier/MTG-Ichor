@@ -75,7 +75,7 @@ mod tests {
             assert!(land.supertypes.contains(&Supertype::Basic));
             assert!(land.mana_cost.is_none());
             assert_eq!(land.abilities.len(), 1);
-            assert_eq!(land.abilities[0].ability_type, AbilityType::Mana);
+            assert!(matches!(land.abilities[0].ability_type, AbilityType::Mana(_)));
         }
     }
 }

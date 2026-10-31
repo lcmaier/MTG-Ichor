@@ -274,8 +274,8 @@ mod tests {
         for (land_type, mana_type) in expected {
             let ability = intrinsic_mana_ability(id, land_type)
                 .unwrap_or_else(|| panic!("{:?} should have an intrinsic ability", land_type));
-            assert_eq!(ability.ability_type, AbilityType::Mana);
-            assert_eq!(ability.costs, vec![Cost::TapSelf]);
+            assert!(matches!(ability.ability_type, AbilityType::Mana(_)));
+            assert_eq!(ability.costs(), vec![Cost::TapSelf]);
             assert_eq!(produced_mana(&ability), Some(mana_type));
         }
     }

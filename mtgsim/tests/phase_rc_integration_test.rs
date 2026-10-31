@@ -638,7 +638,7 @@ fn test_rc2_cards_read_as_printed() {
     assert_eq!(
         land.abilities
             .iter()
-            .filter(|a| a.ability_type == AbilityType::Mana)
+            .filter(|a| matches!(a.ability_type, AbilityType::Mana(_)))
             .count(),
         2
     );
@@ -659,7 +659,7 @@ fn test_rc2_cards_read_as_printed() {
         scarecrow
             .abilities
             .iter()
-            .filter(|a| a.ability_type == AbilityType::Activated)
+            .filter(|a| matches!(a.ability_type, AbilityType::Activated(_)))
             .count(),
         1
     );

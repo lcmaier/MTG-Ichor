@@ -482,7 +482,7 @@ impl GameState {
         can_begin_to_activate(self, player_id, ability).map_err(|reason| reason.to_string())?;
 
         let effect = ability.effect.clone();
-        let ability_costs = ability.costs.clone();
+        let ability_costs = ability.costs().to_vec();
         let identity = crate::state::game_state::AbilityIdentity {
             source: crate::types::ids::ObjectRef {
                 id: source_id,
@@ -808,7 +808,7 @@ mod tests {
 
         let abilities = crate::oracle::characteristics::get_effective_abilities(&game, thaum);
         let idx = abilities.iter()
-            .position(|a| a.ability_type == AbilityType::Activated)
+            .position(|a| matches!(a.ability_type, AbilityType::Activated(_)))
             .unwrap();
         let ability_id = abilities[idx].id;
 
@@ -857,7 +857,7 @@ mod tests {
         let decisions = ScriptedDecisionProvider::new();
         let ability_id = crate::oracle::characteristics::get_effective_abilities(&game, thaum)
             .iter()
-            .find(|a| a.ability_type == AbilityType::Activated)
+            .find(|a| matches!(a.ability_type, AbilityType::Activated(_)))
             .expect("Merfolk Thaumaturgist has an activated ability")
             .id;
         // Forced target, so nothing to script — see the test above.

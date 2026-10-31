@@ -482,7 +482,7 @@ fn an_equip_ability_does_not_attach_its_equipment_once_it_has_left_and_returned(
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
     let equip = get_effective_abilities(&game, splitter)
         .iter()
-        .position(|a| a.ability_type == AbilityType::Activated)
+        .position(|a| matches!(a.ability_type, AbilityType::Activated(_)))
         .expect("Bonesplitter's equip");
     game.activate_ability(0, splitter, equip, &test_dp()).unwrap();
     assert_eq!(game.stack.len(), 1, "one creature, so the target was forced");
@@ -544,7 +544,7 @@ fn resolve_all(game: &mut GameState, dp: &dyn DecisionProvider) {
 fn equip_to(game: &mut GameState, equipment: ObjectId, pick: usize) {
     let index = get_effective_abilities(game, equipment)
         .iter()
-        .position(|a| a.ability_type == AbilityType::Activated)
+        .position(|a| matches!(a.ability_type, AbilityType::Activated(_)))
         .expect("an equip ability");
     let dp = RecordingDecisionProvider::picking(pick);
     game.activate_ability(0, equipment, index, &dp).unwrap();

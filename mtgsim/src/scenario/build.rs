@@ -603,15 +603,19 @@ impl<'s> Loader<'s> {
             for word in &card_line.words {
                 // CR 603.2h's limit is a triggered ability's; CR 603.7h counts
                 // either kind resolving.
-                let (ability, can) = match word {
-                    CardWord::Triggered { ability } | CardWord::TookOnceEachTurnAction { ability } => (ability, AbilityType::Triggered),
-                    CardWord::Resolved { ability, .. } => (ability, AbilityType::Activated),
+                let (ability, activated_too) = match word {
+                    CardWord::Triggered { ability } | CardWord::TookOnceEachTurnAction { ability } => (ability, false),
+                    CardWord::Resolved { ability, .. } => (ability, true),
                     _ => continue,
                 };
                 let found = match ability {
                     Some(n) => n.checked_sub(1).and_then(|i| card.abilities.get(i)),
                     None => {
-                        let mut able = card.abilities.iter().filter(|a| a.ability_type == AbilityType::Triggered || a.ability_type == can);
+                        let mut able = card.abilities.iter().filter(|a| match a.ability_type {
+                            AbilityType::Triggered => true,
+                            AbilityType::Activated(_) => activated_too,
+                            AbilityType::Mana(_) | AbilityType::Static | AbilityType::Spell => false,
+                        });
                         let one = able.next();
                         one.filter(|_| able.next().is_none())
                     }
@@ -697,7 +701,7 @@ impl<'s> Loader<'s> {
         let refused = |message: String| Err(ScenarioError::at(ScenarioErrorKind::Syntax, line, message));
         let abilities = get_effective_abilities(&self.state, permanent);
         let Some(n) = ability else {
-            let mut activated = abilities.iter().filter(|a| a.ability_type == AbilityType::Activated);
+            let mut activated = abilities.iter().filter(|a| matches!(a.ability_type, AbilityType::Activated(_)));
             return match (activated.next(), activated.count()) {
                 (Some(one), 0) => Ok(one.id),
                 (None, _) => refused(format!("{card} has no activated ability but a mana ability, whose mana would wait in a pool no word writes")),
@@ -708,8 +712,8 @@ impl<'s> Loader<'s> {
             };
         };
         match n.checked_sub(1).and_then(|i| abilities.get(i)) {
-            Some(def) if def.ability_type == AbilityType::Activated => Ok(def.id),
-            Some(def) if def.ability_type == AbilityType::Mana => {
+            Some(def) if matches!(def.ability_type, AbilityType::Activated(_)) => Ok(def.id),
+            Some(def) if matches!(def.ability_type, AbilityType::Mana(_)) => {
                 refused(format!("ability {n} of {card} is a mana ability (CR 605), whose mana would wait in a pool no word writes"))
             }
             Some(_) => refused(format!("ability {n} of {card} is not an activated ability (CR 602.1)")),

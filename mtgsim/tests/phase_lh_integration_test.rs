@@ -331,7 +331,7 @@ use mtgsim::engine::targeting::{TargetInstance};
 fn equip_ability_index(game: &GameState, equipment: ObjectId) -> usize {
     get_effective_abilities(game, equipment)
         .iter()
-        .position(|a| a.ability_type == AbilityType::Activated)
+        .position(|a| matches!(a.ability_type, AbilityType::Activated(_)))
         .expect("an Equipment with an equip ability")
 }
 

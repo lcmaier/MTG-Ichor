@@ -326,7 +326,7 @@ fn a_choice_that_does_not_target_announces_nothing() {
 /// Activate `source`'s activated ability at `target`.
 fn activate_at(game: &mut GameState, source: ObjectId, target: ObjectId) -> Result<(), String> {
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(game, source);
-    let index = abilities.iter().position(|a| a.ability_type == AbilityType::Activated).expect("an activated ability");
+    let index = abilities.iter().position(|a| matches!(a.ability_type, AbilityType::Activated(_))).expect("an activated ability");
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
         ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },

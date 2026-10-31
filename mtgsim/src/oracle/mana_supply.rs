@@ -241,7 +241,7 @@ impl ManaSupply {
             for ability in abilities.iter() {
                 match mana_ability_cost_of(ability) {
                     ManaAbilityCost::SpendsItsTapOrItself { taps, sacrifices } => {
-                        if game.can_pay_costs(&ability.costs, player, id).is_err() {
+                        if game.can_pay_costs(ability.costs(), player, id).is_err() {
                             continue;
                         }
                         let Some(base) = mana_production_of(game, &ability.effect, id, player) else { continue };
@@ -497,7 +497,7 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
     let mut sources = Vec::new();
     for (id, abilities) in controlled_mana_abilities(game, player_id) {
         for ability in abilities.iter() {
-            if game.can_pay_costs(&ability.costs, player_id, id).is_err() {
+            if game.can_pay_costs(ability.costs(), player_id, id).is_err() {
                 continue;
             }
             for produces in mana_types_made(game, &watchers, ability, id, player_id) {
@@ -591,7 +591,7 @@ impl ManaAbilityWindowOffer {
                 if !seen.insert((permanent, ability.id.definition())) {
                     continue;
                 }
-                let paid = match ability.costs.as_slice() {
+                let paid = match ability.costs() {
                     [Cost::TapSelf] => CostRecheck::WhileUntapped { sick: has_summoning_sickness(game, permanent) },
                     costs => CostRecheck::Costs(costs.to_vec()),
                 };
@@ -721,7 +721,7 @@ enum ManaAbilityCost<'a> {
 
 fn mana_ability_cost_of(ability: &AbilityDef) -> ManaAbilityCost<'_> {
     let (mut taps, mut sacrifices, mut sacrifice, mut mana, mut other) = (false, false, None, None, false);
-    for cost in &ability.costs {
+    for cost in ability.costs() {
         match cost {
             Cost::TapSelf => taps = true,
             Cost::SacrificeSelf => sacrifices = true,
@@ -760,7 +760,7 @@ struct ManaAbilities(Arc<Vec<AbilityDef>>);
 
 impl ManaAbilities {
     fn iter(&self) -> impl Iterator<Item = &AbilityDef> {
-        self.0.iter().filter(|ability| ability.ability_type == AbilityType::Mana)
+        self.0.iter().filter(|ability| matches!(ability.ability_type, AbilityType::Mana(_)))
     }
 }
 
@@ -1408,8 +1408,8 @@ mod tests {
     /// payment takes.
     fn other_costs(game: &GameState, id: ObjectId) -> Vec<Cost> {
         let abilities = get_effective_abilities(game, id);
-        let ability = abilities.iter().find(|a| a.ability_type == AbilityType::Activated).unwrap();
-        ability.costs.iter().filter(|c| !matches!(c, Cost::Mana(_))).cloned().collect()
+        let ability = abilities.iter().find(|a| matches!(a.ability_type, AbilityType::Activated(_))).unwrap();
+        ability.costs().iter().filter(|c| !matches!(c, Cost::Mana(_))).cloned().collect()
     }
 
     /// One Everywhere is one mana of any color, not five sources: SU-7's
@@ -1886,7 +1886,7 @@ mod tests {
         for game in &boards {
             let watchers = mana_production_watchers(game);
             for id in permanents_controlled_by(game, 0) {
-                for ability in get_effective_abilities(game, id).iter().filter(|a| a.ability_type == AbilityType::Mana) {
+                for ability in get_effective_abilities(game, id).iter().filter(|a| matches!(a.ability_type, AbilityType::Mana(_))) {
                     let taps = match mana_ability_cost_of(ability) {
                         ManaAbilityCost::SpendsItsTapOrItself { taps, .. } => taps,
                         ManaAbilityCost::SacrificesOthers { .. } => false,

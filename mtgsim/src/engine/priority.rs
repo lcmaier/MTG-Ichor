@@ -144,7 +144,7 @@ impl GameState {
                         let found = crate::oracle::characteristics::effective_ability(self, *permanent_id, *ability_id);
                         let is_mana = found
                             .as_ref()
-                            .is_some_and(|a| a.ability_type == crate::objects::card_data::AbilityType::Mana);
+                            .is_some_and(|a| matches!(a.ability_type, crate::objects::card_data::AbilityType::Mana(_)));
                         let result = if is_mana {
                             self.activate_mana_ability(
                                 current_priority, *permanent_id, *ability_id, decisions,

@@ -631,7 +631,7 @@ fn bolt_at_player(game: &mut GameState, player: PlayerId, at: PlayerId) -> Objec
 /// `player` activates Merfolk Thaumaturgist's `{T}` ability at `target`.
 fn thaumaturgist_at(game: &mut GameState, player: PlayerId, thaumaturgist: ObjectId, target: ObjectId) {
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(game, thaumaturgist);
-    let index = abilities.iter().position(|a| a.ability_type == AbilityType::Activated).expect("an activated ability");
+    let index = abilities.iter().position(|a| matches!(a.ability_type, AbilityType::Activated(_))).expect("an activated ability");
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
         ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
@@ -966,7 +966,7 @@ fn mentor_fixture() -> Arc<CardData> {
 /// `player` taps `permanent` for its mana ability.
 fn tap_for_mana(game: &mut GameState, player: PlayerId, permanent: ObjectId) {
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(game, permanent);
-    let ability = abilities.iter().find(|a| a.ability_type == AbilityType::Mana).expect("a mana ability").id;
+    let ability = abilities.iter().find(|a| matches!(a.ability_type, AbilityType::Mana(_))).expect("a mana ability").id;
     game.activate_mana_ability(player, permanent, ability, &test_dp()).unwrap();
 }
 
@@ -1026,7 +1026,7 @@ fn an_ability_that_adds_mana_with_a_target_is_no_mana_ability() {
     let shaman = put_on_battlefield(&mut game, shaman_fixture(), 1);
     set_active_player(&mut game, 1);
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(&game, shaman);
-    let index = abilities.iter().position(|a| a.ability_type == AbilityType::Activated).expect("an activated ability");
+    let index = abilities.iter().position(|a| matches!(a.ability_type, AbilityType::Activated(_))).expect("an activated ability");
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
         ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },

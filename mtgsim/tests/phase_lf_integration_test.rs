@@ -537,7 +537,7 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
     game.continuous_effects.remove_by_source(caster);
 
     let mut activated = inert_ability();
-    activated.ability_type = mtgsim::objects::card_data::AbilityType::Activated;
+    activated.ability_type = mtgsim::objects::card_data::AbilityType::Activated(mtgsim::objects::card_data::Activation::new(Vec::new()));
 
     let spell = Effect::Atom(
         Primitive::GrantAbility(std::sync::Arc::new(activated), Duration::UntilEndOfTurn),
@@ -651,7 +651,7 @@ fn test_citanul_hierophants_grants_a_mana_ability_to_your_creatures() {
     // your opponent's.
     let mine = get_effective_abilities(&game, my_bears);
     assert_eq!(mine.len(), 1);
-    assert_eq!(mine[0].ability_type, mtgsim::objects::card_data::AbilityType::Mana);
+    assert!(matches!(mine[0].ability_type, mtgsim::objects::card_data::AbilityType::Mana(_)));
     assert_eq!(get_effective_abilities(&game, hierophants).len(), 2); // static + granted
     assert!(get_effective_abilities(&game, opp_bears).is_empty());
 }

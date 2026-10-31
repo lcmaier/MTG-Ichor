@@ -65,7 +65,7 @@ fn activate_the_switch(
     let abilities = get_effective_abilities(game, thaum);
     let idx = abilities
         .iter()
-        .position(|a| a.ability_type == AbilityType::Activated)
+        .position(|a| matches!(a.ability_type, AbilityType::Activated(_)))
         .expect("the Thaumaturgist has one activated ability");
     game.activate_ability(controller, thaum, idx, dp)
         .expect("{T} is payable and the target is forced");

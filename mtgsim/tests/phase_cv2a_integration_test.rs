@@ -931,7 +931,7 @@ fn a_clone_of_citanul_hierophants_grants_the_mana_ability() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let mana_abilities = |game: &GameState, id| {
-        get_effective_abilities(game, id).iter().filter(|a| a.ability_type == AbilityType::Mana).count()
+        get_effective_abilities(game, id).iter().filter(|a| matches!(a.ability_type, AbilityType::Mana(_))).count()
     };
     assert_eq!(mana_abilities(&game, bears), 0);
 

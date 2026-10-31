@@ -725,7 +725,7 @@ fn test_an_ability_resolving_is_not_a_spell_resolving() {
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(&game, thaum);
     let idx = abilities
         .iter()
-        .position(|a| a.ability_type == mtgsim::objects::card_data::AbilityType::Activated)
+        .position(|a| matches!(a.ability_type, mtgsim::objects::card_data::AbilityType::Activated(_)))
         .unwrap();
     game.activate_ability(0, thaum, idx, &decisions).unwrap();
     game.resolve_top_of_stack(&decisions).unwrap();

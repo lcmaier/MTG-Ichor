@@ -4,7 +4,7 @@
 //! so the builder's stamps (its id, its instances of "target") are written
 //! in one place. CR 603's triggered ability is [`super::triggered_ability`].
 
-use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType};
+use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, Activation};
 use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
 use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount};
@@ -31,17 +31,13 @@ pub fn static_replacement(rules_text: impl Into<AbilityText>, def: ReplacementDe
 
 /// An activated ability (CR 113.3b): "[Cost]: [Effect.]"
 pub fn activated_ability(rules_text: impl Into<AbilityText>, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
-    let mut ability = AbilityDef::new(AbilityType::Activated, rules_text, effect);
-    ability.costs = costs;
-    ability
+    AbilityDef::new(AbilityType::Activated(Activation::new(costs)), rules_text, effect)
 }
 
 /// An activated mana ability (CR 605.1a): no target, it could add mana, and
 /// no loyalty cost.
 pub fn mana_ability(rules_text: impl Into<AbilityText>, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
-    let mut ability = AbilityDef::new(AbilityType::Mana, rules_text, effect);
-    ability.costs = costs;
-    ability
+    AbilityDef::new(AbilityType::Mana(Activation::new(costs)), rules_text, effect)
 }
 
 /// "Equip [cost]" — CR 702.6a's activated ability, spelled out: "[Cost]:

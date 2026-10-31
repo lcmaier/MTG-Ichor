@@ -294,13 +294,13 @@ pub fn can_activate_its_abilities(game: &GameState, player_id: PlayerId, source_
 /// (CR 602.5d).
 pub fn can_begin_to_activate(game: &GameState, player_id: PlayerId, ability: &AbilityDef) -> Result<(), CannotActivate> {
     match ability.ability_type {
-        AbilityType::Activated => {}
-        AbilityType::Mana => return Err(CannotActivate::ManaAbility),
+        AbilityType::Activated(_) => {}
+        AbilityType::Mana(_) => return Err(CannotActivate::ManaAbility),
         AbilityType::Spell | AbilityType::Triggered | AbilityType::Static => {
             return Err(CannotActivate::NotActivated);
         }
     }
-    if ability.activation_restriction == ActivationRestriction::OnlyAsSorcery {
+    if ability.restriction() == ActivationRestriction::OnlyAsSorcery {
         game.check_sorcery_timing(player_id).map_err(CannotActivate::Timing)?;
     }
     Ok(())
@@ -333,7 +333,7 @@ fn can_activate_as_its_controller(
 ) -> Result<(), CannotActivate> {
     can_begin_to_activate(game, player_id, ability)?;
 
-    let (symbols, other_costs) = Cost::split_out_mana_costs(ability.costs.iter().cloned());
+    let (symbols, other_costs) = Cost::split_out_mana_costs(ability.costs().iter().cloned());
     for cost in &other_costs {
         game.can_pay_costs(std::slice::from_ref(cost), player_id, source_id).map_err(CannotActivate::Cost)?;
     }
