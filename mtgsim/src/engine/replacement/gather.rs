@@ -476,11 +476,22 @@ fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[O
     asked.into_iter().map(|(_, candidate)| candidate).collect()
 }
 
-/// The objects that have a replacement ability only because a grant or copy
-/// row naming them — its own source, a fixed list, or its source's host —
-/// puts one there, and whose ability could answer a proposal of kind
-/// `proposed`, wherever they are: `named_trigger_carriers`' twin. A row over a
-/// filter names zones instead, and the legs walk them.
+/// The objects that have a replacement ability only because a continuous
+/// effect names them, and whose ability could answer a proposal of kind
+/// `proposed`: `named_trigger_carriers`' twin.
+///
+/// A permanent with a *printed* replacement ability is filed in
+/// `replacement_ability_sources` as it enters, under the kinds of proposal it
+/// answers, and `battlefield_candidates` asks that file. Two effects give an
+/// object a replacement ability it did not print, and no filing sees them: a
+/// copy (Cytoshape making a creature a copy of Fire Servant, which doubles
+/// damage from red instants and sorceries) and a grant (Bewitching Leechcraft's "enchanted
+/// creature has 'If this creature would untap during your untap step, ...'").
+/// Each such effect is a registry row. A row that names its objects — its own
+/// source, a fixed list, or its source's host — is read here: its objects are
+/// candidates, wherever they are, when a replacement ability it puts on them
+/// watches this kind of proposal. A row over a filter names zones instead, and
+/// the legs walk them.
 ///
 /// Unordered: each leg puts its candidates in CR 613.7 order.
 fn named_replacement_carriers(game: &GameState, proposed: GameActionKind) -> Vec<ObjectId> {

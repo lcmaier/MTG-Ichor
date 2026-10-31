@@ -147,10 +147,14 @@ fn a_printed_source_is_filed_under_the_kinds_it_answers_from_the_battlefield() {
 // The named rows, by kind
 // ---------------------------------------------------------------------------
 
-/// A creature that printed a damage replacement becomes a copy of another
-/// (Cytoshape's shape): it is filed as a printed source and named by its copy
-/// row, both under damage. Asked once, its one effective replacement is one
-/// candidate, so CR 616.1 asks nothing (`test_ctx` panics on a prompt).
+/// Two lists name one permanent, and it is asked once. A creature that printed
+/// "prevent all damage that would be dealt to this creature" becomes a copy of
+/// another creature with that ability (Cytoshape). The printed list still holds
+/// it, since it was filed as it entered and becoming a copy does not refile it;
+/// its copy row names it too, since the copy gives it the donor's ability. The
+/// gather reads the abilities it has now, after the copy: one, so one
+/// candidate and no CR 616.1 choice (`test_ctx` panics on a prompt). Asked
+/// twice, that one ability would be two candidates.
 #[test]
 fn a_printed_source_that_becomes_a_copy_of_another_is_offered_once() {
     let mut game = setup_two_player_game();
@@ -172,13 +176,12 @@ fn a_printed_source_that_becomes_a_copy_of_another_is_offered_once() {
     assert_eq!(game.battlefield[&copyist].damage_marked, 0, "the copied ability prevented it");
 }
 
-/// A copied damage replacement on a creature that printed none is found
-/// beside a printed source of another kind: only the named leg names the
-/// copyist, and only for the kinds its copied ability watches.
+/// A creature that printed no replacement becomes a copy of one that did. No
+/// printed list holds it, so only its copy row can lead the gather to it, and
+/// that row is read only for the kind its copied ability watches: damage.
 #[test]
-fn a_copied_replacement_is_found_beside_a_printed_source_of_another_kind() {
+fn a_copied_replacement_is_found_only_through_its_copy_row() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, rest_in_peace(), 0);
     let copyist = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let donor = put_on_battlefield(&mut game, warded("Warded Donor"), 1);
     let source = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
@@ -200,10 +203,12 @@ fn a_copied_replacement_is_found_beside_a_printed_source_of_another_kind() {
 // The replacement-counter holders
 // ---------------------------------------------------------------------------
 
-/// A permanent is a holder from its first shield, stun or finality counter to
-/// its last, and a +1/+1 counter makes it none.
+/// `replacement_counter_holders` lists each permanent with at least one
+/// counter that makes a replacement: shield, stun or finality (CR 122.1c,
+/// 122.1d, 122.1h). A permanent joins at its first such counter and leaves at
+/// its last; a +1/+1 counter, which makes none, never puts it there.
 #[test]
-fn a_permanent_holds_a_replacement_counter_from_the_first_to_the_last() {
+fn a_permanent_is_a_holder_while_it_has_a_replacement_counter() {
     let mut game = setup_two_player_game();
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let holds = |game: &GameState| game.replacement_counter_holders.contains(&bear);
