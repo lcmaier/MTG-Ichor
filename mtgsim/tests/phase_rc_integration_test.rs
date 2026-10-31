@@ -151,9 +151,10 @@ fn test_tapland_is_tapped_through_the_pipeline_not_by_hand() {
 
     // The entry was announced exactly once, by the performer.
     assert_eq!(entries(&game), vec![(land, 0)]);
-    // …and the land is a gather candidate now that it is a permanent, which is
-    // what `register_static_effects` records.
-    assert!(game.replacement_ability_sources.contains(&land));
+    // …and is filed nowhere now that it is a permanent: its one replacement is
+    // its own entry, which source 1a read as it entered (CR 614.12), and from
+    // the battlefield it answers nothing (CR 400.7).
+    assert!(!game.replacement_ability_sources.contains_key(&land));
 }
 
 /// CR 614.12's "as opposed to a general subset of permanents that includes it":

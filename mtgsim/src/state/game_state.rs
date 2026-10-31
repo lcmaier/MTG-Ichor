@@ -24,6 +24,7 @@ use crate::types::ids::{
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates, ReplacementDef};
 use crate::types::triggers::EventKindMask;
+use crate::engine::actions::GameActionKindMask;
 
 /// The outcome of a game that has ended (CR 104).
 ///
@@ -500,24 +501,29 @@ pub struct GameState {
 
     /// Battlefield objects that **entered with** a static ability whose body is
     /// an `Effect::Replacement`: printed, or the copy's they entered as (CR
-    /// 707.5), which registration reads in its place.
+    /// 707.5), which registration reads in its place. Each is filed under the
+    /// kinds of proposal its defs can answer from the battlefield
+    /// (`ReplacementDef::action_kinds_in_place`), and one whose defs answer
+    /// none — every "this land enters tapped" — is not filed at all.
     ///
-    /// `engine::replacement::gather`'s fast path, and not an optimization:
-    /// reading effective abilities is a full `compute_characteristics` walk, so
-    /// an ungated sweep would run one per permanent per proposed action.
+    /// `engine::replacement::gather`'s battlefield leg reads the sources filed
+    /// under the proposal's kind, the trigger dispatcher's shape
+    /// (`trigger_sources`): reading effective abilities is a full
+    /// `compute_characteristics` walk, so asking every permanent would run one
+    /// per permanent per proposed action.
     ///
-    /// **A set rather than a count, so it cannot drift**: insert at ETB, remove
+    /// **A map rather than a count, so it cannot drift**: filed at ETB, removed
     /// at `cleanup_zone_state`, both idempotent. It over-approximates in one
     /// direction only — CR 305.7 or Humility can take the printed ability away
-    /// without touching the set, which costs a walk and never an answer. The
-    /// gate's other legs are `RegistryScopeSummary::granted_replacement_zones`
-    /// (Layer 6) and `copied_replacement_zones` (`copy-effects-architecture.md`
-    /// §4.7); Layer 3 is the route still without one.
+    /// without touching the map, which costs a walk and never an answer. The
+    /// gather's other legs are `RegistryScopeSummary`'s zones and named kinds
+    /// for a Layer 6 grant or a copy (`copy-effects-architecture.md` §4.7);
+    /// Layer 3 is the route still without one.
     ///
-    /// **Engine-maintained.** `perform_entry` inserts and
+    /// **Engine-maintained.** `perform_entry` files and
     /// `cleanup_zone_state` removes; a hand-written removal is a card that
     /// silently stops working.
-    pub replacement_ability_sources: IdSet<ObjectId>,
+    pub replacement_ability_sources: IdMap<ObjectId, GameActionKindMask>,
 
     /// The permanents holding a counter that generates a replacement effect:
     /// a shield, stun or finality counter (CR 122.1c/d/h,
@@ -1059,7 +1065,7 @@ impl GameState {
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementEffectRegistry::new(),
-            replacement_ability_sources: IdSet::default(),
+            replacement_ability_sources: IdMap::default(),
             replacement_counter_holders: IdSet::default(),
             zone_replacement_ability_sources: IdMap::default(),
             restrictions: RestrictionRegistry::new(),
@@ -2141,8 +2147,12 @@ impl GameState {
             // ask whether it could apply before reading a frame. The two sets below
             // stay battlefield-only, as their sweeps are.
             if let Some(def) = ability.effect.replacement_body() {
-                if zone == Zone::Battlefield {
-                    self.replacement_ability_sources.insert(id);
+                let kinds = def.action_kinds_in_place();
+                if kinds.is_empty() {
+                    // Its own entry only: source 1a reads it off the object as it
+                    // enters (CR 614.12), and from where it sits it answers nothing.
+                } else if zone == Zone::Battlefield {
+                    *self.replacement_ability_sources.entry(id).or_insert(GameActionKindMask::EMPTY) |= kinds;
                 } else {
                     zone_replacement_defs.push(def.clone());
                 }

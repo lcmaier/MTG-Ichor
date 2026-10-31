@@ -443,7 +443,7 @@ fn test_a_superseded_copy_stops_its_derived_row_applying() {
 }
 
 /// `copy-effects-architecture.md` §4.7 **leg 1**, replacement half — a copied
-/// replacement ability lights `RegistryScopeSummary::any_named_unattributed_replacement`,
+/// replacement ability lights `RegistryScopeSummary::named_unattributed_replacement_kinds`,
 /// which is what lets `gather`'s fast-path gate see it: the copy row names
 /// its copyist, so the gather reads that object by name rather than a zone.
 #[test]
@@ -453,12 +453,12 @@ fn test_a_copied_replacement_ability_lights_the_gather_gate() {
     let copyist = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     assert!(
-        !game.continuous_effects.summary().any_named_unattributed_replacement,
+        game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty(),
         "no copy row yet"
     );
     copy_onto(&mut game, copyist, donor);
     assert!(
-        game.continuous_effects.summary().any_named_unattributed_replacement,
+        !game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty(),
         "§4.7 leg 1 — the gate's third leg"
     );
     assert!(
@@ -484,10 +484,10 @@ fn test_a_copied_conditional_replacement_ability_lights_the_gather_gate() {
     let donor = put_on_battlefield(&mut game, laboratory_maniac(), 0);
     let copyist = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
 
-    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
+    assert!(game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty());
     copy_onto(&mut game, copyist, donor);
     assert!(
-        game.continuous_effects.summary().any_named_unattributed_replacement,
+        !game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty(),
         "the wrapper is not the body: a conditional replacement is one"
     );
 }
@@ -506,7 +506,7 @@ fn test_a_copied_restriction_ability_lights_the_restriction_gate() {
         game.continuous_effects.summary().any_copied_restriction,
         "the second gate's third leg"
     );
-    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
+    assert!(game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty());
 }
 
 /// A copy of a vanilla creature must turn **neither** gate on. The flags are a
@@ -520,7 +520,7 @@ fn test_a_copy_of_a_vanilla_creature_lights_neither_gate() {
 
     copy_onto(&mut game, copyist, donor);
     let summary = game.continuous_effects.summary();
-    assert!(!summary.any_named_unattributed_replacement);
+    assert!(summary.named_unattributed_replacement_kinds.is_empty());
     assert!(!summary.any_copied_restriction);
 }
 
@@ -691,7 +691,7 @@ fn test_a_turn_bounded_copy_and_its_derived_rows_expire_together() {
         Some(3),
         "the derived row carried the copy row's duration"
     );
-    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
+    assert!(game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty());
 }
 
 // ---------------------------------------------------------------------------

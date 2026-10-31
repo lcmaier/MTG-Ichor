@@ -640,6 +640,10 @@ is derivable; where each name was read is not, and the gate needs the names.
     place of every permanent's counters. An index over `Counters`, no fact
     about the game, under `CLAUDE.md`'s gate rule as the five above; kept by
     the counters' only writers, all in `state/`.
+- **Changed by the item 6 audit's close (2026-10-30)**:
+  - `replacement_ability_sources`: an `IdMap` from each printed source to
+    the kinds of proposal its replacement abilities can answer from the
+    battlefield (`GameActionKindMask`), where it was a set. Still an index.
 
 ---
 

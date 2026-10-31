@@ -1929,7 +1929,7 @@ direction only (a trigger multiplier is `trigger_multiplier_sources`', CR
 the gate only ever reads them OR-ed — a `Filter` row ORs into
 `unattributed_trigger_zones` and `unattributed_trigger_kinds`, a row
 naming its objects into `named_unattributed_trigger_kinds`; and the zone
-set above. `triggered_ability_kinds(effect)`, `puts_a_replacement_ability`'s
+set above. `triggered_ability_kinds(effect)`, `replacement_ability_kinds`'
 twin, returns the record kinds a grant or copy row's triggers read, a mask
 rather than a yes or no. A dispatch on a board where
 every set is empty and the delayed registry is empty returns after four

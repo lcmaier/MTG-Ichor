@@ -38,7 +38,7 @@ use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::ResolutionStamp;
 use crate::objects::card_data::AbilityDef;
 use crate::oracle::characteristics::{controller_or_owner, FrameContext, ObjectInformation};
-use crate::state::continuous_effects::puts_a_replacement_ability;
+use crate::state::continuous_effects::replacement_ability_kinds;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
     AffectedSet, ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter,
@@ -260,36 +260,39 @@ fn gather_sweeping(
     // having printed it — a Layer 6 grant or a copy row put it there, so
     // neither printed set can name the object. The summary says where such an
     // object can be: a `Filter` row names zones, a named row names objects,
-    // and each sweep reads the shape it is given.
-    let summary = game.continuous_effects.summary();
-    let unattributed_zones = summary.unattributed_replacement_zones;
-    let any_named_unattributed = summary.any_named_unattributed_replacement;
-    let has_static_source = !game.replacement_ability_sources.is_empty()
-        || !game.zone_replacement_ability_sources.is_empty()
-        || !unattributed_zones.is_empty()
-        || any_named_unattributed;
+    // and each leg reads the shape it is given. The named rows' objects that
+    // could answer this proposal are read once, for both legs.
+    let proposed = GameActionKind::of(action);
+    let unattributed_zones = game.continuous_effects.summary().unattributed_replacement_zones;
+    let named = named_replacement_carriers(game, proposed);
+
+    // --- Sources 1 and 5: the battlefield ----------------------------------
+    // The permanents that could answer this proposal, each once, oldest first
+    // (CR 613.7): the printed sources filed under its kind, the named rows'
+    // objects, and the holders of a replacement counter. A `Filter` row
+    // reaching the battlefield opens every permanent instead, since narrowing
+    // it would resolve a filter per permanent per check; so does the audit.
     debug_assert!(
         game.replacement_counter_holders_cover_the_board(),
         "a permanent holds a replacement counter that `replacement_counter_holders` does not name"
     );
+    let permanents = if sweep == Sweep::Everything || unattributed_zones.contains(Zone::Battlefield) {
+        game.battlefield_ids_ordered().into_iter().map(|id| (id, true)).collect()
+    } else {
+        battlefield_candidates(game, proposed, &named)
+    };
     if sweep == Sweep::Gated
-        && !has_static_source
+        && permanents.is_empty()
+        && named.is_empty()
+        && game.zone_replacement_ability_sources.is_empty()
+        && unattributed_zones.is_empty()
         && game.replacement_effects.is_empty()
-        && game.replacement_counter_holders.is_empty()
     {
         candidates.extend(entering);
         return candidates;
     }
-
-    // --- Sources 1 and 5: the battlefield sweep ----------------------------
-    // The fast path per *permanent*, the board gate's predicate one object at a
-    // time. A row reaching the battlefield by zone or by name opens every
-    // permanent to a walk, since narrowing it would resolve a filter per
-    // permanent per check.
-    let any_unattributed =
-        sweep == Sweep::Everything || unattributed_zones.contains(Zone::Battlefield) || any_named_unattributed;
-    for id in game.battlefield_ids_ordered() {
-        if any_unattributed || game.replacement_ability_sources.contains(&id) {
+    for (id, abilities_could_answer) in permanents {
+        if abilities_could_answer {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             if let Some(chars) = compute_characteristics(game, id) {
                 let asked = CheckedForReplacements {
@@ -304,8 +307,7 @@ fn gather_sweeping(
         }
 
         for (counter, kind, def) in counter_replacements(game, id) {
-            // By identity (CR 400.7), and looked up only for a permanent with
-            // counters that make one: the sweep visits every permanent.
+            // By identity (CR 400.7).
             let Some(object) = game.object_ref(id) else { continue };
             let controller = controller_or_owner(game, id).unwrap_or(0);
             push_if_applicable(
@@ -364,21 +366,12 @@ fn gather_sweeping(
             }
         }
         let zone_sweep = unattributed_zones.beyond_battlefield();
-        if any_named_unattributed || !zone_sweep.is_empty() {
-            let mut named: Vec<ObjectId> = Vec::new();
-            if any_named_unattributed {
-                for row in game.continuous_effects.iter().filter(|r| puts_a_replacement_ability(r)) {
-                    // A host is a permanent (CR 301.5, 303.4): the battlefield sweep's.
-                    if !matches!(row.affected_objects, ObjectSet::Host) {
-                        named.extend(row.affected_objects.named_objects(game, row.source).into_iter().flatten());
-                    }
-                }
-            }
-            for zone in zone_sweep.iter() {
-                named.extend(game.zone_ids_ordered(zone));
-            }
+        if !named.is_empty() || !zone_sweep.is_empty() {
+            let zoned = zone_sweep.iter().flat_map(|zone| game.zone_ids_ordered(zone));
             let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
-            for id in named {
+            for id in named.iter().copied().chain(zoned) {
+                // A named permanent, a host among them (CR 301.5, 303.4), is
+                // the battlefield leg's.
                 let off_battlefield =
                     matches!(game.objects.get(&id), Some(obj) if obj.zone != Zone::Battlefield);
                 if off_battlefield && seen.insert(id) {
@@ -430,6 +423,69 @@ fn gather_sweeping(
     }
 
     candidates
+}
+
+/// The permanents the battlefield leg asks about a proposal of kind
+/// `proposed`, oldest first (CR 613.7) and each once, with whether its
+/// abilities could answer: a printed source filed under the kind, or a named
+/// row's object, yes; a holder of a replacement counter, only its counters.
+///
+/// Only these can answer. A permanent has a static replacement ability only if
+/// it entered with one (`replacement_ability_sources`, filed by kind) or a row
+/// put one there (a named row here, a `Filter` row's zones walked by the
+/// caller), and a counter makes one only on a holder.
+fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[ObjectId]) -> Vec<(ObjectId, bool)> {
+    let mut asked: Vec<(Timestamp, ObjectId, bool)> = Vec::new();
+    let mut ask = |id: ObjectId, abilities_could_answer: bool| {
+        if let Some(entry) = game.battlefield.get(&id) {
+            asked.push((entry.timestamp, id, abilities_could_answer));
+        }
+    };
+    // ORDER-FREE: sorted by timestamp below.
+    for (&id, kinds) in game.replacement_ability_sources.iter() {
+        if kinds.contains(proposed) {
+            ask(id, true);
+        }
+    }
+    for &id in named {
+        ask(id, true);
+    }
+    // ORDER-FREE: sorted by timestamp below.
+    for &id in game.replacement_counter_holders.iter() {
+        ask(id, false);
+    }
+    // Every arrival is stamped from one counter (CR 613.7d), so a permanent's
+    // key is its own and a duplicate sorts beside its twin.
+    asked.sort_unstable_by_key(|&(timestamp, _, _)| timestamp);
+    asked.dedup_by(|later, kept| {
+        let twin = later.1 == kept.1;
+        if twin {
+            kept.2 |= later.2;
+        }
+        twin
+    });
+    debug_assert!(asked.windows(2).all(|pair| pair[0].0 < pair[1].0), "two permanents share a CR 613.7 timestamp");
+    asked.into_iter().map(|(_, id, abilities_could_answer)| (id, abilities_could_answer)).collect()
+}
+
+/// The objects that have a replacement ability only because a grant or copy
+/// row naming them — its own source, a fixed list, or its source's host —
+/// puts one there, and whose ability could answer a proposal of kind
+/// `proposed`, wherever they are: `named_trigger_carriers`' twin. A row over a
+/// filter names zones instead, and the legs walk them.
+///
+/// Unordered: each leg puts its candidates in CR 613.7 order.
+fn named_replacement_carriers(game: &GameState, proposed: GameActionKind) -> Vec<ObjectId> {
+    if !game.continuous_effects.summary().named_unattributed_replacement_kinds.contains(proposed) {
+        return Vec::new();
+    }
+    let mut named: Vec<ObjectId> = Vec::new();
+    for row in game.continuous_effects.iter() {
+        if replacement_ability_kinds(row).contains(proposed) {
+            named.extend(row.affected_objects.named_objects(game, row.source).into_iter().flatten());
+        }
+    }
+    named
 }
 
 /// The proposed event as every leg asks about it — one value carried through

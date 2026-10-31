@@ -298,7 +298,7 @@ fn test_the_candidate_set_follows_the_card_from_zone_to_zone() {
     stock(&mut game, 0);
     let colossus = put_in_hand(&mut game, darksteel_colossus(), 0);
     assert!(game.zone_replacement_ability_sources.contains_key(&colossus));
-    assert!(!game.replacement_ability_sources.contains(&colossus));
+    assert!(!game.replacement_ability_sources.contains_key(&colossus));
 
     game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx())
         .unwrap();
@@ -322,7 +322,7 @@ fn test_the_candidate_set_follows_the_card_from_zone_to_zone() {
 
     // And onto the battlefield, where the other set takes over.
     let on_bf = put_on_battlefield(&mut game, darksteel_colossus(), 0);
-    assert!(game.replacement_ability_sources.contains(&on_bf));
+    assert!(game.replacement_ability_sources.contains_key(&on_bf));
     assert!(!game.zone_replacement_ability_sources.contains_key(&on_bf));
 }
 
