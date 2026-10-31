@@ -377,7 +377,8 @@ the counters drifts at any write that skips it.
   lines. Performance: a pass over every permanent per gather, which on the
   50-Goblin board is 200 reads a proposal.
 
-**Recommended: (a), shaped as (b)'s interface.** Its readers go through
+**Chosen: (a), shaped as (b)'s interface** (the owner, 2026-10-30: "(a) now
+with the flexibility to upgrade into (b)"). Its readers go through
 accessors in `state/`, and its writes through `state/`'s three writers. Those
 are the registry's read and write sides. When `layers-combat-and-counters`
 decides the store with its other two customers, the storage moves behind
