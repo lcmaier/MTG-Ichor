@@ -10,7 +10,7 @@
 //! Some(Discarded)`) already does, and reads correctly, because its fields
 //! are `Some`. → `triggers-architecture.md` §15 item 14.
 
-use crate::objects::card_data::{AbilityDef, AbilityType};
+use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType};
 use crate::state::game_state::StepType;
 use crate::types::effects::{
     Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, TokenDef,
@@ -34,7 +34,7 @@ pub fn functioning_in(zones: ZoneSet, mut ability: AbilityDef) -> AbilityDef {
 }
 
 /// A triggered ability: no cost, the def as its effect.
-pub fn triggered_ability(rules_text: &'static str, def: TriggerDef) -> AbilityDef {
+pub fn triggered_ability(rules_text: impl Into<AbilityText>, def: TriggerDef) -> AbilityDef {
     AbilityDef::new(AbilityType::Triggered, rules_text, Effect::Triggered(std::sync::Arc::new(def)))
 }
 

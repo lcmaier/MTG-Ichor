@@ -101,6 +101,7 @@ pub enum AbilityType {
 pub struct Activation {
     /// The activation cost, everything before the colon (CR 602.1a).
     pub costs: Vec<Cost>,
+    /// When it may be activated beyond having priority (CR 602.5).
     pub restriction: ActivationRestriction,
 }
 
@@ -108,6 +109,19 @@ impl Activation {
     /// `costs`, activated at any time its controller has priority.
     pub fn new(costs: Vec<Cost>) -> Activation {
         Activation { costs, restriction: ActivationRestriction::None }
+    }
+
+    /// This activation, only as a sorcery (CR 602.5d).
+    pub fn only_as_sorcery(self) -> Activation {
+        Activation { restriction: ActivationRestriction::OnlyAsSorcery, ..self }
+    }
+}
+
+/// An ability word given its cost alone: activated whenever its controller
+/// has priority.
+impl From<Vec<Cost>> for Activation {
+    fn from(costs: Vec<Cost>) -> Activation {
+        Activation::new(costs)
     }
 }
 
@@ -216,7 +230,7 @@ impl std::fmt::Debug for AbilityDef {
             .field("costs", &self.costs())
             .field("effect", &self.effect)
             .field("instances", &self.instances)
-            .field("activation_restriction", &self.restriction())
+            .field("activation_restriction", &self.activation().map_or(ActivationRestriction::None, |activation| activation.restriction))
             .field("is_characteristic_defining", &self.is_characteristic_defining)
             .finish()
     }
@@ -249,15 +263,9 @@ impl AbilityDef {
     }
 
     /// The activation cost (CR 602.1a): an activated ability's, and none for
-    /// any other kind.
+    /// any other kind, which has none to pay.
     pub fn costs(&self) -> &[Cost] {
         self.activation().map_or(&[], |activation| &activation.costs)
-    }
-
-    /// When an activated ability may be activated beyond having priority (CR
-    /// 602.5), and no restriction for any other kind.
-    pub fn restriction(&self) -> ActivationRestriction {
-        self.activation().map_or(ActivationRestriction::None, |activation| activation.restriction)
     }
 
     /// CR 601.2c's instances of "target" its effect declares, in printed
@@ -271,8 +279,8 @@ impl AbilityDef {
     /// two stay one ability (`tap_to_add_text`).
     pub fn tap_for(mana_type: ManaType) -> AbilityDef {
         let produce = Primitive::ProduceMana(ManaOutput { mana: vec![(mana_type, AmountExpr::Fixed(1))], special: vec![] });
-        let tap = AbilityType::Mana(Activation::new(vec![Cost::TapSelf]));
-        AbilityDef::new(tap, tap_to_add_text(mana_type), Effect::Atom(produce, EffectRecipient::Implicit))
+        let kind = AbilityType::Mana(Activation::new(vec![Cost::TapSelf]));
+        AbilityDef::new(kind, tap_to_add_text(mana_type), Effect::Atom(produce, EffectRecipient::Implicit))
     }
 
     /// This ability, with `id` in place of the one the builder would stamp:
@@ -289,14 +297,6 @@ impl AbilityDef {
         self
     }
 
-    /// This activated ability, activated only as a sorcery (CR 602.5d).
-    pub fn only_as_sorcery(mut self) -> AbilityDef {
-        debug_assert!(self.activation().is_some(), "only an activated ability has a restriction (CR 602.5)");
-        if let AbilityType::Activated(activation) | AbilityType::Mana(activation) = &mut self.ability_type {
-            activation.restriction = ActivationRestriction::OnlyAsSorcery;
-        }
-        self
-    }
 }
 
 /// An ability's words, and which paragraph of its card's rules text they are.

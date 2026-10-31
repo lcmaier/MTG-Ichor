@@ -36,15 +36,17 @@ pub fn static_restriction(rules_text: impl Into<AbilityText>, what: Restriction)
     static_ability(rules_text, Effect::Restriction(Box::new(RestrictionDef::new(what))))
 }
 
-/// An activated ability (CR 113.3b): "[Cost]: [Effect.]"
-pub fn activated_ability(rules_text: impl Into<AbilityText>, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
-    AbilityDef::new(AbilityType::Activated(Activation::new(costs)), rules_text, effect)
+/// An activated ability (CR 113.3b): "[Cost]: [Effect.]". `activation` is
+/// its cost, or `Activation::from(costs).only_as_sorcery()` for one with
+/// activation instructions (CR 602.1b).
+pub fn activated_ability(rules_text: impl Into<AbilityText>, activation: impl Into<Activation>, effect: Effect) -> AbilityDef {
+    AbilityDef::new(AbilityType::Activated(activation.into()), rules_text, effect)
 }
 
 /// An activated mana ability (CR 605.1a): no target, it could add mana, and
 /// no loyalty cost.
-pub fn mana_ability(rules_text: impl Into<AbilityText>, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
-    AbilityDef::new(AbilityType::Mana(Activation::new(costs)), rules_text, effect)
+pub fn mana_ability(rules_text: impl Into<AbilityText>, activation: impl Into<Activation>, effect: Effect) -> AbilityDef {
+    AbilityDef::new(AbilityType::Mana(activation.into()), rules_text, effect)
 }
 
 /// "Equip [cost]" — CR 702.6a's activated ability, spelled out: "[Cost]:
@@ -64,18 +66,17 @@ pub fn mana_ability(rules_text: impl Into<AbilityText>, costs: Vec<Cost>, effect
 /// target and the Equipment doesn't move (CR 701.3b). An equip quality
 /// (CR 702.6c, "Equip Knight {1}") is one more conjunct in that filter, not
 /// a new shape; no registered card has one yet.
-pub fn equip(rules_text: &'static str, costs: Vec<Cost>) -> AbilityDef {
+pub fn equip(rules_text: impl Into<AbilityText>, costs: Vec<Cost>) -> AbilityDef {
     let creature_you_control = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::ByController(PlayerRef::You)),
     );
     activated_ability(
         rules_text,
-        costs,
+        Activation::from(costs).only_as_sorcery(),
         Effect::Atom(
             Primitive::Attach,
             EffectRecipient::Target(SelectionFilter::Permanent(creature_you_control), TargetCount::Exactly(1)),
         ),
     )
-    .only_as_sorcery()
 }

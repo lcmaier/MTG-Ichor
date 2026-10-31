@@ -40,9 +40,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::activated_ability;
-use crate::objects::card_data::{
-    CardData, CardDataBuilder,
-};
+use crate::objects::card_data::{Activation, CardData, CardDataBuilder};
 use crate::state::game_state::PhaseType;
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
@@ -117,10 +115,11 @@ pub fn aggravated_assault() -> Arc<CardData> {
         )
         .ability(activated_ability(
             "{3}{R}{R}: Untap all creatures you control. After this main phase, there is an additional combat phase followed by an additional main phase. Activate only as a sorcery.",
-            vec![Cost::Mana(ManaCost::build(
+            Activation::from(vec![Cost::Mana(ManaCost::build(
                 &[ManaType::Red, ManaType::Red],
                 3,
-            ))],
+            ))])
+            .only_as_sorcery(),
             Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::Untap,
@@ -134,6 +133,6 @@ pub fn aggravated_assault() -> Arc<CardData> {
                     EffectRecipient::Controller,
                 ),
             ]),
-        ).only_as_sorcery())
+        ))
         .build()
 }

@@ -1082,7 +1082,7 @@ fn with_a_sacrifice_for_mana(card: CardDataBuilder, costs: &[Cost]) -> Arc<CardD
     let text = if costs.contains(&Cost::TapSelf) { "{T}, Sacrifice this artifact: Add {C}." } else { "Sacrifice this artifact: Add {C}." };
     card.ability(mana_ability(
         text,
-        costs.iter().cloned().chain([Cost::SacrificeSelf]).collect(),
+        costs.iter().cloned().chain([Cost::SacrificeSelf]).collect::<Vec<_>>(),
         Effect::Atom(
             Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
             EffectRecipient::Implicit,

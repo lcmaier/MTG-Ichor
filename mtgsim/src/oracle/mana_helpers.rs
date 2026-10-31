@@ -293,14 +293,14 @@ pub fn can_activate_its_abilities(game: &GameState, player_id: PlayerId, source_
 /// and, if it may be activated only as a sorcery, at sorcery timing
 /// (CR 602.5d).
 pub fn can_begin_to_activate(game: &GameState, player_id: PlayerId, ability: &AbilityDef) -> Result<(), CannotActivate> {
-    match ability.ability_type {
-        AbilityType::Activated(_) => {}
+    let activation = match &ability.ability_type {
+        AbilityType::Activated(activation) => activation,
         AbilityType::Mana(_) => return Err(CannotActivate::ManaAbility),
         AbilityType::Spell | AbilityType::Triggered | AbilityType::Static => {
             return Err(CannotActivate::NotActivated);
         }
-    }
-    if ability.restriction() == ActivationRestriction::OnlyAsSorcery {
+    };
+    if activation.restriction == ActivationRestriction::OnlyAsSorcery {
         game.check_sorcery_timing(player_id).map_err(CannotActivate::Timing)?;
     }
     Ok(())
