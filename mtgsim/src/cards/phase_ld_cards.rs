@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{spell_ability, static_ability};
-use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
@@ -311,8 +311,8 @@ pub fn dual_land_ub() -> Arc<CardData> {
         .subtype(Subtype::Land(LandType::Island))
         .subtype(Subtype::Land(LandType::Swamp))
         .rules_text("{T}: Add {U}. {T}: Add {B}.")
-        .ability(AbilityDef::tap_for(ManaType::Blue))
-        .ability(AbilityDef::tap_for(ManaType::Black))
+        .mana_ability_single(ManaType::Blue)
+        .mana_ability_single(ManaType::Black)
         .build()
 }
 
