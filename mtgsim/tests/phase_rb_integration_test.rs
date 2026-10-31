@@ -266,7 +266,7 @@ fn test_humility_strips_a_replacement_ability_and_the_creature_dies() {
     ));
 
     assert!(
-        game.replacement_ability_sources.contains(&probe),
+        game.replacement_ability_sources.contains_key(&probe),
         "the hint is stale-positive here, and the gate has to survive that"
     );
 
@@ -295,7 +295,7 @@ fn test_a_static_replacement_body_registers_no_layer_rows() {
 
     assert_eq!(game.continuous_effects.len(), before, "no rows");
     assert!(
-        game.replacement_ability_sources.contains(&probe),
+        game.replacement_ability_sources.contains_key(&probe),
         "but it is recorded as a gather candidate, or the fast path would skip it"
     );
 }
@@ -304,10 +304,10 @@ fn test_a_static_replacement_body_registers_no_layer_rows() {
 fn test_leaving_the_battlefield_retires_the_gather_hint() {
     let mut game = setup_two_player_game();
     let probe = put_on_battlefield(&mut game, undying_probe("Undying Probe"), 0);
-    assert!(game.replacement_ability_sources.contains(&probe));
+    assert!(game.replacement_ability_sources.contains_key(&probe));
 
     game.change_zone(probe, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
-    assert!(!game.replacement_ability_sources.contains(&probe));
+    assert!(!game.replacement_ability_sources.contains_key(&probe));
 }
 
 // ---------------------------------------------------------------------------

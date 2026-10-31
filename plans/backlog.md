@@ -299,6 +299,24 @@ record, corrected where it was wrong.*
   your library" must *move* the card first (CR 701.24c), which the rider must
   not — and is now one `change_zone` plus one `ShuffleLibrary` proposal per
   target; Lich's Mirror's three-zone recipient is the other half it waits on.
+- **A mill's number as an event a replacement watches** (the item 6 audit's
+  readiness census, 2026-10-30, `plans/references/replacement-kinds-census.py`):
+  Bruvac the Grandiloquent's "if an opponent would mill one or more cards,
+  they mill twice that many cards instead" replaces the instruction, CR
+  701.17a's number, where today `Primitive::Mill` proposes one zone change per
+  card and no event carries the number. Two cards print it, The Water Crystal
+  the other. Like a search and a die
+  roll above and in §2.31, it arrives with a `GameAction` variant, whose
+  `GameActionKind` the compiler makes it name. Unreachable: no registered card.
+- **Other replaced events with no `GameAction` yet** (the same census): an
+  explore (2 cards, Topography Tracker), a connive, a learn and a proliferate
+  (1 each); a spell's copy (Twinning Staff); a die roll or coin flip (8,
+  §2.31) and a search (Aven Mindcensor) as above; mana emptying from a pool
+  (CR 500.4, 5 cards, Kruphix, God of Horizons); and a life total reduced,
+  damage and life loss in one pattern (9, Enduring Angel), the one family
+  whose events exist but no arm pairs them. Each arrives with its event and
+  its kind; `plans/references/replacement-kinds-census.py --names` lists the
+  cards. Unreachable: no registered card.
 - **Owner** — none yet.
 
 ### 2.6 CR 702 keyword abilities

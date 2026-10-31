@@ -45,17 +45,15 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    card_of_type, fill_library, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield,
+    card_of_type, copy_onto, fill_library, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield,
     setup_two_player_game, test_ctx, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::engine::targeting::{ChosenTargets};
+use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 use std::sync::Arc;
 
@@ -78,81 +76,6 @@ fn cast_and_resolve(game: &mut GameState, cast_index: usize) {
     game.run_priority_round(&decisions).unwrap();
 }
 
-/// Cytoshape `donor` onto `target`, picking the donor by id rather than by
-/// prompt index — `phase_cv_integration_test.rs`'s helper, for the same reason:
-/// a prompt index is an ordering the test would then be asserting by accident.
-fn cytoshape_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
-    struct PickById(ObjectId);
-    impl DecisionProvider for PickById {
-        fn pick_n(
-            &self,
-            _game: &GameState,
-            _player: PlayerId,
-            ctx: &ChoiceContext,
-            options: &[ChoiceOption],
-            _bounds: (usize, usize),
-        ) -> Vec<usize> {
-            assert!(
-                matches!(ctx.kind, ChoiceKind::ChooseCopySource { .. }),
-                "unexpected prompt: {:?}",
-                ctx.kind
-            );
-            vec![options
-                .iter()
-                .position(|o| matches!(o, ChoiceOption::Object(id) if *id == self.0))
-                .expect("the donor is on offer")]
-        }
-        fn pick_number(
-            &self,
-            _g: &GameState,
-            _p: PlayerId,
-            _c: &ChoiceContext,
-            min: u64,
-            _max: u64,
-        ) -> u64 {
-            min
-        }
-        fn allocate(
-            &self,
-            _g: &GameState,
-            _p: PlayerId,
-            _c: &ChoiceContext,
-            total: u64,
-            buckets: &[ChoiceOption],
-            _mins: &[u64],
-            _maxs: Option<&[u64]>,
-        ) -> Vec<u64> {
-            let mut out = vec![0; buckets.len()];
-            if !out.is_empty() {
-                out[0] = total;
-            }
-            out
-        }
-        fn choose_ordering(
-            &self,
-            _g: &GameState,
-            _p: PlayerId,
-            _c: &ChoiceContext,
-            items: &[ChoiceOption],
-        ) -> Vec<usize> {
-            (0..items.len()).collect()
-        }
-    }
-    let card = mtgsim::cards::phase_cv_cards::cytoshape();
-    let source = mtgsim::objects::object::GameObject::new(card.clone(), 0, Zone::Stack);
-    let source_id = game.add_object(source);
-    let ctx = mtgsim::engine::resolve::ResolutionContext {
-        source: source_id,
-        ability_source: None,
-        controller: 0,
-        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
-        targets: ChosenTargets::one(vec![mtgsim::types::ids::ObjectOrPlayerId::Object(target)]),
-        replaced_event: None,
-        trigger: None,
-    };
-    game.resolve_effect(&card.abilities[0].effect.clone(), &ctx, &PickById(donor))
-        .expect("Cytoshape resolves");
-}
 
 /// A creature whose printed colors are what the test is about.
 fn colored_bear(name: &str, color: Color) -> Arc<CardData> {
@@ -389,7 +312,7 @@ fn test_the_capture_excludes_layer_4_types_and_layer_5_colors() {
     assert_eq!(get_effective_colors(&game, donor), [Color::Blue].into());
 
     let copyist = put_on_battlefield(&mut game, colored_bear("Green Bear", Color::Green), 0);
-    cytoshape_onto(&mut game, copyist, donor);
+    copy_onto(&mut game, copyist, donor);
 
     assert_eq!(get_effective_name(&game, copyist), "Mana Rock");
     assert!(
@@ -435,7 +358,7 @@ fn test_a_pump_that_predates_the_copy_still_applies_to_it() {
 
     let donor = put_on_battlefield(&mut game, grizzly_bears(), 0);
 
-    cytoshape_onto(&mut game, target, donor);
+    copy_onto(&mut game, target, donor);
 
     assert_eq!(get_effective_name(&game, target), "Grizzly Bears");
     assert_eq!(
@@ -457,7 +380,7 @@ fn test_a_creature_may_become_a_copy_of_itself() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
 
-    cytoshape_onto(&mut game, bears, bears);
+    copy_onto(&mut game, bears, bears);
 
     assert_eq!(get_effective_name(&game, bears), "Grizzly Bears");
     assert_eq!(get_effective_power(&game, bears), Some(2));
@@ -488,9 +411,9 @@ fn test_two_copies_on_one_creature_wear_off_together() {
     let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let second = put_on_battlefield(&mut game, colored_bear("Second Donor", Color::Red), 0);
 
-    cytoshape_onto(&mut game, target, first);
+    copy_onto(&mut game, target, first);
     assert_eq!(get_effective_name(&game, target), "Grizzly Bears");
-    cytoshape_onto(&mut game, target, second);
+    copy_onto(&mut game, target, second);
     assert_eq!(get_effective_name(&game, target), "Second Donor");
     assert_eq!(
         game.continuous_effects

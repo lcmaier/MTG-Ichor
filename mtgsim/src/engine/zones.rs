@@ -560,6 +560,8 @@ impl GameState {
             self.replacement_effects.remove_rows_ending_with(id);
             self.restrictions.remove_rows_ending_with(id);
             self.replacement_ability_sources.remove(&id);
+            // Its counters cease to exist as it leaves (CR 122.2).
+            self.replacement_counter_holders.remove(&id);
             self.restriction_ability_sources.remove(&id);
             // And the cost-effect sweep's, for the same reason again.
             self.cost_modification_ability_sources.remove(&id);
@@ -605,8 +607,8 @@ impl GameState {
             self.continuous_effects.remove_static_by_source(id);
             // The gather's zone-leg candidate set is per zone (CR 113.6): the object
             // stops being one here, and `arrive_in_zone` decides again where it lands.
-            self.zone_replacement_ability_sources.remove(&id);
-            self.zone_trigger_sources.remove(&id);
+            self.off_battlefield_replacement_ability_sources.remove(&id);
+            self.off_battlefield_trigger_sources.remove(&id);
             self.newcomer_trigger_sources.remove(&id);
         }
     }

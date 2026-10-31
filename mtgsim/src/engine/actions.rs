@@ -13,6 +13,7 @@ use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRe
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates};
+use crate::types::counted_enum;
 use crate::types::triggers::Lki;
 use crate::types::zones::Zone;
 use crate::ui::ask::{ask_choose_entering_defender, ask_scry};
@@ -657,6 +658,148 @@ pub enum GameAction {
         source_lki: Option<Lki>,
     },
 
+}
+
+counted_enum! {
+    /// The kind of a proposed [`GameAction`], without its fields: one variant
+    /// per variant there.
+    ///
+    /// **The one table a replacement pattern's discriminant test is written
+    /// from.** `pattern_watches` asks `EventPattern::action_kinds` before its
+    /// match refines, and the gather files each printed source under the same
+    /// kinds, so the gate and the matcher cannot disagree about which pattern
+    /// watches which proposal (`EventKind` is the trigger side's twin).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum GameActionKind {
+        DealDamage,
+        DrawCards,
+        DrawCard,
+        GainLife,
+        LoseLife,
+        ZoneChange,
+        Untap,
+        Tap,
+        BecomeBlocked,
+        Attach,
+        Unattach,
+        AddCounters,
+        RemoveCounters,
+        Destroy,
+        EnterBattlefield,
+        CreateTokens,
+        CreateTokenIn,
+        TokenCeasesToExist,
+        BeginTurn,
+        BeginPhase,
+        BeginStep,
+        PlayerLoses,
+        Scry,
+        ShuffleLibrary,
+        PlayerWins,
+        GameEndsInADraw,
+        ProduceMana,
+    }
+}
+
+impl GameActionKind {
+    /// How many words a [`GameActionKindMask`] needs to hold every kind.
+    pub const WORDS: usize = GameActionKind::COUNT.div_ceil(64);
+
+    /// This proposal's kind. Exhaustive, so a new `GameAction` variant does
+    /// not compile until it names one.
+    pub fn of(action: &GameAction) -> GameActionKind {
+        match action {
+            GameAction::DealDamage { .. } => GameActionKind::DealDamage,
+            GameAction::DrawCards { .. } => GameActionKind::DrawCards,
+            GameAction::DrawCard { .. } => GameActionKind::DrawCard,
+            GameAction::GainLife { .. } => GameActionKind::GainLife,
+            GameAction::LoseLife { .. } => GameActionKind::LoseLife,
+            GameAction::ZoneChange { .. } => GameActionKind::ZoneChange,
+            GameAction::Untap { .. } => GameActionKind::Untap,
+            GameAction::Tap { .. } => GameActionKind::Tap,
+            GameAction::BecomeBlocked { .. } => GameActionKind::BecomeBlocked,
+            GameAction::Attach { .. } => GameActionKind::Attach,
+            GameAction::Unattach { .. } => GameActionKind::Unattach,
+            GameAction::AddCounters { .. } => GameActionKind::AddCounters,
+            GameAction::RemoveCounters { .. } => GameActionKind::RemoveCounters,
+            GameAction::Destroy { .. } => GameActionKind::Destroy,
+            GameAction::EnterBattlefield { .. } => GameActionKind::EnterBattlefield,
+            GameAction::CreateTokens { .. } => GameActionKind::CreateTokens,
+            GameAction::CreateTokenIn { .. } => GameActionKind::CreateTokenIn,
+            GameAction::TokenCeasesToExist { .. } => GameActionKind::TokenCeasesToExist,
+            GameAction::BeginTurn { .. } => GameActionKind::BeginTurn,
+            GameAction::BeginPhase { .. } => GameActionKind::BeginPhase,
+            GameAction::BeginStep { .. } => GameActionKind::BeginStep,
+            GameAction::PlayerLoses { .. } => GameActionKind::PlayerLoses,
+            GameAction::Scry { .. } => GameActionKind::Scry,
+            GameAction::ShuffleLibrary { .. } => GameActionKind::ShuffleLibrary,
+            GameAction::PlayerWins { .. } => GameActionKind::PlayerWins,
+            GameAction::GameEndsInADraw => GameActionKind::GameEndsInADraw,
+            GameAction::ProduceMana { .. } => GameActionKind::ProduceMana,
+        }
+    }
+
+    /// This kind's word in a mask, and its bit within that word.
+    const fn place(self) -> (usize, u64) {
+        let index = self as usize;
+        (index / 64, 1 << (index % 64))
+    }
+}
+
+/// A set of [`GameActionKind`]s: what a printed replacement source is filed
+/// under in `GameState::replacement_ability_sources`, and what a named grant
+/// or copy row's abilities watch (`RegistryScopeSummary`). Built as
+/// `EventKindMask` is, as many words wide as [`GameActionKind::WORDS`] says.
+/// `Default` only because `RegistryScopeSummary` derives it; a filing spells
+/// its empty value [`Self::EMPTY`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct GameActionKindMask([u64; GameActionKind::WORDS]);
+
+impl GameActionKindMask {
+    pub const EMPTY: GameActionKindMask = GameActionKindMask([0; GameActionKind::WORDS]);
+
+    pub const fn of(kind: GameActionKind) -> GameActionKindMask {
+        GameActionKindMask::EMPTY.with(kind)
+    }
+
+    pub const fn with(self, kind: GameActionKind) -> GameActionKindMask {
+        let (word, bit) = kind.place();
+        let mut words = self.0;
+        words[word] |= bit;
+        GameActionKindMask(words)
+    }
+
+    pub const fn without(self, kind: GameActionKind) -> GameActionKindMask {
+        let (word, bit) = kind.place();
+        let mut words = self.0;
+        words[word] &= !bit;
+        GameActionKindMask(words)
+    }
+
+    pub fn contains(self, kind: GameActionKind) -> bool {
+        let (word, bit) = kind.place();
+        self.0[word] & bit != 0
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.0.iter().all(|&word| word == 0)
+    }
+}
+
+impl std::ops::BitOr for GameActionKindMask {
+    type Output = GameActionKindMask;
+    fn bitor(mut self, other: GameActionKindMask) -> GameActionKindMask {
+        self |= other;
+        self
+    }
+}
+
+impl std::ops::BitOrAssign for GameActionKindMask {
+    fn bitor_assign(&mut self, other: GameActionKindMask) {
+        for (word, theirs) in self.0.iter_mut().zip(other.0) {
+            *word |= theirs;
+        }
+    }
 }
 
 /// CR 303.4h — whether `id`, as it entered, is a permanent that can enter
@@ -1877,10 +2020,9 @@ impl GameState {
                                 "Cannot put counters on {}: not on the battlefield", object
                             ));
                         }
+                        // A CR 122.1 replacement counter files the permanent among
+                        // `replacement_counter_holders` in the writer itself.
                         self.add_counters(object, counter, n);
-                        // A permanent that just gained a CR 122.1 replacement counter is a
-                        // replacement source now, and nothing has to be recorded: counters are
-                        // scanned, not cached (`gather::any_replacement_counter`).
                     }
                     ObjectOrPlayerId::Player(player) => {
                         self.get_player_mut(player)?.add_counters(counter, n);

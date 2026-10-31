@@ -42,6 +42,7 @@ use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
 use crate::events::cause::{EventCause, StateBasedAction};
 use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
+use crate::engine::actions::{GameActionKind, GameActionKindMask};
 
 /// One replacement or prevention effect.
 ///
@@ -700,6 +701,44 @@ impl DestructionSourcePattern {
 }
 
 impl EventPattern {
+    /// The kinds of proposal this pattern can watch: the action arms
+    /// `pattern_watches` pairs it with, and the discriminant test that
+    /// function asks first. Exhaustive, so a new arm names its kinds.
+    pub fn action_kinds(&self) -> GameActionKindMask {
+        use GameActionKind as Kind;
+        match self {
+            EventPattern::DealDamage { .. } => GameActionKindMask::of(Kind::DealDamage),
+            // Entering is the zone change onto the battlefield (CR 614.1c), so a
+            // pattern whose destination admits it watches an entry too; no entry
+            // comes from the battlefield, which is where "leaves the battlefield"
+            // starts. A pattern ending in a graveyard is never asked at an entry.
+            EventPattern::ZoneChange { change, .. } => {
+                let moves = GameActionKindMask::of(Kind::ZoneChange);
+                let enters = change.to.is_none_or(|to| to == Zone::Battlefield) && change.from != Some(Zone::Battlefield);
+                if enters { moves.with(Kind::EnterBattlefield) } else { moves }
+            }
+            EventPattern::Untap => GameActionKindMask::of(Kind::Untap),
+            EventPattern::Tap => GameActionKindMask::of(Kind::Tap),
+            EventPattern::DrawCards { .. } => GameActionKindMask::of(Kind::DrawCards),
+            EventPattern::DrawCard { .. } => GameActionKindMask::of(Kind::DrawCard),
+            EventPattern::GainLife => GameActionKindMask::of(Kind::GainLife),
+            EventPattern::LoseLife { .. } => GameActionKindMask::of(Kind::LoseLife),
+            EventPattern::EnterBattlefield { .. } => GameActionKindMask::of(Kind::EnterBattlefield),
+            EventPattern::Destroy { .. } => GameActionKindMask::of(Kind::Destroy),
+            // CR 122.6's second door: counters a permanent enters with are put on it.
+            EventPattern::AddCounters { .. } => GameActionKindMask::of(Kind::AddCounters).with(Kind::EnterBattlefield),
+            EventPattern::RemoveCounters { .. } => GameActionKindMask::of(Kind::RemoveCounters),
+            EventPattern::BeginTurn => GameActionKindMask::of(Kind::BeginTurn),
+            EventPattern::BeginPhase { .. } => GameActionKindMask::of(Kind::BeginPhase),
+            EventPattern::BeginStep { .. } => GameActionKindMask::of(Kind::BeginStep),
+            EventPattern::Scry => GameActionKindMask::of(Kind::Scry),
+            EventPattern::PlayerLoses => GameActionKindMask::of(Kind::PlayerLoses),
+            EventPattern::PlayerWins => GameActionKindMask::of(Kind::PlayerWins),
+            EventPattern::CreateTokens { .. } => GameActionKindMask::of(Kind::CreateTokens),
+            EventPattern::ProduceMana { .. } => GameActionKindMask::of(Kind::ProduceMana),
+        }
+    }
+
     /// The source of damage CR 609.7a had a player choose, once a resolution
     /// has written it in: the one object a pattern names, by identity, so no
     /// move ends it (CR 400.7) and a permanent spell becoming the permanent
@@ -1993,6 +2032,22 @@ impl ReplacementDef {
             is_regeneration: false,
             exempt_from_614_5: false,
             optional: false,
+        }
+    }
+
+    /// The kinds of proposal this def can answer from an object already in a
+    /// zone: its pattern's kinds, less its own object's entry when it affects
+    /// only that object. That entry is read off the object as it enters (CR
+    /// 614.12, the gather's source 1a), and an object already somewhere is
+    /// never the one entering (CR 400.7). So "this land enters tapped" answers
+    /// nothing from where it sits, and its object is filed under no kind;
+    /// Mowu's "if one or more +1/+1 counters would be put on ~" keeps
+    /// `AddCounters`.
+    pub fn action_kinds_in_place(&self) -> GameActionKindMask {
+        let kinds = self.pattern.action_kinds();
+        match self.affected.objects {
+            crate::types::effects::ObjectSet::SourceOnly => kinds.without(GameActionKind::EnterBattlefield),
+            _ => kinds,
         }
     }
 

@@ -237,7 +237,7 @@ fn permanent(game: &GameState, lines: &TypeLines, id: ObjectId) -> Option<Perman
     let chars = compute_characteristics(game, id)?;
     let is_creature = chars.types.contains(&CardType::Creature);
     let mut counters: Vec<(CounterType, u32)> =
-        state.counters.iter().map(|(kind, stack)| (*kind, stack.count)).collect();
+        state.counters().iter().map(|(kind, stack)| (*kind, stack.count)).collect();
     counters.sort();
     Some(PermanentView {
         card: card_with(game, lines, id, &chars)?,

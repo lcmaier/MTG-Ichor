@@ -1007,6 +1007,86 @@ pub fn put_in_command_zone(game: &mut GameState, card_data: Arc<CardData>, playe
         .expect("create_in_zone refuses only the battlefield")
 }
 
+/// A state's whole outcome as `Debug` renders it, for a fork's replay check:
+/// every field, less the ones a faithful replay may differ in that are no part
+/// of the game. Those are the diagnostics, which count the work; the layer
+/// memo, which a resumed branch fills again; and the instruments' handles, the
+/// event recorder's naming its branch, the trace, the dispatch audit and the
+/// decision log. Blanked on a clone, so a field the state gains is compared
+/// with no edit here.
+pub fn replay_outcome(state: &GameState) -> String {
+    let mut outcome = state.clone();
+    outcome.diagnostics = crate::state::diagnostics::Diagnostics::default();
+    outcome.layer_memo = crate::state::layer_memo::LayerMemo::default();
+    outcome.events = crate::events::event::EventWindow::new();
+    outcome.trace = None;
+    outcome.dispatch_audit = None;
+    outcome.decision_log = crate::state::decision_log::DecisionLogHandle::NONE;
+    format!("{outcome:?}")
+}
+
+/// Cytoshape resolving under seat 0: `target` becomes a copy of `donor` until
+/// end of turn, through a copy row that names `target` (CR 707.2). The donor
+/// is chosen by identity, and any prompt but that choice fails the test.
+pub fn copy_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
+    struct PickById(ObjectId);
+    impl DecisionProvider for PickById {
+        fn pick_n(
+            &self,
+            _game: &GameState,
+            _player: PlayerId,
+            ctx: &ChoiceContext,
+            options: &[ChoiceOption],
+            _bounds: (usize, usize),
+        ) -> Vec<usize> {
+            assert!(
+                matches!(ctx.kind, crate::ui::choice_types::ChoiceKind::ChooseCopySource { .. }),
+                "unexpected prompt: {:?}",
+                ctx.kind
+            );
+            let offered = options.iter().position(|o| matches!(o, ChoiceOption::Object(id) if *id == self.0));
+            vec![offered.unwrap_or_else(|| panic!("the donor was not offered"))]
+        }
+        fn pick_number(&self, _g: &GameState, _p: PlayerId, _c: &ChoiceContext, min: u64, _max: u64) -> u64 {
+            min
+        }
+        fn allocate(
+            &self,
+            _g: &GameState,
+            _p: PlayerId,
+            _c: &ChoiceContext,
+            total: u64,
+            buckets: &[ChoiceOption],
+            _mins: &[u64],
+            _maxs: Option<&[u64]>,
+        ) -> Vec<u64> {
+            let mut out = vec![0; buckets.len()];
+            if let Some(first) = out.first_mut() {
+                *first = total;
+            }
+            out
+        }
+        fn choose_ordering(&self, _g: &GameState, _p: PlayerId, _c: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+            (0..items.len()).collect()
+        }
+    }
+    let card = crate::cards::phase_cv_cards::cytoshape();
+    // The spell itself off the battlefield: the resolution's source is the
+    // stack object (`copy-effects-architecture.md` §5.3).
+    let spell = game.add_object(GameObject::new(card.clone(), 0, Zone::Stack));
+    let ctx = crate::engine::resolve::ResolutionContext {
+        source: spell,
+        ability_source: None,
+        controller: 0,
+        generated_by: crate::events::cause::GeneratedBy::Spell,
+        targets: crate::engine::targeting::ChosenTargets::one(vec![crate::types::ids::ObjectOrPlayerId::Object(target)]),
+        replaced_event: None,
+        trigger: None,
+    };
+    game.resolve_effect(&card.abilities[0].effect, &ctx, &PickById(donor))
+        .unwrap_or_else(|err| panic!("Cytoshape did not resolve: {err}"));
+}
+
 /// `id` becomes a permanent under `controller` with `mods`, by fiat: the
 /// entry's performer with no proposal before it, so no replacement effect
 /// sees it, announced as caused by the harness (`EventCause::Harness`). What

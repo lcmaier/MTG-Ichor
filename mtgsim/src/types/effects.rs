@@ -1490,6 +1490,45 @@ impl CounterType {
         }
     }
 
+    /// Whether a counter of this kind generates a replacement effect: CR
+    /// 122.1c's shield, 122.1d's stun and 122.1h's finality.
+    ///
+    /// **Three is the whole of CR 122.1, audited rather than assumed.** 122.1a
+    /// is Layer 7c, 122.1e/f/g are SBA inputs, 122.1i is a trigger, and 122.1b's
+    /// fifteen keyword counters grant a keyword. **None of those fifteen is CR
+    /// 614-shaped**, and the two that come closest are the two the rules
+    /// deliberately put elsewhere — indestructible is a "can't" (CR 702.12b, so
+    /// `is_prohibited` rather than a `ReplacementDef`) and lifelink is a further
+    /// result of the damage event (CR 120.3f), not a replacement of it. The rest
+    /// are evasion, targeting, blocking, combat-damage-step, damage-assignment or
+    /// turn-based rules; vigilance's "attacking doesn't cause it to tap"
+    /// (702.20b) modifies the CR 508.1f turn-based action and proposes no event
+    /// to replace. Exhaustive, so a new kind says which side it is on.
+    pub fn makes_a_replacement(self) -> bool {
+        match self {
+            CounterType::Shield | CounterType::Stun | CounterType::Finality => true,
+            CounterType::PlusOnePlusOne
+            | CounterType::MinusOneMinusOne
+            | CounterType::Loyalty
+            | CounterType::Charge
+            | CounterType::Growth
+            | CounterType::Poison
+            | CounterType::Energy
+            | CounterType::Flying
+            | CounterType::Deathtouch
+            | CounterType::Lifelink
+            | CounterType::Trample
+            | CounterType::FirstStrike
+            | CounterType::DoubleStrike
+            | CounterType::Hexproof
+            | CounterType::Indestructible
+            | CounterType::Menace
+            | CounterType::Reach
+            | CounterType::Vigilance
+            | CounterType::Haste => false,
+        }
+    }
+
     /// The kind [`Self::name`] spells as `name`.
     pub fn named(name: &str) -> Option<CounterType> {
         CounterType::ALL.into_iter().find(|kind| kind.name() == name)

@@ -9288,3 +9288,120 @@ Retired at `route-review` (the owner, 2026-10-29, its decision 4): each pair alr
      **Sized:** ~220 sites and ~20 lines, ~250–260 carried.
      **Slotted:** `route-review`, as item 340 is; #297's version is
      `d284ff44`.
+
+### Item 22 — closed 2026-10-30 by PR #300 (`audit/readiness-close`)
+
+Built with item 356 (`6c7f2215`, the field made private at #300's pre-review). `PermanentState.counters` is a `Counters`, private to `state/` and read through `PermanentState::counters`, written only by `GameState::add_counters`, `remove_counters` and an entry's own counters; `GameState::replacement_counter_holders` is kept by those writers and by `cleanup_zone_state`. The fear this entry recorded, a writer that skips the set, is now a compile error, and a debug build checks at every gather that every holder is indexed. The scenario writer names the field through `PermanentFields`, a borrowed view `state/` builds, so its growth contract holds. Three tests that wrote counters directly moved to `GameState`'s writers. The owner chose it at the design stop as a counter registry's interface, the store itself left to `layers-combat-and-counters` (`replacement-architecture.md#33-where-replacement-effects-come-from`, decision 4).
+
+*Original entry:*
+
+22. **`gather`'s counter fast path is a full battlefield scan, and it stays one
+    until CR 704.5q joins the chokepoint (`rb-review.md` D2).**
+    `any_replacement_counter` walks every `PermanentState` on **every
+    proposed action**, checking three counter kinds. Cheap at 15 permanents and
+    it has never shown up in a profile, but it is the one part of the fast path
+    that is not O(1). The review's correction is right and was recorded in the
+    code: the old comment defended the scan by saying a cache would drift,
+    which is true of a *count* and false of a **set** maintained the way
+    `replacement_ability_sources` is. **What actually blocks the set is that
+    counters have three mutation sites, not two** —
+    `GameState::add_counters`, `perform_action`'s `RemoveCounters` arm, and CR
+    704.5q's +1/+1 / -1/-1 annihilation, which writes `PermanentState`
+    directly (item 6). A set maintained at a chokepoint that does not exist is
+    exactly the drift, and it reads as a card silently doing nothing.
+    **Sized:** a `HashSet<ObjectId>` beside `replacement_ability_sources`,
+    inserted in `add_counters` and re-checked on removal — about 15 lines, and
+    it becomes *sound* the day item 6 routes 704.5q through `execute_actions`.
+    **Measure first** (`fuzz_games --games 200 --seed 12345` against the
+    13.04 ms/game RB baseline); do not pay for it before the pool grows.
+
+    **Reachability (2026-09-03):** reachable — not wrong; perf only.
+    `any_replacement_counter` (`gather.rs:630`) runs on every proposed action of
+    every game and has measured flat at pool size.
+    **Updated 2026-10-17 (TR-5b):** CR 704.5q goes through the
+    `RemoveCounters` arm now (item 6, closed), so a set is sound kept at the
+    three writers left: `GameState::add_counters`, the `RemoveCounters` arm
+    and an entry's own counters (`make_permanent`).
+    **Slotted:** Phase 10's profile-driven performance, measured before it is
+    paid for.
+
+### Item 352 — closed 2026-10-30 by PR #300 (`audit/readiness-close`)
+
+`ObjectTable`'s `iter()` wraps its chain in `Counted`, which counts the table's length down and reports it as an exact size hint, and `iter()`, `keys()` and `values()` are `ExactSizeIterator`s (`aa48651c`); no caller changed. The close-out, with item 356 beside it, read 0.7516 M → 0.6392 M instructions a decision on the budget's board (−14.95%), every gameplay row identical on both pools at two seats and four (`fuzz-record.md`, this PR's block).
+
+*Original entry:*
+
+352. **The battlefield's ordered lists regrow on every call.** CL-1
+     (`0bb30e2d`, 2026-10-21) made the battlefield an `ObjectTable`, whose
+     `iter()` is a `filter_map` and `flat_map` chain over the chunks, so its
+     size hint's lower bound is 0, though the table keeps its `len`. Every
+     `collect` from it grows by doubling: `battlefield_ordered`,
+     `battlefield_ids_ordered` and each caller collecting the table directly.
+     The map it replaced reported its length. On the 200-game Commander board
+     `finish_grow` is 13.5% of all instructions; the two ordered collects are
+     9.4% of them, reached mostly from the state-based check (7.7%, 851,000
+     calls) and `activatable_abilities_with` (4.4%). At #225's tree regrowth
+     was 31,000 instructions a decision; at item 6's close it is 93,000.
+     **A throwaway arm prices the fix**: the same chain with the table's
+     length as its size hint reads 6.33% fewer instructions on the budget's
+     board (0.7515 M → 0.7040 M a decision, every counter identical) and 7.2%
+     less CPU in a three-round sitting (30.93 → 28.70 ms a game). That is
+     most of what the ratchet lost per decision since #225 (item 138's
+     reading of this date).
+     **Reachability (2026-10-29):** reachable — not wrong; a cost, on every
+     game.
+     **Sized:** ~25 lines: an iterator on `ObjectTable` that counts down from
+     `len` and reports it, `ExactSizeIterator` too, so `keys()`, `values()`
+     and every collect inherit it; no caller changes. Answer-preserving, so
+     its arm is `IDENTICAL` on every gameplay and cost row.
+     **Slotted:** A6e, readiness's second PR, as a small fix (an audit ships
+     docs and small fixes, `engineering-practices.md#the-spine-phase-audit`):
+     it is the ratchet's own regression, read before `card-layer-cleanup`
+     moves the tree.
+
+### Item 356 — closed 2026-10-30 by PR #300 (`audit/readiness-close`)
+
+Built to the design note `git show 7a2c8ae5:plans/handoffs/readiness-close.md`, its four decisions in `replacement-architecture.md#33-where-replacement-effects-come-from`: `GameActionKind` and its mask beside `GameAction`, `pattern_watches` asking the kinds first (`fddd905d`); the replacement-counter holders (`6c7f2215`, item 22); the battlefield leg by kind, the named rows by kind and an own-entry def filed nowhere (`7a2c8ae5`). The recount the owner asked for at the stop, by the clause each card's replacement watches, is `plans/references/replacement-kinds-census.py`. Every gameplay row identical on both pools at two seats and four; the audited 1,000-game smoke at seed 777 clean on both pools and seats.
+
+*Original entry:*
+
+356. **The replacement gather visits every permanent when only its printed
+     sources can answer.** `gather_sweeping` (`engine/replacement/gather.rs`)
+     walks the whole battlefield in timestamp order on every proposed event,
+     and for each permanent asks whether it is in
+     `replacement_ability_sources`, the permanents that printed a
+     replacement ability, and whether its counters make replacements (CR
+     122.1c's shield counter). A permanent can answer by a third route only
+     through a grant or a copy of a replacement ability, which the
+     continuous-effects summary already names (`unattributed_replacement_zones`
+     for a filter's zones, `any_named_unattributed_replacement` for named
+     objects), and those legs keep today's whole walk. Without them, and with
+     no replacement counter in play, only the printed sources can answer, so
+     the walk can be over that set in timestamp order. Split from item 354
+     at #299's review.
+     **A throwaway arm prices it**: that walk, about 8 lines, plays every
+     game and cost row identically on `performance` and `stress` at
+     Commander scale and on the 50-a-seat token board, an audited 100-game
+     `stress` run is clean, and it reads 5.0% less CPU on the Commander board
+     (30.07 → 28.58 ms a game) and 11.2% less on the token board (25.82 →
+     22.93), three interleaved rounds.
+     **Reachability (2026-10-29):** reachable — not wrong; a cost, on every
+     game whose board has a printed replacement source.
+     **The shape is the trigger dispatcher's, not the probe's switch** (the
+     owner, #299's review: the probe is all-or-nothing, and one named grant
+     anywhere or one shield counter puts every proposal back on the whole
+     walk). The dispatcher already finds its candidates leg by leg:
+     `trigger_sources` files each printed source under the kinds of event it
+     reads and `battlefield_readers` asks the file for the window's kinds,
+     `named_trigger_carriers` reads the objects a named grant or copy row
+     puts an ability on, and only a row over a filter walks the zones it
+     names. The gather has the second leg for the zones off the battlefield
+     already, and none of the first.
+     **Sized:** ~80–150 lines, answer-preserving: `replacement_ability_sources`
+     filed under the kinds of `GameAction` its printed patterns watch, read
+     by the proposal's kind; the named rows' objects on the battlefield
+     leg too; the permanents holding a replacement counter filed where
+     counters change; a filter row's zones walked as today.
+     **Slotted:** A6e, readiness's second PR, beside item 352, as a small fix
+     (`engineering-practices.md#the-spine-phase-audit`): both narrow the same
+     sweep and share one A/B.

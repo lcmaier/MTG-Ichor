@@ -228,14 +228,17 @@ reader skips its sweep behind a gate. Each gate has three legs, one per route
 onto that list: **printed** (a set registration fills, an entry copy's list
 included), **granted** (a Layer 6 row) and **copied** (a layer 1 row). A new
 route onto the list needs a leg on every gate, or the ability is dead on every
-board the gate skips. Layer 3, text change, is the route with no leg yet.
+board the gate skips. Layer 3, text change, is the route with no leg yet. A
+face change in place (transforming, turning face up, merging) changes the
+printed leg without an arrival, so the build that brings one files every face
+as the object arrives or files again at the change (`copy-effects-architecture.md` §4.7).
 
 | Gate | Where | Printed | Granted, copied |
 |---|---|---|---|
-| replacement | `gather` `engine/replacement/gather.rs:202`; the gate at `engine/replacement/gather.rs:272` | `replacement_ability_sources`, `zone_replacement_ability_sources` | one pair for both since RF: `unattributed_replacement_zones`, `any_named_unattributed_replacement` |
+| replacement | `gather` `engine/replacement/gather.rs:178`; the gate at `engine/replacement/gather.rs:284` | `replacement_ability_sources`, each source filed under the kinds of action its defs answer from the battlefield (`GameActionKindMask`, the trigger gate's shape) and a def that affects only its own entry filed nowhere, since source 1a reads it as the object enters (CR 614.12); `off_battlefield_replacement_ability_sources`; and `replacement_counter_holders` for a shield, stun or finality counter | one pair for both since RF: `unattributed_replacement_zones` for a `Filter` row's zones, `named_unattributed_replacement_kinds` for a named row's objects |
 | restriction | `prohibition` `engine/restriction/predicate.rs:96`; the gate at `engine/restriction/predicate.rs:114` | `restriction_ability_sources` | `any_granted_restriction`, `any_copied_restriction` |
 | cost | `cost_modifications_for` `engine/cost_determination/gather.rs:56`; the gate at `engine/cost_determination/gather.rs:62` | `cost_modification_ability_sources` | `any_granted_cost_modification`, `any_copied_cost_modification` |
-| trigger | `detect` `engine/triggers/dispatch.rs:735`; the gate at `engine/triggers/dispatch.rs:741` | `trigger_sources`, `zone_trigger_sources`, and `newcomer_trigger_sources`: off the battlefield, a printed trigger whose every event arm is the object itself moving (`TriggerDef::triggers_only_on_this_object_moving`), asked only of the window that brought the object there (`newcomer_trigger_carriers`) | one pair for both: `unattributed_trigger_zones` for a `Filter` row's zones, `named_unattributed_trigger_kinds` for a named row's objects; a departure's CR 603.10a frame and a look-back snapshot are two more probes |
+| trigger | `detect` `engine/triggers/dispatch.rs:735`; the gate at `engine/triggers/dispatch.rs:741` | `trigger_sources`, `off_battlefield_trigger_sources`, and `newcomer_trigger_sources`: off the battlefield, a printed trigger whose every event arm is the object itself moving (`TriggerDef::triggers_only_on_this_object_moving`), asked only of the window that brought the object there (`newcomer_trigger_carriers`) | one pair for both: `unattributed_trigger_zones` for a `Filter` row's zones, `named_unattributed_trigger_kinds` for a named row's objects; a departure's CR 603.10a frame and a look-back snapshot are two more probes |
 | state trigger | `check_state_triggers` `engine/triggers/state.rs`, the trigger gate's legs under `EventKind::BoardState` | the same two, by kind | the same, with `unattributed_trigger_kinds` saying whether a `Filter` row's zones hold one |
 | trigger multiplier (CR 603.2d; `glossary.md`'s **multiplier**) | `count_additional_triggers` `engine/triggers/dispatch.rs:1530`, over `trigger_multiplier_candidates` `engine/triggers/dispatch.rs:1481`; the gate at `trigger_multiplier_sources_now` `engine/triggers/dispatch.rs:1510` | `trigger_multiplier_sources` | `any_granted_trigger_multiplier`, `any_copied_trigger_multiplier`; a departure's CR 603.10a frame and a look-back snapshot are two more probes |
 

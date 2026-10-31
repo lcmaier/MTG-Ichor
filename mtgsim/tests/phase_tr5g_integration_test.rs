@@ -795,10 +795,8 @@ fn two_of_elronds_creatures_targeted_by_one_ability_trigger_it_twice() {
     let bears: Vec<ObjectId> = (0..2).map(|_| put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0)).collect();
     let plain = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     for &bear in &bears {
-        let timestamp = game.allocate_timestamp();
-        game.battlefield.get_mut(&bear).unwrap().add_counters(CounterType::PlusOnePlusOne, 1, timestamp);
+        game.add_counters(bear, CounterType::PlusOnePlusOne, 1);
     }
-    game.bump_layer_epoch();
     let tap_two = AbilityDef {
         rules_text: "".into(),
         id: AbilityId::UNASSIGNED,

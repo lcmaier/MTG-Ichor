@@ -28,7 +28,7 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 `permission-design` with `card-and-object-model` beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`; `cant-be-targeted`; `cant-cast-play-or-activate`;
 `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half; `layers-combat-and-counters`; `rulings-for-every-card`;
 then `tarkir-dragonstorm-decks`: its gap census; `mana-ability-costs`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
-`casting-from-other-zones`; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks; `mana-payment-solver`.
+`casting-from-other-zones`; `double-faced-cards`' transform half; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks; `mana-payment-solver`.
 **v0.5 is Tarkir: Dragonstorm Commander's five decks at one five-seat table**, in the dev GUI and over the CLI (owner, 2026-10-29).
 After it, ordered at its close: the rest of the route's rows, wider card work and Phase 9's remainder; then Phase 10.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through the GUI built for players, Phase 10, which is when
@@ -170,7 +170,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 215 |
 | …of them in `PERFORMANCE_POOL` | 124 |
-| `#[test]` functions | 2854 |
+| `#[test]` functions | 2863 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -182,7 +182,7 @@ with less than 20% room is bolded.
 
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
-| **1. Decisions per loaded physical core-second** | ≥ 10000 | 11900 | **19%** | 2026-10-29 |
+| 1. Decisions per loaded physical core-second | ≥ 10000 | 15180 | 52% | 2026-10-30 |
 | 2. Allocations per clone | ≤ 64 | 39 | 64% | 2026-10-29 |
 | 2. Microseconds per clone | ≤ 10 | 5.6 | 79% | 2026-10-29 |
 | 3. Kilobytes per clone | ≤ 128 | 8.7 | 1371% | 2026-10-29 |
@@ -192,13 +192,13 @@ with less than 20% room is bolded.
 | | |
 |---|---:|
 | Numbered items | 408 |
-| …closed, still recorded | 248 |
+| …closed, still recorded | 251 |
 | …open — unreachable, and says why | 106 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 35 |
+| …open — reachable, not wrong (perf, a name, a harness) | 32 |
 | …open — nothing to build, a record for a later phase | 15 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 158 of 160 |
+| …open, carrying an explicit `**Sized:**` | 155 of 157 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -212,7 +212,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 148 |
+| …slotted to a phase or roadmap row still to come | 145 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
@@ -247,7 +247,6 @@ discipline. → `engineering-practices.md#the-spec-database`.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- `plans/handoffs/item-6-audit.md`
 - `plans/handoffs/resolution-recipients-and-amounts.md`
 
 ## What this file deliberately does not know

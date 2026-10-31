@@ -10,7 +10,7 @@
 //!    the event" at the one instant that matters.
 //! 2. **Static abilities functioning in other zones** (CR 113.6) — the same
 //!    read, off a set of the objects whose printed ability functions where
-//!    they are (`GameState::zone_replacement_ability_sources`) plus the zones
+//!    they are (`GameState::off_battlefield_replacement_ability_sources`) plus the zones
 //!    a Layer 6 grant or a copy can reach, because a library is not a list
 //!    the gather can afford to walk. Every ability is asked
 //!    `zone_function::functions_in` of the zone its object is in, which is
@@ -28,7 +28,7 @@
 //! that needs one — §11 item 3, and the reason
 //! `ReplacementClass::SelfReplacement` currently has a step and no producer.
 
-use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::actions::{ActionContext, GameAction, GameActionKind};
 use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -38,7 +38,7 @@ use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::ResolutionStamp;
 use crate::objects::card_data::AbilityDef;
 use crate::oracle::characteristics::{controller_or_owner, FrameContext, ObjectInformation};
-use crate::state::continuous_effects::puts_a_replacement_ability;
+use crate::state::continuous_effects::replacement_ability_kinds;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
     AffectedSet, ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter,
@@ -260,32 +260,39 @@ fn gather_sweeping(
     // having printed it — a Layer 6 grant or a copy row put it there, so
     // neither printed set can name the object. The summary says where such an
     // object can be: a `Filter` row names zones, a named row names objects,
-    // and each sweep reads the shape it is given.
-    let summary = game.continuous_effects.summary();
-    let unattributed_zones = summary.unattributed_replacement_zones;
-    let any_named_unattributed = summary.any_named_unattributed_replacement;
-    let has_static_source = !game.replacement_ability_sources.is_empty()
-        || !game.zone_replacement_ability_sources.is_empty()
-        || !unattributed_zones.is_empty()
-        || any_named_unattributed;
+    // and each leg reads the shape it is given. The named rows' objects that
+    // could answer this proposal are read once, for both legs.
+    let proposed = GameActionKind::of(action);
+    let unattributed_zones = game.continuous_effects.summary().unattributed_replacement_zones;
+    let named = named_replacement_carriers(game, proposed);
+
+    // --- Sources 1 and 5: the battlefield ----------------------------------
+    // The permanents that could answer this proposal, each once, oldest first
+    // (CR 613.7): the printed sources filed under its kind, the named rows'
+    // objects, and the holders of a replacement counter. A `Filter` row
+    // reaching the battlefield opens every permanent instead, since narrowing
+    // it would resolve a filter per permanent per check; so does the audit.
+    debug_assert!(
+        game.replacement_counter_holders_cover_the_board(),
+        "a permanent holds a replacement counter that `replacement_counter_holders` does not name"
+    );
+    let permanents = if sweep == Sweep::Everything || unattributed_zones.contains(Zone::Battlefield) {
+        game.battlefield_ids_ordered().into_iter().map(|id| BattlefieldCandidate { id, abilities_could_answer: true }).collect()
+    } else {
+        battlefield_candidates(game, proposed, &named)
+    };
     if sweep == Sweep::Gated
-        && !has_static_source
+        && permanents.is_empty()
+        && named.is_empty()
+        && game.off_battlefield_replacement_ability_sources.is_empty()
+        && unattributed_zones.is_empty()
         && game.replacement_effects.is_empty()
-        && !any_replacement_counter(game)
     {
         candidates.extend(entering);
         return candidates;
     }
-
-    // --- Sources 1 and 5: the battlefield sweep ----------------------------
-    // The fast path per *permanent*, the board gate's predicate one object at a
-    // time. A row reaching the battlefield by zone or by name opens every
-    // permanent to a walk, since narrowing it would resolve a filter per
-    // permanent per check.
-    let any_unattributed =
-        sweep == Sweep::Everything || unattributed_zones.contains(Zone::Battlefield) || any_named_unattributed;
-    for id in game.battlefield_ids_ordered() {
-        if any_unattributed || game.replacement_ability_sources.contains(&id) {
+    for BattlefieldCandidate { id, abilities_could_answer } in permanents {
+        if abilities_could_answer {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             if let Some(chars) = compute_characteristics(game, id) {
                 let asked = CheckedForReplacements {
@@ -300,8 +307,7 @@ fn gather_sweeping(
         }
 
         for (counter, kind, def) in counter_replacements(game, id) {
-            // By identity (CR 400.7), and looked up only for a permanent with
-            // counters that make one: the sweep visits every permanent.
+            // By identity (CR 400.7).
             let Some(object) = game.object_ref(id) else { continue };
             let controller = controller_or_owner(game, id).unwrap_or(0);
             push_if_applicable(
@@ -320,7 +326,7 @@ fn gather_sweeping(
 
     // --- Source 2: static abilities functioning off the battlefield --------
     // (CR 113.6.) Source 1's read over a candidate list, never a zone, one
-    // way on per gate leg: printed (`zone_replacement_ability_sources`, its
+    // way on per gate leg: printed (`off_battlefield_replacement_ability_sources`, its
     // frame read only when a def could apply to this proposal), named (a grant
     // or copy row's `SourceOnly` or `Fixed` objects) and zoned (a `Filter` row's
     // zones walked whole, while such a row exists). In CR 613.7d order, the
@@ -344,7 +350,7 @@ fn gather_sweeping(
             // every gather for an order nothing reads.
             // ORDER-FREE: sorted by timestamp next.
             let mut sources: Vec<(Timestamp, ObjectId, &[ReplacementDef])> = game
-                .zone_replacement_ability_sources
+                .off_battlefield_replacement_ability_sources
                 .iter()
                 .map(|(&id, printed)| (game.object_timestamp(id), id, &printed[..]))
                 .collect();
@@ -353,28 +359,19 @@ fn gather_sweeping(
         } else {
             // ORDER-FREE: the matches are sorted below, and untraced no walk
             // records the order it was asked in.
-            for (&id, printed) in game.zone_replacement_ability_sources.iter() {
+            for (&id, printed) in game.off_battlefield_replacement_ability_sources.iter() {
                 if could_apply(id, printed) {
                     elsewhere.push((game.object_timestamp(id), id));
                 }
             }
         }
         let zone_sweep = unattributed_zones.beyond_battlefield();
-        if any_named_unattributed || !zone_sweep.is_empty() {
-            let mut named: Vec<ObjectId> = Vec::new();
-            if any_named_unattributed {
-                for row in game.continuous_effects.iter().filter(|r| puts_a_replacement_ability(r)) {
-                    // A host is a permanent (CR 301.5, 303.4): the battlefield sweep's.
-                    if !matches!(row.affected_objects, ObjectSet::Host) {
-                        named.extend(row.affected_objects.named_objects(game, row.source).into_iter().flatten());
-                    }
-                }
-            }
-            for zone in zone_sweep.iter() {
-                named.extend(game.zone_ids_ordered(zone));
-            }
+        if !named.is_empty() || !zone_sweep.is_empty() {
+            let zoned = zone_sweep.iter().flat_map(|zone| game.zone_ids_ordered(zone));
             let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
-            for id in named {
+            for id in named.iter().copied().chain(zoned) {
+                // A named permanent, a host among them (CR 301.5, 303.4), is
+                // the battlefield leg's.
                 let off_battlefield =
                     matches!(game.objects.get(&id), Some(obj) if obj.zone != Zone::Battlefield);
                 if off_battlefield && seen.insert(id) {
@@ -426,6 +423,88 @@ fn gather_sweeping(
     }
 
     candidates
+}
+
+/// A permanent the battlefield leg asks about a proposal.
+struct BattlefieldCandidate {
+    id: ObjectId,
+    /// Whether its abilities could answer, as well as its counters: a printed
+    /// source filed under the proposal's kind, or a named row's object. A
+    /// holder of a replacement counter and nothing else is asked only for its
+    /// counters.
+    abilities_could_answer: bool,
+}
+
+/// The permanents the battlefield leg asks about a proposal of kind
+/// `proposed`, oldest first (CR 613.7) and each once.
+///
+/// Only these can answer. A permanent has a static replacement ability only if
+/// it entered with one (`replacement_ability_sources`, filed by kind) or a row
+/// put one there (a named row here, a `Filter` row's zones walked by the
+/// caller), and a counter makes one only on a holder.
+fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[ObjectId]) -> Vec<BattlefieldCandidate> {
+    let mut asked: Vec<(Timestamp, BattlefieldCandidate)> = Vec::new();
+    let mut ask = |id: ObjectId, abilities_could_answer: bool| {
+        if let Some(permanent) = game.battlefield.get(&id) {
+            asked.push((permanent.timestamp, BattlefieldCandidate { id, abilities_could_answer }));
+        }
+    };
+    // ORDER-FREE: sorted by timestamp below.
+    for (&id, kinds) in game.replacement_ability_sources.iter() {
+        if kinds.contains(proposed) {
+            ask(id, true);
+        }
+    }
+    for &id in named {
+        ask(id, true);
+    }
+    // ORDER-FREE: sorted by timestamp below.
+    for &id in game.replacement_counter_holders.iter() {
+        ask(id, false);
+    }
+    // Every arrival is stamped from one counter (CR 613.7d), so a permanent's
+    // key is its own and a duplicate sorts beside its twin.
+    asked.sort_unstable_by_key(|(timestamp, _)| *timestamp);
+    asked.dedup_by(|(_, later), (_, kept)| {
+        let twin = later.id == kept.id;
+        if twin {
+            kept.abilities_could_answer |= later.abilities_could_answer;
+        }
+        twin
+    });
+    debug_assert!(asked.windows(2).all(|pair| pair[0].0 < pair[1].0), "two permanents share a CR 613.7 timestamp");
+    asked.into_iter().map(|(_, candidate)| candidate).collect()
+}
+
+/// The objects that have a replacement ability only because a continuous
+/// effect names them, and whose ability could answer a proposal of kind
+/// `proposed`: `named_trigger_carriers`' twin.
+///
+/// A permanent with a *printed* replacement ability is filed in
+/// `replacement_ability_sources` as it enters, under the kinds of proposal it
+/// answers, and `battlefield_candidates` asks that file. Two effects give an
+/// object a replacement ability it did not print, and no filing sees them: a
+/// copy (Cytoshape making a creature a copy of Fire Servant, which doubles
+/// damage from red instants and sorceries) and a grant (Bewitching Leechcraft's "enchanted
+/// creature has 'If this creature would untap during your untap step, ...'").
+/// Each such effect is a registry row. A row that names its objects — its own
+/// source, a fixed list, or its source's host — is read here: its objects are
+/// candidates, wherever they are, when a replacement ability it puts on them
+/// watches this kind of proposal. A row over a filter names zones instead, and
+/// the legs walk them.
+///
+/// Unordered: each leg puts its candidates in CR 613.7 order.
+fn named_replacement_carriers(game: &GameState, proposed: GameActionKind) -> Vec<ObjectId> {
+    if !game.continuous_effects.summary().named_unattributed_replacement_kinds.contains(proposed) {
+        return Vec::new();
+    }
+    let mut named: Vec<ObjectId> = Vec::new();
+    for row in game.continuous_effects.iter() {
+        if replacement_ability_kinds(row).contains(proposed) {
+            named.extend(row.affected_objects.named_objects(game, row.source).into_iter().flatten());
+        }
+    }
+    named
 }
 
 /// The proposed event as every leg asks about it — one value carried through
@@ -792,6 +871,12 @@ pub(crate) fn pattern_watches(
     source: ObjectId,
     you: PlayerId,
 ) -> bool {
+    // The kinds first, the table the gather files its sources under: a pairing
+    // they leave out is dead here too, so the gate can never skip what this
+    // match would take.
+    if !pattern.action_kinds().contains(GameActionKind::of(action)) {
+        return false;
+    }
     match (pattern, action) {
         // CR 609.7's source and CR 510.2's combat flag, asked **now**: a source
         // that stopped matching yields no candidate, which is 609.7b's "isn't used
@@ -954,39 +1039,8 @@ pub(crate) fn pattern_watches(
 // Source 5 — counters (CR 122.1c/d/h)
 // ---------------------------------------------------------------------------
 
-/// The three counter kinds that generate a replacement effect.
-///
-/// **Three is the whole of CR 122.1, audited rather than assumed.** Of that rule's nine kinds only 122.1c (shield), 122.1d (stun) and
-/// 122.1h (finality) create a replacement effect: 122.1a is Layer 7c, 122.1e/f/g
-/// are SBA inputs, 122.1i is a trigger, and 122.1b's fifteen keyword counters
-/// grant a keyword. **None of those fifteen is CR 614-shaped**, and the two that
-/// come closest are the two the rules deliberately put elsewhere — indestructible
-/// is a "can't" (CR 702.12b, so `is_prohibited` rather than a `ReplacementDef`) and
-/// lifelink is a further result of the damage event (CR 120.3f), not a
-/// replacement of it. The rest are evasion, targeting, blocking,
-/// combat-damage-step, damage-assignment or turn-based rules; vigilance's
-/// "attacking doesn't cause it to tap" (702.20b) modifies the CR 508.1f
-/// turn-based action and proposes no event to replace.
-const REPLACEMENT_COUNTERS: [CounterType; 3] =
-    [CounterType::Shield, CounterType::Stun, CounterType::Finality];
-
-/// Is any permanent carrying a counter that generates a replacement effect?
-///
-/// Part of `gather`'s fast path, and *computed* rather than cached: counters
-/// are written by `GameState::add_counters`, `perform_action`'s
-/// `RemoveCounters` arm and an entry's own counters, so a set maintained at
-/// some of them drifts, and drift reads as a card that silently does nothing.
-/// The scan skips immediately on the empty-counters case, which is almost
-/// every permanent.
-fn any_replacement_counter(game: &GameState) -> bool {
-    // ORDER-FREE: whether any has one.
-    game.battlefield.values().any(|entry| {
-        !entry.counters.is_empty()
-            && REPLACEMENT_COUNTERS.iter().any(|c| entry.counters.contains_key(c))
-    })
-}
-
-/// The replacement effects the counters on `id` create.
+/// The replacement effects the counters on `id` create
+/// (`CounterType::makes_a_replacement` names the three kinds).
 ///
 /// **Their text is the CR's, verbatim.** Nothing on the card says any of this
 /// (CR 122.1's counters are the source, not an ability), so the rule is quoted
@@ -998,7 +1052,10 @@ fn counter_replacements(
     let Some(entry) = game.battlefield.get(&id) else {
         return Vec::new();
     };
-    if entry.counters.is_empty() {
+    // The index's own test, so a kind `makes_a_replacement` leaves out is dead
+    // here as well as unindexed: the card's own test fails, and no gate skips
+    // what this would build.
+    if !entry.holds_a_replacement_counter() {
         return Vec::new();
     }
     let mut out = Vec::new();
@@ -1215,7 +1272,7 @@ mod tests {
             .build();
         let orb = put_spell_on_stack(&mut game, card, 0);
         assert!(
-            game.zone_replacement_ability_sources.contains_key(&orb),
+            game.off_battlefield_replacement_ability_sources.contains_key(&orb),
             "filed on the stack, where the ability functions"
         );
 

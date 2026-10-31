@@ -24,6 +24,7 @@ use crate::types::ids::{
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates, ReplacementDef};
 use crate::types::triggers::EventKindMask;
+use crate::engine::actions::GameActionKindMask;
 
 /// The outcome of a game that has ended (CR 104).
 ///
@@ -500,24 +501,47 @@ pub struct GameState {
 
     /// Battlefield objects that **entered with** a static ability whose body is
     /// an `Effect::Replacement`: printed, or the copy's they entered as (CR
-    /// 707.5), which registration reads in its place.
+    /// 707.5), which registration reads in its place. Each is filed under the
+    /// kinds of proposal its defs can answer from the battlefield
+    /// (`ReplacementDef::action_kinds_in_place`), and one whose defs answer
+    /// none — every "this land enters tapped" — is not filed at all.
     ///
-    /// `engine::replacement::gather`'s fast path, and not an optimization:
-    /// reading effective abilities is a full `compute_characteristics` walk, so
-    /// an ungated sweep would run one per permanent per proposed action.
+    /// `engine::replacement::gather`'s battlefield leg reads the sources filed
+    /// under the proposal's kind, the trigger dispatcher's shape
+    /// (`trigger_sources`): reading effective abilities is a full
+    /// `compute_characteristics` walk, so asking every permanent would run one
+    /// per permanent per proposed action.
     ///
-    /// **A set rather than a count, so it cannot drift**: insert at ETB, remove
+    /// **A map rather than a count, so it cannot drift**: filed at ETB, removed
     /// at `cleanup_zone_state`, both idempotent. It over-approximates in one
     /// direction only — CR 305.7 or Humility can take the printed ability away
-    /// without touching the set, which costs a walk and never an answer. The
-    /// gate's other legs are `RegistryScopeSummary::granted_replacement_zones`
-    /// (Layer 6) and `copied_replacement_zones` (`copy-effects-architecture.md`
-    /// §4.7); Layer 3 is the route still without one.
+    /// without touching the map, which costs a walk and never an answer. The
+    /// gather's other legs are `RegistryScopeSummary`'s zones and named kinds
+    /// for a Layer 6 grant or a copy
+    /// (`copy-effects-architecture.md#47-the-three-etb-scans-a-copy-defeats--rb-review-i9-and-its-twin`);
+    /// Layer 3 is the route still without one.
     ///
-    /// **Engine-maintained.** `perform_entry` inserts and
+    /// **Engine-maintained.** `perform_entry` files and
     /// `cleanup_zone_state` removes; a hand-written removal is a card that
     /// silently stops working.
-    pub replacement_ability_sources: IdSet<ObjectId>,
+    pub replacement_ability_sources: IdMap<ObjectId, GameActionKindMask>,
+
+    /// The permanents holding a counter that generates a replacement effect:
+    /// a shield, stun or finality counter (CR 122.1c/d/h,
+    /// `CounterType::makes_a_replacement`). The gather's counter leg reads
+    /// these in place of every permanent's counters. Not hung off the ability
+    /// list: such a counter works on a permanent that lost its abilities
+    /// (Balustrade Wurm's ruling, 2024-09-20).
+    ///
+    /// **Kept by the counters' only writers**, all in `state/`, since nothing
+    /// outside it can change a [`Counters`](crate::state::battlefield::Counters):
+    /// `add_counters` and `insert_battlefield_entity` file a permanent as one
+    /// arrives, `remove_counters` takes it out with its last, and
+    /// `cleanup_zone_state` as it leaves. A stale member costs a read and never
+    /// an answer; a missing one is a shield that stops nothing, which
+    /// [`Self::replacement_counter_holders_cover_the_board`] asserts at every
+    /// gather in a debug build.
+    pub replacement_counter_holders: IdSet<ObjectId>,
 
     /// Objects **off the battlefield** that printed a static ability whose
     /// body is an `Effect::Replacement` and that **functions in the zone the
@@ -557,7 +581,7 @@ pub struct GameState {
     /// **Engine-maintained.** `register_static_effects` inserts from
     /// `arrive_in_zone` and `create_in_zone`; `cleanup_zone_state` removes on
     /// leaving any zone but the battlefield.
-    pub zone_replacement_ability_sources: IdMap<ObjectId, Arc<[ReplacementDef]>>,
+    pub off_battlefield_replacement_ability_sources: IdMap<ObjectId, Arc<[ReplacementDef]>>,
 
     /// Every CR 101.2 "can't" a resolution has created.
     ///
@@ -745,17 +769,17 @@ pub struct GameState {
     /// Objects off the battlefield with a printed triggered ability that
     /// functions where they are (CR 113.6k, derived by
     /// `zone_function::functioning_zones`) — Guile's "from anywhere" in a
-    /// graveyard. Kept by the same doors as `zone_replacement_ability_sources`,
+    /// graveyard. Kept by the same doors as `off_battlefield_replacement_ability_sources`,
     /// and filed by kind as `trigger_sources` is, so the state check asks only
     /// the objects with a state trigger.
-    pub zone_trigger_sources: IdMap<ObjectId, EventKindMask>,
+    pub off_battlefield_trigger_sources: IdMap<ObjectId, EventKindMask>,
     /// Objects off the battlefield whose printed triggered ability that
     /// functions where they are triggers only on the object itself moving
     /// (`TriggerDef::triggers_only_on_this_object_moving`): Guerrilla Tactics in
     /// a library or a graveyard. Only the window that brings such an object
     /// where it is can trigger it, so the dispatcher asks it only as one of
-    /// that window's newcomers, and the zone map, which every window asks,
-    /// stays empty of it. Kept by the zone map's doors.
+    /// that window's newcomers, and the off-battlefield map, which every window asks,
+    /// stays empty of it. Kept by the off-battlefield map's doors.
     pub newcomer_trigger_sources: IdSet<ObjectId>,
     /// Surviving objects' ability lists from before a batch that removed the
     /// source of an effect that copies, grants or removes abilities: what CR
@@ -1042,8 +1066,9 @@ impl GameState {
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementEffectRegistry::new(),
-            replacement_ability_sources: IdSet::default(),
-            zone_replacement_ability_sources: IdMap::default(),
+            replacement_ability_sources: IdMap::default(),
+            replacement_counter_holders: IdSet::default(),
+            off_battlefield_replacement_ability_sources: IdMap::default(),
             restrictions: RestrictionRegistry::new(),
             restriction_ability_sources: IdSet::default(),
             cost_modification_ability_sources: IdSet::default(),
@@ -1066,7 +1091,7 @@ impl GameState {
             next_until_return_id: 1,
             history,
             trigger_sources: IdMap::default(),
-            zone_trigger_sources: IdMap::default(),
+            off_battlefield_trigger_sources: IdMap::default(),
             newcomer_trigger_sources: IdSet::default(),
             look_back_snapshots: Vec::new(),
             control_effects_at_last_sweep: false,
@@ -1448,6 +1473,9 @@ impl GameState {
     /// board without ETB hooks.
     pub(crate) fn insert_battlefield_entity(&mut self, id: ObjectId, mut entry: PermanentState) {
         entry.timestamp = self.object_timestamp(id);
+        if entry.holds_a_replacement_counter() {
+            self.replacement_counter_holders.insert(id);
+        }
         // Spelled through a local so the sweep that routed every other
         // `battlefield.insert` here did not route this one into itself.
         let battlefield = &mut self.battlefield;
@@ -1711,6 +1739,9 @@ impl GameState {
         if let Some(entry) = self.battlefield.get_mut(&id) {
             entry.add_counters(counter_type, n, timestamp);
         }
+        if counter_type.makes_a_replacement() {
+            self.replacement_counter_holders.insert(id);
+        }
         self.bump_layer_epoch();
     }
 
@@ -1726,10 +1757,22 @@ impl GameState {
             return 0;
         };
         let removed = entry.remove_counters(counter_type, n);
+        if !entry.holds_a_replacement_counter() {
+            self.replacement_counter_holders.remove(&id);
+        }
         if removed > 0 {
             self.bump_layer_epoch();
         }
         removed
+    }
+
+    /// Whether every permanent holding a counter that generates a replacement
+    /// effect is in [`Self::replacement_counter_holders`]: the index may hold
+    /// more, never fewer. A scan of the board, so a debug build's check, asked
+    /// at every gather.
+    pub(crate) fn replacement_counter_holders_cover_the_board(&self) -> bool {
+        // ORDER-FREE: whether all are.
+        self.battlefield.iter().all(|(id, entry)| !entry.holds_a_replacement_counter() || self.replacement_counter_holders.contains(&id))
     }
 
     /// How many counters of `counter_type` `subject` has: a permanent's, or a
@@ -2060,13 +2103,13 @@ impl GameState {
             Some(values) => (Arc::clone(&values.abilities), &values.types, values.name.as_str()),
             None => (Arc::clone(&card.abilities), &card.types, card.name.as_str()),
         };
-        let mut zone_replacement_defs = Vec::new();
+        let mut off_battlefield_replacement_defs = Vec::new();
 
         for ability in abilities.iter() {
             // CR 603 — a triggered ability generates no row either; what the
             // dispatcher needs is to know this object is worth asking about,
             // filed by where it will look (`engine::triggers::dispatch`):
-            // the battlefield set, or the zone map when CR 113.6k puts the
+            // the battlefield set, or the off-battlefield map when CR 113.6k puts the
             // ability's function somewhere else. The same CR 113.6 gate as
             // the static path below, on the arrived-with types for the same reason.
             if let Some(def) = ability.effect.as_trigger() {
@@ -2079,7 +2122,7 @@ impl GameState {
                     } else if def.triggers_only_on_this_object_moving() {
                         self.newcomer_trigger_sources.insert(id);
                     } else {
-                        *self.zone_trigger_sources.entry(id).or_default() |= def.record_kinds();
+                        *self.off_battlefield_trigger_sources.entry(id).or_default() |= def.record_kinds();
                     }
                 }
                 continue;
@@ -2105,10 +2148,14 @@ impl GameState {
             // ask whether it could apply before reading a frame. The two sets below
             // stay battlefield-only, as their sweeps are.
             if let Some(def) = ability.effect.replacement_body() {
-                if zone == Zone::Battlefield {
-                    self.replacement_ability_sources.insert(id);
+                let kinds = def.action_kinds_in_place();
+                if kinds.is_empty() {
+                    // Its own entry only: source 1a reads it off the object as it
+                    // enters (CR 614.12), and from where it sits it answers nothing.
+                } else if zone == Zone::Battlefield {
+                    *self.replacement_ability_sources.entry(id).or_insert(GameActionKindMask::EMPTY) |= kinds;
                 } else {
-                    zone_replacement_defs.push(def.clone());
+                    off_battlefield_replacement_defs.push(def.clone());
                 }
             }
 
@@ -2167,8 +2214,8 @@ impl GameState {
             }
         }
 
-        if !zone_replacement_defs.is_empty() {
-            let filed = self.zone_replacement_ability_sources.insert(id, zone_replacement_defs.into());
+        if !off_battlefield_replacement_defs.is_empty() {
+            let filed = self.off_battlefield_replacement_ability_sources.insert(id, off_battlefield_replacement_defs.into());
             debug_assert!(filed.is_none(), "{card_name} was filed in its last zone and never removed");
         }
     }

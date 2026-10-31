@@ -47,7 +47,7 @@ room; the two tables must name the same floors.
 <!-- floor readings: begin -->
 | Floor | Reading | Read on | Where |
 |---|---|---|---|
-| 1. Decisions per loaded physical core-second | 11900 | 2026-10-29 | the tree item 6 left (`98b7538e`) on `performance` at Commander scale, 200 games, counted by `fuzz_games --census` (437 a game reach the agent; `ui::ask` counts 480): 13,430 a core-second on one thread by the wall (14,070 by CPU a game) times 7.08, the 16-thread speed-up, over 8 physical cores. MTG Arena held 1.5 cores, and #225's tree read 10% under its own last reading in the same sitting, so the bold on the board is partly the sitting's |
+| 1. Decisions per loaded physical core-second | 15180 | 2026-10-30 | the tree items 352 and 356 left (`7a2c8ae5`, PR #300) on `performance` at Commander scale, 200 games, counted by `fuzz_games --census` (437 a game reach the agent): 17,410 a core-second on one thread by the wall (18,320 by CPU a game) times 6.97, the 16-thread speed-up, over 8 physical cores, the median of five rounds on an idle machine. #299's merge read 13,330 in the same sitting, and its recorded 11,900 was taken with MTG Arena holding 1.5 cores. The token board at 50 a seat reads 7,840 (`codebase-state.md` item 354) |
 | 2. Allocations per clone | 39 | 2026-10-29 | the same tree: `clone_bound_test` in release at 192 checkpoints and all 10,675 decisions over 24 Commander games, the worst `stress` 777's mana window at turn 41; `clone_fixture_test`'s boards at most 14, the token board at most 33 |
 | 2. Microseconds per clone | 5.6 | 2026-10-29 | the median of five means of 2,000 clone-and-drops, the worst of three runs: `clone_fixture_test`'s 8,000 stacked triggers (4.4–5.6). The 192 checkpoints read at most 1.83, the 20 decisions heaviest by bytes 1.97 (`clone-architecture.md` decision 6(d)), the token board 2.00. Read by a probe under the System allocator; the clone tests' ignored tests read the same within that spread |
 | 3. Kilobytes per clone | 8.7 | 2026-10-29 | the same readings, the worst `clone_fixture_test`'s 8,000 stacked triggers; at most 6.6 at a decision and 6.1 on the token board |
@@ -60,7 +60,7 @@ what moved it; a new reading is added to its row.
 
 | Floor | Standing |
 |---|---|
-| 1. ≥ 10,000 decisions per loaded physical core-second, Commander scale | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block). **Read at item 6's close by the census** (2026-10-29): 11,900 loaded and 14,070 on one thread, counting only what reaches the agent; by `ui::ask`'s count 15,450 on one thread against #225's tree's 17,100 in the same sitting, 7 points of it item 352's regrowth. **Fails on the token board from 50 tokens a seat**: 5,700 loaded at 50 and 2,000 at 100 (`codebase-state.md` item 354) |
+| 1. ≥ 10,000 decisions per loaded physical core-second, Commander scale | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block). **Read at item 6's close by the census** (2026-10-29): 11,900 loaded and 14,070 on one thread, counting only what reaches the agent; by `ui::ask`'s count 15,450 on one thread against #225's tree's 17,100 in the same sitting, 7 points of it item 352's regrowth. **Fails on the token board from 50 tokens a seat**: 5,700 loaded at 50 and 2,000 at 100 (`codebase-state.md` item 354). **Re-read after items 352 and 356** (2026-10-30, an idle machine): 15,180 loaded and 18,320 on one thread by CPU, against #299's merge's 13,330 in the same sitting; the token board at 50 a seat 7,840, from 7,030, still failing |
 | 2. Full-state clone ≤ 10 µs | **Holds** (item 180's fix, 2026-09-25): ≤ 40 allocations over the clone test's 24 games, ≤ 39 since item 183's half fix, `stress` seeds and the budget's own board, worst at `performance` 12358's turn 50. `performance` 12350 read 68 at turn 100 while every fork copied the registry rows' payloads, and reads 34 with them shared (`codebase-state.md` item 180). Time, from the bounded-state PR on the `stress` seeds: ≤ 8.5 µs over three sittings of five Commander games, against up to 1,479 allocations and 136 µs with the log. Since LL a row reaching the hidden zones reads 7.7–9.3 µs at its worst, against 7.1–7.3 without one (item 181, closed). A clone that rebuilds a spiked map (item 183) reads 7.8 µs at its worst on an idle machine, 6.8 before it. A clone taken during a deep stack is back-stopped before Phase 8 (item 183, `roadmap-v2.md` B10). **Read mid-turn at B10's design** (2026-10-21, `clone-architecture.md` §2): 78 allocations at a 22-trigger ordering, 3 of the clone test's 10,253 decisions over 64, none read by the test; 32,014 allocations and 8.2 ms on an 8,000-trigger wipe. **Shared since CL-1** (2026-10-21): at most 37 allocations over those 10,253 decisions and 34 between turns, 14 on the 8,000-trigger stack. **Read at item 6's close** (2026-10-29), every decision by the engine's predicates: at most 39 allocations over 10,675 decisions and 36 between turns; 1.70–1.83 µs at the worst checkpoint, 1.87–1.97 at the 20 heaviest decisions, 4.4–5.6 on the 8,000-trigger stack; the token board at most 33 and 2.0 µs |
 | 3. ≤ 128 KB per state | **Holds** (the same PR): ≤ 107.1 KB at the end of a 168-turn game, the history bounded by the table; ≤ 112.4 KB with a row reaching the hidden zones (item 181). Breached on one fixture board by item 182, `stress` 12351 under Teferi's clause at 150.4 KB after a stack 29 deep, since a clone copied the maps' high-water capacity. **Holds again since that half of item 183 was fixed** (2026-09-26): ≤ 90.7 KB over the clone test's 210 readings, that game at 73.2. A clone during a deep stack is B10's: 10 MB on an 8,000-trigger wipe, 125 KB at 200 permanents, and 101 KB with no objects left after 2,000 tokens came and went, the layer memo's frames (`clone-architecture.md` §2.4, §2.5). **Since CL-1** (2026-10-21): at most 6.7 KB at every decision and 6.0 between turns, 8.7 KB on the 8,000-trigger stack, 1.5 KB after 4,000 tokens came and went, the memo bounded by the store. **Read at item 6's close** (2026-10-29): at most 6.6 KB at a decision and 6.2 between turns, 8.7 on the 8,000-trigger stack, 2.6 after the 4,000 tokens, 6.1 on the token board at up to 400 Goblins |
 
@@ -95,6 +95,57 @@ one means the engine's cost model moved
   got longer".
 
 ## The records, newest first
+
+**Measured 2026-10-30 for the item 6 audit's readiness, part 2**
+(`audit/readiness-close`, PR #300: items 352 and 356 with item 22, item 41's
+fork test over item 6's state, item 142 reconciled, k as `fuzz_games
+--observe`, and the audit's close). No pool changed, so no table is
+re-recorded. One `close_out.py` sitting against **main** `b5028f30` (#299's
+merge): **engine** `7a2c8ae5`, every code commit. MTG Arena was closed for
+every sitting.
+
+**Predictions, before any arm ran** (the PR body): every gameplay row
+`IDENTICAL`; `Memo hits` down, `Layer walks` the same or a little lower;
+instructions a decision down 10–14%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Layer walks`, performance / stress | 395 → 387 / 421 → 413 | 803 → 788 / 955 → 939 |
+| `Board walks`, performance / stress | 226 → 219 / 230 → 223 | 447 → 432 / 489 → 473 |
+| `Memo hits`, performance / stress | 55,487 → 53,971 / 57,393 → 55,347 | 156,585 → 152,712 / 183,387 → 176,816 |
+| `Layer frames`, performance / stress | 4,335 → 4,199 / 4,364 → 4,228 | 13,001 → 12,579 / 14,921 → 14,485 |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
+| instructions / decision, callgrind, the budget's board | | 0.7516 M → 0.6392 M, **−14.95%**; at the final head after the pre-review's fixes (`316976f9`), 0.7514 M → 0.6370 M, **−15.23%**, every row above identical |
+| moved, inclusive: `gather_sweeping` / `apply_replacements` | | −10.0 / −10.1 points |
+| moved, inclusive: `finish_grow` / `__rust_realloc` | | −8.7 / −8.1 points |
+
+**The one move past its prediction**: −14.95% against 10–14%. #299's probe
+for item 356 still read a frame for every printed source; by kind, the
+gather reads one only for a source filed under the proposal's kind, and
+never for a tapland, which is the `Memo hits` and `Layer frames` rows.
+
+**The audited smoke** (`fuzz_games --audit`, 1,000 games at seed 777):
+`performance` and `stress` at two seats and four, 0 errors, 0 panics, 0
+turn-limit hits, 5.3 million dispatches answered twice and no disagreement.
+
+**Floor 1 and the token board**, five rounds (three on the token board, at
+1,000 games) interleaved with `b5028f30` on an idle machine; `codebase-state.md`
+item 138 has the table: **15,180 loaded**, from 13,330 in the same sitting,
+54.6 µs a decision from 62.8; the token board at 50 a seat 7,840 from 7,030,
+still under the floor (item 354). The levers re-ranked: the replacement
+gather 7.5% inclusive, from 17.2%.
+
+**k**, three rounds on the Commander board: **0.100**, an observation's 5.52
+µs against the engine's 55.27 µs a decision. The observation costs what it
+did at #300's design stop (5.7 µs); k rose because the engine got faster.
+
+**The copies the branch made** (`similar_functions.py --against main`):
+`replacement_ability_kinds` and `triggered_ability_kinds` are one shape, and
+`named_replacement_carriers` and `named_trigger_carriers` one composition.
+Kept: each pair reads a different ability body into a different mask, and
+one generic over the body and the mask would cost both call sites more than
+the ten lines it saves; each doc names its twin.
 
 **Measured 2026-10-29 for the item 6 audit's readiness, part 1**
 (`audit/throughput-and-floors`: the ratchet at item 6's close, the census,

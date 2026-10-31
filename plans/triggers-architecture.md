@@ -1853,13 +1853,13 @@ For each record, the candidates are the union of:
    (ATOM-603.10a-001) and a creature's own dies-trigger fire (-002). A frame
    candidate is asked only look-back conditions (§4.3).
 3. **Objects off the battlefield whose ability functions where they are**
-   (CR 113.6b, 113.6k): `zone_trigger_sources: IdMap<ObjectId, EventKindMask>`,
+   (CR 113.6b, 113.6k): `off_battlefield_trigger_sources: IdMap<ObjectId, EventKindMask>`,
    each object filed against the record kinds its printed triggered defs
    read where it is (a state trigger's `BoardState` bit included; a def
    that triggers only on its own object moving files it on
    `newcomer_trigger_sources` instead, below),
    registered by `register_static_effects`' door at `arrive_in_zone`
-   exactly as `zone_replacement_ability_sources` is (RF), with
+   exactly as `off_battlefield_replacement_ability_sources` is (RF), with
    `zone_function::functioning_zones` gaining a `Triggered` arm that reads
    the condition: **113.6k is derived, not stated** — a condition about
    `ThisObject` moving functions where the move can leave it, or for a move
@@ -1902,7 +1902,7 @@ candidate's zone (`functions_in`, the union), and `match_def` skips a
 condition that does not (`condition_functions_in`). On every leg, including
 the battlefield, so the rule has one home — `replacement::gather`'s reason
 for asking it the same way. (F1, found in review and fixed 2026-09-22: the
-dispatcher read the zone map's *keys* and then the whole effective list.)
+dispatcher read the off-battlefield map's *keys* and then the whole effective list.)
 
 **The matcher's shape: candidates, rows, then records × rows.** The
 candidates are each leg's objects, in CR 613.7 order, each with its
@@ -1929,7 +1929,7 @@ direction only (a trigger multiplier is `trigger_multiplier_sources`', CR
 the gate only ever reads them OR-ed — a `Filter` row ORs into
 `unattributed_trigger_zones` and `unattributed_trigger_kinds`, a row
 naming its objects into `named_unattributed_trigger_kinds`; and the zone
-set above. `triggered_ability_kinds(effect)`, `puts_a_replacement_ability`'s
+set above. `triggered_ability_kinds(effect)`, `replacement_ability_kinds`'
 twin, returns the record kinds a grant or copy row's triggers read, a mask
 rather than a yes or no. A dispatch on a board where
 every set is empty and the delayed registry is empty returns after four
@@ -1941,9 +1941,9 @@ leg — a granted or copied trigger, which may be on any permanent — asks.
 battlefield whose every functioning trigger is on itself changing zones
 (`TriggerDef::triggers_only_on_this_object_moving`: Guerrilla Tactics'
 discard, Guile's "from anywhere") can be triggered only by the window that
-moved it, so it waits on `newcomer_trigger_sources`, not the zone map, and
+moved it, so it waits on `newcomer_trigger_sources`, not the off-battlefield map, and
 the gate and the zone leg take it only as one of that window's newcomers
-(`newcomer_trigger_carriers`). On the zone map it would pass every window
+(`newcomer_trigger_carriers`). On the off-battlefield map it would pass every window
 of a game it was in from the library on.
 
 **Why those four, and why four is enough.** A trigger can only come from a
@@ -1955,7 +1955,7 @@ exactly one probe: printed and on the battlefield is `trigger_sources`,
 whose probe is the mask's — not "is any source present" but "does any source
 read a kind this window carries";
 printed and functioning where it is off the battlefield (CR 113.6k) is
-`zone_trigger_sources`; granted or copied is the summary's zone set, because
+`off_battlefield_trigger_sources`; granted or copied is the summary's zone set, because
 neither printed set has ever heard of that object; and **departed** is the
 frames the records carry, the one leg the other three cannot cover —
 `cleanup_zone_state` took the object out of both sets as it left, so a board
@@ -2048,7 +2048,7 @@ taken after it, since no list changed in between; else the live list, which is
 then also the list before it. Both signs are fixtures: Humility beside a
 surviving Blood Artist, and a grant whose source dies in the wipe, whose
 carrier triggers for each death. Bridge from Below's graveyard half is the
-zone map's, built in TR-4c with main item 173: under Yixlid Jailer, a wipe
+off-battlefield map's, built in TR-4c with main item 173: under Yixlid Jailer, a wipe
 that takes the Jailer gives the card its abilities back only after the event,
 and it does not trigger, in either batch order.
 
@@ -2164,7 +2164,7 @@ gives. The *occurrence* it counts is one triggering event
 `EventKind::BoardState`, a kind no record carries: no window asks it, and
 the check (`engine/triggers/state.rs`, `check_state_triggers`) reads the
 dispatcher's own gate on every leg — printed, granted, copied, and
-`zone_trigger_sources` — through that bit, which is `CLAUDE.md`'s rule for a
+`off_battlefield_trigger_sources` — through that bit, which is `CLAUDE.md`'s rule for a
 new reader of the effective list. A board with no state trigger pays one
 mask test each time the check runs. The check evaluates `cond` through
 `settled_holds` against the live board, at **three
@@ -2450,7 +2450,7 @@ prove; its branch proposes the arm instead of writing the result.
 **Why it exists.** The dispatcher is an optimized answer to one question:
 which triggered abilities does this window trigger? It answers through
 shortcuts: a gate over record kinds, candidate sets kept as objects move
-(printed sources on the battlefield, the zone map and its newcomers, the
+(printed sources on the battlefield, the off-battlefield map and its newcomers, the
 objects and zones a granting or copying row reaches), a look-back snapshot taken only when a batch departs
 an ability list's source (§4.3), and a departure's frame off its record.
 Every wrong answer TR-1 has had lived there, not in a condition's
@@ -3044,9 +3044,9 @@ ordered the whole battlefield and then probed each permanent's mask); a
 window whose kinds no source reads returns at the gate. It narrows the battlefield leg, and
 the rows naming their objects since (`named_unattributed_trigger_kinds`), and
 nothing else — a `Filter` row's zones and the records' LKI read a list no
-registration saw, so they keep their whole-list walk, and the zone map files
+registration saw, so they keep their whole-list walk, and the off-battlefield map files
 each object's kinds but the gate asks only its `is_empty` probe. An
-object whose every trigger is on itself moving is off the zone map since
+object whose every trigger is on itself moving is off the off-battlefield map since
 TR-4c (§4.2), asked only as a newcomer.
 `TriggerEvent::reads` is now written *from* the mask's table rather than
 beside it, because a second table that had to agree with it is the bug this

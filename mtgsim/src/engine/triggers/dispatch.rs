@@ -11,7 +11,7 @@
 //! **Who is asked** (§4.2) mirrors `replacement::gather` because a new reader
 //! of the effective ability list is dead on every board a gate skips: the
 //! battlefield sweep behind `trigger_sources`, the zone sweep behind
-//! `zone_trigger_sources`, the granted and copied legs on
+//! `off_battlefield_trigger_sources`, the granted and copied legs on
 //! `RegistryScopeSummary`, and the frames the window's departures carry
 //! (CR 603.10a) — plus, for an object that survives a batch which removed
 //! the source of an effect copying, granting or removing abilities, the list
@@ -217,7 +217,7 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
 /// record, as the dispatch gate's legs find them: the permanents whose
 /// printed triggers read one, the objects a row naming them puts one on, the
 /// window's newcomers, the zones a `Filter` row reaches, and the cards off
-/// the battlefield on the zone map. Built by one constructor
+/// the battlefield on the off-battlefield map. Built by one constructor
 /// (`GameState::trigger_gate`) for the dispatch, the look-back snapshot and
 /// the state check.
 pub(super) struct TriggerGate<'a> {
@@ -231,7 +231,7 @@ pub(super) struct TriggerGate<'a> {
 }
 
 /// Which of the cards off the battlefield the gate hands the matcher. Two
-/// legs find them: the zone map, every card whose triggered ability works
+/// legs find them: the off-battlefield map, every card whose triggered ability works
 /// where it is (a graveyard's, a hand's), filed with the kinds of record its
 /// abilities read; and the zones a row granting or copying a triggered
 /// ability reaches. `Unfiltered` takes every card on both, whatever the
@@ -248,25 +248,25 @@ pub(super) enum OffBattlefieldLegs {
 impl<'a> TriggerGate<'a> {
     /// Whether no leg holds anything, so the candidates are none.
     pub(super) fn is_empty(&self) -> bool {
-        let no_zone_sources = match self.off_battlefield_legs {
-            OffBattlefieldLegs::Unfiltered => self.game.zone_trigger_sources.is_empty(),
-            OffBattlefieldLegs::FilteredByKind => zone_sources(self.game, self.kinds, self.off_battlefield_legs).next().is_none(),
+        let no_off_battlefield_sources = match self.off_battlefield_legs {
+            OffBattlefieldLegs::Unfiltered => self.game.off_battlefield_trigger_sources.is_empty(),
+            OffBattlefieldLegs::FilteredByKind => off_battlefield_sources(self.game, self.kinds, self.off_battlefield_legs).next().is_none(),
         };
-        self.readers.is_empty() && self.named.is_empty() && self.newcomers.is_empty() && self.unattributed.is_empty() && no_zone_sources
+        self.readers.is_empty() && self.named.is_empty() && self.newcomers.is_empty() && self.unattributed.is_empty() && no_off_battlefield_sources
     }
 
     /// The candidates its legs reach, in timestamp order.
     pub(super) fn candidates(self) -> Vec<ObjectId> {
         let TriggerGate { game, kinds, off_battlefield_legs, readers, named, newcomers, unattributed } = self;
-        game.candidates_now(readers, named, newcomers, unattributed, zone_sources(game, kinds, off_battlefield_legs))
+        game.candidates_now(readers, named, newcomers, unattributed, off_battlefield_sources(game, kinds, off_battlefield_legs))
     }
 }
 
-/// The zone map's objects, only those filed under `kinds` where the legs off
+/// The off-battlefield map's objects, only those filed under `kinds` where the legs off
 /// the battlefield ask them.
-fn zone_sources(game: &GameState, kinds: EventKindMask, off_battlefield_legs: OffBattlefieldLegs) -> impl Iterator<Item = ObjectId> + '_ {
-    // ORDER-FREE: `candidates_now` sorts the zone map's objects by timestamp.
-    game.zone_trigger_sources
+fn off_battlefield_sources(game: &GameState, kinds: EventKindMask, off_battlefield_legs: OffBattlefieldLegs) -> impl Iterator<Item = ObjectId> + '_ {
+    // ORDER-FREE: `candidates_now` sorts the off-battlefield map's objects by timestamp.
+    game.off_battlefield_trigger_sources
         .iter()
         .filter(move |(_, filed)| matches!(off_battlefield_legs, OffBattlefieldLegs::Unfiltered) || filed.intersects(kinds))
         .map(|(&id, _)| id)
@@ -755,7 +755,7 @@ impl GameState {
     ///
     /// 1. **The gate** — six probes (§4.2): the permanents whose printed
     ///    triggers read a kind this window carries (§11's mask, source
-    ///    first), the zone map, the window's newcomers whose every trigger is
+    ///    first), the off-battlefield map, the window's newcomers whose every trigger is
     ///    on themselves moving, the unattributed zone set off the registry
     ///    summary, whether any record of the window carries a CR 603.10a
     ///    frame with a triggered ability in it, and whether a batch of the
@@ -1360,7 +1360,7 @@ impl GameState {
         named: Vec<ObjectId>,
         newcomers: Vec<ObjectId>,
         unattributed: ZoneSet,
-        zone_sources: impl Iterator<Item = ObjectId>,
+        off_battlefield_sources: impl Iterator<Item = ObjectId>,
     ) -> Vec<ObjectId> {
         let mut live: Vec<ObjectId> = if unattributed.contains(Zone::Battlefield) {
             self.battlefield_ids_ordered()
@@ -1371,7 +1371,7 @@ impl GameState {
             let mut once: IdSet<ObjectId> = IdSet::default();
             self.in_battlefield_order(readers.iter().chain(&named).copied().filter(|&id| once.insert(id)))
         };
-        let mut elsewhere: Vec<(Timestamp, ObjectId)> = zone_sources.map(|id| (self.object_timestamp(id), id)).collect();
+        let mut elsewhere: Vec<(Timestamp, ObjectId)> = off_battlefield_sources.map(|id| (self.object_timestamp(id), id)).collect();
         let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
         for id in newcomers {
             if seen.insert(id) {

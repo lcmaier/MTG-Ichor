@@ -727,7 +727,7 @@ impl TriggerDef {
     /// an ability. Read after the move, it is asked where the move left the
     /// object, by the one window that made it a newcomer there; read looking
     /// back, it is asked off the move's frame. So off the battlefield it waits
-    /// on `newcomer_trigger_sources` rather than the zone map every window asks.
+    /// on `newcomer_trigger_sources` rather than the off-battlefield map every window asks.
     pub fn triggers_only_on_this_object_moving(&self) -> bool {
         let arms = self.condition.events();
         !arms.is_empty() && arms.iter().all(|arm| matches!(arm, TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, .. }))
@@ -2070,7 +2070,7 @@ impl Lki {
         let permanent = permanent.map(|entry| {
             // ORDER-FREE: sorted next.
             let mut counters: Vec<(CounterType, u32)> =
-                entry.counters.iter().map(|(&kind, stack)| (kind, stack.count)).filter(|&(_, n)| n > 0).collect();
+                entry.counters().iter().map(|(&kind, stack)| (kind, stack.count)).filter(|&(_, n)| n > 0).collect();
             counters.sort_unstable_by_key(|&(kind, _)| kind);
             PermanentFacts {
                 tapped: entry.tapped,

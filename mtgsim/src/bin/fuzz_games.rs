@@ -14,6 +14,7 @@
 //        cargo run --bin fuzz_games -- --scenario scenarios/template.scenario
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --tokens 50
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --census
+//        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --observe
 //
 // `--require` takes a comma-separated list **and repeats**: the union of every
 // flag, deduplicated, in the order given. Repeating is how a card whose name
@@ -110,6 +111,7 @@ use mtgsim::cards::phase_re_cards::goblin_token;
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{ActionContext, GameAction};
+use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::events::cause::EventCause;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
@@ -121,7 +123,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::types::colors::Color;
 use mtgsim::types::ids::{IdMap, ObjectId, PlayerId};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::zones::{Zone, ZoneSet};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -191,6 +193,13 @@ struct Args {
     /// floor 1's count (`engineering-practices.md#the-floors`). Off by
     /// default; on, it changes no game.
     census: bool,
+    /// Build a naive observation for the seat at each decision that reaches
+    /// the agent, and time it against the engine, `--observe`: k, floor 1's
+    /// unmeasured factor (`plans/references/ai-performance-floors.md`, "The
+    /// big picture"). Off by default; on, it changes no game, but its layer
+    /// reads share the memo with the engine's, as a harness's would, so the
+    /// cost rows move.
+    observe: bool,
     /// Attach the trace sink (`state::trace`) to every game and write each
     /// game's JSON lines to `DIR/game-<n>-seed-<seed>.jsonl`, `--trace DIR`.
     /// One file per game rather than one file, so a threaded run's output
@@ -261,6 +270,7 @@ fn parse_args() -> Args {
         life: 20,
         tokens_per_seat: 0,
         census: false,
+        observe: false,
         trace: None,
         trace_game: None,
         audit: false,
@@ -365,6 +375,9 @@ fn parse_args() -> Args {
             }
             "--census" => {
                 result.census = true;
+            }
+            "--observe" => {
+                result.observe = true;
             }
             "--players" => {
                 i += 1;
@@ -477,6 +490,8 @@ struct GameStats {
     /// `--census`: the decisions that reached the agent, by the prompt's kind.
     /// Empty without the flag.
     agent_decisions: BTreeMap<String, u64>,
+    /// `--observe`: what building the observations cost. Zero without the flag.
+    observation: ObservationCost,
     /// `--require` reachability: `(name, cast, resolved)`, in the order the
     /// flag listed them. Empty unless the flag is set.
     ///
@@ -736,6 +751,8 @@ struct AggregateStats {
     total_trigger_dispatch: TriggerDispatchWork,
     /// `--census`'s counts, summed.
     total_agent_decisions: BTreeMap<String, u64>,
+    /// `--observe`'s cost, summed.
+    total_observation: ObservationCost,
 }
 
 impl AggregateStats {
@@ -769,6 +786,7 @@ impl AggregateStats {
         self.total_trigger_dispatch.matches += game.trigger_dispatch.matches;
         self.total_audited_dispatches += game.audited_dispatches;
         self.total_audited_triggers += game.audited_triggers;
+        self.total_observation.add(game.observation);
         for (kind, count) in &game.agent_decisions {
             *self.total_agent_decisions.entry(kind.clone()).or_default() += count;
         }
@@ -889,6 +907,8 @@ struct MiddlewareConfig {
     auto_pay: bool,
     /// `--census`: count innermost, under every decorator that answers.
     census: bool,
+    /// `--observe`: build an observation there too.
+    observe: bool,
 }
 
 /// `--census`'s count for one game: the decisions that reach the agent, by
@@ -904,23 +924,139 @@ impl AgentCensus {
     }
 }
 
-/// Counts every prompt into the census, then asks `inner`. Innermost, under
-/// `ManaWindowStop`, so it is asked what reaches the agent, and each of those
-/// is a decision: `ui::ask` answers a prompt with one legal answer itself,
-/// and the random agent's seat is never shown a `Pass`-only priority prompt.
-struct Counted<D> {
-    inner: D,
-    census: Rc<AgentCensus>,
+/// What building `--observe`'s observations cost over a game or a run.
+#[derive(Debug, Default, Clone, Copy)]
+struct ObservationCost {
+    observations: u64,
+    rows: u64,
+    nanos: u64,
 }
 
-impl<D: DecisionProvider> DecisionProvider for Counted<D> {
+impl ObservationCost {
+    fn add(&mut self, other: ObservationCost) {
+        self.observations += other.observations;
+        self.rows += other.rows;
+        self.nanos += other.nanos;
+    }
+}
+
+/// One row of an observation: an object, a card in the seat's hand, or a
+/// player, as fixed-width integers, the shape a policy network reads. Its
+/// first integer says which.
+type ObservationRow = [i32; 16];
+
+/// The first integer of an object's row, a card in the seat's hand included.
+const OBJECT_ROW: i32 = 1;
+/// The first integer of a player's row.
+const PLAYER_ROW: i32 = 2;
+
+/// `--observe`'s builder for one game: at each decision, the observation the
+/// floors reference names as k's naive probe, rebuilt from scratch over the
+/// omniscient state. Every object in a public zone (`Zone::is_public`) and
+/// each card in the deciding seat's hand, by its effective characteristics;
+/// each player's life and hidden-zone counts. No visibility mask, which the
+/// reference expects to add little, and no incremental update. Written into
+/// one buffer the game reuses, as a harness writes into a preallocated array.
+#[derive(Default)]
+struct Observer {
+    rows: RefCell<Vec<ObservationRow>>,
+    cost: std::cell::Cell<ObservationCost>,
+}
+
+impl Observer {
+    fn observe(&self, game: &GameState, seat: PlayerId) {
+        let started = Instant::now();
+        let mut rows = self.rows.borrow_mut();
+        rows.clear();
+        for zone in ZoneSet::ALL.iter().filter(Zone::is_public) {
+            rows.extend(game.zone_ids_ordered(zone).into_iter().filter_map(|id| object_row(game, id, zone)));
+        }
+        if let Some(player) = game.players.get(seat) {
+            rows.extend(player.hand.iter().filter_map(|&id| object_row(game, id, Zone::Hand)));
+        }
+        rows.extend(game.players.iter().map(player_row));
+        std::hint::black_box(&*rows);
+        let mut cost = self.cost.get();
+        cost.observations += 1;
+        cost.rows += rows.len() as u64;
+        cost.nanos += started.elapsed().as_nanos() as u64;
+        self.cost.set(cost);
+    }
+}
+
+/// An object as its effective characteristics say it is (one layer read),
+/// and on the battlefield as its permanent's state does.
+fn object_row(game: &GameState, id: ObjectId, zone: Zone) -> Option<ObservationRow> {
+    let chars = compute_characteristics(game, id)?;
+    let bits = |positions: &mut dyn Iterator<Item = u32>| positions.fold(0i32, |bits, at| bits | 1 << at);
+    let permanent = game.battlefield.get(&id);
+    Some([
+        OBJECT_ROW,
+        id.raw() as i32,
+        zone as i32,
+        chars.controller as i32,
+        bits(&mut chars.types.iter().map(|t| *t as u32)),
+        chars.subtypes.iter().count() as i32,
+        bits(&mut chars.colors.iter().map(|c| *c as u32)),
+        chars.mana_cost.as_ref().map_or(0, |cost| i32::from(cost.mana_value())),
+        chars.power.unwrap_or(-1),
+        chars.toughness.unwrap_or(-1),
+        chars.loyalty.unwrap_or(-1),
+        bits(&mut chars.keyword_flags.iter().map(|k| *k as u32)),
+        chars.abilities.len() as i32,
+        permanent.map_or(0, |p| i32::from(p.tapped) | i32::from(p.attacking.is_some()) << 1 | i32::from(p.blocking.is_some()) << 2),
+        permanent.map_or(0, |p| p.damage_marked as i32),
+        permanent.map_or(0, |p| p.counters().values().map(|stack| stack.count as i32).sum()),
+    ])
+}
+
+/// A player: life, poison, and how many cards each zone they own holds,
+/// the hidden two by count alone.
+fn player_row(player: &mtgsim::state::player::PlayerState) -> ObservationRow {
+    let mut row = [0; 16];
+    row[..7].copy_from_slice(&[
+        PLAYER_ROW,
+        player.id as i32,
+        player.life_total as i32,
+        player.counters.values().sum::<u32>() as i32,
+        player.hand.len() as i32,
+        player.library.len() as i32,
+        player.graveyard.len() as i32,
+    ]);
+    row
+}
+
+/// The census's count and the observation's build, where a prompt reaches
+/// the agent; then asks `inner`. Innermost, under `ManaWindowStop`, so each
+/// prompt it is asked is a decision: `ui::ask` answers a prompt with one
+/// legal answer itself, and the random agent's seat is never shown a
+/// `Pass`-only priority prompt.
+struct AtTheAgent<D> {
+    inner: D,
+    census: Option<Rc<AgentCensus>>,
+    observer: Option<Rc<Observer>>,
+}
+
+impl<D> AtTheAgent<D> {
+    /// A decision has reached the agent: count it, and build what the agent sees.
+    fn on_decision(&self, game: &GameState, player: PlayerId, context: &ChoiceContext) {
+        if let Some(census) = &self.census {
+            census.count(context);
+        }
+        if let Some(observer) = &self.observer {
+            observer.observe(game, player);
+        }
+    }
+}
+
+impl<D: DecisionProvider> DecisionProvider for AtTheAgent<D> {
     fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        self.census.count(context);
+        self.on_decision(game, player, context);
         self.inner.pick_n(game, player, context, options, bounds)
     }
 
     fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
-        self.census.count(context);
+        self.on_decision(game, player, context);
         self.inner.pick_number(game, player, context, min, max)
     }
 
@@ -934,12 +1070,12 @@ impl<D: DecisionProvider> DecisionProvider for Counted<D> {
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        self.census.count(context);
+        self.on_decision(game, player, context);
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
     fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        self.census.count(context);
+        self.on_decision(game, player, context);
         self.inner.choose_ordering(game, player, context, items)
     }
 
@@ -948,23 +1084,33 @@ impl<D: DecisionProvider> DecisionProvider for Counted<D> {
     }
 }
 
+/// The provider stack, and what `--census` and `--observe` read at its
+/// innermost layer, each `None` without its flag.
+struct ProviderStack {
+    provider: Box<dyn DecisionProvider>,
+    census: Option<Rc<AgentCensus>>,
+    observer: Option<Rc<Observer>>,
+}
+
 /// Compose the provider stack. **The one place that knows its shape.**
 ///
 /// The stop and nothing else, deliberately: `RandomDecisionProvider`'s tap
 /// preference and generic split are its own measured policies
 /// (`codebase-state.md` 16d), and a payer answering them would consume its RNG
 /// stream differently, moving every counter for reasons that are not the
-/// engine's. The census answers nothing, so it moves nothing.
-fn build_stack(dp_seed: u64, cfg: MiddlewareConfig) -> (Box<dyn DecisionProvider>, Option<Rc<AgentCensus>>) {
-    let provider = RandomDecisionProvider::seeded(dp_seed);
+/// engine's. The census and the observer answer nothing, so they move no game.
+fn build_stack(dp_seed: u64, cfg: MiddlewareConfig) -> ProviderStack {
     let census = cfg.census.then(|| Rc::new(AgentCensus::default()));
-    let stack: Box<dyn DecisionProvider> = match (cfg.auto_pay, census.clone()) {
-        (true, Some(census)) => Box::new(ManaWindowStop::new(Counted { inner: provider, census })),
-        (false, Some(census)) => Box::new(Counted { inner: provider, census }),
-        (true, None) => Box::new(ManaWindowStop::new(provider)),
-        (false, None) => Box::new(provider),
+    let observer = cfg.observe.then(|| Rc::new(Observer::default()));
+    let agent = RandomDecisionProvider::seeded(dp_seed);
+    let at_the_agent = |inner| AtTheAgent { inner, census: census.clone(), observer: observer.clone() };
+    let provider: Box<dyn DecisionProvider> = match (cfg.auto_pay, census.is_some() || observer.is_some()) {
+        (true, true) => Box::new(ManaWindowStop::new(at_the_agent(agent))),
+        (false, true) => Box::new(at_the_agent(agent)),
+        (true, false) => Box::new(ManaWindowStop::new(agent)),
+        (false, false) => Box::new(agent),
     };
-    (stack, census)
+    ProviderStack { provider, census, observer }
 }
 
 /// The board every game is dealt onto — seats, deck size, starting life and
@@ -1080,8 +1226,8 @@ fn run_one_game(
                 sink.flush().ok();
             }
         };
-        let (dp, census) = build_stack(dp_seed, middleware);
-        let dp = &*dp;
+        let ProviderStack { provider, census, observer } = build_stack(dp_seed, middleware);
+        let dp = &*provider;
         if start.is_none() {
             game.setup(dp).expect("Failed to setup game");
             // Without the flag no creation is proposed, not even an empty one,
@@ -1158,6 +1304,7 @@ fn run_one_game(
                 s.audited_dispatches = dispatches;
                 s.audited_triggers = triggers;
                 s.agent_decisions = census.map(|census| census.0.take()).unwrap_or_default();
+                s.observation = observer.map(|observer| observer.cost.get()).unwrap_or_default();
                 s
             },
         ))
@@ -1414,7 +1561,7 @@ fn main() {
         args.threads,
         &required,
         &args.require,
-        MiddlewareConfig { auto_pay: args.auto_pay, census: args.census },
+        MiddlewareConfig { auto_pay: args.auto_pay, census: args.census, observe: args.observe },
         TableConfig {
             players: args.players,
             deck_size: args.deck_size,
@@ -1607,6 +1754,23 @@ fn main() {
             "Slowest game:    {:.2}ms over {} — repro: --seed {} --games 1",
             slowest.ms, turns, slowest.seed
         );
+    }
+
+    // `--observe`'s k: what the observation costs a decision against what the
+    // engine does, both counted at the decisions that reach the agent, the
+    // engine's being the games' time less the observations'. Floor 1 scales
+    // by 1 + k (`plans/references/ai-performance-floors.md`).
+    if args.observe {
+        let cost = agg_stats.total_observation;
+        let each = |total: f64| total / cost.observations.max(1) as f64;
+        let observation_us = each(cost.nanos as f64 / 1e3);
+        let engine_us = each(cpu_total.as_secs_f64() * 1e6 - cost.nanos as f64 / 1e3);
+        println!(
+            "Observation:     {observation_us:.2} µs each, {:.0} rows, {:.1} a game",
+            each(cost.rows as f64),
+            cost.observations as f64 / args.games as f64
+        );
+        println!("k:               {:.3}, against the engine's {engine_us:.2} µs a decision", observation_us / engine_us);
     }
 
     println!();

@@ -10,6 +10,7 @@ use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::{Duration, ObjectSet};
 use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::triggers::EventKindMask;
+use crate::engine::actions::GameActionKindMask;
 use crate::types::zones::ZoneSet;
 
 /// CR 613.7's storage order: layer first, then timestamp, with the registry's
@@ -124,21 +125,25 @@ pub struct RegistryScopeSummary {
     ///
     /// - a `Filter` row names **zones**, and those go here — the gather walks
     ///   each of them whole while the row exists;
-    /// - a `SourceOnly`, `Fixed` or `Host` row names **objects**, and sets
-    ///   [`Self::any_named_unattributed_replacement`] — the gather reads the
-    ///   named objects off the rows, wherever they are, and walks no zone.
+    /// - a `SourceOnly`, `Fixed` or `Host` row names **objects**, and its
+    ///   abilities' kinds go in [`Self::named_unattributed_replacement_kinds`]
+    ///   — the gather reads the named objects off the rows, wherever they are,
+    ///   for a proposal of one of those kinds, and walks no zone.
     ///
-    /// `EMPTY` here and `false` there is "no such row", the structural zero
-    /// every board without a grant or copy of a replacement ability gets.
+    /// `EMPTY` in both is "no such row", the structural zero every board
+    /// without a grant or copy of a replacement ability gets.
     pub unattributed_replacement_zones: ZoneSet,
 
-    /// True iff some grant or copy row over a named set (`SourceOnly`,
-    /// `Fixed`, `Host`) carries a replacement body — see
-    /// [`Self::unattributed_replacement_zones`]. Exact by construction: the
-    /// gather reads the rows' named objects, so a `SourceOnly` grant from a
-    /// source in a graveyard is found in the graveyard without the summary
-    /// having to know which zone that is.
-    pub any_named_unattributed_replacement: bool,
+    /// The kinds of proposal the replacement abilities a grant or copy row
+    /// over a named set (`SourceOnly`, `Fixed`, `Host`) puts on its objects can
+    /// answer ([`replacement_ability_kinds`]) — see
+    /// [`Self::unattributed_replacement_zones`]. The gather reads those rows'
+    /// objects only for a proposal of one of these kinds, as the dispatcher
+    /// reads `named_unattributed_trigger_kinds`. Exact by construction: the
+    /// rows' named objects are read wherever they are, so a `SourceOnly` grant
+    /// from a source in a graveyard is found there without the summary having
+    /// to know which zone that is.
+    pub named_unattributed_replacement_kinds: GameActionKindMask,
 
     /// True iff some row grants an ability whose body is an
     /// `Effect::Restriction` — i.e. some object on the battlefield may have a
@@ -272,12 +277,14 @@ impl RegistryScopeSummary {
             summary.reachable_zones |= effect.affected_objects.reachable_zones();
             summary.any_name_writing_row |= effect.modification.writes_name();
             // Where an object carrying an ability this row puts on it can be:
-            // a `Filter` row says which zones, a named row says which objects.
-            if puts_a_replacement_ability(effect) {
+            // a `Filter` row says which zones, a named row says which objects,
+            // for the kinds its abilities answer.
+            let replacement_kinds = replacement_ability_kinds(effect);
+            if !replacement_kinds.is_empty() {
                 match &effect.affected_objects {
                     ObjectSet::Filter { zones, .. } => summary.unattributed_replacement_zones |= *zones,
                     ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => {
-                        summary.any_named_unattributed_replacement = true
+                        summary.named_unattributed_replacement_kinds |= replacement_kinds
                     }
                 }
             }
@@ -355,7 +362,7 @@ impl RegistryScopeSummary {
 /// The record kinds the triggered abilities a row puts on the objects it
 /// reaches can read — a Layer 6 grant of one, or a copy whose captured list
 /// carries them (CR 707.2a) — and `EMPTY` for a row that puts none: the
-/// dispatcher's granted and copied legs, `puts_a_replacement_ability`'s twin.
+/// dispatcher's granted and copied legs, `replacement_ability_kinds`' twin.
 /// Asked by the summary to say where such an object can be and what it can
 /// read, and by the dispatcher to read a named row's objects for a window of
 /// one of those kinds.
@@ -375,20 +382,27 @@ pub fn triggered_ability_kinds(effect: &ContinuousEffect) -> EventKindMask {
     }
 }
 
-/// Does this row put a static replacement ability on the objects it affects —
-/// a Layer 6 grant of one, or a copy whose captured list carries one
-/// (CR 707.2a)? Through an "as long as" clause too, since the gather sees
-/// through it. Asked by the summary to say *where* such an object can be,
-/// and by `engine::replacement::gather`'s named leg to read the rows that
-/// say *which* object.
-pub fn puts_a_replacement_ability(effect: &ContinuousEffect) -> bool {
+/// The kinds of proposal the static replacement abilities this row puts on
+/// the objects it affects can answer from where those objects are — a Layer
+/// 6 grant of one, or a copy whose captured list carries one (CR 707.2a) —
+/// and `EMPTY` for a row that puts none: `triggered_ability_kinds`' twin.
+/// Through an "as long as" clause too, since the gather sees through it.
+/// Asked by the summary to say where such an object can be and what it can
+/// answer, and by `engine::replacement::gather`'s named leg to read a row's
+/// objects for a proposal of one of those kinds.
+pub fn replacement_ability_kinds(effect: &ContinuousEffect) -> GameActionKindMask {
     use crate::engine::layers::types::EffectModification;
+
+    let kinds = |def: &crate::objects::card_data::AbilityDef| match def.effect.replacement_body() {
+        Some(replacement) => replacement.action_kinds_in_place(),
+        None => GameActionKindMask::EMPTY,
+    };
     match &effect.modification {
-        EffectModification::GrantAbility(def) => def.effect.replacement_body().is_some(),
+        EffectModification::GrantAbility(def) => kinds(def),
         EffectModification::CopyFrom(values) => {
-            values.abilities.iter().any(|a| a.effect.replacement_body().is_some())
+            values.abilities.iter().fold(GameActionKindMask::EMPTY, |mask, ability| mask | kinds(ability))
         }
-        _ => false,
+        _ => GameActionKindMask::EMPTY,
     }
 }
 

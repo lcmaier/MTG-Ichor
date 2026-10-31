@@ -974,6 +974,45 @@ The seams with this document, both narrow:
 
 `BackFaceUp` therefore gets its producer in `double-faced-cards` and not in RC-4 (§5.1).
 
+**Built in two halves, the transform half in v0.5 (the owner, 2026-10-31).** No
+`tdc` card is double-faced, but four v0.5 builds have a rule for one: token
+copies (CR 707.8a), spell copies (707.10g), face-down (712.15a) and a
+commander's color identity (903.4d). The transform half lands before the first
+three, so each builds its rule against a real card; `game-formats` lands
+before it, and the transform half adds the back face to 903.4d's identity.
+
+- **Its card is Ojer Taq, Deepest Foundation // Temple of Civilization**, for
+  how much of its text is CR 712 and how little is anything else. It returns
+  from the graveyard back face up (712.14a, `BackFaceUp`'s first producer). The
+  Temple transforms by its own ability, only if it has not transformed since
+  the ability went on the stack (701.27f). A land becomes a creature as the
+  same permanent (712.18), so it can attack that turn if its controller has
+  controlled the Temple since the turn began (CR 302.6). The token tripler
+  appears with no arrival, which §4.7's face-change rule is for. The Temple's
+  mana value is the front face's 6 (712.8e). Its one piece from outside CR 712
+  is the Temple's "activate only if you attacked with three or more creatures
+  this turn", which `permission-architecture.md` plans under CR 602.5; its
+  tripling is Doubling Season's token arm at 3, and loads the engine the way
+  `fuzz_games --tokens` does, which the owner counts in its favor.
+- **The copies that tell the card from its characteristics** (CR 712.9's two
+  examples). A Clone that copied Ojer Taq and dies stays in the graveyard: it
+  is not a double-faced card, so it cannot be put onto the battlefield
+  transformed (712.14a; Ojer Taq's ruling of 2023-11-10). A Glasspool Mimic
+  that copied it is one, so its copied trigger returns it back face up, a
+  tapped Glasspool Shore. Glasspool Mimic's ruling of 2020-09-25 says a modal
+  double-faced card "can't be transformed or be put onto the battlefield
+  transformed", but the baseline CR has no such rule: 712.9 lets every
+  double-faced card but a meld card transform. Wizards dropped the rule with
+  Marvel's Spider-Man (2025) and said it reaches older cards, so the CR wins:
+  the Mimic's test answers that ruling with a `// RULING-DEVIATION:` and a row
+  in `engineering-practices.md#when-a-ruling-and-the-cr-disagree`. The Mimic is a
+  staged board in the transform half and is registered with the modal half,
+  which plays its land face (712.12).
+- **The modal half's card is Sea Gate Restoration // Sea Gate, Reborn**: a
+  face chosen as it is cast (712.11b) or played as a land (712.12), and the
+  front face alone in every other zone (712.8a). It never changes face on the
+  battlefield, which is why it can wait.
+
 ### 4.6 CR 708 — face-down, and Layer 1b
 
 **304 producers; `face-down-and-morph`, and undesigned here beyond the one constraint it puts on
@@ -1057,10 +1096,21 @@ recomputed from the registry on every mutation, so it cannot drift at all.
 > **As built: one leg for every unprinted route, not a flag per route.** RF
 > folded the grant and copy flags into `RegistryScopeSummary::unattributed_replacement_zones`
 > (a `Filter` row that grants or copies a replacement ability, by the zones it
-> reaches) and `any_named_unattributed_replacement` (a row naming its objects),
-> read by `gather`'s gate beside `replacement_ability_sources` and
-> `zone_replacement_ability_sources`. The reasoning above, that the summary
+> reaches) and `named_unattributed_replacement_kinds` (a row naming its
+> objects, by the kinds of action its abilities answer, since the item 6
+> audit's close), read by `gather` beside `replacement_ability_sources` and
+> `off_battlefield_replacement_ability_sources`. The reasoning above, that the summary
 > cannot drift where the set could, is why the leg is on the summary.
+
+**A face change in place is a route onto the list too (2026-10-31).**
+Transforming (CR 701.27), turning face up (708), merging (729) and flipping
+(710) change what a permanent printed without an arrival, and
+`register_static_effects` files the printed legs only as an object arrives. So
+the build that brings each one either files every face a permanent could show
+as it arrives, a superset that costs a wasted read and never an answer, or
+re-files the printed legs at the change. Ojer Taq is the first test (§4.5): it
+returns as the Temple, whose face has no replacement, and its token tripler
+must work from the moment it transforms.
 
 **Leg 2 — `register_static_effects`, and this one nobody had found.**
 `game_state.rs:737` "Reads printed abilities on purpose" — deliberately, to
@@ -1434,7 +1484,7 @@ and `layers-architecture.md` §13 uses Phase `LC`.
 | **CV-2a, CV-2b — enters as a copy** | Two PRs: CV-2a ✅ (§7b), CV-2b ✅ (§7c; its vocabulary is §4.1a). **CV-2a:** `PermanentState.entered_as_copy`, `Rewrite::EnterAsCopy`, the CR 707.6 choice and copiable loyalty; **consumer: Clone**. **CV-2b:** CR 707.9's exceptions; **consumer: Spark Double** | §7c | medium — RC-2 and RC-4 have landed |
 | **`token-copies` — token copies** | A second `Arc<CardData>` constructor from `CopiableValues`; CR 707.10f's permanent-spell-copy-becomes-a-token path. **Consumer: "create a token that's a copy of target creature"** | **1** constructor beside `TokenDef::card_data` (`types/effects.rs`, called by `create_tokens` in `engine/actions.rs`); **1** `Primitive::CreateToken` arm (`resolve.rs`, which proposes `GameAction::CreateTokens`; how a copy token reaches it is `token-copies`'s decision) | low — no row, no layer, no duration |
 | **`spell-copies` — spell copies** | `StackEntry` copy, CR 707.10c's retarget prompt, 707.10d/e's per-target copies, 707.10a's cease-to-exist SBA, and `is_copy`'s first writer. **Consumer: Fork, then Zada** | **542** clauses but **1** new object path; **186** clauses are the 707.10c prompt alone; **1** new SBA. CR 707.10b's ability copies (**39** clauses) are `spell-copies`'s too: `triggers-architecture.md` §6.5 and §13 give them here, and no TR phase builds them (corrected 2026-10-12, A6p). Their readers' records ride with them: `codebase-state.md` items 256 ("copy that ability") and 257 (storm's count) | medium — largest population, and the retarget prompt reuses `enumerate_legal_selections` rather than inventing a path |
-| **`double-faced-cards` — double-faced cards (CR 712)** | A back face on `CardData`, a face-up-side bit, CR 712.2 transform as a status change, 712.3 modal cast-time choice, 707.8's capture-the-up-face line, and the `BackFaceUp` producer for 616.1d. Each face keeps its own rules text and abilities, so a client can show both at once (the owner, 2026-10-01: Arena does, and v1's GUI needs it). **Consumer: one transform creature and one modal DFC land** | **496** cards; touches `CardData`, the cast path (712.3's face choice), and one line of CV-1's capture | **highest** — it is a second card model, and it is the phase most likely to want its own split once someone counts `CardData`'s readers |
+| **`double-faced-cards` — double-faced cards (CR 712)** | A back face on `CardData`, a face-up-side bit, CR 712.2 transform as a status change, 712.3 modal cast-time choice, 707.8's capture-the-up-face line, and the `BackFaceUp` producer for 616.1d. Each face keeps its own rules text and abilities, so a client can show both at once (the owner, 2026-10-01: Arena does, and v1's GUI needs it). **Consumers, in two halves (§4.5):** the transform half in v0.5, Ojer Taq, Deepest Foundation; the modal half after it, Sea Gate Restoration | **496** cards; touches `CardData`, the cast path (712.3's face choice), and one line of CV-1's capture | **highest** — it is a second card model, and it is the phase most likely to want its own split once someone counts `CardData`'s readers |
 | **`face-down-and-morph` — face-down permanents and morph (CR 708)** | Layer 1b, `PermanentState.face_down`, 708.2a's synthesized 2/2, the CR 708.4 cast-face-down path and the turn-face-up special action. **Consumer: one morph creature, cast and turned up** | **304** producers; **1** new sublayer in `LAYER_ORDER`; the bulk is the *casting* path, not the layer | medium-high — **unsized here on purpose.** The layer half is small and known; the casting half needs its own count of `put_on_stack.rs`'s alternative-cost sites before anyone commits a number |
 | **`split-and-adventure-style-cards` — split, flip, Adventure, Prototype and Omen cards** | The other characteristic sets `backlog.md` §2.41 names, on the card model `permission-architecture.md`'s `permission-design` settles beside it: which characteristics a spell is cast with, and which a card has elsewhere. Named at #282's review (the owner, 2026-10-23) for every card that casts as one of several faces, so a mechanic printed after the baseline rules joins it | sized by `permission-design` | — |
 | **`merging-and-meld` — merging + meld (CR 729, 712.4)** | A multi-component `PermanentState`, 729.2a's topmost-component characteristics as a Layer 1a copiable effect, 729.3's component separation, 729.3b's exile timestamp ordering, and 729.3d's replacement-applies-to-all-components | 34 + 21 cards; **the largest structural change in this document** and the only one that touches a type every phase reads | **highest**: its shape is `card-and-object-model`'s, designed before the decks, and its build is after v0.5 (§6). **Unsized here on purpose**; it earns its own design pass |
@@ -1564,7 +1614,7 @@ adds a track. Its own summary framing extends cleanly:
 | Step 8 (**RC-4**) loses 616.1c | §5.1 — it cannot produce one |
 | **`spell-copies`** may be inserted anywhere from step 4 onward | No coupling to either existing track |
 | **CV-1 → CV-2 → `token-copies`**, after RC-2 and RC-4 | The spine, then its consumers |
-| **`double-faced-cards`** after CV-1 and `card-and-object-model`'s design, after v0.5 | 496 cards, 120 of them potential commanders |
+| **`double-faced-cards`** after CV-1 and `card-and-object-model`'s design: its transform half in v0.5, before `token-copies`, `spell-copies` and face-down's manifest half (the owner, 2026-10-31); its modal half after v0.5 | 496 cards, 120 of them potential commanders; four v0.5 builds have a rule for a double-faced card (§4.5) |
 | **CV-1b** with item 10 as its consumer, after CV-2 — ✅ 2026-10-06 (§7d) | §5.3 — the indefinite 25; item 10 sized 2026-09-03, and Clone must be on the board before subject-keyed teardown is proven to leave Tier B's source-torn rows alone |
 | **`face-down-and-morph`** after `card-and-object-model`'s design, its manifest half before the decks (Reality Shift); **`merging-and-meld`** after `double-faced-cards`, after v0.5 (`route-review`, 2026-10-29) | §6 — `merging-and-meld`'s multi-component permanent is a *fact*, and the back-stop is the same one item 7 has |
 

@@ -1112,10 +1112,10 @@ fn applications_in_layer<'a, 'l: 'a>(
     if layer == Layer::Layer6Ability || layer == Layer::Layer7cModifyPT {
         for &object in &board.members {
             let Some(entity) = board.entity(game, object) else { continue };
-            if entity.counters.is_empty() {
+            if entity.counters().is_empty() {
                 continue;
             }
-            for (kind, stack) in &entity.counters {
+            for (kind, stack) in entity.counters() {
                 if stack.count == 0 {
                     continue;
                 }

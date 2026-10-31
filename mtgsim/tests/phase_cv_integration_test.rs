@@ -31,7 +31,7 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    place_bare, put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature,
+    copy_onto, place_bare, put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
@@ -46,7 +46,6 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -305,7 +304,7 @@ fn test_the_capture_excludes_counters_status_and_later_layers() {
         "CR 707.2 — tapped is a status, not a characteristic"
     );
     assert_eq!(
-        game.battlefield[&copyist].counters.get(&CounterType::PlusOnePlusOne),
+        game.battlefield[&copyist].counters().get(&CounterType::PlusOnePlusOne),
         None,
         "CR 707.2 — counters are not copied"
     );
@@ -443,7 +442,7 @@ fn test_a_superseded_copy_stops_its_derived_row_applying() {
 }
 
 /// `copy-effects-architecture.md` §4.7 **leg 1**, replacement half — a copied
-/// replacement ability lights `RegistryScopeSummary::any_named_unattributed_replacement`,
+/// replacement ability lights `RegistryScopeSummary::named_unattributed_replacement_kinds`,
 /// which is what lets `gather`'s fast-path gate see it: the copy row names
 /// its copyist, so the gather reads that object by name rather than a zone.
 #[test]
@@ -453,12 +452,12 @@ fn test_a_copied_replacement_ability_lights_the_gather_gate() {
     let copyist = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     assert!(
-        !game.continuous_effects.summary().any_named_unattributed_replacement,
+        game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty(),
         "no copy row yet"
     );
     copy_onto(&mut game, copyist, donor);
     assert!(
-        game.continuous_effects.summary().any_named_unattributed_replacement,
+        !game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty(),
         "§4.7 leg 1 — the gate's third leg"
     );
     assert!(
@@ -484,10 +483,10 @@ fn test_a_copied_conditional_replacement_ability_lights_the_gather_gate() {
     let donor = put_on_battlefield(&mut game, laboratory_maniac(), 0);
     let copyist = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
 
-    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
+    assert!(game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty());
     copy_onto(&mut game, copyist, donor);
     assert!(
-        game.continuous_effects.summary().any_named_unattributed_replacement,
+        !game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty(),
         "the wrapper is not the body: a conditional replacement is one"
     );
 }
@@ -506,7 +505,7 @@ fn test_a_copied_restriction_ability_lights_the_restriction_gate() {
         game.continuous_effects.summary().any_copied_restriction,
         "the second gate's third leg"
     );
-    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
+    assert!(game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty());
 }
 
 /// A copy of a vanilla creature must turn **neither** gate on. The flags are a
@@ -520,7 +519,7 @@ fn test_a_copy_of_a_vanilla_creature_lights_neither_gate() {
 
     copy_onto(&mut game, copyist, donor);
     let summary = game.continuous_effects.summary();
-    assert!(!summary.any_named_unattributed_replacement);
+    assert!(summary.named_unattributed_replacement_kinds.is_empty());
     assert!(!summary.any_copied_restriction);
 }
 
@@ -691,75 +690,13 @@ fn test_a_turn_bounded_copy_and_its_derived_rows_expire_together() {
         Some(3),
         "the derived row carried the copy row's duration"
     );
-    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
+    assert!(game.continuous_effects.summary().named_unattributed_replacement_kinds.is_empty());
 }
 
 // ---------------------------------------------------------------------------
 // Shared fixtures for the tests above
 // ---------------------------------------------------------------------------
 
-/// Cytoshape `donor` onto `target`, picking the donor deterministically by id
-/// rather than by prompt index.
-fn copy_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
-    struct PickById(ObjectId);
-    impl DecisionProvider for PickById {
-        fn pick_n(
-            &self,
-            _game: &GameState,
-            _player: PlayerId,
-            ctx: &ChoiceContext,
-            options: &[ChoiceOption],
-            _bounds: (usize, usize),
-        ) -> Vec<usize> {
-            assert!(
-                matches!(ctx.kind, ChoiceKind::ChooseCopySource { .. }),
-                "unexpected prompt: {:?}",
-                ctx.kind
-            );
-            let idx = options
-                .iter()
-                .position(|o| matches!(o, ChoiceOption::Object(id) if *id == self.0))
-                .expect("donor was not offered as a candidate");
-            vec![idx]
-        }
-        fn pick_number(
-            &self,
-            _g: &GameState,
-            _p: PlayerId,
-            _c: &ChoiceContext,
-            min: u64,
-            _max: u64,
-        ) -> u64 {
-            min
-        }
-        fn allocate(
-            &self,
-            _g: &GameState,
-            _p: PlayerId,
-            _c: &ChoiceContext,
-            total: u64,
-            buckets: &[ChoiceOption],
-            _mins: &[u64],
-            _maxs: Option<&[u64]>,
-        ) -> Vec<u64> {
-            let mut out = vec![0; buckets.len()];
-            if !out.is_empty() {
-                out[0] = total;
-            }
-            out
-        }
-        fn choose_ordering(
-            &self,
-            _g: &GameState,
-            _p: PlayerId,
-            _c: &ChoiceContext,
-            items: &[ChoiceOption],
-        ) -> Vec<usize> {
-            (0..items.len()).collect()
-        }
-    }
-    resolve_spell(game, cytoshape(), 0, vec![target], &PickById(donor));
-}
 
 /// A Giant-Growth-shaped Layer 7c row, registered the way a resolution does.
 fn pump(game: &mut GameState, id: ObjectId, power: i32, toughness: i32) {

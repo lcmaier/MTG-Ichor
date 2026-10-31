@@ -297,13 +297,13 @@ fn test_the_candidate_set_follows_the_card_from_zone_to_zone() {
     let mut game = setup_two_player_game();
     stock(&mut game, 0);
     let colossus = put_in_hand(&mut game, darksteel_colossus(), 0);
-    assert!(game.zone_replacement_ability_sources.contains_key(&colossus));
-    assert!(!game.replacement_ability_sources.contains(&colossus));
+    assert!(game.off_battlefield_replacement_ability_sources.contains_key(&colossus));
+    assert!(!game.replacement_ability_sources.contains_key(&colossus));
 
     game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx())
         .unwrap();
     assert_eq!(zone_of(&game, colossus), Zone::Library);
-    assert!(game.zone_replacement_ability_sources.contains_key(&colossus), "refiled in the library");
+    assert!(game.off_battlefield_replacement_ability_sources.contains_key(&colossus), "refiled in the library");
 
     // From the library, a second time, through the mill door.
     game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Milled, &test_ctx())
@@ -318,12 +318,12 @@ fn test_the_candidate_set_follows_the_card_from_zone_to_zone() {
     // Eternity brings both (`codebase-state.md` main item 148).
     game.change_zone(colossus, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     assert_eq!(zone_of(&game, colossus), Zone::Exile);
-    assert!(game.zone_replacement_ability_sources.contains_key(&colossus), "refiled in exile");
+    assert!(game.off_battlefield_replacement_ability_sources.contains_key(&colossus), "refiled in exile");
 
     // And onto the battlefield, where the other set takes over.
     let on_bf = put_on_battlefield(&mut game, darksteel_colossus(), 0);
-    assert!(game.replacement_ability_sources.contains(&on_bf));
-    assert!(!game.zone_replacement_ability_sources.contains_key(&on_bf));
+    assert!(game.replacement_ability_sources.contains_key(&on_bf));
+    assert!(!game.off_battlefield_replacement_ability_sources.contains_key(&on_bf));
 }
 
 // ---------------------------------------------------------------------------

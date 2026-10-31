@@ -24,6 +24,43 @@ pub struct CounterStack {
     pub timestamp: Timestamp,
 }
 
+/// A permanent's counters (CR 122), kind by kind, read anywhere as the map.
+///
+/// **Changed only inside `state/`**, by `GameState::add_counters`,
+/// `remove_counters` and an entry's own counters: each bumps the layer epoch
+/// (a counter is a layer-walk input) and keeps
+/// `GameState::replacement_counter_holders`, which the gather reads in place
+/// of every permanent's counters. A write anywhere else does not compile:
+/// `PermanentState`'s field is private to `state/`, read through
+/// `PermanentState::counters`, and this type has no method that changes it.
+/// So "move all counters onto another creature" cannot be written as a field
+/// assignment that skips the index, the epoch and CR 614's pipeline at once.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Counters(HashMap<CounterType, CounterStack>);
+
+impl Counters {
+    /// A permanent with no counters, as every permanent enters before its
+    /// entry's own are put on.
+    pub(in crate::state) fn none() -> Counters {
+        Counters(HashMap::new())
+    }
+}
+
+impl std::ops::Deref for Counters {
+    type Target = HashMap<CounterType, CounterStack>;
+    fn deref(&self) -> &HashMap<CounterType, CounterStack> {
+        &self.0
+    }
+}
+
+impl<'a> IntoIterator for &'a Counters {
+    type Item = (&'a CounterType, &'a CounterStack);
+    type IntoIter = std::collections::hash_map::Iter<'a, CounterType, CounterStack>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 /// Battlefield-specific state for a permanent.
 ///
 /// This is stored separately from the GameObject itself — the object just knows
@@ -84,8 +121,9 @@ pub struct PermanentState {
     pub attacking: Option<AttackingInfo>,
     pub blocking: Option<BlockingInfo>,
 
-    // Counters (rule 122)
-    pub counters: HashMap<CounterType, CounterStack>,
+    /// Its counters (CR 122), read through [`Self::counters`] and written only
+    /// inside `state/` ([`Counters`]).
+    pub(in crate::state) counters: Counters,
 
     /// The value of X chosen when this permanent was cast (rule 107.3f).
     /// Carried from StackEntry on resolution. None for non-X spells.
@@ -239,7 +277,90 @@ impl AttackTarget {
     }
 }
 
+/// Every field of a [`PermanentState`], borrowed: what the scenario writer
+/// names one by one under its growth contract
+/// (`setup-architecture.md#52-later-and-the-growth-contract`), since
+/// `counters` is private to `state/` and cannot be named there. Built by
+/// [`PermanentState::fields`], whose destructure names every field, so a field
+/// the state gains fails to compile there until it is added here, and then
+/// fails in the writer until the writer answers it.
+pub struct PermanentFields<'a> {
+    pub object_id: &'a ObjectId,
+    pub controller: &'a PlayerId,
+    pub timestamp: &'a Timestamp,
+    pub tapped: &'a bool,
+    pub flipped: &'a bool,
+    pub face_down: &'a bool,
+    pub phased_out: &'a bool,
+    pub entered_battlefield_turn: &'a u32,
+    pub damage_marked: &'a u32,
+    pub damaged_by_deathtouch: &'a bool,
+    pub attacking: &'a Option<AttackingInfo>,
+    pub blocking: &'a Option<BlockingInfo>,
+    pub counters: &'a Counters,
+    pub x_value: &'a Option<u64>,
+    pub attached_to: &'a Option<ObjectId>,
+    pub attached_by: &'a Vec<ObjectId>,
+    pub cast: &'a Option<CastFacts>,
+    pub cost_choices: &'a CostChoices,
+    pub entered_as: &'a EnteredAs,
+    pub announced_control: &'a AnnouncedControl,
+}
+
 impl PermanentState {
+    /// Its counters (CR 122), kind by kind.
+    pub fn counters(&self) -> &Counters {
+        &self.counters
+    }
+
+    /// Every field, borrowed ([`PermanentFields`]).
+    pub fn fields(&self) -> PermanentFields<'_> {
+        let PermanentState {
+            object_id,
+            controller,
+            timestamp,
+            tapped,
+            flipped,
+            face_down,
+            phased_out,
+            entered_battlefield_turn,
+            damage_marked,
+            damaged_by_deathtouch,
+            attacking,
+            blocking,
+            counters,
+            x_value,
+            attached_to,
+            attached_by,
+            cast,
+            cost_choices,
+            entered_as,
+            announced_control,
+        } = self;
+        PermanentFields {
+            object_id,
+            controller,
+            timestamp,
+            tapped,
+            flipped,
+            face_down,
+            phased_out,
+            entered_battlefield_turn,
+            damage_marked,
+            damaged_by_deathtouch,
+            attacking,
+            blocking,
+            counters,
+            x_value,
+            attached_to,
+            attached_by,
+            cast,
+            cost_choices,
+            entered_as,
+            announced_control,
+        }
+    }
+
     pub fn new(object_id: ObjectId, controller: PlayerId, current_turn: u32) -> Self {
         PermanentState {
             object_id,
@@ -257,7 +378,7 @@ impl PermanentState {
             damaged_by_deathtouch: false,
             attacking: None,
             blocking: None,
-            counters: HashMap::new(),
+            counters: Counters::none(),
             x_value: None,
             attached_to: None,
             attached_by: Vec::new(),
@@ -309,20 +430,20 @@ impl PermanentState {
         entity
     }
 
-    /// Clear combat state (called at end of combat step)
     /// Add `n` counters of the given type, timestamped per CR 613.7c.
     ///
-    /// Prefer `GameState::add_counters`, which allocates the timestamp for you.
-    /// This is the low-level form, for callers that already hold one.
+    /// `GameState::add_counters` is the route, which allocates the timestamp;
+    /// this is the low-level form, for `state/`'s callers that already hold one.
     ///
     /// CR 613.7c's second sentence — "if that object already has a counter of
     /// that kind on it, each counter of that kind receives a new timestamp
     /// identical to that of the new counter" — is the `entry.timestamp =`
     /// below, and it is also why one timestamp per *kind* is exact rather than
     /// a simplification: counters of one kind can never disagree.
-    pub fn add_counters(&mut self, counter_type: CounterType, n: u32, timestamp: Timestamp) {
+    pub(in crate::state) fn add_counters(&mut self, counter_type: CounterType, n: u32, timestamp: Timestamp) {
         let entry = self
             .counters
+            .0
             .entry(counter_type)
             .or_insert(CounterStack { count: 0, timestamp });
         // No rule caps a count, but the type does.
@@ -331,16 +452,24 @@ impl PermanentState {
     }
 
     /// Remove up to `n` counters of the given type. Returns the number actually removed.
-    pub fn remove_counters(&mut self, counter_type: CounterType, n: u32) -> u32 {
-        let Some(entry) = self.counters.get_mut(&counter_type) else {
+    pub(in crate::state) fn remove_counters(&mut self, counter_type: CounterType, n: u32) -> u32 {
+        let Some(entry) = self.counters.0.get_mut(&counter_type) else {
             return 0;
         };
         let removed = entry.count.min(n);
         entry.count -= removed;
         if entry.count == 0 {
-            self.counters.remove(&counter_type);
+            self.counters.0.remove(&counter_type);
         }
         removed
+    }
+
+    /// Whether it carries a counter that generates a replacement effect (CR
+    /// 122.1c/d/h), which is what files it in
+    /// `GameState::replacement_counter_holders`.
+    pub fn holds_a_replacement_counter(&self) -> bool {
+        // ORDER-FREE: whether any does.
+        self.counters.keys().any(|kind| kind.makes_a_replacement())
     }
 
     /// Returns the number of counters of the given type (0 if none).

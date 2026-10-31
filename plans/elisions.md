@@ -36,8 +36,7 @@ of zero, a division of nothing. And a cheaper route that reads everything its
 answer depends on: `next_ready` `engine/layers/board.rs:1636`'s key-first
 application reads the head's dependencies, `compute_non_member_recorded`
 `engine/layers/compute.rs:369` exits only when no CDA and no noted row reaches
-the object, and `any_replacement_counter` `engine/replacement/gather.rs:1018`
-is computed, not cached.
+the object.
 
 ## 2. Forced prompts
 
@@ -132,7 +131,7 @@ takes each gate's printed leg away and sees the panic
 
 | What is skipped | Where | The claim, and what it depends on | What checks it |
 |---|---|---|---|
-| looking at every permanent for a replacement effect | `gather` `engine/replacement/gather.rs:203`; the gate at `engine/replacement/gather.rs:292` | the three legs; counters that make replacement effects (shield, stun, finality) are found directly (`any_replacement_counter`), and the commander rule (CR 903.9b) and the entering object are asked before the gate | its audit: `gather_sweeping` `engine/replacement/gather.rs:221` with the gate open, every off-battlefield object asked with no printed precheck |
+| looking at every permanent for a replacement effect | `gather` `engine/replacement/gather.rs:178`; the gate at `engine/replacement/gather.rs:284` | the three legs, each by the kind of action proposed (`battlefield_candidates`, `named_replacement_carriers`); counters that make replacement effects (shield, stun, finality) through `replacement_counter_holders`, kept by the counters' only writers in `state/`, and the commander rule (CR 903.9b) and the entering object are asked before the gate | its audit: `gather_sweeping` `engine/replacement/gather.rs:196` with the gate open, every permanent and every off-battlefield object asked with no printed precheck; and in a debug build, at every gather, that every permanent holding a replacement counter is in the index (`replacement_counter_holders_cover_the_board`) |
 | looking at every permanent for a "can't" | `prohibition` `engine/restriction/predicate.rs:97`; the gate at `engine/restriction/predicate.rs:133` | the three legs; keywords that forbid things are asked before the gate | its audit: `prohibition_sweeping` `engine/restriction/predicate.rs:115` with the gate open |
 | looking at every permanent for a cost increase or reduction | `cost_modifications_for` `engine/cost_determination/gather.rs:57` | the three legs, and the spell's own printed card (`prints_cost_ability`) | its audit: `cost_modifications_sweeping` `engine/cost_determination/gather.rs:69` over every permanent |
 | looking at every object for a triggered ability an event triggers | `detect` `engine/triggers/dispatch.rs:735`; `check_state_triggers` `engine/triggers/state.rs:53`; `count_additional_triggers` `engine/triggers/dispatch.rs:1530` | the three legs, the lists of objects outside the battlefield with triggered abilities, the objects that just arrived, and a snapshot of every ability list taken only when an event moves an object that had one (`LookBackSnapshot`) | TR-1b's audit, `audit_dispatch` `engine/triggers/audit.rs:92`: each dispatch answered again with every shortcut off (`triggers-architecture.md` §4.10). It shares the matching loop, so it checks the gate and the candidates and not the loop |

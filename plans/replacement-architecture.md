@@ -1547,16 +1547,22 @@ prompts.
 Five sources, and the pipeline gathers from all five. Getting this list wrong is
 the failure mode that shows up as a card silently doing nothing:
 
-1. **Static abilities of permanents.** Discovered by sweeping
-   `battlefield_ids_ordered()` and reading each object's **effective** ability
-   list (`oracle::characteristics::get_effective_abilities`). Not a registry
+1. **Static abilities of permanents.** Discovered by reading each candidate
+   permanent's **effective** ability list
+   (`oracle::characteristics::get_effective_abilities`). Not a registry
    scan. This is not a shortcut — it is what makes Humility and Blood Moon
    strip a replacement ability for free, and it is CR 614.4's "must exist before
-   the event" asked at the one instant that matters.
+   the event" asked at the one instant that matters. **The candidates are found
+   by the kind of action proposed** (the item 6 audit's close, 2026-10-30, the
+   trigger dispatcher's shape): the printed sources filed under that kind, the
+   objects a named grant or copy row puts an ability on whose kinds hold it,
+   and the holders of a replacement counter, each once, oldest first
+   (`battlefield_candidates`). A `Filter` row reaching the battlefield, and
+   the audit, still ask every permanent.
 2. **Static abilities functioning in other zones** (CR 113.6). The same read
    off a different candidate list — **RF, 2026-09-16** (§9): the objects
    whose printed ability functions where they are
-   (`GameState::zone_replacement_ability_sources`), plus the zones a Layer 6
+   (`GameState::off_battlefield_replacement_ability_sources`), plus the zones a Layer 6
    grant or a copy row can reach, in CR 613.7d timestamp order, each ability
    asked `zone_function::functions_in` of the zone its object is in. Not a
    walk of the zones: a library is ~60 objects a seat and a gather runs
@@ -1571,12 +1577,56 @@ the failure mode that shows up as a card silently doing nothing:
    under *shield* separates the three things that word names).
 5. **Counters.** CR 122.1c (shield), 122.1d (stun), 122.1h (finality). These
    come from the *counter*, not from any ability — nothing on the card says so.
-   Synthesized during the sweep from `PermanentState.counters`.
+   Synthesized during the sweep from `PermanentState.counters`, for the
+   permanents in `GameState::replacement_counter_holders` (since the item 6
+   audit's close; it was a scan of the battlefield on every gather).
 
 Source 5 is why Phase RB can ship a working pipeline with **zero new card-text
 machinery**: three counter types, 164 printed cards, and they exercise untap
 replacement, destroy replacement, damage prevention, and zone-change replacement
 between them.
+
+#### The candidates by kind — four decisions (the item 6 audit's close, 2026-10-30)
+
+Its design note was `plans/handoffs/readiness-close.md`, deleted at the close
+(`git show 7a2c8ae5:plans/handoffs/readiness-close.md`); the census behind it is `plans/references/replacement-kinds-census.py`, which
+puts each Commander-legal card in a family by the clause its replacement
+watches. **Its output is the per-family table**, re-derived by running it
+(`--names` lists each family's cards); the facts the decisions rest on are
+below, and `backlog.md` §2.5 holds the families no `GameAction` carries yet.
+
+1. **A kind per `GameAction` variant, and a mask of them**: `GameActionKind`,
+   exhaustive over the proposals, and `GameActionKindMask`, built as
+   `EventKindMask` is, beside `GameAction` in `engine/actions.rs`.
+   `EventPattern::action_kinds` names the kinds each arm watches, reading a
+   zone change's `from` and `to` (a pattern that ends in a graveyard is never
+   asked at an entry). **A def that affects only its own object leaves its
+   own entry out** (`ReplacementDef::action_kinds_in_place`): CR 614.12 reads
+   that entry off the object as it enters (source 1a), and an object already
+   somewhere is never the one entering (CR 400.7). So the 1,587 cards whose
+   every replacement is their own entry, each tapland among them, are filed
+   nowhere, and a board whose only sources they are passes no gate.
+2. **One table**: `pattern_watches` asks the kinds before its match refines,
+   so the gate and the matcher cannot disagree, and a "can't"
+   (`Restriction::Event`, the same patterns) obeys the same table.
+3. **The named rows by kind**: `RegistryScopeSummary::named_unattributed_replacement_kinds`,
+   as the dispatcher's `named_unattributed_trigger_kinds`. A named row's
+   objects are read, on both legs, only for a proposal of a kind its
+   abilities answer (`named_replacement_carriers`).
+4. **The holders of a replacement counter as an index**, kept by the
+   counters' only writers: `PermanentState.counters` is private to `state/`,
+   read through `PermanentState::counters`, and a `Counters` has no method
+   that changes it, so a counter write anywhere else does not compile. A
+   debug build checks the index against a scan at every gather. The scenario
+   writer, which names every field by its growth contract, names this one
+   through `PermanentFields`, a borrowed view `state/` builds. **The writes
+   are a counter registry's write side** (the owner, at the design stop:
+   "(a) now with the flexibility to upgrade into (b)"): the store itself is
+   `layers-combat-and-counters`' to decide, with counters off the
+   battlefield (`codebase-state.md` item 23) and named counters, and the
+   index becomes the registry's own then. Reads go through the accessor on
+   the permanent, so the store's move changes them where the read API it
+   picks takes an id instead.
 
 ### 3.4 `ReplacementEffectRegistry`
 
@@ -3969,7 +4019,7 @@ the PR refused, the pieces measured, and the A/B. Trace page:
 `plans/traces/rf-a-source-off-the-battlefield.html`.*
 
 **Shipped:** the read leg for §3.3's source 2 —
-`GameState::zone_replacement_ability_sources`, a map the registration doors
+`GameState::off_battlefield_replacement_ability_sources`, a map the registration doors
 keep (`arrive_in_zone`, `place_on_battlefield`, and the new `create_in_zone`
 for a card created in a zone) from each object off the battlefield to its
 printed replacement defs, swept after the battlefield in CR 613.7d timestamp

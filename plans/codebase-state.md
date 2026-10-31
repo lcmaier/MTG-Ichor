@@ -17,7 +17,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), a permanent can enter as a copy (CV-2a, 2026-09-28), and an entry copy makes CR 707.9's exceptions (CV-2b, 2026-09-29).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held in `PermanentState::entered_as` (RG) and loyalty a copiable value; `CopyException`, one arm per sub-rule of CR 707.9, made on the captured values (707.9a–d) and on the entry (707.9e–f, `engine/replacement/entry_copy.rs`), with Spark Double (§4.1a). A copy may last until the end of the game (CV-1b, 2026-10-06), since a move now ends every reference to the object that moved (CR 400.7, main item 10), with Cryptoplasm. Still ahead: `token-copies`–`merging-and-meld`, at the places `roadmap-v2.md`'s "From triggers to v0.5" gives them; `merging-and-meld` after v0.5, its shape designed before the decks by `card-and-object-model`.
 - **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; TR-1 review theme C, 2026-09-22 — the trigger dispatcher's, per ability rather than per object; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on `face-down-and-morph`. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
-- **What is next on the spine:** the item 6 audit's readiness, its last two PRs (`plans/handoffs/item-6-audit.md`), then `card-layer-cleanup` and the rest of the route to v0.5, Tarkir: Dragonstorm Commander's five decks at one table ("From triggers to v0.5": `CLAUDE.md`'s critical path; `roadmap-v2.md` §3a has each step's why). The audit's record is written as a heading below when its handoff goes.
+- **What is next on the spine:** `card-layer-cleanup`, then the rest of the route to v0.5, Tarkir: Dragonstorm Commander's five decks at one table ("From triggers to v0.5": `CLAUDE.md`'s critical path; `roadmap-v2.md` §3a has each step's why). The item 6 audit closed 2026-10-30; its record is the heading "Was critical-path item 6 done, and what sits before `information-model-design`? — audited 2026-10-30" below.
 - **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding, which the board counts. Five items are reachable and wrong today at the item 6 audit's close-out (59, 204, 207, 211 and 297), each slotted, none unstated. Each target system (Commander, Phase 8's breadth) has a subsection to read before its first ticket.
 - **The architecture docs own their subsystems**, each with its type shapes, phase codes and findings; `CLAUDE.md`'s authority table lists them and `plans/engine-map.md` follows one event through all of them. A subsequent session executes from those, never from this summary.
 ---
@@ -1226,35 +1226,16 @@ registered card returns an object.
 
 ### Found by the theme D+F+H pass (2026-08-30)
 
-22. **`gather`'s counter fast path is a full battlefield scan, and it stays one
-    until CR 704.5q joins the chokepoint (`rb-review.md` D2).**
-    `any_replacement_counter` walks every `PermanentState` on **every
-    proposed action**, checking three counter kinds. Cheap at 15 permanents and
-    it has never shown up in a profile, but it is the one part of the fast path
-    that is not O(1). The review's correction is right and was recorded in the
-    code: the old comment defended the scan by saying a cache would drift,
-    which is true of a *count* and false of a **set** maintained the way
-    `replacement_ability_sources` is. **What actually blocks the set is that
-    counters have three mutation sites, not two** —
-    `GameState::add_counters`, `perform_action`'s `RemoveCounters` arm, and CR
-    704.5q's +1/+1 / -1/-1 annihilation, which writes `PermanentState`
-    directly (item 6). A set maintained at a chokepoint that does not exist is
-    exactly the drift, and it reads as a card silently doing nothing.
-    **Sized:** a `HashSet<ObjectId>` beside `replacement_ability_sources`,
-    inserted in `add_counters` and re-checked on removal — about 15 lines, and
-    it becomes *sound* the day item 6 routes 704.5q through `execute_actions`.
-    **Measure first** (`fuzz_games --games 200 --seed 12345` against the
-    13.04 ms/game RB baseline); do not pay for it before the pool grows.
-
-    **Reachability (2026-09-03):** reachable — not wrong; perf only.
-    `any_replacement_counter` (`gather.rs:630`) runs on every proposed action of
-    every game and has measured flat at pool size.
-    **Updated 2026-10-17 (TR-5b):** CR 704.5q goes through the
-    `RemoveCounters` arm now (item 6, closed), so a set is sound kept at the
-    three writers left: `GameState::add_counters`, the `RemoveCounters` arm
-    and an entry's own counters (`make_permanent`).
-    **Slotted:** Phase 10's profile-driven performance, measured before it is
-    paid for.
+22. **~~`gather`'s counter fast path is a full battlefield scan, and it stays one
+    until CR 704.5q joins the chokepoint (`rb-review.md` D2).~~ — ✅ CLOSED
+    2026-10-30 (PR #300, `audit/readiness-close`), with item 356.** — archived.
+    `GameState::replacement_counter_holders` is kept by the counters' only
+    writers, all in `state/`: `PermanentState.counters` is private to
+    `state/` and a `Counters` has no method that changes it, so a counter
+    write elsewhere does not compile, and a debug build checks the index
+    against a scan at every gather.
+    **Reachability (2026-10-30):** closed — PR #300.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 22".
 
 23. **Counters cannot exist on an object that is not on the battlefield, and
     three separate rules want them to (`rb-review.md` F1).** The map lives on
@@ -2155,6 +2136,19 @@ section never asked.
     (`Game::resume_turn_at_priority`); what it adds is a round that can start
     at a seat other than the active player.
 
+    **Extended 2026-10-30 over item 6's state (the item 6 audit's readiness,
+    PR #300, `3ad11939`).** A branch's log can match while its state does not,
+    so each branch's end state is now compared with the original's whole
+    (`test_support::replay_outcome`): every field but the ones a faithful
+    replay may differ in that are no part of the game, the diagnostics, the
+    layer memo a resumed branch fills again, and the instruments' handles,
+    the event recorder's naming its branch. A
+    fourth gate forks while a delayed trigger or a return waits, which none of
+    the three boards ever did (seed 38 on `stress` at four seats, seed 52 on
+    `performance` at two). Broken on purpose two ways (a draw from the state's
+    stream at resume; the waiting returns cleared at resume), it fails 78 and
+    13 branches whose logs all match; the sweep reads 0 of 13,174 diverging.
+
     **Reachability (2026-09-16):** closed for round starts — asserted every
     run; reachable for the rest, item 140.
 
@@ -2227,6 +2221,12 @@ section never asked.
     `cant-cast-play-or-activate`.
     **Slotted:** `cant-cast-play-or-activate`, whose first cheap or colorless restriction card opens
     the sweep: `gather`'s per-permanent gate at `predicate.rs`.
+    **Updated 2026-10-30 (item 356):** `gather` now files its printed sources
+    by the kind of action they watch (`GameActionKindMask`) and asks only
+    those filed under the proposal's kind. A "can't" event restriction
+    (`Restriction::Event`) reads the same patterns through the same
+    `pattern_watches`, so `restriction_ability_sources` could be filed the same
+    way, beside the five-line gate; the size stays with this slot.
 
 45. **Engine cost is now a fixture, and it found two determinism violations the
     old rule could not see (added 2026-09-01).** `state/diagnostics.rs` counts
@@ -3738,6 +3738,46 @@ so it is a mechanic the surface cannot express and not debt. Trace page:
      active player's card first (`triggers-architecture.md` §6.6).
      **Reachability (2026-09-24):** closed — TR-2a, `0e5f34a`.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 122".
+
+### Was critical-path item 6 done, and what sits before `information-model-design`? — audited 2026-10-30
+
+Critical-path item 6's close audit, A6e, the second run of
+`spine-phase-audit.md`. Planned as `plans/handoffs/item-6-audit.md` (PR
+#270), run between 2026-10-22 and 2026-10-30, and closed by PR #300, which
+deleted it; its last text is `git show 7a2c8ae5:plans/handoffs/item-6-audit.md`.
+Pointers, not prose; `spine-phase-audit.md`'s "The runs" names what the next
+run adds.
+
+**Yes, with a "not yet" list, and the list is the CR 603 row's.** What sits
+before `information-model-design` is the route `route-review` set (#298),
+`roadmap-v2.md`'s "From triggers to v0.5": `card-layer-cleanup`,
+`pausing-at-a-decision`'s design, `modes-plus-choice-kinds`,
+`linked-abilities` and `resolution-recipients-and-amounts`.
+
+- **Discovery (#271):** a read-only workflow wrote the work-lists for passes
+  1, 2, 3 and 5.
+- **Pass 1, the close-out (#272):** items 297–299 filed, 53 verdicts
+  re-dated, items 96, 197 and 217 fixed, `owed` clean; the TL;DR, the CR 603
+  row and `triggers-architecture.md#18-the-track-in-hindsight--written-2026-10-22-at-the-item-6-audit`.
+- **Pass 2, the eviction (#273):** `triggers-architecture.md` 4,736 → 3,853
+  lines, to `plans/archive/triggers-architecture-landed.md`.
+- **Pass 3, hygiene (#274), and the cleanup it scheduled (#283–#291, #296;
+  #297 closed unmerged):** items 301–315 filed; the cleanup's plan and its
+  eight themed PRs, each item's **Slotted:** line naming its PR.
+- **The card-homed triage (#280):** 51 items dispositioned, 31 builds into
+  the cleanup.
+- **Pass 5, the docs audit, A6h (#275–#279):** every architecture doc read
+  against the tree; `plans/elisions.md` (item 185).
+- **Pass 5c, names for the phases ahead (#282):**
+  `engineering-practices.md#naming-a-phase`.
+- **Pass 4, readiness (#299, #300):** the ratchet at item 6's close, worse
+  per decision than #225's tree with the reason written (item 352); floors 2
+  and 3; the token board, failing floor 1 from 50 a seat (item 354); items
+  352–357 filed, and 22, 352 and 356 closed by #300 (item 138 has the
+  post-fix reading: 15,180 loaded, the gather 7.5% of instructions from
+  17.2%); item 41's fork test over item 6's state; item 142 reconciled; k
+  0.100 (`fuzz_games --observe`).
+- **Pass 6, scheduling:** taken by `route-review` (#298).
 
 ### Is the trigger code ready for TR-4–TR-7? — audited 2026-10-08
 
@@ -6238,9 +6278,31 @@ Commander-scale board closes item 69.
 
      Lever 7, the allocator, is not an instruction row; lever 8's log
      window is built (item 42); `random_deck`'s 2.9% is the harness's.
+
+     **Re-read 2026-10-30 after items 352 and 356 (PR #300)**, on an idle
+     machine, five rounds interleaved with #299's merge (`b5028f30`), the
+     Commander board, 437 decisions a game at the agent:
+
+     | | µs / decision | one thread, by CPU · by the wall | 16-thread speed-up | loaded |
+     |---|---:|---:|---:|---:|
+     | `b5028f30` | 62.8 | 15,920 · 15,200 | 7.01× | 13,330 |
+     | PR #300 | 54.6 | 18,320 · 17,410 | 6.97× | **15,180** |
+     | token board, 50 a seat, `b5028f30` | 126.3 | — · 7,510 | 7.49× | 7,030 |
+     | token board, 50 a seat, PR #300 | 109.0 | — · 8,640 | 7.26× | 7,840 |
+
+     The token board at 1,000 games, three rounds, where 200 left the 16-thread
+     run start-up-bound. #299's 11,900 was read with MTG Arena holding 1.5
+     cores; `b5028f30`'s 13,330 here is that tree on an idle machine. The
+     budget's board reads 0.7516 M → 0.6392 M instructions a decision
+     (−14.95%). **The levers re-ranked**, inclusive on that board: the
+     state-based check 29.6%; the priority candidates 22.0%, under them
+     `activatable_abilities_with` 11.2%; `battlefield_ordered` 10.9%, its sort
+     6.8% of it (lever 6) and the regrowth gone; **the replacement gather
+     7.5%, from 17.2%**; `finish_grow` 5.9%, from 13.5%. The token board
+     still fails floor 1 at 50 a seat (item 354).
      **Slotted:** Phase 10, profile-driven performance: the levers above
-     not yet pulled, item 352 apart; each spine close's readiness pass
-     reads the ratchet again (`spine-phase-audit.md`).
+     not yet pulled; each spine close's readiness pass reads the ratchet
+     again (`spine-phase-audit.md`).
 
 139. **~~A retry re-prompt offers a list computed before the rejected action
      changed the board~~ ✅ CLOSED 2026-09-16 (A4h) — the enumeration moved
@@ -6489,13 +6551,27 @@ Commander-scale board closes item 69.
      The engine's real invariant surface is the 51 `debug_assert`s, and a
      debug fuzz run is the only thing that exercises them.
 
-     **Reachability (2026-09-15):** nothing owed — a record and its
+     **Re-read 2026-10-30 at item 6's close (PR #300).** A scout read 79,898
+     lines and 76 sites against this baseline's 44,342 and 60 without
+     checking that both counted alike. They did: the script, unchanged since
+     `c53e4b81`, reproduces both at their trees, so the gap is growth plus a
+     blind spot both runs shared, a site inside `#[cfg(debug_assertions)]`
+     code or a `const` item counted as a release panic. With debug-only code
+     in its own column (`514fc27a`): **60 sites in 44,314 engine lines on
+     2026-09-15, and 71 in 81,519 now**, the surface up 18% where the engine
+     grew 84%. Today's 71: 27 the provider contract, 33 guarded invariants
+     (each one line after the check that makes it so), 4 lock poisoning, 2
+     construction guards, 2 audit-only, 2 a table's `Index`, 1 a caller's
+     contract. None is card-reachable by inspection, and the audited
+     4,000-game smoke at seed 777 reached none.
+
+     **Reachability (2026-10-30):** nothing owed — a record and its
      instrument; re-run the script at each spine close, and a surface that
      grows faster than the engine is the finding.
 
      **Sized:** none.
-     **Slotted:** none — a record of the 2026-09-15 panic-surface baseline,
-     which `plans/panic_surface.py` re-reads at item 6's close audit (A6e).
+     **Slotted:** none — a record, re-read by `plans/panic_surface.py` at
+     each spine close (`spine-phase-audit.md`).
 
 143. **The clone at Commander scale, and memory per fork.** Handoff §4's
      table extended with the same method (2,000 clones a checkpoint, release,
@@ -10193,33 +10269,15 @@ folds and 345–347 the gaps the duplicates hid.
 The ratchet's reading at item 6's close and the three floors, with a token
 board (`fuzz-record.md`, the block of this date; items 138 and 143).
 
-352. **The battlefield's ordered lists regrow on every call.** CL-1
-     (`0bb30e2d`, 2026-10-21) made the battlefield an `ObjectTable`, whose
-     `iter()` is a `filter_map` and `flat_map` chain over the chunks, so its
-     size hint's lower bound is 0, though the table keeps its `len`. Every
-     `collect` from it grows by doubling: `battlefield_ordered`,
-     `battlefield_ids_ordered` and each caller collecting the table directly.
-     The map it replaced reported its length. On the 200-game Commander board
-     `finish_grow` is 13.5% of all instructions; the two ordered collects are
-     9.4% of them, reached mostly from the state-based check (7.7%, 851,000
-     calls) and `activatable_abilities_with` (4.4%). At #225's tree regrowth
-     was 31,000 instructions a decision; at item 6's close it is 93,000.
-     **A throwaway arm prices the fix**: the same chain with the table's
-     length as its size hint reads 6.33% fewer instructions on the budget's
-     board (0.7515 M → 0.7040 M a decision, every counter identical) and 7.2%
-     less CPU in a three-round sitting (30.93 → 28.70 ms a game). That is
-     most of what the ratchet lost per decision since #225 (item 138's
-     reading of this date).
-     **Reachability (2026-10-29):** reachable — not wrong; a cost, on every
-     game.
-     **Sized:** ~25 lines: an iterator on `ObjectTable` that counts down from
-     `len` and reports it, `ExactSizeIterator` too, so `keys()`, `values()`
-     and every collect inherit it; no caller changes. Answer-preserving, so
-     its arm is `IDENTICAL` on every gameplay and cost row.
-     **Slotted:** A6e, readiness's second PR, as a small fix (an audit ships
-     docs and small fixes, `engineering-practices.md#the-spine-phase-audit`):
-     it is the ratchet's own regression, read before `card-layer-cleanup`
-     moves the tree.
+352. **~~The battlefield's ordered lists regrow on every call.~~ — ✅ CLOSED
+     2026-10-30 (PR #300, `audit/readiness-close`).** — archived.
+     `ObjectTable`'s walk counts its length down and reports it, and is an
+     `ExactSizeIterator` (`Counted`, `aa48651c`), so every collect from the
+     table allocates once. With item 356 the close-out read 0.7516 M →
+     0.6392 M instructions a decision on the budget's board (−14.95%), every
+     gameplay row identical.
+     **Reachability (2026-10-30):** closed — PR #300.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 352".
 
 353. **A target enumeration formats the reason for every candidate it
      rejects.** `enumerate_legal_selections_upto` (`oracle/legality.rs`)
@@ -10272,6 +10330,10 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      layer-walk row), and the timestamp order kept per epoch (lever 6).
      Either is read off the effective ability lists, so its invalidation is
      the layer memo's epoch; roughly 150–300 lines each.
+     **Re-read 2026-10-30 after items 352 and 356 (PR #300):** 109.0 µs a
+     decision at 50 a seat and 7,840 loaded, against 126.3 µs and 7,030 for
+     #299's merge on the same idle machine (item 138's table). Still under
+     the floor; the two parts left are the ones this entry sizes.
      **Slotted:** Phase 10, profile-driven performance, with item 138's
      levers re-ranked on both boards (2026-10-29).
 
@@ -10296,46 +10358,18 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      ids, so its design decides between the shortcut alone and the second
      level beside it, against item 264's board.
 
-356. **The replacement gather visits every permanent when only its printed
-     sources can answer.** `gather_sweeping` (`engine/replacement/gather.rs`)
-     walks the whole battlefield in timestamp order on every proposed event,
-     and for each permanent asks whether it is in
-     `replacement_ability_sources`, the permanents that printed a
-     replacement ability, and whether its counters make replacements (CR
-     122.1c's shield counter). A permanent can answer by a third route only
-     through a grant or a copy of a replacement ability, which the
-     continuous-effects summary already names (`unattributed_replacement_zones`
-     for a filter's zones, `any_named_unattributed_replacement` for named
-     objects), and those legs keep today's whole walk. Without them, and with
-     no replacement counter in play, only the printed sources can answer, so
-     the walk can be over that set in timestamp order. Split from item 354
-     at #299's review.
-     **A throwaway arm prices it**: that walk, about 8 lines, plays every
-     game and cost row identically on `performance` and `stress` at
-     Commander scale and on the 50-a-seat token board, an audited 100-game
-     `stress` run is clean, and it reads 5.0% less CPU on the Commander board
-     (30.07 → 28.58 ms a game) and 11.2% less on the token board (25.82 →
-     22.93), three interleaved rounds.
-     **Reachability (2026-10-29):** reachable — not wrong; a cost, on every
-     game whose board has a printed replacement source.
-     **The shape is the trigger dispatcher's, not the probe's switch** (the
-     owner, #299's review: the probe is all-or-nothing, and one named grant
-     anywhere or one shield counter puts every proposal back on the whole
-     walk). The dispatcher already finds its candidates leg by leg:
-     `trigger_sources` files each printed source under the kinds of event it
-     reads and `battlefield_readers` asks the file for the window's kinds,
-     `named_trigger_carriers` reads the objects a named grant or copy row
-     puts an ability on, and only a row over a filter walks the zones it
-     names. The gather has the second leg for the zones off the battlefield
-     already, and none of the first.
-     **Sized:** ~80–150 lines, answer-preserving: `replacement_ability_sources`
-     filed under the kinds of `GameAction` its printed patterns watch, read
-     by the proposal's kind; the named rows' objects on the battlefield
-     leg too; the permanents holding a replacement counter filed where
-     counters change; a filter row's zones walked as today.
-     **Slotted:** A6e, readiness's second PR, beside item 352, as a small fix
-     (`engineering-practices.md#the-spine-phase-audit`): both narrow the same
-     sweep and share one A/B.
+356. **~~The replacement gather visits every permanent when only its printed
+     sources can answer.~~ — ✅ CLOSED 2026-10-30 (PR #300,
+     `audit/readiness-close`).** — archived. The gather finds its candidates
+     by the kind of action proposed, the dispatcher's shape: printed sources
+     filed under `GameActionKind`s (a def that affects only its own entry
+     filed nowhere), the named rows' objects by kind, and the holders of a
+     replacement counter (item 22); four decisions in
+     `replacement-architecture.md#33-where-replacement-effects-come-from`.
+     Every gameplay row identical on both pools at two seats and four, and
+     the audited 1,000-game smoke clean.
+     **Reachability (2026-10-30):** closed — PR #300.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 356".
 
 357. **`ui/` holds three kinds of code under one name.** About 7,100 lines
      of code and 2,200 of tests (2026-10-30), more than `oracle` and `events`

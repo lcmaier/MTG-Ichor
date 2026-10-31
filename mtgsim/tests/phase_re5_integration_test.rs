@@ -460,7 +460,7 @@ fn an_entry_kind_halved_to_zero_leaves_the_mods() {
     put_on_battlefield(&mut game, your_creatures_enter_with_a_counter(), 1);
     let theirs = reanimate(&mut game, vanilla_creature(2, 2, &[]), 1);
     assert_eq!(count(&game, theirs, CounterType::PlusOnePlusOne), 0);
-    assert!(game.battlefield[&theirs].counters.is_empty(), "no kind at zero");
+    assert!(game.battlefield[&theirs].counters().is_empty(), "no kind at zero");
 
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, fixture_halver(), 0);

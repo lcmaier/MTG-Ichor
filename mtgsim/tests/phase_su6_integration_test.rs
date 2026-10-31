@@ -185,9 +185,7 @@ fn a_cda_and_counters_are_steps_of_the_objects_own() {
     let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
     put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
     put_in_graveyard(&mut game, mtgsim::test_support::lightning_bolt(), 1);
-    let timestamp = game.allocate_timestamp();
-    game.battlefield.get_mut(&goyf).expect("on the battlefield").add_counters(CounterType::PlusOnePlusOne, 2, timestamp);
-    game.bump_layer_epoch();
+    game.add_counters(goyf, CounterType::PlusOnePlusOne, 2);
     let explanation = explained(&game, goyf);
     assert_eq!(explanation.steps.len(), 2, "{:#?}", steps(&game, &explanation));
     assert!(matches!(explanation.steps[0].by, AppliedBy::Cda { .. }) && explanation.steps[0].layer == Layer::Layer7aCdaPT);
