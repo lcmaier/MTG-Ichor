@@ -28,7 +28,7 @@
 //! that needs one — §11 item 3, and the reason
 //! `ReplacementClass::SelfReplacement` currently has a step and no producer.
 
-use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::actions::{ActionContext, GameAction, GameActionKind};
 use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -792,6 +792,12 @@ pub(crate) fn pattern_watches(
     source: ObjectId,
     you: PlayerId,
 ) -> bool {
+    // The kinds first, the table the gather files its sources under: a pairing
+    // they leave out is dead here too, so the gate can never skip what this
+    // match would take.
+    if !pattern.action_kinds().contains(GameActionKind::of(action)) {
+        return false;
+    }
     match (pattern, action) {
         // CR 609.7's source and CR 510.2's combat flag, asked **now**: a source
         // that stopped matching yields no candidate, which is 609.7b's "isn't used

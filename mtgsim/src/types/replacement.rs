@@ -42,6 +42,7 @@ use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
 use crate::events::cause::{EventCause, StateBasedAction};
 use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
+use crate::engine::actions::{GameActionKind, GameActionKindMask};
 
 /// One replacement or prevention effect.
 ///
@@ -700,6 +701,45 @@ impl DestructionSourcePattern {
 }
 
 impl EventPattern {
+    /// The kinds of proposal this pattern can watch: the action arms
+    /// `pattern_watches` pairs it with, and the discriminant test that
+    /// function asks first. Exhaustive, so a new arm names its kinds.
+    pub fn action_kinds(&self) -> GameActionKindMask {
+        use GameActionKind as Kind;
+        let one = GameActionKindMask::of;
+        match self {
+            EventPattern::DealDamage { .. } => one(Kind::DealDamage),
+            // Entering is the zone change onto the battlefield (CR 614.1c), so a
+            // pattern whose destination admits it watches an entry too; no entry
+            // comes from the battlefield, which is where "leaves the battlefield"
+            // starts. Read off `to`, the 196 "dies or put into a graveyard"
+            // patterns are never asked at an entry.
+            EventPattern::ZoneChange { change, .. } => {
+                let enters = change.to.is_none_or(|to| to == Zone::Battlefield) && change.from != Some(Zone::Battlefield);
+                if enters { one(Kind::ZoneChange).with(Kind::EnterBattlefield) } else { one(Kind::ZoneChange) }
+            }
+            EventPattern::Untap => one(Kind::Untap),
+            EventPattern::Tap => one(Kind::Tap),
+            EventPattern::DrawCards { .. } => one(Kind::DrawCards),
+            EventPattern::DrawCard { .. } => one(Kind::DrawCard),
+            EventPattern::GainLife => one(Kind::GainLife),
+            EventPattern::LoseLife { .. } => one(Kind::LoseLife),
+            EventPattern::EnterBattlefield { .. } => one(Kind::EnterBattlefield),
+            EventPattern::Destroy { .. } => one(Kind::Destroy),
+            // CR 122.6's second door: counters a permanent enters with are put on it.
+            EventPattern::AddCounters { .. } => one(Kind::AddCounters).with(Kind::EnterBattlefield),
+            EventPattern::RemoveCounters { .. } => one(Kind::RemoveCounters),
+            EventPattern::BeginTurn => one(Kind::BeginTurn),
+            EventPattern::BeginPhase { .. } => one(Kind::BeginPhase),
+            EventPattern::BeginStep { .. } => one(Kind::BeginStep),
+            EventPattern::Scry => one(Kind::Scry),
+            EventPattern::PlayerLoses => one(Kind::PlayerLoses),
+            EventPattern::PlayerWins => one(Kind::PlayerWins),
+            EventPattern::CreateTokens { .. } => one(Kind::CreateTokens),
+            EventPattern::ProduceMana { .. } => one(Kind::ProduceMana),
+        }
+    }
+
     /// The source of damage CR 609.7a had a player choose, once a resolution
     /// has written it in: the one object a pattern names, by identity, so no
     /// move ends it (CR 400.7) and a permanent spell becoming the permanent
@@ -1993,6 +2033,22 @@ impl ReplacementDef {
             is_regeneration: false,
             exempt_from_614_5: false,
             optional: false,
+        }
+    }
+
+    /// The kinds of proposal this def can answer from an object already in a
+    /// zone: its pattern's kinds, less its own object's entry when it affects
+    /// only that object. That entry is read off the object as it enters (CR
+    /// 614.12, the gather's source 1a), and an object already somewhere is
+    /// never the one entering (CR 400.7). So "this land enters tapped" answers
+    /// nothing from where it sits, and its object is filed under no kind;
+    /// Mowu's "if one or more +1/+1 counters would be put on ~" keeps
+    /// `AddCounters`.
+    pub fn action_kinds_in_place(&self) -> GameActionKindMask {
+        let kinds = self.pattern.action_kinds();
+        match self.affected.objects {
+            crate::types::effects::ObjectSet::SourceOnly => kinds.without(GameActionKind::EnterBattlefield),
+            _ => kinds,
         }
     }
 
