@@ -299,14 +299,14 @@ in its row, in A, B, the table after this one, or its architecture doc.
 | 12. **`rulings-for-every-card`** | §C | Every registered card's rulings tested before the decks add 373 more |
 | 13. **`tarkir-dragonstorm-decks`**: its gap census | below | Each of the 373 cards read against the tree, since the census misses parameters; what it finds is slotted to this row or the rows below by name |
 | 14. **`mana-ability-costs`**, then **`any-color-plus-painlands-plus-signets`**, **`chosen-color-plus-could-produce`**, **`convoke-delve-improvise`**, **`hybrid-and-phyrexian-payment`** with `as-though-effects`'s payment half, and **`remaining-costs`** | `mana-architecture.md`, `cost-architecture.md` | Any-color mana alone is 62 `tdc` cards; `mana-ability-costs` widens the check the others extend (the owner, at #224's and #225's reviews) |
-| 15. **`casting-from-other-zones`**; **`token-copies`**, **`spell-copies`** | `permission-architecture.md`, `copy-effects-architecture.md` | 37, 10 and 9 `tdc` cards |
+| 15. **`casting-from-other-zones`**; **`double-faced-cards`**' transform half; **`token-copies`**, **`spell-copies`** | `permission-architecture.md`, `copy-effects-architecture.md` | 37, 10 and 9 `tdc` cards. No `tdc` card is double-faced, but token copies (CR 707.8a), spell copies (707.10g), face-down (712.15a) and a commander's color identity (903.4d) each have a rule for one, so one transforming card proves `card-and-object-model`'s faces before they build on them (the owner, 2026-10-31; the card is in `copy-effects-architecture.md`'s ordering) |
 | 16. The card model's three builds the decks need: split cards (from **`split-and-adventure-style-cards`**), face-down with manifest (from **`face-down-and-morph`**), and an Aura on a player (**`card-and-object-model`**) | `copy-effects-architecture.md`, below | Expansion // Explosion, Reality Shift and Curse of Opulence; morph, disguise and cloak are the rest of `face-down-and-morph`, after v0.5 |
 | 17. **The five decks** | `tarkir-dragonstorm-decks` | Each mechanic their cards need built from its whole CR section (the family rule, `engineering-practices.md#gaps-a-phase-finds`) |
 | 18. **`mana-payment-solver`** | `mana-architecture.md` | A person paying at a seat. **Milestone: v0.5** |
 
 **After v0.5, ordered at its close:** `pausing-at-a-decision`'s build with the
 AI harness; `mana-provenance`, then `ironworks-loop`; the card model's other
-builds (`double-faced-cards`, the rest of `split-and-adventure-style-cards`
+builds (`double-faced-cards`' modal half, the rest of `split-and-adventure-style-cards`
 and of `face-down-and-morph`, `merging-and-meld`); `loop-detection`;
 `text-changing-effects`; `breadth-features`; `partial-damage-redirection`;
 Phase 9's remainder; wider card work, its order chosen at v0.5's close; then
@@ -314,7 +314,7 @@ Phase 10, the GUI built for players, with `names-and-hygiene-sweeps` before
 release. **v1 is when Phase 10 is done** (the owner, 2026-10-29).
 
 **Only these bind:** `combat-restrictions`, then `cant-pay-costs`, then `combat-requirements`; `as-though-effects` after `combat-requirements`; `hybrid-and-phyrexian-payment` carries
-`as-though-effects`'s payment half; `card-and-object-model`'s design before any of the card model's builds, which frees face-down from waiting on `double-faced-cards`; `double-faced-cards`, then `merging-and-meld`;
+`as-though-effects`'s payment half; `card-and-object-model`'s design before any of the card model's builds, which frees face-down from waiting on `double-faced-cards`; `double-faced-cards`' transform half before `token-copies`, `spell-copies` and face-down's manifest half; `double-faced-cards`, then `merging-and-meld`;
 `command-zone-casting` before `game-formats`; `information-model` after `information-model-design`; `mana-ability-costs` before the other mana rows; `card-layer-cleanup` before the decks' cards;
 `loop-detection` after `information-model`, `mana-provenance` and `merging-and-meld`.
 The rest of the order ranks each piece by what the decks need first and keeps a
