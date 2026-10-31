@@ -173,10 +173,12 @@ pub struct AbilityDef {
     /// reads it ([`Self::instances`]).
     ///
     /// Private, so nothing but this module writes it: [`Self::new`] reads it
-    /// off the effect it is given, and `CardDataBuilder::build` reads it
-    /// again on every def it reaches, after an author's word has wrapped the
-    /// effect (`authoring::functioning_in`). An ability built at run time has
-    /// its list from birth.
+    /// off the effect it is given, so an ability built at run time has its
+    /// list from birth, and `CardDataBuilder::build` reads it again on every
+    /// def it reaches. `effect` stays public, so a write to it keeps this
+    /// list right only by keeping the effect's instances; the one such write,
+    /// `authoring::functioning_in`'s wrap, does (CR 113.6b's zone statement
+    /// declares no target).
     instances: Vec<EffectRecipient>,
     /// CR 604.3 — this ability is a characteristic-defining ability.
     ///
@@ -210,10 +212,10 @@ pub struct AbilityDef {
 }
 
 /// Written out rather than derived, as the card fingerprints' view
-/// (`tests/card_data_fingerprint_test.rs`): it prints what the derive printed
-/// before `card-layer-cleanup` reshaped the fields behind it, so the commit
-/// that reshapes them is checked against every card's value like any other.
-/// It goes back to a derive when the fingerprints go.
+/// (`tests/card_data_fingerprint_test.rs`): it prints an activated ability's
+/// kind, costs and restriction as three fields of the ability, the shape the
+/// fingerprints were recorded in, so a change of shape behind it changes no
+/// fingerprint. It goes back to a derive when the fingerprints go.
 impl std::fmt::Debug for AbilityDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let kind = match self.ability_type {

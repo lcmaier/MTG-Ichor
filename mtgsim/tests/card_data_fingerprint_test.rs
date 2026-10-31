@@ -1,5 +1,9 @@
-//! Every card the crate builds is the card it built when `card-layer-cleanup`
-//! began (`plans/handoffs/card-layer-cleanup.md`).
+//! Every card function under `cards` builds the card it built when
+//! `card-layer-cleanup` began: the registry's cards, and the card and token
+//! functions registered nowhere, listed below as `classify_cards.py` lists
+//! them (a function missing from the list goes unchecked). The cards a test
+//! writes for itself, in `test_support` or a test file, are checked by the
+//! tests that play them.
 //!
 //! The cleanup rebuilds every ability and instruction from shared words and
 //! moves every card file. Neither may change a card, and `CardData` compares

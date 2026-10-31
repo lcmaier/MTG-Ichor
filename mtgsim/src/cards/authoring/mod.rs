@@ -16,7 +16,8 @@
 //! One file per subsystem whose vocabulary has landed: [`abilities`], the
 //! kinds of ability every card is written in, and [`triggers`], CR 603's
 //! words. A word sits in its file by the CR rule it names, not by the card
-//! that brought it (`plans/handoffs/card-layer-cleanup.md`, decision 1).
+//! that brought it, so the file reads in the CR's order whichever card came
+//! first.
 
 pub mod abilities;
 pub mod triggers;

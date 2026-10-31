@@ -17,7 +17,6 @@ use crate::types::effects::{
 };
 use crate::types::history::CountIs;
 use crate::types::replacement::EntryCounters;
-
 use crate::types::card_types::CardType;
 use crate::types::triggers::{
     AttackOccurrence, BlockOccurrence, ObjectOrPlayerSubject, DamageRecipient, TargetedBy, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
