@@ -487,7 +487,7 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
 
 /// An option as a client labels it, one arm per kind of option and no
 /// wildcard. An activation is its object and the ability's own text:
-/// "Everywhere (#20) · {T}: Add {W}.".
+/// "Five-Color Land Fixture (#20) · {T}: Add {W}.".
 pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
     let n = |id: &ObjectId| named(game, *id);
     match option {
@@ -1282,7 +1282,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::cards::{fixtures, printings, tokens};
+    use crate::cards::{fixtures, printings};
     use crate::events::event::DepartedObject;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
@@ -1551,16 +1551,16 @@ mod tests {
             .collect()
     }
 
-    /// An activation is its object and the ability's own text: Everywhere's
-    /// five, a cost that sacrifices the source, a life payment, a sequence, and
-    /// an amount above one.
+    /// An activation is its object and the ability's own text: a five-color
+    /// land's five, a cost that sacrifices the source, a life payment, a
+    /// sequence, and an amount above one.
     #[test]
     fn an_activation_is_labeled_by_its_object_and_its_text() {
         use crate::test_support::{put_on_battlefield, setup_two_player_game};
 
         let mut game = setup_two_player_game();
         for (card, texts) in [
-            (tokens::everywhere(), vec!["{T}: Add {W}.", "{T}: Add {U}.", "{T}: Add {B}.", "{T}: Add {R}.", "{T}: Add {G}."]),
+            (fixtures::five_color_land_fixture(), vec!["{T}: Add {W}.", "{T}: Add {U}.", "{T}: Add {B}.", "{T}: Add {R}.", "{T}: Add {G}."]),
             (printings::mind_stone(), vec!["{T}: Add {C}.", "{1}, {T}, Sacrifice this artifact: Draw a card."]),
             (printings::yawgmoths_bargain(), vec!["Pay 1 life: Draw a card."]),
             (

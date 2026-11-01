@@ -23,10 +23,10 @@
 // All of these are policy, not payment law — the prompt still offers every
 // legal option and the engine still validates what comes back — and they
 // exist because an any-color mana base
-// (`cards::tokens::everywhere`) turns a uniform tap into a five-sided
-// die: land taps per spell cast read 7.66 uniform against 3.18 with the
-// policy (2026-09-03), and a failed payment rewinds with the lands still
-// tapped.
+// (`cards::fixtures::five_color_land_fixture`) turns a uniform tap into a
+// five-sided die: land taps per spell cast read 7.66 uniform against 3.18
+// with the policy (2026-09-03), and a failed payment rewinds with the lands
+// still tapped.
 //
 // Auto-tap as a *strategic* concern (which dual to tap, whether to save a
 // Cavern of Souls for an uncounterable creature later) is a future
@@ -461,7 +461,7 @@ impl DecisionProvider for RandomDecisionProvider {
 mod tests {
     use super::*;
     use crate::cards::printings::forest;
-    use crate::cards::tokens::everywhere;
+    use crate::cards::fixtures::five_color_land_fixture;
     use crate::oracle::mana_supply::ManaAbilityWindowOffer;
     use crate::test_support::{put_on_battlefield, setup_two_player_game};
     use crate::test_support::setup_two_player_game as setup_basic_game;
@@ -494,7 +494,7 @@ mod tests {
     #[test]
     fn mana_window_taps_for_the_pip_still_owed() {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, everywhere(), 0);
+        put_on_battlefield(&mut game, five_color_land_fixture(), 0);
         let (options, types) = window_options(&game);
         assert_eq!(options.len(), 5);
         for seed in 0..20u64 {
@@ -511,7 +511,7 @@ mod tests {
     fn mana_window_taps_the_least_flexible_source_first() {
         let mut game = setup_two_player_game();
         let forest = put_on_battlefield(&mut game, forest(), 0);
-        put_on_battlefield(&mut game, everywhere(), 0);
+        put_on_battlefield(&mut game, five_color_land_fixture(), 0);
         let (options, _) = window_options(&game);
         assert_eq!(options.len(), 6);
         for seed in 0..20u64 {
@@ -531,7 +531,7 @@ mod tests {
     #[test]
     fn mana_window_taps_anything_for_generic() {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, everywhere(), 0);
+        put_on_battlefield(&mut game, five_color_land_fixture(), 0);
         let (options, types) = window_options(&game);
         let mut seen = std::collections::HashSet::new();
         for seed in 0..40u64 {

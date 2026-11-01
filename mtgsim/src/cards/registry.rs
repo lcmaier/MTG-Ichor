@@ -10,7 +10,7 @@ use super::sets::{
     mkm, mmq, mom, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg, usg,
     vis, war, wth, wwk, zen, znr,
 };
-use super::tokens;
+
 
 /// The board an engine change is measured against — **representative, not
 /// frozen** (revised 2026-09-01).
@@ -125,7 +125,7 @@ const PERFORMANCE_POOL: [&str; 124] = [
     // `random_deck` fills every unassigned land slot with, so the pool cannot
     // build a deck without it, and every deck can pay for anything. The widest
     // board CR 305.7 has: Blood Moon strips five abilities here, not two.
-    "Everywhere",
+    "Five-Color Land Fixture",
     // Two engine paths, one card each. Thunder-Thrash Elder is an application
     // that *prompts and mutates* (CR 614.13), a rewrite that is not a pure
     // function of the event and a non-`EnterWith` member a CR 616.1 entry step
@@ -726,11 +726,11 @@ impl CardRegistry {
         registry.register("Bayou", lea::bayou);
         registry.register("Plateau", lea::plateau);
         registry.register("Tropical Island", lea::tropical_island);
-        // The eleventh mana-base land, and a token rather than a card: the
-        // registry's only source of every color, which is what lets
-        // `fuzz_games --require` stop seeding a deck's colors from the
-        // required card's.
-        registry.register("Everywhere", tokens::everywhere);
+        // The eleventh mana-base land, and a fixture: the registry's only
+        // source of every color, which is what lets `fuzz_games --require`
+        // stop seeding a deck's colors from the required card's. Everywhere,
+        // whose shape it has, is a token, which no deck holds.
+        registry.register("Five-Color Land Fixture", fixtures::five_color_land_fixture);
 
         // The first replacement effect with printed card text.
         registry.register("Kalitas, Traitor of Ghet", ogw::kalitas_traitor_of_ghet);

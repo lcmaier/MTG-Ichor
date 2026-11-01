@@ -7,7 +7,7 @@
   ],
   "created": "2026-09-17",
   "fetched": "2026-11-01",
-  "fixtures": ["Loyalty Probe", "Moonlace Fixture"],
+  "fixtures": ["Five-Color Land Fixture", "Loyalty Probe", "Moonlace Fixture"],
   "cards": {
     "Act of Treason": {
       "first_seen": "2026-09-17",
@@ -503,10 +503,6 @@
         {"n": 2, "published_at": "2004-12-01", "comment": "Upkeep-triggered abilities don't trigger, and \"activate only during your upkeep\" abilities can't be activated."},
         {"n": 3, "published_at": "2004-12-01", "comment": "Any triggered abilities that triggered during the untap step will go onto the stack at the start of the draw step."}
       ]
-    },
-    "Everywhere": {
-      "first_seen": "2026-09-17",
-      "rulings": []
     },
     "Exquisite Archangel": {
       "first_seen": "2026-09-17",

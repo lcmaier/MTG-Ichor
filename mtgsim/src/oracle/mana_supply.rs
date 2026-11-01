@@ -1202,7 +1202,7 @@ impl SplitSupply {
             }
             return;
         }
-        // One mana of any type in a set: a dual, Everywhere.
+        // One mana of any type in a set: a dual, a five-color land.
         if ways.iter().all(|way| way.iter().sum::<u64>() == 1) {
             let types = ways.iter().fold(ManaTypes::default(), |set, way| set.union(ManaTypes::of(way)));
             self.add_free(types, copies);
@@ -1330,9 +1330,9 @@ impl ChoiceSearch<'_> {
 
 /// How many copies of `ways[way]` can help pay `demand` beyond what the
 /// group's last way gives, which takes the copies left: when every way makes
-/// as much (one choice of type, as Everywheres under Mana Reflection are),
-/// enough of one asked type to pay its pips, since a copy past them pays only
-/// generic, as a copy of the last way does. Twenty such Everywheres are then
+/// as much (one choice of type, as five-color lands under Mana Reflection
+/// are), enough of one asked type to pay its pips, since a copy past them pays
+/// only generic, as a copy of the last way does. Twenty such lands are then
 /// a few choices a cost, not thousands. Ways of different sizes are every
 /// count, since a bigger way's copies pay more generic than the last's.
 fn useful_copies(ways: &[ManaBag], way: usize, demand: &ManaDemand) -> u64 {
@@ -1382,7 +1382,7 @@ mod tests {
         badlands, chainbreaker, citanul_hierophants, darksteel_myr, deep_water, doubling_cube, forest, grizzly_bears, island, krark_clan_ironworks,
         mana_reflection, march_of_the_machines, mind_stone, pale_moon, plains, sol_ring, tundra, wild_growth,
     };
-    use crate::cards::tokens::everywhere;
+    use crate::cards::fixtures::five_color_land_fixture;
     use crate::objects::card_data::{CardData, CardDataBuilder};
     use crate::test_support::{put_on_battlefield, put_on_battlefield_this_turn, setup_two_player_game, test_dp};
     use crate::types::card_types::CardType;
@@ -1409,12 +1409,12 @@ mod tests {
         ability.costs().iter().filter(|c| !matches!(c, Cost::Mana(_))).cloned().collect()
     }
 
-    /// One Everywhere is one mana of any color, not five sources: SU-7's
+    /// One five-color land is one mana of any color, not five sources: SU-7's
     /// review board offered Grizzly Bears' {1}{G} from it.
     #[test]
-    fn everywhere_is_one_mana_of_any_color() {
+    fn a_five_color_land_is_one_mana_of_any_color() {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, everywhere(), 0);
+        put_on_battlefield(&mut game, five_color_land_fixture(), 0);
         assert!(covers(&game, &cost(&[Green], 0)));
         assert!(covers(&game, &cost(&[Black], 0)));
         assert!(!covers(&game, &cost(&[Green], 1)), "one tap, one mana");
@@ -1443,12 +1443,12 @@ mod tests {
     }
 
     /// Mana Reflection doubles a tap into two of the one type it makes, so an
-    /// Everywhere under it is {W}{W} or {U}{U}, never {W}{U} (§3.3).
+    /// five-color land under it is {W}{W} or {U}{U}, never {W}{U} (§3.3).
     #[test]
     fn a_doubled_land_of_several_types_makes_one_type_twice() {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, mana_reflection(), 0);
-        put_on_battlefield(&mut game, everywhere(), 0);
+        put_on_battlefield(&mut game, five_color_land_fixture(), 0);
         assert!(covers(&game, &cost(&[White, White], 0)));
         assert!(covers(&game, &cost(&[], 2)));
         assert!(!covers(&game, &cost(&[White, Blue], 0)), "two of one type, not one of each");
@@ -1746,8 +1746,8 @@ mod tests {
     #[test]
     fn a_symbol_nothing_pays_is_refused() {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, everywhere(), 0);
-        put_on_battlefield(&mut game, everywhere(), 0);
+        put_on_battlefield(&mut game, five_color_land_fixture(), 0);
+        put_on_battlefield(&mut game, five_color_land_fixture(), 0);
         assert!(!covers(&game, &ManaCost::from_symbols(vec![ManaSymbol::Hybrid(White, Blue)])));
         assert!(!covers(&game, &ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(Red)])));
         assert!(covers(&game, &ManaCost::zero()));
@@ -1802,12 +1802,12 @@ mod tests {
 
         let mut game = setup_two_player_game();
         let land = put_on_battlefield(&mut game, plains(), 0);
-        put_on_battlefield(&mut game, everywhere(), 0);
+        put_on_battlefield(&mut game, five_color_land_fixture(), 0);
         let ironworks = put_on_battlefield(&mut game, krark_clan_ironworks(), 0);
         put_on_battlefield_this_turn(&mut game, citanul_hierophants(), 0);
         let offer = ManaAbilityWindowOffer::read(&game, 0);
         let options = offer.options(&game);
-        assert_eq!(options.len(), 7, "a Plains, Everywhere's five, Ironworks; not a creature this turn's");
+        assert_eq!(options.len(), 7, "a Plains, the five-color land's five, Ironworks; not a creature this turn's");
         assert_eq!(options[0].0, land, "timestamp order");
 
         game.battlefield.get_mut(&land).unwrap().tapped = true;
@@ -1867,7 +1867,7 @@ mod tests {
         boards.push(game);
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, tundra(), 0);
-        put_on_battlefield(&mut game, everywhere(), 0);
+        put_on_battlefield(&mut game, five_color_land_fixture(), 0);
         put_on_battlefield(&mut game, mana_reflection(), 0);
         resolve_first_ability(&mut game, deep_water());
         resolve_first_ability(&mut game, pale_moon());

@@ -16,10 +16,9 @@ use crate::types::mana::ManaType;
 /// {U}, {B}, {R}, or {G}.)
 ///
 /// (Scryfall, 2026-10-01.) **A token in the real game, not a card** — the one
-/// Overlord of the Hauntwoods creates. It is in the registry because it is the
-/// only source of every color, which is what let `fuzz_games --require` stop
-/// seeding a deck's colors from the required card's; real "add one mana of any
-/// color" is not expressible yet (`backlog.md` §2.19).
+/// Overlord of the Hauntwoods creates — so it is registered nowhere: the fuzz
+/// decks' source of every color is `fixtures::five_color_land_fixture`, its
+/// shape on a card a deck can hold.
 ///
 /// **Its land types are printed subtypes here, where Oracle now prints them as
 /// text.** On 2026-09-03 the type line carried the five types; Oracle since
@@ -30,9 +29,7 @@ use crate::types::mana::ManaType;
 /// derives an ability from a printed subtype.
 ///
 /// **It does not enter tapped.** "Create a *tapped* Everywhere token" is the
-/// Overlord's instruction, not the token's text, so there is no `EnterWith` —
-/// which is also what makes it a no-downside source where a tapland pushes
-/// every deck's curve back a turn.
+/// Overlord's instruction, not the token's text, so there is no `EnterWith`.
 pub fn everywhere() -> Arc<CardData> {
     CardDataBuilder::new("Everywhere")
         .card_type(CardType::Land)

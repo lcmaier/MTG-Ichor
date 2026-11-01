@@ -51,7 +51,7 @@ fn others_enter(rules_text: &'static str, condition: Condition, template: EnterM
 ///
 /// "Enters untapped" and CR 616.1's order between opposite statuses are the
 /// engine path RG opens; beside the pooled Idyllic Beachfront and Root Maze a
-/// random game reaches that prompt. With `Everywhere` in the pool a
+/// random game reaches that prompt. With the five-color land in the pool a
 /// `{1}{B}{G}{U}` card is castable in every deck.
 pub fn archelos_lagoon_mystic() -> Arc<CardData> {
     CardDataBuilder::new("Archelos, Lagoon Mystic")

@@ -12,7 +12,7 @@ use mtgsim::cards::printings::{
     badlands, chainbreaker, darksteel_colossus, doubling_cube, knight_of_meadowgrain, krark_clan_ironworks, mana_reflection, plains, sol_ring,
     thornweald_archer, wild_growth,
 };
-use mtgsim::cards::tokens::everywhere;
+use mtgsim::cards::fixtures::five_color_land_fixture;
 use mtgsim::oracle::mana_helpers::{activatable_abilities, can_cast};
 use mtgsim::state::game_state::{GameState, Phase, PhaseType};
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
@@ -41,13 +41,13 @@ fn sol_ring_beside_a_plains_pays_chainbreakers_three() {
     assert!(activatable_abilities(&game, 0).iter().any(|(source, _, _)| *source == breaker));
 }
 
-/// Mana Reflection doubles a tap: one Everywhere makes {W}{W}, which pays
-/// Knight of Meadowgrain.
+/// Mana Reflection doubles a tap: one five-color land makes {W}{W}, which
+/// pays Knight of Meadowgrain.
 #[test]
-fn mana_reflection_doubles_an_everywhere_into_two_white() {
+fn mana_reflection_doubles_a_five_color_land_into_two_white() {
     let mut game = main_phase();
     put_on_battlefield(&mut game, mana_reflection(), 0);
-    put_on_battlefield(&mut game, everywhere(), 0);
+    put_on_battlefield(&mut game, five_color_land_fixture(), 0);
     let knight = put_in_hand(&mut game, knight_of_meadowgrain(), 0);
     assert!(can_cast(&game, 0, knight).is_ok());
 }

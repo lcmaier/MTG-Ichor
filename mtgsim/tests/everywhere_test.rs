@@ -1,12 +1,13 @@
-//! Everywhere — the registry's five-color land — behaves as its text says.
+//! Everywhere, the token Overlord of the Hauntwoods creates, behaves as its
+//! text says.
 //!
 //! Three claims, each one a game can falsify: it taps for any one of the five
 //! colors and only once; it enters untapped, because "tapped" is Overlord of
 //! the Hauntwoods' creation instruction rather than the token's own text; and
 //! CR 305.7 strips all five printed abilities under Blood Moon exactly as it
-//! strips a dual's two. The last is the one that makes the land safe in the
-//! pool: Blood Moon is in `PERFORMANCE_POOL`, and a five-type land is the
-//! widest board CR 305.7's carve-out has had.
+//! strips a dual's two. The pool deals its shape as
+//! `fixtures::five_color_land_fixture`, beside Blood Moon in
+//! `PERFORMANCE_POOL`: the widest board CR 305.7's carve-out has had.
 
 use mtgsim::cards::printings::blood_moon;
 use mtgsim::cards::tokens::everywhere;
