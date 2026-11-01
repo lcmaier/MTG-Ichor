@@ -257,7 +257,7 @@ fn each_doubled_instance_makes_its_own_choice() {
     let healer = reanimate(&mut game, watcher("Hopeful", whenever(enters(TriggerSubject::ThisObject), may_gain)), 0);
     assert_eq!(waiting_from(&game, healer), 2);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: healer }, vec![0]);
+    dp.expect_take(ChoiceKind::ApplyOptionalEffect { source: healer });
     dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: healer }, Vec::new());
     resolve_all(&mut game, &dp);
     assert_eq!(life(&game, 0), before + 1, "one said yes and the other no");
@@ -355,7 +355,7 @@ fn a_do_this_only_once_trigger_doubled_acts_once() {
     reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
     assert_eq!(waiting_from(&game, grower), 2, "both trigger");
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: grower }, vec![0]);
+    dp.expect_take(ChoiceKind::ApplyOptionalEffect { source: grower });
     resolve_all(&mut game, &dp);
     assert_eq!(game.battlefield[&grower].counter_count(CounterType::PlusOnePlusOne), 1, "the second does nothing, and asks nothing");
 }

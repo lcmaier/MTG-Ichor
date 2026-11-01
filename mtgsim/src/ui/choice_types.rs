@@ -592,11 +592,18 @@ pub fn position_of(options: &[ChoiceOption], game: &GameState, chosen: &str, tak
         },
         None => (chosen, None),
     };
-    let mut equals = (0..options.len()).filter(|&i| options[i].as_logged(game) == words);
+    let equals = reading_as(options, game, words);
     match place {
-        Some(place) => equals.nth(place.checked_sub(1)?).filter(|i| !taken.contains(i)),
-        None => equals.find(|i| !taken.contains(i)),
+        Some(place) => equals.get(place.checked_sub(1)?).copied().filter(|i| !taken.contains(i)),
+        None => equals.into_iter().find(|i| !taken.contains(i)),
     }
+}
+
+/// Every place in `options` whose words are `words`, in the list's order: the
+/// options an answer naming those words could mean, which a test's script
+/// and [`position_of`] both compare by.
+pub fn reading_as(options: &[ChoiceOption], game: &GameState, words: &str) -> Vec<usize> {
+    (0..options.len()).filter(|&i| options[i].as_logged(game) == words).collect()
 }
 
 #[cfg(test)]
@@ -720,5 +727,52 @@ mod tests {
         seats.expect_split(damage.clone(), vec![(ChoiceOption::Object(bears), 3)]);
         let listed = [ChoiceOption::Object(wall), ChoiceOption::Object(bears)];
         seats.allocate(&game, 0, &ChoiceContext::new(damage), 3, &listed, &[0, 0], None);
+    }
+
+    /// Two options that read the same, as one object's two replacements do,
+    /// are told apart by their place among themselves, as the log writes
+    /// `(2 of 2)`, in a pick and in an order.
+    #[test]
+    fn a_script_names_options_that_read_alike_by_their_place() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
+        let twins = [ChoiceOption::Object(bears), ChoiceOption::Object(bears)];
+        let seats = ScriptedDecisionProvider::new();
+        let which = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+        seats.expect_choice_among_alike(which.clone(), vec![(ChoiceOption::Object(bears), 2)]);
+        let order = ChoiceKind::ScryOrder { source: None, bottom: false };
+        seats.expect_order_among_alike(order.clone(), vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(bears), 1)]);
+
+        assert_eq!(seats.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (1, 1)), vec![1]);
+        assert_eq!(seats.choose_ordering(&game, 0, &ChoiceContext::new(order), &twins), vec![1, 0]);
+    }
+
+    /// A name alone would mean whichever of two alike options the engine
+    /// lists first, so it is refused there.
+    #[test]
+    #[should_panic(expected = "so name its place among them")]
+    fn a_name_that_reads_like_another_option_needs_its_place() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
+        let seats = ScriptedDecisionProvider::new();
+        let which = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+        seats.expect_choice(which.clone(), vec![ChoiceOption::Object(bears)]);
+        let twins = [ChoiceOption::Object(bears), ChoiceOption::Object(bears)];
+        seats.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (1, 1));
+    }
+
+    /// A take answers a take-or-leave question's one option, and nothing
+    /// that offers two.
+    #[test]
+    #[should_panic(expected = "takes the one option offered")]
+    fn a_take_is_refused_where_two_options_are_offered() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
+        let wall = put_on_battlefield(&mut game, card("Wall of Stone"), 0);
+        let seats = ScriptedDecisionProvider::new();
+        let may = ChoiceKind::ApplyOptionalEffect { source: bears };
+        seats.expect_take(may.clone());
+        let two = [ChoiceOption::Object(bears), ChoiceOption::Object(wall)];
+        seats.pick_n(&game, 0, &ChoiceContext::new(may), &two, (0, 1));
     }
 }

@@ -98,11 +98,12 @@ fn a_counter_on_the_attackers() -> Effect {
 }
 
 /// A provider that answers one ordering prompt, `player`'s two triggers of
-/// `source`, which differ in the attackers they read. Both name `source`, so
-/// they are taken in the order they triggered.
+/// `source`, which differ in the attackers they read. Both are offered as
+/// `source`, so they are taken by place, in the order they triggered.
 fn ordered_by(player: PlayerId, source: ObjectId) -> ScriptedDecisionProvider {
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_order(ChoiceKind::OrderTriggers { player, tier: TriggerTier::First }, vec![ChoiceOption::Object(source); 2]);
+    let triggers = [1, 2].map(|place| (ChoiceOption::Object(source), place)).to_vec();
+    dp.expect_order_among_alike(ChoiceKind::OrderTriggers { player, tier: TriggerTier::First }, triggers);
     dp
 }
 
@@ -357,8 +358,10 @@ fn hellrider_deals_each_attackers_damage_to_what_it_attacks() {
     assert_eq!(game.pending_triggers.len(), 3, "one for each creature its controller attacks with");
 
     let dp = ScriptedDecisionProvider::new();
-    // All three are Hellrider's, so they are taken in the order they triggered.
-    dp.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![ChoiceOption::Object(rider); 3]);
+    // All three are offered as Hellrider, so they are taken by place, in the
+    // order they triggered.
+    let triggers = [1, 2, 3].map(|place| (ChoiceOption::Object(rider), place)).to_vec();
+    dp.expect_order_among_alike(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, triggers);
     resolve_all(&mut game, &dp);
     assert_eq!([1, 2, 3].map(|p| before[p - 1] - life(&game, p)), [1, 1, 1]);
 }

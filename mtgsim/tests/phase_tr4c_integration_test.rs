@@ -278,12 +278,13 @@ fn bridge_from_below_can_make_its_token_before_it_exiles_itself() {
 
         destroy_all(&mut game, &[yours, theirs]);
         assert_eq!(waiting_from(&game, bridge), 2);
-        // Options in trigger order, the token's first; both name the Bridge,
-        // so only their place tells them apart. The last put on the stack
-        // resolves first.
+        // Both triggers are offered as the Bridge, in trigger order, the
+        // token's first, so only their place tells them apart. The last put
+        // on the stack resolves first.
         let dp = ScriptedDecisionProvider::new();
-        let order = if token_first { vec![1, 0] } else { vec![0, 1] };
-        dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, order);
+        let order = if token_first { [2, 1] } else { [1, 2] };
+        let bridges = order.map(|place| (ChoiceOption::Object(bridge), place)).to_vec();
+        dp.expect_order_among_alike(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, bridges);
         resolve_all(&mut game, &dp);
         assert_eq!(tokens_of(&game, 0), usize::from(token_first), "token_first: {token_first}");
         assert_eq!(zone(&game, bridge), Some(Zone::Exile));

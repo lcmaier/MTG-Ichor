@@ -358,11 +358,11 @@ fn an_unpayable_shockland_is_not_offered() {
 fn two_shocklands_entering_together_cannot_both_be_paid_for_at_three_life() {
     let mut game = setup_two_player_game();
     game.players[0].life_total = 3;
-    // The tokens have no id until they are created; a scripted answer
-    // matches the prompt's kind.
+    // The tokens have no id until they are created, so the answer takes the
+    // one land each offer is about, and its kind is matched by variant alone.
     let placeholder = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 1);
     let dp = test_dp();
-    dp.expect_pick_n(the_offer(placeholder), vec![0]);
+    dp.expect_take(the_offer(placeholder));
     let mark = game.recorded_events().len();
 
     game.execute_action(
@@ -414,8 +414,8 @@ fn a_payment_whose_entry_never_happens_is_no_cost_chosen() {
     game.players[0].life_total = 3;
     let placeholder = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 1);
     let dp = test_dp();
-    dp.expect_pick_n(the_offer(placeholder), vec![0]);
-    dp.expect_pick_n(the_offer(placeholder), vec![0]);
+    dp.expect_take(the_offer(placeholder));
+    dp.expect_take(the_offer(placeholder));
 
     game.execute_action(
         GameAction::CreateTokens {

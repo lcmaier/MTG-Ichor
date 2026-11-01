@@ -5,7 +5,7 @@ use std::mem::discriminant;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_of};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, reading_as};
 
 /// What the engine asks a seat's provider about the seat, rather than about a
 /// decision ([`DecisionProvider::seat_mode`]). Client state, never
@@ -253,35 +253,49 @@ pub struct ScriptedExpectation {
     pub response: ScriptedResponse,
 }
 
-/// The response shape for a scripted expectation.
+/// An option as a script names it: what it is, and, when other options
+/// offered read the same, its place among them from 1, as the decision log
+/// writes `(2 of 3)`.
+pub type Named = (ChoiceOption, Option<usize>);
+
+/// The response shape for a scripted expectation. Every answer names what it
+/// chooses, found in whatever order the engine lists the options, by the
+/// comparison a replay uses (`reading_as`).
 #[derive(Debug)]
 pub enum ScriptedResponse {
-    PickN(Vec<usize>),
-    /// The options to pick, by what each is: found in whatever order the
-    /// engine lists them, through the matcher a replay uses.
-    Choose(Vec<ChoiceOption>),
+    /// The options to pick.
+    Choose(Vec<Named>),
     Number(u64),
-    Allocation(Vec<u64>),
-    /// Each bucket with its amount, the buckets named as `Choose` names an
-    /// option: the decision log's allocation.
+    /// Each bucket with its amount: the decision log's allocation.
     Split(Vec<(ChoiceOption, u64)>),
-    Ordering(Vec<usize>),
-    /// The items, first first, each named as `Choose` names an option.
-    Order(Vec<ChoiceOption>),
+    /// The items, first first.
+    Order(Vec<Named>),
+    /// A take-or-leave question's one option, taken.
+    Take,
 }
 
-/// Where each of `chosen` sits in `options`, found by what it is through the
-/// matcher a replay uses, so an option named twice takes two that read alike.
-fn found<'a>(options: &[ChoiceOption], game: &GameState, chosen: impl IntoIterator<Item = &'a ChoiceOption>) -> Vec<usize> {
+/// Where each of `chosen` sits in `options`. An option that reads like
+/// another offered one is refused without its place among them, since its
+/// words alone would mean whichever the engine lists first.
+fn found<'a>(options: &[ChoiceOption], game: &GameState, chosen: impl IntoIterator<Item = &'a Named>) -> Vec<usize> {
+    let offered = || options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>();
     let mut found = Vec::new();
-    for option in chosen {
-        match position_of(options, game, &option.as_logged(game), &found) {
-            Some(index) => found.push(index),
-            None => panic!(
-                "ScriptedDecisionProvider: {} is not offered: {:?}",
-                option.as_logged(game),
-                options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>()
+    for (option, place) in chosen {
+        let words = option.as_logged(game);
+        let alike = reading_as(options, game, &words);
+        let at = match (place, alike.len()) {
+            (None, 1) => Some(alike[0]),
+            (None, n) if n > 1 => panic!(
+                "ScriptedDecisionProvider: {n} options offered read {words}, so name its place among them: {:?}",
+                offered()
             ),
+            (Some(_), 1) => panic!("ScriptedDecisionProvider: no other option offered reads {words}, so name it without a place"),
+            (Some(place), _) => place.checked_sub(1).and_then(|at| alike.get(at).copied()),
+            (None, _) => None,
+        };
+        match at.filter(|at| !found.contains(at)) {
+            Some(at) => found.push(at),
+            None => panic!("ScriptedDecisionProvider: {words} is not offered: {:?}", offered()),
         }
     }
     found
@@ -356,21 +370,35 @@ impl ScriptedDecisionProvider {
         self.asked.borrow().clone()
     }
 
-    /// Enqueue a pick_n expectation.
-    pub fn expect_pick_n(&self, kind: ChoiceKind, indices: Vec<usize>) {
-        self.queue.borrow_mut().push_back(ScriptedExpectation {
-            expected_kind: kind,
-            response: ScriptedResponse::PickN(indices),
-        });
-    }
-
-    /// Enqueue a pick_n expectation that names the options to pick rather
-    /// than their positions, so an engine change that lists them in another
-    /// order breaks nothing (`codebase-state.md` item 209).
+    /// Enqueue a pick_n expectation naming the options to pick, so an engine
+    /// change that lists them in another order breaks nothing. An empty list
+    /// picks none.
     pub fn expect_choice(&self, kind: ChoiceKind, chosen: Vec<ChoiceOption>) {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
-            response: ScriptedResponse::Choose(chosen),
+            response: ScriptedResponse::Choose(chosen.into_iter().map(|option| (option, None)).collect()),
+        });
+    }
+
+    /// [`Self::expect_choice`] for options that read the same as others
+    /// offered, each with its place among them. Only a question that offers
+    /// two abilities of one object as that object needs it: CR 616.1's
+    /// replacements, where place is all that tells them apart.
+    pub fn expect_choice_among_alike(&self, kind: ChoiceKind, chosen: Vec<(ChoiceOption, usize)>) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::Choose(chosen.into_iter().map(|(option, place)| (option, Some(place))).collect()),
+        });
+    }
+
+    /// Enqueue a take-or-leave answer that takes the one option offered: a
+    /// "you may" whose option is an object the call that asks creates, a
+    /// trigger's stack object or a token entering, which no script can name
+    /// beforehand. Refused when more than one option is offered.
+    pub fn expect_take(&self, kind: ChoiceKind) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::Take,
         });
     }
 
@@ -379,14 +407,6 @@ impl ScriptedDecisionProvider {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
             response: ScriptedResponse::Number(n),
-        });
-    }
-
-    /// Enqueue an allocate expectation.
-    pub fn expect_allocation(&self, kind: ChoiceKind, alloc: Vec<u64>) {
-        self.queue.borrow_mut().push_back(ScriptedExpectation {
-            expected_kind: kind,
-            response: ScriptedResponse::Allocation(alloc),
         });
     }
 
@@ -399,20 +419,22 @@ impl ScriptedDecisionProvider {
         });
     }
 
-    /// Enqueue a choose_ordering expectation.
-    pub fn expect_ordering(&self, kind: ChoiceKind, order: Vec<usize>) {
-        self.queue.borrow_mut().push_back(ScriptedExpectation {
-            expected_kind: kind,
-            response: ScriptedResponse::Ordering(order),
-        });
-    }
-
     /// Enqueue a choose_ordering expectation that names the items, first
     /// first.
     pub fn expect_order(&self, kind: ChoiceKind, order: Vec<ChoiceOption>) {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
-            response: ScriptedResponse::Order(order),
+            response: ScriptedResponse::Order(order.into_iter().map(|option| (option, None)).collect()),
+        });
+    }
+
+    /// [`Self::expect_order`] for items that read the same as others, each
+    /// with its place among them: CR 603.3b's triggered abilities of one
+    /// source, which the order offers as that source.
+    pub fn expect_order_among_alike(&self, kind: ChoiceKind, order: Vec<(ChoiceOption, usize)>) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::Order(order.into_iter().map(|(option, place)| (option, Some(place))).collect()),
         });
     }
 
@@ -456,7 +478,7 @@ impl ScriptedDecisionProvider {
     /// engine takes without asking (`engine::priority`).
     pub fn queue_main_phase_passes(&self) {
         for _ in 0..2 {
-            self.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+            self.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
         }
     }
 }
@@ -485,8 +507,11 @@ impl DecisionProvider for ScriptedDecisionProvider {
         _bounds: (usize, usize),
     ) -> Vec<usize> {
         match self.pop_and_validate(player, &context.kind, "pick_n") {
-            ScriptedResponse::PickN(indices) => indices,
             ScriptedResponse::Choose(chosen) => found(options, game, &chosen),
+            ScriptedResponse::Take => {
+                assert_eq!(options.len(), 1, "ScriptedDecisionProvider: `expect_take` takes the one option offered, and the engine offers {options:?}");
+                vec![0]
+            }
             // A number answers a pick over numbers by value: CR 601.2b's X as
             // a set with a gap (`ChoiceKind::ChooseXValue`).
             ScriptedResponse::Number(n) => match options.iter().position(|option| matches!(option, ChoiceOption::Number(offered) if *offered == n)) {
@@ -494,7 +519,7 @@ impl DecisionProvider for ScriptedDecisionProvider {
                 None => panic!("ScriptedDecisionProvider: number {n} is not offered: {options:?}"),
             },
             other => panic!(
-                "ScriptedDecisionProvider: pick_n called but scripted response is {:?}, expected PickN",
+                "ScriptedDecisionProvider: pick_n called but scripted response is {:?}, expected a pick",
                 other
             ),
         }
@@ -529,9 +554,9 @@ impl DecisionProvider for ScriptedDecisionProvider {
     ) -> Vec<u64> {
         self.allocation_mins.borrow_mut().push(per_bucket_mins.to_vec());
         match self.pop_and_validate(player, &context.kind, "allocate") {
-            ScriptedResponse::Allocation(alloc) => alloc,
             ScriptedResponse::Split(amounts) => {
-                let at = found(buckets, game, amounts.iter().map(|(bucket, _)| bucket));
+                let named: Vec<Named> = amounts.iter().map(|(bucket, _)| (bucket.clone(), None)).collect();
+                let at = found(buckets, game, &named);
                 assert_eq!(
                     at.len(),
                     buckets.len(),
@@ -546,7 +571,7 @@ impl DecisionProvider for ScriptedDecisionProvider {
                 allocation
             }
             other => panic!(
-                "ScriptedDecisionProvider: allocate called but scripted response is {:?}, expected Allocation",
+                "ScriptedDecisionProvider: allocate called but scripted response is {:?}, expected a split",
                 other
             ),
         }
@@ -560,10 +585,9 @@ impl DecisionProvider for ScriptedDecisionProvider {
         items: &[ChoiceOption],
     ) -> Vec<usize> {
         match self.pop_and_validate(player, &context.kind, "choose_ordering") {
-            ScriptedResponse::Ordering(order) => order,
             ScriptedResponse::Order(order) => found(items, game, &order),
             other => panic!(
-                "ScriptedDecisionProvider: choose_ordering called but scripted response is {:?}, expected Ordering",
+                "ScriptedDecisionProvider: choose_ordering called but scripted response is {:?}, expected an order",
                 other
             ),
         }

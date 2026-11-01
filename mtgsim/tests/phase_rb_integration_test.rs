@@ -632,17 +632,18 @@ fn test_two_replacements_on_one_event_prompt_the_affected_controller() {
     let probe = put_on_battlefield(&mut game, graveyard_probe("Graveyard Probe"), 0);
     add_counters(&mut game, probe, CounterType::Finality, 1);
 
+    // Both effects are offered as the Probe, so only their place tells them
+    // apart: `gather` reads a permanent's abilities before its counters, and
+    // the printed `Prevent` is the first.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice_among_alike(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![0],
+        vec![(ChoiceOption::Object(probe), 1)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
 
-    // Index 0 is the printed ability: `gather` reads a permanent's abilities
-    // before its counters, and both come before the registry.
     assert!(game.battlefield.contains_key(&probe), "the `Prevent` was chosen");
     assert!(dp.is_empty(), "the prompt was consumed");
 }
@@ -659,9 +660,9 @@ fn test_choosing_the_other_replacement_takes_the_other_branch() {
     add_counters(&mut game, probe, CounterType::Finality, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice_among_alike(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![1],
+        vec![(ChoiceOption::Object(probe), 2)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
@@ -856,9 +857,9 @@ fn test_the_chooser_is_the_affected_objects_controller_not_the_active_player() {
     add_counters(&mut game, probe, CounterType::Finality, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice_among_alike(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![1],
+        vec![(ChoiceOption::Object(probe), 2)],
     );
     let asked = std::cell::RefCell::new(Vec::new());
     let recording = RecordingProvider { inner: &dp, asked: &asked };
@@ -891,11 +892,13 @@ fn test_simultaneous_choices_are_offered_in_apnap_order() {
         probes.push(id);
     }
 
+    // Each takes its Probe's counter, the second of its two effects, and the
+    // prompts come in APNAP order: players 1, 2 and 3.
     let dp = ScriptedDecisionProvider::new();
-    for _ in 0..3 {
-        dp.expect_pick_n(
+    for probe in [probes[1], probes[2], probes[0]] {
+        dp.expect_choice_among_alike(
             ChoiceKind::ChooseReplacementEffect { affected_object: None },
-            vec![1],
+            vec![(ChoiceOption::Object(probe), 2)],
         );
     }
     let asked = std::cell::RefCell::new(Vec::new());
@@ -2202,12 +2205,12 @@ fn test_choosing_exile_leaves_the_shuffle_inapplicable() {
     let mut game = setup_two_player_game();
     let probe = dying_creature_with_two_replacements(&mut game);
 
+    // The finality counter is the second of the Probe's two effects: a
+    // permanent's own abilities are offered before its counters.
     let dp = ScriptedDecisionProvider::new();
-    // Index 1 is the finality counter: a permanent's own abilities are offered
-    // before its counters.
-    dp.expect_pick_n(
+    dp.expect_choice_among_alike(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![1],
+        vec![(ChoiceOption::Object(probe), 2)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
@@ -2232,9 +2235,9 @@ fn test_choosing_the_shuffle_leaves_the_exile_inapplicable() {
     let probe = dying_creature_with_two_replacements(&mut game);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice_among_alike(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![0],
+        vec![(ChoiceOption::Object(probe), 1)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)

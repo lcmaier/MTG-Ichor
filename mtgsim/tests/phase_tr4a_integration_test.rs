@@ -267,7 +267,7 @@ fn compost_draws_its_controller_a_card_when_asked() {
     let hand_before = game.players[0].hand.len();
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: compost }, vec![0]);
+    dp.expect_take(ChoiceKind::ApplyOptionalEffect { source: compost });
     resolve_all(&mut game, &dp);
     assert_eq!(game.players[0].hand.len(), hand_before + 1, "\"you may draw a card\", taken");
 }

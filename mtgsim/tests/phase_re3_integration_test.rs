@@ -504,8 +504,10 @@ fn two_words_rows_are_a_choice_and_each_draw_uses_one_up() {
     activate_words(&mut game, words, 0, &test_dp());
     activate_words(&mut game, words, 0, &test_dp());
 
+    // Both rows are offered as the Words, so the answer names one by its
+    // place; either does here.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(words)]);
+    dp.expect_choice_among_alike(PICK_REPLACEMENT, vec![(ChoiceOption::Object(words), 2)]);
     draw_one(&mut game, 0, &dp);
     assert!(dp.is_empty(), "two rows, so CR 616.1 asks which one applies");
     assert_eq!(life(&game, 0), before + 5, "one row applied, not both");

@@ -370,10 +370,9 @@ fn test_the_same_creature_cannot_be_devoured_twice() {
     // CR 616.1: two applicable effects on one entry, and the choice is real —
     // neither is an `EnterWith`, so nothing suppresses the prompt. Both are
     // the Elder's own, one printed and one granted, so they share a source
-    // and only their place tells them apart: naming the Elder takes the first
-    // of the two, the printed devour 3, ahead of the grant in the Elder's
-    // effective ability list.
-    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(elder)]);
+    // and only their place tells them apart: the first is the printed devour
+    // 3, ahead of the grant in the Elder's effective ability list.
+    dp.expect_choice_among_alike(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![(ChoiceOption::Object(elder), 1)]);
     dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: bear, source: bear, to: Zone::Graveyard },
         vec![ChoiceOption::Object(bear)],
@@ -414,16 +413,16 @@ fn test_devour_choice_in_a_four_player_game_asks_only_the_entering_controller() 
     // moves it" is the `ByController(You)` leaf on the filter.
     let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 3);
 
+    let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 2);
     let dp = ScriptedDecisionProvider::new();
-    // Index 1 is the granted devour 5 — see the order note above. Both
-    // options name the Elder, so only a position picks the second.
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
+    // Both devours are offered as the Elder, and the granted devour 5 is the
+    // second — see the order note above.
+    dp.expect_choice_among_alike(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![(ChoiceOption::Object(elder), 2)]);
     dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: mine, source: mine, to: Zone::Graveyard },
         vec![ChoiceOption::Object(mine)],
     );
 
-    let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 2);
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 

@@ -623,7 +623,7 @@ fn identical_triggers_that_read_different_bindings_are_asked_their_order() {
         Primitive::LoseLife(AmountExpr::TriggeringPower(EventRole::Object)),
         EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents)),
     );
-    put_on_battlefield(&mut game, watcher("Mourner", dies(a_creature()), loses_its_power), 0);
+    let mourner = put_on_battlefield(&mut game, watcher("Mourner", dies(a_creature()), loses_its_power), 0);
     let a = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let b = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
@@ -631,8 +631,10 @@ fn identical_triggers_that_read_different_bindings_are_asked_their_order() {
     destroy_all(&mut game, &[a, b], source);
     assert_eq!(pending(&game), 2);
     let dp = ScriptedDecisionProvider::new();
-    // Both triggers are the Mourner's, so only a position tells them apart.
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![1, 0]);
+    // Both triggers are offered as the Mourner, so only their place tells
+    // them apart.
+    let mourns = |place| (ChoiceOption::Object(mourner), place);
+    dp.expect_order_among_alike(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![mourns(2), mourns(1)]);
     place(&mut game, &dp);
     assert_eq!(game.stack.len(), 2);
 }
