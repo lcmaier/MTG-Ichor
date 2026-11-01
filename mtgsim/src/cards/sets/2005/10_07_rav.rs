@@ -9,7 +9,7 @@ use crate::cards::authoring::{
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AffectedSet, ObjectSet, PlayerSet, TokenDef};
+use crate::types::effects::{ObjectSet, PlayerSet, TokenDef};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding};
 use crate::types::triggers::TriggerSubject;
@@ -178,7 +178,6 @@ pub fn doubling_season() -> Arc<CardData> {
 ///   damage, the player … may apply the effects in either order* → the same
 ///   question against a prevention, which Gisela's other half supplies.
 pub fn ghosts_of_the_innocent() -> Arc<CardData> {
-    let (affected, players) = every_permanent_or_player();
     CardDataBuilder::new("Ghosts of the Innocent")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 5))
         .color(Color::White)
@@ -192,7 +191,7 @@ pub fn ghosts_of_the_innocent() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to a permanent or player, it deals half that damage, rounded down, to that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet { objects: affected, players },
+                every_permanent_or_player(),
                 Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
             ),
         ))

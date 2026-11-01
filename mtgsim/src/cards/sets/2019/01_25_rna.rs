@@ -11,14 +11,10 @@ use crate::state::game_state::StepType;
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{AmountExpr, Antecedent, Condition, CounterType, ObjectFilter};
+use crate::types::effects::{AmountExpr, Antecedent, Condition, CounterType};
 use crate::types::history::CountIs;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{TriggerCondition, TriggerDef};
-
-fn a_creature_you_control() -> ObjectFilter {
-    creature().and(you_control())
-}
 
 /// Simic Ascendancy — {G}{U}
 /// Enchantment
@@ -81,11 +77,11 @@ pub fn simic_ascendancy() -> Arc<CardData> {
         .ability(activated_ability(
             activated_text,
             vec![Cost::Mana(ManaCost::build(&[ManaType::Green, ManaType::Blue], 1))],
-            put_counters(target_permanent(a_creature_you_control()), CounterType::PlusOnePlusOne, 1),
+            put_counters(target_permanent(creature().and(you_control())), CounterType::PlusOnePlusOne, 1),
         ))
         .ability(triggered_ability(
             growth_text,
-            whenever(counters_put_on(a_creature_you_control(), CounterType::PlusOnePlusOne).once_per_object(), growth),
+            whenever(counters_put_on(creature().and(you_control()), CounterType::PlusOnePlusOne).once_per_object(), growth),
         ))
         .ability(triggered_ability(win_text, win))
         .build()

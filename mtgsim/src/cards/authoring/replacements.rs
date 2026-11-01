@@ -43,15 +43,15 @@ pub fn the_next_damage_from_a_chosen_source(
     .once()
 }
 
-/// "A permanent or player" — CR 614.1's two kinds of subject, as the pair of
-/// sets that says "everything".
+/// "A permanent or player" — CR 614.1's two kinds of subject, the affected
+/// set that says "everything".
 ///
 /// Furnace of Rath and Ghosts of the Innocent print the same scope word for
 /// word, so they share this rather than each spelling it: a divergence between
 /// two cards whose oracle text is identical would be an authoring bug nothing
 /// could catch.
-pub fn every_permanent_or_player() -> (ObjectSet, PlayerSet) {
-    (ObjectSet::battlefield_filter(ObjectFilter::All), PlayerSet::Everyone)
+pub fn every_permanent_or_player() -> AffectedSet {
+    AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone }
 }
 
 /// "All damage that would be dealt to you … is dealt to [something] instead" —

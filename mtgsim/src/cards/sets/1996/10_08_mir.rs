@@ -10,7 +10,7 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::effects::{AffectedSet, Effect};
+use crate::types::effects::Effect;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, ReplacementDef, RetargetSpec, Rewrite, SourcePattern};
 use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn};
@@ -88,7 +88,6 @@ pub fn final_fortune() -> Arc<CardData> {
 ///
 /// Scryfall lists no rulings (2026-09-09).
 pub fn reflect_damage() -> Arc<CardData> {
-    let (affected, players) = every_permanent_or_player();
     CardDataBuilder::new("Reflect Damage")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::White], 3))
         .color(Color::Red)
@@ -102,7 +101,7 @@ pub fn reflect_damage() -> Arc<CardData> {
             create_replacement_from_a_chosen_source(
                 ReplacementDef::new(
                     EventPattern::DealDamage { source: Some(SourcePattern::chosen()), combat: None },
-                    AffectedSet { objects: affected, players },
+                    every_permanent_or_player(),
                     Rewrite::Retarget(RetargetSpec::ToDamageSourceController),
                 )
                 .once(),

@@ -10,7 +10,7 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AffectedSet, Choice, ChoiceScope, ChoiceSide, Effect, ObjectSet, Pick, PlayerSet, TokenDef};
+use crate::types::effects::{Choice, ChoiceScope, ChoiceSide, Effect, ObjectSet, Pick, PlayerSet, TokenDef};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AmountRewrite, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 
@@ -94,7 +94,6 @@ pub fn diabolic_edict() -> Arc<CardData> {
 ///   ordering half is covered here by Ghosts of the Innocent, which is the same
 ///   CR 616.1 question with two rewrites this PR does build.
 pub fn furnace_of_rath() -> Arc<CardData> {
-    let (affected, players) = every_permanent_or_player();
     CardDataBuilder::new("Furnace of Rath")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red, ManaType::Red], 1))
         .color(Color::Red)
@@ -106,7 +105,7 @@ pub fn furnace_of_rath() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to a permanent or player, it deals double that damage to that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet { objects: affected, players },
+                every_permanent_or_player(),
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             ),
         ))

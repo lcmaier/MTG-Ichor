@@ -12,7 +12,7 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{AffectedSet, AmountExpr, ManaOutput, ObjectSet, SelectionFilter};
+use crate::types::effects::{AmountExpr, ManaOutput, ObjectSet, SelectionFilter};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{CopyDonor, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
@@ -258,7 +258,6 @@ pub fn elvish_archers() -> Arc<CardData> {
 /// Scryfall lists no rulings (2026-09-08). The rule's own boundary is the
 /// test: **non-combat** damage under Fog goes through.
 pub fn fog() -> Arc<CardData> {
-    let (affected, players) = every_permanent_or_player();
     CardDataBuilder::new("Fog")
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .color(Color::Green)
@@ -267,7 +266,7 @@ pub fn fog() -> Arc<CardData> {
         .ability(spell_ability("Prevent all combat damage that would be dealt this turn.",
             create_replacement(ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: Some(true) },
-                AffectedSet { objects: affected, players },
+                every_permanent_or_player(),
                 Rewrite::Prevent,
             ))
             .until_end_of_turn(),
