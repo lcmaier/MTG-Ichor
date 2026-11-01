@@ -29,7 +29,7 @@ use mtgsim::types::effects::{CounterType, EffectRecipient};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use std::sync::Arc;
 
@@ -243,7 +243,7 @@ fn test_deathtouch_damage_is_read_by_one_check() {
     let registry = CardRegistry::default_registry();
     let card = |name: &str| registry.create(name).unwrap();
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, card("Hill Giant"), 1);
+    let giant = put_on_battlefield(&mut game, card("Hill Giant"), 1);
     let colossus = put_on_battlefield(&mut game, card("Darksteel Colossus"), 0);
     let nighthawk = put_on_battlefield(&mut game, card("Vampire Nighthawk"), 1);
     let damage = GameAction::DealDamage {
@@ -263,10 +263,9 @@ fn test_deathtouch_damage_is_read_by_one_check() {
         game.players[0].mana_pool.add(mana, 1);
     }
     let dp = ScriptedDecisionProvider::new();
-    // The target, then the creature copied, each out of the three in
-    // battlefield order: the Colossus, then the Hill Giant.
-    dp.expect_pick_n(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Controller, spell_id: cytoshape }, vec![1]);
-    dp.expect_pick_n(ChoiceKind::ChooseCopySource { source: cytoshape }, vec![0]);
+    // The target, then the creature copied: the Colossus, then the Hill Giant.
+    dp.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Controller, spell_id: cytoshape }, vec![ChoiceOption::Object(colossus)]);
+    dp.expect_choice(ChoiceKind::ChooseCopySource { source: cytoshape }, vec![ChoiceOption::Object(giant)]);
     game.cast_spell(0, cytoshape, &dp).unwrap();
     game.resolve_top_of_stack(&dp).unwrap();
     assert_eq!(get_effective_name(&game, colossus), "Hill Giant");

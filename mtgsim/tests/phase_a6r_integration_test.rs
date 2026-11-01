@@ -74,7 +74,7 @@ fn resolve_opt(game: &mut GameState, caster: PlayerId) {
     let card = opt();
     let source = put_in_graveyard(game, card.clone(), caster);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::Scry { source: None, n: 0 }, vec![]);
+    dp.expect_choice(ChoiceKind::Scry { source: None, n: 0 }, vec![]);
     resolve_as(game, source, caster, &spell_effect(&card.abilities).expect("a spell"), &dp);
 }
 

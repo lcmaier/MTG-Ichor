@@ -42,7 +42,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangePattern, ZoneSet};
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::DecisionProvider;
 
 /// CR 616.1's choice between two applicable effects.
@@ -148,15 +148,14 @@ fn fixture_enchantment_breaker() -> Arc<CardData> {
 #[test]
 fn leyline_first_still_offers_academy_because_the_card_was_still_discarded() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, leyline_of_the_void(), 0);
-    put_on_battlefield(&mut game, nephalia_academy(), 1);
+    let leyline = put_on_battlefield(&mut game, leyline_of_the_void(), 0);
+    let academy = put_on_battlefield(&mut game, nephalia_academy(), 1);
     fill_library(&mut game, 1, 3);
     let card = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
 
     let dp = test_dp();
-    // Leyline entered first, so it is the first candidate.
-    dp.expect_pick_n(PICK_REPLACEMENT, vec![0]);
-    dp.expect_pick_n(APPLY_OPTIONAL, vec![0]);
+    dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(leyline)]);
+    dp.expect_choice(APPLY_OPTIONAL, vec![ChoiceOption::Object(academy)]);
     // A one-card hand, so Mind Rot's choice is forced.
     resolve_at_player(&mut game, mind_rot(), 0, 1, &dp);
 
@@ -172,13 +171,13 @@ fn leyline_first_still_offers_academy_because_the_card_was_still_discarded() {
 fn academy_declined_first_leaves_leyline_to_exile_a_card_that_was_still_discarded() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, leyline_of_the_void(), 0);
-    put_on_battlefield(&mut game, nephalia_academy(), 1);
+    let academy = put_on_battlefield(&mut game, nephalia_academy(), 1);
     fill_library(&mut game, 1, 3);
     let card = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
 
     let dp = test_dp();
-    dp.expect_pick_n(PICK_REPLACEMENT, vec![1]);
-    dp.expect_pick_n(APPLY_OPTIONAL, vec![]);
+    dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(academy)]);
+    dp.expect_choice(APPLY_OPTIONAL, vec![]);
     resolve_at_player(&mut game, mind_rot(), 0, 1, &dp);
 
     assert!(dp.is_empty());
