@@ -46,7 +46,7 @@ pub type ZoneChangeEpoch = u64;
 
 /// A row's id in a duration registry: the continuous-effect (CR 613),
 /// replacement (CR 614) and restriction (CR 101.2) stores, each stamping it
-/// from its own counter as the row is added (`DurationRegistry::add`).
+/// from its own sequence of ids as the row is added (`DurationRegistry::add`).
 ///
 /// One type rather than one per registry because the allocation discipline is
 /// the shared thing: monotonic, never reused. Wrappers keep their own aliases
@@ -58,21 +58,21 @@ pub struct RowId(u64);
 
 impl RowId {
     /// The id of a row not yet added: what a row literal writes, and what
-    /// `DurationRegistry::add` checks before it stamps one. The counter
+    /// `DurationRegistry::add` checks before it stamps one. The sequence
     /// starts at one, so no stored row carries it.
     pub const UNASSIGNED: RowId = RowId(0);
 
-    /// The next id from a registry's counter.
-    pub(crate) fn from_counter(next: &mut u64) -> RowId {
+    /// The next id of a registry's sequence, `next`, which moves on by one.
+    pub(crate) fn take_next(next: &mut u64) -> RowId {
         let id = RowId(*next);
         *next += 1;
         id
     }
 
-    /// The id a counter now at `next` hands out after `draws` more, read
-    /// without drawing any.
-    pub(crate) fn from_counter_after(next: u64, draws: usize) -> RowId {
-        RowId(next + draws as u64)
+    /// The id a sequence now at `next` hands out after `takes` more, read
+    /// without taking any.
+    pub(crate) fn peek_after(next: u64, takes: usize) -> RowId {
+        RowId(next + takes as u64)
     }
 }
 

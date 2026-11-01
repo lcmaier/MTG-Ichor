@@ -128,7 +128,7 @@ impl<T: DurationRow> DurationRegistry<T> {
     /// next: what a look-ahead's rows carry, so they sort where the rows they
     /// predict would.
     pub fn next_id_after(&self, adds: usize) -> RowId {
-        RowId::from_counter_after(self.next_id, adds)
+        RowId::peek_after(self.next_id, adds)
     }
 
     /// Store a row, stamping it with a fresh id. Returns that id. The row
@@ -145,7 +145,7 @@ impl<T: DurationRow> DurationRegistry<T> {
     /// and preserves the registration order a CR 616.1 prompt is offered in.
     pub fn add(&mut self, mut row: T) -> RowId {
         debug_assert_eq!(row.id(), RowId::UNASSIGNED, "a row is added with the id another add stamped");
-        let id = RowId::from_counter(&mut self.next_id);
+        let id = RowId::take_next(&mut self.next_id);
         row.set_id(id);
 
         let key = (row.sort_key(), id);
