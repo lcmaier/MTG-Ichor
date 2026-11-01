@@ -96,6 +96,103 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-01 for `card-layer-cleanup`'s fourth PR, the creature types and the fixtures' names**
+(`cards/creature-types-plus-fixture-names`, PR #304: fourteen creatures'
+printed types, Cerulean Wisps' untap, Moonlace Fixture, the eight misnamed
+fixtures settled, and Five-Color Land Fixture dealt in Everywhere's place).
+Bull Rush and Zhalfirin Shapecraft join the registry (215 → 217) and two
+pooled names change (Moonlace, Everywhere), the pool staying at 124, so both
+§3 columns are new baselines. One `close_out.py` sitting against **main**
+`021bbc78` (#303's merge): **shipped** `12a73461`.
+
+**Predictions, before any arm ran**:
+- `performance` differing at both seat counts with its decks dealt as on
+  `main`, since both renamed cards sort into the slots their old names held,
+  each game's first divergence one of: a Cerulean Wisps resolving on a tapped
+  creature, Thornweald Archer entering under Elvish Warmaster or pumped by it,
+  Citanul Hierophants entering under Grumgully, the Generous;
+- `stress` differing in every row, its decks redealt by the two new cards;
+- instructions per decision within ±1.5%, no engine path changing.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, shipped vs `main`, performance / stress | differ / differ | differ / differ |
+| `performance` games diverging of 200, by first divergence | 8: 7 at a Wisps untapping, 1 at the Archer pumped | 22: 19 at a Wisps untapping, 2 at the Hierophants under Grumgully, 1 at the Archer pumped |
+| audit, shipped, dispatches agreed, performance / stress | 176,442 / 172,255 | 341,528 / 361,996 |
+| instructions / decision, shipped vs `main`, callgrind, the Commander board | | 0.6471 M → 0.6471 M, **+0.01%** |
+
+**Every prediction held.** The divergences were read off both arms' event
+dumps, compared line by line on each event's kind, ids and numbers, since a
+dump renders a card's name by where it ended and the two arms name two cards
+differently; no game differs before its first divergence, so the decks are
+dealt alike. **One cost row is a reading**: `stress` Frames/walk at two seats,
+10.23 → 12.20, is one game, seed 12520, a 100-turn board stall at 68.75
+frames a walk; without it the pool reads 9.75. Bull Rush and Zhalfirin
+Shapecraft are each cast once in it, in its first 830 of 7,770 events.
+
+**The two new cards' distortion, measured before registering them**:
+200 `stress` games at seed 12345, two seats, the tree before them against
+the tree with them.
+
+| | before | after | after, both in every deck |
+|---|---:|---:|---:|
+| Avg turns | 25.7 | 24.9 | 25.6 |
+| Wins by effect | 3 | 2 | 3 |
+| Turn limits, errors, panics | 0 | 0 | 0 |
+
+**Reachability**, shipped, `stress`, 200 games with the three newly dealt
+cards forced. Resolved, in how many games:
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| Bull Rush | 161 in 122 (61%) | 95 in 84 (42%) |
+| Zhalfirin Shapecraft | 159 in 124 (62%) | 103 in 92 (46%) |
+| Five-Color Land Fixture, played | 1,893 in 200 (100%) | 1,251 in 200 (100%) |
+
+**CI's steps, run locally**: clippy at `-D warnings` on both crates, the
+suite, the release clone, history and round-trip tests, both fuzz pools,
+determinism over three hash seeds, the `release-checked` stress and fixtures
+sittings (50 games, 0 errors, 0 panics, 0 turn limits), and the dev GUI's
+tests with its fifteen redrawn pictures.
+
+**Copies** (`close_out.py`'s report against `main`): Five-Color Land Fixture
+beside Everywhere, whose shape it is by design; Elvish Archers beside
+Thornweald Archer and Hill Giant beside War Mammoth, printed cards alike.
+
+**§3 fixture rows, shipped `12a73461`, two seats, 50 games / seed 12345.**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 20 (40.0%) / 29 (58.0%) | 23 (46.0%) / 25 (50.0%) |
+| Wins by effect | 1 | 2 |
+| Avg turns | 26.5 | 25.6 |
+| Spells cast | 20.7 | 19.9 |
+| Lands played | 15.7 | 15.9 |
+| Combat w/ atk | 9.7 | 8.4 |
+| Creatures died | 7.4 | 5.3 |
+| Damage events | 22.5 | 19.2 |
+| Total damage | 63.0 | 53.7 |
+| Life changes | 15.5 | 13.3 |
+| **Layer walks** | **383** | **425** |
+| **Board walks** | **217** | **231** |
+| **Memo hits** | **49,619** | **60,447** |
+| **Layer frames** | **4,033** | **4,411** |
+| **Frames/walk** | **10.53** | **10.38** |
+| **Dependency checks** | **12** | **13** |
+| **Replacement gathers** | **927** | **949** |
+| **Restriction queries** | **942** | **962** |
+| Mana productions | 67 | 81 |
+| Prevention allocations | 0.00 | 0.04 |
+| Replacement prompts | 0.42 | 0.36 |
+| Max batch depth | 4 | 4 |
+| Decisions | 185 | 231 |
+| Priority decisions | 66 | 92 |
+| Actions reversed | 0.1 | 0.1 |
+| Triggers placed | 7.5 | 4.7 |
+| Windows past gate | 82.8 | 79.3 |
+| Candidate visits | 112.8 | 93.2 |
+| Trigger matches | 8.3 | 4.7 |
+
 **Measured 2026-11-01 for `card-layer-cleanup`'s third PR, the move by first printing**
 (`cards/cards-by-first-printing`, PR #303: filters as words, every card in its
 first printing's set file, `cards::fixtures` and `cards::tokens`, the decklist,

@@ -1,12 +1,11 @@
 # Handoff — `card-layer-cleanup`, the design note
 
-**Resume here: PRs 1–3 of the split are built: `card-ability-words`
-(#301), `card-instruction-words` (#302) and `cards-by-first-printing`
-(#303). Next is PR 4, `creature-types-plus-fixture-names`**: items 204 and
-207 by decision 6, on the cards' new homes — the eight misnamed fixtures in
-`cards::fixtures`, the fourteen creatures in their set files ("The split").
-PR 3 filed every card by first printing, wrote filters as words, built the
-decklist with `cli_play` as its reader, and closed item 358.
+**Resume here: PRs 1–4 of the split are built: `card-ability-words`
+(#301), `card-instruction-words` (#302), `cards-by-first-printing` (#303)
+and `creature-types-plus-fixture-names` (#304). Next is PR 5,
+`scripted-answers-by-identity`**: item 209, scripted test answers by the
+option's identity rather than its position ("The split"). PR 4 closed items
+204 and 207 and re-recorded both pools ("PR 4 as built").
 
 **Opened 2026-10-31** on `cards/card-layer-cleanup`, off `main` at
 `f7fa8a4e` (#300's merge). `card-layer-cleanup` is step 3 of
@@ -102,7 +101,7 @@ already slotted beside the phase.
 | 1 | `card-ability-words` | Decisions 2 and 3a, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | built (#301): −2,560 / +1,557, 60 past the band, almost all of it deleted boilerplate | one |
 | 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them; decision 3b, the registry rows' id; one static ability with several kinds of effect, below | built (#302): +2,269 / −2,042, the words +1,335 / −1,630, the row id +178 / −94, the readers +488 / −183, the review round +391 / −315 with main item 359 | one |
 | 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | built (#303): the move's commit counted zero, 277 of its 289 items byte-identical; every other commit +1,476 / −1,714 | one, long |
-| 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered; an invented land of Everywhere's shape (five basic land types, five mana abilities) in `cards::fixtures`, registered and pooled in its place, Everywhere staying defined in `cards::tokens` and unregistered (the owner, at PR 3's review, 2026-11-01) | about +150 / −40, more per printing registered; both pools re-recorded once for all of it | short |
+| 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered; an invented land of Everywhere's shape (five basic land types, five mana abilities) in `cards::fixtures`, registered and pooled in its place, Everywhere staying defined in `cards::tokens` and unregistered (the owner, at PR 3's review, 2026-11-01) | built (#304): +556 / −248, half of it tests; both pools re-recorded once for all of it | short |
 | 5 | `scripted-answers-by-identity` | Item 209 | about 670 changed lines | one |
 
 The estimates assume each ability's effect body stays where it is when its
@@ -199,6 +198,21 @@ whose turn it is), and the rest questions about the spell, the resolution
 or the game (how it was cast, "this way", Menacing Ogre's "if you are one
 of those players", day and night), each a condition and a word of its
 own with its first card.
+
+**PR 4 as built** (2026-11-01). Of the ten, three are written whole and
+registered with their rulings read: Cerulean Wisps, which now untaps its
+target, Bull Rush and Zhalfirin Shapecraft, the last two in new set files
+(`wwk`, `mom`) and unpooled, since Humility and March of the Machines
+already reach Layer 7b. Moonlace is Moonlace Fixture, still pooled: "target
+spell or permanent" is a target no `SelectionFilter` describes. Inside Out
+is Inside Out Fixture for its hybrid pip, and the four `*_spell` stand-ins
+are `*_spell_fixture`, the one named Liquimetal Torque taking Coating's
+name, whose text it printed. The fixture named Underground Sea is deleted
+for Alpha's printing. The land is Five-Color Land Fixture, in a new
+`cards::fixtures::mana`, named to sort where Everywhere did among the pools'
+lands so the decks are dealt as before. Two tests pick their games out of
+the pools and moved seeds: the fork test's delayed-trigger board (stress
+seed 23) and the prompt-subject walk's second window (`0xA4_0009`).
 
 **Every PR carries a consumer**: PR 1's and PR 2's are the card files,
 PR 3's is the decklists, PR 4's are Elvish Warmaster and its fixtures,
