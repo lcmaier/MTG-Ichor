@@ -9,8 +9,9 @@
 //! forgets one does not compile. Only [`super::static_ability`] takes one
 //! bare, since a static ability's effect applies while its source does (CR
 //! 611.3b). A replacement effect or a "can't" a resolution creates is a
-//! [`CreatedEffect`]: it states a duration too, but it is no change to an
-//! object, so it joins no `.and_…` chain and no static ability takes it.
+//! [`ContinuousRuleChange`]: it states a duration too, but it is no change
+//! to an object, so it joins no `.and_…` chain and no static ability takes
+//! it.
 //!
 //! The words run in the CR's order: CR 701's keyword actions in 701's order,
 //! then the plain verbs by their rules, then the continuous changes by
@@ -391,13 +392,16 @@ pub fn switch_power_and_toughness(recipient: EffectRecipient) -> ContinuousChang
 // ---------------------------------------------------------------------------
 
 /// A replacement effect or a "can't" a resolution creates (CR 614.1,
-/// 101.2), awaiting its duration (CR 611.2a). Not a [`ContinuousChange`]: it changes
-/// no object, so nothing chains to it and a static ability, whose effects
-/// last while it does, never writes one.
-#[must_use = "a created effect lasts as long as its text says: end it with its duration"]
-pub struct CreatedEffect(ContinuousChange);
+/// 101.2), awaiting its duration (CR 611.2a): CR 611.1's continuous effect
+/// that affects players or the rules of the game, where a
+/// [`ContinuousChange`] changes an object's characteristics or control. One
+/// about an object, as Plague Spores' "They can't be regenerated", changes
+/// what may happen to it, not it, so nothing chains to it, and a static
+/// ability, whose effects last while it does, never writes one.
+#[must_use = "a rule change lasts as long as its text says: end it with its duration"]
+pub struct ContinuousRuleChange(ContinuousChange);
 
-impl CreatedEffect {
+impl ContinuousRuleChange {
     /// "This turn", "until end of turn" (CR 514.2).
     pub fn until_end_of_turn(self) -> Effect {
         self.0.lasting(Duration::UntilEndOfTurn)
@@ -412,7 +416,7 @@ impl CreatedEffect {
 /// A replacement or prevention effect a resolution creates (CR 614.1,
 /// 615.1), applying to what its def names: "prevent all combat damage that
 /// would be dealt this turn".
-pub fn create_replacement(def: ReplacementDef) -> CreatedEffect {
+pub fn create_replacement(def: ReplacementDef) -> ContinuousRuleChange {
     create_replacement_for(EffectRecipient::Implicit, def)
 }
 
@@ -420,23 +424,23 @@ pub fn create_replacement(def: ReplacementDef) -> CreatedEffect {
 /// resolution writes into the def's objects ("prevent the next 3 damage
 /// that would be dealt to any target this turn"), or `you()`, which it
 /// leaves to the def's own player set, read like no recipient at all.
-pub fn create_replacement_for(recipient: EffectRecipient, def: ReplacementDef) -> CreatedEffect {
+pub fn create_replacement_for(recipient: EffectRecipient, def: ReplacementDef) -> ContinuousRuleChange {
     let def = Box::new(def);
-    CreatedEffect(ContinuousChange::new(recipient, move |d| Primitive::CreateReplacement(def, d, PatternFill::Authored)))
+    ContinuousRuleChange(ContinuousChange::new(recipient, move |d| Primitive::CreateReplacement(def, d, PatternFill::Authored)))
 }
 
 /// [`create_replacement`] for "a source of your choice" (CR 609.7a): the
 /// source is chosen as the effect is created and written into the def.
-pub fn create_replacement_from_a_chosen_source(def: ReplacementDef) -> CreatedEffect {
+pub fn create_replacement_from_a_chosen_source(def: ReplacementDef) -> ContinuousRuleChange {
     let def = Box::new(def);
-    CreatedEffect(ContinuousChange::new(EffectRecipient::Implicit, move |d| Primitive::CreateReplacement(def, d, PatternFill::ChosenDamageSource)))
+    ContinuousRuleChange(ContinuousChange::new(EffectRecipient::Implicit, move |d| Primitive::CreateReplacement(def, d, PatternFill::ChosenDamageSource)))
 }
 
 /// "[Recipient] can't [what]" from a resolution (CR 101.2, 614.17). A
 /// target's or a filter's objects are written into what can't happen; any
 /// other recipient leaves it as written ("players can't gain life this
 /// turn").
-pub fn cant(recipient: EffectRecipient, what: Restriction) -> CreatedEffect {
+pub fn cant(recipient: EffectRecipient, what: Restriction) -> ContinuousRuleChange {
     let def = RestrictionDef::new(what);
-    CreatedEffect(ContinuousChange::new(recipient, move |d| Primitive::Restrict(def, d)))
+    ContinuousRuleChange(ContinuousChange::new(recipient, move |d| Primitive::Restrict(def, d)))
 }

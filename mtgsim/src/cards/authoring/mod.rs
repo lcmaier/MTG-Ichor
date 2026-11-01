@@ -34,7 +34,7 @@ pub use instructions::{
     deal_damage_unpreventable, destroy, discard, draw_cards, exile, exile_until, gain_control_of, gain_life, gains_ability, gains_keyword, get_counters,
     gets, has_base_power_and_toughness, is_also_color, its_controller_adds, lose_life, lose_the_game, loses_all_abilities, mill, put_counters,
     remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total, shuffle_library, switch_power_and_toughness,
-    take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange, CreatedEffect,
+    take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange, ContinuousRuleChange,
 };
 pub use recipients::{
     any_target, attacked_by, chosen_by, creatures_you_control, each, each_in, each_opponent, each_player, host, referred, target, target_creature,

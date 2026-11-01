@@ -142,7 +142,7 @@ continuations (`.and_gets`, `.and_gains_keyword`, `.and_loses_all_abilities`,
 `.and_has_base_power_and_toughness`, `.and_becomes_color`,
 `.and_becomes_types`), each with its card; "creatures you control" is
 `each(creatures_you_control())`; a replacement effect or "can't" a
-resolution creates is a `CreatedEffect`, which no chain and no static
+resolution creates is a `ContinuousRuleChange`, which no chain and no static
 ability takes. No "and" word writes a mixed list: Platinum Angel's two
 "can't"s share no recipient or duration for one to carry, the rule for
 joining one-shots above, and what its card file lacks is a static "can't"
