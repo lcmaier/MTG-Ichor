@@ -569,7 +569,7 @@ mod tests {
         let dp = crate::ui::decision::ScriptedDecisionProvider::new();
         let source = crate::types::ids::new_object_id();
         let mana = crate::ui::choice_types::ChoiceOption::ManaType;
-        dp.expect_split(
+        dp.expect_allocation(
             crate::ui::choice_types::ChoiceKind::GenericManaAllocation {
                 spell_or_ability_id: source,
                 mana_cost: cost.clone(),

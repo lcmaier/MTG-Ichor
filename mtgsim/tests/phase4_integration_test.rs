@@ -239,7 +239,7 @@ fn test_trample_overflow_to_player() {
     set_blocking(&mut game, lions, vec![mammoth]);
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.expect_split(
+    scripted.expect_allocation(
         ChoiceKind::AssignTrampleDamage {
             attacker_id: mammoth,
             defending_target: ObjectOrPlayerId::Player(1),
@@ -373,7 +373,7 @@ fn test_trample_with_deathtouch_maximum_overflow() {
 
     // Deathtouch: lethal=1.
     let scripted = ScriptedDecisionProvider::new();
-    scripted.expect_split(
+    scripted.expect_allocation(
         ChoiceKind::AssignTrampleDamage {
             attacker_id: trampler,
             defending_target: ObjectOrPlayerId::Player(1),

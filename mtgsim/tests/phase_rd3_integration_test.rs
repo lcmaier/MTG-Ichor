@@ -398,7 +398,7 @@ fn torbran_divides_before_adding_two() {
     set_blocking(&mut game, blocker, vec![trampler]);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_split(
+    dp.expect_allocation(
         ChoiceKind::AssignTrampleDamage {
             attacker_id: trampler,
             defending_target: ObjectOrPlayerId::Player(1),

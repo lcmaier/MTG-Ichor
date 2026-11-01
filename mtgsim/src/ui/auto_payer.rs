@@ -143,7 +143,7 @@ mod tests {
 
     fn expects_split(answer: Vec<(ChoiceOption, u64)>) -> ScriptedDecisionProvider {
         let inner = ScriptedDecisionProvider::new();
-        inner.expect_split(
+        inner.expect_allocation(
             ChoiceKind::GenericManaAllocation {
                 spell_or_ability_id: crate::types::ids::ObjectId::UNASSIGNED,
                 mana_cost: ManaCost::zero(),
@@ -220,7 +220,7 @@ mod tests {
         let inner = ScriptedDecisionProvider::new();
         let attacker_id = new_object_id();
         let blockers = [ChoiceOption::Object(new_object_id()), ChoiceOption::Object(new_object_id())];
-        inner.expect_split(ChoiceKind::AssignCombatDamage { attacker_id }, blockers.iter().cloned().zip([2, 1]).collect());
+        inner.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id }, blockers.iter().cloned().zip([2, 1]).collect());
         let dp = AutoPayer::new(inner);
         let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage { attacker_id });
         assert_eq!(dp.allocate(&game, 0, &ctx, 3, &blockers, &[0, 0], None), vec![2, 1]);

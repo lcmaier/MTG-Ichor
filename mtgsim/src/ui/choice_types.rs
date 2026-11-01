@@ -703,17 +703,17 @@ mod tests {
         assert!(game.battlefield.contains_key(&forest), "the Forest was played");
     }
 
-    /// A split names each bucket with its amount, and an order names its
-    /// items, so either is found wherever the engine lists them.
+    /// An allocation names each bucket with its amount, and an order names
+    /// its items, so either is found wherever the engine lists them.
     #[test]
-    fn a_script_splits_and_orders_by_what_each_option_is() {
+    fn a_script_allocates_and_orders_by_what_each_option_is() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 1);
         let wall = put_on_battlefield(&mut game, card("Wall of Stone"), 1);
         let listed = [ChoiceOption::Object(wall), ChoiceOption::Object(bears)];
         let seats = ScriptedDecisionProvider::new();
         let damage = ChoiceKind::AssignCombatDamage { attacker_id: bears };
-        seats.expect_split(damage.clone(), vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(wall), 1)]);
+        seats.expect_allocation(damage.clone(), vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(wall), 1)]);
         let order = ChoiceKind::ScryOrder { source: None, bottom: false };
         seats.expect_order(order.clone(), vec![ChoiceOption::Object(bears), ChoiceOption::Object(wall)]);
 
@@ -721,17 +721,17 @@ mod tests {
         assert_eq!(seats.choose_ordering(&game, 0, &ChoiceContext::new(order), &listed), vec![1, 0]);
     }
 
-    /// A split that leaves a bucket out is refused, as a replayed one is: the
-    /// script would otherwise give it nothing without saying so.
+    /// An allocation that leaves a bucket out is refused, as a replayed one
+    /// is: the script would otherwise give it nothing without saying so.
     #[test]
-    #[should_panic(expected = "the split names 1 buckets")]
-    fn a_split_names_every_bucket() {
+    #[should_panic(expected = "the allocation names 1 buckets")]
+    fn an_allocation_names_every_bucket() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 1);
         let wall = put_on_battlefield(&mut game, card("Wall of Stone"), 1);
         let seats = ScriptedDecisionProvider::new();
         let damage = ChoiceKind::AssignCombatDamage { attacker_id: bears };
-        seats.expect_split(damage.clone(), vec![(ChoiceOption::Object(bears), 3)]);
+        seats.expect_allocation(damage.clone(), vec![(ChoiceOption::Object(bears), 3)]);
         let listed = [ChoiceOption::Object(wall), ChoiceOption::Object(bears)];
         seats.allocate(&game, 0, &ChoiceContext::new(damage), 3, &listed, &[0, 0], None);
     }

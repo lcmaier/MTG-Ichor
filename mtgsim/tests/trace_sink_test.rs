@@ -71,7 +71,7 @@ fn traced_combat(label: &str) -> (TraceBuffer, GameState, ObjectId, ObjectId, Ob
     let (mut game, attacker, first, second) = shield_board();
     let trace = install_trace(&mut game, label);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_split(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)]);
+    dp.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)]);
     game.process_combat_damage(&dp, false).unwrap();
     game.trace_objects();
     (trace, game, attacker, first, second)
@@ -210,7 +210,7 @@ fn the_sink_changes_nothing_the_game_does() {
 
     let (mut game, attacker, first, second) = shield_board();
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_split(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)]);
+    dp.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)]);
     game.process_combat_damage(&dp, false).unwrap();
     assert!(!game.trace_on());
 
@@ -458,7 +458,7 @@ fn a_test_writes_its_trace_to_a_file_for_the_spine_script() {
     let (mut game, attacker, first, second) = shield_board();
     let sink = mtgsim::test_support::install_trace_file(&mut game, &path, "rd-2 trace A");
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_split(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)]);
+    dp.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)]);
     game.process_combat_damage(&dp, false).unwrap();
     game.trace_objects();
     sink.flush().unwrap();

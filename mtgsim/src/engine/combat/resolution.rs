@@ -509,7 +509,7 @@ mod tests {
         set_blocking(&mut game, blocker, vec![trampler]);
 
         let scripted = ScriptedDecisionProvider::new();
-        scripted.expect_split(
+        scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: trampler,
                 defending_target: ObjectOrPlayerId::Player(1),
@@ -594,7 +594,7 @@ mod tests {
 
         // Deathtouch makes 1 lethal (CR 702.2c).
         let scripted = ScriptedDecisionProvider::new();
-        scripted.expect_split(
+        scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: trampler,
                 defending_target: ObjectOrPlayerId::Player(1),
@@ -638,7 +638,7 @@ mod tests {
         set_blocking(&mut game, blocker, vec![trampler]);
 
         let scripted = ScriptedDecisionProvider::new();
-        scripted.expect_split(
+        scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage { attacker_id: trampler, defending_target: ObjectOrPlayerId::Player(1) },
             vec![(ChoiceOption::Object(blocker), 0), (ChoiceOption::Player(1), 4)],
         );
@@ -664,7 +664,7 @@ mod tests {
         set_blocking(&mut game, blocker, vec![first, second]);
 
         let scripted = ScriptedDecisionProvider::new();
-        scripted.expect_split(
+        scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage { attacker_id: second, defending_target: ObjectOrPlayerId::Player(1) },
             vec![(ChoiceOption::Object(blocker), 0), (ChoiceOption::Player(1), 3)],
         );
@@ -706,7 +706,7 @@ mod tests {
 
         // Use ScriptedDP to explicitly assign damage: 2 to b1 (lethal), 3 to b2
         let scripted = ScriptedDecisionProvider::new();
-        scripted.expect_split(
+        scripted.expect_allocation(
             ChoiceKind::AssignCombatDamage { attacker_id: attacker },
             vec![(ChoiceOption::Object(b1), 2), (ChoiceOption::Object(b2), 3)],
         );

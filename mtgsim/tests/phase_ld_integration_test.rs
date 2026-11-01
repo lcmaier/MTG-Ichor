@@ -46,7 +46,7 @@ fn cast_and_resolve_targeted_perm_spell(
     // No target to script: one legal target on these boards, so the choice
     // is forced and no prompt is made.
     if let Some(split) = generic_split {
-        decisions.expect_split(
+        decisions.expect_allocation(
             ChoiceKind::GenericManaAllocation {
                 spell_or_ability_id: mtgsim::types::ids::ObjectId::UNASSIGNED,
                 mana_cost: mtgsim::types::mana::ManaCost::zero(),

@@ -568,7 +568,7 @@ fn trample_assigns_lethal_before_furnace_doubles() {
     set_blocking(&mut game, blocker, vec![mammoth]);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_split(
+    dp.expect_allocation(
         ChoiceKind::AssignTrampleDamage {
             attacker_id: mammoth,
             defending_target: ObjectOrPlayerId::Player(1),

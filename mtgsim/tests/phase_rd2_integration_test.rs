@@ -206,7 +206,7 @@ fn two_shield_counters_under_two_blockers_lose_one_counter_and_take_no_damage() 
     let dp = ScriptedDecisionProvider::new();
     // The attacker divides its 3 among two blockers (CR 510.1c) — the one
     // prompt this board has, and it is the attacking player's.
-    dp.expect_split(
+    dp.expect_allocation(
         ChoiceKind::AssignCombatDamage { attacker_id: attacker },
         vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)],
     );
@@ -244,7 +244,7 @@ fn two_shield_counters_under_a_first_striker_and_a_regular_blocker_lose_two() {
 
     // Regular step: the other blocker and the attacker. The attacker's split
     // is the step's one prompt; the Knight has dealt its damage (CR 510.4).
-    dp.expect_split(
+    dp.expect_allocation(
         ChoiceKind::AssignCombatDamage { attacker_id: attacker },
         vec![(ChoiceOption::Object(regular), 2), (ChoiceOption::Object(knight), 1)],
     );
@@ -395,7 +395,7 @@ fn two_attackers_into_a_shielded_player_prompt_one_allocation_and_any_answer_pre
         let dp = ScriptedDecisionProvider::new();
         // An amount per attacker, in the order they were made; the total is
         // min(3, 6) = 3.
-        dp.expect_split(
+        dp.expect_allocation(
             ChoiceKind::AllocateNextDamage { source: spell, remaining: 3 },
             attackers.iter().zip(&allocation).map(|(&attacker, &amount)| (ChoiceOption::Object(attacker), amount)).collect(),
         );
@@ -460,7 +460,7 @@ fn a_count_spanning_you_and_your_permanents_is_allocated_once_divine_deflection_
 
     let dp = ScriptedDecisionProvider::new();
     // A's 2 to you and B's 4 to the wall share the 3.
-    dp.expect_split(
+    dp.expect_allocation(
         ChoiceKind::AllocateNextDamage { source: deflection, remaining: 3 },
         vec![(ChoiceOption::Object(a), 1), (ChoiceOption::Object(b), 2)],
     );

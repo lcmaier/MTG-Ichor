@@ -1458,7 +1458,7 @@ mod tests {
         let game = test_game_state();
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
-        dp.expect_split(
+        dp.expect_allocation(
             ChoiceKind::AssignCombatDamage { attacker_id: id_a },
             vec![(ChoiceOption::Object(id_a), 2), (ChoiceOption::Object(id_b), 1)],
         );
@@ -1477,7 +1477,7 @@ mod tests {
         let blocker_b = crate::types::ids::new_object_id();
         // 5 power, blocker A needs 2 lethal, blocker B needs 1 lethal
         // DP assigns: 2 to A, 1 to B, 2 overflow to player
-        dp.expect_split(
+        dp.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: attacker,
                 defending_target: ObjectOrPlayerId::Player(1),
@@ -1504,7 +1504,7 @@ mod tests {
         let attacker = crate::types::ids::new_object_id();
         let blocker = crate::types::ids::new_object_id();
         // DP violates: assigns only 1 to blocker that needs 2 lethal
-        dp.expect_split(
+        dp.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: attacker,
                 defending_target: ObjectOrPlayerId::Player(1),
@@ -1691,7 +1691,7 @@ mod tests {
         let game = test_game_state();
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
-        dp.expect_split(
+        dp.expect_allocation(
             ChoiceKind::AssignCombatDamage { attacker_id: id_a },
             vec![(ChoiceOption::Object(id_a), 2), (ChoiceOption::Object(id_b), 2)],
         );

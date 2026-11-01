@@ -267,7 +267,7 @@ pub enum ScriptedResponse {
     Choose(Vec<NamedOption>),
     Number(u64),
     /// Each bucket with its amount: the decision log's allocation.
-    Split(Vec<(ChoiceOption, u64)>),
+    Allocation(Vec<(ChoiceOption, u64)>),
     /// The items, first first.
     Order(Vec<NamedOption>),
     /// A take-or-leave question's one option, taken.
@@ -414,10 +414,10 @@ impl ScriptedDecisionProvider {
 
     /// Enqueue an allocate expectation that names every bucket the engine
     /// offers, in any order, with what it gets.
-    pub fn expect_split(&self, kind: ChoiceKind, amounts: Vec<(ChoiceOption, u64)>) {
+    pub fn expect_allocation(&self, kind: ChoiceKind, amounts: Vec<(ChoiceOption, u64)>) {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
-            response: ScriptedResponse::Split(amounts),
+            response: ScriptedResponse::Allocation(amounts),
         });
     }
 
@@ -556,13 +556,13 @@ impl DecisionProvider for ScriptedDecisionProvider {
     ) -> Vec<u64> {
         self.allocation_mins.borrow_mut().push(per_bucket_mins.to_vec());
         match self.pop_and_validate(player, &context.kind, "allocate") {
-            ScriptedResponse::Split(amounts) => {
+            ScriptedResponse::Allocation(amounts) => {
                 let named: Vec<NamedOption> = amounts.iter().map(|(bucket, _)| (bucket.clone(), None)).collect();
                 let at = found_indices(buckets, game, &named);
                 assert_eq!(
                     at.len(),
                     buckets.len(),
-                    "ScriptedDecisionProvider: the split names {} buckets, and the engine offers {:?}",
+                    "ScriptedDecisionProvider: the allocation names {} buckets, and the engine offers {:?}",
                     at.len(),
                     buckets.iter().map(|bucket| bucket.as_logged(game)).collect::<Vec<_>>()
                 );
@@ -573,7 +573,7 @@ impl DecisionProvider for ScriptedDecisionProvider {
                 allocation
             }
             other => panic!(
-                "ScriptedDecisionProvider: allocate called but scripted response is {:?}, expected a split",
+                "ScriptedDecisionProvider: allocate called but scripted response is {:?}, expected an allocation",
                 other
             ),
         }

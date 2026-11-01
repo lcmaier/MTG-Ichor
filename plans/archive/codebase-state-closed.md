@@ -9571,7 +9571,7 @@ the move because the move needed a home for the helper it replaced.
 
 The 347 answers by position counted at the intake (`expect_pick_n` 306 in
 66 files, `expect_allocation` 28 in 13, `expect_ordering` 13 in 6) were
-each read and named: a pick by `expect_choice`, a split by `expect_split`
+each read and named: a pick by `expect_choice`, a split by `expect_allocation`
 (each bucket with its amount, every bucket named, as the log's
 `Chosen::Allocation`), an order by `expect_order`, all compared by
 `reading_as`, the function `position_of` now stands on. Helpers that took a

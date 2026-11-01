@@ -165,7 +165,7 @@ of the queue, it panics. If the test ends with unconsumed expectations, the
 Drop impl panics. This means every test explicitly declares every decision.
 
 Key methods: `expect_choice(kind, options)`, `expect_number(kind, n)`,
-`expect_split(kind, (bucket, amount) pairs)`, `expect_order(kind, items)`,
+`expect_allocation(kind, (bucket, amount) pairs)`, `expect_order(kind, items)`,
 each naming what it chooses rather than where it sits (since 2026-11-01).
 
 Convenience: `queue_empty_turn_passes()` enqueues 16 PriorityAction passes

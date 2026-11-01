@@ -283,7 +283,7 @@ mod tests {
         set_blocking(&mut game, blocker, vec![trampler]);
 
         let scripted = ScriptedDecisionProvider::new();
-        scripted.expect_split(
+        scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: trampler,
                 defending_target: ObjectOrPlayerId::Player(1),
@@ -321,7 +321,7 @@ mod tests {
 
         // Deathtouch makes 1 lethal (CR 702.2c).
         let scripted = ScriptedDecisionProvider::new();
-        scripted.expect_split(
+        scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: trampler,
                 defending_target: ObjectOrPlayerId::Player(1),

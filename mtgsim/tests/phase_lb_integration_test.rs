@@ -530,7 +530,7 @@ fn cast_and_resolve_targeted_spell(
     // No target to script: every board here holds one creature, so the choice
     // is forced and `ask_select_recipients` does not prompt.
     if let Some(split) = generic_split {
-        decisions.expect_split(
+        decisions.expect_allocation(
             ChoiceKind::GenericManaAllocation {
                 spell_or_ability_id: mtgsim::types::ids::ObjectId::UNASSIGNED,
                 mana_cost: mtgsim::types::mana::ManaCost::zero(),

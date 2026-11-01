@@ -8079,7 +8079,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 209. **~~Scripted test answers are positions in the option list.~~ — ✅
      CLOSED 2026-11-01 (PR #305, `scripted-answers-by-identity`).** —
      archived. Every scripted pick, split and order names what it chose
-     (`expect_choice`, `expect_split`, `expect_order`), compared by the
+     (`expect_choice`, `expect_allocation`, `expect_order`), compared by the
      function `position_of` stands on, and the position forms are gone. A
      name that reads like another offered option is refused; such options
      keep their place among themselves, as the log's `(2 of 2)` does (item
