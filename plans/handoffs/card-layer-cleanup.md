@@ -102,7 +102,7 @@ already slotted beside the phase.
 | 1 | `card-ability-words` | Decisions 2 and 3a, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | built (#301): −2,560 / +1,557, 60 past the band, almost all of it deleted boilerplate | one |
 | 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them; decision 3b, the registry rows' id; one static ability with several kinds of effect, below | built (#302): +2,269 / −2,042, the words +1,335 / −1,630, the row id +178 / −94, the readers +488 / −183, the review round +391 / −315 with main item 359 | one |
 | 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | built (#303): the move's commit counted zero, 277 of its 289 items byte-identical; every other commit +1,476 / −1,714 | one, long |
-| 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered | about +150 / −40, more per printing registered; both pools re-recorded | short |
+| 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered; an invented land of Everywhere's shape (five basic land types, five mana abilities) in `cards::fixtures`, registered and pooled in its place, Everywhere staying defined in `cards::tokens` and unregistered (the owner, at PR 3's review, 2026-11-01) | about +150 / −40, more per printing registered; both pools re-recorded once for all of it | short |
 | 5 | `scripted-answers-by-identity` | Item 209 | about 670 changed lines | one |
 
 The estimates assume each ability's effect body stays where it is when its
@@ -181,6 +181,18 @@ lacks. The first review round (2026-11-01) renamed `colored` to `color` and
 the prevention word to `prevent_the_next_n_damage_this_turn`, moved
 Everywhere into `cards::tokens` as the one named token, and replaced the
 ad hoc creature tokens with `TokenDef::creature` written where each is made.
+The second round (the owner, 2026-11-01) kept `non` over `not` (2,016
+printed cards say "non-", 52 say "that isn't" or "that aren't"), renamed
+`every_permanent_or_player` to `every_permanent_and_player`, kept
+`TypeChange::adding`'s three lists in type-line order (supertypes, card
+types, subtypes), left `.artifact()` and `.legendary()` on `TokenDef` to
+their first cards (289 and 43 printed), moved the Everywhere fixture to
+PR 4, and counted the move's commit zero. A `.git-blame-ignore-revs` entry
+for the move was dropped: the set files are new in that commit, so blame
+has no earlier version to fall back on, and `git blame -C -C` already
+finds each line's commit across the move. `you_now`'s name and reach are
+still open, beside a census of the "you" conditions printed cards ask
+(Menacing Ogre's "if you are one of those players" among them).
 
 **Every PR carries a consumer**: PR 1's and PR 2's are the card files,
 PR 3's is the decklists, PR 4's are Elvish Warmaster and its fixtures,
