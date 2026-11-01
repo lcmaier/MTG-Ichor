@@ -23,7 +23,7 @@ Six fields, and no seventh:
 | **Size** | rough, in phases or in the project's 1,500–2,500-addition PR band |
 | **Blocks** | what stays unwritable until it lands |
 | **Atoms** | corpus atoms filed under `Backlog`, and where the rest of them are |
-| **Owner** | where it will be built, and why there: a route row, an architecture doc, or "after v0.5, wider card work". Never blank — an entry always names its home, and a home that lands or moves takes the entry with it |
+| **Owner** | where it will be built, and why there: a route row, an architecture doc, or "after v0.5, wider card work". Never blank — an entry always names its home, and a home that lands or moves takes the entry with it. A post-v1 piece stays here, homed "after v1", while it can still inform a design before then; one that cannot goes to the owner's post-v1 notes, outside the repository |
 
 **An entry is not a design.** One mechanic, a few lines. When a mechanic is
 actually designed it *graduates*: an architecture doc takes it (extending
@@ -2522,7 +2522,7 @@ the matrix waits for the design that needs it.
 | **Size** | parity is a table, about an hour. The matrix is a docs pass, about a session. The refactor the entry was first filed to decide is not expected to pay |
 | **Blocks** | the matrix blocks post-v1 custom card support. Nothing on the spine |
 | **Atoms** | none; the CR states the slots, not their implementation |
-| **Owner** | parity: `tarkir-dragonstorm-decks`' gap census, in `triggers-architecture.md`, since TR-6 closed without the table and the decks are the first Commander pool, which this entry expected to exercise both sides of most events. The matrix: after v1, with custom-card design, since which holes matter turns on how custom cards are authored. Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
+| **Owner** | parity: `tarkir-dragonstorm-decks`' gap census, in `triggers-architecture.md`, since TR-6 closed without the table and the decks are the first Commander pool, which this entry expected to exercise both sides of most events. The matrix: after v1, with custom-card design, since which holes matter turns on how custom cards are authored; it stays here because it informs designs before then, `remaining-costs`' choice between a cost arm per action and a cost composed of a `GameAction` among them (below). Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
 
 **Costs are a slot too** (the owner, 2026-10-05, at `codebase-state.md` item
 212's census). `Cost` has ten arms and the cards ask for about fifty actions
