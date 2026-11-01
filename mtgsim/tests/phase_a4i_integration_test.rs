@@ -184,8 +184,8 @@ fn animated_artifact_land(game: &mut GameState, player: PlayerId) -> ObjectId {
 
 /// Make a permanent black until end of turn — the step ATOM-608.2b-002 needs
 /// between the announcement and the resolution. A fixture rather than a card:
-/// Moonlace, the pool's colour-changer, removes colours rather than setting
-/// one.
+/// Moonlace Fixture, the pool's color-changer, removes colors rather than
+/// setting one.
 fn make_black(game: &mut GameState, id: ObjectId, controller: PlayerId) {
     let ctx = ResolutionContext {
         source: id,

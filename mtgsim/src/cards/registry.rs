@@ -63,7 +63,7 @@ const PERFORMANCE_POOL: [&str; 124] = [
     "Glorious Anthem",
     "Cerulean Wisps",
     "Crimson Wisps",
-    "Moonlace",
+    "Moonlace Fixture",
     "Blood Moon",
     "March of the Machines",
     "Tarmogoyf",
@@ -685,9 +685,13 @@ impl CardRegistry {
         // - Underground Sea, Cloudspire Mesa and Moonlit Steppe are Lands whose
         //   phases modeled them loosely; the ten real dual lands below are what
         //   `fuzz_games::random_deck` draws its nonbasic land slots from.
+        //
+        // Moonlace Fixture is the one registered here under its own name: the
+        // pool's Layer 5 colorless setter, Moonlace's shape narrowed to a
+        // target creature until end of turn.
         registry.register("Cerulean Wisps", shm::cerulean_wisps);
         registry.register("Crimson Wisps", shm::crimson_wisps);
-        registry.register("Moonlace", tsp::moonlace);
+        registry.register("Moonlace Fixture", fixtures::moonlace_fixture);
         registry.register("Blood Moon", drk::blood_moon);
         registry.register("March of the Machines", mrd::march_of_the_machines);
         registry.register("Tarmogoyf", fut::tarmogoyf);

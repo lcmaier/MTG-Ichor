@@ -2,28 +2,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{becomes_colorless, spell_ability, static_replacement, target_creature};
+use crate::cards::authoring::static_replacement;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::mana::{ManaCost, ManaType};
 
-/// Moonlace — {U}
-/// Instant
-/// Target spell or permanent becomes colorless.
-/// (Simplified: target creature becomes colorless until end of turn.)
-pub fn moonlace() -> Arc<CardData> {
-    CardDataBuilder::new("Moonlace")
-        .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
-        .color(Color::Blue)
-        .card_type(CardType::Instant)
-        .rules_text("Target spell or permanent becomes colorless.")
-        .ability(spell_ability(
-            "Target spell or permanent becomes colorless.",
-            becomes_colorless(target_creature()).until_end_of_turn(),
-        ))
-        .build()
-}
 
 /// Scarwood Treefolk — {3}{G}
 /// Creature — Treefolk, 3/5

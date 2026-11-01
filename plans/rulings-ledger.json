@@ -6,8 +6,8 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-25",
-  "fixtures": ["Loyalty Probe"],
+  "fetched": "2026-11-01",
+  "fixtures": ["Loyalty Probe", "Moonlace Fixture"],
   "cards": {
     "Act of Treason": {
       "first_seen": "2026-09-17",
@@ -243,6 +243,7 @@
     },
     "Cerulean Wisps": {
       "first_seen": "2026-09-17",
+      "read": "2026-11-01",
       "rulings": [
         {"n": 1, "published_at": "2008-05-01", "comment": "An effect that changes a permanent’s colors overwrites all its old colors unless it specifically says “in addition to its other colors.” For example, after Cerulean Wisps resolves, the affected creature will just be blue. It doesn’t matter what colors it used to be (even if, for example, it used to be blue and black)."},
         {"n": 2, "published_at": "2008-05-01", "comment": "Changing a permanent’s color won’t change its text. If you turn Wilt-Leaf Liege blue, it will still affect green creatures and white creatures."},
@@ -961,13 +962,6 @@
         {"n": 1, "published_at": "2004-10-04", "comment": "The player skips their next combat phase this turn (if any). If they manage to have two combat phases, then only their next one combat phase is skipped."},
         {"n": 2, "published_at": "2004-10-04", "comment": "It must be used before the combat phase starts or it has no effect."},
         {"n": 3, "published_at": "2004-10-04", "comment": "If cast on a player when it is not their turn, it has no effect."}
-      ]
-    },
-    "Moonlace": {
-      "first_seen": "2026-09-17",
-      "rulings": [
-        {"n": 1, "published_at": "2006-09-25", "comment": "Moonlace's effect doesn't wear off."},
-        {"n": 2, "published_at": "2006-09-25", "comment": "If Moonlace is cast on a spell that becomes a permanent (a creature spell, an artifact spell, or an enchantment spell), the permanent will enter colorless and will remain colorless until it leaves the battlefield (or until another effect changes its color)."}
       ]
     },
     "Mountain": {

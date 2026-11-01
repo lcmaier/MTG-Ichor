@@ -75,6 +75,29 @@ pub fn bull_rush() -> Arc<CardData> {
         .build()
 }
 
+/// Moonlace Fixture — {U}
+/// Instant
+/// Target creature becomes colorless until end of turn.
+///
+/// **A fixture of Moonlace's shape, narrower than the card**: Moonlace's
+/// "target spell or permanent becomes colorless" is a target no
+/// `SelectionFilter` describes, and its effect lasts the game (its rulings:
+/// it "doesn't wear off", and a permanent spell it targets enters colorless,
+/// CR 400.7a). This one keeps the pool's Layer 5 colorless setter, on a
+/// creature until end of turn.
+pub fn moonlace_fixture() -> Arc<CardData> {
+    CardDataBuilder::new("Moonlace Fixture")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
+        .color(Color::Blue)
+        .card_type(CardType::Instant)
+        .rules_text("Target creature becomes colorless until end of turn.")
+        .ability(spell_ability(
+            "Target creature becomes colorless until end of turn.",
+            becomes_colorless(target_creature()).until_end_of_turn(),
+        ))
+        .build()
+}
+
 /// Chromatic Ward (made-up) — {1}{R}
 /// Enchantment
 /// Creatures you control are red in addition to their other colors.
