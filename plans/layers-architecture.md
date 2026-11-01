@@ -2106,7 +2106,7 @@ again, and Tarmogoyf's graveyard P/T is read by almost nothing today.
 **A *color* in a graveyard is observable today**, and closing the loop needs
 nothing this PR does not already have. `Condition::CardInYourGraveyard` reads a
 graveyard card's characteristics, and decision 5's fold gave it `ObjectFilter`,
-so it can ask `ByColor`. Two fixtures in `phase_lj_cards.rs` — **Graveyard
+so it can ask `ByColor`. Two fixtures in `cards/fixtures/layers.rs` — **Graveyard
 Painter** ("cards in graveyards are red in addition to their other colors",
 Painter's Servant's clause narrowed to one zone) and **Graveyard Reveler**
 ("+2/+2 as long as there's a red card in your graveyard", Kird Ape's shape) —
@@ -2592,7 +2592,7 @@ nothing to happen, which is the same failure as an unapplyable arm.
 **Item 119's reachability verdict is re-derived at this phase's close** — it
 stops being blocked on 6a and becomes ordinary unbuilt work.
 
-The narrower-card precedent stands as `phase_rb_cards` wrote it: the registered
+The narrower-card precedent stands as RB's cards wrote it: the registered
 Leyline is its second clause only, and that is a correct card, not a stub.
 
 ### The first consumer

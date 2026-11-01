@@ -112,8 +112,8 @@ code shape, cost and upkeep.
     engine's, asked at the seat. A question about then comes from a replay
     to the open question with the sink on. Three PRs, SU-6 to SU-8.
 11. **The decklist** (§7d, `card-layer-cleanup`'s design note, decision 5):
-    the deck sites' text, a third door beside `Game::new`'s and the
-    scenario's, whose names the registry resolves into CR 103.3's deck.
+    the deck sites' text: the names a dealt game's decks are built from,
+    resolved against the registry into the CR 103.3 deck `Game::new` takes.
 
 **Size** (§8): SU-1's code ~1,010–1,360 lines and tests ~710–980; SU-2
 ~400–650 in all, built at 640 and 314. **A/B:** `IDENTICAL` predicted for each,

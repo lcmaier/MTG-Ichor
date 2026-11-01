@@ -1517,7 +1517,10 @@ byte for byte, its output goes in the PR body, and the band reads only what
 is not a move: module files, imports, paths, docs and the doc text a move
 carries. #303's script read 277 of 289 items identical and the rest changed
 only in doc comments naming an old path; outside them its larger side still
-passed the band, which the PR body says.
+passed the band, which the PR body says. **A byte-for-byte check passes a
+doc whose words point at its old position**: #303's pre-review found
+nineteen moved docs saying "below", "in this file" or "this phase" of a file
+that no longer held their referent, so a moved doc is re-read for them.
 
 ### 4.1 The standing review question
 

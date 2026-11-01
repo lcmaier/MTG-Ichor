@@ -127,8 +127,10 @@ and its review boards pass.
 **Re-measured 2026-11-01 at the first review round's head** (`f0678ae8`: two
 words renamed, Everywhere in `cards::tokens` under the same registered name,
 the creature tokens as `TokenDef::creature`, and the five `tdc` decklists),
-against the same **main**. Predicted identical again, since every card's value
-was checked equal; read **IDENTICAL** on both pools at both seat counts, the
+against the same **main**. Predicted identical again: the renames change no
+value, Everywhere's function moved unchanged, and the token commit's cards
+were checked equal against a recording the old fingerprint test took before
+it, restored for that comparison only; read **IDENTICAL** on both pools at both seat counts, the
 audit's counts unchanged, and instructions a decision 0.6495 M → 0.6471 M,
 **−0.37%**, the moves the inlining boundaries the second PR's sittings named
 (`get_effective_abilities`, `ManaAbilityWindowOffer::read`,

@@ -169,7 +169,9 @@ fourth spelling, landed then for the same reason. What a phase file's
 module doc said about one card went to that card first (the "Card | The
 path" rows as "It exercises …"). A card file's test module moved into
 `tests/`, into its phase's integration file as a module named for what it
-tests, the per-card data checks into `printings_test.rs`. The band: 277 of
+tests, the per-card data checks into `printings_test.rs`; the Layer 4
+lowering test reads `GameState`'s crate-private lowering, so it joined
+`game_state.rs`'s unit tests. The band: 277 of
 289 items byte-identical and 11,939 moved lines counted zero by decision 7;
 outside them the larger side is −4,688, of which 1,232 are the dropped
 module docs and 497 the fingerprints, and +3,755, of which 1,008 are the 97
@@ -706,7 +708,11 @@ PR 5's are the tests.
      which is the error wanted.
 
    **Settled: (b)** (the owner, at #301's first review round, 2026-10-31),
-   with the sets filed by year and release date as above.
+   with the sets filed by year and release date as above. **Revised at PR 3's
+   first review round** (the owner, 2026-11-01): `cards::tokens` holds named
+   token definitions, Everywhere among them rather than in `tdsk`, and a
+   creature token an effect describes is `TokenDef::creature` written where
+   it is made, so the table's two token rows are the plan, not the tree.
 
 5. **The decklist: its format, and what reads it first.**
 

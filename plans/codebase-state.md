@@ -1580,8 +1580,10 @@ section never asked.
     D3b slice-2 triage).** `GameConfig` carries `min_deck_size`,
     `max_deck_size`, `max_copies` and `sideboard_size`, and both `standard()`
     and `limited()` set them correctly — 60/4/15 and 40/none/none. **Nothing
-    in the tree reads them.** One validation function against a `Decklist`
-    closes it; until then a malformed decklist starts a game.
+    in the tree reads them.** One validation function against a
+    `scenario::Decklist`, the names and sections a player brings
+    (`setup-architecture.md#7d-the-decklist`), closes it; until then a
+    malformed decklist starts a game.
 
     Third instance of the same shape in one triage, after item 31 and
     `color_indicator`: **configuration or a field that looks like progress in a
@@ -1594,8 +1596,9 @@ section never asked.
     replacement from ~60 names, so a few percent of decks exceed `max_copies`;
     CR 100.2a is deck construction, and no rule of play reads it.
 
-    **Sized:** one `validate(&Decklist, &DeckLimits)` ~40 lines
-    plus tests (`backlog.md` §2.13: tiny), called from `Game::new`, and a 4-of
+    **Sized:** one `validate(&Decklist, &DeckLimits)` over a
+    `scenario::Decklist`, ~40 lines plus tests (`backlog.md` §2.13: tiny),
+    called as `game-formats` builds each seat's `Deck` from its decklist, and a 4-of
     cap in `random_deck` if the harness is to be held to it; lands with the
     `GameConfig::commander()` constructor, whose 100-card singleton limit is the
     first one a fuzz deck would actually break.
@@ -5069,14 +5072,15 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Commander (CR
     903)" item 1.
 
-2. **Commander setup hook.** Nothing yet flips `is_commander = true` at deck construction or game setup. Needs a `GameConfig::commander()` constructor + a designation step (probably a field on `Decklist` or an analogous role entry). No tests exercise this yet — the flag is only set via direct field mutation in unit tests.
+2. **Commander setup hook.** Nothing yet flips `is_commander = true` at deck construction or game setup. Needs a `GameConfig::commander()` constructor + a designation step (a `scenario::Decklist`'s commander section, `setup-architecture.md#7d-the-decklist`). No tests exercise this yet — the flag is only set via direct field mutation in unit tests.
 
    **Reachability (2026-09-03):** unreachable — nothing sets `is_commander`
    outside two unit tests (`actions.rs:1256`, `:1339`); CR 903.9a/b and 704.6d
    are live and have no commander to act on.
 
-   **Sized:** `GameConfig::commander()`, a designation on
-   `Decklist`, and the flag set in `Game::new`, ~80–120 lines with tests; the
+   **Sized:** `GameConfig::commander()`, the designation read off a
+   `scenario::Decklist`'s commander section, and the flag set as each `Deck`
+   is built, ~80–120 lines with tests; the
    first PR of the Commander interleave.
    **Slotted:** `game-formats`, `GameConfig::commander()` reading a
    `scenario::Decklist`'s commander section, which the decklist parses and
