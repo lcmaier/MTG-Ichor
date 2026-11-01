@@ -127,7 +127,7 @@ pub fn guerrilla_tactics() -> Arc<CardData> {
 pub fn angelic_destiny() -> Arc<CardData> {
     let anthem = "Enchanted creature gets +4/+4, has flying and first strike, and is an Angel in addition to its other types.";
     let returns = "When enchanted creature dies, return this card to its owner's hand.";
-    let angel = TypeChange { add_subtypes: vec![Subtype::Creature(CreatureType::Angel)], ..TypeChange::NONE };
+    let angel = TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Angel)], &[]);
     CardDataBuilder::new("Angelic Destiny")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 2))
         .color(Color::White)

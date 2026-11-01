@@ -18,7 +18,8 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    copy, creature, land, non, planeswalker, spell_ability, static_replacement, target_creature, target_permanent, with_subtype, you_control,
+    copy, creature, land, non, nonlegendary_creature, planeswalker, spell_ability, static_replacement, target_creature, target_permanent,
+    with_subtype, you_control,
 };
 use crate::cards::authoring::{another, at_beginning_of, triggered_ability, Whose};
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -26,7 +27,7 @@ use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    CharacteristicEdit, CopyException, CopyRoles, CounterType, Effect, ObjectFilter,
+    CharacteristicEdit, CopyException, CopyRoles, CounterType, Effect,
     ObjectSet, PlayerRef, SelectionFilter, TypeChange,
 };
 use crate::types::mana::{ManaCost, ManaType};
@@ -35,13 +36,6 @@ use crate::types::replacement::{
 };
 use crate::types::triggers::{TriggerCondition, TriggerDef};
 
-/// "Nonlegendary creature" — the filter both cards scope their copy source
-/// with, and the reason CR 707 cards say it at all: a copy of a legend meets
-/// CR 704.5j the moment it exists, so the printed text keeps the effect from
-/// being a sacrifice.
-fn nonlegendary_creature() -> ObjectFilter {
-    creature().and(non(ObjectFilter::BySupertype(Supertype::Legendary)))
-}
 
 /// Cytoshape — {1}{G}{U}
 /// Instant

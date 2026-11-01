@@ -142,16 +142,17 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, an_opponent_controls, any_target, colored, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source,
-    creature, creatures_you_control, deal_damage, deal_damage_unpreventable, each, gain_life, mill, other_than_this, spell_ability,
-    static_replacement, target_creature, target_player, with_subtype, you_control,
+    activated_ability, all_damage_to_you, an_opponent_controls, any_target, colored, create_replacement,
+    create_replacement_from_a_chosen_source, creature, creatures_you_control, deal_damage, deal_damage_unpreventable, each, every_permanent_or_player,
+    gain_life, mill, other_than_this, prevent_the_next_this_turn, spell_ability, static_replacement, target_creature, target_player,
+    the_next_damage_from_a_chosen_source, with_subtype, you_control,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerSet, SelectionFilter,
+    AffectedSet, ObjectSet, AmountExpr, ObjectFilter, PlayerSet, SelectionFilter,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -160,16 +161,6 @@ use crate::types::replacement::{
     SourcePattern,
 };
 
-/// "A permanent or player" — CR 614.1's two kinds of subject, as the pair of
-/// sets that says "everything".
-///
-/// Furnace of Rath and Ghosts of the Innocent print the same scope word for
-/// word, so they share this rather than each spelling it: a divergence between
-/// two cards whose oracle text is identical would be an authoring bug nothing
-/// could catch.
-fn every_permanent_or_player() -> (ObjectSet, PlayerSet) {
-    (ObjectSet::battlefield_filter(ObjectFilter::All), PlayerSet::Everyone)
-}
 
 /// Furnace of Rath — {1}{R}{R}{R}
 ///
@@ -445,27 +436,6 @@ pub fn loyalty_probe() -> Arc<CardData> {
 // ---------------------------------------------------------------------------
 
 
-/// "Prevent the next `n` damage that would be dealt to … this turn" — the def
-/// every count-carrying card here shares.
-///
-/// [`AmountRewrite::PreventRemaining`] reads the count off
-/// `Uses::NextDamage(n)`, so the number is written once; the object set is the
-/// empty `Fixed` the resolution fills with its target — or, for Samite
-/// Censer-Bearer, with each creature its filter finds — and the duration is the
-/// card's "this turn", authored here because CR 608.2c will not let the engine
-/// infer it.
-fn prevent_the_next_this_turn(recipient: EffectRecipient, n: u64) -> Effect {
-    create_replacement_for(
-        recipient,
-        ReplacementDef::new(
-            EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::NO_OBJECTS,
-            Rewrite::Amount(AmountRewrite::PreventRemaining),
-        )
-        .next_damage(n),
-    )
-    .until_end_of_turn()
-}
 
 
 /// Mending Hands — {W}
@@ -606,29 +576,6 @@ pub fn samite_censer_bearer() -> Arc<CardData> {
 // RD-3 — sources (CR 609.7, 615.8, 615.9, 615.10)
 // ---------------------------------------------------------------------------
 
-/// "The next time a source of your choice would deal damage to you this turn"
-/// — the def the three CR 609.7a cards share, differing only in the property
-/// the chosen source must still have and in what the effect then does.
-///
-/// The `SourcePattern`'s `object` is `None` here and stays `None` on the card:
-/// CR 609.7a chooses the source *when the effect is created*, so the
-/// resolution writes it (`PatternFill::ChosenDamageSource`). The `filter` is
-/// the card's own and is rechecked at every damage event, which is CR 609.7b.
-fn the_next_damage_from_a_chosen_source(
-    filter: Option<ObjectFilter>,
-    rewrite: Rewrite,
-) -> ReplacementDef {
-    let source = match filter {
-        Some(f) => SourcePattern::matching(f),
-        None => SourcePattern::chosen(),
-    };
-    ReplacementDef::new(
-        EventPattern::DealDamage { source: Some(source), combat: None },
-        PlayerSet::You,
-        rewrite,
-    )
-    .once()
-}
 
 /// "Cleric creature you control" — all three clauses, because the card says
 /// all three and a subtype does not carry its card type on an object outside
@@ -975,20 +922,6 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
 // RD-4 — redirection and unpreventable damage (CR 614.9, 615.12)
 // ---------------------------------------------------------------------------
 
-/// "All damage that would be dealt to you … is dealt to [something] instead" —
-/// the pattern and the two sets Pariah and Palisade Giant share.
-///
-/// `combat: None` is the whole of "all damage": CR 614.9 is indifferent to
-/// where the damage came from, and both cards' first ruling is that redirected
-/// combat damage is still combat damage — which is a fact about the *rewrite*
-/// (it does not touch `is_combat`) rather than about the pattern.
-fn all_damage_to_you(objects: ObjectSet, spec: RetargetSpec) -> ReplacementDef {
-    ReplacementDef::new(
-        EventPattern::DealDamage { source: None, combat: None },
-        AffectedSet { objects, players: PlayerSet::You },
-        Rewrite::Retarget(spec),
-    )
-}
 
 /// Pariah — {2}{W}
 ///
@@ -1180,7 +1113,7 @@ mod tests {
         test_ctx, RecordingDecisionProvider,
     };
     use crate::state::replacement_effects::ReplacementEffectId;
-    use crate::types::effects::{CounterType, Duration, PatternFill, Primitive};
+    use crate::types::effects::{CounterType, Duration, Effect, EffectRecipient, PatternFill, Primitive};
 
     /// A 2/2 for P0 and a board with no replacement source but the one under
     /// test. Damage to a *creature* throughout: RD-1's tests of damage to a

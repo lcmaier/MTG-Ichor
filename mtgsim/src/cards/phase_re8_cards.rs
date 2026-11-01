@@ -46,7 +46,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{discard, draw_cards, scry, spell_ability, static_replacement, target_player, you};
-use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
@@ -61,14 +61,6 @@ use crate::types::replacement::{
 use crate::types::restriction::SourceFilter;
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneSet, ZoneChangePattern};
 
-/// A spell whose whole text is "target player discards N cards", differing
-/// only in who picks (CR 701.9b).
-fn target_player_discards(rules_text: &'static str, n: u64, chooser: DiscardChooser) -> AbilityDef {
-    spell_ability(
-        rules_text,
-        discard(target_player(), n, chooser),
-    )
-}
 
 /// Mind Rot — {2}{B}
 /// Sorcery
@@ -93,7 +85,7 @@ pub fn mind_rot() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Sorcery)
         .rules_text("Target player discards two cards.")
-        .ability(target_player_discards("Target player discards two cards.", 2, DiscardChooser::Affected))
+        .ability(spell_ability("Target player discards two cards.", discard(target_player(), 2, DiscardChooser::Affected)))
         .build()
 }
 
@@ -121,7 +113,7 @@ pub fn hymn_to_tourach() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Sorcery)
         .rules_text("Target player discards two cards at random.")
-        .ability(target_player_discards("Target player discards two cards at random.", 2, DiscardChooser::AtRandom))
+        .ability(spell_ability("Target player discards two cards at random.", discard(target_player(), 2, DiscardChooser::AtRandom)))
         .build()
 }
 

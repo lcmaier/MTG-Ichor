@@ -29,7 +29,7 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target permanent becomes an artifact in addition to its other types until end of turn.",
-            becomes_types(target_permanent(ObjectFilter::All), TypeChange { add_types: vec![CardType::Artifact], ..TypeChange::NONE })
+            becomes_types(target_permanent(ObjectFilter::All), TypeChange::adding(&[CardType::Artifact], &[], &[]))
                 .until_end_of_turn(),
         ))
         .build()
@@ -50,7 +50,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target artifact becomes an artifact creature with base power and toughness 5/5 until end of turn.",
-            becomes_types(target_permanent(artifact()), TypeChange { add_types: vec![CardType::Creature], ..TypeChange::NONE })
+            becomes_types(target_permanent(artifact()), TypeChange::adding(&[CardType::Creature], &[], &[]))
                 .and_has_base_power_and_toughness(5, 5)
                 .until_end_of_turn(),
         ))
@@ -76,7 +76,7 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target creature gets +1/+2 and is an Angel in addition to its other types until end of turn.",
-            becomes_types(target_creature(), TypeChange { add_subtypes: vec![Subtype::Creature(CreatureType::Angel)], ..TypeChange::NONE })
+            becomes_types(target_creature(), TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Angel)], &[]))
                 .and_gets(1, 2)
                 .until_end_of_turn(),
         ))
@@ -98,7 +98,7 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target creature is legendary and gets +1/+1 until end of turn.",
-            becomes_types(target_creature(), TypeChange { add_supertypes: vec![Supertype::Legendary], ..TypeChange::NONE })
+            becomes_types(target_creature(), TypeChange::adding(&[], &[], &[Supertype::Legendary]))
                 .and_gets(1, 1)
                 .until_end_of_turn(),
         ))
@@ -153,7 +153,7 @@ pub fn urborg_effect() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(
             "Each land is a Swamp in addition to its other land types.",
-            becomes_types(each(land()), TypeChange { add_subtypes: vec![Subtype::Land(LandType::Swamp)], ..TypeChange::NONE }),
+            becomes_types(each(land()), TypeChange::adding(&[], &[Subtype::Land(LandType::Swamp)], &[])),
         ))
         .build()
 }
@@ -232,7 +232,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
         .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.")
         .ability(static_ability(
             "Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.",
-            becomes_types(each(noncreature_artifact), TypeChange { add_types: vec![CardType::Creature], ..TypeChange::NONE })
+            becomes_types(each(noncreature_artifact), TypeChange::adding(&[CardType::Creature], &[], &[]))
                 .and_has_base_power_and_toughness(AmountExpr::AffectedManaValue, AmountExpr::AffectedManaValue),
         ))
         .build()

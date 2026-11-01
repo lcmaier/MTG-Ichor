@@ -16,13 +16,15 @@
 //! One file per subsystem whose vocabulary has landed: [`abilities`], the
 //! kinds of ability every card is written in; [`instructions`], the verbs an
 //! ability's effect is made of; [`recipients`], who and what each verb acts
-//! on; and [`triggers`], CR 603's words. A word sits in its file by the CR
+//! on; [`replacements`], CR 614's events and what happens instead; and
+//! [`triggers`], CR 603's words. A word sits in its file by the CR
 //! rule it names, not by the card that brought it, so the file reads in the
 //! CR's order whichever card came first.
 
 pub mod abilities;
 pub mod instructions;
 pub mod recipients;
+pub mod replacements;
 pub mod triggers;
 
 pub use abilities::{
@@ -31,19 +33,26 @@ pub use abilities::{
 pub use instructions::{
     add_mana, add_phases, attach_to, becomes_a_blocked_creature, becomes_color, becomes_colorless, becomes_types, cant, copy, counter_spell,
     create_delayed_trigger, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, create_tokens, deal_damage,
-    deal_damage_unpreventable, destroy, discard, draw_cards, exile, exile_until, gain_control_of, gain_life, gains_ability, gains_keyword, get_counters,
-    gets, has_base_power_and_toughness, is_also_color, its_controller_adds, lose_life, lose_the_game, loses_all_abilities, mill, put_counters,
-    remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total, shuffle_library, switch_power_and_toughness,
-    take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange, ContinuousRuleChange,
+    deal_damage_unpreventable, destroy, discard, draw_cards, exile, exile_until, gain_control_of, gain_life, gains_ability, gains_keyword,
+    get_counters, gets, has_base_power_and_toughness, is_also_color, its_controller_adds, lose_life, lose_the_game, loses_all_abilities, mill,
+    prevent_the_next_this_turn, put_counters, remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total,
+    shuffle_library, switch_power_and_toughness, take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange, ContinuousRuleChange,
 };
 pub use recipients::{
     an_opponent_controls, any_target, artifact, attacked_by, basic, chosen_by, colored, creature, creatures_you_control, each, each_in, each_opponent,
-    each_player, host, land, non, other_than_this, planeswalker, referred, target, target_creature, target_permanent, target_player, target_spell,
-    targets, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_control,
+    each_player, host, land, non, nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature, target_permanent,
+    target_player, target_spell, targets, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_cast,
+    you_control,
+};
+pub use replacements::{
+    all_damage_to_you, draw_two_instead, every_permanent_or_player, shuffles_into_library_from_anywhere, skip, tapped_for_mana,
+    the_next_damage_from_a_chosen_source,
 };
 pub use triggers::{
-    activates_an_ability_of, an_opponent_gains_control_of, another, at_beginning_of, attacks, attacks_alone, attacks_and_isnt_blocked, attacks_defender, becomes_attached,
-    becomes_blocked, becomes_blocked_by, becomes_the_target_of, becomes_unattached, blocks, blocks_a_creature, counters_put_on, creates_a_token, counters_removed_from, damage_to_is_prevented, dies, draws_a_card, enters, functioning_in, is_attacked, is_sacrificed, leaves_the_battlefield, loses_the_game, persist,
-    player_attacks, player_attacks_player, player_becomes_the_target_of, player_or_their_planeswalker, scries, shuffles_their_library, spell_is_countered, triggered_ability, undying, when_you_do,
-    when_you_dont, whenever, you_lose_control_of, CountableEvent, CounterEvent, Whose,
+    activates_an_ability_of, an_opponent_gains_control_of, another, at_beginning_of, attacks, attacks_alone, attacks_and_isnt_blocked,
+    attacks_defender, becomes_attached, becomes_blocked, becomes_blocked_by, becomes_the_target_of, becomes_unattached, blocks, blocks_a_creature,
+    counters_put_on, counters_removed_from, creates_a_token, damage_to_is_prevented, dies, draws_a_card, enters, functioning_in, is_attacked,
+    is_sacrificed, leaves_the_battlefield, loses_the_game, persist, player_attacks, player_attacks_player, player_becomes_the_target_of,
+    player_or_their_planeswalker, scries, shuffles_their_library, spell_is_countered, triggered_ability, undying, when_state, when_you_do,
+    when_you_dont, whenever, you_lose_control_of, you_now, CountableEvent, CounterEvent, Whose,
 };

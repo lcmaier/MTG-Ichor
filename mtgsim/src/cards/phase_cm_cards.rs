@@ -34,8 +34,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, add_mana, artifact, colored, creature, destroy, draw_cards, mana_ability, non, spell_ability, target_permanent, you,
-    you_control,
+    activated_ability, add_mana, artifact, colored, creature, destroy, draw_cards, mana_ability, non, spell_ability, target_permanent, you, you_cast,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
@@ -48,11 +47,6 @@ use crate::types::effects::{
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
-/// "Spells you cast" — CR 109.5's "you" is the source's current controller,
-/// and a spell's controller is its caster.
-fn you_cast(filter: ObjectFilter) -> ObjectFilter {
-    filter.and(you_control())
-}
 
 /// Thalia, Guardian of Thraben — {1}{W}
 /// Legendary Creature — Human Soldier, 2/1

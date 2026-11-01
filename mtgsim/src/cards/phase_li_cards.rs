@@ -33,20 +33,6 @@ use crate::types::effects::{
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
-/// A `TypeChange` that adds and nothing else.
-fn adds(types: &[CardType], subtypes: &[Subtype], supertypes: &[Supertype]) -> TypeChange {
-    TypeChange {
-        add_types: types.to_vec(),
-        remove_types: Vec::new(),
-        set_types: None,
-        add_subtypes: subtypes.to_vec(),
-        remove_subtypes: Vec::new(),
-        set_subtypes: None,
-        add_supertypes: supertypes.to_vec(),
-        remove_supertypes: Vec::new(),
-        set_supertypes: None,
-    }
-}
 
 /// Urborg, Tomb of Yawgmoth
 /// Legendary Land
@@ -85,7 +71,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
         .rules_text("Each land is a Swamp in addition to its other land types.")
         .ability(static_ability(
             "Each land is a Swamp in addition to its other land types.",
-            becomes_types(each(land()), adds(&[], &[Subtype::Land(LandType::Swamp)], &[])),
+            becomes_types(each(land()), TypeChange::adding(&[], &[Subtype::Land(LandType::Swamp)], &[])),
         ))
         .build()
 }
@@ -130,7 +116,7 @@ pub fn opalescence() -> Arc<CardData> {
         )
         .ability(static_ability(
             "Each other non-Aura enchantment is a creature in addition to its other types and has base power and base toughness each equal to its mana value.",
-            becomes_types(other_non_aura_enchantments, adds(&[CardType::Creature], &[], &[]))
+            becomes_types(other_non_aura_enchantments, TypeChange::adding(&[CardType::Creature], &[], &[]))
                 .and_has_base_power_and_toughness(AmountExpr::AffectedManaValue, AmountExpr::AffectedManaValue),
         ))
         .build()
@@ -184,7 +170,7 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
         ).characteristic_defining())
         .ability(static_ability(
             "Nontoken creatures you control are Forest lands in addition to their other types.",
-            becomes_types(each(nontoken_creatures_you_control), adds(&[CardType::Land], &[Subtype::Land(LandType::Forest)], &[])),
+            becomes_types(each(nontoken_creatures_you_control), TypeChange::adding(&[CardType::Land], &[Subtype::Land(LandType::Forest)], &[])),
         ))
         .build()
 }
@@ -221,7 +207,7 @@ pub fn purifier_clause() -> Arc<CardData> {
             "Lands you control are basic.",
             becomes_types(
                 each(land().and(you_control())),
-                adds(&[], &[], &[Supertype::Basic]),
+                TypeChange::adding(&[], &[], &[Supertype::Basic]),
             ),
         ))
         .build()
@@ -358,7 +344,7 @@ pub fn simian_clause() -> Arc<CardData> {
                     players: PlayerSet::You,
                     fact: PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Forest))),
                 },
-                becomes_types(each(creatures_you_control()), adds(&[], &[Subtype::Creature(CreatureType::Ape)], &[])),
+                becomes_types(each(creatures_you_control()), TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Ape)], &[])),
             ),
         ))
         .build()

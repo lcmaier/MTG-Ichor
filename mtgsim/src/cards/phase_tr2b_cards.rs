@@ -21,17 +21,10 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, PlayerRef, };
+    ObjectSet, AmountExpr, CounterType, Effect, PlayerRef, };
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit};
 
-/// "You may put [amount] +1/+1 counters on [recipient]."
-fn you_may_put_counters(amount: AmountExpr, recipient: EffectRecipient) -> Effect {
-    Effect::Optional {
-        chooser: PlayerRef::You,
-        effect: Box::new(put_counters(recipient, CounterType::PlusOnePlusOne, amount)),
-    }
-}
 
 /// Nykthos Paragon — {4}{W}{W}
 /// Enchantment Creature — Human Soldier 4/6
@@ -86,7 +79,10 @@ pub fn nykthos_paragon() -> Arc<CardData> {
             }),
             intervening_if: None,
             limit: Some(TriggerLimit::DoThisOnlyOnceEachTurn),
-            effect: you_may_put_counters(AmountExpr::TriggeringAmount, each_creature_you_control),
+            effect: Effect::Optional {
+                chooser: PlayerRef::You,
+                effect: Box::new(put_counters(each_creature_you_control, CounterType::PlusOnePlusOne, AmountExpr::TriggeringAmount)),
+            },
         }))
         .build()
 }
@@ -161,7 +157,10 @@ pub fn cosis_trickster() -> Arc<CardData> {
         .rules_text("Whenever an opponent shuffles their library, you may put a +1/+1 counter on this creature.")
         .ability(triggered_ability("Whenever an opponent shuffles their library, you may put a +1/+1 counter on this creature.", whenever(
             shuffles_their_library(Whose::AnOpponents),
-            you_may_put_counters(AmountExpr::Fixed(1), this_object()),
+            Effect::Optional {
+                chooser: PlayerRef::You,
+                effect: Box::new(put_counters(this_object(), CounterType::PlusOnePlusOne, AmountExpr::Fixed(1))),
+            },
         )))
         .build()
 }

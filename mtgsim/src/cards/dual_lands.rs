@@ -90,7 +90,13 @@ pub fn scrubland() -> Arc<CardData> {
 
 /// Volcanic Island — Land — Island Mountain
 pub fn volcanic_island() -> Arc<CardData> {
-    dual("Volcanic Island", LandType::Island, LandType::Mountain)
+    CardDataBuilder::new("Volcanic Island")
+        .card_type(CardType::Land)
+        .subtype(Subtype::Land(LandType::Island))
+        .subtype(Subtype::Land(LandType::Mountain))
+        .mana_ability_single(ManaType::Blue)
+        .mana_ability_single(ManaType::Red)
+        .build()
 }
 
 /// Bayou — Land — Swamp Forest

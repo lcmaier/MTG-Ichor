@@ -14,7 +14,7 @@ use super::recipients::{creature, other_than_this, planeswalker};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType};
 use crate::state::game_state::StepType;
 use crate::types::effects::{
-    Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, TokenDef,
+    Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive, ReturnUnder, TokenDef,
 };
 use crate::types::history::CountIs;
 use crate::types::replacement::EntryCounters;
@@ -47,6 +47,17 @@ pub fn whenever(event: impl Into<TriggerEvent>, effect: Effect) -> TriggerDef {
         limit: None,
         effect,
     }
+}
+
+/// "When [state], [effect]": a state trigger (CR 603.8). It has no
+/// intervening "if", since it checks its state as it triggers and never again.
+pub fn when_state(condition: Condition, effect: Effect) -> TriggerDef {
+    TriggerDef { condition: TriggerCondition::State(condition), intervening_if: None, limit: None, effect }
+}
+
+/// "You [fact]": the fact of the ability's controller, now.
+pub fn you_now(fact: PlayerFact) -> Condition {
+    Condition::Player { players: PlayerSet::You, fact }
 }
 
 /// "Another [filter]" (CR 603.6a): the filter beside `NotSource`, which the

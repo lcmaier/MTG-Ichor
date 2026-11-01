@@ -169,6 +169,12 @@ pub fn an_opponent_controls() -> ObjectFilter {
     ObjectFilter::ByController(PlayerRef::Opponent)
 }
 
+/// "Spells you cast" — CR 109.5's "you" is the source's current controller,
+/// and a spell's controller is its caster.
+pub fn you_cast(filter: ObjectFilter) -> ObjectFilter {
+    filter.and(you_control())
+}
+
 /// "Token" (CR 111.1); "nontoken" is `non(token())`.
 pub fn token() -> ObjectFilter {
     ObjectFilter::Token
@@ -215,4 +221,12 @@ pub fn planeswalker() -> ObjectFilter {
 /// 108.4), so a card in a graveyard means its owner's creatures.
 pub fn creatures_you_control() -> ObjectFilter {
     creature().and(you_control())
+}
+
+/// "Nonlegendary creature" — the filter Cytoshape and Mirrorweave scope
+/// their copy source with, and the reason CR 707 cards say it at all: a copy
+/// of a legend meets CR 704.5j the moment it exists, so the printed text
+/// keeps the effect from being a sacrifice.
+pub fn nonlegendary_creature() -> ObjectFilter {
+    creature().and(non(ObjectFilter::BySupertype(Supertype::Legendary)))
 }

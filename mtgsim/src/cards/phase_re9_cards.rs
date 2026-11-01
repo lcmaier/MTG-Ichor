@@ -63,7 +63,9 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, add_mana, basic, create_replacement, land, mana_ability, non, spell_ability, you_control};
+use crate::cards::authoring::{
+    activated_ability, add_mana, basic, create_replacement, land, mana_ability, non, spell_ability, tapped_for_mana, you_control,
+};
 use crate::cards::authoring::static_replacement;
 use crate::objects::card_data::{
     CardData, CardDataBuilder,
@@ -72,18 +74,14 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, ManaOutput, ObjectFilter, PlayerSet,
+    AmountExpr, ManaOutput, PlayerSet,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
-    AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
+    AmountRewrite, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
 };
 
-/// CR 106.12's "tapped for mana", optionally of a permanent matching `source`.
-fn tapped_for_mana(source: Option<ObjectFilter>) -> EventPattern {
-    EventPattern::ProduceMana { tapped_for_mana: Some(true), source }
-}
 
 /// Mana Reflection — {4}{G}{G}
 /// Enchantment

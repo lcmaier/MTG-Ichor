@@ -22,11 +22,11 @@ use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::PhaseType;
 use crate::types::effects::{
     AmountExpr, ColorChange, CopyException, CopyRoles, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
-    ExtraPhasesAfter, ManaOutput, PatternFill, PlayerRef, Primitive, ReturnUnder, TokenDef, TypeChange,
+    ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, TokenDef, TypeChange,
 };
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
-use crate::types::replacement::ReplacementDef;
+use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::triggers::{DelayedTriggerTemplate, TriggerEvent};
 
@@ -434,6 +434,28 @@ pub fn create_replacement_for(recipient: EffectRecipient, def: ReplacementDef) -
 pub fn create_replacement_from_a_chosen_source(def: ReplacementDef) -> ContinuousRuleChange {
     let def = Box::new(def);
     ContinuousRuleChange(ContinuousChange::new(EffectRecipient::Implicit, move |d| Primitive::CreateReplacement(def, d, PatternFill::ChosenDamageSource)))
+}
+
+/// "Prevent the next `n` damage that would be dealt to … this turn" — the def
+/// every card that counts the damage it prevents shares.
+///
+/// [`AmountRewrite::PreventRemaining`] reads the count off
+/// `Uses::NextDamage(n)`, so the number is written once; the object set is the
+/// empty `Fixed` the resolution fills with its target — or, for Samite
+/// Censer-Bearer, with each creature its filter finds — and the duration is the
+/// card's "this turn", authored here because CR 608.2c will not let the engine
+/// infer it.
+pub fn prevent_the_next_this_turn(recipient: EffectRecipient, n: u64) -> Effect {
+    create_replacement_for(
+        recipient,
+        ReplacementDef::new(
+            EventPattern::DealDamage { source: None, combat: None },
+            ObjectSet::NO_OBJECTS,
+            Rewrite::Amount(AmountRewrite::PreventRemaining),
+        )
+        .next_damage(n),
+    )
+    .until_end_of_turn()
 }
 
 /// "[Recipient] can't [what]" from a resolution (CR 101.2, 614.17). A

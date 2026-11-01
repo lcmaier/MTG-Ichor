@@ -23,17 +23,13 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet, TokenDef,
+    AmountExpr, Condition, CounterType, ObjectFilter, PlayerRef, PlayerSet, TokenDef,
 };
 use crate::types::history::{CountIs, HistoryCount, TurnFact};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
 
-/// "Put a +1/+1 counter on this creature."
-fn counter_on_this() -> Effect {
-    put_counters(this_object(), CounterType::PlusOnePlusOne, 1)
-}
 
 /// Paladin of Atonement — {1}{W}
 /// Creature — Vampire Knight 1/1
@@ -75,7 +71,7 @@ pub fn paladin_of_atonement() -> Arc<CardData> {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Each)),
             intervening_if: Some(lost_life_last_turn),
             limit: None,
-            effect: counter_on_this(),
+            effect: put_counters(this_object(), CounterType::PlusOnePlusOne, 1),
         }))
         .ability(triggered_ability("When this creature dies, you gain life equal to its toughness.", TriggerDef {
             condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
@@ -125,7 +121,7 @@ pub fn vengeful_warchief() -> Arc<CardData> {
             }),
             intervening_if: None,
             limit: Some(TriggerLimit::FirstTimeEachTurn),
-            effect: counter_on_this(),
+            effect: put_counters(this_object(), CounterType::PlusOnePlusOne, 1),
         }))
         .build()
 }

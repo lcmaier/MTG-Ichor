@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     create_tokens, creature, destroy, discard, draw_cards, each, lose_the_game, non, other_than_this, sacrifice, spell_ability, this_object,
-    with_subtype, you, you_control,
+    when_state, with_subtype, you, you_control, you_now,
 };
 use crate::cards::authoring::triggered_ability;
 use crate::cards::phase_re_cards::soldier_token;
@@ -23,20 +23,10 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Condition, DiscardChooser, Effect, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, };
+    ObjectSet, AmountExpr, Condition, DiscardChooser, Effect, ObjectFilter, PlayerFact, PlayerRef, };
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::{TriggerCondition, TriggerDef};
 
-/// "When [state], [effect]": a state trigger (CR 603.8). It has no
-/// intervening "if", since it checks its state as it triggers and never again.
-fn when_state(condition: Condition, effect: Effect) -> TriggerDef {
-    TriggerDef { condition: TriggerCondition::State(condition), intervening_if: None, limit: None, effect }
-}
 
-/// "You [fact]": the fact of the ability's controller, now.
-fn you_now(fact: PlayerFact) -> Condition {
-    Condition::Player { players: PlayerSet::You, fact }
-}
 
 /// Emperor Crocodile — {3}{G}
 /// Creature — Crocodile, 5/5

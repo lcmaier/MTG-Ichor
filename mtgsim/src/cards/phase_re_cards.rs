@@ -313,9 +313,9 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, artifact, cant, create_replacement, create_replacement_for, create_tokens, creature, deal_damage, draw_cards, exile,
-    get_counters, lose_life, set_life_total, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, target_player,
-    this_object, you, you_and_that_player, you_control,
+    activated_ability, artifact, cant, create_replacement, create_replacement_for, create_tokens, creature, deal_damage, draw_cards, draw_two_instead,
+    exile, get_counters, lose_life, set_life_total, skip, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one,
+    target_player, this_object, you, you_and_that_player, you_control,
 };
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::state::game_state::{PhaseType, StepType};
@@ -347,19 +347,6 @@ fn static_conditional_replacement(rules_text: &'static str, condition: Condition
 
 
 
-/// "Skip [unit]" as CR 614.10 defines it: *"instead of doing [something], do
-/// nothing"*, which CR 614.1b says is a replacement effect and CR 614.6 says is
-/// a [`Rewrite::Prevent`].
-///
-/// No new `Rewrite` arm, for that reason — "replaced with nothing" **is** 614.6,
-/// and a `Rewrite::Skip` would be a second spelling of one algebra element
-/// (`replacement-architecture.md` §9, RE decision 0).
-///
-/// The object set is empty on every one of these: CR 614.10's three units are
-/// about a *player*, so the scope is a [`PlayerSet`] and nothing else.
-fn skip(pattern: EventPattern, players: PlayerSet) -> ReplacementDef {
-    ReplacementDef::new(pattern, players, Rewrite::Prevent)
-}
 
 /// Yawgmoth's Bargain — {4}{B}{B}
 /// Enchantment
@@ -553,23 +540,6 @@ pub fn moment_of_silence() -> Arc<CardData> {
 // RE-2 — draw
 // ---------------------------------------------------------------------------
 
-/// "If you would draw a card, draw two cards instead" — the shape Thought
-/// Reflection and Teferi's Ageless Insight share, differing only in the
-/// [`DrawFilter`] they ask for.
-///
-/// [`GameActionTemplate::DrawCards`]'s `player` is `None` on both: the draw
-/// stays with the player who would have drawn it. Notion Thief is the arm's
-/// other customer and the one that moves it.
-fn draw_two_instead(place: Option<DrawFilter>) -> ReplacementDef {
-    ReplacementDef::new(
-        EventPattern::DrawCard { place },
-        PlayerSet::You,
-        Rewrite::Instead(GameActionTemplate::DrawCards {
-            n: TemplateAmount::Fixed(2),
-            player: None,
-        }),
-    )
-}
 
 /// Thought Reflection — {4}{U}{U}{U}
 /// Enchantment

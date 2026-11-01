@@ -21,21 +21,6 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
 
-/// A type change that adds and removes nothing but `add_types` and
-/// `add_subtypes`.
-fn adding(add_types: Vec<CardType>, add_subtypes: Vec<Subtype>) -> TypeChange {
-    TypeChange {
-        add_types,
-        remove_types: Vec::new(),
-        set_types: None,
-        add_subtypes,
-        remove_subtypes: Vec::new(),
-        set_subtypes: None,
-        add_supertypes: Vec::new(),
-        remove_supertypes: Vec::new(),
-        set_supertypes: None,
-    }
-}
 
 /// Grist, the Hunger Tide — {1}{B}{G}
 /// Legendary Planeswalker — Grist, loyalty 3
@@ -70,7 +55,7 @@ pub fn grist_insect_clause() -> Arc<CardData> {
             ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
             static_ability(
                 "As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.",
-                becomes_types(this_object(), adding(vec![CardType::Creature], vec![Subtype::Creature(CreatureType::Insect)]))
+                becomes_types(this_object(), TypeChange::adding(&[CardType::Creature], &[Subtype::Creature(CreatureType::Insect)], &[]))
                     .and_has_base_power_and_toughness(1, 1),
             ),
         ))
@@ -103,7 +88,7 @@ pub fn titanias_song_clause() -> Arc<CardData> {
         .rules_text("Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value.")
         .ability(static_ability(
             "Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value.",
-            becomes_types(noncreature_artifact, adding(vec![CardType::Creature], vec![]))
+            becomes_types(noncreature_artifact, TypeChange::adding(&[CardType::Creature], &[], &[]))
                 .and_loses_all_abilities()
                 .and_has_base_power_and_toughness(AmountExpr::AffectedManaValue, AmountExpr::AffectedManaValue),
         ))
@@ -158,7 +143,7 @@ pub fn arcane_adaptation_elf_clause() -> Arc<CardData> {
                     creature().and(ObjectFilter::ByOwner(PlayerRef::You)),
                     ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
                 ),
-                adding(vec![], vec![Subtype::Creature(CreatureType::Elf)]),
+                TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Elf)], &[]),
             ),
         ))
         .build()
@@ -177,7 +162,7 @@ pub fn library_artificer() -> Arc<CardData> {
         .rules_text("Creature cards in libraries are artifacts in addition to their other types.")
         .ability(static_ability(
             "Creature cards in libraries are artifacts in addition to their other types.",
-            becomes_types(each_in(creature(), ZoneSet::LIBRARY), adding(vec![CardType::Artifact], vec![])),
+            becomes_types(each_in(creature(), ZoneSet::LIBRARY), TypeChange::adding(&[CardType::Artifact], &[], &[])),
         ))
         .build()
 }
@@ -204,7 +189,7 @@ pub fn library_assassins() -> Arc<CardData> {
                     artifact().and(creature()),
                     ZoneSet::LIBRARY,
                 ),
-                adding(vec![], vec![Subtype::Creature(CreatureType::Assassin)]),
+                TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Assassin)], &[]),
             ),
         ))
         .build()

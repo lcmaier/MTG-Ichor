@@ -57,14 +57,30 @@ def registered() -> list[tuple[str, str, str]]:
     return re.findall(r'registry\.register\(\s*"([^"]+)",\s*([a-z_0-9]+)::([a-z_0-9]+)', src)
 
 
+def module_of(path: Path) -> str:
+    """The module `registry.rs` names a card file's functions through: a
+    set's code (`sets/1993/08_05_lea.rs` is `lea`, and a code that begins
+    with a digit takes `set_`), and `fixtures` or `tokens` flat, as each
+    re-exports its files."""
+    rel = path.relative_to(CARDS)
+    if rel.parts[0] == "sets":
+        code = path.stem.split("_", 2)[2]
+        return f"set_{code}" if code[0].isdigit() else code
+    if rel.parts[0] in ("fixtures", "tokens.rs"):
+        return rel.parts[0].removesuffix(".rs")
+    return path.stem
+
+
 def defined() -> list[tuple[str, str]]:
-    """(module, function) for every `pub fn` in a card file."""
+    """(module, function) for every `pub fn` in a card file: the set files,
+    the fixtures and the tokens, or, before the move, the top-level files."""
     out = []
-    for path in sorted(CARDS.glob("*.rs")):
-        if path.stem in ("registry", "mod", "random_deck"):
+    for path in sorted(CARDS.rglob("*.rs")):
+        rel = path.relative_to(CARDS)
+        if rel.parts[0] == "authoring" or path.stem in ("registry", "mod", "random_deck", "printings"):
             continue
         for fn in re.findall(r"^pub fn ([a-z_0-9]+)", path.read_text(encoding="utf-8"), re.M):
-            out.append((path.stem, fn))
+            out.append((module_of(path), fn))
     return out
 
 
@@ -188,9 +204,12 @@ def main() -> int:
         print(f"  {s:6s} {years.get(s, '?'):4s}  {n}")
     print(f"  sets holding exactly one card: {sum(1 for n in sets.values() if n == 1)}")
     if "--list" in sys.argv:
-        print("\neach printing's first set:")
+        # The set's own release date, which names its file
+        # (`sets/1993/08_05_lea.rs`): a printing's date can differ from it.
+        released = {s["code"]: s["released_at"] for s in curl(["https://api.scryfall.com/sets"])["data"]}
+        print("\neach printing's first set, with the set's release date:")
         for n in real:
-            print(f"  {firsts[n][0]:6s} {n}")
+            print(f"  {firsts[n][0]:6s} {released.get(firsts[n][0], '?'):10s} {n}")
     return 0
 
 

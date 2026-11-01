@@ -27,14 +27,14 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    creature, each_in, loses_all_abilities, shuffle_library, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one,
-    this_object, you,
+    creature, each_in, loses_all_abilities, shuffles_into_library_from_anywhere, spell_ability, static_ability, static_replacement,
+    take_an_extra_turn_after_this_one, you,
 };
-use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Effect, ObjectFilter, ObjectSet,
+    ObjectFilter, ObjectSet,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -42,50 +42,6 @@ use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef
 use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
 
-/// "If [this] would be put into a graveyard from anywhere, reveal [this] and
-/// shuffle it into its owner's library instead." — one clause, and each of
-/// its phrases is a different rule:
-///
-/// - **"from anywhere"** is CR 113.6b's statement of where the ability
-///   functions, `Effect::FunctionsIn(ZoneSet::ALL, ..)` as Wonder states its
-///   graveyard. `zone_function::functioning_zones` reads it to file the card
-///   as a gather candidate in every zone it enters. It is also the pattern's
-///   `from: None`.
-/// - **"would be put into a graveyard"** is any zone change into a graveyard,
-///   whatever the cause: destroyed, sacrificed, discarded, milled, countered,
-///   resolved.
-/// - **"shuffle it into its owner's library instead"** is a substitute event
-///   plus the rest of the instruction: `ZoneChangeTo { Library }` moves it,
-///   and the shuffle is the `then`, resolved after the move (CR 615.5's
-///   shape, §4.1a). `Primitive::ShuffleLibrary` with an `Implicit` recipient
-///   is "its owner's library" — the source's owner — and moves nothing, which
-///   is CR 701.24c: a commander's CR 903.9b can send the card to the command
-///   zone *instead* of the library, and its owner's library is shuffled all
-///   the same while the card stays where 903.9b put it.
-/// - **"reveal"** is a disclosure, and the engine has no per-viewer
-///   visibility to disclose against (`backlog.md` §2.9) — the same no-op
-///   Nephalia Academy's reveal is. When §2.9 lands, both are its tests.
-///
-/// The affected set is the card itself, so on any board the family produces
-/// at most one candidate per event and CR 616.1 never asks; the ability is
-/// mandatory besides.
-fn shuffles_into_library_from_anywhere(rules_text: &'static str) -> AbilityDef {
-    static_ability(rules_text, Effect::FunctionsIn(
-        // CR 113.6b — the clause that says where this ability functions.
-        ZoneSet::ALL,
-        Box::new(Effect::Replacement(Box::new(
-            ReplacementDef::new(
-                EventPattern::ZoneChange {
-                    change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
-                    object: None,
-                },
-                ObjectSet::SourceOnly,
-                Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
-            )
-            .with_then(shuffle_library(this_object())),
-        ))),
-    ))
-}
 
 /// Darksteel Colossus — {11}
 /// Artifact Creature — Golem, 11/11
