@@ -127,6 +127,15 @@ where `main` inlined them, by exclusive cost −29 M in the inlined copies and
 round read at −0.37% (`get_effective_abilities`, `ManaAbilityWindowOffer::read`),
 flipping back as the crate's functions change around it.
 
+**Re-measured at the review round's head** (`992aa351`: `position_named` as
+the one selection under `position_of` and the script, and RG's own provider
+naming its sources), against the same **main**. Predicted identical rows
+again, since neither function runs in a fuzz game; read **IDENTICAL** on both
+pools at both seat counts, the audit's counts unchanged, and instructions a
+decision 0.6468 M → 0.6473 M, **+0.09%**, the boundary moved once more
+(`GameState::advance_turn` against `Game::run_turn_steps`, each in one arm
+only).
+
 **The answers, checked one for one**: a recorder in the scripted provider,
 never committed, logged the positions each test returned, before the
 migration and on the final tree. 437 tests identical; three differ, each on
