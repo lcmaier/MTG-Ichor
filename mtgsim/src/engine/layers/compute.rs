@@ -2063,7 +2063,7 @@ mod tests {
     use crate::engine::layers::lookahead::{compute_as_entering, Lookahead};
     use crate::engine::layers::board::compute_board;
     use crate::objects::card_data::CardData;
-    use crate::test_support::{creature_with_ability, put_on_battlefield, static_ability};
+    use crate::test_support::{creature_with_ability, put_on_battlefield, textless_static};
     use crate::types::effects::{
         AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive,
     };
@@ -2075,7 +2075,7 @@ mod tests {
             "Anthem Bear",
             2,
             2,
-            static_ability(Effect::Atom(
+            textless_static(Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(1),
                     AmountExpr::Fixed(1),

@@ -263,7 +263,7 @@ mod tests {
     use super::read_at_trigger;
     use crate::events::event::GameEvent;
     use crate::oracle::characteristics::get_effective_power;
-    use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_dp, vanilla_creature};
+    use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, textless_static, test_dp, vanilla_creature};
     use crate::engine::resolve::ResolutionContext;
     use crate::types::ids::ObjectOrPlayerId;
     use crate::engine::targeting::ChosenTargets;
@@ -282,7 +282,7 @@ mod tests {
         let mut game = setup_two_player_game();
         let anthem = CardDataBuilder::new("Fixture Anthem")
             .card_type(CardType::Enchantment)
-            .ability(static_ability(Effect::Atom(
+            .ability(textless_static(Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
                 EffectRecipient::FilteredPermanents(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),

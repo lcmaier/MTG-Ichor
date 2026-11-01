@@ -15,7 +15,7 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_colors, get_effective_power};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_this_turn, setup_game, setup_two_player_game, static_ability,
+    put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_this_turn, setup_game, setup_two_player_game, textless_static,
     test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
@@ -258,7 +258,7 @@ fn the_first_spell_of_a_kind_each_turn_counts_only_that_kind() {
 fn fixture_mourning_ink(fact: ObjectFact) -> std::sync::Arc<CardData> {
     CardDataBuilder::new("Fixture Mourning Ink")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ChangeColor(ColorChange::Add(Color::Black), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredObjectsIn(ObjectFilter::ThisTurn(fact), ZoneSet::GRAVEYARD),
         )))
@@ -306,7 +306,7 @@ fn milled_and_discarded_this_turn_read_the_act_of_the_move() {
 fn banner_over(fact: ObjectFact) -> std::sync::Arc<CardData> {
     CardDataBuilder::new("Fixture Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ThisTurn(fact)),
         )))

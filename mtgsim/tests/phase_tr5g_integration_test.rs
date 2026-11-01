@@ -30,7 +30,7 @@ use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::test_support::{
-    creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_two_player_game, static_ability,
+    creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_two_player_game, textless_static,
     test_dp, vanilla_creature,
 };
 use mtgsim::events::event::GameEvent;
@@ -181,7 +181,7 @@ fn every_trigger_twice() -> Arc<CardData> {
 /// Panharmonicon's ability as a Layer 6 grant or a copy would put it on a
 /// permanent nothing printed it on.
 fn panharmonicons_ability() -> AbilityDef {
-    static_ability(panharmonicon().abilities[0].effect.clone())
+    textless_static(panharmonicon().abilities[0].effect.clone())
 }
 
 // ---------------------------------------------------------------------------

@@ -356,7 +356,7 @@ mod tests {
     use crate::engine::actions::GameAction;
     use crate::objects::card_data::CardDataBuilder;
     use crate::test_support::{
-        put_in_hand, put_on_battlefield, registered, setup_game, static_ability, test_ctx, vanilla_creature,
+        put_in_hand, put_on_battlefield, registered, setup_game, textless_static, test_ctx, vanilla_creature,
     };
     use crate::types::card_types::CardType;
     use crate::types::effects::{
@@ -595,7 +595,7 @@ mod tests {
         let while_an_opponent_is_low = CardDataBuilder::new("Fixture: +1/+2 while an opponent has 10 or less life")
             .card_type(CardType::Creature)
             .power_toughness(1, 1)
-            .ability(static_ability(Effect::Conditional(
+            .ability(textless_static(Effect::Conditional(
                 Condition::Player { players: PlayerSet::Opponents, fact: PlayerFact::LifeAtMost(AmountExpr::Fixed(10)) },
                 Box::new(Effect::Atom(
                     Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(2), Duration::WhileSourceOnBattlefield),

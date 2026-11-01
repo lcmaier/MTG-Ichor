@@ -45,7 +45,7 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     card_of_type, effect_ctx, fill_library, lightning_bolt, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield,
-    put_on_battlefield_under, put_spell_on_stack, registered, setup_game, setup_two_player_game, static_ability,
+    put_on_battlefield_under, put_spell_on_stack, registered, setup_game, setup_two_player_game, textless_static,
     test_dp,
 };
 use mtgsim::types::card_types::CardType;
@@ -148,7 +148,7 @@ fn painted_black(zones: ZoneSet) -> Arc<CardData> {
     let black = std::collections::HashSet::from([Color::Black]);
     CardDataBuilder::new("Fixture Pall")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ChangeColor(ColorChange::Set(black), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredObjectsIn(ObjectFilter::All, zones),
         )))
@@ -767,7 +767,7 @@ fn silencer() -> Arc<CardData> {
     ));
     CardDataBuilder::new("Fixture Silencer")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield), theirs)))
+        .ability(textless_static(Effect::Atom(Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield), theirs)))
         .build()
 }
 
@@ -842,7 +842,7 @@ fn a_grant_the_steal_moves_still_triggers_the_creatures_left_behind() {
     let banner_bearer = CardDataBuilder::new("Fixture Banner-Bearer")
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GrantAbility(Arc::new(watcher), Duration::WhileSourceOnBattlefield),
             yours,
         )))
@@ -935,7 +935,7 @@ fn steal_aura(name: &str) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-        .ability(static_ability(Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield }, EffectRecipient::Host)))
+        .ability(textless_static(Effect::Atom(Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield }, EffectRecipient::Host)))
         .build()
 }
 
@@ -992,7 +992,7 @@ fn gives_the_betrayers_trigger() -> Arc<CardData> {
     let betrayal = triggered_ability("", whenever(you_lose_control_of(TriggerSubject::ThisObject), draw_two));
     CardDataBuilder::new("Fixture Sigil of Betrayal")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GrantAbility(Arc::new(betrayal), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),

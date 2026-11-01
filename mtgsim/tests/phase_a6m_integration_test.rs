@@ -17,7 +17,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     card_of_type, creature_with_ability, forest, place_bare, put_in_graveyard, put_on_battlefield,
-    put_on_battlefield_under, set_attacking, setup_two_player_game, static_ability, vanilla_creature,
+    put_on_battlefield_under, set_attacking, setup_two_player_game, textless_static, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -136,7 +136,7 @@ fn shared_ability() -> mtgsim::objects::card_data::AbilityDef {
     static ABILITY: OnceLock<mtgsim::objects::card_data::AbilityDef> = OnceLock::new();
     ABILITY
         .get_or_init(|| {
-            static_ability(Effect::Atom(
+            textless_static(Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::Indefinite),
                 EffectRecipient::ThisObject,
             ))
@@ -150,7 +150,7 @@ fn granted_anthem() -> mtgsim::objects::card_data::AbilityDef {
     static ABILITY: OnceLock<mtgsim::objects::card_data::AbilityDef> = OnceLock::new();
     ABILITY
         .get_or_init(|| {
-            static_ability(Effect::Atom(
+            textless_static(Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::Indefinite),
                 EffectRecipient::ThisObject,
             ))
@@ -362,7 +362,7 @@ fn test_a_granted_conditional_restriction_is_the_boards_only_restriction_and_app
     // "As long as this creature is untapped, it can't be destroyed", granted
     // by a resolution: no printed source, no registry row, so the gate opens
     // on the summary's granted leg or not at all.
-    let cant_be_destroyed_while_untapped = static_ability(Effect::Conditional(
+    let cant_be_destroyed_while_untapped = textless_static(Effect::Conditional(
         Condition::SourceUntapped,
         Box::new(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::Destroy { source: None },
@@ -408,7 +408,7 @@ fn exiler(affected: ObjectFilter, object: Option<ObjectFilter>, by: Option<Sourc
     }
     CardDataBuilder::new("A6m Exiler")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Replacement(Box::new(def))))
+        .ability(textless_static(Effect::Replacement(Box::new(def))))
         .build()
 }
 
@@ -532,7 +532,7 @@ fn test_a_pattern_filter_knows_its_effects_source() {
         ObjectSet::battlefield_filter(ObjectFilter::All),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
     );
-    let ability = static_ability(Effect::Replacement(Box::new(another)));
+    let ability = textless_static(Effect::Replacement(Box::new(another)));
     let watcher = put_on_battlefield(&mut game, creature_with_ability("A6m Watcher", 2, 2, ability), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
 
@@ -561,7 +561,7 @@ fn small_artifact_copier() -> Arc<CardData> {
     };
     CardDataBuilder::new("A6m Small Copier")
         .card_type(CardType::Artifact)
-        .ability(static_ability(Effect::Replacement(Box::new(def))))
+        .ability(textless_static(Effect::Replacement(Box::new(def))))
         .build()
 }
 

@@ -31,14 +31,14 @@ use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, PhaseType, StepType};
 use mtgsim::test_support::{
     creature_with_ability, pass_turn, put_in_hand, put_on_battlefield, set_active_player, setup_game,
-    setup_two_player_game, stock_libraries, test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
+    setup_two_player_game, stock_libraries, test_ctx, test_dp, textless_spell, vanilla_creature, RecordingDecisionProvider,
     effect_ctx,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
@@ -746,7 +746,7 @@ fn a_filtered_one_shot_reads_you_as_its_spell_resolves() {
     let rally = CardDataBuilder::new("Rally Fixture")
         .card_type(CardType::Instant)
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
-        .ability(spell_ability(pump))
+        .ability(textless_spell(pump))
         .build();
     let rally = put_in_hand(&mut game, rally, 0);
     game.players[0].mana_pool.add(ManaType::White, 1);
@@ -923,19 +923,10 @@ fn free_spell(name: &str, card_type: CardType) -> Arc<CardData> {
     let builder = CardDataBuilder::new(name).mana_cost(ManaCost::build(&[], 0));
     match card_type {
         CardType::Instant | CardType::Sorcery => {
-            builder.card_type(card_type).ability(spell_ability(Effect::Sequence(Vec::new()))).build()
+            builder.card_type(card_type).ability(textless_spell(Effect::Sequence(Vec::new()))).build()
         }
         _ => builder.card_type(card_type).build(),
     }
-}
-
-/// The spell ability a fixture instant or sorcery carries.
-fn spell_ability(effect: Effect) -> AbilityDef {
-    AbilityDef::new(
-        AbilityType::Spell,
-        "",
-        effect,
-    ).with_id(new_ability_id())
 }
 
 /// Cast `card` from `player`'s hand for free, then resolve it and whatever
@@ -1098,7 +1089,7 @@ fn this_game_sums_every_turn_so_far() {
         CardDataBuilder::new("Early Contact")
             .card_type(CardType::Sorcery)
             .mana_cost(ManaCost::build(&[], 0))
-            .ability(spell_ability(Effect::Conditional(
+            .ability(textless_spell(Effect::Conditional(
                 Condition::ThisGame(
                     HistoryCount { players: PlayerSet::You, fact: TurnFact::SpellsCast, of: None },
                     CountIs::AtMost(1),

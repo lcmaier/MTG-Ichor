@@ -50,7 +50,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     creature_with_ability, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_game,
-    setup_two_player_game, static_ability, test_ctx,
+    setup_two_player_game, textless_static, test_ctx,
 };
 use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, Subtype, Subtypes, Supertype};
 use mtgsim::types::history::CountIs;
@@ -93,7 +93,7 @@ fn entry_effect(name: &str, filter: ObjectFilter, template: EnterModsTemplate) -
     CardDataBuilder::new(name)
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(filter),
             Rewrite::EnterWith(template),
@@ -261,7 +261,7 @@ fn artifact_while_untapped() -> Arc<CardData> {
         "Artifact While Untapped",
         2,
         2,
-        static_ability(Effect::Conditional(
+        textless_static(Effect::Conditional(
             Condition::SourceUntapped,
             Box::new(Effect::Atom(
                 Primitive::ChangeType(
@@ -615,7 +615,7 @@ fn kaito_shaped() -> Arc<CardData> {
         .supertype(Supertype::Legendary)
         .card_type(CardType::Planeswalker)
         .loyalty(4)
-        .ability(static_ability(Effect::Conditional(
+        .ability(textless_static(Effect::Conditional(
             with_counters,
             Box::new(Effect::Sequence(vec![
                 Effect::Atom(

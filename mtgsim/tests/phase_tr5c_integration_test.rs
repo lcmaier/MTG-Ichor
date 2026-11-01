@@ -34,7 +34,7 @@ use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, put_in_hand, put_on_battlefield, put_on_battlefield_this_turn, put_on_battlefield_under, set_active_player,
-    set_attacking, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
+    set_attacking, setup_game, setup_two_player_game, textless_static, test_ctx, test_dp,
 };
 use mtgsim::cards::phase_re9_cards::deep_water;
 use mtgsim::engine::resolve::ResolutionContext;
@@ -107,7 +107,7 @@ fn banner(name: &str, filter: ObjectFilter) -> Arc<CardData> {
     let creatures = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(filter));
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(creatures),
         )))

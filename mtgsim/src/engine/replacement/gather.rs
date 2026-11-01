@@ -1241,7 +1241,7 @@ fn commander_zone_replacement(
 mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
-    use crate::test_support::{put_spell_on_stack, setup_two_player_game, static_ability, test_dp};
+    use crate::test_support::{put_spell_on_stack, setup_two_player_game, textless_static, test_dp};
     use crate::types::card_types::CardType;
     use crate::types::replacement::{EnterMods, EnterModsTemplate};
     use crate::types::zones::ZoneSet;
@@ -1261,7 +1261,7 @@ mod tests {
         let mut game = setup_two_player_game();
         let card = CardDataBuilder::new("Orb From Anywhere")
             .card_type(CardType::Artifact)
-            .ability(static_ability(Effect::FunctionsIn(
+            .ability(textless_static(Effect::FunctionsIn(
                 ZoneSet::ALL,
                 Box::new(Effect::Replacement(Box::new(ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },

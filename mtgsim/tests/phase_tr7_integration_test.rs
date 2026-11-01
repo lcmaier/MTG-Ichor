@@ -13,7 +13,7 @@ use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 
-use mtgsim::cards::authoring::persist;
+use mtgsim::cards::authoring::{persist, static_ability};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cm_cards::thalia_guardian_of_thraben;
 use mtgsim::cards::phase_cv_cards::clone;
@@ -29,7 +29,7 @@ use mtgsim::oracle::characteristics::{get_effective_name, get_effective_toughnes
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     effect_ctx, put_in_graveyard, put_in_hand, put_on_battlefield, set_attacking, set_blocked_by, set_blocking, setup_two_player_game,
-    static_ability, stock_libraries, test_ctx, test_dp, vanilla_creature,
+    stock_libraries, test_ctx, test_dp, textless_static, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
@@ -85,7 +85,7 @@ fn human_clone() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Human))
         .power_toughness(0, 0)
         .rules_text(text)
-        .ability(mtgsim::cards::authoring::static_ability(
+        .ability(static_ability(
             text,
             Effect::Replacement(Box::new(ReplacementDef {
                 optional: true,
@@ -105,7 +105,7 @@ fn persist_anthem() -> Arc<CardData> {
     let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)));
     CardDataBuilder::new("Fixture: creatures you control have persist")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GrantAbility(Arc::new(persist()), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(yours),
         )))
@@ -117,7 +117,7 @@ fn artifacts_are_not_creatures() -> Arc<CardData> {
     let not_creatures = TypeChange { remove_types: vec![CardType::Creature], ..TypeChange::NONE };
     CardDataBuilder::new("Fixture: artifacts are not creatures")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ChangeType(not_creatures, Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Artifact)),
         )))

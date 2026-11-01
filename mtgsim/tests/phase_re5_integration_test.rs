@@ -27,7 +27,7 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game,
-    setup_two_player_game, static_ability, test_ctx, test_dp, vanilla_creature,
+    setup_two_player_game, textless_static, test_ctx, test_dp, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
@@ -125,7 +125,7 @@ fn reanimate_with(
 fn fixture_static(name: &str, def: ReplacementDef) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Replacement(Box::new(def))))
+        .ability(textless_static(Effect::Replacement(Box::new(def))))
         .build()
 }
 
@@ -231,7 +231,7 @@ fn enters_with_two_minus_counters() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Chained")
         .card_type(CardType::Creature)
         .power_toughness(3, 3)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::MinusOneMinusOne, 2)),

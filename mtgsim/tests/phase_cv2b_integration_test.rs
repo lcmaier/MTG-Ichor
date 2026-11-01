@@ -48,7 +48,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_two_player_game,
-    static_ability, vanilla_creature,
+    textless_static, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, PlaneswalkerType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
@@ -277,7 +277,7 @@ fn creatures_you_control() -> ObjectFilter {
 }
 
 fn enters_with(template: EnterModsTemplate) -> AbilityDef {
-    static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+    textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
         EventPattern::EnterBattlefield { cast: None },
         ObjectSet::SourceOnly,
         Rewrite::EnterWith(template),
@@ -297,7 +297,7 @@ fn copier_of(name: &str, color: Color, donor: SelectionFilter, except: Vec<CopyE
         .color(color)
         .mana_cost(ManaCost::build(&[ManaType::Blue], 3))
         .power_toughness(0, 0)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef {
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef {
             optional: true,
             ..ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
@@ -338,7 +338,7 @@ fn kaito_shaped() -> Arc<CardData> {
         .supertype(Supertype::Legendary)
         .card_type(CardType::Planeswalker)
         .loyalty(4)
-        .ability(static_ability(Effect::Conditional(
+        .ability(textless_static(Effect::Conditional(
             with_counters,
             Box::new(Effect::Sequence(vec![
                 Effect::Atom(
@@ -361,7 +361,7 @@ fn oath_of_gideon_shaped() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .supertype(Supertype::Legendary)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(and(
                 ObjectFilter::ByType(CardType::Planeswalker),
@@ -402,7 +402,7 @@ fn gideon_blackblade_shaped() -> Arc<CardData> {
         .card_type(CardType::Planeswalker)
         .subtype(Subtype::Planeswalker(PlaneswalkerType::Gideon))
         .loyalty(4)
-        .ability(static_ability(Effect::Sequence(vec![
+        .ability(textless_static(Effect::Sequence(vec![
             Effect::Atom(Primitive::ChangeType(creature, Duration::WhileSourceOnBattlefield), EffectRecipient::ThisObject),
             Effect::Atom(
                 Primitive::SetPowerToughness(AmountExpr::Fixed(4), AmountExpr::Fixed(4), Duration::WhileSourceOnBattlefield),
@@ -451,7 +451,7 @@ fn sliver_by_cda() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(2, 2)
         .ability(
-            static_ability(Effect::Atom(
+            textless_static(Effect::Atom(
                 Primitive::ChangeType(with_subtypes(&[CreatureType::Sliver]), Duration::WhileSourceOnBattlefield),
                 EffectRecipient::ThisObject,
             ))
@@ -466,7 +466,7 @@ fn no_plus_counters_on_your_creatures() -> Arc<CardData> {
     CardDataBuilder::new("No +1/+1 counters")
         .mana_cost(ManaCost::build(&[ManaType::Black], 1))
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+        .ability(textless_static(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
             affected: AffectedSet::objects(ObjectSet::battlefield_filter(creatures_you_control())),
             by: None,
@@ -907,7 +907,7 @@ fn copy_artifact_shaped() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .color(Color::Blue)
         .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef {
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef {
             optional: true,
             ..ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
@@ -1178,7 +1178,7 @@ fn essence_of_the_wild() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green, ManaType::Green], 3))
         .power_toughness(6, 6)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(creatures_you_control()),
             Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject, except: Vec::new() }),
@@ -1194,7 +1194,7 @@ fn tapped_animus() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .mana_cost(ManaCost::build(&[], 2))
         .ability(enters_with(EnterModsTemplate::tapped()))
-        .ability(static_ability(Effect::Conditional(
+        .ability(textless_static(Effect::Conditional(
             Condition::SourceTapped,
             Box::new(Effect::Sequence(vec![
                 Effect::Atom(Primitive::ChangeType(creature, Duration::WhileSourceOnBattlefield), EffectRecipient::ThisObject),

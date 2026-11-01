@@ -928,16 +928,26 @@ pub fn fixed_target_bounds(recipient: &EffectRecipient) -> crate::types::effects
     }
 }
 
-/// A static [`AbilityDef`] carrying `effect`, with a fresh id and the CDA flag
-/// clear.
+/// A static [`AbilityDef`] carrying `effect`, with no rules text, a fresh id
+/// and the CDA flag clear.
 ///
 /// The id is what Layer 6 tests care about: `EffectModification::LoseAbility`
 /// removes by id, and CR 113.10b makes "every instance with this id" the
 /// question. Clone the returned def to put the *same* ability on an object
 /// twice — a fresh call would give a second id and prove nothing.
-pub fn static_ability(effect: Effect) -> AbilityDef {
+pub fn textless_static(effect: Effect) -> AbilityDef {
     AbilityDef::new(
         AbilityType::Static,
+        "",
+        effect,
+    ).with_id(new_ability_id())
+}
+
+/// The spell ability (CR 113.3a) a fixture instant or sorcery carries:
+/// `effect`, with no rules text and a fresh id.
+pub fn textless_spell(effect: Effect) -> AbilityDef {
+    AbilityDef::new(
+        AbilityType::Spell,
         "",
         effect,
     ).with_id(new_ability_id())

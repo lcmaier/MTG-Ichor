@@ -25,7 +25,7 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_graveyard, put_on_battlefield, setup_two_player_game, static_ability, test_ctx,
+    put_in_graveyard, put_on_battlefield, setup_two_player_game, textless_static, test_ctx,
     vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
@@ -168,7 +168,7 @@ fn test_an_anthem_in_a_graveyard_does_not_apply_it() {
         "Graveyard Anthem",
         2,
         2,
-        static_ability(Effect::Atom(
+        textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(
                 AmountExpr::Fixed(1),
                 AmountExpr::Fixed(1),

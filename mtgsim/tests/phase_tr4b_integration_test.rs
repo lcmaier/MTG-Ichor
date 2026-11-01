@@ -34,7 +34,7 @@ use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_con
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     aura_enchanting_your_creature, card_of_type, effect_ctx, equipment, put_in_graveyard, put_on_battlefield,
-    put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp, RecordingDecisionProvider,
+    put_spell_on_stack, setup_game, setup_two_player_game, textless_static, test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
@@ -105,7 +105,7 @@ fn animator(subtype: Subtype, keywords: &[KeywordFlag]) -> Arc<CardData> {
     CardDataBuilder::new("Probe Animator")
         .card_type(CardType::Creature)
         .power_toughness(1, 1)
-        .ability(static_ability(Effect::Sequence(effects)))
+        .ability(textless_static(Effect::Sequence(effects)))
         .build()
 }
 
@@ -708,7 +708,7 @@ fn control_aura() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .enchant_filter(SelectionFilter::Creature)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
             EffectRecipient::Host,
         )))
@@ -745,7 +745,7 @@ fn granting_equipment() -> Arc<CardData> {
     CardDataBuilder::new("Probe Granting Equipment")
         .card_type(CardType::Artifact)
         .subtype(equipment_subtype())
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GrantAbility(Arc::new(granted), Duration::WhileSourceOnBattlefield),
             EffectRecipient::Host,
         )))

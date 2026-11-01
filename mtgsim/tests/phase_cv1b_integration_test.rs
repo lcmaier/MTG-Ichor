@@ -549,7 +549,7 @@ fn anthem_bearer() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(mtgsim::test_support::static_ability(Effect::Atom(
+        .ability(mtgsim::test_support::textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -1241,7 +1241,7 @@ fn essence_of_might() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Creature)
         .power_toughness(6, 6)
-        .ability(mtgsim::test_support::static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(mtgsim::test_support::textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(big_creatures_you_control),
             Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject, except: Vec::new() }),

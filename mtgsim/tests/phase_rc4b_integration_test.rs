@@ -22,7 +22,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability,
+    put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, textless_static,
     test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
@@ -112,7 +112,7 @@ fn static_restriction(name: &str, what: Restriction) -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(what)))))
+        .ability(textless_static(Effect::Restriction(Box::new(RestrictionDef::new(what)))))
         .build()
 }
 
@@ -148,7 +148,7 @@ fn everything_is_a_land() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ChangeType(
                 TypeChange {
                     add_types: vec![CardType::Land],
@@ -176,7 +176,7 @@ fn moonlight_shaped() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: Some(false) },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),

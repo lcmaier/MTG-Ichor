@@ -46,7 +46,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     fill_library, place_bare, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_two_player_game,
-    static_ability, vanilla_creature,
+    textless_static, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
@@ -248,7 +248,7 @@ fn creatures_you_control() -> ObjectFilter {
 }
 
 fn replacement(pattern: EventPattern, affected: ObjectSet, rewrite: Rewrite) -> AbilityDef {
-    static_ability(Effect::Replacement(Box::new(ReplacementDef::new(pattern, affected, rewrite))))
+    textless_static(Effect::Replacement(Box::new(ReplacementDef::new(pattern, affected, rewrite))))
 }
 
 /// "This creature enters with ..." or "enters tapped", on the creature itself.
@@ -339,7 +339,7 @@ fn worms_of_the_earth() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .color(Color::Black)
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black, ManaType::Black], 2))
-        .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+        .ability(textless_static(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::ZoneChange { change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None }, object: None },
             affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land))),
             by: None,
@@ -354,7 +354,7 @@ fn anthem_bear() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 2))
         .power_toughness(2, 2)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(creatures_you_control()),
         )))

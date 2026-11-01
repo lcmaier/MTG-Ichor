@@ -22,7 +22,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     card_of_type, creature_with_ability, put_in_graveyard, put_on_battlefield, registered,
-    setup_two_player_game, static_ability, vanilla_creature,
+    setup_two_player_game, textless_static, vanilla_creature,
 };
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::actions::ZoneChangeAct;
@@ -47,7 +47,7 @@ fn row(id: ObjectId, timestamp: Timestamp, modification: EffectModification) -> 
 /// A static ability with no effect this file ever observes. Layer 6 tests care
 /// about an ability's *identity*, not what it does.
 fn inert_ability() -> AbilityDef {
-    static_ability(Effect::Atom(
+    textless_static(Effect::Atom(
         Primitive::GrantKeywordFlag(KeywordFlag::Vigilance, Duration::WhileSourceOnBattlefield),
         EffectRecipient::ThisObject,
     ))
@@ -450,7 +450,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
         game.allocate_timestamp();
     }
 
-    let granted = static_ability(Effect::Atom(
+    let granted = textless_static(Effect::Atom(
         Primitive::SetPowerToughness(
             AmountExpr::Fixed(3),
             AmountExpr::Fixed(3),
@@ -491,7 +491,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
     let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
     game.continuous_effects.remove_by_source(caster);
 
-    let granted = static_ability(Effect::Atom(
+    let granted = textless_static(Effect::Atom(
         Primitive::SetPowerToughness(
             AmountExpr::Fixed(7),
             AmountExpr::Fixed(7),
@@ -580,7 +580,7 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
     let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
     game.continuous_effects.remove_by_source(caster);
 
-    let mut granted = static_ability(Effect::Atom(
+    let mut granted = textless_static(Effect::Atom(
         Primitive::SetPowerToughness(
             AmountExpr::Fixed(6),
             AmountExpr::Fixed(6),

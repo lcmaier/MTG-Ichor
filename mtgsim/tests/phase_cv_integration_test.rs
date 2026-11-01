@@ -17,6 +17,7 @@
 use std::sync::Arc;
 
 
+use mtgsim::cards::authoring::static_ability;
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
 use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
 use mtgsim::cards::phase_rc_cards::containment_priest;
@@ -32,7 +33,7 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    copy_onto, place_bare, put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature,
+    copy_onto, place_bare, put_on_battlefield, setup_two_player_game, textless_static, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
@@ -112,7 +113,7 @@ fn anthem_bear() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 2))
         .power_toughness(2, 2)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(
                 AmountExpr::Fixed(1),
                 AmountExpr::Fixed(1),
@@ -761,7 +762,7 @@ fn restriction_creature() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(3, 3)
-        .ability(mtgsim::cards::authoring::static_ability(
+        .ability(static_ability(
             "",
             Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::ZoneChange {

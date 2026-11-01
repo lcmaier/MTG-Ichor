@@ -542,11 +542,11 @@ fn strip_then_grant_equipment() -> std::sync::Arc<mtgsim::objects::card_data::Ca
         .card_type(CardType::Artifact)
         .subtype(Subtype::Artifact(ArtifactType::Equipment))
         .mana_cost(mtgsim::types::mana::ManaCost::build(&[], 1))
-        .ability(mtgsim::test_support::static_ability(Effect::Atom(
+        .ability(mtgsim::test_support::textless_static(Effect::Atom(
             Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
             EffectRecipient::Host,
         )))
-        .ability(mtgsim::test_support::static_ability(Effect::Atom(
+        .ability(mtgsim::test_support::textless_static(Effect::Atom(
             Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
             EffectRecipient::Host,
         )))

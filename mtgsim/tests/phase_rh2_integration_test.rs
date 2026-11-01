@@ -19,7 +19,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    effect_ctx, put_on_battlefield, put_on_battlefield_under, setup_game, setup_two_player_game, static_ability,
+    effect_ctx, put_on_battlefield, put_on_battlefield_under, setup_game, setup_two_player_game, textless_static,
     test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
@@ -67,7 +67,7 @@ fn granter_while_you_control_a_creature() -> Arc<CardData> {
     CardDataBuilder::new("Fixture: grants while you control a creature")
         .card_type(CardType::Creature)
         .power_toughness(1, 1)
-        .ability(static_ability(Effect::Conditional(
+        .ability(textless_static(Effect::Conditional(
             Condition::Player { players: PlayerSet::You, fact: PlayerFact::ControlsPermanent(a_creature()) },
             Box::new(Effect::Atom(
                 Primitive::GrantAbility(Arc::new(granted), Duration::WhileSourceOnBattlefield),
@@ -255,7 +255,7 @@ fn a_destruction_a_shield_counter_replaced_proposes_no_move() {
 fn exile_to_graveyard_watcher() -> Arc<CardData> {
     CardDataBuilder::new("Fixture: exiles go to the graveyard")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::ZoneChange {
                 change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Exile), act: None },
                 object: None,

@@ -23,7 +23,7 @@ use mtgsim::state::battlefield::CostChoices;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::history_log::RowFact;
 use mtgsim::test_support::{
-    put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_ctx, test_dp, vanilla_creature,
+    put_in_hand, put_on_battlefield, setup_two_player_game, textless_static, test_ctx, test_dp, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
@@ -104,7 +104,7 @@ fn a_rows_frame_sees_the_rows_of_its_own_window() {
     let mut game = setup_two_player_game();
     let banner = CardDataBuilder::new("Lifted Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Conditional(
+        .ability(textless_static(Effect::Conditional(
             Condition::ThisTurn(HistoryCount { players: PlayerSet::You, fact: TurnFact::LifeGainEvents, of: None }, CountIs::AtLeast(1)),
             Box::new(Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
@@ -197,7 +197,7 @@ fn an_amount_reads_a_history_count_in_a_layer() {
     let spells = AmountExpr::History(HistorySpan::ThisTurn, Box::new(spells_you_cast(None)));
     let banner = CardDataBuilder::new("Rally Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(spells, AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
         )))
@@ -253,7 +253,7 @@ fn narrowing_an_unnamed_count_is_loud() {
 fn banner_over(fact: ObjectFact) -> Arc<CardData> {
     CardDataBuilder::new("Veteran's Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ThisTurn(fact)),
         )))
@@ -316,7 +316,7 @@ fn steal(game: &mut GameState, victim: ObjectId, player: PlayerId) {
 fn anthem_of(amount: AmountExpr) -> Arc<CardData> {
     CardDataBuilder::new("Measuring Totem")
         .card_type(CardType::Artifact)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(amount, AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
         )))

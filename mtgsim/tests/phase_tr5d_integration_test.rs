@@ -31,7 +31,7 @@ use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::test_support::{
-    equipment, fill_library, pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_dp, vanilla_creature,
+    equipment, fill_library, pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, textless_static, test_dp, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, Subtype};
@@ -522,7 +522,7 @@ fn was_dealt_excess_damage_this_turn_reads_the_rows_excess() {
     let mut game = setup_two_player_game();
     let banner = CardDataBuilder::new("Fixture Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(5), AmountExpr::Fixed(5), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ThisTurn(ObjectFact::WasDealtExcessDamage)),
         )))
@@ -883,7 +883,7 @@ fn fixture_sorcery(effect: Effect) -> Arc<CardData> {
 /// Equipment's +3/+0, off the frame the unattach's record carries.
 #[test]
 fn an_unattach_from_a_creature_that_died_reads_it_as_it_left() {
-    let boost = static_ability(Effect::Atom(
+    let boost = textless_static(Effect::Atom(
         Primitive::ModifyPowerToughness(AmountExpr::Fixed(3), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
         EffectRecipient::Host,
     ));

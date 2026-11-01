@@ -22,7 +22,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     creature_with_ability, effect_ctx, put_in_hand, put_in_library, put_on_battlefield, put_spell_on_stack,
     setup_two_player_game,
-    static_ability, test_ctx, test_dp, vanilla_creature,
+    textless_static, test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
@@ -80,7 +80,7 @@ fn exiles_your_creatures_after_they_die() -> Arc<CardData> {
     card_of_type_with(
         "Fixture: exiles your creatures right after they die",
         CardType::Enchantment,
-        static_ability(Effect::Replacement(Box::new(replacement))),
+        textless_static(Effect::Replacement(Box::new(replacement))),
     )
 }
 
@@ -284,7 +284,7 @@ fn discards_into_exile() -> Arc<CardData> {
         ObjectSet::SourceOnly,
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
     );
-    let mut ability = static_ability(Effect::FunctionsIn(ZoneSet::HAND, Box::new(Effect::Replacement(Box::new(replacement)))));
+    let mut ability = textless_static(Effect::FunctionsIn(ZoneSet::HAND, Box::new(Effect::Replacement(Box::new(replacement)))));
     ability.id = new_ability_id();
     creature_with_ability("Fixture: madness", 2, 2, ability)
 }
@@ -444,7 +444,7 @@ fn exiler_making(token: TokenDef) -> Arc<CardData> {
     card_of_type_with(
         "Fixture: exiles and makes a token",
         CardType::Enchantment,
-        static_ability(Effect::Replacement(Box::new(replacement))),
+        textless_static(Effect::Replacement(Box::new(replacement))),
     )
 }
 
@@ -464,7 +464,7 @@ fn prevents_then(verb: Primitive) -> Arc<CardData> {
     card_of_type_with(
         "Fixture: prevents damage to a creature, then acts on it",
         CardType::Enchantment,
-        static_ability(Effect::Replacement(Box::new(replacement))),
+        textless_static(Effect::Replacement(Box::new(replacement))),
     )
 }
 
@@ -614,7 +614,7 @@ fn enters_tapped_then_bounces() -> Arc<CardData> {
     card_of_type_with(
         "Fixture: enters tapped, then bounces",
         CardType::Enchantment,
-        static_ability(Effect::Replacement(Box::new(replacement))),
+        textless_static(Effect::Replacement(Box::new(replacement))),
     )
 }
 
@@ -676,7 +676,7 @@ fn a_source_hidden_after_the_event_is_seen_as_the_event_left_it() {
         card_of_type_with(
             "Fixture: dying creatures go to a hand right after",
             CardType::Enchantment,
-            static_ability(Effect::Replacement(Box::new(returner))),
+            textless_static(Effect::Replacement(Box::new(returner))),
         ),
         0,
     );

@@ -18,7 +18,7 @@ use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     copy_onto, creature_with_ability, effect_ctx, place_on_battlefield, put_in_hand, put_on_battlefield,
-    setup_two_player_game, static_ability, test_ctx, vanilla_creature,
+    setup_two_player_game, textless_static, test_ctx, vanilla_creature,
 };
 use mtgsim::types::effects::{CounterType, Effect, ObjectFilter, ObjectSet};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
@@ -36,7 +36,7 @@ fn warded(name: &str) -> Arc<CardData> {
         name,
         2,
         2,
-        static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
             ObjectSet::SourceOnly,
             Rewrite::Prevent,
@@ -50,7 +50,7 @@ fn enters_tapped() -> Arc<CardData> {
         "Tapped Arrival",
         2,
         2,
-        static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterWith(EnterModsTemplate::tapped()),

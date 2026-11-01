@@ -26,7 +26,7 @@ use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_graveyard, put_on_battlefield, setup_game, setup_two_player_game, static_ability,
+    put_in_graveyard, put_on_battlefield, setup_game, setup_two_player_game, textless_static,
     test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
@@ -103,7 +103,7 @@ fn kinds_and_batches(game: &GameState, start: usize) -> Vec<(&'static str, Optio
 /// 614.12 frame, so CR 614.13a's "you" is that creature's controller and not
 /// this enchantment's (CR 109.5).
 fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
-    let mut devour = static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+    let mut devour = textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
         EventPattern::EnterBattlefield { cast: None },
         ObjectSet::SourceOnly,
         Rewrite::EnterAfterMoving(AuxiliaryMove {
@@ -124,7 +124,7 @@ fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Enchantment)
         .rules_text("Creatures have devour N.")
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GrantAbility(Arc::new(devour), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
         )))
@@ -139,7 +139,7 @@ fn creatures_enter_tapped(name: &str) -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("Creatures you control enter tapped.")
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -159,7 +159,7 @@ fn enters_with_counters_equal_to_its_own_power(name: &str, p: i32, t: i32) -> Ar
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Bear))
         .power_toughness(p, t)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterWith(EnterModsTemplate::with_counter_amount(
@@ -180,7 +180,7 @@ fn elf_lord(name: &str) -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Elf))
         .power_toughness(2, 2)
         .rules_text("Other Elf creatures you control get +1/+1.")
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(
                 AmountExpr::Fixed(1),
                 AmountExpr::Fixed(1),
@@ -207,7 +207,7 @@ fn grants_graveyard_exile(name: &str) -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("As a creature enters, exile any number of creature cards from your graveyard.")
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
             Rewrite::EnterAfterMoving(AuxiliaryMove {
@@ -238,7 +238,7 @@ fn prevents_your_creatures_dying(name: &str) -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("Creatures you control can't be put into a graveyard from the battlefield.")
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::ZoneChange {
                 change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                 object: None,
@@ -263,7 +263,7 @@ fn your_own_abilities_cant_sacrifice(name: &str) -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("Spells and abilities you control can't cause you to sacrifice permanents.")
-        .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(
+        .ability(textless_static(Effect::Restriction(Box::new(RestrictionDef::new(
             Restriction::Event {
                 pattern: EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
@@ -285,7 +285,7 @@ fn cant_sacrifice_your_creatures(name: &str) -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("Creatures you control can't be sacrificed.")
-        .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(
+        .ability(textless_static(Effect::Restriction(Box::new(RestrictionDef::new(
             Restriction::Event {
                 pattern: EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
@@ -306,7 +306,7 @@ fn anthem(name: &str) -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("Creatures you control get +1/+1.")
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(
                 AmountExpr::Fixed(1),
                 AmountExpr::Fixed(1),

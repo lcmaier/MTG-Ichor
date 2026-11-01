@@ -23,7 +23,7 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    card_of_type, put_on_battlefield, registered, setup_two_player_game, static_ability, test_ctx,
+    card_of_type, put_on_battlefield, registered, setup_two_player_game, textless_static, test_ctx,
     vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
@@ -295,7 +295,7 @@ fn test_a_conditional_effect_that_has_started_keeps_applying_in_later_layers() {
             builder = builder.color(Color::White);
         }
         builder
-            .ability(static_ability(Effect::Conditional(
+            .ability(textless_static(Effect::Conditional(
                 Condition::Player {
                     players: PlayerSet::You,
                     fact: PlayerFact::ControlsPermanent(ObjectFilter::ByColor(Color::White)),

@@ -34,7 +34,7 @@ use mtgsim::state::battlefield::CostChoices;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     effect_ctx, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_under,
-    put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
+    put_spell_on_stack, setup_game, setup_two_player_game, textless_static, test_ctx, test_dp,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use mtgsim::types::colors::Color;
@@ -88,7 +88,7 @@ fn darkest_hour() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("All creatures are black.")
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ChangeColor(ColorChange::Set(black), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
         )))
@@ -413,7 +413,7 @@ fn persist_and_undying_still_return_a_permanent_that_stopped_being_a_creature() 
         let not_creatures = TypeChange { remove_types: vec![CardType::Creature], ..TypeChange::NONE };
         let march = CardDataBuilder::new("Noncreature Fixture")
             .card_type(CardType::Enchantment)
-            .ability(static_ability(Effect::Atom(
+            .ability(textless_static(Effect::Atom(
                 Primitive::ChangeType(not_creatures, Duration::WhileSourceOnBattlefield),
                 EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Artifact)),
             )))

@@ -2716,22 +2716,12 @@ mod tests {
 
     mod static_lowering {
         use super::*;
-        use crate::objects::card_data::{AbilityDef, AbilityType};
         use crate::types::card_types::CardType;
         use crate::types::effects::{
             AmountExpr, Condition, Duration, Effect, EffectRecipient, ModalCount,
             ObjectFilter, Primitive, SelectionFilter, TargetCount,
         };
-        use crate::types::ids::new_ability_id;
-
-        /// A static `AbilityDef` with the given body.
-        fn static_ability(effect: Effect) -> AbilityDef {
-            AbilityDef::new(
-                AbilityType::Static,
-                "",
-                effect,
-            ).with_id(new_ability_id())
-        }
+        use crate::test_support::textless_static;
 
         /// "Creatures you control get +1/+1", as an atom.
         fn anthem_atom() -> Effect {
@@ -2749,14 +2739,14 @@ mod tests {
 
         #[test]
         fn test_atom_body_lowers_to_one_row() {
-            let ability = static_ability(anthem_atom());
+            let ability = textless_static(anthem_atom());
             assert_eq!(GameState::static_ability_atoms(&ability, "T").len(), 1);
         }
 
         #[test]
         fn test_sequence_body_lowers_to_one_row_per_atom() {
             // Humility's shape: one ability, two atoms, two layers.
-            let ability = static_ability(Effect::Sequence(vec![anthem_atom(), anthem_atom()]));
+            let ability = textless_static(Effect::Sequence(vec![anthem_atom(), anthem_atom()]));
             assert_eq!(GameState::static_ability_atoms(&ability, "T").len(), 2);
         }
 
@@ -2776,14 +2766,14 @@ mod tests {
         /// nothing about the condition, which is what decision 5 buys.
         #[test]
         fn test_conditional_static_body_lowers_to_the_inner_atoms() {
-            let ability = static_ability(Effect::Conditional(
+            let ability = textless_static(Effect::Conditional(
                 Condition::SourceUntapped,
                 Box::new(anthem_atom()),
             ));
             let atoms = GameState::static_ability_atoms(&ability, "Test Card");
             assert_eq!(atoms.len(), 1);
             assert_eq!(
-                GameState::static_ability_atoms(&static_ability(anthem_atom()), "Test Card").len(),
+                GameState::static_ability_atoms(&textless_static(anthem_atom()), "Test Card").len(),
                 1,
                 "and to exactly what the same atom lowers to unconditionally"
             );
@@ -2796,7 +2786,7 @@ mod tests {
         #[test]
         #[should_panic(expected = "cannot express")]
         fn test_a_conditional_wrapping_an_unlowerable_body_is_loud() {
-            let ability = static_ability(Effect::Conditional(
+            let ability = textless_static(Effect::Conditional(
                 Condition::SourceUntapped,
                 Box::new(Effect::Optional { chooser: crate::types::effects::PlayerRef::You, effect: Box::new(anthem_atom()) }),
             ));
@@ -2809,7 +2799,7 @@ mod tests {
         #[test]
         #[should_panic(expected = "cannot express")]
         fn test_modal_static_body_is_loud() {
-            let ability = static_ability(Effect::Modal {
+            let ability = textless_static(Effect::Modal {
                 count: ModalCount::Exactly(1),
                 modes: vec![anthem_atom()],
             });
@@ -2823,7 +2813,7 @@ mod tests {
         #[test]
         #[should_panic(expected = "non-atomic entry")]
         fn test_non_atom_inside_a_sequence_is_loud() {
-            let ability = static_ability(Effect::Sequence(vec![
+            let ability = textless_static(Effect::Sequence(vec![
                 anthem_atom(),
                 Effect::Optional { chooser: crate::types::effects::PlayerRef::You, effect: Box::new(anthem_atom()) },
             ]));
@@ -2860,7 +2850,7 @@ mod tests {
 
             let card = CardDataBuilder::new("Nonsense Enchantment")
                 .card_type(CardType::Enchantment)
-                .ability(static_ability(Effect::Atom(
+                .ability(textless_static(Effect::Atom(
                     // Drawing a card is not a continuous effect; there is no
                     // layer for it and never will be.
                     Primitive::DrawCards(AmountExpr::Fixed(1)),
