@@ -129,7 +129,12 @@ implementations.
 | a permanent that left the battlefield this turn | 20 | Elegy Acolyte | not written |
 | blocked or was blocked this turn | 9 | Joven's Ferrets | reported |
 | became a target this turn | 2 | Runesword | reported |
-| what happened **last turn**, narrowed by object | 8 | Giant Turtle ("attacked during your last turn"), Halls of Mist | not written, not reported |
+| a permanent that attacked during its controller's **last turn** | 4 | Giant Turtle, Goblin Rock Sled, Halls of Mist, Tangle Kelp | not written, not reported |
+| a player who attacked you during their **last turn** | 3 | Avenge, O-Kagachi, Vengeful Kami, Weathered Sentinels | the count of attackers declared, with no player attacked |
+| a creature that entered **since your last turn ended** | 1 | Premature Burial | `arrived turn N`, the permanent's entry turn |
+| a cast of a commander from the command zone **this game** | 21 | Commander's Insignia, Liesa, Shroud of Dusk | a field whose word waits for `command-zone-casting` (`setup-architecture.md#52-later-and-the-growth-contract`) |
+| the first spell, or a named spell, cast **this game** | 3 | First Contact, Once Upon a Time, Approach of the Second Sun | the spells-cast count, and `cast <card>` |
+| what an object has dealt damage to **this game** | 1 | The Fallen | not written, not reported |
 
 Queries: `o:/died this turn/`; `o:/graveyard from the battlefield this turn/`
 and `o:/(nontoken|artifact|legendary|enchantment|[0-9] or greater)[^.]* died
@@ -140,7 +145,9 @@ dealt|you were dealt|opponents? (was|were) dealt)[^.]* this turn/`;
 turn/`; `o:/(blocked or was blocked|that blocked|which blocked|creature
 blocked)[^.]* this turn/`; `o:/(became the target|targeted)[^.]* this turn/`;
 `o:/(died|entered|attacked|drew|dealt damage)[^.]*(last turn|since your last
-turn)/`. Rulings read: Gadrak's ("counts creatures that died during the entire
+turn)/` (8, split by hand into the three rows above);
+`o:/(died|entered|attacked|drew|dealt damage|cast)[^.]*this game/` (25, split
+the same way). Rulings read: Gadrak's ("counts creatures that died during the entire
 turn, even ones that died before Gadrak entered") says the rows predate the
 reader, which is why a board must carry them.
 
@@ -218,8 +225,8 @@ against 128.
 
 ## 5. The decisions
 
-Numbered in the order they depend on each other: decision 3's answer follows
-from decision 2's.
+Decision 3 follows from decision 2's answer, and decision 1's writer keeps
+its copy where decision 2 puts one.
 
 ### Decision 1 — what a board written from a game says, and where a scenario starts
 
@@ -247,8 +254,9 @@ and play the decisions to the point?) sets the other road beside it.
 `drew <card>`, `entered <card>`, `left <card>`, `<card> attacked`,
 `<card> blocked`, `<card> dealt N damage to …`, `<card> became a target`, each
 a history row stated with its card's printed frame, as `cast <card>` is: ~40
-lines with its test, ~300–450 for the eight, and a text row each in the
-editor. *Upkeep*: the grammar grows with the history log, every phase that
+lines with its test, ~300–450 for the eight, plus C's three words below for
+the spans before this turn, and a text row each in the editor. *Upkeep*: the
+grammar grows with the history log, every phase that
 records a new fact adds a word, and a token's row cannot be named, since no
 registry holds a token. Setup lines stay as they are.
 
@@ -266,32 +274,52 @@ turn's answers instead of `attacking player 1`.
 **C. Both doors.** A hand-written board keeps today's grammar, any step's
 round start, with no new word. A board **written from a game** is that turn's
 beginning plus the turn's answers since: a save, a scenario and a log, which
-`--load` already replays. *Code*: a turn-began hook on `GameState`, an
-observer as `log_decisions` is, which the client uses to keep a copy at each
-turn's start; `Scenario::write` given that copy and the answers since it
-writes the pair; the dev GUI's "Save board as scenario" writes the board and
-its save beside it, and the editor opens the board. One word for what a turn's
-beginning still carries, last turn's object facts (`attacked last turn` on a
-permanent's line, Giant Turtle's family of 8). ~150–250 lines in the engine
-with tests, ~50–100 in the dev GUI. *Upkeep*: the writer's report shrinks to
-what outlives a turn (delayed triggers, returns, a resolution's long rows),
-and the grammar grows only with the state a turn's beginning holds.
+`--load` already replays. *Code*: the copy is decision 2's paused game's,
+taken on its own stack between two `run_turn` calls (item 143's checkpoint:
+the state just before a turn runs), beside its anchors, so nothing new hooks
+`GameState` and one thing keeps "a copy and the answers since". The event
+stream's `TurnBegin` record cannot serve, since a record is read after the
+fact and a copy must be taken at the moment. `Scenario::write` given that copy
+and the answers since it writes the pair; the dev GUI's "Save board as
+scenario" writes the board and its save beside it, and the editor opens the
+board. A turn's beginning still carries the spans before it, and §3.3 counts
+what they narrow: three words, `attacked last turn` on a permanent's line (4
+cards), `player q last turn: attacked player p` (3), and `<card> has dealt
+damage to player p` over the game (1, The Fallen). Premature Burial's entry
+is `arrived turn N`'s already, and the 21 commander-cast cards wait on the
+field `command-zone-casting` counts. ~200–330 lines in the engine with tests,
+~50–100 in the dev GUI. *Upkeep*: the writer's report shrinks to what
+outlives a turn (delayed triggers, returns, a resolution's long rows), and
+the grammar grows only with the state a turn's beginning holds.
 
-**Clone cost**: none for A and B. For C, one copy a turn, kept only by a
-client that writes boards (the dev GUI), at the probe's 1.1–1.7 µs.
+**Clone cost**: none for A and B. For C, one copy a turn, kept by the paused
+game, at the probe's 1.1–1.7 µs, a few microseconds in a game of tens of
+milliseconds.
 
 **Setup lines and alike options.** Under C, setup lines stay what they are
 (an action, its targets, its X, its ability's place), since what happens
 later in a turn is the log's lines, not setup's. Whether a setup line refuses
 an option that reads like another: under decision 4 no two offered options
-read alike, so one rule holds for a script, a setup line and a replay, and an
-answer naming what two offered options are is refused as an engine bug.
+read alike, but for two offered costs alike in every word, which are one cost
+twice (decision 4b). So one rule holds for a script, a setup line and a
+replay: an answer naming what two offered options are takes either when they
+are one cost twice, and is refused as an engine bug otherwise.
 
-**Recommendation: C.** It closes item 287 without a word per fact (the eight
-A adds are played instead), it keeps all 14 files and the editor as they are,
-and a board saved from a game becomes exact for the turn in progress. B is
-C's writer without its hand-written door, and that door is what every
-existing scenario uses.
+**What the pair does with what outlives a turn.** A delayed trigger made last
+turn ("at the beginning of your next upkeep"), an "until" return still
+waiting, an extra turn: the board cannot write them
+(`setup-architecture.md#52-later-and-the-growth-contract` owns that list, and
+says each is played), so the writer reports them at the top of the file as it
+does today, and the pair's replay stops at the first answer the reloaded
+board no longer reaches, naming it (`setup-architecture.md#72-the-decisions`,
+decision 6). The pair is exact for the turn in progress less what that report
+names.
+
+**Recommendation: C.** It closes item 287 with three words for the spans
+before a turn, where A needs those and eight more, it keeps all 14 files and
+the editor as they are, and a board saved from a game is exact for the turn
+in progress but for what its report names. B is C's writer without its
+hand-written door, and that door is what every existing scenario uses.
 
 ### Decision 2 — the `DecisionProvider`'s shape: which drives which
 
@@ -311,11 +339,21 @@ many games on one thread is out.
 
 **B. The engine ships the paused game: the client drives it, and the engine
 drives its providers inside.** A `PausedGame` runs the game on a stack of its
-own and hands the client each question: `start(game, seats) -> Next`,
-`answer(Answer) -> Next`, where `Next` is a question or the game's end. The
-question is the four primitives' arguments, owned: the player whose decision
-it is, the `ChoiceKind`, the last rejection, and the options with their
-bounds, the number's range, the buckets with their limits, or the items.
+own and hands the client where it stopped: `start(game, seats) -> Paused`,
+`answer(Answer) -> Paused`, where `Paused` is `Asking(Question)`,
+`Ended(GameResult)` or `Halted(Halt)`. The third is the engine's existing
+`Halt` (`state/game.rs:414`): the run's own error, or a `Stop` a provider
+raised (a replay that diverged or ran out, a setup line refused, a replay
+superseded), which a fork's replay and a scenario's setup lines can both
+raise inside a paused game. A halted paused game refuses `answer`, as every
+run entry refuses a stopped game today (`setup-architecture.md#72-the-decisions`,
+decision 1). The question is the four primitives' arguments, owned: the
+player whose decision it is, the `ChoiceKind`, the last rejection, and the
+options with their bounds, the number's range, the buckets with their
+limits, or the items. **These are the dev GUI's types moved into the
+engine**: `devgui/src/prompt.rs`'s `Primitive` (which method asked, with its
+bounds) and `Answer` (picks, a number, an allocation, an order) become the
+engine's, and the dev GUI's `Prompt` keeps only what it draws from them.
 Inside, the engine is unchanged: the seats a client answers are one new
 provider that hands the question out and waits, beside any decorator
 (`ManaWindowStop` over it closes a paid window without asking anyone). The
@@ -323,7 +361,8 @@ stack is suspended on a thread first (std only, the dev GUI's mechanism moved
 into the engine), and on a stackful coroutine once item 140's spike, with the
 AI harness, picks one. A client that forks asks the paused game to keep a copy
 at each anchor (`with_forks()`): `fork()` copies the last one and replays the
-answers since (§4: 1.7 µs at an anchor, plus 35–79 µs at any other prompt). An
+answers since, each recorded as the typed option it chose (decision 4), not
+its place (§4: 1.7 µs at an anchor, plus 35–79 µs at any other prompt). An
 observation is built on the game's stack at the question, by a function the
 client gives, so nothing copies the state to show it. *Code*: ~370–600 lines
 and ~350–550 of tests (§6).
@@ -362,14 +401,31 @@ loop, and every `ask_*` site is rewritten.
 **Who answers.** The question names the player whose decision it is (CR
 722.3). The seat that answers is routed by `DispatchDecisionProvider`, which
 under CR 722.5 will read who controls that player, a fact `GameState` gains
-with Mindslaver's family (§8). The question carries no answering seat of its
-own.
+with Mindslaver's family (§8); under CR 722.8 one seat then answers for two
+players. The question carries no answering seat of its own.
 
 **Recommendation: B, on a thread first.** It is the only option that serves
 all three customers with no rewrite, it keeps the trait and every
 implementation, and its one cost that grows, a fork off an anchor, is paid by
 the search that asked for it. D buys a 79 µs-cheaper fork for a rewrite. C
 fails floor 1 by measurement.
+
+**2b. How a client's answer names what it chose.** The `Answer` B hands back
+in is the engine's, so it picks one way.
+- **By place in the question it answers**: the trait's shape and the dev
+  GUI's `Answer` today, `Picks(vec![2])`. The client holds the question, so a
+  place in it is unambiguous at that instant. The paused game turns each into
+  its typed option for the fork and the log.
+- **By identity**: `Picks(vec![ChoiceOption::Object(#7)])`, found by decision
+  4's matcher, the way a script, a setup line and a replay name an option.
+  The paused game turns it into a place for the trait's call, a lookup among
+  the question's options. One spelling of an answer everywhere outside the
+  trait; a client that answers late, against a question re-derived after a
+  server restarted, names what it meant.
+
+**Recommendation: by identity**: answers are named by what they chose
+everywhere a person or a client writes one, and the place stays inside the
+engine, between `ui::ask` and the provider.
 
 ### Decision 3 — what a pending decision holds on `GameState`, and the rule every later choice kind follows
 
@@ -410,11 +466,26 @@ passes since. *Clone cost*: nothing. By §4, the agents' stack meets 0–2
 mid-round prompts a game, but a seat that stops at every priority point
 (a person, and an AI that acts at instant speed) meets mostly those.
 
-**The rule every later choice kind follows**, which replaces
-`triggers-architecture.md#56-a-prompt-keeps-what-it-has-decided-on-gamestate`
-under (b) or (c):
-1. It asks through `ui::ask`, one function per kind, so the paused game hands
-   every question out at one place.
+**(b) and (c) withdraw a ruling of yours.** The rule that a prompt keeps
+what it has decided on `GameState` is the owner's (2026-10-08, at A6k's
+review, a triggers-phase PR:
+`triggers-architecture.md#56-a-prompt-keeps-what-it-has-decided-on-gamestate`),
+and the roadmap row gives it as this step's reason: "every choice kind after
+it keeps its state on `GameState`". It was right for a design that resumes
+from `GameState` alone. §4's measurement is what moves it: stepping a game
+from `GameState` alone (C) costs +71–83%, so a paused game keeps its stack,
+and then the rule buys a cheaper fork at a few prompts and nothing else. Item
+40 named a second customer, a self-hosted server surviving a dropped
+connection. A dropped connection loses no state, since the game lives in the
+server's process; a lost process recovers its games from their saves, the
+start and every answer, replayed (a Commander game in ~22 ms in release,
+`setup-architecture.md#71-the-tools-where-they-sit-and-what-the-tree-has`),
+which re-derives the question as a fork does.
+
+**The rule every later choice kind follows**, which replaces that rule under
+(b) or (c):
+1. Every question goes through `ui::ask`, so the paused game hands every
+   question out at one place. (Kinds share functions there: 29 for 31 kinds.)
 2. Its options are named by what they are (decision 4), and its `ChoiceKind`
    names its subject (`ChoiceKind::subject`, exhaustive).
 3. What it offers is a function of `GameState` and the answers since the last
@@ -427,11 +498,12 @@ seeded games at two seats and four and requires each branch to replay the
 original. It is item 41's test with "every round start" widened to "every
 decision". A choice kind that broke rule 3 would fail it.
 
-**Recommendation: (b).** It is item 140's 60 lines, it makes rule 3 exactly
-true at every first ask, and it closes items 40 and 233 without the 450–650
-lines whose only use is decision 2's D. Placement's drain shape (the waiting
-queue loses an entry only as it is placed) stays where it is built, since it
-costs nothing there, and is no longer required of new prompts.
+**Recommendation: (b), withdrawing the 2026-10-08 rule.** It is item 140's
+60 lines, it makes rule 3 exactly true at every first ask, and it closes items
+40 and 233 without the 450–650 lines whose only use is decision 2's D.
+Placement's drain shape (the waiting queue loses an entry only as it is
+placed) stays where it is built, since it costs nothing there, and is no
+longer required of new prompts.
 
 ### Decision 4 — every option named by what it is
 
@@ -459,18 +531,30 @@ and how the two cost shapes are named.
   by: a registry row, an effect of an ability on an object with its place
   among the ability's effects, a counter kind's effect, a game rule's.
   `ChoiceOption::Trigger(TriggerId)` is a waiting trigger's id, minted per
-  game in trigger order. The log writes the source and then what about it:
-  `Thunder-Thrash Elder (#12) ability 7 effect 1`, `Words of Worship (#9) row
-  3`, `Grizzly Bears (#7) finality counter`, `trigger 14: Bridge from Below
-  (#31) ability 2`. Every arm is an id or a small enum, within item 141's
-  payload rule (a prompt names things by id and CR vocabulary, never an
-  engine AST); a `ReplacementInstanceId` is 40 bytes, under `ChoiceOption`'s
-  56. *Code*: the two arms with their words and labels in both clients;
-  `ask_choose_replacement` and `ask_order_triggers` pass the instances; the
-  unasked notes (an elided order) name them; the thirteen alike answers
-  named outright; `expect_choice_among_alike`, `expect_order_among_alike` and
-  the log's `(n of m)` go, since nothing reads alike any more. ~80–150 lines
-  and the tests.
+  game in trigger order. **A minted id is exact within a build and says
+  nothing across two**: a registry row's id and a `TriggerId` are counters,
+  so another build that mints in another order would swap two of them
+  silently, the failure A has. So the words carry what makes the instance
+  this one, kept as a check the way a card's name is kept beside `#7`: a
+  trigger's words name the objects its binding names (what triggered it,
+  CR 603.2c's occurrences), and a registry row's name the stack object whose
+  resolution made it. `Thunder-Thrash Elder (#12) ability 7 effect 1`,
+  `Words of Worship (#9) row 3, made by #41`, `Grizzly Bears (#7) finality
+  counter`, `trigger 14: Soul Warden (#5) ability 1, for Grizzly Bears (#40)`.
+  A build that mints in another order then fails the check and diverges
+  loudly. What is left is two instances alike in every word: the same source,
+  ability and triggering objects, which is as far as the log's convention
+  goes for two cards of one name. Every arm is an id or a small enum, within
+  item 141's payload rule (a prompt names things by id and CR vocabulary,
+  never an engine AST); a `ReplacementInstanceId` is 40 bytes, under
+  `ChoiceOption`'s 56. *Code*: the two arms with their words and labels in
+  both clients; `ask_choose_replacement` and `ask_order_triggers` pass the
+  instances; the unasked notes (an elided order) name them; the thirteen
+  alike answers named outright, and CV-2b's test provider's `then_index`
+  (`tests/phase_cv2b_integration_test.rs:103`, its one use at `:1133` on
+  `ChooseReplacementEffect`); `expect_choice_among_alike`,
+  `expect_order_among_alike` and the log's `(n of m)` go. ~80–150 lines and
+  the tests.
 
 **Recommendation: C.** Only C names every family §3.3 counts.
 
@@ -486,21 +570,41 @@ as the payload rule's other offenders), and their words, `alternative
 Flashback {1}{R}`, are a label that prints the keyword and, when every part is
 mana, the mana.
 
+The shapes to name: `AlternativeCost`'s seven variants (Flashback, Overload,
+Dash, Escape, Evoke, Bestow, `Custom`) and `AdditionalCost`'s seven that are
+offered (Kicker, Buyback, Entwine, Casualty, Bargain, Strive, `Custom`; a
+`Mandatory` cost is never offered, CR 601.2b).
+
 - **(i) Parse the label back into the tree.** Possible only where the label
   is the whole cost. A non-mana part prints the keyword alone, so Escape's
   "exile five other cards" cannot be read back.
-- **(ii) A cost's typed identity is its keyword and its mana**, parsed, with
-  the rest of its words kept as a check, as a name is. ~40 lines beyond the
-  matcher: a keyword enum and a mana parser for `{1}{R}`. Two offered costs
-  with one keyword and one mana would read alike again. No printed card offers
-  that today, but a granted cost beside a printed one does once
-  `casting-from-other-zones` builds it (Underworld Breach granting escape to
-  Uro, which has its own). So `permission-design` gives an offered cost its
-  source, as 4a gives an effect its own, and the identity gains it then.
+- **(ii) A cost's typed identity is its variant and the variant's own
+  values**: the existing enums' variant, and no new enum. The complete CR 702
+  `KeywordName` enum that `codebase-state.md` records as wanted (the residue
+  of "Keywords are abilities", under "Before Layers" item 10) would name the
+  keyword variants again but not `Custom`, so the variant is the one spelling
+  that covers all fourteen. For
+  a variant carrying `Cost`s, the identity adds the mana among them,
+  which the log writes even where the label shows the keyword alone; Casualty
+  its N; Bargain and Strive nothing more; `Custom` its text. The rest of the
+  words are kept as a check, as a name is. ~40 lines beyond the matcher: the
+  variant's word and a mana parser for `{1}{R}`.
 - **(iii) Compare the cost shapes by words**, the one textual corner left.
 
-**Recommendation: (ii)**, and `permission-design`'s note gains the line about
-a cost's source. The matcher with its parsers, ~150–250 lines and the tests.
+**Two offered costs alike under (ii).** No cost is granted today, so a spell
+offers only its printed costs, and none prints two of one variant with one
+mana (two kickers differ by mana). Granted costs arrive with
+`casting-from-other-zones`. Checked on Scryfall (2026-11-01): Underworld
+Breach grants escape "equal to the card's mana cost plus exile three other
+cards", so beside Uro, Titan of Nature's Wrath's printed escape it offers
+{1}{G}{U} against {G}{G}{U}{U}, and beside Underworld Rage-Hound's {1}{R}
+against {3}{R}: both pairs differ by mana. A pair alike in variant, mana and
+every other word is one cost twice, and either pick is the same game, which
+is decision 1's one exception. `permission-design`, which gives an offered
+cost its source, can add the source to the identity then.
+
+**Recommendation: (ii).** The matcher with its parsers, ~150–250 lines and
+the tests.
 
 **4c. `picking(n)`** (item 361). It is a test's policy, not a script, and the
 33 uses that depend on order break whenever an engine change reorders a list.
@@ -533,26 +637,35 @@ from Below's two triggers, both orders.
 | **engine** | the paused game: its question and answer types, the seat that hands a question out, on a thread | ~250–400 | ~200–300 |
 | | the fork: a copy at each anchor, the answers since, the replay; its consumer, the fork test at every decision of seeded games at two seats and four, each branch replaying the original's event log and end state | ~120–200 | ~150–250 |
 | | item 140's round started at any seat, and CR 514.3a's re-loop; item 41's test gains the mid-round forks | ~60 | ~60–80 |
-| | the turn-began hook, the writer's turn-start save and `attacked last turn` (decision 1, closing item 287) | ~100–170 | ~50–80 |
+| | the paused game's copy at each turn's start, the writer's turn-start save, and decision 1's three words for the spans before a turn (closing item 287) | ~140–230 | ~60–100 |
 | | items 40 and 233 closed as superseded | docs | |
-| | **the engine PR** | **~530–830** | **~460–710** |
+| | **the engine PR** | **~570–890** | **~470–730** |
 | **dev GUI** | the bridge drives a paused game (`spawn_game`'s thread, `GuiSeat`, `HandOver` go); "Save board as scenario" writes the turn's beginning and its save | ~200–350 | ~50–100 |
 | with the harness | the coroutine, chosen by item 140's spike against the thread, with the binding floor item 140 proposes | sized there | |
 
-The engine PR reads ~990–1,540: inside the band (1,500–2,500,
+The engine PR reads ~1,040–1,620: inside the band (1,500–2,500,
 `engineering-practices.md#sizing-a-phase`) at its upper estimate, under it at
 its lower, so it is one PR. The paused game and the fork are one consumer's
-two halves. Fuzz A/B: `IDENTICAL` predicted, since no path a fuzz game runs
-changes: `fuzz_games` keeps calling `Game::run` directly.
+two halves. Fuzz A/B: `IDENTICAL` predicted. Every fuzz game runs
+`run_priority_round`, which item 140 rewrites to start at any seat and derive
+its pass count; the derived count is today's at every round, since a round a
+fuzz game plays still starts at the active player, so the gameplay rows and
+the cost counters read byte-identical, which is what the A/B checks. The
+paused game is a path no fuzz game takes: `fuzz_games` keeps calling
+`Game::run` directly.
 
 ---
 
 ## 7. What lands where, once the decisions are taken
 
 - `setup-architecture.md` gains a section, "Pausing at a decision", holding
-  the decisions as taken, the audit's table and the build's sizing; its
-  status block and its section 11 ("Out of scope") are updated; this file is
-  deleted.
+  the decisions as taken, the audit's table, §3.3's census with its queries
+  and date, and the build's sizing; its status block and its section 11
+  ("Out of scope") are updated; this file is deleted.
+- `fuzz-record.md` gains a block for §4's probe: the boards, the seed, the
+  re-running and copy readings, newest first.
+- `roadmap-v2.md`'s "The excluded tail" gains §8's finding 4 on its
+  Subgames line.
 - `codebase-state.md`: item 287 re-slotted to the build after v0.5; items 336
   and 361 re-slotted to `modes-plus-choice-kinds`; items 40, 140 and 233 gain
   a dated line pointing at the new section (closed at the build if (b) is
@@ -581,7 +694,9 @@ changes: `fuzz_games` keeps calling `Game::run` directly.
    `cr-coverage-audit.md` already notes Emrakul, the Promised End waiting on it.
    Filed as `backlog.md`'s "2.51 Controlling another player" on this branch,
    with the routing of a question to the seat that answers (decision 2) as
-   one of its two halves.
+   one of its two halves: CR 722.5's controller answers, 722.8's controller
+   still answers for themself, so one seat answers for two players, and
+   722.7's controlling effect may restrict or require actions.
 4. **CR 728's subgame is a paused game inside a resolution.**
    `roadmap-v2.md`'s "excluded tail" lists Shahrazad among cards that break
    the process model. Under decision 2's B a subgame is a `Game` played on
