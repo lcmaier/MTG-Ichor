@@ -180,7 +180,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::Lookahead;
-    use crate::cards::creatures::grizzly_bears;
+    use crate::cards::printings::grizzly_bears;
     use crate::engine::layers::copiable_values;
     use crate::state::battlefield::{CastFacts, CostChoices};
     use crate::state::game_state::ResolvingObject;

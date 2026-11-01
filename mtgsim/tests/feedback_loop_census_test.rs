@@ -4,15 +4,10 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::creatures::{grizzly_bears, savannah_lions};
-use mtgsim::cards::phase5_pre_cards::glorious_anthem;
-use mtgsim::cards::phase_li_cards::opalescence;
-use mtgsim::cards::phase_rc_cards::keldon_warlord;
-use mtgsim::cards::phase_rd_cards::{guardian_seraph, palisade_giant, pyroclasm};
-use mtgsim::cards::phase_re_cards::{platinum_angel, raise_the_alarm};
-use mtgsim::cards::phase_tr1_cards::{blood_artist, soul_warden};
-use mtgsim::cards::phase_tr2a_cards::vengeful_warchief;
-use mtgsim::cards::phase_tr2b_cards::nykthos_paragon;
+use mtgsim::cards::printings::{
+    blood_artist, glorious_anthem, grizzly_bears, guardian_seraph, keldon_warlord, nykthos_paragon, opalescence, palisade_giant, platinum_angel,
+    pyroclasm, raise_the_alarm, savannah_lions, soul_warden, vengeful_warchief,
+};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;

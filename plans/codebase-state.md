@@ -96,11 +96,11 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 | Section | Rule topic | Status | Where |
 |---|---|---|---|
-| 301 | Artifacts (incl. 301.5 Equipment — attachment + can't-attach-to-non-creature) | ✅ attachment tracking, `GameState::attach` / `detach` the one writer, **Equip ✅ (LH-2, 2026-09-05)** — 301.5b's "control matters when it resolves" is CR 608.2b's re-check; 301.5c's creature-Equipment clause and 702.6c qualities are card breadth | `state/game_state.rs`, `engine/resolve.rs`, `cards/phase_lh_cards.rs` |
+| 301 | Artifacts (incl. 301.5 Equipment — attachment + can't-attach-to-non-creature) | ✅ attachment tracking, `GameState::attach` / `detach` the one writer, **Equip ✅ (LH-2, 2026-09-05)** — 301.5b's "control matters when it resolves" is CR 608.2b's re-check; 301.5c's creature-Equipment clause and 702.6c qualities are card breadth | `state/game_state.rs`, `engine/resolve.rs`, `cards/authoring/abilities.rs` |
 | 302 | Creatures + summoning sickness | ✅ turn-based tracking (T09) | `oracle/characteristics.rs` `has_summoning_sickness` |
 | 303 | Enchantments / Auras — an Aura spell targets its enchant ability (303.4a), enters attached (303.4 / 608.3c), fizzles against a gone target (608.3b), "enchanted creature" reaches the host (303.4m, LH-1 2026-09-04), control on resolve (303.4e); non-stack ETB host choice (303.4f/g, TR-3b 2026-10-08: `engine/returns.rs`); an Aura enchanting a player ❌ (item 227) | 🟡 | `engine/targeting.rs` `spell_recipient`, `engine/stack.rs` Aura branch, `state/game_state.rs` `attach`/`detach`, `objects/card_data.rs` `enchant_filter` |
 | 304 | Instants | ✅ basic cast path | `engine/put_on_stack.rs` |
-| 305 | Lands | ✅ basic lands + mana abilities | `cards/basic_lands.rs` |
+| 305 | Lands | ✅ basic lands + mana abilities | `cards/sets/1993/08_05_lea.rs` |
 | 306 | Planeswalkers | ✅ loyalty ETB, 0-loyalty SBA; loyalty-ability costs ❌ (T19 pending) | `engine/sba.rs` |
 | 307 | Sorceries | ✅ basic cast path + sorcery-speed enforcement | `engine/put_on_stack.rs`, `oracle/legality.rs` |
 | 308 | Kindred (formerly Tribal) | ✅ data model only |
@@ -154,7 +154,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 701.8 | Destroy (destroy keyword action, respects indestructible) | ✅ (T16) | `engine/resolve.rs` Primitive::Destroy |
 | 701.21 | Sacrifice | 🟡 `Cost::SacrificeSelf` ✅; `Cost::Sacrifice(filter, count)` = `NotImplemented` (T18c) | `engine/costs.rs` |
 | 702.2 | Deathtouch | ✅ (combat lethal-damage check, T09 fuzz run confirmed) | `engine/combat/keywords.rs` |
-| 702.6 | **Equip** (activated ability "Equip {cost}") | ✅ (LH-2, 2026-09-05) `phase_lh_cards::equip`: `Primitive::Attach` behind `Target(Permanent(creature ∧ you control), Exactly(1))`, `ActivationRestriction::OnlyAsSorcery`; 702.6c/d/e variants are card breadth |
+| 702.6 | **Equip** (activated ability "Equip {cost}") | ✅ (LH-2, 2026-09-05) `authoring::equip`: `Primitive::Attach` behind `Target(Permanent(creature ∧ you control), Exactly(1))`, `ActivationRestriction::OnlyAsSorcery`; 702.6c/d/e variants are card breadth |
 | 702.10c | Untap symbol {Q} — summoning-sickness check | ✅ (T10) | `engine/costs.rs` |
 | 702.12 | Indestructible | ✅ (T16) | `engine/sba.rs`, `engine/resolve.rs` |
 | 702.15 | Flash | ✅ flash casting window honored |

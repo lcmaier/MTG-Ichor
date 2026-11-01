@@ -239,8 +239,9 @@ phase sequence as data the drainer indexes, so CR 500.8 can splice into it. A
 noun, and a stored fact. The collision was caught by RE-1's glossary pass
 *before* sense 2 was written rather than mid-PR, which is what this gate is
 for — `planned_sacrifices` sits one letter from `PlannedPhase`. Sense 2 keeps
-the name because it is the one `state::game_state::next_phase`'s own pre-RE-1
-TODO used. → `replacement-architecture.md` §9's RE-10; `cost-architecture.md`.
+the name because it is the one the pre-RE-1 phase chain's own TODO used,
+before RE-10 made the turn's phases data. → `replacement-architecture.md` §9's
+RE-10; `cost-architecture.md`.
 
 **splice** — **(1)** CR 702.47's keyword ability: adding a card's rules text to
 an Arcane spell as it is cast (CR 612.10). **Unimplemented, and the name is

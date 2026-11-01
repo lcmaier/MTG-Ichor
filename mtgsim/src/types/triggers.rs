@@ -2299,7 +2299,7 @@ pub(crate) mod samples {
                 token: identity.source,
                 owner: 0,
                 zone: Zone::Battlefield,
-                definition: Arc::new(crate::cards::phase_re_cards::goblin_token()),
+                definition: Arc::new(crate::cards::tokens::goblin_token()),
             }),
             ("Targeted", GameEvent::Targeted {
                 target: crate::types::ids::ObjectOrPlayer::Object(identity.source),

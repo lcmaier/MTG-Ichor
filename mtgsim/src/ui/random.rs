@@ -23,7 +23,7 @@
 // All of these are policy, not payment law — the prompt still offers every
 // legal option and the engine still validates what comes back — and they
 // exist because an any-color mana base
-// (`cards/dual_lands.rs::everywhere`) turns a uniform tap into a five-sided
+// (`cards::printings::everywhere`) turns a uniform tap into a five-sided
 // die: land taps per spell cast read 7.66 uniform against 3.18 with the
 // policy (2026-09-03), and a failed payment rewinds with the lands still
 // tapped.
@@ -460,8 +460,7 @@ impl DecisionProvider for RandomDecisionProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cards::basic_lands::forest;
-    use crate::cards::dual_lands::everywhere;
+    use crate::cards::printings::{everywhere, forest};
     use crate::oracle::mana_supply::ManaAbilityWindowOffer;
     use crate::test_support::{put_on_battlefield, setup_two_player_game};
     use crate::test_support::setup_two_player_game as setup_basic_game;

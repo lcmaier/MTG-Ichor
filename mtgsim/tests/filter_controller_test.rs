@@ -17,7 +17,7 @@
 //! keeps its meaning.
 
 use mtgsim::engine::layers::types::EffectId;
-use mtgsim::cards::{creatures, phase5_pre_cards};
+use mtgsim::cards::printings;
 use mtgsim::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
 };
@@ -71,9 +71,9 @@ fn creature_and(inner: PlayerRef) -> ObjectFilter {
 fn test_anthem_follows_its_source_when_control_changes() {
     let mut game = setup_two_player_game();
 
-    let my_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let opp_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-    let anthem = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+    let my_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let opp_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
+    let anthem = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
 
     assert_eq!(get_effective_power(&game, my_bears), Some(3));
     assert_eq!(get_effective_toughness(&game, my_bears), Some(3));
@@ -98,8 +98,8 @@ fn test_anthem_follows_its_source_when_control_changes() {
 fn test_anthem_control_change_is_not_one_way() {
     let mut game = setup_two_player_game();
 
-    let my_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let anthem = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+    let my_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let anthem = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
 
     game.battlefield.get_mut(&anthem).unwrap().controller = 1;
     game.bump_layer_epoch();
@@ -130,11 +130,11 @@ fn test_anthem_control_change_is_not_one_way() {
 fn test_resolution_effect_keeps_its_you_when_the_source_changes_hands() {
     let mut game = setup_two_player_game();
 
-    let my_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let opp_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+    let my_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let opp_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
     // A land, so the source is neither buffed by the row nor a second source
     // of one — a Forest's mana ability is activated, so nothing registers.
-    let source = put_land_on_battlefield(&mut game, mtgsim::cards::basic_lands::forest, 0);
+    let source = put_land_on_battlefield(&mut game, mtgsim::cards::printings::forest, 0);
 
     register_anthem(&mut game, source, 0, creature_and(PlayerRef::You));
     assert_eq!(get_effective_power(&game, my_bears), Some(3));
@@ -155,9 +155,9 @@ fn test_resolution_effect_keeps_its_you_when_the_source_changes_hands() {
 fn test_opponent_matches_every_controller_that_is_not_you() {
     let mut game = setup_two_player_game();
 
-    let my_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let opp_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-    let source = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let my_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let opp_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
+    let source = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
 
     register_anthem(&mut game, source, 0, creature_and(PlayerRef::Opponent));
 
@@ -174,10 +174,10 @@ fn test_opponent_matches_every_controller_that_is_not_you() {
 fn test_owner_is_the_sources_owner_not_its_controller() {
     let mut game = setup_two_player_game();
 
-    let p0_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let p1_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+    let p0_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let p1_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
     // Owned by player 1; the effect's "you" is player 0, so the two differ.
-    let source = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+    let source = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
 
     register_anthem(&mut game, source, 0, creature_and(PlayerRef::Owner));
 
@@ -192,9 +192,9 @@ fn test_owner_is_the_sources_owner_not_its_controller() {
 fn test_explicit_player_ignores_the_source() {
     let mut game = setup_two_player_game();
 
-    let p0_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let p1_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-    let source = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let p0_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let p1_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
+    let source = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
 
     register_anthem(&mut game, source, 0, creature_and(PlayerRef::Player(1)));
 
@@ -211,9 +211,9 @@ fn test_explicit_player_ignores_the_source() {
 fn test_negated_controller_filter_is_honored() {
     let mut game = setup_two_player_game();
 
-    let p0_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let p1_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-    let source = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let p0_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let p1_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
+    let source = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
 
     register_anthem(
         &mut game,

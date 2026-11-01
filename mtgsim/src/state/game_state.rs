@@ -2980,4 +2980,83 @@ mod tests {
         assert!(entry.cost_choices.alternative.is_none());
         assert!(entry.cost_choices.additional.is_empty());
     }
+
+    /// Each layer card lowered to the rows its text describes.
+    mod each_card_lowered {
+        use std::sync::Arc;
+
+        
+        use crate::cards::fixtures::{flight_clause, purifier_clause, simian_clause};
+        use crate::cards::printings::{ashaya_soul_of_the_wild, kird_ape, opalescence, urborg_tomb_of_yawgmoth};
+        use crate::objects::card_data::CardData;
+        use crate::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
+        
+        
+        use crate::types::keywords::KeywordFlag;
+        
+        use crate::objects::card_data::AbilityType;
+
+        /// A sanity check on the lowering of each card: the rows a static ability
+        /// registers are what the tests reason about.
+        #[test]
+        fn each_card_lowers_to_the_rows_its_text_describes() {
+            use crate::engine::layers::types::{EffectModification, Layer, PtValue};
+            use crate::state::game_state::GameState;
+
+            let rows = |card: Arc<CardData>| -> Vec<(Layer, EffectModification)> {
+                card.abilities
+                    .iter()
+                    .filter(|a| a.ability_type == AbilityType::Static && !a.is_characteristic_defining)
+                    .flat_map(|a| {
+                        GameState::static_ability_atoms(a, &card.name)
+                            .into_iter()
+                            .flat_map(|(_, p, _)| GameState::static_primitive_rows(p))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect()
+            };
+
+            assert_eq!(
+                rows(urborg_tomb_of_yawgmoth()),
+                vec![(Layer::Layer4Type, EffectModification::AddSubtype(Subtype::Land(LandType::Swamp)))]
+            );
+            assert_eq!(rows(opalescence()).iter().map(|(l, _)| *l).collect::<Vec<_>>(), vec![
+                Layer::Layer4Type,
+                Layer::Layer7bSetPT
+            ]);
+            // One ability, two layer-4 rows — one effect for CR 613.8's purposes.
+            assert_eq!(rows(ashaya_soul_of_the_wild()), vec![
+                (Layer::Layer4Type, EffectModification::AddType(CardType::Land)),
+                (Layer::Layer4Type, EffectModification::AddSubtype(Subtype::Land(LandType::Forest))),
+            ]);
+            assert_eq!(rows(purifier_clause()), vec![(
+                Layer::Layer4Type,
+                EffectModification::AddSupertype(Supertype::Basic)
+            )]);
+
+            // LI-3 — a conditional static lowers to exactly the rows its inner
+            // atom does. The condition is nowhere in this list, which is the
+            // whole of §13b decision 5: it stays on the ability, and CR 604.2's
+            // existence check reads it there every layer.
+            assert_eq!(rows(kird_ape()), vec![(
+                Layer::Layer7cModifyPT,
+                EffectModification::ModifyPowerToughness {
+                    power: PtValue::Fixed(1),
+                    toughness: PtValue::Fixed(2),
+                }
+            )]);
+            assert_eq!(rows(flight_clause()), vec![(
+                Layer::Layer6Ability,
+                EffectModification::GrantKeywordFlag(KeywordFlag::Flying)
+            )]);
+            assert_eq!(rows(simian_clause()), vec![(
+                Layer::Layer4Type,
+                EffectModification::AddSubtype(Subtype::Creature(CreatureType::Ape))
+            )]);
+
+            let ashaya = ashaya_soul_of_the_wild();
+            assert!(ashaya.abilities[0].is_characteristic_defining, "the P/T ability is a CDA");
+            assert!(!ashaya.abilities[1].is_characteristic_defining);
+        }
+    }
 }

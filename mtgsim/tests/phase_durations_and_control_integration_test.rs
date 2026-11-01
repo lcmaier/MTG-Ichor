@@ -4,8 +4,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lg_cards::act_of_treason;
+use mtgsim::cards::printings::{act_of_treason, grizzly_bears};
 use mtgsim::engine::layers::types::Layer;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;

@@ -35,12 +35,10 @@ use mtgsim::engine::layers::types::EffectId;
 use mtgsim::state::replacement_effects::ReplacementEffectId;
 use mtgsim::state::restrictions::RestrictionId;
 use mtgsim::cards::authoring::{activated_ability, spell_ability};
-use mtgsim::cards::alpha::giant_growth;
+use mtgsim::cards::printings::{
+    self, chainbreaker, circle_of_protection_red, cryptoplasm, cytoshape, giant_growth, grizzly_bears, mending_hands, mirrorform, mirrorweave,
+};
 use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_rc_cards::chainbreaker;
-use mtgsim::cards::phase_cv_cards::{self, cryptoplasm, cytoshape, mirrorform, mirrorweave};
-use mtgsim::cards::phase_rd_cards::{circle_of_protection_red, mending_hands};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
@@ -256,7 +254,7 @@ fn a_creature_exiled_and_returned_is_a_new_object() {
 #[test]
 fn a_copy_on_two_creatures_keeps_applying_to_the_one_that_stayed() {
     let mut game = setup_two_player_game();
-    let angel = put_on_battlefield(&mut game, mtgsim::cards::keyword_creatures::serra_angel(), 1);
+    let angel = put_on_battlefield(&mut game, mtgsim::cards::printings::serra_angel(), 1);
     let (a, b) = (put_on_battlefield(&mut game, grizzly_bears(), 0), put_on_battlefield(&mut game, grizzly_bears(), 0));
     resolve_spell(&mut game, mirrorweave(), 0, &[angel]);
     assert_eq!((get_effective_name(&game, a), get_effective_name(&game, b)), ("Serra Angel".into(), "Serra Angel".into()));
@@ -483,7 +481,7 @@ fn chosen_pump() -> Arc<CardData> {
 fn a_stolen_creature_destroyed_goes_home_as_a_new_object() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    resolve_spell(&mut game, mtgsim::cards::phase_lg_cards::act_of_treason(), 0, &[bears]);
+    resolve_spell(&mut game, mtgsim::cards::printings::act_of_treason(), 0, &[bears]);
     assert_eq!(mtgsim::oracle::characteristics::get_effective_controller(&game, bears), Some(0));
     game.execute_action(
         GameAction::AddCounters { subject: ObjectOrPlayerId::Object(bears), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
@@ -704,7 +702,7 @@ fn a_lasting_copy_of_one_object_leaves_the_earlier_copys_other_object_alone() {
 // ---------------------------------------------------------------------------
 
 fn serra_angel() -> Arc<CardData> {
-    mtgsim::cards::keyword_creatures::serra_angel()
+    mtgsim::cards::printings::serra_angel()
 }
 
 /// State-based actions and triggers, then the stack, until both are quiet:
@@ -746,7 +744,7 @@ fn mirrorforms_copies_last_until_their_subject_moves() {
     let mut game = setup_two_player_game();
     let angel = put_on_battlefield(&mut game, serra_angel(), 1);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    let ring = put_on_battlefield(&mut game, mtgsim::cards::artifacts::sol_ring(), 0);
+    let ring = put_on_battlefield(&mut game, mtgsim::cards::printings::sol_ring(), 0);
     resolve_spell(&mut game, mirrorform(), 0, &[angel]);
     assert_eq!(game.continuous_effects.iter().next().map(|row| row.duration), Some(Duration::Indefinite));
 
@@ -1121,7 +1119,7 @@ fn a_clone_of_cryptoplasm_copies_what_it_copies_and_has_its_ability() {
     place_targeting(&mut game, angel);
     resolve_may(&mut game, true);
 
-    let clone = mtgsim::test_support::put_in_graveyard(&mut game, phase_cv_cards::clone(), 1);
+    let clone = mtgsim::test_support::put_in_graveyard(&mut game, printings::clone(), 1);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(ChoiceKind::ChooseCopySource { source: clone }, vec![ChoiceOption::Object(crypto)]);
     game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &mtgsim::engine::actions::ActionContext::new(&dp))
@@ -1146,7 +1144,7 @@ fn a_re_copy_keeps_noncopy_effects_and_enters_nothing() {
     let angel = put_on_battlefield(&mut game, serra_angel(), 1);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let crypto = put_on_battlefield(&mut game, cryptoplasm(), 0);
-    put_on_battlefield(&mut game, mtgsim::cards::phase_tr1_cards::soul_warden(), 0);
+    put_on_battlefield(&mut game, mtgsim::cards::printings::soul_warden(), 0);
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     while !game.stack.is_empty() {
         game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -1262,10 +1260,10 @@ fn essence_of_might() -> Arc<CardData> {
 fn a_later_copy_takes_back_the_counters_a_doubler_made_of_the_exception() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    put_on_battlefield(&mut game, mtgsim::cards::phase_re_cards::doubling_season(), 0);
+    put_on_battlefield(&mut game, mtgsim::cards::printings::doubling_season(), 0);
     put_on_battlefield(&mut game, essence_of_might(), 0);
 
-    let spark = mtgsim::test_support::put_in_graveyard(&mut game, phase_cv_cards::spark_double(), 0);
+    let spark = mtgsim::test_support::put_in_graveyard(&mut game, printings::spark_double(), 0);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(ChoiceKind::ChooseCopySource { source: spark }, vec![ChoiceOption::Object(bears)]);
     game.change_zone(spark, Zone::Battlefield, ZoneChangeAct::Put, &mtgsim::engine::actions::ActionContext::new(&dp))

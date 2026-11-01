@@ -1,7 +1,7 @@
 //! Phase RE-4 — tokens.
 //!
 //! CR 614.16's token half, CR 111.5, CR 616.1g and CR 111.4, against the four
-//! printed cards in `cards::phase_re_cards` and `Primitive::CreateToken`'s new
+//! printed cards that watch a token's creation and `Primitive::CreateToken`'s new
 //! shape: one proposal, whose performer proposes every token's entry as one
 //! batch.
 //!
@@ -15,13 +15,8 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use mtgsim::cards::phase_rb_cards::kalitas_traitor_of_ghet;
-use mtgsim::cards::phase_rc_cards::{master_biomancer, root_maze, thunder_thrash_elder};
-use mtgsim::cards::phase_re_cards::{
-    alms_collector, bard_king_of_dale, divine_visitation, goblin_token,
-    hallowed_moonlight, hordeling_outburst, parallel_lives, raise_the_alarm, soldier_token,
-    thought_reflection,
-};
+use mtgsim::cards::printings::{kalitas_traitor_of_ghet, master_biomancer, root_maze, thunder_thrash_elder};
+use mtgsim::cards::{printings::{alms_collector, bard_king_of_dale, divine_visitation, hallowed_moonlight, hordeling_outburst, parallel_lives, raise_the_alarm, thought_reflection}, tokens::{goblin_token, soldier_token}};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{BatchId, GameEvent};

@@ -7,7 +7,7 @@
 use mtgsim::test_support::{
     card_of_type, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game,
 };
-use mtgsim::cards::{alpha, creatures, phase_le_cards};
+use mtgsim::cards::printings;
 use mtgsim::engine::layers::types::{
     ContinuousEffect, EffectModification, Layer, PtValue,
 };
@@ -42,7 +42,7 @@ fn registered(id: ObjectId, layer: Layer, modification: EffectModification) -> C
 #[test]
 fn test_tarmogoyf_pt_tracks_card_types_in_all_graveyards() {
     let mut game = setup_two_player_game();
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 0);
 
     // Empty graveyards: 0 types, so 0/1.
     assert_eq!(get_effective_power(&game, goyf), Some(0));
@@ -62,7 +62,7 @@ fn test_tarmogoyf_pt_tracks_card_types_in_all_graveyards() {
 #[test]
 fn test_tarmogoyf_counts_card_types_not_cards() {
     let mut game = setup_two_player_game();
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 0);
 
     // Ten artifact creatures are ten cards but two card types.
     for i in 0..10 {
@@ -82,7 +82,7 @@ fn test_tarmogoyf_counts_card_types_not_cards() {
 #[test]
 fn test_tarmogoyf_cda_applies_in_7a_then_pump_in_7c() {
     let mut game = setup_two_player_game();
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 0);
 
     put_in_graveyard(&mut game, card_of_type("Shock", CardType::Instant), 0);
     put_in_graveyard(&mut game, card_of_type("Wastes", CardType::Land), 0);
@@ -115,11 +115,11 @@ fn test_tarmogoyf_cda_applies_in_7a_then_pump_in_7c() {
 // Kept as an isolation test of the ordering alone.
 // The COMP's actual board is covered by
 // `phase_lf_integration_test::test_humility_strips_tarmogoyfs_cda_before_layer_7a_can_read_it`,
-// which uses `phase_lf_cards::humility`.
+// which uses `printings::humility`.
 #[test]
 fn test_tarmogoyf_pt_is_layer_7a_and_an_ability_strip_removes_it() {
     let mut game = setup_two_player_game();
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 0);
 
     for (name, card_type) in [
         ("Shock", CardType::Instant),
@@ -166,7 +166,7 @@ fn test_tarmogoyf_pt_is_layer_7a_and_an_ability_strip_removes_it() {
 #[test]
 fn test_tarmogoyf_in_a_graveyard_has_a_pt_and_counts_itself() {
     let mut game = setup_two_player_game();
-    let goyf = put_in_graveyard(&mut game, phase_le_cards::tarmogoyf(), 0);
+    let goyf = put_in_graveyard(&mut game, printings::tarmogoyf(), 0);
 
     // CR 604.3 — CDAs function in all zones. The only card in any graveyard is
     // Tarmogoyf itself, which is a creature card: one card type, so 1/2.
@@ -189,7 +189,7 @@ fn test_tarmogoyf_in_a_graveyard_has_a_pt_and_counts_itself() {
 #[test]
 fn test_tarmogoyf_stripped_of_abilities_is_0_1_and_survives_sbas() {
     let mut game = setup_two_player_game();
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 0);
     put_in_graveyard(&mut game, card_of_type("Shock", CardType::Instant), 0);
     assert_eq!(get_effective_power(&game, goyf), Some(1));
     assert_eq!(get_effective_toughness(&game, goyf), Some(2));
@@ -232,16 +232,16 @@ fn test_tarmogoyf_stripped_of_abilities_is_0_1_and_survives_sbas() {
 #[test]
 fn test_lightning_bolt_does_not_kill_tarmogoyf_because_bolt_itself_grows_it() {
     let mut game = setup_two_player_game();
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 0);
 
     // A land and a creature between the graveyards: 2 card types, so 2/3.
     put_in_graveyard(&mut game, card_of_type("Wastes", CardType::Land), 0);
-    put_in_graveyard(&mut game, creatures::grizzly_bears(), 1);
+    put_in_graveyard(&mut game, printings::grizzly_bears(), 1);
     assert_eq!(get_effective_power(&game, goyf), Some(2));
     assert_eq!(get_effective_toughness(&game, goyf), Some(3));
 
     // Player 1 bolts it. Three damage against three toughness would be lethal.
-    let bolt_id = put_in_hand(&mut game, alpha::lightning_bolt(), 1);
+    let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 1);
     game.players[1].mana_pool.add(ManaType::Red, 1);
     game.active_player = 1;
 
@@ -298,7 +298,7 @@ fn test_lightning_bolt_does_not_kill_tarmogoyf_because_bolt_itself_grows_it() {
 #[test]
 fn test_devoid_makes_a_black_card_colorless() {
     let mut game = setup_two_player_game();
-    let drone = put_on_battlefield(&mut game, phase_le_cards::culling_drone(), 0);
+    let drone = put_on_battlefield(&mut game, printings::culling_drone(), 0);
 
     assert!(
         get_effective_colors(&game, drone).is_empty(),
@@ -321,7 +321,7 @@ fn test_devoid_makes_a_black_card_colorless() {
 #[test]
 fn test_ability_strip_does_not_restore_devoids_printed_color() {
     let mut game = setup_two_player_game();
-    let drone = put_on_battlefield(&mut game, phase_le_cards::culling_drone(), 0);
+    let drone = put_on_battlefield(&mut game, printings::culling_drone(), 0);
 
     game.continuous_effects.add(registered(
         drone,
@@ -340,7 +340,7 @@ fn test_ability_strip_does_not_restore_devoids_printed_color() {
 
     // The mirror image, and the reason ATOM-113.12-001 had to be corrected:
     // for P/T the same strip *does* win, because 7a follows 6.
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 0);
     put_in_graveyard(&mut game, card_of_type("Shock", CardType::Instant), 0);
     assert_eq!(get_effective_power(&game, goyf), Some(1));
     game.continuous_effects.add(registered(

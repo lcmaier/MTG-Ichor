@@ -15,8 +15,7 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::authoring::{at_beginning_of, draws_a_card, enters, triggered_ability, whenever, Whose};
-use mtgsim::cards::phase_rd_cards::safe_passage;
-use mtgsim::cards::phase_tr2b_cards::{cosis_trickster, nykthos_paragon, psychosis_crawler};
+use mtgsim::cards::printings::{cosis_trickster, nykthos_paragon, psychosis_crawler, safe_passage};
 use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_power, get_effective_toughness};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;

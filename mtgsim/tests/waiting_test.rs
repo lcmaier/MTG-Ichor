@@ -6,8 +6,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{at_beginning_of, whenever, Whose};
-use mtgsim::cards::phase_re_cards::{meditate, time_walk};
-use mtgsim::cards::phase_tr3a_cards::{blessed_wine, final_fortune};
+use mtgsim::cards::printings::{blessed_wine, final_fortune, meditate, time_walk};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::objects::card_data::CardData;

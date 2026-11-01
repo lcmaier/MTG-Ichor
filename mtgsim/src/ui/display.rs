@@ -1282,6 +1282,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+    use crate::cards::{fixtures, printings};
     use crate::events::event::DepartedObject;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
@@ -1369,8 +1370,8 @@ mod tests {
         use crate::types::zones::ZoneChangeAct;
 
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
-        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        put_on_battlefield(&mut game, crate::cards::printings::grizzly_bears(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::printings::clone(), 0);
         let dp = RecordingDecisionProvider::picking(0);
         game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         assert!(dp.kinds()[0] == "ChooseCopySource", "{:?}", dp.kinds());
@@ -1392,8 +1393,8 @@ mod tests {
         use crate::types::zones::ZoneChangeAct;
 
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
-        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        let bears = put_on_battlefield(&mut game, crate::cards::printings::grizzly_bears(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::printings::clone(), 0);
         let dp = RecordingDecisionProvider::picking(0);
         game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         game.execute_action(GameAction::Tap { object: clone }, &test_ctx()).unwrap();
@@ -1433,13 +1434,12 @@ mod tests {
 
     #[test]
     fn a_type_line_prints_in_printed_order() {
-        use crate::cards::{dual_lands, phase_rc_cards, phase_rg_cards, phase_tr2b_cards};
         let line = |card: Arc<CardData>| type_line(&card.supertypes, &card.types, &card.subtypes);
-        assert_eq!(line(phase_rc_cards::containment_priest()), "Creature — Human Cleric");
-        assert_eq!(line(phase_rc_cards::dryad_arbor()), "Land Creature — Forest Dryad");
-        assert_eq!(line(phase_tr2b_cards::nykthos_paragon()), "Enchantment Creature — Human Soldier");
-        assert_eq!(line(phase_rg_cards::archelos_lagoon_mystic()), "Legendary Creature — Turtle Shaman");
-        assert_eq!(line(dual_lands::bayou()), "Land — Swamp Forest");
+        assert_eq!(line(printings::containment_priest()), "Creature — Human Cleric");
+        assert_eq!(line(printings::dryad_arbor()), "Land Creature — Forest Dryad");
+        assert_eq!(line(printings::nykthos_paragon()), "Enchantment Creature — Human Soldier");
+        assert_eq!(line(printings::archelos_lagoon_mystic()), "Legendary Creature — Turtle Shaman");
+        assert_eq!(line(printings::bayou()), "Land — Swamp Forest");
     }
 
     fn words(section: &[TypeWord]) -> Vec<(&str, TypeWordStatus)> {
@@ -1452,9 +1452,9 @@ mod tests {
         use TypeWordStatus::{Gained, Kept, Lost};
 
         let mut game = setup_two_player_game();
-        let bayou = put_on_battlefield(&mut game, crate::cards::dual_lands::bayou(), 0);
+        let bayou = put_on_battlefield(&mut game, crate::cards::printings::bayou(), 0);
         assert_eq!(type_line_now(&game, bayou).to_string(), "Land — Swamp Forest");
-        put_on_battlefield(&mut game, crate::cards::phase_ld_cards::blood_moon(), 1);
+        put_on_battlefield(&mut game, crate::cards::printings::blood_moon(), 1);
 
         let line = type_line_now(&game, bayou);
         assert_eq!(words(&line.front), [("Land", Kept)]);
@@ -1500,8 +1500,8 @@ mod tests {
         use crate::types::zones::ZoneChangeAct;
 
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, crate::cards::phase_rd_cards::samite_healer(), 0);
-        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        put_on_battlefield(&mut game, crate::cards::printings::samite_healer(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::printings::clone(), 0);
         let dp = RecordingDecisionProvider::picking(0);
         game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         let line = type_line_now(&game, clone);
@@ -1520,10 +1520,10 @@ mod tests {
 
         // One pass of the board gives every object the line a pass for it alone would.
         use crate::test_support::put_in_hand;
-        put_on_battlefield(&mut game, crate::cards::dual_lands::bayou(), 1);
-        put_on_battlefield(&mut game, crate::cards::phase_ld_cards::blood_moon(), 1);
-        put_in_hand(&mut game, crate::cards::phase_rc_cards::dryad_arbor(), 1);
-        put_in_graveyard(&mut game, crate::cards::phase_rg_cards::archelos_lagoon_mystic(), 1);
+        put_on_battlefield(&mut game, crate::cards::printings::bayou(), 1);
+        put_on_battlefield(&mut game, crate::cards::printings::blood_moon(), 1);
+        put_in_hand(&mut game, crate::cards::printings::dryad_arbor(), 1);
+        put_in_graveyard(&mut game, crate::cards::printings::archelos_lagoon_mystic(), 1);
         let lines = TypeLines::new(&game);
         // ORDER-FREE: each object is asked alone.
         for id in game.objects.keys() {
@@ -1555,19 +1555,18 @@ mod tests {
     /// an amount above one.
     #[test]
     fn an_activation_is_labeled_by_its_object_and_its_text() {
-        use crate::cards::{artifacts, dual_lands, phase_cm_cards, phase_re_cards, phase_tr2a_cards};
         use crate::test_support::{put_on_battlefield, setup_two_player_game};
 
         let mut game = setup_two_player_game();
         for (card, texts) in [
-            (dual_lands::everywhere(), vec!["{T}: Add {W}.", "{T}: Add {U}.", "{T}: Add {B}.", "{T}: Add {R}.", "{T}: Add {G}."]),
-            (phase_cm_cards::mind_stone(), vec!["{T}: Add {C}.", "{1}, {T}, Sacrifice this artifact: Draw a card."]),
-            (phase_re_cards::yawgmoths_bargain(), vec!["Pay 1 life: Draw a card."]),
+            (printings::everywhere(), vec!["{T}: Add {W}.", "{T}: Add {U}.", "{T}: Add {B}.", "{T}: Add {R}.", "{T}: Add {G}."]),
+            (printings::mind_stone(), vec!["{T}: Add {C}.", "{1}, {T}, Sacrifice this artifact: Draw a card."]),
+            (printings::yawgmoths_bargain(), vec!["Pay 1 life: Draw a card."]),
             (
-                phase_tr2a_cards::elvish_warmaster(),
+                printings::elvish_warmaster(),
                 vec!["{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of turn."],
             ),
-            (artifacts::sol_ring(), vec!["{T}: Add {C}{C}."]),
+            (printings::sol_ring(), vec!["{T}: Add {C}{C}."]),
         ] {
             let id = put_on_battlefield(&mut game, card, 0);
             let expected: Vec<String> = texts.iter().map(|text| format!("{} · {text}", named(&game, id))).collect();
@@ -1580,17 +1579,16 @@ mod tests {
     /// activates the ability Citanul Hierophants grants it.
     #[test]
     fn a_permanent_shows_the_text_of_the_abilities_it_has_now() {
-        use crate::cards::{creatures, dual_lands, phase_ld_cards, phase_lf_cards};
         use crate::test_support::{put_on_battlefield, setup_two_player_game};
 
         let mut game = setup_two_player_game();
-        let sea = put_on_battlefield(&mut game, dual_lands::underground_sea(), 0);
+        let sea = put_on_battlefield(&mut game, printings::underground_sea(), 0);
         assert_eq!(format_permanent(&game, sea), "Underground Sea\n{T}: Add {U}.\n{T}: Add {B}.");
-        put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+        put_on_battlefield(&mut game, printings::blood_moon(), 1);
         assert_eq!(format_permanent(&game, sea), "Underground Sea\n{T}: Add {R}.");
 
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+        let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+        put_on_battlefield(&mut game, printings::citanul_hierophants(), 0);
         assert_eq!(format_permanent(&game, bears), "Grizzly Bears 2/2\n{T}: Add {G}.");
         assert_eq!(activation_labels(&game, bears), [format!("Grizzly Bears ({bears}) · {{T}}: Add {{G}}.")]);
     }
@@ -1601,11 +1599,10 @@ mod tests {
     /// ability and the one Citanul Hierophants grants it.
     #[test]
     fn a_printed_ability_shows_once_and_a_granted_one_beside_it() {
-        use crate::cards::{phase_lf_cards, phase_rc_cards, phase_re_cards};
         use crate::test_support::{put_on_battlefield, setup_two_player_game};
 
         let mut game = setup_two_player_game();
-        let angel = put_on_battlefield(&mut game, phase_re_cards::platinum_angel(), 0);
+        let angel = put_on_battlefield(&mut game, printings::platinum_angel(), 0);
         assert_eq!(
             format_permanent(&game, angel),
             "Platinum Angel 4/4 [flying]\nYou can't lose the game and your opponents can't win the game."
@@ -1615,8 +1612,8 @@ mod tests {
             format_permanent(&game, etchings),
             "Fixture Etchings\nReveal the first card you draw each turn. Whenever you reveal a basic land card this way, draw a card."
         );
-        let arbor = put_on_battlefield(&mut game, phase_rc_cards::dryad_arbor(), 0);
-        put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+        let arbor = put_on_battlefield(&mut game, printings::dryad_arbor(), 0);
+        put_on_battlefield(&mut game, printings::citanul_hierophants(), 0);
         assert_eq!(format_permanent(&game, arbor), "Dryad Arbor 1/1\n{T}: Add {G}.\n{T}: Add {G}.");
     }
 
@@ -1625,16 +1622,15 @@ mod tests {
     /// custom cost prints its own sentence.
     #[test]
     fn a_cost_option_prints_its_keyword_and_its_mana() {
-        use crate::cards::phase_cm_cards;
         use crate::test_support::setup_two_player_game;
         use crate::types::effects::ObjectFilter;
         use crate::types::mana::{ManaCost, ManaType};
 
         let game = setup_two_player_game();
         let label = |option: ChoiceOption| option_label(&game, &option);
-        let kicker = phase_cm_cards::kicked_lesson().additional_costs[0].clone();
+        let kicker = fixtures::kicked_lesson().additional_costs[0].clone();
         assert_eq!(label(ChoiceOption::AdditionalCost(kicker)), "Kicker {2}");
-        let custom = phase_cm_cards::bargain_lesson().alternative_costs[0].clone();
+        let custom = fixtures::bargain_lesson().alternative_costs[0].clone();
         assert_eq!(label(ChoiceOption::AlternativeCost(custom)), "Pay {R} rather than pay this spell's mana cost");
         let escape = AlternativeCost::Escape(vec![
             Cost::Mana(ManaCost::build(&[ManaType::Black, ManaType::Black], 3)),
@@ -1652,8 +1648,8 @@ mod tests {
         use crate::types::zones::ZoneChangeAct;
 
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
-        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        put_on_battlefield(&mut game, crate::cards::printings::grizzly_bears(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::printings::clone(), 0);
         let dp = RecordingDecisionProvider::picking(0);
         game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         assert_eq!(
@@ -1668,9 +1664,9 @@ mod tests {
         use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
 
         let mut game = setup_two_player_game();
-        let bears = put_in_hand(&mut game, crate::cards::creatures::grizzly_bears(), 0);
-        let blocker = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 1);
-        let attacker = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let bears = put_in_hand(&mut game, crate::cards::printings::grizzly_bears(), 0);
+        let blocker = put_on_battlefield(&mut game, crate::cards::printings::grizzly_bears(), 1);
+        let attacker = put_on_battlefield(&mut game, crate::cards::printings::grizzly_bears(), 0);
         assert_eq!(
             rejection(&game, &Rejection::Reversed(PriorityAction::CastSpell(bears))),
             format!("Cast Grizzly Bears ({bears}) could not be completed, so it was reversed and its payments canceled (CR 732.1)")
@@ -1794,7 +1790,7 @@ mod tests {
             GameEvent::ControlChanged { to: 1, lki: lki(game, controlled) },
             GameEvent::LeftTheGame { departed: DepartedObject::WithoutLki { object: reference(game, id()), owner: 1 }, from: Zone::Battlefield },
             GameEvent::SameZoneMove { zone: Zone::Battlefield, act: ZoneChangeAct::Destroyed, applied: None, lki: lki(game, kept) },
-            GameEvent::TokenCreated { token: reference(game, id()), owner: 0, zone: Zone::Battlefield, definition: Arc::new(crate::cards::phase_re_cards::goblin_token()) },
+            GameEvent::TokenCreated { token: reference(game, id()), owner: 0, zone: Zone::Battlefield, definition: Arc::new(crate::cards::tokens::goblin_token()) },
             GameEvent::TokenCeasedToExist { token: reference(game, id()) },
             GameEvent::StateBasedActionPerformed,
         ]

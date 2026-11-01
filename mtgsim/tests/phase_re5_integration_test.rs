@@ -1,7 +1,7 @@
 //! Phase RE-5 — counters, on permanents and players.
 //!
 //! CR 614.16's counter half, CR 122.1, CR 122.6 and CR 122.6a, against the six
-//! printed cards in `cards::phase_re_cards` and the engine's own shape: a
+//! printed cards that watch counters and the engine's own shape: a
 //! counter's subject is an object or a player, the putter rides on the event,
 //! and an entry that gives a permanent counters is watched through a second
 //! door on `EventPattern::AddCounters` rather than proposed as a second
@@ -13,13 +13,11 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, chainbreaker, master_biomancer};
-use mtgsim::cards::phase_rd_cards::loyalty_probe;
-use mtgsim::cards::phase_re_cards::{
-    doubling_season, hardened_scales, live_fast, primal_vigor, raise_the_alarm,
+use mtgsim::cards::printings::{
+    adaptive_shimmerer, battlegrowth, chainbreaker, doubling_season, hardened_scales, live_fast, master_biomancer, primal_vigor, raise_the_alarm,
     vorinclex_monstrous_raider, winding_constrictor,
 };
-use mtgsim::cards::phase_sba_cards::battlegrowth;
+use mtgsim::cards::fixtures::loyalty_probe;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;

@@ -15,23 +15,14 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::alpha::lightning_bolt;
-use mtgsim::cards::artifacts::sol_ring;
+use mtgsim::cards::printings::{
+    act_of_treason, eon_hub, fog, forest, grizzly_bears, humility, lightning_bolt, march_of_the_machines, plains, rest_in_peace, sol_ring, swamp,
+    yixlid_jailer,
+};
 use mtgsim::cards::authoring::{
     another, at_beginning_of, attacks, dies, enters, spell_ability, triggered_ability, whenever, Whose,
 };
-use mtgsim::cards::basic_lands::{forest, plains, swamp};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_ld_cards::march_of_the_machines;
-use mtgsim::cards::phase_lf_cards::humility;
-use mtgsim::cards::phase_lg_cards::act_of_treason;
-use mtgsim::cards::phase_lj_cards::yixlid_jailer;
-use mtgsim::cards::phase_rb_cards::rest_in_peace;
-use mtgsim::cards::phase_rd_cards::fog;
-use mtgsim::cards::phase_re_cards::eon_hub;
-use mtgsim::cards::phase_tr1_cards::{
-    blood_artist, felidar_sovereign, saproling_token, soul_warden, verdant_force, wild_growth,
-};
+use mtgsim::cards::{printings::{blood_artist, felidar_sovereign, soul_warden, verdant_force, wild_growth}, tokens::saproling_token};
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;

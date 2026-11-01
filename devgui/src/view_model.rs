@@ -1433,9 +1433,9 @@ mod tests {
     #[test]
     fn a_hover_greys_the_land_types_blood_moon_took_and_a_hand_card_prints_in_order() {
         let mut game = setup_two_player_game();
-        let bayou = put_on_battlefield(&mut game, mtgsim::cards::dual_lands::bayou(), 0);
-        put_on_battlefield(&mut game, mtgsim::cards::phase_ld_cards::blood_moon(), 1);
-        let priest = put_in_hand(&mut game, mtgsim::cards::phase_rc_cards::containment_priest(), 0);
+        let bayou = put_on_battlefield(&mut game, mtgsim::cards::printings::bayou(), 0);
+        put_on_battlefield(&mut game, mtgsim::cards::printings::blood_moon(), 1);
+        let priest = put_in_hand(&mut game, mtgsim::cards::printings::containment_priest(), 0);
         let view = WindowState { board: Some(Snapshot::build(&game, 0)), ..WindowState::default() }.board_view().unwrap();
 
         let line = item(&view, bayou).type_line.expect("a permanent's hover has its type line");
@@ -1456,9 +1456,7 @@ mod tests {
     /// its log line gives it, then the extra turn; closed until opened.
     #[test]
     fn the_waiting_panel_lists_each_delayed_trigger_then_each_return_then_each_extra_turn() {
-        use mtgsim::cards::creatures::grizzly_bears;
-        use mtgsim::cards::phase_tr3a_cards::{blessed_wine, final_fortune};
-        use mtgsim::cards::phase_tr3b_cards::banishing_light;
+        use mtgsim::cards::printings::{banishing_light, blessed_wine, final_fortune, grizzly_bears};
         use mtgsim::engine::resolve::ResolutionContext;
         use mtgsim::test_support::test_dp;
         let mut game = setup_two_player_game();

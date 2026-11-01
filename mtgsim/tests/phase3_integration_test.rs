@@ -8,13 +8,11 @@
 use std::sync::Arc;
 
 use mtgsim::test_support::place_on_battlefield;
-use mtgsim::cards::alpha;
+use mtgsim::cards::printings;
 use mtgsim::events::event::GameEvent;
 use mtgsim::state::game_state::{GameState, Phase};
 use mtgsim::test_support::{put_on_battlefield, set_attacking, setup_two_player_game, vanilla_creature, test_dp};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::cards::creatures;
-use mtgsim::cards::basic_lands;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::{Decklist, Game};
@@ -40,7 +38,7 @@ fn make_test_deck(creatures: Vec<fn() -> Arc<CardData>>, lands: usize) -> Deckli
         deck.push(factory());
     }
     for _ in 0..lands {
-        deck.push(basic_lands::forest());
+        deck.push(printings::forest());
     }
     deck
 }
@@ -107,7 +105,7 @@ fn test_unblocked_attacker_deals_damage() {
     game.setup(&dp).unwrap();
 
     // Place a 2/2 creature on the battlefield for player 0
-    let bears_id = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
+    let bears_id = place_creature_on_battlefield(&mut game, 0, printings::grizzly_bears);
 
     // Advance to DeclareAttackers step
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
@@ -159,9 +157,9 @@ fn test_blocked_creatures_trade() {
     game.setup(&dp).unwrap();
 
     // Player 0: 2/2 attacker
-    let attacker = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
+    let attacker = place_creature_on_battlefield(&mut game, 0, printings::grizzly_bears);
     // Player 1: 2/2 blocker
-    let blocker = place_creature_on_battlefield(&mut game, 1, creatures::grizzly_bears);
+    let blocker = place_creature_on_battlefield(&mut game, 1, printings::grizzly_bears);
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
@@ -226,9 +224,9 @@ fn test_bigger_creature_survives() {
     game.setup(&dp).unwrap();
 
     // Player 0: 3/3 attacker (Hill Giant)
-    let attacker = place_creature_on_battlefield(&mut game, 0, creatures::hill_giant);
+    let attacker = place_creature_on_battlefield(&mut game, 0, printings::hill_giant);
     // Player 1: 2/2 blocker (Grizzly Bears)
-    let blocker = place_creature_on_battlefield(&mut game, 1, creatures::grizzly_bears);
+    let blocker = place_creature_on_battlefield(&mut game, 1, printings::grizzly_bears);
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
@@ -275,9 +273,9 @@ fn test_overkill_damage_both_die() {
     game.setup(&dp).unwrap();
 
     // Player 0: Grizzly Bears (2/2)
-    let bears = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
+    let bears = place_creature_on_battlefield(&mut game, 0, printings::grizzly_bears);
     // Player 1: Savannah Lions (2/1)
-    let lions = place_creature_on_battlefield(&mut game, 1, creatures::savannah_lions);
+    let lions = place_creature_on_battlefield(&mut game, 1, printings::savannah_lions);
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
@@ -327,7 +325,7 @@ fn test_no_attackers_no_damage() {
     let dp = ScriptedDecisionProvider::new();
     game.setup(&dp).unwrap();
 
-    let _bears = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
+    let _bears = place_creature_on_battlefield(&mut game, 0, printings::grizzly_bears);
 
     game.state.skip_first_draw = true; // avoid discard-to-hand-size noise
 
@@ -365,7 +363,7 @@ fn test_summoning_sick_cannot_attack() {
     game.setup(&dp).unwrap();
 
     // Place creature that IS summoning sick
-    let data = creatures::grizzly_bears();
+    let data = printings::grizzly_bears();
     let obj = mtgsim::objects::object::GameObject::new(data, 0, Zone::Battlefield);
     let bears_id = game.state.add_object(obj);
     place_on_battlefield(&mut game.state, bears_id, 0, &EnterMods::NONE); // entered this turn = summoning sick
@@ -401,7 +399,7 @@ fn test_combat_damage_kills_player() {
     // Set player 1 to 2 life so a single 2/2 attack kills them
     game.state.players[1].life_total = 2;
 
-    let _bears_id = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
+    let _bears_id = place_creature_on_battlefield(&mut game, 0, printings::grizzly_bears);
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
@@ -448,7 +446,7 @@ fn test_combat_state_cleared_after_combat() {
     let dp = ScriptedDecisionProvider::new();
     game.setup(&dp).unwrap();
 
-    let bears_id = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
+    let bears_id = place_creature_on_battlefield(&mut game, 0, printings::grizzly_bears);
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
@@ -506,9 +504,9 @@ fn test_damage_persists_bolt_in_second_main_kills() {
     game.setup(&dp).unwrap();
 
     // Player 0: Earth Elemental (4/5)
-    let elemental = place_creature_on_battlefield(&mut game, 0, creatures::earth_elemental);
+    let elemental = place_creature_on_battlefield(&mut game, 0, printings::earth_elemental);
     // Player 1: Savannah Lions (2/1)
-    let lions = place_creature_on_battlefield(&mut game, 1, creatures::savannah_lions);
+    let lions = place_creature_on_battlefield(&mut game, 1, printings::savannah_lions);
 
     // Advance to DeclareAttackers
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
@@ -547,7 +545,7 @@ fn test_damage_persists_bolt_in_second_main_kills() {
     assert_eq!(game.state.battlefield.get(&elemental).unwrap().damage_marked, 2);
 
     // Put Lightning Bolt in player 1's hand and give them red mana
-    let bolt_id = put_in_hand(&mut game, alpha::lightning_bolt(), 1);
+    let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 1);
     game.state.players[1].mana_pool.add(ManaType::Red, 1);
 
     // Player 1 casts bolt targeting Elemental
@@ -597,9 +595,9 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
     game.setup(&dp).unwrap();
 
     // Player 0: Earth Elemental (4/5)
-    let elemental = place_creature_on_battlefield(&mut game, 0, creatures::earth_elemental);
+    let elemental = place_creature_on_battlefield(&mut game, 0, printings::earth_elemental);
     // Player 1: Savannah Lions (2/1)
-    let _lions = place_creature_on_battlefield(&mut game, 1, creatures::savannah_lions);
+    let _lions = place_creature_on_battlefield(&mut game, 1, printings::savannah_lions);
 
     // Advance to DeclareAttackers
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
@@ -631,7 +629,7 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
     assert_eq!(game.state.battlefield.get(&elemental).unwrap().damage_marked, 0);
 
     // Put Lightning Bolt in player 1's hand and give them red mana
-    let bolt_id = put_in_hand(&mut game, alpha::lightning_bolt(), 1);
+    let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 1);
     game.state.players[1].mana_pool.add(ManaType::Red, 1);
 
     // It's now player 1's turn (active player rotated after cleanup).

@@ -12,15 +12,11 @@
 //! about the working set moves. That is `RegistryScopeSummary::reachable_zones`
 //! earning its place — the claim is a structural zero, so it is testable.
 
-use mtgsim::cards::phase_le_cards::tarmogoyf;
-use mtgsim::cards::phase_lf_cards::humility;
+use mtgsim::cards::printings::{humility, tarmogoyf};
 use std::collections::HashSet;
 
-use mtgsim::cards::alpha::lightning_bolt;
-use mtgsim::cards::phase_lj_cards::{
-    graveyard_painter, graveyard_reveler, lattice_colorless_clause, scarwood_treefolk,
-    teferi_flash_clause, yixlid_jailer,
-};
+use mtgsim::cards::printings::lightning_bolt;
+use mtgsim::cards::{fixtures::{graveyard_painter, graveyard_reveler, lattice_colorless_clause, teferi_flash_clause}, printings::{scarwood_treefolk, yixlid_jailer}};
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_colors, get_effective_power, get_effective_toughness,
@@ -535,7 +531,7 @@ fn test_the_jailer_strips_a_graveyard_tarmogoyfs_cda_and_its_pt_falls_to_the_see
 
     // Two card types in graveyards: the Goyf itself (creature) and a land.
     let goyf = put_in_graveyard(&mut game, tarmogoyf(), 0);
-    put_in_graveyard(&mut game, mtgsim::cards::basic_lands::forest(), 1);
+    put_in_graveyard(&mut game, mtgsim::cards::printings::forest(), 1);
 
     assert_eq!(
         (get_effective_power(&game, goyf), get_effective_toughness(&game, goyf)),
@@ -565,7 +561,7 @@ fn test_the_jailer_strips_a_graveyard_tarmogoyfs_cda_and_its_pt_falls_to_the_see
 fn test_the_jailer_does_not_touch_a_tarmogoyf_on_the_battlefield() {
     let mut game = setup_two_player_game();
 
-    put_in_graveyard(&mut game, mtgsim::cards::basic_lands::forest(), 1);
+    put_in_graveyard(&mut game, mtgsim::cards::printings::forest(), 1);
     let goyf = put_on_battlefield(&mut game, tarmogoyf(), 0);
     put_on_battlefield(&mut game, yixlid_jailer(), 1);
 

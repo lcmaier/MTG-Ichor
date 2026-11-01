@@ -9,18 +9,13 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{activated_ability, spell_ability};
-use mtgsim::cards::artifacts::sol_ring;
+use mtgsim::cards::printings::{
+    chainbreaker, cytoshape, divine_visitation, doubling_season, forest, march_of_the_machines, panharmonicon, sol_ring, soul_warden, wild_growth,
+};
 use mtgsim::cards::authoring::{
     another, becomes_the_target_of, creates_a_token, dies, enters, is_sacrificed, leaves_the_battlefield, scries, triggered_ability, when_you_do,
     whenever, Whose,
 };
-use mtgsim::cards::phase_ld_cards::march_of_the_machines;
-use mtgsim::cards::basic_lands::forest;
-use mtgsim::cards::phase_cv_cards::cytoshape;
-use mtgsim::cards::phase_rc_cards::chainbreaker;
-use mtgsim::cards::phase_re_cards::{divine_visitation, doubling_season};
-use mtgsim::cards::phase_tr1_cards::{soul_warden, wild_growth};
-use mtgsim::cards::phase_tr5g_cards::panharmonicon;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;

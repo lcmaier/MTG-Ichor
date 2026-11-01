@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use mtgsim::test_support::place_on_battlefield;
-use mtgsim::cards::basic_lands;
+use mtgsim::cards::printings;
 use mtgsim::test_support::{test_ctx, test_dp};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::{AbilityType, CardData};
@@ -40,8 +40,8 @@ fn get_mana_ability_id(game: &GameState, permanent_id: mtgsim::types::ids::Objec
 fn test_full_opening_sequence() {
     let mut game = GameState::new(2, 20);
 
-    build_test_deck(&mut game, 0, basic_lands::forest, 10);
-    build_test_deck(&mut game, 1, basic_lands::mountain, 10);
+    build_test_deck(&mut game, 0, printings::forest, 10);
+    build_test_deck(&mut game, 1, printings::mountain, 10);
 
     // -- Verify initial state --
     assert_eq!(game.players[0].library.len(), 10);
@@ -100,8 +100,8 @@ fn test_full_opening_sequence() {
 #[test]
 fn test_two_turn_land_and_mana_cycle() {
     let mut game = GameState::new(2, 20);
-    build_test_deck(&mut game, 0, basic_lands::forest, 10);
-    build_test_deck(&mut game, 1, basic_lands::mountain, 10);
+    build_test_deck(&mut game, 0, printings::forest, 10);
+    build_test_deck(&mut game, 1, printings::mountain, 10);
 
     // -- Turn 1: Player 0 --
     for _ in 0..3 {
@@ -151,7 +151,7 @@ fn test_two_turn_land_and_mana_cycle() {
 fn test_event_log_records_zone_changes() {
     let mut game = GameState::new(2, 20);
     game.record_events();
-    build_test_deck(&mut game, 0, basic_lands::forest, 5);
+    build_test_deck(&mut game, 0, printings::forest, 5);
 
     let initial_events = game.recorded_events().len();
 
@@ -194,8 +194,8 @@ fn test_card_registry_integration() {
 #[test]
 fn test_sba_integration_with_turn_structure() {
     let mut game = GameState::new(2, 20);
-    build_test_deck(&mut game, 0, basic_lands::forest, 10);
-    build_test_deck(&mut game, 1, basic_lands::mountain, 10);
+    build_test_deck(&mut game, 0, printings::forest, 10);
+    build_test_deck(&mut game, 1, printings::mountain, 10);
 
     let bears_data = mtgsim::objects::card_data::CardDataBuilder::new("Grizzly Bears")
         .mana_cost(mtgsim::types::mana::ManaCost::build(&[ManaType::Green], 1))

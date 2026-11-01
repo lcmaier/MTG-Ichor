@@ -797,7 +797,7 @@ mod tests {
         let mut game = crate::test_support::setup_two_player_game();
         let thaum = crate::test_support::put_on_battlefield(
             &mut game,
-            crate::cards::utility_creatures::merfolk_thaumaturgist(),
+            crate::cards::printings::merfolk_thaumaturgist(),
             0,
         );
 
@@ -850,7 +850,7 @@ mod tests {
         let mut game = crate::test_support::setup_two_player_game();
         let thaum = crate::test_support::put_on_battlefield(
             &mut game,
-            crate::cards::utility_creatures::merfolk_thaumaturgist(),
+            crate::cards::printings::merfolk_thaumaturgist(),
             0,
         );
 
@@ -972,7 +972,7 @@ mod tests {
     #[test]
     fn test_cast_x_spell_x_equals_3() {
         let mut game = GameState::new(2, 20);
-        let blaze = crate::cards::phase_ma2_cards::blaze();
+        let blaze = crate::cards::printings::blaze();
         let obj = GameObject::new(blaze, 0, Zone::Hand);
         let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
@@ -1006,7 +1006,7 @@ mod tests {
     #[test]
     fn test_cast_x_spell_x_equals_0() {
         let mut game = GameState::new(2, 20);
-        let blaze = crate::cards::phase_ma2_cards::blaze();
+        let blaze = crate::cards::printings::blaze();
         let obj = GameObject::new(blaze, 0, Zone::Hand);
         let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
@@ -1036,7 +1036,7 @@ mod tests {
     #[test]
     fn test_cast_x_spell_offers_only_the_x_the_mana_pays() {
         let mut game = GameState::new(2, 20);
-        let blaze = crate::cards::phase_ma2_cards::blaze();
+        let blaze = crate::cards::printings::blaze();
         let obj = GameObject::new(blaze, 0, Zone::Hand);
         let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
@@ -1067,7 +1067,7 @@ mod tests {
     fn test_cast_x_spell_with_no_payable_x_is_reversed_at_the_announcement() {
         use crate::types::costs::AdditionalCost;
         let mut game = GameState::new(2, 20);
-        let mut kicked = (*crate::cards::phase_ma2_cards::blaze()).clone();
+        let mut kicked = (*crate::cards::printings::blaze()).clone();
         kicked.additional_costs = vec![AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[], 2))])];
         let kicked = std::sync::Arc::new(kicked);
         let obj = GameObject::new(kicked, 0, Zone::Hand);

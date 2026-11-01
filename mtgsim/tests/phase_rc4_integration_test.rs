@@ -16,12 +16,9 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::artifacts::sol_ring;
-use mtgsim::cards::keyword_creatures::wall_of_stone;
-use mtgsim::cards::phase_ld_cards::{blood_moon, march_of_the_machines};
-use mtgsim::cards::phase_lf_cards::humility;
-use mtgsim::cards::phase_rc_cards::{
-    adaptive_shimmerer, chainbreaker, containment_priest, dryad_arbor, keldon_warlord, root_maze,
+use mtgsim::cards::printings::{
+    adaptive_shimmerer, blood_moon, chainbreaker, containment_priest, dryad_arbor, humility, keldon_warlord, march_of_the_machines, root_maze,
+    sol_ring, wall_of_stone,
 };
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::compute_as_entering;
@@ -497,7 +494,7 @@ fn test_containment_priest_ignores_tokens() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, containment_priest(), 1);
 
-    let create = GameAction::CreateTokens { defs: vec![mtgsim::cards::phase_re_cards::goblin_token()], controller: 0, attacking: None };
+    let create = GameAction::CreateTokens { defs: vec![mtgsim::cards::tokens::goblin_token()], controller: 0, attacking: None };
     game.execute_action(create, &ActionContext::new(&test_dp())).unwrap();
 
     let tokens = game.battlefield_ids_ordered().into_iter().filter(|id| game.objects[id].is_token).count();
@@ -687,7 +684,7 @@ fn test_lands_cant_enter_keeps_a_returned_forest_in_the_graveyard() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, static_restriction("Lands can't enter", lands_cant_enter()), 1);
 
-    let forest = put_in_graveyard(&mut game, mtgsim::cards::basic_lands::forest(), 0);
+    let forest = put_in_graveyard(&mut game, mtgsim::cards::printings::forest(), 0);
     game.change_zone(forest, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     assert_eq!(game.get_object(forest).unwrap().zone, Zone::Graveyard);

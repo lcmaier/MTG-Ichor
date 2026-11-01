@@ -18,7 +18,7 @@
 //! the pool and no lands: the claim is about what CR 601.2c *offers*, and a
 //! staged `StackEntry` would answer none of it.
 
-use mtgsim::cards::alpha::{ancestral_recall, lightning_bolt};
+use mtgsim::cards::printings::{ancestral_recall, lightning_bolt};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     put_in_hand, setup_game, stock_libraries, test_dp, RecordingDecisionProvider,

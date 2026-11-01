@@ -178,7 +178,8 @@ A design stop is `/design-note`, a build closes with `/pr-handover`, a review ro
   not there. → `engineering-practices.md#names`.
 - **Before deferring a rules question, read the rule that *watches* the one you are
   implementing** — it is in another chapter. → `engineering-practices.md#the-rules-pass`.
-- Test cards in `src/cards/phase_XX_cards.rs`; integration tests in `tests/phase_XX_integration_test.rs`.
+- A card goes in its first printing's set file (`src/cards/sets/`), a fixture in `cards::fixtures`, a token in `cards::tokens`;
+  tests name each through `cards::printings`, `fixtures` or `tokens`. Integration tests in `tests/phase_XX_integration_test.rs`.
 - **Dev GUI: logic is plain Rust under tests, egui only draws**; a GUI PR is reviewed by `engineering-practices.md#the-dev-gui`.
   **Register every card you write, and read its rulings** — `check_rulings.py` gates the second, a
   phase opening a new engine path adds one to `PERFORMANCE_POOL`. → `engineering-practices.md#cards-and-pools` and `engineering-practices.md#rulings`.

@@ -5,9 +5,7 @@
 //! Isamaru (legend rule).
 
 
-use mtgsim::cards::basic_lands;
-use mtgsim::cards::creatures;
-use mtgsim::cards::phase5_pre_cards;
+use mtgsim::cards::printings;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::state::game_state::{GameState, PhaseType};
@@ -45,7 +43,7 @@ fn cast_and_resolve(
 fn test_nights_whisper_draw_and_life_loss() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 10);
-    let whisper_id = put_in_hand(&mut game, phase5_pre_cards::nights_whisper(), 0);
+    let whisper_id = put_in_hand(&mut game, printings::nights_whisper(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
@@ -71,7 +69,7 @@ fn test_nights_whisper_draw_and_life_loss() {
 fn test_nights_whisper_sorcery_speed_wrong_phase() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 10);
-    let _whisper_id = put_in_hand(&mut game, phase5_pre_cards::nights_whisper(), 0);
+    let _whisper_id = put_in_hand(&mut game, printings::nights_whisper(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
@@ -94,7 +92,7 @@ fn test_nights_whisper_sorcery_speed_wrong_phase() {
 #[test]
 fn test_angels_mercy_gains_life() {
     let mut game = setup_two_player_game();
-    let mercy_id = put_in_hand(&mut game, phase5_pre_cards::angels_mercy(), 0);
+    let mercy_id = put_in_hand(&mut game, printings::angels_mercy(), 0);
     game.players[0].mana_pool.add(ManaType::White, 2);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
@@ -117,7 +115,7 @@ fn test_angels_mercy_gains_life() {
 #[test]
 fn test_dark_ritual_adds_three_black_mana() {
     let mut game = setup_two_player_game();
-    let ritual_id = put_in_hand(&mut game, phase5_pre_cards::dark_ritual(), 0);
+    let ritual_id = put_in_hand(&mut game, printings::dark_ritual(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -136,7 +134,7 @@ fn test_dark_ritual_uses_stack_not_mana_ability() {
     // Dark Ritual is an instant that produces mana via a spell effect.
     // It goes on the stack and can be responded to (unlike a mana ability).
     let mut game = setup_two_player_game();
-    let ritual_id = put_in_hand(&mut game, phase5_pre_cards::dark_ritual(), 0);
+    let ritual_id = put_in_hand(&mut game, printings::dark_ritual(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -164,9 +162,9 @@ fn test_dark_ritual_uses_stack_not_mana_ability() {
 fn test_doom_blade_destroys_nonblack_creature() {
     let mut game = setup_two_player_game();
     let target_id = put_on_battlefield(
-        &mut game, creatures::grizzly_bears(), 1,
+        &mut game, printings::grizzly_bears(), 1,
     );
-    let blade_id = put_in_hand(&mut game, phase5_pre_cards::doom_blade(), 0);
+    let blade_id = put_in_hand(&mut game, printings::doom_blade(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
@@ -197,7 +195,7 @@ fn test_doom_blade_rejects_black_creature() {
         .power_toughness(2, 2)
         .build();
     let target_id = put_on_battlefield(&mut game, black_creature_data, 1);
-    let _blade_id = put_in_hand(&mut game, phase5_pre_cards::doom_blade(), 0);
+    let _blade_id = put_in_hand(&mut game, printings::doom_blade(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
@@ -216,9 +214,9 @@ fn test_doom_blade_rejects_black_creature() {
 fn test_doom_blade_rejects_noncreature_permanent() {
     let mut game = setup_two_player_game();
     // A land is a noncreature permanent — Doom Blade can't target it
-    let land_id = put_on_battlefield(&mut game, basic_lands::forest(), 1);
+    let land_id = put_on_battlefield(&mut game, printings::forest(), 1);
 
-    let _blade_id = put_in_hand(&mut game, phase5_pre_cards::doom_blade(), 0);
+    let _blade_id = put_in_hand(&mut game, printings::doom_blade(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
@@ -242,12 +240,12 @@ fn test_isamaru_legend_rule_second_copy_dies() {
 
     // Place first Isamaru on the battlefield directly
     let first_id = put_on_battlefield(
-        &mut game, phase5_pre_cards::isamaru_hound_of_konda(), 0,
+        &mut game, printings::isamaru_hound_of_konda(), 0,
     );
 
     // Cast second Isamaru from hand
     let second_id = put_in_hand(
-        &mut game, phase5_pre_cards::isamaru_hound_of_konda(), 0,
+        &mut game, printings::isamaru_hound_of_konda(), 0,
     );
     game.players[0].mana_pool.add(ManaType::White, 1);
 

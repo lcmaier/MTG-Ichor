@@ -19,8 +19,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_rc_cards::{master_biomancer, sutured_ghoul, thunder_thrash_elder};
-use mtgsim::cards::phase_rs_cards::sigarda_host_of_herons;
+use mtgsim::cards::printings::{master_biomancer, sigarda_host_of_herons, sutured_ghoul, thunder_thrash_elder};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};

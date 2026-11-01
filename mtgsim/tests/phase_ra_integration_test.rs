@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::static_ability;
-use mtgsim::cards::{alpha, basic_lands, creatures, phase5_pre_cards};
+use mtgsim::cards::printings;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
 use mtgsim::events::cause::{EventCause, GameRule, StateBasedAction};
@@ -212,7 +212,7 @@ fn test_a_land_play_is_a_zone_change_with_a_reason() {
     // change in the game. `ZoneChangeAct::PlayedAsLand` had no call site at
     // all, which is how it went unnoticed.
     let mut game = setup_two_player_game();
-    let land = put_in_hand(&mut game, basic_lands::forest(), 0);
+    let land = put_in_hand(&mut game, printings::forest(), 0);
     game.phase.phase_type = mtgsim::state::game_state::PhaseType::Precombat;
 
     game.play_land(0, land, &test_dp()).unwrap();
@@ -271,7 +271,7 @@ fn test_a_failed_cast_announces_nothing() {
     // them, so the log recorded a Stack→Hand move that never happened. Moving
     // emission into `perform_action`'s arm is what finally makes the tag true.
     let mut game = setup_two_player_game();
-    let bolt = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    let bolt = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     // No mana, so CR 601.2h cannot be completed and the whole proposal rewinds.
 
     let decisions = ScriptedDecisionProvider::new();
@@ -320,7 +320,7 @@ fn test_a_failed_cast_announces_nothing() {
 #[test]
 fn test_the_only_payable_split_is_taken_and_never_offered() {
     let mut game = setup_two_player_game();
-    let bear = put_in_hand(&mut game, creatures::grizzly_bears(), 0);
+    let bear = put_in_hand(&mut game, printings::grizzly_bears(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
@@ -357,7 +357,7 @@ fn test_the_only_payable_split_is_taken_and_never_offered() {
 #[should_panic(expected = "DP allocated 1 to bucket 2 but maximum is 0")]
 fn test_the_generic_split_cannot_be_put_on_a_color_its_pip_needs() {
     let mut game = setup_two_player_game();
-    let bear = put_in_hand(&mut game, creatures::grizzly_bears(), 0);
+    let bear = put_in_hand(&mut game, printings::grizzly_bears(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[0].mana_pool.add(ManaType::Green, 1);
@@ -381,7 +381,7 @@ fn test_the_generic_split_cannot_be_put_on_a_color_its_pip_needs() {
 #[test]
 fn test_an_event_names_the_resolution_that_proposed_it() {
     let mut game = setup_two_player_game();
-    let bolt = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    let bolt = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -437,7 +437,7 @@ fn test_a_turn_based_action_belongs_to_no_resolution() {
 #[test]
 fn test_a_board_wipe_of_state_based_deaths_is_one_batch() {
     let mut game = setup_two_player_game();
-    let a = put_on_battlefield(&mut game, phase5_pre_cards::isamaru_hound_of_konda(), 0);
+    let a = put_on_battlefield(&mut game, printings::isamaru_hound_of_konda(), 0);
     let b = put_on_battlefield(&mut game, self_anthem_creature(), 1);
     game.battlefield.get_mut(&a).unwrap().damage_marked = 9;
     game.battlefield.get_mut(&b).unwrap().damage_marked = 9;
@@ -464,8 +464,8 @@ fn test_a_board_wipe_of_state_based_deaths_is_one_batch() {
 fn test_a_land_play_and_a_later_one_are_separate_batches() {
     let mut game = setup_two_player_game();
     game.phase.phase_type = mtgsim::state::game_state::PhaseType::Precombat;
-    let first = put_in_hand(&mut game, basic_lands::forest(), 0);
-    let second = put_in_hand(&mut game, basic_lands::forest(), 0);
+    let first = put_in_hand(&mut game, printings::forest(), 0);
+    let second = put_in_hand(&mut game, printings::forest(), 0);
 
     let dp = ScriptedDecisionProvider::new();
     let ctx = ActionContext::new(&dp);
@@ -515,7 +515,7 @@ fn test_a_resolving_permanent_spell_moves_through_the_chokepoint() {
 #[test]
 fn test_a_resolving_instant_moves_through_the_chokepoint() {
     let mut game = setup_two_player_game();
-    let bolt = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    let bolt = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -561,7 +561,7 @@ fn test_a_fizzling_spell_moves_through_the_chokepoint() {
     // for.
     let mut game = setup_two_player_game();
     let victim = put_on_battlefield(&mut game, self_anthem_creature(), 1);
-    let bolt = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    let bolt = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -661,8 +661,8 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
     // `(id, owner)` plus one type and an implied rule number, and every one of
     // those facts is on the zone change or its frame.
     let mut game = setup_two_player_game();
-    let doomed = put_on_battlefield(&mut game, phase5_pre_cards::isamaru_hound_of_konda(), 1);
-    let other = put_on_battlefield(&mut game, phase5_pre_cards::isamaru_hound_of_konda(), 1);
+    let doomed = put_on_battlefield(&mut game, printings::isamaru_hound_of_konda(), 1);
+    let other = put_on_battlefield(&mut game, printings::isamaru_hound_of_konda(), 1);
 
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_pick_n(
@@ -715,7 +715,7 @@ fn test_an_ability_resolving_is_not_a_spell_resolving() {
     let mut game = setup_two_player_game();
     let thaum = put_on_battlefield(
         &mut game,
-        mtgsim::cards::utility_creatures::merfolk_thaumaturgist(),
+        mtgsim::cards::printings::merfolk_thaumaturgist(),
         0,
     );
 

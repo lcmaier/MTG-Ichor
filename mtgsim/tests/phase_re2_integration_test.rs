@@ -1,7 +1,7 @@
 //! Phase RE-2 — draw.
 //!
 //! CR 121.2, 121.2a, 121.6a/b, 614.11, 614.11a and 616.1g, against the four
-//! printed cards in `cards::phase_re_cards`.
+//! printed cards that replace a draw.
 //!
 //! **Every board here is about the boundary between an instruction and a
 //! draw.** CR 121.2a makes "draw N cards" an event of its own, and Alms
@@ -25,9 +25,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_re_cards::{
-    alms_collector, notion_thief, teferis_ageless_insight, thought_reflection,
-};
+use mtgsim::cards::printings::{alms_collector, notion_thief, teferis_ageless_insight, thought_reflection};
 use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;

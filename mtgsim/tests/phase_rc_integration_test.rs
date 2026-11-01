@@ -10,9 +10,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::static_replacement;
-use mtgsim::cards::phase_rc_cards::{
-    adaptive_shimmerer, chainbreaker, idyllic_beachfront, root_maze,
-};
+use mtgsim::cards::printings::{adaptive_shimmerer, chainbreaker, idyllic_beachfront, root_maze};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
@@ -286,7 +284,7 @@ fn test_planeswalker_spell_enters_with_its_printed_loyalty() {
 ///
 /// **No printed card can build this yet** — the whole population needs {X}, a
 /// condition or a trigger — so it is a fixture, and
-/// `cards/phase_rc_cards.rs` records that finding rather than hiding it.
+/// `printings::idyllic_beachfront`'s doc records that finding rather than hiding it.
 #[test]
 fn test_two_entry_replacements_accumulate() {
     let mut game = setup_two_player_game();
@@ -407,7 +405,7 @@ fn orb_shaped() -> Arc<CardData> {
 fn test_blood_moon_strips_an_entering_taplands_ability() {
     let mut game = setup_two_player_game();
 
-    put_on_battlefield(&mut game, mtgsim::cards::phase_ld_cards::blood_moon(), 1);
+    put_on_battlefield(&mut game, mtgsim::cards::printings::blood_moon(), 1);
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
     game.play_land(0, land, &test_dp()).unwrap();
@@ -436,7 +434,7 @@ fn test_blood_moon_strips_an_entering_taplands_ability() {
 fn test_humility_strips_an_entering_permanents_enters_with_counters() {
     let mut game = setup_two_player_game();
 
-    put_on_battlefield(&mut game, mtgsim::cards::phase_lf_cards::humility(), 1);
+    put_on_battlefield(&mut game, mtgsim::cards::printings::humility(), 1);
 
     let scarecrow = reanimate(&mut game, chainbreaker(), 0);
 
@@ -603,7 +601,7 @@ fn test_zone_change_is_announced_before_the_entry() {
 #[test]
 fn test_a_tokens_entry_gathers_its_own_ability() {
     let mut game = setup_two_player_game();
-    let mut definition = mtgsim::cards::phase_re_cards::goblin_token();
+    let mut definition = mtgsim::cards::tokens::goblin_token();
     definition.abilities = enters_with("Token-ish", 2, 2, EnterModsTemplate::tapped()).abilities.to_vec();
 
     let create = GameAction::CreateTokens { defs: vec![definition], controller: 0, attacking: None };
@@ -683,7 +681,7 @@ fn test_root_maze_taps_an_entering_land() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, root_maze(), 1);
 
-    let forest = put_in_hand(&mut game, mtgsim::cards::basic_lands::forest(), 0);
+    let forest = put_in_hand(&mut game, mtgsim::cards::printings::forest(), 0);
     game.play_land(0, forest, &test_dp()).unwrap();
 
     assert!(

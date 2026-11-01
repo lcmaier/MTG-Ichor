@@ -107,7 +107,7 @@ use std::time::Instant;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
-use mtgsim::cards::phase_re_cards::goblin_token;
+use mtgsim::cards::tokens::goblin_token;
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{ActionContext, GameAction};

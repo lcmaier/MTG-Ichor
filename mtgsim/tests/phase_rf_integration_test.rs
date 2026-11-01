@@ -13,10 +13,8 @@
 //! The last two tests are the affected side: the zone check `set_affects`
 //! now asks of a `Filter` row, which the LJ-era `debug_assert` stood in for.
 
-use mtgsim::cards::phase_rb_cards::rest_in_peace;
-use mtgsim::cards::phase_rf_cards::{
-    darksteel_colossus, hollow_hands, nexus_of_fate, sealing_ward, timid_golem,
-};
+use mtgsim::cards::printings::rest_in_peace;
+use mtgsim::cards::{fixtures::{hollow_hands, sealing_ward, timid_golem}, printings::{darksteel_colossus, nexus_of_fate}};
 use mtgsim::engine::actions::{ActionContext, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;

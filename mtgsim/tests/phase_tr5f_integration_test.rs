@@ -10,13 +10,8 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{attacks, attacks_alone, is_attacked, player_attacks, triggered_ability, whenever, Whose};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::artifacts::sol_ring;
-use mtgsim::cards::phase_ld_cards::march_of_the_machines;
-use mtgsim::cards::phase_lg_cards::act_of_treason;
-use mtgsim::cards::phase_re_cards::{divine_visitation, parallel_lives};
-use mtgsim::cards::phase_tr5e_cards::hellrider;
-use mtgsim::cards::phase_tr5f_cards::{attacking_human_token, hanweir_garrison, relentless_assault};
+use mtgsim::cards::printings::{act_of_treason, divine_visitation, grizzly_bears, hellrider, march_of_the_machines, parallel_lives, sol_ring};
+use mtgsim::cards::{printings::{hanweir_garrison, relentless_assault}, tokens::attacking_human_token};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::engine::resolve::ResolutionContext;

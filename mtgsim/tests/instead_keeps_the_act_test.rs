@@ -18,11 +18,9 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{spell_ability, static_replacement};
-use mtgsim::cards::alpha::counterspell;
-use mtgsim::cards::phase_rb_cards::{leyline_of_the_void, rest_in_peace};
-use mtgsim::cards::phase_rc_cards::{containment_priest, dryad_arbor};
-use mtgsim::cards::phase_re8_cards::{mind_rot, nephalia_academy};
-use mtgsim::cards::phase_rs_cards::diabolic_edict;
+use mtgsim::cards::printings::{
+    containment_priest, counterspell, diabolic_edict, dryad_arbor, leyline_of_the_void, mind_rot, nephalia_academy, rest_in_peace,
+};
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;

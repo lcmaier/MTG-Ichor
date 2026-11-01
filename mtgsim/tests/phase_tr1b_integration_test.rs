@@ -16,13 +16,10 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::artifacts::sol_ring;
+use mtgsim::cards::printings::{
+    blood_artist, forest, grizzly_bears, humility, march_of_the_machines, plains, sol_ring, soul_warden, swamp, wild_growth,
+};
 use mtgsim::cards::authoring::{another, dies, enters, triggered_ability, whenever};
-use mtgsim::cards::basic_lands::{forest, plains, swamp};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_ld_cards::march_of_the_machines;
-use mtgsim::cards::phase_lf_cards::humility;
-use mtgsim::cards::phase_tr1_cards::{blood_artist, soul_warden, wild_growth};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};

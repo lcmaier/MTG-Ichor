@@ -652,10 +652,10 @@ mod tests {
         let found = |card: Arc<CardData>| -> Vec<Option<u16>> {
             card.abilities.iter().map(|ability| ability.rules_text.paragraph()).collect()
         };
-        assert_eq!(found(crate::cards::phase_a4i_cards::seeds_of_strength()), [Some(0), Some(1), Some(2)]);
-        assert_eq!(found(crate::cards::phase_re_cards::platinum_angel()), [Some(1)]);
+        assert_eq!(found(crate::cards::printings::seeds_of_strength()), [Some(0), Some(1), Some(2)]);
+        assert_eq!(found(crate::cards::printings::platinum_angel()), [Some(1)]);
         assert_eq!(found(crate::test_support::one_paragraph_two_abilities()), [Some(0), Some(0)]);
-        assert_eq!(found(crate::cards::basic_lands::forest()), [None]);
+        assert_eq!(found(crate::cards::printings::forest()), [None]);
         assert_eq!(
             paragraphs("Choose one —\n• Draw a card.\n• You gain 2 life.\nFlying").collect::<Vec<_>>(),
             ["Choose one —\n• Draw a card.\n• You gain 2 life.", "Flying"]
@@ -669,18 +669,18 @@ mod tests {
     /// own effect, and a creature card has none.
     #[test]
     fn a_spell_resolves_its_abilities_in_printed_order_as_one_effect() {
-        let opt = crate::cards::phase_re8_cards::opt();
+        let opt = crate::cards::printings::opt();
         assert_eq!(opt.abilities[0].rules_text.words, "Scry 1.");
         assert_eq!(
             spell_effect(&opt.abilities),
             Some(Effect::Sequence(vec![opt.abilities[0].effect.clone(), opt.abilities[1].effect.clone()]))
         );
-        let seeds = crate::cards::phase_a4i_cards::seeds_of_strength();
+        let seeds = crate::cards::printings::seeds_of_strength();
         assert_eq!(seeds.abilities.len(), 3);
         assert_eq!(seeds.spell_instances.len(), 3);
-        let bolt = crate::cards::alpha::lightning_bolt();
+        let bolt = crate::cards::printings::lightning_bolt();
         assert_eq!(spell_effect(&bolt.abilities), Some(bolt.abilities[0].effect.clone()));
-        assert_eq!(spell_effect(&crate::cards::creatures::grizzly_bears().abilities), None);
+        assert_eq!(spell_effect(&crate::cards::printings::grizzly_bears().abilities), None);
     }
 
     #[test]

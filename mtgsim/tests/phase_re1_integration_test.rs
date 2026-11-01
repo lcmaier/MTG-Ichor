@@ -1,7 +1,7 @@
 //! Phase RE-1 — skips, and the turn queue.
 //!
 //! CR 614.1b, 614.10, 614.10a, 500.7, 500.11 and 508.8, against the five
-//! printed cards in `cards::phase_re_cards`.
+//! printed cards that skip a turn, a phase or a step.
 //!
 //! **Every board here is a turn sequence**, because that is the only thing a
 //! skip is observable in: a step that is skipped emits nothing, runs no
@@ -24,9 +24,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_re_cards::{
-    eon_hub, meditate, moment_of_silence, time_walk, yawgmoths_bargain,
-};
+use mtgsim::cards::printings::{eon_hub, meditate, moment_of_silence, time_walk, yawgmoths_bargain};
 use mtgsim::cards::authoring::{at_beginning_of, triggered_ability, whenever, Whose};
 use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::resolve::ResolutionContext;
@@ -864,7 +862,7 @@ fn the_first_turn_and_its_untap_step_are_proposed() {
     use mtgsim::state::game_config::GameConfig;
 
     let deck: Vec<Arc<CardData>> =
-        (0..40).map(|_| mtgsim::cards::basic_lands::forest()).collect();
+        (0..40).map(|_| mtgsim::cards::printings::forest()).collect();
     let mut g = Game::new(GameConfig::standard(), vec![deck.clone(), deck]).unwrap();
     g.state.record_events();
     g.reseed(7);
@@ -896,7 +894,7 @@ fn state_based_actions_at_cleanup_begin_a_second_cleanup_step() {
     use mtgsim::test_support::{place_bare, vanilla_creature};
 
     let deck: Vec<Arc<CardData>> =
-        (0..20).map(|_| mtgsim::cards::basic_lands::forest()).collect();
+        (0..20).map(|_| mtgsim::cards::printings::forest()).collect();
     let mut g = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
     g.state.record_events();
     let dp = RandomDecisionProvider::seeded(514);
@@ -939,7 +937,7 @@ fn a_repeated_cleanup_step_ends_until_end_of_turn_effects() {
     use mtgsim::test_support::{place_bare, registered, vanilla_creature};
 
     let deck: Vec<Arc<CardData>> =
-        (0..20).map(|_| mtgsim::cards::basic_lands::forest()).collect();
+        (0..20).map(|_| mtgsim::cards::printings::forest()).collect();
     let mut g = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
     let dp = RandomDecisionProvider::seeded(514);
     g.setup(&dp).unwrap();

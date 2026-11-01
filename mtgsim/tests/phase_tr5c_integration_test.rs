@@ -9,16 +9,14 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{activated_ability, mana_ability};
-use mtgsim::cards::alpha::{giant_growth, lightning_bolt};
-use mtgsim::cards::basic_lands::forest;
+use mtgsim::cards::printings::{
+    cephalid_aristocrat, deep_water, forest, giant_growth, grizzly_bears, holy_strength, lightning_bolt, loyal_sentry, merfolk_thaumaturgist,
+    seeds_of_strength,
+};
 use mtgsim::cards::authoring::{
     activates_an_ability_of, attacks_and_isnt_blocked, becomes_blocked, becomes_blocked_by, becomes_the_target_of, blocks, blocks_a_creature, dies,
     player_becomes_the_target_of, triggered_ability, whenever, Whose,
 };
-use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
-use mtgsim::cards::phase_lh_cards::holy_strength;
-use mtgsim::cards::phase_tr5c_cards::{cephalid_aristocrat, loyal_sentry};
-use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
 use mtgsim::objects::card_data::AbilityType;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::ManaOutput;
@@ -27,7 +25,6 @@ use mtgsim::types::mana::ManaType;
 use mtgsim::ui::display::{format_record, log_lines};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::engine::actions::ZoneChangeAct;
-use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
@@ -36,7 +33,6 @@ use mtgsim::test_support::{
     fill_library, put_in_hand, put_on_battlefield, put_on_battlefield_this_turn, put_on_battlefield_under, set_active_player,
     set_attacking, setup_game, setup_two_player_game, textless_static, test_ctx, test_dp,
 };
-use mtgsim::cards::phase_re9_cards::deep_water;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{

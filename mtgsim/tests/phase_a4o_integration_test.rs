@@ -20,8 +20,7 @@
 //! what CR 601.2c announces and what `castable_spells` offers, and a staged
 //! `StackEntry` would answer neither.
 
-use mtgsim::cards::alpha::{counterspell, giant_growth};
-use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
+use mtgsim::cards::printings::{counterspell, giant_growth, merfolk_thaumaturgist};
 use mtgsim::objects::card_data::AbilityType;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_toughness,

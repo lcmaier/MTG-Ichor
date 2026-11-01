@@ -14,7 +14,7 @@
 
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer, Timestamp};
 use mtgsim::objects::card_data::AbilityDef;
-use mtgsim::cards::{phase_le_cards, phase_lf_cards};
+use mtgsim::cards::printings;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_colors, get_effective_power, get_effective_toughness,
     has_keyword,
@@ -327,7 +327,7 @@ fn test_adding_a_counter_of_the_same_kind_retimestamps_the_whole_stack() {
 #[test]
 fn test_humility_strips_tarmogoyfs_cda_before_layer_7a_can_read_it() {
     let mut game = setup_two_player_game();
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 0);
 
     for (name, card_type) in [
         ("Shock", CardType::Instant),
@@ -344,7 +344,7 @@ fn test_humility_strips_tarmogoyfs_cda_before_layer_7a_can_read_it() {
         "five card types in graveyards, so the CDA reads 5/6 while it exists"
     );
 
-    put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    put_on_battlefield(&mut game, printings::humility(), 0);
 
     assert!(
         get_effective_abilities(&game, goyf).is_empty(),
@@ -362,7 +362,7 @@ fn test_humility_strips_tarmogoyfs_cda_before_layer_7a_can_read_it() {
 #[test]
 fn test_humility_does_not_strip_itself() {
     let mut game = setup_two_player_game();
-    let humility = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    let humility = put_on_battlefield(&mut game, printings::humility(), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[KeywordFlag::Flying]), 0);
 
     assert_eq!(
@@ -388,13 +388,13 @@ fn test_humility_does_not_strip_itself() {
 #[test]
 fn test_humility_does_not_restore_a_devoid_cards_printed_color() {
     let mut game = setup_two_player_game();
-    let drone = put_on_battlefield(&mut game, phase_le_cards::culling_drone(), 0);
+    let drone = put_on_battlefield(&mut game, printings::culling_drone(), 0);
     assert!(
         get_effective_colors(&game, drone).is_empty(),
         "Devoid is a Layer 5 CDA: the Drone is colorless despite its black mana cost"
     );
 
-    put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    put_on_battlefield(&mut game, printings::humility(), 0);
 
     assert!(
         get_effective_abilities(&game, drone).is_empty(),
@@ -428,7 +428,7 @@ fn test_humility_does_not_restore_a_devoid_cards_printed_color() {
 fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
     let mut game = setup_two_player_game();
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    let caster = put_on_battlefield(&mut game, printings::humility(), 0);
 
     // A 7b effect that would win on the creature's own timestamp.
     game.continuous_effects.add(registered(
@@ -488,7 +488,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
 fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
     let mut game = setup_two_player_game();
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    let caster = put_on_battlefield(&mut game, printings::humility(), 0);
     game.continuous_effects.remove_by_source(caster);
 
     let granted = textless_static(Effect::Atom(
@@ -533,7 +533,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
 fn test_granting_a_non_static_ability_registers_no_derived_effect() {
     let mut game = setup_two_player_game();
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    let caster = put_on_battlefield(&mut game, printings::humility(), 0);
     game.continuous_effects.remove_by_source(caster);
 
     let mut activated = inert_ability();
@@ -577,7 +577,7 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
 fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
     let mut game = setup_two_player_game();
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    let caster = put_on_battlefield(&mut game, printings::humility(), 0);
     game.continuous_effects.remove_by_source(caster);
 
     let mut granted = textless_static(Effect::Atom(
@@ -638,14 +638,14 @@ fn test_citanul_hierophants_grants_a_mana_ability_to_your_creatures() {
 
     let mut game = setup_two_player_game();
 
-    let my_bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
-    let opp_bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 1);
+    let my_bears = put_on_battlefield(&mut game, mtgsim::cards::printings::grizzly_bears(), 0);
+    let opp_bears = put_on_battlefield(&mut game, mtgsim::cards::printings::grizzly_bears(), 1);
 
     // Grizzly Bears is vanilla: no abilities at all before the Hierophants.
     assert!(get_effective_abilities(&game, my_bears).is_empty());
 
     let hierophants =
-        put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+        put_on_battlefield(&mut game, printings::citanul_hierophants(), 0);
 
     // "Creatures you control" — so yours, and the Hierophants itself, but not
     // your opponent's.
@@ -661,12 +661,12 @@ fn test_citanul_hierophants_granted_ability_reaches_mana_enumeration() {
     use mtgsim::oracle::mana_supply::available_mana_sources;
 
     let mut game = setup_two_player_game();
-    let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
+    let bears = put_on_battlefield(&mut game, mtgsim::cards::printings::grizzly_bears(), 0);
 
     // A vanilla creature is not a mana source.
     assert!(!available_mana_sources(&game, 0).iter().any(|s| s.permanent_id == bears));
 
-    put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+    put_on_battlefield(&mut game, printings::citanul_hierophants(), 0);
 
     // ...but it is once the Hierophants grants it "{T}: Add {G}". This is the
     // assertion that would fail if any of the three index sites read printed
@@ -680,9 +680,9 @@ fn test_citanul_hierophants_grant_retires_when_it_leaves() {
     use mtgsim::types::zones::Zone;
 
     let mut game = setup_two_player_game();
-    let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
+    let bears = put_on_battlefield(&mut game, mtgsim::cards::printings::grizzly_bears(), 0);
     let hierophants =
-        put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+        put_on_battlefield(&mut game, printings::citanul_hierophants(), 0);
     assert_eq!(get_effective_abilities(&game, bears).len(), 1);
 
     game.change_zone(hierophants, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
@@ -712,9 +712,9 @@ fn test_humility_before_hierophants_retires_the_grant() {
     use mtgsim::oracle::characteristics::get_effective_abilities;
 
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
-    let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
-    let hierophants = put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+    put_on_battlefield(&mut game, printings::humility(), 1);
+    let bears = put_on_battlefield(&mut game, mtgsim::cards::printings::grizzly_bears(), 0);
+    let hierophants = put_on_battlefield(&mut game, printings::citanul_hierophants(), 0);
 
     assert!(
         get_effective_abilities(&game, bears).is_empty(),
@@ -724,8 +724,38 @@ fn test_humility_before_hierophants_retires_the_grant() {
 
     // The other order was right before the pass and stays right.
     let mut game = setup_two_player_game();
-    let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
-    put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
-    put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
+    let bears = put_on_battlefield(&mut game, mtgsim::cards::printings::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, printings::citanul_hierophants(), 0);
+    put_on_battlefield(&mut game, printings::humility(), 1);
     assert!(get_effective_abilities(&game, bears).is_empty());
+}
+
+/// Humility as its card is written.
+mod humility_card {
+    
+
+    
+    use mtgsim::cards::printings::humility;
+    
+    
+    
+    
+    
+    
+    use mtgsim::types::effects::Effect;
+
+    #[test]
+    fn humility_is_one_ability_with_two_atoms() {
+        let card = humility();
+        assert_eq!(
+            card.abilities.len(),
+            1,
+            "one AbilityDef, so both halves share an EffectGroup (CR 613.6)"
+        );
+        match &card.abilities[0].effect {
+            Effect::Sequence(atoms) => assert_eq!(atoms.len(), 2),
+            other => panic!("expected a Sequence, got {other:?}"),
+        }
+        assert!(!card.abilities[0].is_characteristic_defining);
+    }
 }

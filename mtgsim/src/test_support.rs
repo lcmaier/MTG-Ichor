@@ -33,7 +33,7 @@ use std::sync::Arc;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
-use crate::cards::phase_re_cards::goblin_token;
+use crate::cards::tokens::goblin_token;
 use crate::cards::random_deck::random_deck;
 use crate::cards::registry::CardRegistry;
 use crate::engine::actions::GameAction;
@@ -1079,7 +1079,7 @@ pub fn copy_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
             (0..items.len()).collect()
         }
     }
-    let card = crate::cards::phase_cv_cards::cytoshape();
+    let card = crate::cards::printings::cytoshape();
     // The spell itself off the battlefield: the resolution's source is the
     // stack object (`copy-effects-architecture.md` §5.3).
     let spell = game.add_object(GameObject::new(card.clone(), 0, Zone::Stack));

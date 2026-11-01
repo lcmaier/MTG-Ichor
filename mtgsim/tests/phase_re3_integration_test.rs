@@ -1,7 +1,7 @@
 //! Phase RE-3 — life.
 //!
 //! CR 119.3, 119.7, 119.10 and 120.3a's contained loss, against the six printed
-//! cards in `cards::phase_re_cards`.
+//! cards that watch a life total.
 //!
 //! **Every board here is about which of the three life events an effect
 //! watches**, and the file's shape follows from that: a gain (CR 119.3), the
@@ -14,10 +14,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_re_cards::{
-    alhammarrets_archive, ali_from_cairo, rhox_faithmender, skullcrack, tainted_remedy,
-    words_of_worship,
-};
+use mtgsim::cards::printings::{alhammarrets_archive, ali_from_cairo, rhox_faithmender, skullcrack, tainted_remedy, words_of_worship};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;

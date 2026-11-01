@@ -30,13 +30,11 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use mtgsim::test_support::place_on_battlefield;
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::keyword_creatures::wall_of_stone;
-use mtgsim::cards::phase_lf_cards::humility;
-use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, idyllic_beachfront, master_biomancer};
-use mtgsim::cards::phase_rd_cards::loyalty_probe;
-use mtgsim::cards::phase_re_cards::{doubling_season, soldier_token};
-use mtgsim::cards::phase_rg_cards::archelos_lagoon_mystic;
+use mtgsim::cards::printings::{
+    adaptive_shimmerer, archelos_lagoon_mystic, grizzly_bears, humility, idyllic_beachfront, master_biomancer, wall_of_stone,
+};
+use mtgsim::cards::fixtures::loyalty_probe;
+use mtgsim::cards::{printings::doubling_season, tokens::soldier_token};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::layers::intrinsic::is_intrinsic_entry_ability;

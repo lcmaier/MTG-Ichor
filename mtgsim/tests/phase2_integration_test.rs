@@ -4,8 +4,7 @@
 //! including priority passing, fizzling, and all five Phase 2 cards.
 
 
-use mtgsim::cards::alpha;
-use mtgsim::cards::basic_lands;
+use mtgsim::cards::printings;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::types::effects::{EffectRecipient, ObjectFilter, SelectionFilter, TargetCount};
@@ -23,7 +22,7 @@ use mtgsim::test_support::{setup_two_player_game, put_in_hand, put_land_on_battl
 #[test]
 fn test_cast_and_resolve_lightning_bolt() {
     let mut game = setup_two_player_game();
-    let bolt_id = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -59,7 +58,7 @@ fn test_cast_and_resolve_lightning_bolt() {
 fn test_cast_and_resolve_ancestral_recall() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 10);
-    let recall_id = put_in_hand(&mut game, alpha::ancestral_recall(), 0);
+    let recall_id = put_in_hand(&mut game, printings::ancestral_recall(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -87,8 +86,8 @@ fn test_cast_and_resolve_ancestral_recall() {
 #[test]
 fn test_counterspell_counters_bolt() {
     let mut game = setup_two_player_game();
-    let bolt_id = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
-    let cs_id = put_in_hand(&mut game, alpha::counterspell(), 1);
+    let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
+    let cs_id = put_in_hand(&mut game, printings::counterspell(), 1);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[1].mana_pool.add(ManaType::Blue, 2);
 
@@ -139,8 +138,8 @@ fn test_counterspell_counters_bolt() {
 #[test]
 fn test_volcanic_upheaval_destroys_land() {
     let mut game = setup_two_player_game();
-    let target_land = put_land_on_battlefield(&mut game, basic_lands::forest, 1);
-    let _upheaval_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 0);
+    let target_land = put_land_on_battlefield(&mut game, printings::forest, 1);
+    let _upheaval_id = put_in_hand(&mut game, printings::volcanic_upheaval(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 4); // {3}{R}
 
     let decisions = ScriptedDecisionProvider::new();
@@ -176,12 +175,12 @@ fn test_volcanic_upheaval_destroys_land() {
 #[test]
 fn test_burst_of_energy_untaps_land() {
     let mut game = setup_two_player_game();
-    let land_id = put_land_on_battlefield(&mut game, basic_lands::plains, 0);
+    let land_id = put_land_on_battlefield(&mut game, printings::plains, 0);
     // Tap the land
     game.battlefield.get_mut(&land_id).unwrap().tapped = true;
     assert!(game.battlefield.get(&land_id).unwrap().tapped);
 
-    let _burst_id = put_in_hand(&mut game, alpha::burst_of_energy(), 0);
+    let _burst_id = put_in_hand(&mut game, printings::burst_of_energy(), 0);
     game.players[0].mana_pool.add(ManaType::White, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -205,11 +204,11 @@ fn test_burst_of_energy_untaps_land() {
 #[test]
 fn test_volcanic_upheaval_fizzles_when_target_destroyed() {
     let mut game = setup_two_player_game();
-    let target_land = put_land_on_battlefield(&mut game, basic_lands::forest, 1);
+    let target_land = put_land_on_battlefield(&mut game, printings::forest, 1);
 
     // Player 0 has two Volcanic Upheavals
-    let upheaval1_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 0);
-    let _upheaval2_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 0);
+    let upheaval1_id = put_in_hand(&mut game, printings::volcanic_upheaval(), 0);
+    let _upheaval2_id = put_in_hand(&mut game, printings::volcanic_upheaval(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 8); // enough for both
 
     let decisions = ScriptedDecisionProvider::new();
@@ -258,12 +257,12 @@ fn test_volcanic_upheaval_fizzles_when_target_destroyed() {
 #[test]
 fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
     let mut game = setup_two_player_game();
-    let target_land = put_land_on_battlefield(&mut game, basic_lands::forest, 0);
+    let target_land = put_land_on_battlefield(&mut game, printings::forest, 0);
     // Tap the land so Burst of Energy has a meaningful target
     game.battlefield.get_mut(&target_land).unwrap().tapped = true;
 
-    let _upheaval_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 1);
-    let burst_id = put_in_hand(&mut game, alpha::burst_of_energy(), 0);
+    let _upheaval_id = put_in_hand(&mut game, printings::volcanic_upheaval(), 1);
+    let burst_id = put_in_hand(&mut game, printings::burst_of_energy(), 0);
     game.players[1].mana_pool.add(ManaType::Red, 4); // {3}{R} for Upheaval
     game.players[0].mana_pool.add(ManaType::White, 1); // {W} for Burst
 
@@ -312,8 +311,8 @@ fn test_stack_lifo_order_bolt_then_recall() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 1, 10);
 
-    let bolt_id = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
-    let recall_id = put_in_hand(&mut game, alpha::ancestral_recall(), 0);
+    let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
+    let recall_id = put_in_hand(&mut game, printings::ancestral_recall(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
 
@@ -374,7 +373,7 @@ fn test_registry_has_phase2_cards() {
 #[test]
 fn test_priority_loop_cast_and_resolve() {
     let mut game = setup_two_player_game();
-    let bolt_id = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();

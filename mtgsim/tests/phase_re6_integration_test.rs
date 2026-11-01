@@ -5,7 +5,7 @@
 //! for the effect-stated kinds, CR 704.7's collapse of two reasons into one
 //! member, CR 704.5b's window closing at the check, CR 104.2a/104.4a settled
 //! by the batch, CR 104.1's "immediately", and CR 800.4j at the priority
-//! loop — against the four printed cards in `cards::phase_re_cards` and three
+//! loop — against the four printed cards that watch a game's end and three
 //! fixture spells for the primitives.
 //!
 //! **Every board here is about whether a loss or a win happens**, which is
@@ -15,10 +15,8 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{spell_ability, static_ability, static_replacement};
-use mtgsim::cards::basic_lands::forest;
-use mtgsim::cards::phase_re_cards::{
-    exquisite_archangel, laboratory_maniac, platinum_angel, rhox_faithmender,
-    stunning_reversal, thought_reflection,
+use mtgsim::cards::printings::{
+    exquisite_archangel, forest, laboratory_maniac, platinum_angel, rhox_faithmender, stunning_reversal, thought_reflection,
 };
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::priority::PriorityResult;

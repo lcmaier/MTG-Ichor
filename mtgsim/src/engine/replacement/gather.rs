@@ -1299,7 +1299,7 @@ mod tests {
     #[test]
     fn an_ability_of_an_object_that_moved_is_not_the_one_already_applied() {
         let mut game = setup_two_player_game();
-        let faith = crate::test_support::put_on_battlefield(&mut game, crate::cards::phase_re_cards::rhox_faithmender(), 0);
+        let faith = crate::test_support::put_on_battlefield(&mut game, crate::cards::printings::rhox_faithmender(), 0);
         let doubling = crate::oracle::characteristics::get_effective_abilities(&game, faith)[0].id;
         let applied = ReplacementInstanceId::StaticAbility { object: game.object_ref(faith).unwrap(), ability: doubling, member: 0 };
         let gain_in_the_lineage = |game: &mut GameState| {

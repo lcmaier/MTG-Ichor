@@ -15,12 +15,8 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{attacks, dies, triggered_ability, whenever};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lg_cards::act_of_treason;
-use mtgsim::cards::phase_re_cards::soldier_token;
-use mtgsim::cards::phase_tr4b_cards::grafted_wargear;
-use mtgsim::cards::phase_tr4d_cards::ray_of_command;
-use mtgsim::cards::phase_tr5a_cards::sphere_grid;
+use mtgsim::cards::printings::{act_of_treason, grafted_wargear, grizzly_bears, ray_of_command, sphere_grid};
+use mtgsim::cards::tokens::soldier_token;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;

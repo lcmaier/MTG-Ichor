@@ -1,0 +1,79 @@
+//! Murders at Karlov Manor (`mkm`), released 2024-02-09.
+
+use std::sync::Arc;
+
+use crate::cards::authoring::{
+    any_target, artifact, chosen_by, create_delayed_trigger, deal_damage, enters, is_sacrificed, sacrifice, triggered_ability, when_you_do, whenever,
+    you, you_control,
+};
+use crate::objects::card_data::{CardData, CardDataBuilder};
+use crate::types::card_types::{CardType, CreatureType, Subtype};
+use crate::types::colors::Color;
+use crate::types::effects::{Choice, ChoiceScope, ChoiceSide, Effect, Pick, PlayerRef};
+use crate::types::mana::{ManaCost, ManaType};
+use crate::types::triggers::TriggerSubject;
+
+/// Cornered Crook — {4}{R}
+/// Creature — Lizard Warrior 5/4
+///
+/// > When this creature enters, you may sacrifice an artifact. When you do,
+/// > this creature deals 3 damage to any target.
+///
+/// The enters trigger has no target; "when you do" is a reflexive trigger
+/// (CR 603.12), created as the trigger resolves and checked at once against
+/// what it performed: a sacrifice by its controller makes it trigger, and its
+/// target is chosen as it is put on the stack (CR 603.3d). Its source is the
+/// Crook (CR 603.7e), which deals the damage as it last existed if it has
+/// left by then (CR 113.7a, 608.2h).
+///
+/// Registered, not pooled: the performance pool has no "when you do", and
+/// its A/B stays IDENTICAL.
+///
+/// It exercises an optional sacrifice, then CR 603.12's "when you do", whose
+/// damage its source deals as it last existed if it has left.
+///
+/// # The ruling, and where it is tested
+///
+/// In `phase_tr3c_integration_test`.
+/// - *"You don't choose a target for Cornered Crook's ability at the time it
+///   triggers. Rather, a second "reflexive" ability triggers when you
+///   sacrifice an artifact this way. You choose a target for that ability as
+///   it goes on the stack. Each player may respond to this triggered ability
+///   as normal."* (#1) → `cornered_crooks_target_is_chosen_for_its_second_ability`.
+pub fn cornered_crook() -> Arc<CardData> {
+    let text = "When this creature enters, you may sacrifice an artifact. When you do, this creature deals 3 damage to any target.";
+    // Checked once, against the sacrifice the line before it made; it never
+    // waits for another.
+    let deals_3 = when_you_do(
+        is_sacrificed(you_control()),
+        deal_damage(any_target(), 3),
+        "When you do, this creature deals 3 damage to any target.",
+    );
+    CardDataBuilder::new("Cornered Crook")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 4))
+        .color(Color::Red)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Lizard))
+        .subtype(Subtype::Creature(CreatureType::Warrior))
+        .power_toughness(5, 4)
+        .rules_text(text)
+        .ability(triggered_ability(
+            text,
+            whenever(
+                enters(TriggerSubject::ThisObject),
+                Effect::Sequence(vec![
+                    Effect::Optional {
+                        chooser: PlayerRef::You,
+                        effect: Box::new(sacrifice(chosen_by(Choice {
+                            chooser: you(),
+                            among: ChoiceScope::ChoosersPermanents,
+                            picks: vec![Pick::exactly(1, artifact())],
+                            acts_on: ChoiceSide::Chosen,
+                        }))),
+                    },
+                    create_delayed_trigger(you(), deals_3),
+                ]),
+            ),
+        ))
+        .build()
+}

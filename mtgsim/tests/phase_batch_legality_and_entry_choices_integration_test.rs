@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::triggers::{counters_removed_from, dies, triggered_ability, whenever};
-use mtgsim::cards::phase_rc_cards::{containment_priest, master_biomancer, thunder_thrash_elder};
-use mtgsim::cards::phase_re_cards::soldier_token;
+use mtgsim::cards::printings::{containment_priest, master_biomancer, thunder_thrash_elder};
+use mtgsim::cards::tokens::soldier_token;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};

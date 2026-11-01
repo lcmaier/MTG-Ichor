@@ -4,8 +4,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::alpha;
-use mtgsim::cards::basic_lands;
+use mtgsim::cards::printings;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game::{Decklist, Game};
@@ -24,7 +23,7 @@ use mtgsim::test_support::{put_in_hand, put_land_on_battlefield};
 // ---------------------------------------------------------------------------
 
 fn make_forest() -> Arc<CardData> {
-    basic_lands::forest()
+    printings::forest()
 }
 
 fn make_test_decklist(count: usize) -> Decklist {
@@ -86,7 +85,7 @@ fn test_game_over_bolt_to_zero() {
     game.state.players[1].life_total = 3;
     // Clear hand so CastSpell(bolt) is at index 1 (no PlayLand actions)
     game.state.players[0].hand.clear();
-    let bolt_id = put_in_hand(&mut game.state, alpha::lightning_bolt(), 0);
+    let bolt_id = put_in_hand(&mut game.state, printings::lightning_bolt(), 0);
     game.state.players[0].mana_pool.add(ManaType::Red, 1);
     game.state.set_turn_position(mtgsim::state::game_state::Phase::new(PhaseType::Precombat));
     game.state.active_player = 0;
@@ -266,7 +265,7 @@ fn test_cast_spell_rollback_on_insufficient_mana() {
     game.active_player = 0;
 
     // Give player 0 a bolt in hand but NO mana
-    let bolt_id = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
 
     let decisions = ScriptedDecisionProvider::new();
     // Target Player(1) at index 1 in [Player(0), Player(1)] for SelectionFilter::Any
@@ -298,7 +297,7 @@ fn test_can_pay_costs_validates_correctly() {
     let mut game = GameState::new(2, 20);
 
     // Set up a forest on battlefield
-    let land_id = put_land_on_battlefield(&mut game, basic_lands::forest, 0);
+    let land_id = put_land_on_battlefield(&mut game, printings::forest, 0);
 
     // Tap cost should be payable (untapped land)
     assert!(game.can_pay_costs(&[Cost::TapSelf], 0, land_id).is_ok());
@@ -331,7 +330,7 @@ fn test_counterspell_cleans_up_stack_entries() {
     game.active_player = 0;
 
     // Player 0 casts bolt
-    let bolt_id = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -345,7 +344,7 @@ fn test_counterspell_cleans_up_stack_entries() {
     );
     // The Counterspell's is not: the bolt is the only spell on the stack, so
     // it is forced and no prompt is made.
-    let cs_id = put_in_hand(&mut game, alpha::counterspell(), 1);
+    let cs_id = put_in_hand(&mut game, printings::counterspell(), 1);
     game.cast_spell(0, bolt_id, &decisions).unwrap();
     assert!(game.stack_entries.contains_key(&bolt_id));
 

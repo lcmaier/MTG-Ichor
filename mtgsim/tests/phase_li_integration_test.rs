@@ -9,7 +9,7 @@
 //! the other things the pass changes, and two it must not.
 
 use mtgsim::engine::layers::types::EffectId;
-use mtgsim::cards::{artifacts, phase_ld_cards, phase_le_cards, phase_lf_cards, phase_rc_cards};
+use mtgsim::cards::printings;
 use mtgsim::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
 };
@@ -80,7 +80,7 @@ fn test_a_static_ability_granted_by_resolution_applies_in_layer_6() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let wings = put_on_battlefield(&mut game, equipment("Bare Wings"), 0);
-    let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    let caster = put_on_battlefield(&mut game, printings::humility(), 0);
     game.continuous_effects.remove_by_source(caster);
     assert!(game.attach(wings, bears));
     assert!(!has_keyword(&game, bears, KeywordFlag::Flying));
@@ -99,7 +99,7 @@ fn test_a_static_ability_granted_by_resolution_applies_in_layer_6() {
     // entered earlier — so a creature Humility stripped still takes the
     // flying its Equipment was granted afterwards.
     let mut game = setup_two_player_game();
-    let humility = put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
+    let humility = put_on_battlefield(&mut game, printings::humility(), 1);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Vigilance]), 0);
     let wings = put_on_battlefield(&mut game, equipment("Bare Wings"), 0);
     assert!(game.attach(wings, bears));
@@ -172,7 +172,7 @@ fn test_a_counter_older_than_a_power_reading_row_applies_first() {
 #[test]
 fn test_a_cda_off_the_battlefield_counts_the_board() {
     let mut game = setup_two_player_game();
-    let warlord = put_in_graveyard(&mut game, phase_rc_cards::keldon_warlord(), 0);
+    let warlord = put_in_graveyard(&mut game, printings::keldon_warlord(), 0);
     assert_eq!(pt(&game, warlord), (Some(0), Some(0)), "nothing to count");
 
     put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -181,9 +181,9 @@ fn test_a_cda_off_the_battlefield_counts_the_board() {
     assert_eq!(pt(&game, warlord), (Some(2), Some(2)), "two of yours, not the opponent's");
 
     // A count reads *effective* types: an animated Sol Ring is a creature.
-    put_on_battlefield(&mut game, artifacts::sol_ring(), 0);
+    put_on_battlefield(&mut game, printings::sol_ring(), 0);
     assert_eq!(pt(&game, warlord), (Some(2), Some(2)));
-    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+    put_on_battlefield(&mut game, printings::march_of_the_machines(), 0);
     assert_eq!(pt(&game, warlord), (Some(3), Some(3)), "March made the Sol Ring a creature");
 }
 
@@ -193,7 +193,7 @@ fn test_a_cda_off_the_battlefield_counts_the_board() {
 #[test]
 fn test_one_pass_answers_every_member_and_nested_reads_are_not_board_walks() {
     let mut game = setup_two_player_game();
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 0);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     put_in_graveyard(&mut game, card_of_type("Shock", CardType::Instant), 1);
     put_in_graveyard(&mut game, card_of_type("Forest", CardType::Land), 0);

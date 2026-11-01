@@ -23,12 +23,7 @@ use mtgsim::cards::authoring::{activated_ability, spell_ability};
 use mtgsim::cards::authoring::{
     at_beginning_of, dies, enters, leaves_the_battlefield, triggered_ability, whenever, Whose,
 };
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lh_cards::{cobbled_wings, holy_strength};
-use mtgsim::cards::phase_rb_cards::rest_in_peace;
-use mtgsim::cards::phase_re_cards::parallel_lives;
-use mtgsim::cards::phase_tr1_cards::soul_warden;
-use mtgsim::cards::phase_tr3b_cards::{banishing_light, flickerwisp};
+use mtgsim::cards::printings::{banishing_light, cobbled_wings, flickerwisp, grizzly_bears, holy_strength, parallel_lives, rest_in_peace, soul_warden};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};

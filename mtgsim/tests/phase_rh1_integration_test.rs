@@ -11,9 +11,7 @@ use std::sync::Arc;
 use mtgsim::cards::authoring::{
     activated_ability, spell_ability, static_replacement, static_restriction, triggered_ability, whenever,
 };
-use mtgsim::cards::phase_rb_cards::rest_in_peace;
-use mtgsim::cards::phase_re8_cards::mind_rot;
-use mtgsim::cards::phase_rs_cards::diabolic_edict;
+use mtgsim::cards::printings::{diabolic_edict, mind_rot, rest_in_peace};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy, SpecialAction, StateBasedAction, TurnBasedAction};

@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::spell_ability;
-use mtgsim::cards::phase_rs_cards::diabolic_edict;
+use mtgsim::cards::printings::diabolic_edict;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, setup_two_player_game, RecordingDecisionProvider};

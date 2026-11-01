@@ -39,7 +39,7 @@
 //! any of them but for the first player's draw.
 //!
 //! **The fourth game is 12351 again, with Teferi's clause under player 0 from
-//! setup on** (`phase_lj_cards::teferi_flash_clause`, `codebase-state.md` item
+//! setup on** (`fixtures::teferi_flash_clause`, `codebase-state.md` item
 //! 181). A row reaching every zone but the battlefield makes the memo hold a
 //! frame for every card in the game, and its `And` filter's two boxes are cloned
 //! with the registry, so it is the heavier clone of item 181's two fixtures.
@@ -47,7 +47,7 @@
 use std::cell::{Cell, RefCell};
 use std::sync::{Arc, Mutex};
 
-use mtgsim::cards::phase_lj_cards::teferi_flash_clause;
+use mtgsim::cards::fixtures::teferi_flash_clause;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::GameState;

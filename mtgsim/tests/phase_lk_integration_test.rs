@@ -15,11 +15,9 @@
 //! spell in the game had it been written as the broad sweep beside it.
 
 use mtgsim::engine::layers::types::EffectId;
-use mtgsim::cards::basic_lands;
-use mtgsim::cards::creatures;
-use mtgsim::cards::phase_lk_cards::{exiled_ancestor, wonder};
-use mtgsim::cards::phase_le_cards::tarmogoyf;
-use mtgsim::cards::phase_lj_cards::yixlid_jailer;
+use mtgsim::cards::printings;
+use mtgsim::cards::{fixtures::exiled_ancestor, printings::wonder};
+use mtgsim::cards::printings::{tarmogoyf, yixlid_jailer};
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_power, has_keyword,
@@ -59,7 +57,7 @@ fn a_creature(game: &mut GameState) -> ObjectId {
 fn test_a_static_ability_functions_from_a_graveyard() {
     let mut game = setup_two_player_game();
     let bear = a_creature(&mut game);
-    put_on_battlefield(&mut game, basic_lands::island(), 0);
+    put_on_battlefield(&mut game, printings::island(), 0);
 
     assert!(!has_keyword(&game, bear, KeywordFlag::Flying), "no Wonder yet");
 
@@ -82,7 +80,7 @@ fn test_a_static_ability_functions_from_a_graveyard() {
 fn test_the_same_ability_does_not_function_from_the_battlefield() {
     let mut game = setup_two_player_game();
     let bear = a_creature(&mut game);
-    put_on_battlefield(&mut game, basic_lands::island(), 0);
+    put_on_battlefield(&mut game, printings::island(), 0);
 
     let wonder_id = put_on_battlefield(&mut game, wonder(), 0);
     assert!(
@@ -110,7 +108,7 @@ fn test_the_island_clause_is_an_ordinary_condition_not_a_zone_statement() {
 
     assert!(!has_keyword(&game, bear, KeywordFlag::Flying), "no Island");
 
-    put_on_battlefield(&mut game, basic_lands::island(), 0);
+    put_on_battlefield(&mut game, printings::island(), 0);
     assert!(has_keyword(&game, bear, KeywordFlag::Flying), "an Island");
 
     // A Forest is not an Island, and "you control" is CR 109.5's controller of
@@ -119,7 +117,7 @@ fn test_the_island_clause_is_an_ordinary_condition_not_a_zone_statement() {
     let mut game = setup_two_player_game();
     let bear = a_creature(&mut game);
     put_in_graveyard(&mut game, wonder(), 0);
-    put_on_battlefield(&mut game, basic_lands::island(), 1);
+    put_on_battlefield(&mut game, printings::island(), 1);
     assert!(
         !has_keyword(&game, bear, KeywordFlag::Flying),
         "CR 109.5 — 'you' is the source's own side, and this Island is not theirs"
@@ -138,7 +136,7 @@ fn test_the_island_clause_is_an_ordinary_condition_not_a_zone_statement() {
 fn test_leaving_the_named_zone_retires_the_effect() {
     let mut game = setup_two_player_game();
     let bear = a_creature(&mut game);
-    put_on_battlefield(&mut game, basic_lands::island(), 0);
+    put_on_battlefield(&mut game, printings::island(), 0);
     let wonder_id = put_in_graveyard(&mut game, wonder(), 0);
     assert!(has_keyword(&game, bear, KeywordFlag::Flying));
 
@@ -258,7 +256,7 @@ fn test_a_stated_complement_functions_everywhere_else() {
 fn test_yixlid_jailer_turns_wonder_off_through_the_existence_check() {
     let mut game = setup_two_player_game();
     let bear = a_creature(&mut game);
-    put_on_battlefield(&mut game, basic_lands::island(), 0);
+    put_on_battlefield(&mut game, printings::island(), 0);
     let wonder_id = put_in_graveyard(&mut game, wonder(), 0);
     assert!(has_keyword(&game, bear, KeywordFlag::Flying));
 
@@ -298,7 +296,7 @@ fn test_yixlid_jailer_turns_wonder_off_through_the_existence_check() {
 #[test]
 fn test_a_resolutions_effect_survives_its_spell_reaching_the_graveyard() {
     let mut game = setup_two_player_game();
-    let bear = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bear = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     let spell = put_in_graveyard(&mut game, mtgsim::test_support::lightning_bolt(), 0);
 
     // A resolution's row, registered the way `resolve` registers one: sourced
@@ -347,7 +345,7 @@ fn test_a_resolutions_effect_survives_its_spell_reaching_the_graveyard() {
 #[test]
 fn test_an_object_is_stamped_on_every_zone_entry() {
     let mut game = setup_two_player_game();
-    let card = mtgsim::test_support::put_in_hand(&mut game, creatures::grizzly_bears(), 0);
+    let card = mtgsim::test_support::put_in_hand(&mut game, printings::grizzly_bears(), 0);
     let in_hand = game.object_timestamp(card);
 
     game.change_zone(card, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx())
@@ -360,8 +358,8 @@ fn test_an_object_is_stamped_on_every_zone_entry() {
 
     // And the battlefield order is still the one `battlefield_ids_ordered`
     // promises: oldest first, by the same monotonic counter.
-    let first = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let second = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let first = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let second = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     let order = game.battlefield_ids_ordered();
     let pos = |id| order.iter().position(|&o| o == id).expect("on the battlefield");
     assert!(pos(first) < pos(second));

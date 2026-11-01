@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::spell_ability;
-use mtgsim::cards::phase_lg_cards::act_of_treason;
+use mtgsim::cards::printings::act_of_treason;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};

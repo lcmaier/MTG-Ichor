@@ -10,9 +10,7 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::static_replacement;
 use mtgsim::test_support::place_on_battlefield;
-use mtgsim::cards::phase_rb_cards::{
-    kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
-};
+use mtgsim::cards::printings::{kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -2590,4 +2588,54 @@ fn test_rest_in_peace_applies_to_a_noncreature_permanent() {
 
     assert_eq!(game.get_object(enchantment).unwrap().zone, Zone::Exile);
     assert!(tokens(&game).is_empty(), "Kalitas wants a creature");
+}
+
+/// Kalitas as its card is written.
+mod kalitas_card {
+    
+
+    
+    use mtgsim::cards::printings::kalitas_traitor_of_ghet;
+    
+    
+    
+    
+    use mtgsim::types::effects::ObjectSet;
+    
+    
+    use mtgsim::types::replacement::EventPattern;
+    use mtgsim::types::zones::{Zone, ZoneChangePattern};
+    use mtgsim::types::effects::Effect;
+
+    #[test]
+    fn kalitas_watches_dying_rather_than_being_destroyed() {
+        // The distinction is the card's, not ours: CR 700.4's "dies" covers
+        // sacrifice and zero toughness, which CR 701.8b's "destroyed" does not.
+        // An `act` on the pattern would silently narrow the card to
+        // destruction only, and every sacrificed creature would reach the
+        // graveyard.
+        let card = kalitas_traitor_of_ghet();
+        let Effect::Replacement(def) = &card.abilities[0].effect else {
+            panic!("expected a replacement, got {:?}", card.abilities[0].effect);
+        };
+        assert_eq!(
+            def.pattern,
+            EventPattern::ZoneChange {
+                change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
+                object: None,
+            },
+        );
+    }
+
+    #[test]
+    fn kalitas_shields_a_general_subset_rather_than_itself() {
+        // CR 614.12's distinction, and §11 item 2's reason for reusing
+        // `ObjectSet`: `SourceOnly` would make Kalitas replace its *own*
+        // death, which is the opposite of what it does.
+        let card = kalitas_traitor_of_ghet();
+        let Effect::Replacement(def) = &card.abilities[0].effect else {
+            panic!("expected a replacement");
+        };
+        assert!(matches!(def.affected.objects, ObjectSet::Filter { .. }));
+    }
 }

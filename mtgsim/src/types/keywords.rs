@@ -28,7 +28,7 @@
 /// # Quadrants ③ and ④ are already here, in the right place
 ///
 /// Devoid is CR 702.114, a keyword ability — and it lives in
-/// `cards::phase_le_cards` as a characteristic-defining [`AbilityDef`] on
+/// Culling Drone's card as a characteristic-defining [`AbilityDef`] on
 /// `CardData::abilities`, not as a variant here. That is quadrant ③, and it
 /// is what the rest of ③ and ④ should look like. `EffectModification::
 /// GrantAbility` is the Layer 6 channel for them; `GrantKeywordFlag` is the

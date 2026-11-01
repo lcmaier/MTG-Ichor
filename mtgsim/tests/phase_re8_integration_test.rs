@@ -16,16 +16,12 @@
 //!
 //! **What is not here**: the to-battlefield entry substitution and the five
 //! cards that print it. Their clause is on a card in *hand* and `gather` has no
-//! source that asks one, which is CR 113.6 and critical-path item 6a
-//! (`cards::phase_re8_cards`'s module doc counts the population).
+//! source that asks one, which is CR 113.6 and critical-path item 6a.
 
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{spell_ability, static_replacement};
-use mtgsim::cards::phase_re8_cards::{
-    eligeth_crossroads_augur, hymn_to_tourach, mind_rot, nephalia_academy, opt,
-};
-use mtgsim::cards::phase_re_cards::notion_thief;
+use mtgsim::cards::printings::{eligeth_crossroads_augur, hymn_to_tourach, mind_rot, nephalia_academy, notion_thief, opt};
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{EventRecord, GameEvent};

@@ -23,8 +23,8 @@
 //! instances filled, and the creature 3 points larger for it.
 
 use mtgsim::cards::authoring::spell_ability;
-use mtgsim::cards::creatures;
-use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
+use mtgsim::cards::printings;
+use mtgsim::cards::printings::seeds_of_strength;
 use mtgsim::objects::card_data::{CardData,
     CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
@@ -88,7 +88,7 @@ fn one_clause_pump() -> Arc<CardData> {
 /// CR 601.2c. With the cost already in the pool there is nothing to look for.
 fn board_with(card: Arc<CardData>) -> (GameState, ObjectId, ObjectId) {
     let mut game = setup_two_player_game();
-    let bear = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bear = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     let spell = put_in_hand(&mut game, card, 0);
     game.players[0].mana_pool.add(ManaType::Green, 1);
     game.players[0].mana_pool.add(ManaType::White, 1);

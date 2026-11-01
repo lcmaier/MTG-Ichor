@@ -9,19 +9,12 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{activated_ability, spell_ability};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_cv_cards::clone;
-use mtgsim::cards::phase_lh_cards::holy_strength;
-use mtgsim::cards::phase_tr2a_cards::paladin_of_atonement;
+use mtgsim::cards::printings::{
+    banishing_light, blessed_wine, clone, cryptoplasm, gisela_blade_of_goldnight, grizzly_bears, holy_strength, mending_hands, merfolk_thaumaturgist,
+    paladin_of_atonement, pinpoint_avalanche, pyroclasm, safe_passage, seeds_of_strength, soul_warden,
+};
 use mtgsim::engine::actions::{ActionContext, GameAction};
-use mtgsim::cards::phase_rd_cards::{gisela_blade_of_goldnight, mending_hands, pinpoint_avalanche, pyroclasm, safe_passage};
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
-use mtgsim::cards::phase_cv_cards::cryptoplasm;
-use mtgsim::cards::phase_tr1_cards::soul_warden;
-use mtgsim::cards::phase_tr3a_cards::blessed_wine;
-use mtgsim::cards::phase_tr3b_cards::banishing_light;
-use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;

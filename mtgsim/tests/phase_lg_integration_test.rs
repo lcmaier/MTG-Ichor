@@ -8,7 +8,7 @@
 //!   gaining control of a permanent spell decides who controls the permanent
 //!   (CR 110.2b).
 
-use mtgsim::cards::{phase5_pre_cards, phase_le_cards, phase_lf_cards, phase_lg_cards};
+use mtgsim::cards::printings;
 use mtgsim::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer,
 };
@@ -44,7 +44,7 @@ use mtgsim::engine::targeting::{ChosenTargets};
 /// Resolve Act of Treason's printed effect — the card's own `AbilityDef`, not a
 /// hand-built row, so the three atoms share one `ResolutionContext`.
 fn act_of_treason(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
-    let card = phase_lg_cards::act_of_treason();
+    let card = printings::act_of_treason();
     let source = GameObject::new(card.clone(), thief, Zone::Stack);
     let source_id = game.add_object(source);
 
@@ -122,7 +122,7 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
 #[test]
 fn test_stolen_creature_is_pumped_by_the_thiefs_anthem() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+    put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
     assert_eq!(
@@ -148,7 +148,7 @@ fn test_stolen_creature_is_pumped_by_the_thiefs_anthem() {
 #[test]
 fn test_stolen_creature_leaves_its_owners_anthem() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 1);
+    put_on_battlefield(&mut game, printings::glorious_anthem(), 1);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     assert_eq!(get_effective_power(&game, bear), Some(3));
 
@@ -803,7 +803,7 @@ fn test_the_gate_never_changes_an_answer() {
 #[test]
 fn test_a_cda_and_a_control_effect_coexist() {
     let mut game = setup_two_player_game();
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 1);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 1);
     put_in_graveyard(
         &mut game,
         card_of_type("Ancestral Recall", CardType::Instant),
@@ -868,7 +868,7 @@ fn test_a_granted_tap_ability_stays_locked_on_the_opponents_turn() {
     fill_library(&mut game, 1, 5);
 
     let bears = put_on_battlefield_this_turn(&mut game, vanilla_creature(2, 2, &[]), 0);
-    put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+    put_on_battlefield(&mut game, printings::citanul_hierophants(), 0);
 
     let granted = get_effective_abilities(&game, bears);
     assert_eq!(granted.len(), 1, "the Hierophants' grant, and nothing else");
@@ -945,4 +945,57 @@ fn test_a_creature_entering_before_its_controllers_first_turn_is_sick() {
         !has_summoning_sickness(&game, flashed),
         "P1's first turn has now begun"
     );
+}
+
+/// Act of Treason as its card is written, beside this file's helper of
+/// the same name that casts it.
+mod act_of_treason_card {
+    
+
+    
+    use mtgsim::cards::printings::act_of_treason;
+    
+    
+    
+    use mtgsim::types::effects::Effect;
+    
+    
+    use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
+
+    #[test]
+    fn act_of_treason_is_one_ability_with_three_atoms_on_one_target() {
+        let card = act_of_treason();
+        assert_eq!(
+            card.abilities.len(),
+            1,
+            "one AbilityDef, so all three atoms resolve against one target"
+        );
+        let Effect::Sequence(atoms) = &card.abilities[0].effect else {
+            panic!("expected a Sequence, got {:?}", card.abilities[0].effect);
+        };
+        assert_eq!(atoms.len(), 3);
+
+        // CR 115.3 — one instance of "target", three atoms. The card prints
+        // "target creature" once; a second declaration would let the untap and
+        // the haste land on a different creature from the steal, and would ask
+        // the player three times.
+        assert_eq!(
+            card.spell_instances().len(),
+            1,
+            "\"that creature\" and \"it\" are back-references, not new clauses"
+        );
+        let recipients: Vec<&EffectRecipient> = atoms
+            .iter()
+            .map(|atom| match atom {
+                Effect::Atom(_, recipient) => recipient,
+                other => panic!("expected an Atom, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            *recipients[0],
+            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
+        );
+        assert_eq!(*recipients[1], EffectRecipient::SameInstanceAs(0));
+        assert_eq!(*recipients[2], EffectRecipient::SameInstanceAs(0));
+    }
 }

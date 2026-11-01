@@ -4,7 +4,7 @@
 //! **Grist, the Hunger Tide first**, by its rulings: a static ability that
 //! changes its own card everywhere but the battlefield, which applies only
 //! because its card is a member of every pass wherever it is (§13e decision
-//! 2). Every Grist here is `phase_ll_cards::grist_insect_clause`, its first
+//! 2). Every Grist here is `fixtures::grist_insect_clause`, its first
 //! ability on its printed frame. Then the notes a card left out of the pass
 //! is walked with, and item 182.
 //!
@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::{alpha, phase_cm_cards, phase_lj_cards, phase_ll_cards, phase_rf_cards};
+use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::objects::card_data::CardData;
 use mtgsim::oracle::characteristics::{
@@ -82,18 +82,18 @@ fn is_a_one_one_insect_creature(game: &GameState, grist: ObjectId) -> bool {
 fn test_grist_is_a_creature_card_everywhere_but_the_battlefield() {
     let mut game = setup_two_player_game();
     let zones: Vec<(&str, ObjectId)> = vec![
-        ("hand", put_in_hand(&mut game, phase_ll_cards::grist_insect_clause(), 0)),
-        ("library", put_in_library(&mut game, phase_ll_cards::grist_insect_clause(), 0)),
-        ("graveyard", put_in_graveyard(&mut game, phase_ll_cards::grist_insect_clause(), 0)),
-        ("exile", put_in_exile(&mut game, phase_ll_cards::grist_insect_clause(), 0)),
-        ("command zone", put_in_command_zone(&mut game, phase_ll_cards::grist_insect_clause(), 0)),
-        ("stack", put_spell_on_stack(&mut game, phase_ll_cards::grist_insect_clause(), 0)),
+        ("hand", put_in_hand(&mut game, fixtures::grist_insect_clause(), 0)),
+        ("library", put_in_library(&mut game, fixtures::grist_insect_clause(), 0)),
+        ("graveyard", put_in_graveyard(&mut game, fixtures::grist_insect_clause(), 0)),
+        ("exile", put_in_exile(&mut game, fixtures::grist_insect_clause(), 0)),
+        ("command zone", put_in_command_zone(&mut game, fixtures::grist_insect_clause(), 0)),
+        ("stack", put_spell_on_stack(&mut game, fixtures::grist_insect_clause(), 0)),
     ];
     for (zone, grist) in &zones {
         assert!(is_a_one_one_insect_creature(&game, *grist), "Grist in the {zone} is a 1/1 Insect creature");
     }
 
-    let on_battlefield = put_on_battlefield(&mut game, phase_ll_cards::grist_insect_clause(), 0);
+    let on_battlefield = put_on_battlefield(&mut game, fixtures::grist_insect_clause(), 0);
     assert!(!is_creature(&game, on_battlefield), "on the battlefield Grist is a planeswalker and nothing else");
     assert!(!has_subtype(&game, on_battlefield, &Subtype::Creature(CreatureType::Insect)));
     assert_eq!(get_effective_power(&game, on_battlefield), None);
@@ -107,18 +107,18 @@ fn test_grist_is_a_creature_card_everywhere_but_the_battlefield() {
 fn test_grist_cast_under_thalia_is_a_creature_spell_and_pays_no_tax() {
     let board = || {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, phase_cm_cards::thalia_guardian_of_thraben(), 1);
+        put_on_battlefield(&mut game, printings::thalia_guardian_of_thraben(), 1);
         game
     };
 
     let mut game = board();
-    let cast = cast_from_pool(&mut game, 0, phase_ll_cards::grist_insect_clause(), &[(ManaType::Black, 2), (ManaType::Green, 1)]);
+    let cast = cast_from_pool(&mut game, 0, fixtures::grist_insect_clause(), &[(ManaType::Black, 2), (ManaType::Green, 1)]);
     assert!(cast.is_ok(), "Grist is castable for {{1}}{{B}}{{G}} under Thalia: {cast:?}");
     assert_eq!(game.players[0].mana_pool.total(), 0, "the whole pool is the cost");
     assert!(is_creature(&game, cast.unwrap()), "a creature spell on the stack");
 
     let mut game = board();
-    let short = cast_from_pool(&mut game, 0, phase_ll_cards::grist_insect_clause(), &[(ManaType::Black, 1), (ManaType::Green, 1)]);
+    let short = cast_from_pool(&mut game, 0, fixtures::grist_insect_clause(), &[(ManaType::Black, 1), (ManaType::Green, 1)]);
     assert!(short.is_err(), "one mana short is still short");
 }
 
@@ -135,19 +135,19 @@ fn test_grist_cast_under_thalia_is_a_creature_spell_and_pays_no_tax() {
 #[test]
 fn test_titanias_song_leaves_lattices_colorless_line_standing_at_layer_5() {
     let mut game = setup_two_player_game();
-    let lattice = put_on_battlefield(&mut game, phase_lj_cards::lattice_colorless_clause(), 0);
-    put_on_battlefield(&mut game, phase_ll_cards::titanias_song_clause(), 1);
-    let in_library = put_in_library(&mut game, alpha::lightning_bolt(), 0);
-    let in_hand = put_in_hand(&mut game, alpha::lightning_bolt(), 1);
+    let lattice = put_on_battlefield(&mut game, fixtures::lattice_colorless_clause(), 0);
+    put_on_battlefield(&mut game, fixtures::titanias_song_clause(), 1);
+    let in_library = put_in_library(&mut game, printings::lightning_bolt(), 0);
+    let in_hand = put_in_hand(&mut game, printings::lightning_bolt(), 1);
     assert!(get_effective_abilities(&game, lattice).is_empty(), "the Song strips the clause by the end of layer 6");
     assert!(get_effective_colors(&game, in_library).is_empty(), "the Bolt in a library is colorless");
     assert!(get_effective_colors(&game, in_hand).is_empty(), "the Bolt in a hand is colorless");
 
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_lj_cards::teferi_flash_clause(), 0);
+    put_on_battlefield(&mut game, fixtures::teferi_flash_clause(), 0);
     let bear = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);
     assert!(has_keyword(&game, bear, KeywordFlag::Flash), "Teferi's clause grants flash");
-    put_on_battlefield(&mut game, phase_ll_cards::titanias_song_clause(), 1);
+    put_on_battlefield(&mut game, fixtures::titanias_song_clause(), 1);
     assert!(!has_keyword(&game, bear, KeywordFlag::Flash), "the Song strips the clause before its grant applies");
 }
 
@@ -160,7 +160,7 @@ fn test_titanias_song_leaves_lattices_colorless_line_standing_at_layer_5() {
 #[test]
 fn test_a_noted_row_reads_you_as_the_pass_did() {
     let mut game = setup_two_player_game();
-    let clause = put_on_battlefield(&mut game, phase_lj_cards::teferi_flash_clause(), 0);
+    let clause = put_on_battlefield(&mut game, fixtures::teferi_flash_clause(), 0);
     let ours = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);
     let theirs = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
     assert!(has_keyword(&game, ours, KeywordFlag::Flash));
@@ -187,9 +187,9 @@ fn test_a_noted_row_reads_you_as_the_pass_did() {
 fn test_a_static_ability_in_a_hand_joins_the_pass() {
     let mut game = setup_two_player_game();
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    put_in_hand(&mut game, phase_ll_cards::pocket_griffin(), 0);
+    put_in_hand(&mut game, fixtures::pocket_griffin(), 0);
     assert!(has_keyword(&game, bear, KeywordFlag::Flying), "the Griffin grants flying from the hand");
-    put_on_battlefield(&mut game, phase_rf_cards::hollow_hands(), 1);
+    put_on_battlefield(&mut game, fixtures::hollow_hands(), 1);
     assert!(!has_keyword(&game, bear, KeywordFlag::Flying), "Hollow Hands strips the Griffin first");
 }
 
@@ -203,8 +203,8 @@ fn test_a_static_ability_in_a_hand_joins_the_pass() {
 #[test]
 fn test_grist_in_a_hand_is_an_elf_under_arcane_adaptations_clause() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_ll_cards::arcane_adaptation_elf_clause(), 0);
-    let grist = put_in_hand(&mut game, phase_ll_cards::grist_insect_clause(), 0);
+    put_on_battlefield(&mut game, fixtures::arcane_adaptation_elf_clause(), 0);
+    let grist = put_in_hand(&mut game, fixtures::grist_insect_clause(), 0);
     assert!(has_subtype(&game, grist, &Subtype::Creature(CreatureType::Elf)), "the clause applied after Grist's own");
     assert!(has_subtype(&game, grist, &Subtype::Creature(CreatureType::Insect)));
 }
@@ -215,8 +215,8 @@ fn test_grist_in_a_hand_is_an_elf_under_arcane_adaptations_clause() {
 #[test]
 fn test_grist_in_a_hand_has_flash_under_teferis_clause() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_lj_cards::teferi_flash_clause(), 0);
-    let grist = put_in_hand(&mut game, phase_ll_cards::grist_insect_clause(), 0);
+    put_on_battlefield(&mut game, fixtures::teferi_flash_clause(), 0);
+    let grist = put_in_hand(&mut game, fixtures::grist_insect_clause(), 0);
     assert!(has_keyword(&game, grist, KeywordFlag::Flash));
 }
 
@@ -230,8 +230,8 @@ fn test_grist_in_a_hand_has_flash_under_teferis_clause() {
 #[test]
 fn test_the_guard_holds_a_library_two_effects_could_depend_through() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_ll_cards::library_assassins(), 0);
-    put_on_battlefield(&mut game, phase_ll_cards::library_artificer(), 1);
+    put_on_battlefield(&mut game, fixtures::library_assassins(), 0);
+    put_on_battlefield(&mut game, fixtures::library_artificer(), 1);
     let bear = put_in_library(&mut game, vanilla_creature(2, 2, &[]), 0);
     assert!(has_type(&game, bear, CardType::Artifact));
     assert!(
@@ -255,7 +255,7 @@ fn test_a_creature_card_given_flash_is_cast_on_the_other_players_turn() {
     let board = |clause: bool| {
         let mut game = setup_two_player_game();
         if clause {
-            put_on_battlefield(&mut game, phase_lj_cards::teferi_flash_clause(), 0);
+            put_on_battlefield(&mut game, fixtures::teferi_flash_clause(), 0);
         }
         set_active_player(&mut game, 1);
         game

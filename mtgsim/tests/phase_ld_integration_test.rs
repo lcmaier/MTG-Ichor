@@ -12,10 +12,7 @@
 //! deferred until AbilityOrigin infrastructure exists.
 
 
-use mtgsim::cards::artifacts;
-use mtgsim::cards::basic_lands;
-use mtgsim::cards::creatures;
-use mtgsim::cards::phase_ld_cards;
+use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_subtypes,
@@ -71,8 +68,8 @@ fn cast_and_resolve_targeted_perm_spell(
 #[test]
 fn test_liquimetal_adds_artifact_type() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, phase_ld_cards::liquimetal_coating_spell(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _spell = put_in_hand(&mut game, fixtures::liquimetal_coating_spell(), 0);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
     // Verify base: Creature, not Artifact
@@ -102,8 +99,8 @@ fn test_liquimetal_adds_artifact_type() {
 #[test]
 fn test_call_to_serve_adds_angel_subtype() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, phase_ld_cards::call_to_serve_spell(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _spell = put_in_hand(&mut game, fixtures::call_to_serve_spell(), 0);
     game.players[0].mana_pool.add(ManaType::White, 2);
 
     // Base: no subtypes (Grizzly Bears has no subtype in card data)
@@ -133,8 +130,8 @@ fn test_call_to_serve_adds_angel_subtype() {
 #[test]
 fn test_on_serras_wings_adds_legendary() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, phase_ld_cards::on_serras_wings_spell(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _spell = put_in_hand(&mut game, fixtures::on_serras_wings_spell(), 0);
     game.players[0].mana_pool.add(ManaType::White, 4);
 
     // Base: no supertypes
@@ -173,7 +170,7 @@ fn test_ensoul_artifact_makes_artifact_creature() {
         .build();
     let artifact_id = put_on_battlefield(&mut game, artifact_data, 0);
 
-    let _spell = put_in_hand(&mut game, phase_ld_cards::ensoul_artifact_spell(), 0);
+    let _spell = put_in_hand(&mut game, fixtures::ensoul_artifact_spell(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 2);
 
     // Verify: not a creature yet
@@ -207,8 +204,8 @@ fn test_ensoul_artifact_makes_artifact_creature() {
 #[test]
 fn test_type_change_expires_at_cleanup() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, phase_ld_cards::liquimetal_coating_spell(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _spell = put_in_hand(&mut game, fixtures::liquimetal_coating_spell(), 0);
     fill_library(&mut game, 0, 5);
     fill_library(&mut game, 1, 5);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
@@ -255,10 +252,10 @@ fn test_blood_moon_makes_nonbasic_lands_mountains() {
     let nonbasic_id = put_on_battlefield(&mut game, nonbasic_data, 0);
 
     // Create a basic land (has Basic supertype)
-    let basic_id = put_on_battlefield(&mut game, basic_lands::forest(), 0);
+    let basic_id = put_on_battlefield(&mut game, printings::forest(), 0);
 
     // Put Blood Moon on the battlefield (static ability registers on ETB)
-    let blood_moon_id = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    let blood_moon_id = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     // Nonbasic land should now have only Mountain subtype
     let subtypes = get_effective_subtypes(&game, nonbasic_id);
@@ -295,7 +292,7 @@ fn test_blood_moon_does_not_add_basic_supertype() {
     let nonbasic_id = put_on_battlefield(&mut game, nonbasic_data, 0);
 
     // Put Blood Moon on the battlefield
-    let _blood_moon_id = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    let _blood_moon_id = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     // Supertypes should NOT include Basic
     let supertypes = get_effective_supertypes(&game, nonbasic_id);
@@ -312,10 +309,10 @@ fn test_urborg_adds_swamp_in_addition() {
     let mut game = setup_two_player_game();
 
     // Create a Mountain
-    let mountain_id = put_on_battlefield(&mut game, basic_lands::mountain(), 0);
+    let mountain_id = put_on_battlefield(&mut game, printings::mountain(), 0);
 
     // Put Urborg Effect on battlefield
-    let _urborg_id = put_on_battlefield(&mut game, phase_ld_cards::urborg_effect(), 0);
+    let _urborg_id = put_on_battlefield(&mut game, fixtures::urborg_effect(), 0);
 
     // Mountain should now also be a Swamp (in addition to Mountain)
     let subtypes = get_effective_subtypes(&game, mountain_id);
@@ -331,8 +328,8 @@ fn test_urborg_adds_swamp_in_addition() {
 fn test_blood_moon_ignores_non_lands() {
     let mut game = setup_two_player_game();
 
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _blood_moon_id = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _blood_moon_id = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     // Bears should still be a creature, unaffected
     assert!(is_creature(&game, bears_id));
@@ -361,7 +358,7 @@ fn test_blood_moon_removed_restores_subtypes() {
     let dual_id = put_on_battlefield(&mut game, dual_data, 0);
 
     // Put Blood Moon on the battlefield
-    let blood_moon_id = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    let blood_moon_id = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     // Verify Blood Moon is active
     let subtypes = get_effective_subtypes(&game, dual_id);
@@ -410,7 +407,7 @@ fn produced_mana_types(
 #[test]
 fn test_blood_moon_strips_printed_abilities_and_grants_intrinsic_red() {
     let mut game = setup_two_player_game();
-    let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
+    let land_id = put_on_battlefield(&mut game, fixtures::dual_land_ub(), 0);
 
     // Base: the printed {U} and {B} mana abilities.
     assert_eq!(
@@ -418,7 +415,7 @@ fn test_blood_moon_strips_printed_abilities_and_grants_intrinsic_red() {
         vec![ManaType::Black, ManaType::Blue],
     );
 
-    let _blood_moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    let _blood_moon = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     // CR 305.7: printed abilities gone, intrinsic Mountain ability gained.
     assert_eq!(
@@ -439,12 +436,12 @@ fn test_blood_moon_does_not_strip_ability_granted_by_another_effect() {
     use mtgsim::types::keywords::KeywordFlag;
 
     let mut game = setup_two_player_game();
-    let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
-    let _granter = put_on_battlefield(&mut game, phase_ld_cards::lands_have_flying(), 0);
+    let land_id = put_on_battlefield(&mut game, fixtures::dual_land_ub(), 0);
+    let _granter = put_on_battlefield(&mut game, fixtures::lands_have_flying(), 0);
 
     assert!(has_keyword(&game, land_id, KeywordFlag::Flying));
 
-    let _blood_moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    let _blood_moon = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     // The granted ability survives; the land's own printed abilities do not.
     assert!(
@@ -470,9 +467,9 @@ fn test_layer6_grant_survives_blood_moon_registered_first() {
 
     let mut game = setup_two_player_game();
     // Granter enters BEFORE the land and before Blood Moon — earliest timestamp.
-    let _granter = put_on_battlefield(&mut game, phase_ld_cards::lands_have_flying(), 0);
-    let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
-    let _blood_moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    let _granter = put_on_battlefield(&mut game, fixtures::lands_have_flying(), 0);
+    let land_id = put_on_battlefield(&mut game, fixtures::dual_land_ub(), 0);
+    let _blood_moon = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     assert!(has_keyword(&game, land_id, KeywordFlag::Flying));
     assert_eq!(produced_mana_types(&game, land_id), vec![ManaType::Red]);
@@ -482,11 +479,11 @@ fn test_layer6_grant_survives_blood_moon_registered_first() {
 #[test]
 fn test_urborg_grants_intrinsic_black_and_keeps_existing() {
     let mut game = setup_two_player_game();
-    let mountain_id = put_on_battlefield(&mut game, basic_lands::mountain(), 0);
+    let mountain_id = put_on_battlefield(&mut game, printings::mountain(), 0);
 
     assert_eq!(produced_mana_types(&game, mountain_id), vec![ManaType::Red]);
 
-    let _urborg = put_on_battlefield(&mut game, phase_ld_cards::urborg_effect(), 0);
+    let _urborg = put_on_battlefield(&mut game, fixtures::urborg_effect(), 0);
 
     // "In addition to" — keeps Mountain and its red mana, gains Swamp and black.
     let subtypes = get_effective_subtypes(&game, mountain_id);
@@ -501,8 +498,8 @@ fn test_urborg_grants_intrinsic_black_and_keeps_existing() {
 #[test]
 fn test_urborg_on_a_real_swamp_does_not_double_grant_black() {
     let mut game = setup_two_player_game();
-    let swamp_id = put_on_battlefield(&mut game, basic_lands::swamp(), 0);
-    let _urborg = put_on_battlefield(&mut game, phase_ld_cards::urborg_effect(), 0);
+    let swamp_id = put_on_battlefield(&mut game, printings::swamp(), 0);
+    let _urborg = put_on_battlefield(&mut game, fixtures::urborg_effect(), 0);
 
     assert_eq!(
         produced_mana_types(&game, swamp_id),
@@ -524,7 +521,7 @@ fn test_urborg_on_a_real_swamp_does_not_double_grant_black() {
 // Testing that needs two things we don't have: the CR 613.8 dependency algorithm,
 // and static-ability deregistration (stripping a permanent's static ability must
 // retire the continuous effect it registered at ETB). Both are recorded in
-// codebase-state.md → Deferred Migrations. `phase_ld_cards::urborg_effect()` is
+// codebase-state.md → Deferred Migrations. `fixtures::urborg_effect()` is
 // modeled as an Enchantment precisely to stay clear of this.
 
 /// The CR 305.7 strip is a `clear()` on a frame rebuilt from `CardData` every
@@ -532,8 +529,8 @@ fn test_urborg_on_a_real_swamp_does_not_double_grant_black() {
 #[test]
 fn test_blood_moon_removed_restores_printed_abilities() {
     let mut game = setup_two_player_game();
-    let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
-    let blood_moon_id = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    let land_id = put_on_battlefield(&mut game, fixtures::dual_land_ub(), 0);
+    let blood_moon_id = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     assert_eq!(produced_mana_types(&game, land_id), vec![ManaType::Red]);
 
@@ -552,8 +549,8 @@ fn test_activating_blood_mooned_land_produces_red() {
     use mtgsim::oracle::mana_supply::available_mana_sources;
 
     let mut game = setup_two_player_game();
-    let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
-    let _blood_moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    let land_id = put_on_battlefield(&mut game, fixtures::dual_land_ub(), 0);
+    let _blood_moon = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     // The mana-source enumeration offers only red for this land.
     let sources: Vec<_> = available_mana_sources(&game, 0)
@@ -601,7 +598,7 @@ fn test_613_6_effect_keeps_applying_after_its_own_filter_breaks() {
 
     assert_eq!(get_effective_power(&game, artifact_id), None);
 
-    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+    put_on_battlefield(&mut game, printings::march_of_the_machines(), 0);
 
     // Layer 4: the artifact becomes a creature.
     assert!(
@@ -652,7 +649,7 @@ fn test_march_of_the_machines_pt_equals_mana_value() {
         0,
     );
 
-    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+    put_on_battlefield(&mut game, printings::march_of_the_machines(), 0);
 
     assert_eq!(get_effective_power(&game, cheap), Some(1));
     assert_eq!(get_effective_toughness(&game, cheap), Some(1));
@@ -675,15 +672,15 @@ fn test_march_of_the_machines_pt_equals_mana_value() {
 fn test_blood_moon_retires_the_effect_a_stripped_ability_registered() {
     let mut game = setup_two_player_game();
 
-    let bear_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+    let bear_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let land_id = put_on_battlefield(&mut game, fixtures::land_creatures_have_flying(), 0);
 
     assert!(
         has_keyword(&game, bear_id, KeywordFlag::Flying),
         "the land's static ability should grant flying before Blood Moon"
     );
 
-    put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     // CR 305.7: the land is now a Mountain and has lost its printed abilities.
     let abilities = get_effective_abilities(&game, land_id);
@@ -707,9 +704,9 @@ fn test_blood_moon_retires_the_effect_a_stripped_ability_registered() {
 fn test_effect_returns_when_blood_moon_leaves() {
     let mut game = setup_two_player_game();
 
-    let bear_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
-    let blood_moon_id = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+    let bear_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, fixtures::land_creatures_have_flying(), 0);
+    let blood_moon_id = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     assert!(!has_keyword(&game, bear_id, KeywordFlag::Flying));
 
@@ -733,10 +730,10 @@ fn test_static_effect_shares_its_objects_timestamp() {
 
     // Something else on the battlefield first, so the land's own timestamp is
     // not 0 and the assertion can't pass by coincidence.
-    put_on_battlefield(&mut game, basic_lands::forest(), 0);
-    put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, printings::forest(), 0);
+    put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
 
-    let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+    let land_id = put_on_battlefield(&mut game, fixtures::land_creatures_have_flying(), 0);
     let object_timestamp = game.object_timestamp(land_id);
 
     let effect_timestamps: Vec<u64> = game
@@ -762,8 +759,8 @@ fn test_static_effect_shares_its_objects_timestamp() {
 fn test_static_ability_does_not_function_from_the_graveyard() {
     let mut game = setup_two_player_game();
 
-    let bear_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+    let bear_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let land_id = put_on_battlefield(&mut game, fixtures::land_creatures_have_flying(), 0);
 
     assert!(has_keyword(&game, bear_id, KeywordFlag::Flying));
 
@@ -799,7 +796,7 @@ fn test_static_ability_does_not_function_from_the_graveyard() {
 fn test_self_stripping_land_terminates_and_is_stable() {
     let mut game = setup_two_player_game();
 
-    let steppe_id = put_on_battlefield(&mut game, phase_ld_cards::self_stripping_land(), 0);
+    let steppe_id = put_on_battlefield(&mut game, fixtures::self_stripping_land(), 0);
 
     let other_data = mtgsim::objects::card_data::CardDataBuilder::new("Steam Vents")
         .card_type(CardType::Land)
@@ -835,7 +832,7 @@ fn test_self_stripping_land_terminates_and_is_stable() {
 #[test]
 fn test_sol_ring_under_march_is_a_one_one_that_still_taps_for_mana() {
     let mut game = setup_two_player_game();
-    let sol_ring = put_on_battlefield(&mut game, artifacts::sol_ring(), 0);
+    let sol_ring = put_on_battlefield(&mut game, printings::sol_ring(), 0);
 
     assert!(!is_creature(&game, sol_ring), "an artifact, printed");
     assert_eq!(
@@ -844,7 +841,7 @@ fn test_sol_ring_under_march_is_a_one_one_that_still_taps_for_mana() {
         "CR 208.3 — no P/T printed and none granted yet"
     );
 
-    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+    put_on_battlefield(&mut game, printings::march_of_the_machines(), 0);
 
     assert!(is_creature(&game, sol_ring), "Layer 4: AddType(Creature)");
     assert_eq!(
@@ -908,8 +905,8 @@ fn test_march_takes_the_mana_ability_off_a_sol_ring_that_entered_this_turn() {
 
     // Two, so the "before" assertion can spend one and leave the other
     // untapped for the "after" assertion. Both entered this turn.
-    let spent = put_on_battlefield_this_turn(&mut game, artifacts::sol_ring(), 0);
-    let held = put_on_battlefield_this_turn(&mut game, artifacts::sol_ring(), 0);
+    let spent = put_on_battlefield_this_turn(&mut game, printings::sol_ring(), 0);
+    let held = put_on_battlefield_this_turn(&mut game, printings::sol_ring(), 0);
 
     // CR 302.6 opens with "A creature's activated ability", so a noncreature
     // permanent is unrestricted no matter how recently it arrived — this is
@@ -926,7 +923,7 @@ fn test_march_takes_the_mana_ability_off_a_sol_ring_that_entered_this_turn() {
         "and the other one is a mana source"
     );
 
-    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+    put_on_battlefield(&mut game, printings::march_of_the_machines(), 0);
 
     assert!(is_creature(&game, held), "Layer 4 — and now CR 302.6 applies");
     assert!(has_summoning_sickness(&game, held));
@@ -953,8 +950,8 @@ fn test_march_takes_the_mana_ability_off_a_sol_ring_that_entered_this_turn() {
 #[test]
 fn test_haste_lets_a_freshly_animated_sol_ring_tap_the_turn_it_arrived() {
     let mut game = setup_two_player_game();
-    let ring = put_on_battlefield_this_turn(&mut game, artifacts::sol_ring(), 0);
-    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+    let ring = put_on_battlefield_this_turn(&mut game, printings::sol_ring(), 0);
+    put_on_battlefield(&mut game, printings::march_of_the_machines(), 0);
 
     assert!(has_summoning_sickness(&game, ring));
 
@@ -987,7 +984,7 @@ fn test_a_sol_ring_from_an_earlier_turn_taps_the_moment_march_animates_it() {
         fill_library(&mut game, player, 8);
     }
 
-    let ring = put_on_battlefield_this_turn(&mut game, artifacts::sol_ring(), 0);
+    let ring = put_on_battlefield_this_turn(&mut game, printings::sol_ring(), 0);
     assert!(
         !has_summoning_sickness(&game, ring),
         "CR 302.6 restricts creatures, and this is still just an artifact"
@@ -1000,7 +997,7 @@ fn test_a_sol_ring_from_an_earlier_turn_taps_the_moment_march_animates_it() {
 
     // March resolves *now*, so the Sol Ring has been a creature for an instant
     // and under P0's control since turn 1.
-    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+    put_on_battlefield(&mut game, printings::march_of_the_machines(), 0);
 
     assert!(is_creature(&game, ring));
     assert!(

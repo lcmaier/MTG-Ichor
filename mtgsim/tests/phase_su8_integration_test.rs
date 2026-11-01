@@ -3,9 +3,7 @@
 //! event and of the triggered abilities asked about it, and every question
 //! kind's line.
 
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_rc_cards::{master_biomancer, thunder_thrash_elder};
-use mtgsim::cards::phase_tr1_cards::{felidar_sovereign, soul_warden};
+use mtgsim::cards::printings::{felidar_sovereign, grizzly_bears, master_biomancer, soul_warden, thunder_thrash_elder};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::priority::PriorityResult;
