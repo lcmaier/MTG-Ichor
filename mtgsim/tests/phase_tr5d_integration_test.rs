@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::state::replacement_effects::ReplacementEffectId;
 use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::authoring::{at_beginning_of, damage_to_is_prevented, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_rd_cards::{mending_hands, safe_passage};
@@ -833,7 +834,7 @@ fn a_riders_damage_during_the_resolution_is_not_dealt_this_way() {
     let shield = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let turn = game.turn_number;
     game.replacement_effects.add(RegisteredReplacementEffect {
-        id: 0,
+        id: ReplacementEffectId::UNASSIGNED,
         source: shield,
         controller: 1,
         generated_by: GeneratedBy::Spell,

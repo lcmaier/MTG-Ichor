@@ -16,6 +16,7 @@
 //! `chars.controller` further along the same walk and every assertion here
 //! keeps its meaning.
 
+use mtgsim::engine::layers::types::EffectId;
 use mtgsim::cards::{creatures, phase5_pre_cards};
 use mtgsim::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
@@ -41,7 +42,7 @@ fn register_anthem(
 ) {
     let timestamp = game.allocate_timestamp();
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source,
         origin: EffectOrigin::Resolution,
         layer: Layer::Layer7cModifyPT,

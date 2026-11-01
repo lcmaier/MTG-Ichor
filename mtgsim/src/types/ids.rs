@@ -44,6 +44,61 @@ pub type Timestamp = u64;
 /// could swap halves silently, and an epoch is paired with nothing.
 pub type ZoneChangeEpoch = u64;
 
+/// A row's id in a duration registry: the continuous-effect (CR 613),
+/// replacement (CR 614) and restriction (CR 101.2) stores, each stamping it
+/// from its own counter as the row is added (`DurationRegistry::add`).
+///
+/// One type rather than one per registry because the allocation discipline is
+/// the shared thing: monotonic, never reused. Wrappers keep their own aliases
+/// (`EffectId`, `ReplacementEffectId`, `RestrictionId`) so their signatures
+/// still say which registry an id came from. Ordered, since CR 613.7a's
+/// sub-order sorts rows by it.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct RowId(u64);
+
+impl RowId {
+    /// The id of a row not yet added: what a row literal writes, and what
+    /// `DurationRegistry::add` checks before it stamps one. The counter
+    /// starts at one, so no stored row carries it.
+    pub const UNASSIGNED: RowId = RowId(0);
+
+    /// The next id from a registry's counter.
+    pub(crate) fn from_counter(next: &mut u64) -> RowId {
+        let id = RowId(*next);
+        *next += 1;
+        id
+    }
+
+    /// The id the `n`th draw from a counter now at `next` will be, read
+    /// without drawing it.
+    pub(crate) fn ahead_of(next: u64, n: usize) -> RowId {
+        RowId(next + n as u64)
+    }
+}
+
+#[cfg(test)]
+impl RowId {
+    /// The `n`th id a fresh registry stamps, `RowId::nth(1)` its first: the
+    /// id a test expects.
+    pub(crate) fn nth(n: u64) -> RowId {
+        RowId(n)
+    }
+}
+
+/// The bare number, both ways, as the `u64` it replaced printed, so a
+/// message or a dump that names a row reads as it did.
+impl std::fmt::Debug for RowId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::fmt::Display for RowId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Unique identifier for a game object (card, token, copy, ability on stack, etc.)
 ///
 /// Stamped by `GameState::add_object` from the state's own counter — the one
@@ -211,9 +266,9 @@ impl AbilityId {
     /// instance keeps this id for its whole life and no other instance gets
     /// it. Not the source's epoch: a resolution's row outlives the spell's
     /// move to the graveyard and the ability object CR 608.2n deletes.
-    pub fn granted_by(self, row: u64) -> AbilityId {
-        debug_assert!(row != 0, "registry ids start at one; 0 means not granted");
-        AbilityId { definition: self.definition, grant: row }
+    pub fn granted_by(self, row: RowId) -> AbilityId {
+        debug_assert!(row != RowId::UNASSIGNED, "a grant is a registered row");
+        AbilityId { definition: self.definition, grant: row.0 }
     }
 
     /// This ability as the layer 1a row `row` copies it onto an object (CR
@@ -222,9 +277,9 @@ impl AbilityId {
     /// per row, and CR 604.2's existence check has to tell them apart: the
     /// rows a copied static ability generates apply while *their* copy is the
     /// one showing, and come back if a later copy over it expires.
-    pub fn copied_by(self, row: u64) -> AbilityId {
-        debug_assert!(row != 0, "registry ids start at one; 0 means not copied");
-        AbilityId { definition: self.definition, grant: row }
+    pub fn copied_by(self, row: RowId) -> AbilityId {
+        debug_assert!(row != RowId::UNASSIGNED, "a copy is a registered row");
+        AbilityId { definition: self.definition, grant: row.0 }
     }
 
     /// The ability, whichever instance: the id with its grant dropped.
@@ -234,8 +289,8 @@ impl AbilityId {
 
     /// The row that granted or copied this instance, or `None` for one the
     /// object has by any other route.
-    pub fn granting_row(self) -> Option<u64> {
-        (self.grant != 0).then_some(self.grant)
+    pub fn granting_row(self) -> Option<RowId> {
+        (self.grant != 0).then_some(RowId(self.grant))
     }
 }
 
@@ -527,7 +582,7 @@ mod tests {
     #[test]
     fn two_grants_of_one_ability_are_two_instances_of_one_definition() {
         let printed = AbilityId::printed("Diffusion Sliver", 3);
-        let (first, second) = (printed.granted_by(7), printed.granted_by(8));
+        let (first, second) = (printed.granted_by(RowId::nth(7)), printed.granted_by(RowId::nth(8)));
         assert_ne!(first, second);
         assert_ne!(first, printed);
         assert_eq!(first.definition(), printed);

@@ -31,6 +31,9 @@
 
 use std::sync::Arc;
 
+use mtgsim::engine::layers::types::EffectId;
+use mtgsim::state::replacement_effects::ReplacementEffectId;
+use mtgsim::state::restrictions::RestrictionId;
 use mtgsim::cards::authoring::{activated_ability, spell_ability};
 use mtgsim::cards::alpha::giant_growth;
 use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
@@ -65,7 +68,7 @@ use mtgsim::types::effects::{
     AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId, RowId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
@@ -139,7 +142,7 @@ fn resolution_row(game: &mut GameState, layer: Layer, affected: ObjectSet, modif
     let timestamp = game.allocate_timestamp();
     let turn = game.turn_number;
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source: mtgsim::types::ids::new_object_id(),
         origin: EffectOrigin::Resolution,
         layer,
@@ -155,7 +158,7 @@ fn resolution_row(game: &mut GameState, layer: Layer, affected: ObjectSet, modif
 fn replacement_row(game: &mut GameState, def: ReplacementDef) {
     let turn = game.turn_number;
     game.replacement_effects.add(RegisteredReplacementEffect {
-        id: 0,
+        id: ReplacementEffectId::UNASSIGNED,
         source: mtgsim::types::ids::new_object_id(),
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
@@ -170,7 +173,7 @@ fn replacement_row(game: &mut GameState, def: ReplacementDef) {
 fn cant_be_destroyed(game: &mut GameState, object: ObjectId) {
     let turn = game.turn_number;
     game.restrictions.add(RegisteredRestriction {
-        id: 0,
+        id: RestrictionId::UNASSIGNED,
         source: mtgsim::types::ids::new_object_id(),
         controller: 0,
         duration: Duration::UntilEndOfTurn,
@@ -602,7 +605,7 @@ fn copying_one_donor_twice_applies_its_static_ability_once() {
 }
 
 /// The copy rows that refer to `id`, oldest first.
-fn copy_rows_on(game: &GameState, id: ObjectId) -> Vec<u64> {
+fn copy_rows_on(game: &GameState, id: ObjectId) -> Vec<RowId> {
     game.continuous_effects
         .iter()
         .filter(|row| matches!(row.modification, EffectModification::CopyFrom(_)) && row.affected_objects.refers_to(id))
@@ -611,7 +614,7 @@ fn copy_rows_on(game: &GameState, id: ObjectId) -> Vec<u64> {
 }
 
 /// The rows `copy`'s copied static abilities generated for `id`.
-fn rows_from_copied_statics(game: &GameState, id: ObjectId, copy: u64) -> usize {
+fn rows_from_copied_statics(game: &GameState, id: ObjectId, copy: RowId) -> usize {
     game.continuous_effects
         .iter()
         .filter(|row| {

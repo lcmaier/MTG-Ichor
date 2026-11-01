@@ -54,7 +54,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSpent, ManaType};
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::types::{
-    ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
+    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::types::effects::Duration;
 use crate::types::zones::Zone;
@@ -880,7 +880,7 @@ pub fn registered(
     modification: EffectModification,
 ) -> ContinuousEffect {
     ContinuousEffect {
-        id: 0, // assigned by the registry on add()
+        id: EffectId::UNASSIGNED, // assigned by the registry on add()
         source: id,
         origin: EffectOrigin::Resolution,
         layer,

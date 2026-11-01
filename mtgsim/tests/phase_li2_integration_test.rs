@@ -10,6 +10,7 @@
 //! printed pair reaches. The order itself, step by step, is asserted in
 //! `engine/layers/board.rs`'s unit tests through the pass's trace hook.
 
+use mtgsim::engine::layers::types::EffectId;
 use mtgsim::cards::{basic_lands, creatures, dual_lands, phase_ld_cards, phase_lf_cards, phase_li_cards};
 use mtgsim::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
@@ -567,7 +568,7 @@ fn test_a_power_reading_row_older_than_a_counter_waits_for_the_counter() {
     // "Creatures with power 2 or less get +1/+1", from a resolution, first.
     let timestamp = game.allocate_timestamp();
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source: bears,
         origin: EffectOrigin::Resolution,
         layer: Layer::Layer7cModifyPT,

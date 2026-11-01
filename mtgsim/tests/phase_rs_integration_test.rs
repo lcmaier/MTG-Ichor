@@ -10,6 +10,7 @@
 
 use std::cell::RefCell;
 
+use mtgsim::state::restrictions::RestrictionId;
 use mtgsim::cards::phase_lf_cards;
 use mtgsim::cards::phase_rs_cards::{diabolic_edict, sigarda_host_of_herons};
 use mtgsim::engine::actions::{GameAction};
@@ -602,7 +603,7 @@ fn test_a_resolution_created_restriction_expires_with_its_stated_duration() {
 
     for duration in [Duration::UntilEndOfTurn, Duration::Indefinite] {
         game.restrictions.add(RegisteredRestriction {
-            id: 0,
+            id: RestrictionId::UNASSIGNED,
             source: bear,
             controller: 0,
             duration,

@@ -16,6 +16,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::state::replacement_effects::ReplacementEffectId;
 use mtgsim::cards::authoring::activated_ability;
 use mtgsim::cards::authoring::{at_beginning_of, dies as when_it_dies, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
@@ -371,7 +372,7 @@ fn shield_around(game: &mut GameState, player: PlayerId, mut def: ReplacementDef
     let anchor = put_on_battlefield(game, vanilla_creature(1, 1, &[]), player);
     let turn = game.turn_number;
     game.replacement_effects.add(RegisteredReplacementEffect {
-        id: 0,
+        id: ReplacementEffectId::UNASSIGNED,
         source: anchor,
         controller: player,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,

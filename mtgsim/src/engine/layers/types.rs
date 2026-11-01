@@ -29,7 +29,7 @@ use crate::types::mana::ManaCost;
 pub use crate::types::effects::ObjectSet;
 
 /// Unique identifier for a registered continuous effect.
-pub type EffectId = u64;
+pub type EffectId = crate::types::ids::RowId;
 
 /// Timestamp for ordering effects within a layer (CR 613.7) — defined beside
 /// the ids for `ObjectSet`'s reason above, since `GameObject` carries one.

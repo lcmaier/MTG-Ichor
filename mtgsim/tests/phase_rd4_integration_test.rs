@@ -13,6 +13,8 @@
 
 use std::sync::Arc;
 
+use mtgsim::state::replacement_effects::ReplacementEffectId;
+use mtgsim::state::restrictions::RestrictionId;
 use mtgsim::cards::authoring::static_restriction;
 use mtgsim::cards::phase_rd_cards::{
     angel_of_suffering, mending_hands, palisade_giant, pariah, pinpoint_avalanche,
@@ -140,7 +142,7 @@ fn chosen_damage_source(game: &GameState) -> Option<ObjectId> {
 fn fixture_row(game: &mut GameState, source: ObjectId, controller: PlayerId, def: ReplacementDef) {
     let turn = game.turn_number;
     game.replacement_effects.add(RegisteredReplacementEffect {
-        id: 0,
+        id: ReplacementEffectId::UNASSIGNED,
         source,
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
@@ -162,7 +164,7 @@ fn fixture_row(game: &mut GameState, source: ObjectId, controller: PlayerId, def
 fn cant_be_prevented_this_turn(game: &mut GameState, source: ObjectId, controller: PlayerId) {
     let turn = game.turn_number;
     game.restrictions.add(RegisteredRestriction {
-        id: 0,
+        id: RestrictionId::UNASSIGNED,
         source,
         controller,
         duration: Duration::UntilEndOfTurn,

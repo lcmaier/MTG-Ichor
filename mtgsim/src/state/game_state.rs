@@ -2083,7 +2083,7 @@ impl GameState {
         zone: Zone,
         arrived_on: u32,
     ) {
-        use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
+        use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectOrigin};
         use crate::objects::card_data::AbilityType;
         use crate::types::effects::Duration;
 
@@ -2197,7 +2197,7 @@ impl GameState {
 
                 for (layer, modification) in rows {
                     let effect = ContinuousEffect {
-                        id: 0, // assigned by registry
+                        id: EffectId::UNASSIGNED, // assigned by registry
                         source: id,
                         origin: EffectOrigin::StaticAbility { ability: ability.id },
                         layer,
@@ -2253,7 +2253,7 @@ impl GameState {
         copy_timestamp: crate::engine::layers::types::Timestamp,
         duration: crate::types::effects::Duration,
     ) {
-        use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
+        use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectOrigin};
 
         for &id in affected {
             // Skipped rather than asserted: `apply_copy` filtered to the
@@ -2289,7 +2289,7 @@ impl GameState {
                     for (layer, modification) in rows {
                         self.keep_frames_before_the_first_control_row(layer);
                         self.continuous_effects.add(ContinuousEffect {
-                            id: 0,
+                            id: EffectId::UNASSIGNED,
                             source: id,
                             origin: EffectOrigin::StaticAbility { ability: ability.id },
                             layer,

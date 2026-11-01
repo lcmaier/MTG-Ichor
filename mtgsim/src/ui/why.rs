@@ -31,7 +31,7 @@ use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::Effect;
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
 use crate::oracle::x_values::LegalXValues;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -1111,7 +1111,7 @@ fn changes(before: &EffectiveCharacteristics, after: &EffectiveCharacteristics) 
 /// as `ui::display` prints a permanent's: its parts share a paragraph and,
 /// when granted, the grant.
 fn ability_words(abilities: &[AbilityDef]) -> Vec<&'static str> {
-    let mut shown: Vec<(&'static str, Option<u16>, Option<u64>)> = Vec::new();
+    let mut shown: Vec<(&'static str, Option<u16>, Option<RowId>)> = Vec::new();
     for ability in abilities {
         let part = (ability.rules_text.words, ability.rules_text.paragraph(), ability.id.granting_row());
         if part.1.is_some() && shown.contains(&part) {

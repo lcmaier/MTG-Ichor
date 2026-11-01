@@ -4361,18 +4361,11 @@ The layer system's designated single-point change site is `oracle/characteristic
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
     613) — now DURING Layers" item 7c.
 
-7d. **`ContinuousEffect { id: 0 }` as "unassigned" — code smell, 16 sites (recounted 2026-08-24).** `ContinuousEffectRegistry::add` overwrites the field, so every construction site carries a meaningless value. The fix is a `ContinuousEffectDraft` that `add()` consumes, which changes `add`'s signature and every site — its own small refactor.
-
-    **Reachability (2026-09-03):** reachable — not wrong; a smell, and it grew:
-    26 sites now (16 at the 2026-08-24 recount).
-
-    **Sized:** `ContinuousEffectDraft` consumed by `add`, the
-    struct plus ~26 mechanical sites, ~100 lines; a quiet PR of its own, pairing
-    with main item 64's rename.
-    **Slotted:** `card-layer-cleanup`, which takes the `ContinuousEffectDraft`
-    refactor before the decks grow its literals (44 on `50c459d4`), since every
-    card writes them (`route-review`, 2026-10-29); it was the audit's
-    `names-and-hygiene-sweeps`.
+7d. **`ContinuousEffect { id: 0 }` as "unassigned" — ✅ done (2026-10-31, `card-instruction-words`).** —
+    archived.
+    **Reachability (2026-10-31):** closed — 2026-10-31.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
+    613) — now DURING Layers" item 7d.
 
 7f. **Conditional static abilities — ✅ done (2026-09-06, LI-3).** `Effect::Conditional` lowers to its inner atom's rows, registered unconditionally, and the condition stays on the ability where CR 604.2's existence check already looks: `board::static_ability_still_exists` evaluates it against the pass's *live* board at the row's layer, so a condition reading types sees layer 4 applied. No field on `ContinuousEffect` and no second registry (`layers-architecture.md` §13b decision 5). `engine/layers/condition.rs` is the evaluator; `Condition` gained one leaf, `HostMatches(ObjectFilter)`, for "as long as enchanted permanent is …". **Kird Ape** is the consumer and is in `PERFORMANCE_POOL`. The historical note below is the reason the answer had to be an existence check rather than a gate, and it is kept.
 

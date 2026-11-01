@@ -465,6 +465,7 @@ pub fn get_effective_toughness(game: &GameState, id: ObjectId) -> Option<i32> {
 
 #[cfg(test)]
 mod tests {
+    use crate::engine::layers::types::EffectId;
     use crate::test_support::place_on_battlefield;
     use crate::types::replacement::EnterMods;
     use super::*;
@@ -573,7 +574,7 @@ mod tests {
 
         // Register a +3/+0 effect via the layer system
         let effect = ContinuousEffect {
-            id: 0,
+            id: EffectId::UNASSIGNED,
             source: id,
             origin: crate::engine::layers::types::EffectOrigin::Resolution,
             layer: Layer::Layer7cModifyPT,

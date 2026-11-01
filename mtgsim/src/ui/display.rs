@@ -26,7 +26,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
+use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaSymbol, ManaType};
@@ -150,7 +150,7 @@ pub fn keyword_name(flag: KeywordFlag) -> &'static str {
 /// printed ability the engine builds as several shows once, as printed: its
 /// parts share a paragraph and, when granted, the grant.
 fn ability_texts(game: &GameState, id: ObjectId) -> Vec<&'static str> {
-    let mut shown: Vec<(AbilityText, Option<u64>)> = Vec::new();
+    let mut shown: Vec<(AbilityText, Option<RowId>)> = Vec::new();
     for ability in get_effective_abilities(game, id).iter() {
         match ability.ability_type {
             AbilityType::Mana(_) | AbilityType::Activated(_) | AbilityType::Triggered | AbilityType::Static => {}

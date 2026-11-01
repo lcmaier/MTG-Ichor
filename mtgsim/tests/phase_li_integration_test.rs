@@ -8,6 +8,7 @@
 //! (`test_humility_before_hierophants_retires_the_grant`); the tests here are
 //! the other things the pass changes, and two it must not.
 
+use mtgsim::engine::layers::types::EffectId;
 use mtgsim::cards::{artifacts, phase_ld_cards, phase_le_cards, phase_lf_cards, phase_rc_cards};
 use mtgsim::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
@@ -134,7 +135,7 @@ fn test_a_counter_older_than_a_power_reading_row_applies_first() {
     // "Creatures with power 2 or less get +1/+1", from a resolution, later.
     let timestamp = game.allocate_timestamp();
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source: bears,
         origin: EffectOrigin::Resolution,
         layer: Layer::Layer7cModifyPT,

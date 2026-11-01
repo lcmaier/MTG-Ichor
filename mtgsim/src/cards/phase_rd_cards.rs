@@ -1193,6 +1193,7 @@ mod tests {
         place_vanilla_creature, put_on_battlefield, set_attacking, setup_two_player_game,
         test_ctx, RecordingDecisionProvider,
     };
+    use crate::state::replacement_effects::ReplacementEffectId;
     use crate::types::effects::{CounterType, Duration, PatternFill, Primitive};
 
     /// A 2/2 for P0 and a board with no replacement source but the one under
@@ -1994,7 +1995,7 @@ mod tests {
     ) {
         let turn = game.turn_number;
         game.replacement_effects.add(RegisteredReplacementEffect {
-            id: 0,
+            id: ReplacementEffectId::UNASSIGNED,
             source,
             controller,
             generated_by: crate::events::cause::GeneratedBy::Spell,

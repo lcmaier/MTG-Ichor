@@ -1054,6 +1054,25 @@ it: one proposal inside the 514.3a loop, shown to fail first.*
 
     **Sized:** done.
 
+7d. **`ContinuousEffect { id: 0 }` as "unassigned" — ✅ done (2026-10-31, `card-instruction-words`).** `ContinuousEffectRegistry::add` overwrote the field, so every construction site carried a meaningless value, in all three duration registries: 42 `id: 0` lines on `856aafd1`.
+
+    **Closed by another shape than its Sized line's draft.** Decision 3b of
+    the `card-layer-cleanup` note, settled at (c): `RowId` is a newtype in
+    `types::ids` beside `ObjectId` and `AbilityId`, with
+    `RowId::UNASSIGNED`, so a row literal writes `EffectId::UNASSIGNED`,
+    `ReplacementEffectId::UNASSIGNED` or `RestrictionId::UNASSIGNED` through
+    its registry's alias, as an object writes `ObjectId::UNASSIGNED`, and
+    `DurationRegistry::add` checks it (`debug_assert`) before it stamps one.
+    The field stays: `ContinuousEffectDraft` would have kept two field lists
+    in step for one registry of three. A row id can no longer be mistaken for
+    a count, and it prints as the bare number it was, so no message or dump
+    changed.
+
+    **Reachability (2026-09-03):** reachable — not wrong; a smell, and it grew:
+    26 sites then (16 at the 2026-08-24 recount).
+
+    **Sized:** done.
+
 7e. **Derivation silently drops non-`Fixed` amounts — ✅ done (2026-08-22).** `EffectModification::{SetPowerToughness, ModifyPowerToughness}` now carry a `PtValue`: `Fixed(i32)` for a signed literal, `Dynamic(AmountExpr)` for an expression re-evaluated at every layer by `compute::evaluate_pt_value`. Two variants rather than one because `AmountExpr::Fixed` is `u64` and `ModifyPowerToughness { power: -1 }` needs a sign. Resolution-time effects stay `Fixed` (CR 608.2h locks a resolving spell's value in); it is static abilities that must stay live (CR 604.7). March of the Machines is back to its printed "equal to its mana value" via `AmountExpr::AffectedManaValue`.
 
     Residue, now loud instead of silent: the evaluator returns `Option<i32>` and `debug_assert!`s on an amount with no static-context meaning. `Variable` genuinely cannot appear on a static ability (CR 107.3's X is chosen as a spell is cast), but the `Target*` family points at a real vocabulary gap — see item 3.

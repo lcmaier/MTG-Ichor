@@ -6,7 +6,8 @@
 use std::sync::Arc;
 
 use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp};
-use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
+use crate::state::duration_registry::{DurationRegistry, DurationRow};
+use crate::types::ids::RowId;
 use crate::types::effects::{Duration, ObjectSet};
 use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::triggers::EventKindMask;
@@ -448,6 +449,12 @@ impl ContinuousEffectRegistry {
         self.effects.next_id()
     }
 
+    /// The id the `n`th add from now will assign, `0` being [`Self::next_id`]:
+    /// the rest of a look-ahead's would-be rows.
+    pub fn nth_next_id(&self, n: usize) -> EffectId {
+        self.effects.nth_next_id(n)
+    }
+
     /// Run a mutation against the rows, then rebuild the summary.
     ///
     /// Every mutating method funnels through here. The summary is derived
@@ -704,10 +711,10 @@ mod tests {
         let mut reg = ContinuousEffectRegistry::new();
         let src = new_object_id();
         let id = reg.add(make_effect(src, Layer::Layer7cModifyPT, 1));
-        assert_eq!(id, 1);
+        assert_eq!(id, RowId::nth(1));
         assert_eq!(reg.len(), 1);
-        assert_eq!(reg.iter().next().unwrap().id, 1);
-        assert_eq!(reg.add(make_effect(src, Layer::Layer7cModifyPT, 2)), 2, "ids ascend");
+        assert_eq!(reg.iter().next().unwrap().id, RowId::nth(1));
+        assert_eq!(reg.add(make_effect(src, Layer::Layer7cModifyPT, 2)), RowId::nth(2), "ids ascend");
     }
 
     #[test]
