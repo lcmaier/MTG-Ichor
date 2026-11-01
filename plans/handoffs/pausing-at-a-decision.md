@@ -369,16 +369,19 @@ run entry refuses a stopped game today (`setup-architecture.md#72-the-decisions`
 decision 1). The question is the four primitives' arguments, owned: the
 player whose decision it is, the `ChoiceKind`, the last rejection, and the
 options with their bounds, the number's range, the buckets with their
-limits, or the items. **These are the dev GUI's types moved into the
-engine**: `devgui/src/prompt.rs`'s `Primitive` (which method asked, with its
-bounds) and `Answer` (picks, a number, an allocation, an order) become the
-engine's, and the dev GUI's `Prompt` keeps only what it draws from them.
-Inside, the engine is unchanged: the seats a client answers are one new
-provider that hands the question out and waits, beside any decorator
-(`ManaWindowStop` over it closes a paid window without asking anyone). The
-stack is suspended on a thread first (std only, the dev GUI's mechanism moved
-into the engine), and on a stackful coroutine once item 140's spike, with the
-AI harness, picks one. A client that forks asks the paused game to keep a copy
+limits, or the items. **No dev GUI code moves into the engine.** The
+question and answer types are written new in the engine, at its standards
+and under its review; they say what `devgui/src/prompt.rs`'s `Primitive`
+(which method asked, with its bounds) and `Answer` (picks, a number, an
+allocation, an order) say today, so the dev GUI's PR deletes those two and
+uses the engine's, and nothing has two spellings. Inside, the engine is
+unchanged: the seats a client answers are one new provider that hands the
+question out and waits, beside any decorator (`ManaWindowStop` over it closes
+a paid window without asking anyone). The stack is suspended on a thread
+first, std only: the same technique the dev GUI's bridge uses, written again
+in the engine rather than moved, since the bridge was built as a debugging
+tool and never reviewed to the engine's bar. It moves to a stackful coroutine
+once item 140's spike, with the AI harness, picks one. A client that forks asks the paused game to keep a copy
 at each anchor (`with_forks()`): `fork()` copies the last one and replays the
 answers since, each recorded as the typed option it chose (decision 4), not
 its place (§4: 1.7 µs at an anchor, plus 35–79 µs at any other prompt). An
