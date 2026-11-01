@@ -2735,14 +2735,14 @@ impl Effect {
     /// evaluates a condition: it is asked at each proposal, against the board
     /// as it is then, by the gather, sweep or count that reads the member.
     pub(crate) fn static_members(&self) -> impl Iterator<Item = (Option<&Condition>, &Effect)> {
-        let (around, list) = self.with_its_condition();
+        let (ability_condition, list) = self.with_its_condition();
         let members = match list {
             Effect::Sequence(members) => members.as_slice(),
             member => std::slice::from_ref(member),
         };
         members.iter().map(move |member| match member {
             Effect::Conditional(own, member) => (Some(own), &**member),
-            member => (around, member),
+            member => (ability_condition, member),
         })
     }
 
@@ -2881,8 +2881,8 @@ mod static_members {
         assert_eq!(own.replacements().map(|(condition, _)| condition.cloned()).collect::<Vec<_>>(), vec![Some(Condition::Not(Box::new(forest.clone())))]);
         assert_eq!(own.cost_modifications().map(|(condition, _)| condition).collect::<Vec<_>>(), vec![None]);
 
-        let around = Effect::Conditional(forest.clone(), Box::new(Effect::Sequence(vec![layer_change(), trigger_multiplier()])));
-        assert_eq!(around.trigger_multipliers().map(|(condition, _)| condition).collect::<Vec<_>>(), vec![Some(&forest)]);
-        assert_eq!(around.with_its_condition().0, Some(&forest), "the layer row's clause is the list's");
+        let under_one_condition = Effect::Conditional(forest.clone(), Box::new(Effect::Sequence(vec![layer_change(), trigger_multiplier()])));
+        assert_eq!(under_one_condition.trigger_multipliers().map(|(condition, _)| condition).collect::<Vec<_>>(), vec![Some(&forest)]);
+        assert_eq!(under_one_condition.with_its_condition().0, Some(&forest), "the layer row's clause is the list's");
     }
 }

@@ -2384,7 +2384,7 @@ impl GameState {
         // CR 113.6b's statement and an "as long as" around the whole body
         // are the ability's, and CR 604.2's existence check asks both at each
         // layer. Only at the root: one anywhere else is loud below.
-        let (around, body) = ability.effect.with_its_condition();
+        let (ability_condition, body) = ability.effect.with_its_condition();
         let mut atoms = Vec::new();
         match body {
             // CR 113.2c — one paragraph, one ability, effects of several
@@ -2395,7 +2395,7 @@ impl GameState {
             Effect::Sequence(members) => {
                 for (place, member) in (0u8..).zip(members) {
                     match member {
-                        Effect::Conditional(_, member) if around.is_none() => {
+                        Effect::Conditional(_, member) if ability_condition.is_none() => {
                             Self::lower_static_member(member, RowClause::Member(place), label, &mut atoms);
                         }
                         member => Self::lower_static_member(member, RowClause::Ability, label, &mut atoms),

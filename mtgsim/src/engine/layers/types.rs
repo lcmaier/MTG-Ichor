@@ -243,15 +243,27 @@ pub enum EffectOrigin {
     StaticAbility { ability: AbilityId, clause: RowClause },
 }
 
-/// Which CR 604.2 "as long as" a static ability's layer row exists under:
-/// one paragraph is one ability (CR 113.2c), and Clutch of Undeath's "gets
-/// +3/+3 as long as it's a Zombie. Otherwise, it gets -3/-3" gives each of
-/// its two changes a clause of its own.
+/// Which "as long as" (CR 604.2) a static ability's layer row asks, at each
+/// layer, to know whether its effect exists right now. A static ability's
+/// effect is one change or a list of them, and an "as long as" can switch
+/// the whole ability or one change in its list:
+///
+/// - Kird Ape's "This creature gets +1/+2 as long as you control a Forest"
+///   has one condition around the whole ability, so its row is `Ability`.
+///   So is Glorious Anthem's, which has none and always exists.
+/// - Clutch of Undeath's "Enchanted creature gets +3/+3 as long as it's a
+///   Zombie. Otherwise, it gets -3/-3" is one ability (CR 113.2c) whose two
+///   changes each carry their own, so its rows are `Member(0)` and
+///   `Member(1)`, each asking its own change's condition, and one applies.
+///
+/// The row holds no copy of the condition: the existence check finds the
+/// ability on its source at each layer and asks [`Self::condition_in`] of
+/// it, so an ability Humility takes away takes its conditions with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RowClause {
-    /// The ability's, around its whole body, or none.
+    /// The condition around the whole ability, or none.
     Ability,
-    /// The one the member at this place in the ability's list carries
+    /// The condition of the change at this place in the ability's list
     /// (`Effect::static_members`).
     Member(u8),
 }
