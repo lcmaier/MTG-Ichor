@@ -13,14 +13,14 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::spell_ability;
+use crate::cards::authoring::{create, destroy, discard, draw_cards, each, lose_the_game, sacrifice, spell_ability, this_object, you};
 use crate::cards::authoring::triggered_ability;
 use crate::cards::phase_re_cards::soldier_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Condition, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive, };
+    ObjectSet, AmountExpr, Condition, DiscardChooser, Effect, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, };
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{TriggerCondition, TriggerDef};
 
@@ -31,7 +31,7 @@ fn when_state(condition: Condition, effect: Effect) -> TriggerDef {
 }
 
 /// "You [fact]": the fact of the ability's controller, now.
-fn you(fact: PlayerFact) -> Condition {
+fn you_now(fact: PlayerFact) -> Condition {
     Condition::Player { players: PlayerSet::You, fact }
 }
 
@@ -64,8 +64,8 @@ pub fn emperor_crocodile() -> Arc<CardData> {
         .ability(triggered_ability(
             "When you control no other creatures, sacrifice this creature.",
             when_state(
-                Condition::Not(Box::new(you(PlayerFact::ControlsPermanent(other_creature)))),
-                Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject),
+                Condition::Not(Box::new(you_now(PlayerFact::ControlsPermanent(other_creature)))),
+                sacrifice(this_object()),
             ),
         ))
         .build()
@@ -86,8 +86,8 @@ pub fn immortal_coils_state_trigger() -> Arc<CardData> {
         .ability(triggered_ability(
             "When there are no cards in your graveyard, you lose the game.",
             when_state(
-                Condition::Not(Box::new(you(PlayerFact::CardInGraveyard(ObjectFilter::All)))),
-                Effect::Atom(Primitive::LoseGame, EffectRecipient::Controller),
+                Condition::Not(Box::new(you_now(PlayerFact::CardInGraveyard(ObjectFilter::All)))),
+                lose_the_game(you()),
             ),
         ))
         .build()
@@ -101,7 +101,7 @@ pub fn draws_on_an_empty_hand() -> Arc<CardData> {
         .rules_text("Whenever you have no cards in hand, draw a card.")
         .ability(triggered_ability(
             "Whenever you have no cards in hand, draw a card.",
-            when_state(you(PlayerFact::HandEmpty), Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller)),
+            when_state(you_now(PlayerFact::HandEmpty), draw_cards(you(), 1)),
         ))
         .build()
 }
@@ -113,8 +113,8 @@ pub fn discard_your_hand_then_draw_that_many() -> Arc<CardData> {
         "Fixture: discard your hand, then draw that many cards",
         "Discard your hand, then draw that many cards.",
         Effect::Sequence(vec![
-            Effect::Atom(Primitive::Discard(AmountExpr::CountOf(ObjectSet::hand(PlayerRef::You)), DiscardChooser::Affected), EffectRecipient::Controller),
-            Effect::Atom(Primitive::DrawCards(AmountExpr::DiscardedThisWay), EffectRecipient::Controller),
+            discard(you(), AmountExpr::CountOf(ObjectSet::hand(PlayerRef::You)), DiscardChooser::Affected),
+            draw_cards(you(), AmountExpr::DiscardedThisWay),
         ]),
     )
 }
@@ -135,8 +135,8 @@ pub fn destroy_your_others_then_a_token() -> Arc<CardData> {
         "Fixture: destroy your other creatures, then make a Soldier",
         "Destroy each non-Crocodile creature you control, then create a 1/1 white Soldier creature token.",
         Effect::Sequence(vec![
-            Effect::Atom(Primitive::Destroy, EffectRecipient::FilteredPermanents(your_non_crocodiles)),
-            Effect::Atom(Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            destroy(each(your_non_crocodiles)),
+            create(you(), 1, soldier_token()),
         ]),
     )
 }

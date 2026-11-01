@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::spell_ability;
+use crate::cards::authoring::{add_phases, create, each, spell_ability, untap, you};
 use crate::cards::authoring::{attacks, triggered_ability, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::PhaseType;
@@ -20,7 +20,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::history::ObjectFact;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Effect, EffectRecipient, EntersAttacking, ExtraPhasesAfter, ObjectFilter, Primitive, TokenDef,
+    Effect, EntersAttacking, ExtraPhasesAfter, ObjectFilter, TokenDef,
 };
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::TriggerSubject;
@@ -71,7 +71,7 @@ pub fn attacking_human_token() -> TokenDef {
 pub fn hanweir_garrison() -> Arc<CardData> {
     let text = "Whenever this creature attacks, create two 1/1 red Human creature tokens that are tapped and attacking.";
     let two_humans =
-        Effect::Atom(Primitive::CreateToken(attacking_human_token(), AmountExpr::Fixed(2)), EffectRecipient::Controller);
+        create(you(), 2, attacking_human_token());
     CardDataBuilder::new("Hanweir Garrison")
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .color(Color::Red)
@@ -121,14 +121,8 @@ pub fn relentless_assault() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             Effect::Sequence(vec![
-                Effect::Atom(Primitive::Untap, EffectRecipient::FilteredPermanents(attacked_this_turn)),
-                Effect::Atom(
-                    Primitive::ExtraPhases {
-                        phases: vec![PhaseType::Combat, PhaseType::Postcombat],
-                        after: ExtraPhasesAfter::ThisMainPhase,
-                    },
-                    EffectRecipient::Controller,
-                ),
+                untap(each(attacked_this_turn)),
+                add_phases(you(), vec![PhaseType::Combat, PhaseType::Postcombat], ExtraPhasesAfter::ThisMainPhase),
             ]),
         ))
         .build()

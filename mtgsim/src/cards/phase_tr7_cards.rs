@@ -15,14 +15,16 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, static_ability, static_replacement};
+use crate::cards::authoring::{
+    activated_ability, as_long_as, gains, gains_ability, scry, static_ability, static_replacement, this_object, you, Change,
+};
 use crate::cards::authoring::persist;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive,
+    Condition, CounterType, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -119,10 +121,8 @@ pub fn grumgully_the_generous() -> Arc<CardData> {
 pub fn wingrattle_scarecrow() -> Arc<CardData> {
     let flying = "This creature has flying as long as you control a blue creature.";
     let persists = "This creature has persist as long as you control a black creature.";
-    let has_while_you_control_a = |text: &'static str, color: Color, grant: Primitive| static_ability(
-        text,
-        Effect::Conditional(you_control_a_creature_of(color), Box::new(Effect::Atom(grant, EffectRecipient::ThisObject))),
-    );
+    let has_while_you_control_a =
+        |text: &'static str, color: Color, grant: Change| static_ability(text, as_long_as(you_control_a_creature_of(color), grant));
     CardDataBuilder::new("Wingrattle Scarecrow")
         .mana_cost(ManaCost::build(&[], 3))
         .card_type(CardType::Artifact)
@@ -130,8 +130,8 @@ pub fn wingrattle_scarecrow() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Scarecrow))
         .power_toughness(2, 2)
         .rules_text("This creature has flying as long as you control a blue creature.\nThis creature has persist as long as you control a black creature.")
-        .ability(has_while_you_control_a(flying, Color::Blue, Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield)))
-        .ability(has_while_you_control_a(persists, Color::Black, Primitive::GrantAbility(Arc::new(persist()), Duration::WhileSourceOnBattlefield)))
+        .ability(has_while_you_control_a(flying, Color::Blue, gains(this_object(), KeywordFlag::Flying)))
+        .ability(has_while_you_control_a(persists, Color::Black, gains_ability(this_object(), persist())))
         .build()
 }
 
@@ -169,7 +169,7 @@ pub fn viscera_seer() -> Arc<CardData> {
         .ability(activated_ability(
             text,
             vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
-            Effect::Atom(Primitive::Scry(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            scry(you(), 1),
         ))
         .build()
 }

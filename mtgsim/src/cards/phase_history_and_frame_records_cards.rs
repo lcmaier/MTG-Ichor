@@ -14,13 +14,13 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_ability};
+use crate::cards::authoring::{becomes_a_blocked_creature, each_in, gain_life, is_also_color, spell_ability, static_ability, target_creature, you};
 use crate::cards::authoring::triggers::{leaves_the_battlefield, triggered_ability, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, ObjectFilter, PlayerRef, PlayerSet,
 };
 use crate::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
 use crate::types::mana::{ManaCost, ManaType};
@@ -46,7 +46,7 @@ pub fn fixture_curtain() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(spell_ability(text, Effect::Atom(Primitive::BecomeBlocked, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)))))
+        .ability(spell_ability(text, becomes_a_blocked_creature(target_creature())))
         .build()
 }
 
@@ -60,10 +60,7 @@ pub fn fixture_token_tally() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 1))
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(spell_ability(text, Effect::Atom(
-            Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(died))),
-            EffectRecipient::Controller,
-        )))
+        .ability(spell_ability(text, gain_life(you(), AmountExpr::History(HistorySpan::ThisTurn, Box::new(died)))))
         .build()
 }
 
@@ -76,10 +73,7 @@ pub fn fixture_mourning_ink() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text(text)
-        .ability(static_ability(text, Effect::Atom(
-            Primitive::ChangeColor(ColorChange::Add(Color::Black), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredObjectsIn(ObjectFilter::ThisTurn(ObjectFact::Died), ZoneSet::GRAVEYARD),
-        )))
+        .ability(static_ability(text, is_also_color(each_in(ObjectFilter::ThisTurn(ObjectFact::Died), ZoneSet::GRAVEYARD), Color::Black)))
         .build()
 }
 
@@ -90,7 +84,7 @@ pub fn fixture_mourning_ink() -> Arc<CardData> {
 pub fn fixture_mourners_tithe() -> Arc<CardData> {
     let text = "Whenever a creature leaves the battlefield, you gain life equal to its power.";
     let creature = TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature));
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller);
+    let gain = gain_life(you(), AmountExpr::TriggeringPower(EventRole::Object));
     CardDataBuilder::new("Fixture Mourner's Tithe")
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Enchantment)
@@ -111,7 +105,7 @@ pub fn fixture_first_creature_tithe() -> Arc<CardData> {
         }),
         intervening_if: None,
         limit: Some(TriggerLimit::FirstTimeEachTurn),
-        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        effect: gain_life(you(), 1),
     };
     CardDataBuilder::new("Fixture First Creature's Tithe")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))

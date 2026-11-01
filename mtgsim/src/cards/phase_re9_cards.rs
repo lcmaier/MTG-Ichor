@@ -63,7 +63,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, mana_ability, spell_ability};
+use crate::cards::authoring::{activated_ability, add_mana, create_replacement, mana_ability, spell_ability};
 use crate::cards::authoring::static_replacement;
 use crate::objects::card_data::{
     CardData, CardDataBuilder,
@@ -72,8 +72,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
-    PatternFill, PlayerRef, PlayerSet, Primitive,
+    AmountExpr, ManaOutput, ObjectFilter, PlayerRef, PlayerSet,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -227,26 +226,15 @@ pub fn deep_water() -> Arc<CardData> {
         .ability(activated_ability(
             "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.",
             vec![Cost::Mana(ManaCost::build(&[ManaType::Blue], 0))],
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(
-                        ReplacementDef::new(
-                            tapped_for_mana(Some(ObjectFilter::And(
-                                Box::new(ObjectFilter::ByType(CardType::Land)),
-                                Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                            ))),
-                            PlayerSet::You,
-                            Rewrite::Instead(GameActionTemplate::ProduceMana {
-                                mana_type: ManaType::Blue,
-                                amount: TemplateAmount::ReplacedAmount,
-                            }),
-                        ),
-                    ),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::Authored,
-                ),
-                EffectRecipient::Implicit,
-            ),
+            create_replacement(ReplacementDef::new(
+                tapped_for_mana(Some(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Land)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                ))),
+                PlayerSet::You,
+                Rewrite::Instead(GameActionTemplate::ProduceMana { mana_type: ManaType::Blue, amount: TemplateAmount::ReplacedAmount }),
+            ))
+            .until_end_of_turn(),
         ))
         .build()
 }
@@ -281,28 +269,15 @@ pub fn pale_moon() -> Arc<CardData> {
         )
         .ability(spell_ability(
             "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.",
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(
-                        ReplacementDef::new(
-                            tapped_for_mana(Some(ObjectFilter::And(
-                                Box::new(ObjectFilter::ByType(CardType::Land)),
-                                Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySupertype(
-                                    Supertype::Basic,
-                                )))),
-                            ))),
-                            PlayerSet::Everyone,
-                            Rewrite::Instead(GameActionTemplate::ProduceMana {
-                                mana_type: ManaType::Colorless,
-                                amount: TemplateAmount::ReplacedAmount,
-                            }),
-                        ),
-                    ),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::Authored,
-                ),
-                EffectRecipient::Implicit,
-            ),
+            create_replacement(ReplacementDef::new(
+                tapped_for_mana(Some(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Land)),
+                    Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySupertype(Supertype::Basic)))),
+                ))),
+                PlayerSet::Everyone,
+                Rewrite::Instead(GameActionTemplate::ProduceMana { mana_type: ManaType::Colorless, amount: TemplateAmount::ReplacedAmount }),
+            ))
+            .until_end_of_turn(),
         ))
         .build()
 }
@@ -356,23 +331,13 @@ pub fn doubling_cube() -> Arc<CardData> {
         .ability(mana_ability(
             "{3}, {T}: Double the amount of each type of unspent mana you have.",
             vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::TapSelf],
-            Effect::Atom(
-                Primitive::ProduceMana(ManaOutput {
-                    mana: [
-                        ManaType::White,
-                        ManaType::Blue,
-                        ManaType::Black,
-                        ManaType::Red,
-                        ManaType::Green,
-                        ManaType::Colorless,
-                    ]
+            add_mana(ManaOutput {
+                mana: [ManaType::White, ManaType::Blue, ManaType::Black, ManaType::Red, ManaType::Green, ManaType::Colorless]
                     .into_iter()
                     .map(|t| (t, AmountExpr::UnspentMana(t)))
                     .collect(),
-                    special: Vec::new(),
-                }),
-                EffectRecipient::Implicit,
-            ),
+                special: Vec::new(),
+            }),
         ))
         .build()
 }

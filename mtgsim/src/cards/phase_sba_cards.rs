@@ -40,14 +40,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::spell_ability;
+use crate::cards::authoring::{put_counters, spell_ability, target_permanent};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
-    SelectionFilter,
-    TargetCount,
+    CounterType, ObjectFilter,
 };
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -108,17 +106,7 @@ pub fn battlegrowth() -> Arc<CardData> {
         .rules_text("Put a +1/+1 counter on target creature.")
         .ability(spell_ability(
             "Put a +1/+1 counter on target creature.",
-            Effect::Atom(
-                Primitive::AddCounters {
-                    counter: CounterType::PlusOnePlusOne,
-                    amount: AmountExpr::Fixed(1),
-                    by: PlayerRef::You,
-                },
-                EffectRecipient::Target(
-                    SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)),
-                    TargetCount::Exactly(1),
-                ),
-            ),
+            put_counters(target_permanent(ObjectFilter::ByType(CardType::Creature)), CounterType::PlusOnePlusOne, 1),
         ))
         .build()
 }

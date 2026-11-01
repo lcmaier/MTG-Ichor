@@ -10,13 +10,14 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{enters, is_sacrificed, triggered_ability, when_you_do, whenever};
+use crate::cards::authoring::{
+    any_target, chosen_by, create_delayed_trigger, deal_damage, enters, is_sacrificed, sacrifice, triggered_ability, when_you_do, whenever, you,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef, Primitive,
-    SelectionFilter, TargetCount,
+    Choice, ChoiceScope, ChoiceSide, Effect, ObjectFilter, Pick, PlayerRef,
 };
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::TriggerSubject;
@@ -51,10 +52,7 @@ pub fn cornered_crook() -> Arc<CardData> {
     // waits for another.
     let deals_3 = when_you_do(
         is_sacrificed(ObjectFilter::ByController(PlayerRef::You)),
-        Effect::Atom(
-            Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
-            EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
-        ),
+        deal_damage(any_target(), 3),
         "When you do, this creature deals 3 damage to any target.",
     );
     CardDataBuilder::new("Cornered Crook")
@@ -72,17 +70,14 @@ pub fn cornered_crook() -> Arc<CardData> {
                 Effect::Sequence(vec![
                     Effect::Optional {
                         chooser: PlayerRef::You,
-                        effect: Box::new(Effect::Atom(
-                            Primitive::Sacrifice,
-                            EffectRecipient::ChosenBy(Box::new(Choice {
-                                chooser: EffectRecipient::Controller,
-                                among: ChoiceScope::ChoosersPermanents,
-                                picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Artifact))],
-                                acts_on: ChoiceSide::Chosen,
-                            })),
-                        )),
+                        effect: Box::new(sacrifice(chosen_by(Choice {
+                            chooser: you(),
+                            among: ChoiceScope::ChoosersPermanents,
+                            picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Artifact))],
+                            acts_on: ChoiceSide::Chosen,
+                        }))),
                     },
-                    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(deals_3)), EffectRecipient::Controller),
+                    create_delayed_trigger(you(), deals_3),
                 ]),
             ),
         ))

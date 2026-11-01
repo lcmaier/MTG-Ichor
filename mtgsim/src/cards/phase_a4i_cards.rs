@@ -30,19 +30,18 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::spell_ability;
+use crate::cards::authoring::{
+    cant, deal_damage, destroy, gets, put_counters, spell_ability, target_creature, target_permanent, targets, that_target,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    AffectedSet, CounterType, Effect, ObjectFilter, SelectionFilter,
 };
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
+use crate::types::restriction::{ReplacementKindFilter, Restriction};
 
-fn target_creature() -> EffectRecipient {
-    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
-}
 
 /// Seeds of Strength — {G}{W}
 /// Instant
@@ -75,14 +74,7 @@ fn target_creature() -> EffectRecipient {
 ///   `seeds_of_strength_can_split_its_three_instances_across_creatures`.
 pub fn seeds_of_strength() -> Arc<CardData> {
     let pump = |recipient| {
-        Effect::Atom(
-            Primitive::ModifyPowerToughness(
-                AmountExpr::Fixed(1),
-                AmountExpr::Fixed(1),
-                Duration::UntilEndOfTurn,
-            ),
-            recipient,
-        )
+        gets(recipient, 1, 1).until_end_of_turn()
     };
     CardDataBuilder::new("Seeds of Strength")
         .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::White], 0))
@@ -138,17 +130,10 @@ pub fn incremental_growth() -> Arc<CardData> {
                 Box::new(ObjectFilter::OtherThanInstance(ix)),
             );
         }
-        EffectRecipient::Target(SelectionFilter::Permanent(filter), TargetCount::Exactly(1))
+        target_permanent(filter)
     };
     let grow = |n: u64, recipient| {
-        Effect::Atom(
-            Primitive::AddCounters {
-                counter: CounterType::PlusOnePlusOne,
-                amount: AmountExpr::Fixed(n),
-                by: PlayerRef::You,
-            },
-            recipient,
-        )
+        put_counters(recipient, CounterType::PlusOnePlusOne, n)
     };
     CardDataBuilder::new("Incremental Growth")
         .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green], 3))
@@ -190,10 +175,10 @@ pub fn jagged_lightning() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text("Jagged Lightning deals 3 damage to each of two target creatures.")
-        .ability(spell_ability("Jagged Lightning deals 3 damage to each of two target creatures.", Effect::Atom(
-            Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
-            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(2)),
-        )))
+        .ability(spell_ability(
+            "Jagged Lightning deals 3 damage to each of two target creatures.",
+            deal_damage(targets(2, SelectionFilter::Creature), 3),
+        ))
         .build()
 }
 
@@ -220,18 +205,16 @@ pub fn jagged_lightning() -> Arc<CardData> {
 /// Scryfall lists none for this card.
 pub fn plague_spores() -> Arc<CardData> {
     let cant_regenerate = |recipient| {
-        Effect::Atom(
-            Primitive::Restrict(
-                RestrictionDef::new(Restriction::ApplyReplacement {
-                    kind: ReplacementKindFilter::Regeneration,
-                    // `Primitive::Restrict` overwrites the object set with the
-                    // resolution's targets — this atom's instance.
-                    affected: AffectedSet::NOTHING,
-                }),
-                Duration::UntilEndOfTurn,
-            ),
+        cant(
             recipient,
+            Restriction::ApplyReplacement {
+                kind: ReplacementKindFilter::Regeneration,
+                // `Primitive::Restrict` overwrites the object set with the
+                // resolution's targets — this atom's instance.
+                affected: AffectedSet::NOTHING,
+            },
         )
+        .until_end_of_turn()
     };
     CardDataBuilder::new("Plague Spores")
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Red], 4))
@@ -243,19 +226,13 @@ pub fn plague_spores() -> Arc<CardData> {
             // The shields are stripped before the destruction, or CR 701.19a's
             // replacement would have already applied by the time the
             // restriction existed.
-            cant_regenerate(EffectRecipient::Target(
-                SelectionFilter::Permanent(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByColor(Color::Black)))),
-                )),
-                TargetCount::Exactly(1),
-            )),
-            cant_regenerate(EffectRecipient::Target(
-                SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Land)),
-                TargetCount::Exactly(1),
-            )),
-            Effect::Atom(Primitive::Destroy, EffectRecipient::SameInstanceAs(0)),
-            Effect::Atom(Primitive::Destroy, EffectRecipient::SameInstanceAs(1)),
+            cant_regenerate(target_permanent(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByColor(Color::Black)))),
+            ))),
+            cant_regenerate(target_permanent(ObjectFilter::ByType(CardType::Land))),
+            destroy(that_target(0)),
+            destroy(that_target(1)),
         ])))
         .build()
 }

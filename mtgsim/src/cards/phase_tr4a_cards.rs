@@ -13,13 +13,13 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
+use crate::cards::authoring::{draw_cards, gets, host, return_to_hand, static_ability, triggering, you};
 use crate::cards::authoring::{dies, triggered_ability, undying, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    Effect, ObjectFilter, PlayerRef, SelectionFilter,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -95,20 +95,13 @@ pub fn demonic_vigor() -> Arc<CardData> {
         .enchant_filter(SelectionFilter::Creature)
         .ability(static_ability(
             "Enchanted creature gets +1/+1.",
-            Effect::Atom(
-                Primitive::ModifyPowerToughness(
-                    AmountExpr::Fixed(1),
-                    AmountExpr::Fixed(1),
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::Host,
-            ),
+            gets(host(), 1, 1),
         ))
         .ability(triggered_ability(
             text,
             whenever(
                 dies(TriggerSubject::Host),
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(EventRole::Object)),
+                return_to_hand(triggering(EventRole::Object)),
             ),
         ))
         .build()
@@ -147,7 +140,7 @@ pub fn compost() -> Arc<CardData> {
     };
     let may_draw = Effect::Optional {
         chooser: PlayerRef::You,
-        effect: Box::new(Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller)),
+        effect: Box::new(draw_cards(you(), 1)),
     };
     CardDataBuilder::new("Compost")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))

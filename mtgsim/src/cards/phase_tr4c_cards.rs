@@ -14,15 +14,16 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_ability};
+use crate::cards::authoring::{
+    any_target, create, deal_damage, exile, gets, host, return_to_hand, spell_ability, static_ability, this_object, triggering, you,
+};
 use crate::cards::authoring::{dies, functioning_in, triggered_ability, whenever};
 use crate::cards::phase_rb_cards::zombie_token;
-use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
-    TargetCount, TypeChange,
+    Effect, ObjectFilter, PlayerRef, SelectionFilter, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -45,10 +46,7 @@ fn put_into_a_graveyard_from_the_battlefield(subject: ObjectFilter, whose: Playe
 
 /// "[It] deals `n` damage to any target."
 fn deals_damage_to_any_target(n: u64) -> Effect {
-    Effect::Atom(
-        Primitive::DealDamage { amount: AmountExpr::Fixed(n), unpreventable: false },
-        EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
-    )
+    deal_damage(any_target(), n)
 }
 
 /// Guerrilla Tactics — {1}{R}
@@ -100,13 +98,6 @@ pub fn guerrilla_tactics() -> Arc<CardData> {
         .build()
 }
 
-/// A static ability of an Aura, on the creature it enchants.
-fn enchanted_creature(rules_text: &'static str, primitives: Vec<Primitive>) -> AbilityDef {
-    static_ability(
-        rules_text,
-        Effect::Sequence(primitives.into_iter().map(|p| Effect::Atom(p, EffectRecipient::Host)).collect()),
-    )
-}
 
 /// Angelic Destiny — {2}{W}{W}
 /// Enchantment — Aura
@@ -135,17 +126,7 @@ fn enchanted_creature(rules_text: &'static str, primitives: Vec<Primitive>) -> A
 pub fn angelic_destiny() -> Arc<CardData> {
     let anthem = "Enchanted creature gets +4/+4, has flying and first strike, and is an Angel in addition to its other types.";
     let returns = "When enchanted creature dies, return this card to its owner's hand.";
-    let angel = TypeChange {
-        add_types: Vec::new(),
-        remove_types: Vec::new(),
-        set_types: None,
-        add_subtypes: vec![Subtype::Creature(CreatureType::Angel)],
-        remove_subtypes: Vec::new(),
-        set_subtypes: None,
-        add_supertypes: Vec::new(),
-        remove_supertypes: Vec::new(),
-        set_supertypes: None,
-    };
+    let angel = TypeChange { add_subtypes: vec![Subtype::Creature(CreatureType::Angel)], ..TypeChange::NONE };
     CardDataBuilder::new("Angelic Destiny")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 2))
         .color(Color::White)
@@ -153,18 +134,13 @@ pub fn angelic_destiny() -> Arc<CardData> {
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .enchant_filter(SelectionFilter::Creature)
         .rules_text("Enchant creature\nEnchanted creature gets +4/+4, has flying and first strike, and is an Angel in addition to its other types.\nWhen enchanted creature dies, return this card to its owner's hand.")
-        .ability(enchanted_creature(
+        .ability(static_ability(
             anthem,
-            vec![
-                Primitive::ModifyPowerToughness(AmountExpr::Fixed(4), AmountExpr::Fixed(4), Duration::WhileSourceOnBattlefield),
-                Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
-                Primitive::GrantKeywordFlag(KeywordFlag::FirstStrike, Duration::WhileSourceOnBattlefield),
-                Primitive::ChangeType(angel, Duration::WhileSourceOnBattlefield),
-            ],
+            gets(host(), 4, 4).and_gains(KeywordFlag::Flying).and_gains(KeywordFlag::FirstStrike).and_becomes_types(angel),
         ))
         .ability(triggered_ability(
             returns,
-            whenever(dies(TriggerSubject::Host), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::ThisObject)),
+            whenever(dies(TriggerSubject::Host), return_to_hand(this_object())),
         ))
         .build()
 }
@@ -198,16 +174,10 @@ pub fn rancor() -> Arc<CardData> {
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .enchant_filter(SelectionFilter::Creature)
         .rules_text("Enchant creature\nEnchanted creature gets +2/+0 and has trample.\nWhen this Aura is put into a graveyard from the battlefield, return it to its owner's hand.")
-        .ability(enchanted_creature(
-            anthem,
-            vec![
-                Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
-                Primitive::GrantKeywordFlag(KeywordFlag::Trample, Duration::WhileSourceOnBattlefield),
-            ],
-        ))
+        .ability(static_ability(anthem, gets(host(), 2, 0).and_gains(KeywordFlag::Trample)))
         .ability(triggered_ability(
             returns,
-            whenever(dies(TriggerSubject::ThisObject), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(EventRole::Object))),
+            whenever(dies(TriggerSubject::ThisObject), return_to_hand(triggering(EventRole::Object))),
         ))
         .build()
 }
@@ -256,7 +226,7 @@ pub fn rancor() -> Arc<CardData> {
 ///   `bridge_from_below_can_make_its_token_before_it_exiles_itself`.
 pub fn bridge_from_below() -> Arc<CardData> {
     let zombie = "Whenever a nontoken creature is put into your graveyard from the battlefield, if this card is in your graveyard, create a 2/2 black Zombie creature token.";
-    let exile = "When a creature is put into an opponent's graveyard from the battlefield, if this card is in your graveyard, exile this card.";
+    let exile_text = "When a creature is put into an opponent's graveyard from the battlefield, if this card is in your graveyard, exile this card.";
     let nontoken_creature =
         ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))));
     CardDataBuilder::new("Bridge from Below")
@@ -272,17 +242,17 @@ pub fn bridge_from_below() -> Arc<CardData> {
                 zombie,
                 whenever(
                     put_into_a_graveyard_from_the_battlefield(nontoken_creature, PlayerRef::You),
-                    Effect::Atom(Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                    create(you(), 1, zombie_token()),
                 ),
             ),
         ))
         .ability(functioning_in(
             ZoneSet::GRAVEYARD,
             triggered_ability(
-                exile,
+                exile_text,
                 whenever(
                     put_into_a_graveyard_from_the_battlefield(ObjectFilter::ByType(CardType::Creature), PlayerRef::Opponent),
-                    Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
+                    exile(this_object()),
                 ),
             ),
         ))

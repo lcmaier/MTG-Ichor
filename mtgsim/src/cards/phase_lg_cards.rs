@@ -2,13 +2,11 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::spell_ability;
+use crate::cards::authoring::{gain_control_of, gains, spell_ability, target_creature, that_target, untap};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::effects::{
-    Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount,
-};
+use crate::types::effects::Effect;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -43,15 +41,9 @@ pub fn act_of_treason() -> Arc<CardData> {
                 // One instance of "target" and three atoms (CR 115.3): the
                 // card says "target creature" once, and "that creature" and
                 // "it" are back-references to it, not new clauses.
-                Effect::Atom(
-                    Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-                ),
-                Effect::Atom(Primitive::Untap, EffectRecipient::SameInstanceAs(0)),
-                Effect::Atom(
-                    Primitive::GrantKeywordFlag(KeywordFlag::Haste, Duration::UntilEndOfTurn),
-                    EffectRecipient::SameInstanceAs(0),
-                ),
+                gain_control_of(target_creature()).until_end_of_turn(),
+                untap(that_target(0)),
+                gains(that_target(0), KeywordFlag::Haste).until_end_of_turn(),
             ]),
         ))
         .build()
@@ -60,6 +52,7 @@ pub fn act_of_treason() -> Arc<CardData> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 
     #[test]
     fn act_of_treason_is_one_ability_with_three_atoms_on_one_target() {

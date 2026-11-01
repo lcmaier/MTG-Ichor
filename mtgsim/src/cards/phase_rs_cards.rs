@@ -14,12 +14,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_restriction};
+use crate::cards::authoring::{chosen_by, sacrifice, spell_ability, static_restriction, target_player};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AffectedSet, Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    AffectedSet, Choice, ChoiceScope, ChoiceSide, ObjectFilter, ObjectSet, Pick, PlayerRef,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -148,15 +148,12 @@ pub fn diabolic_edict() -> Arc<CardData> {
             "Target player sacrifices a creature of their choice.",
             // What is sacrificed is chosen as it resolves, by the target (CR
             // 115.1) and from their own creatures (CR 701.21a).
-            Effect::Atom(
-                Primitive::Sacrifice,
-                EffectRecipient::ChosenBy(Box::new(Choice {
-                    chooser: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
-                    among: ChoiceScope::ChoosersPermanents,
-                    picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Creature))],
-                    acts_on: ChoiceSide::Chosen,
-                })),
-            ),
+            sacrifice(chosen_by(Choice {
+                chooser: target_player(),
+                among: ChoiceScope::ChoosersPermanents,
+                picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Creature))],
+                acts_on: ChoiceSide::Chosen,
+            })),
         ))
         .build()
 }

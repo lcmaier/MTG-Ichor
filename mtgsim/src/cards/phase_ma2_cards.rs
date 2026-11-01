@@ -10,11 +10,11 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::spell_ability;
+use crate::cards::authoring::{any_target, deal_damage, spell_ability};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
+use crate::types::effects::AmountExpr;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 /// Blaze — {X}{R}
@@ -30,10 +30,7 @@ pub fn blaze() -> Arc<CardData> {
         .rules_text("Blaze deals X damage to any target.")
         .ability(spell_ability(
             "Blaze deals X damage to any target.",
-            Effect::Atom(
-                Primitive::DealDamage { amount: AmountExpr::X, unpreventable: false },
-                EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
-            ),
+            deal_damage(any_target(), AmountExpr::X),
         ))
         .build()
 }

@@ -13,14 +13,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
+use crate::cards::authoring::{
+    creatures_you_control, each, each_opponent, has_base_power_and_toughness, lose_life, put_counters, static_ability, this_object,
+};
 use crate::cards::authoring::{draws_a_card, shuffles_their_library, triggered_ability, whenever, Whose};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
-    Primitive, };
+    ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, PlayerRef, };
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit};
 
@@ -28,10 +29,7 @@ use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, Trigger
 fn you_may_put_counters(amount: AmountExpr, recipient: EffectRecipient) -> Effect {
     Effect::Optional {
         chooser: PlayerRef::You,
-        effect: Box::new(Effect::Atom(
-            Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount, by: PlayerRef::You },
-            recipient,
-        )),
+        effect: Box::new(put_counters(recipient, CounterType::PlusOnePlusOne, amount)),
     }
 }
 
@@ -68,10 +66,7 @@ fn you_may_put_counters(amount: AmountExpr, recipient: EffectRecipient) -> Effec
 ///   ..., the ability will trigger only once."* (#6)
 ///   → `one_lifelink_creature_dealing_damage_twice_at_once_is_one_gain`.
 pub fn nykthos_paragon() -> Arc<CardData> {
-    let each_creature_you_control = EffectRecipient::FilteredPermanents(ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-    ));
+    let each_creature_you_control = each(creatures_you_control());
     CardDataBuilder::new("Nykthos Paragon")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 4))
         .color(Color::White)
@@ -128,17 +123,11 @@ pub fn psychosis_crawler() -> Arc<CardData> {
         )
         .ability(static_ability(
             "Psychosis Crawler's power and toughness are each equal to the number of cards in your hand.",
-            Effect::Atom(
-                Primitive::SetPowerToughness(cards_in_your_hand(), cards_in_your_hand(), Duration::WhileSourceOnBattlefield),
-                EffectRecipient::ThisObject,
-            ),
+            has_base_power_and_toughness(this_object(), cards_in_your_hand(), cards_in_your_hand()),
         ).characteristic_defining())
         .ability(triggered_ability("Whenever you draw a card, each opponent loses 1 life.", whenever(
             draws_a_card(Whose::Yours),
-            Effect::Atom(
-                Primitive::LoseLife(AmountExpr::Fixed(1)),
-                EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents)),
-            ),
+            lose_life(each_opponent(), 1),
         )))
         .build()
 }
@@ -172,7 +161,7 @@ pub fn cosis_trickster() -> Arc<CardData> {
         .rules_text("Whenever an opponent shuffles their library, you may put a +1/+1 counter on this creature.")
         .ability(triggered_ability("Whenever an opponent shuffles their library, you may put a +1/+1 counter on this creature.", whenever(
             shuffles_their_library(Whose::AnOpponents),
-            you_may_put_counters(AmountExpr::Fixed(1), EffectRecipient::ThisObject),
+            you_may_put_counters(AmountExpr::Fixed(1), this_object()),
         )))
         .build()
 }

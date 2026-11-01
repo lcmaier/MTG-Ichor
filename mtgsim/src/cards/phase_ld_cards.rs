@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_ability};
+use crate::cards::authoring::{becomes_types, each, gains, spell_ability, static_ability, target_creature, target_permanent};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
-    TargetCount, TypeChange,
+    AmountExpr, ObjectFilter, TypeChange,
 };
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
 // ===========================================================================
@@ -27,26 +27,8 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target permanent becomes an artifact in addition to its other types until end of turn.",
-            Effect::Atom(
-                Primitive::ChangeType(
-                    TypeChange {
-                        add_types: vec![CardType::Artifact],
-                        remove_types: Vec::new(),
-                        set_types: None,
-                        add_subtypes: Vec::new(),
-                        remove_subtypes: Vec::new(),
-                        set_subtypes: None,
-                        add_supertypes: Vec::new(),
-                        remove_supertypes: Vec::new(),
-                        set_supertypes: None,
-                    },
-                    Duration::UntilEndOfTurn,
-                ),
-                EffectRecipient::Target(
-                    SelectionFilter::Permanent(ObjectFilter::All),
-                    TargetCount::Exactly(1),
-                ),
-            ),
+            becomes_types(target_permanent(ObjectFilter::All), TypeChange { add_types: vec![CardType::Artifact], ..TypeChange::NONE })
+                .until_end_of_turn(),
         ))
         .build()
 }
@@ -66,38 +48,9 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target artifact becomes an artifact creature with base power and toughness 5/5 until end of turn.",
-            Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::ChangeType(
-                        TypeChange {
-                            add_types: vec![CardType::Creature],
-                            remove_types: Vec::new(),
-                            set_types: None,
-                            add_subtypes: Vec::new(),
-                            remove_subtypes: Vec::new(),
-                            set_subtypes: None,
-                            add_supertypes: Vec::new(),
-                            remove_supertypes: Vec::new(),
-                            set_supertypes: None,
-                        },
-                        Duration::UntilEndOfTurn,
-                    ),
-                    EffectRecipient::Target(
-                        SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Artifact)),
-                        TargetCount::Exactly(1),
-                    ),
-                ),
-                Effect::Atom(
-                    Primitive::SetPowerToughness(
-                        AmountExpr::Fixed(5),
-                        AmountExpr::Fixed(5),
-                        Duration::UntilEndOfTurn,
-                    ),
-                    // One instance, two atoms: "target artifact **becomes**
-                    // an artifact creature with base power and toughness 5/5".
-                    EffectRecipient::SameInstanceAs(0),
-                ),
-            ]),
+            becomes_types(target_permanent(ObjectFilter::ByType(CardType::Artifact)), TypeChange { add_types: vec![CardType::Creature], ..TypeChange::NONE })
+                .and_has_base_power_and_toughness(5, 5)
+                .until_end_of_turn(),
         ))
         .build()
 }
@@ -121,35 +74,9 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target creature gets +1/+2 and is an Angel in addition to its other types until end of turn.",
-            Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::ChangeType(
-                        TypeChange {
-                            add_types: Vec::new(),
-                            remove_types: Vec::new(),
-                            set_types: None,
-                            add_subtypes: vec![Subtype::Creature(CreatureType::Angel)],
-                            remove_subtypes: Vec::new(),
-                            set_subtypes: None,
-                            add_supertypes: Vec::new(),
-                            remove_supertypes: Vec::new(),
-                            set_supertypes: None,
-                        },
-                        Duration::UntilEndOfTurn,
-                    ),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-                ),
-                Effect::Atom(
-                    Primitive::ModifyPowerToughness(
-                        AmountExpr::Fixed(1),
-                        AmountExpr::Fixed(2),
-                        Duration::UntilEndOfTurn,
-                    ),
-                    // "Target creature **becomes** an Angel in addition to its
-                    // other types **and gains** flying" — one instance (CR 115.3).
-                    EffectRecipient::SameInstanceAs(0),
-                ),
-            ]),
+            becomes_types(target_creature(), TypeChange { add_subtypes: vec![Subtype::Creature(CreatureType::Angel)], ..TypeChange::NONE })
+                .and_gets(1, 2)
+                .until_end_of_turn(),
         ))
         .build()
 }
@@ -169,35 +96,9 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target creature is legendary and gets +1/+1 until end of turn.",
-            Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::ChangeType(
-                        TypeChange {
-                            add_types: Vec::new(),
-                            remove_types: Vec::new(),
-                            set_types: None,
-                            add_subtypes: Vec::new(),
-                            remove_subtypes: Vec::new(),
-                            set_subtypes: None,
-                            add_supertypes: vec![Supertype::Legendary],
-                            remove_supertypes: Vec::new(),
-                            set_supertypes: None,
-                        },
-                        Duration::UntilEndOfTurn,
-                    ),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-                ),
-                Effect::Atom(
-                    Primitive::ModifyPowerToughness(
-                        AmountExpr::Fixed(1),
-                        AmountExpr::Fixed(1),
-                        Duration::UntilEndOfTurn,
-                    ),
-                    // One instance: the Legendary supertype and the +2/+2 are
-                    // two atoms of one "target creature" clause (CR 115.3).
-                    EffectRecipient::SameInstanceAs(0),
-                ),
-            ]),
+            becomes_types(target_creature(), TypeChange { add_supertypes: vec![Supertype::Legendary], ..TypeChange::NONE })
+                .and_gets(1, 1)
+                .until_end_of_turn(),
         ))
         .build()
 }
@@ -229,23 +130,7 @@ pub fn blood_moon() -> Arc<CardData> {
         .rules_text("Nonbasic lands are Mountains.")
         .ability(static_ability(
             "Nonbasic lands are Mountains.",
-            Effect::Atom(
-                Primitive::ChangeType(
-                    TypeChange {
-                        add_types: Vec::new(),
-                        remove_types: Vec::new(),
-                        set_types: None,
-                        add_subtypes: Vec::new(),
-                        remove_subtypes: Vec::new(),
-                        set_subtypes: Some(mountain_set),
-                        add_supertypes: Vec::new(),
-                        remove_supertypes: Vec::new(),
-                        set_supertypes: None,
-                    },
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::FilteredPermanents(nonbasic_land_filter),
-            ),
+            becomes_types(each(nonbasic_land_filter), TypeChange { set_subtypes: Some(mountain_set), ..TypeChange::NONE }),
         ))
         .build()
 }
@@ -272,23 +157,7 @@ pub fn urborg_effect() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(
             "Each land is a Swamp in addition to its other land types.",
-            Effect::Atom(
-                Primitive::ChangeType(
-                    TypeChange {
-                        add_types: Vec::new(),
-                        remove_types: Vec::new(),
-                        set_types: None,
-                        add_subtypes: vec![Subtype::Land(LandType::Swamp)],
-                        remove_subtypes: Vec::new(),
-                        set_subtypes: None,
-                        add_supertypes: Vec::new(),
-                        remove_supertypes: Vec::new(),
-                        set_supertypes: None,
-                    },
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
-            ),
+            becomes_types(each(ObjectFilter::ByType(CardType::Land)), TypeChange { add_subtypes: vec![Subtype::Land(LandType::Swamp)], ..TypeChange::NONE }),
         ))
         .build()
 }
@@ -336,13 +205,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
         .rules_text("Lands have flying.")
         .ability(static_ability(
             "Lands have flying.",
-            Effect::Atom(
-                Primitive::GrantKeywordFlag(
-                    crate::types::keywords::KeywordFlag::Flying,
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
-            ),
+            gains(each(ObjectFilter::ByType(CardType::Land)), KeywordFlag::Flying),
         ))
         .build()
 }
@@ -379,33 +242,8 @@ pub fn march_of_the_machines() -> Arc<CardData> {
         .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.")
         .ability(static_ability(
             "Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.",
-            Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::ChangeType(
-                        TypeChange {
-                            add_types: vec![CardType::Creature],
-                            remove_types: Vec::new(),
-                            set_types: None,
-                            add_subtypes: Vec::new(),
-                            remove_subtypes: Vec::new(),
-                            set_subtypes: None,
-                            add_supertypes: Vec::new(),
-                            remove_supertypes: Vec::new(),
-                            set_supertypes: None,
-                        },
-                        Duration::WhileSourceOnBattlefield,
-                    ),
-                    EffectRecipient::FilteredPermanents(noncreature_artifact.clone()),
-                ),
-                Effect::Atom(
-                    Primitive::SetPowerToughness(
-                        AmountExpr::AffectedManaValue,
-                        AmountExpr::AffectedManaValue,
-                        Duration::WhileSourceOnBattlefield,
-                    ),
-                    EffectRecipient::FilteredPermanents(noncreature_artifact),
-                ),
-            ]),
+            becomes_types(each(noncreature_artifact), TypeChange { add_types: vec![CardType::Creature], ..TypeChange::NONE })
+                .and_has_base_power_and_toughness(AmountExpr::AffectedManaValue, AmountExpr::AffectedManaValue),
         ))
         .build()
 }
@@ -439,13 +277,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
         .rules_text("Creatures have flying.")
         .ability(static_ability(
             "Creatures have flying.",
-            Effect::Atom(
-                Primitive::GrantKeywordFlag(
-                    crate::types::keywords::KeywordFlag::Flying,
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
-            ),
+            gains(each(ObjectFilter::ByType(CardType::Creature)), KeywordFlag::Flying),
         ))
         .build()
 }
@@ -487,23 +319,7 @@ pub fn self_stripping_land() -> Arc<CardData> {
         .rules_text("Nonbasic lands are Mountains.")
         .ability(static_ability(
             "Nonbasic lands are Mountains.",
-            Effect::Atom(
-                Primitive::ChangeType(
-                    TypeChange {
-                        add_types: Vec::new(),
-                        remove_types: Vec::new(),
-                        set_types: None,
-                        add_subtypes: Vec::new(),
-                        remove_subtypes: Vec::new(),
-                        set_subtypes: Some(mountain_set),
-                        add_supertypes: Vec::new(),
-                        remove_supertypes: Vec::new(),
-                        set_supertypes: None,
-                    },
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::FilteredPermanents(nonbasic_land_filter),
-            ),
+            becomes_types(each(nonbasic_land_filter), TypeChange { set_subtypes: Some(mountain_set), ..TypeChange::NONE }),
         ))
         .build()
 }

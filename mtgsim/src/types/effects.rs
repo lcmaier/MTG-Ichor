@@ -1956,9 +1956,10 @@ pub enum Primitive {
     ///
     /// A struct variant because of the field: CR 615.12's "the damage can't be
     /// prevented" is a property of the event this primitive proposes, so the
-    /// primitive is where the card says it. Every site spells `unpreventable`
-    /// out rather than reaching a constructor — nine cards in the whole game
-    /// print the clause, and a default would let the tenth forget it silently.
+    /// primitive is where the card says it. A card file says it by the word
+    /// it picks, `deal_damage` or `deal_damage_that_cant_be_prevented`, never
+    /// by a default: nine cards in the whole game print the clause, and a
+    /// default would let the tenth forget it silently.
     DealDamage {
         amount: AmountExpr,
         /// Pinpoint Avalanche's last sentence. Becomes

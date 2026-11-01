@@ -13,14 +13,15 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    another, at_beginning_of, enters, leaves_the_battlefield, triggered_ability, whenever, Whose,
+    another, at_beginning_of, create_delayed_trigger, enters, exile, exile_until, leaves_the_battlefield, referred, return_to_the_battlefield,
+    target_permanent, triggered_ability, whenever, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount,
+    Effect, ObjectFilter, PlayerRef, ReturnUnder,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -63,7 +64,7 @@ pub fn flickerwisp() -> Arc<CardData> {
     let return_it = DelayedTriggerTemplate {
         def: Arc::new(whenever(
             at_beginning_of(StepType::End, Whose::Each),
-            Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::Referred),
+            return_to_the_battlefield(referred(), ReturnUnder::Owner),
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::NoneNamed,
@@ -83,14 +84,8 @@ pub fn flickerwisp() -> Arc<CardData> {
             whenever(
                 enters(TriggerSubject::ThisObject),
                 Effect::Sequence(vec![
-                    Effect::Remember(Box::new(Effect::Atom(
-                        Primitive::Exile,
-                        EffectRecipient::Target(
-                            SelectionFilter::Permanent(another(ObjectFilter::All)),
-                            TargetCount::Exactly(1),
-                        ),
-                    ))),
-                    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(return_it)), EffectRecipient::Controller),
+                    Effect::Remember(Box::new(exile(target_permanent(another(ObjectFilter::All))))),
+                    create_delayed_trigger(you(), return_it),
                 ]),
             ),
         ))
@@ -146,17 +141,7 @@ pub fn banishing_light() -> Arc<CardData> {
             text,
             whenever(
                 enters(TriggerSubject::ThisObject),
-                Effect::Atom(
-                    Primitive::ExileUntil {
-                        until: Box::new(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
-                        refers_to: None,
-                        under: ReturnUnder::Owner,
-                    },
-                    EffectRecipient::Target(
-                        SelectionFilter::Permanent(nonland_an_opponent_controls),
-                        TargetCount::Exactly(1),
-                    ),
-                ),
+                exile_until(target_permanent(nonland_an_opponent_controls), leaves_the_battlefield(TriggerSubject::ThisObject)),
             ),
         ))
         .build()

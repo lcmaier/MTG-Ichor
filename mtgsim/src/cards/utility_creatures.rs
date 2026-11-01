@@ -6,14 +6,11 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::activated_ability;
+use crate::cards::authoring::{activated_ability, switch_power_and_toughness, target_creature};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{
-    Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount,
-};
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Merfolk Thaumaturgist — {2}{U}
@@ -42,10 +39,7 @@ pub fn merfolk_thaumaturgist() -> Arc<CardData> {
         .ability(activated_ability(
             "{T}: Switch target creature's power and toughness until end of turn.",
             vec![Cost::TapSelf],
-            Effect::Atom(
-                Primitive::SwitchPowerToughness(Duration::UntilEndOfTurn),
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-            ),
+            switch_power_and_toughness(target_creature()).until_end_of_turn(),
         ))
         .build()
 }

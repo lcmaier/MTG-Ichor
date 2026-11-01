@@ -39,24 +39,17 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::activated_ability;
+use crate::cards::authoring::{activated_ability, add_phases, creatures_you_control, each, untap, you};
 use crate::objects::card_data::{Activation, CardData, CardDataBuilder};
 use crate::state::game_state::PhaseType;
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    Effect, EffectRecipient, ExtraPhasesAfter, ObjectFilter, PlayerRef, Primitive,
+    Effect, ExtraPhasesAfter,
 };
 use crate::types::mana::{ManaCost, ManaType};
 
-/// "creatures you control" — CR 109.5's "you" is the source's controller.
-fn creatures_you_control() -> ObjectFilter {
-    ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-    )
-}
 
 /// Aggravated Assault — {2}{R}
 /// Enchantment
@@ -121,17 +114,8 @@ pub fn aggravated_assault() -> Arc<CardData> {
             ))])
             .only_as_sorcery(),
             Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::Untap,
-                    EffectRecipient::FilteredPermanents(creatures_you_control()),
-                ),
-                Effect::Atom(
-                    Primitive::ExtraPhases {
-                        phases: vec![PhaseType::Combat, PhaseType::Postcombat],
-                        after: ExtraPhasesAfter::ThisMainPhase,
-                    },
-                    EffectRecipient::Controller,
-                ),
+                untap(each(creatures_you_control())),
+                add_phases(you(), vec![PhaseType::Combat, PhaseType::Postcombat], ExtraPhasesAfter::ThisMainPhase),
             ]),
         ))
         .build()

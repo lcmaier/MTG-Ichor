@@ -1636,6 +1636,86 @@ mod instance_references {
         }
     }
 
+    /// A second change in one sentence ("gets +1/+0 and gains first strike
+    /// until end of turn") acts on the target its first change declared.
+    ///
+    /// `authoring::Change` writes the second change's back-reference as the
+    /// effect's first instance of "target", which is right only when the
+    /// chain's own target is that first one. A chain after another target
+    /// names the wrong object and still names a declared one, so the check
+    /// above passes it: this one reads the shape the chain leaves, a
+    /// declaring change and then a change of the same duration on
+    /// `SameInstanceAs`, and asks that the reference is to the instance the
+    /// change before it declared.
+    #[test]
+    fn a_chained_change_refers_to_the_target_its_first_change_declared() {
+        use crate::types::effects::{Duration, Primitive};
+
+        fn duration(primitive: &Primitive) -> Option<Duration> {
+            match primitive {
+                Primitive::SetPowerToughness(_, _, d)
+                | Primitive::ModifyPowerToughness(_, _, d)
+                | Primitive::SwitchPowerToughness(d)
+                | Primitive::GrantKeywordFlag(_, d)
+                | Primitive::RemoveKeywordFlag(_, d)
+                | Primitive::GrantAbility(_, d)
+                | Primitive::LoseAbility(_, d)
+                | Primitive::LoseAllAbilities(d)
+                | Primitive::ChangeColor(_, d)
+                | Primitive::ChangeType(_, d)
+                | Primitive::GainControl { duration: d, .. }
+                | Primitive::Copy { duration: d, .. }
+                | Primitive::Restrict(_, d)
+                | Primitive::CreateReplacement(_, d, _) => Some(*d),
+                _ => None,
+            }
+        }
+        fn check(what: &str, whole: &Effect, effect: &Effect, chains: &mut usize) {
+            let declared_at = |recipient: &EffectRecipient| {
+                (0..).map_while(|ix| whole.instance(ix).map(|r| (ix, r))).find(|(_, r)| std::ptr::eq(*r, recipient)).map(|(ix, _)| ix)
+            };
+            match effect {
+                Effect::Sequence(subs) => {
+                    for pair in subs.windows(2) {
+                        if let [Effect::Atom(first, recipient), Effect::Atom(second, EffectRecipient::SameInstanceAs(ix))] = pair
+                            && let Some(own) = declared_at(recipient)
+                            && duration(first).is_some()
+                            && duration(first) == duration(second)
+                        {
+                            assert_eq!(*ix, own, "{what}: a change chained to instance {own} of \"target\" names instance {ix}");
+                            *chains += 1;
+                        }
+                    }
+                    subs.iter().for_each(|sub| check(what, whole, sub, chains));
+                }
+                Effect::Conditional(_, inner)
+                | Effect::FunctionsIn(_, inner)
+                | Effect::Optional { effect: inner, .. }
+                | Effect::Remember(inner) => check(what, whole, inner, chains),
+                Effect::Triggered(def) => check(what, &def.effect, &def.effect, chains),
+                _ => {}
+            }
+        }
+
+        let registry = CardRegistry::default_registry();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        let mut chains = 0;
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            for (i, ability) in card.abilities.iter().enumerate() {
+                if ability.ability_type != crate::objects::card_data::AbilityType::Spell {
+                    check(&format!("{name} ability #{i}"), &ability.effect, &ability.effect, &mut chains);
+                }
+            }
+            if let Some(effect) = crate::objects::card_data::spell_effect(&card.abilities) {
+                check(&format!("{name} as a spell"), &effect, &effect, &mut chains);
+            }
+        }
+        // Crimson Wisps' "becomes red and gains haste" is one.
+        assert!(chains > 0, "no registered card chains a change to a target, so this check reads nothing");
+    }
+
     /// For every registered card, the stored lists of instances of "target"
     /// (CR 115.3) — `AbilityDef::instances` on each def, `CardData::spell_instances`
     /// on the card — equal what `Effect::instances` derives from the effect tree.

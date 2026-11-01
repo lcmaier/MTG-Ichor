@@ -14,13 +14,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{static_ability, static_replacement};
+use crate::cards::authoring::{
+    as_long_as, becomes_colorless, each_in, gains, gets, is_also_color, loses_all_abilities, static_ability, static_replacement, this_object,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, ColorChange, Condition, Duration, Effect, EffectRecipient, ObjectFilter,
-    PlayerFact, PlayerRef, PlayerSet, Primitive,
+    Condition, ObjectFilter,
+    PlayerFact, PlayerRef, PlayerSet,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -70,10 +72,7 @@ pub fn yixlid_jailer() -> Arc<CardData> {
         .rules_text("Cards in graveyards lose all abilities.")
         .ability(static_ability(
             "Cards in graveyards lose all abilities.",
-            Effect::Atom(
-                Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
-                EffectRecipient::FilteredObjectsIn(ObjectFilter::All, ZoneSet::GRAVEYARD),
-            ),
+            loses_all_abilities(each_in(ObjectFilter::All, ZoneSet::GRAVEYARD)),
         ))
         .build()
 }
@@ -148,10 +147,10 @@ pub fn graveyard_painter() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Artifact)
         .rules_text("Cards in graveyards are red in addition to their other colors.")
-        .ability(static_ability("Cards in graveyards are red in addition to their other colors.", Effect::Atom(
-            Primitive::ChangeColor(ColorChange::Add(Color::Red), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredObjectsIn(ObjectFilter::All, ZoneSet::GRAVEYARD),
-        )))
+        .ability(static_ability(
+            "Cards in graveyards are red in addition to their other colors.",
+            is_also_color(each_in(ObjectFilter::All, ZoneSet::GRAVEYARD), Color::Red),
+        ))
         .build()
 }
 
@@ -176,20 +175,13 @@ pub fn graveyard_reveler() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Zombie))
         .power_toughness(1, 1)
         .rules_text("This creature gets +2/+2 as long as there's a red card in your graveyard.")
-        .ability(static_ability("This creature gets +2/+2 as long as there's a red card in your graveyard.", Effect::Conditional(
-            Condition::Player {
-                players: PlayerSet::You,
-                fact: PlayerFact::CardInGraveyard(ObjectFilter::ByColor(Color::Red)),
-            },
-            Box::new(Effect::Atom(
-                Primitive::ModifyPowerToughness(
-                    AmountExpr::Fixed(2),
-                    AmountExpr::Fixed(2),
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::ThisObject,
-            )),
-        )))
+        .ability(static_ability(
+            "This creature gets +2/+2 as long as there's a red card in your graveyard.",
+            as_long_as(
+                Condition::Player { players: PlayerSet::You, fact: PlayerFact::CardInGraveyard(ObjectFilter::ByColor(Color::Red)) },
+                gets(this_object(), 2, 2),
+            ),
+        ))
         .build()
 }
 
@@ -218,16 +210,16 @@ pub fn teferi_flash_clause() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Artifact)
         .rules_text("Creature cards you own that aren't on the battlefield have flash.")
-        .ability(static_ability("Creature cards you own that aren't on the battlefield have flash.", Effect::Atom(
-            Primitive::GrantKeywordFlag(KeywordFlag::Flash, Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredObjectsIn(
-                ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByOwner(PlayerRef::You)),
+        .ability(static_ability(
+            "Creature cards you own that aren't on the battlefield have flash.",
+            gains(
+                each_in(
+                    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByOwner(PlayerRef::You))),
+                    ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
                 ),
-                ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
+                KeywordFlag::Flash,
             ),
-        )))
+        ))
         .build()
 }
 
@@ -243,9 +235,9 @@ pub fn lattice_colorless_clause() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Artifact)
         .rules_text("All cards that aren't on the battlefield are colorless.")
-        .ability(static_ability("All cards that aren't on the battlefield are colorless.", Effect::Atom(
-            Primitive::ChangeColor(ColorChange::RemoveAll, Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredObjectsIn(ObjectFilter::All, ZoneSet::EVERYWHERE_BUT_BATTLEFIELD),
-        )))
+        .ability(static_ability(
+            "All cards that aren't on the battlefield are colorless.",
+            becomes_colorless(each_in(ObjectFilter::All, ZoneSet::EVERYWHERE_BUT_BATTLEFIELD)),
+        ))
         .build()
 }

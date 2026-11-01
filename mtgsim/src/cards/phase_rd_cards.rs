@@ -141,14 +141,17 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, spell_ability, static_replacement};
+use crate::cards::authoring::{
+    activated_ability, any_target, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, creatures_you_control,
+    deal_damage, deal_damage_that_cant_be_prevented, each, gain_life, mill, spell_ability, static_replacement, target_creature, target_player,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
-    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AffectedSet, ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter,
+    PlayerRef, PlayerSet, SelectionFilter,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -394,13 +397,13 @@ pub fn angel_of_suffering() -> Arc<CardData> {
                 PlayerSet::You,
                 Rewrite::Prevent,
             )
-            .with_then(Effect::Atom(
-                Primitive::Mill(AmountExpr::Multiply(Box::new(AmountExpr::ReplacedAmount), 2)),
+            .with_then(mill(
                 // The rider's single resolved target is the event's subject —
                 // the player the damage was aimed at, which for this card is
                 // always the Angel's controller and for the next one on this
                 // path may not be.
-                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                target_player(),
+                AmountExpr::Multiply(Box::new(AmountExpr::ReplacedAmount), 2),
             )),
         ))
         .build()
@@ -451,34 +454,19 @@ pub fn loyalty_probe() -> Arc<CardData> {
 /// Censer-Bearer, with each creature its filter finds — and the duration is the
 /// card's "this turn", authored here because CR 608.2c will not let the engine
 /// infer it.
-fn prevent_the_next_this_turn(n: u64) -> Primitive {
-    Primitive::CreateReplacement(
-        Box::new(
-            ReplacementDef::new(
-                EventPattern::DealDamage { source: None, combat: None },
-                ObjectSet::NO_OBJECTS,
-                Rewrite::Amount(AmountRewrite::PreventRemaining),
-            )
-            .next_damage(n),
-        ),
-        Duration::UntilEndOfTurn,
-        PatternFill::Authored,
+fn prevent_the_next_this_turn(recipient: EffectRecipient, n: u64) -> Effect {
+    create_replacement_for(
+        recipient,
+        ReplacementDef::new(
+            EventPattern::DealDamage { source: None, combat: None },
+            ObjectSet::NO_OBJECTS,
+            Rewrite::Amount(AmountRewrite::PreventRemaining),
+        )
+        .next_damage(n),
     )
+    .until_end_of_turn()
 }
 
-/// "any target" — CR 115.4's creature, player or planeswalker.
-fn any_target() -> EffectRecipient {
-    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1))
-}
-
-/// "creatures you control", as a filter the layer walk resolves against the
-/// row's controller (CR 109.5).
-fn creatures_you_control() -> ObjectFilter {
-    ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-    )
-}
 
 /// Mending Hands — {W}
 ///
@@ -504,7 +492,7 @@ pub fn mending_hands() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Prevent the next 4 damage that would be dealt to any target this turn.")
         .ability(spell_ability("Prevent the next 4 damage that would be dealt to any target this turn.",
-            Effect::Atom(prevent_the_next_this_turn(4), any_target()),
+            prevent_the_next_this_turn(any_target(), 4),
         ))
         .build()
 }
@@ -530,7 +518,7 @@ pub fn samite_healer() -> Arc<CardData> {
         .rules_text("{T}: Prevent the next 1 damage that would be dealt to any target this turn.")
         .ability(activated_ability("{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
             vec![Cost::TapSelf],
-            Effect::Atom(prevent_the_next_this_turn(1), any_target()),
+            prevent_the_next_this_turn(any_target(), 1),
         ))
         .build()
 }
@@ -566,20 +554,12 @@ pub fn safe_passage() -> Arc<CardData> {
             "Prevent all damage that would be dealt to you and creatures you control this turn.",
         )
         .ability(spell_ability("Prevent all damage that would be dealt to you and creatures you control this turn.",
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(
-                        ReplacementDef::new(
-                            EventPattern::DealDamage { source: None, combat: None },
-                            AffectedSet { objects: ObjectSet::battlefield_filter(creatures_you_control()), players: PlayerSet::You },
-                            Rewrite::Prevent,
-                        ),
-                    ),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::Authored,
-                ),
-                EffectRecipient::Implicit,
-            ),
+            create_replacement(ReplacementDef::new(
+                EventPattern::DealDamage { source: None, combat: None },
+                AffectedSet { objects: ObjectSet::battlefield_filter(creatures_you_control()), players: PlayerSet::You },
+                Rewrite::Prevent,
+            ))
+            .until_end_of_turn(),
         ))
         .build()
 }
@@ -617,10 +597,7 @@ pub fn samite_censer_bearer() -> Arc<CardData> {
         )
         .ability(activated_ability("{W}, Sacrifice this creature: Prevent the next 1 damage that would be dealt to each creature you control this turn.",
             vec![Cost::Mana(ManaCost::build(&[ManaType::White], 0)), Cost::SacrificeSelf],
-            Effect::Atom(
-                prevent_the_next_this_turn(1),
-                EffectRecipient::FilteredPermanents(creatures_you_control()),
-            ),
+            prevent_the_next_this_turn(each(creatures_you_control()), 1),
         ))
         .build()
 }
@@ -702,17 +679,8 @@ pub fn circle_of_protection_red() -> Arc<CardData> {
         )
         .ability(activated_ability("{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
             vec![Cost::Mana(ManaCost::build(&[], 1))],
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(the_next_damage_from_a_chosen_source(
-                        Some(ObjectFilter::ByColor(Color::Red)),
-                        Rewrite::Prevent,
-                    )),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::ChosenDamageSource,
-                ),
-                EffectRecipient::Implicit,
-            ),
+            create_replacement_from_a_chosen_source(the_next_damage_from_a_chosen_source(Some(ObjectFilter::ByColor(Color::Red)), Rewrite::Prevent))
+                .until_end_of_turn(),
         ))
         .build()
 }
@@ -748,24 +716,10 @@ pub fn reverse_damage() -> Arc<CardData> {
              prevent that damage. You gain life equal to the damage prevented this way.",
         )
         .ability(spell_ability("The next time a source of your choice would deal damage to you this turn, prevent that damage. You gain life equal to the damage prevented this way.",
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(
-                        the_next_damage_from_a_chosen_source(None, Rewrite::Prevent).with_then(
-                            Effect::Atom(
-                                Primitive::GainLife(AmountExpr::DamagePrevented),
-                                EffectRecipient::Target(
-                                    SelectionFilter::Player,
-                                    TargetCount::Exactly(1),
-                                ),
-                            ),
-                        ),
-                    ),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::ChosenDamageSource,
-                ),
-                EffectRecipient::Implicit,
-            ),
+            create_replacement_from_a_chosen_source(
+                the_next_damage_from_a_chosen_source(None, Rewrite::Prevent).with_then(gain_life(target_player(), AmountExpr::DamagePrevented)),
+            )
+            .until_end_of_turn(),
         ))
         .build()
 }
@@ -799,17 +753,11 @@ pub fn dark_sphere() -> Arc<CardData> {
         )
         .ability(activated_ability("{T}, Sacrifice this artifact: The next time a source of your choice would deal damage to you this turn, prevent half that damage, rounded down.",
             vec![Cost::TapSelf, Cost::SacrificeSelf],
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(the_next_damage_from_a_chosen_source(
-                        None,
-                        Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Down)),
-                    )),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::ChosenDamageSource,
-                ),
-                EffectRecipient::Implicit,
-            ),
+            create_replacement_from_a_chosen_source(the_next_damage_from_a_chosen_source(
+                None,
+                Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Down)),
+            ))
+            .until_end_of_turn(),
         ))
         .build()
 }
@@ -939,10 +887,7 @@ pub fn pyroclasm() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("Pyroclasm deals 2 damage to each creature.")
         .ability(spell_ability("Pyroclasm deals 2 damage to each creature.",
-            Effect::Atom(
-                Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
-                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
-            ),
+            deal_damage(each(ObjectFilter::ByType(CardType::Creature)), 2),
         ))
         .build()
 }
@@ -969,20 +914,12 @@ pub fn fog() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Prevent all combat damage that would be dealt this turn.")
         .ability(spell_ability("Prevent all combat damage that would be dealt this turn.",
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(
-                        ReplacementDef::new(
-                            EventPattern::DealDamage { source: None, combat: Some(true) },
-                            AffectedSet { objects: affected, players },
-                            Rewrite::Prevent,
-                        ),
-                    ),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::Authored,
-                ),
-                EffectRecipient::Implicit,
-            ),
+            create_replacement(ReplacementDef::new(
+                EventPattern::DealDamage { source: None, combat: Some(true) },
+                AffectedSet { objects: affected, players },
+                Rewrite::Prevent,
+            ))
+            .until_end_of_turn(),
         ))
         .build()
 }
@@ -1195,10 +1132,7 @@ pub fn pinpoint_avalanche() -> Arc<CardData> {
              prevented.",
         )
         .ability(spell_ability("Pinpoint Avalanche deals 4 damage to target creature. The damage can't be prevented.",
-            Effect::Atom(
-                Primitive::DealDamage { amount: AmountExpr::Fixed(4), unpreventable: true },
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-            ),
+            deal_damage_that_cant_be_prevented(target_creature(), 4),
         ))
         .build()
 }
@@ -1233,24 +1167,15 @@ pub fn reflect_damage() -> Arc<CardData> {
              is dealt to that source's controller instead.",
         )
         .ability(spell_ability("The next time a source of your choice would deal damage this turn, that damage is dealt to that source's controller instead.",
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(
-                        ReplacementDef::new(
-                            EventPattern::DealDamage {
-                                source: Some(SourcePattern::chosen()),
-                                combat: None,
-                            },
-                            AffectedSet { objects: affected, players },
-                            Rewrite::Retarget(RetargetSpec::ToDamageSourceController),
-                        )
-                        .once(),
-                    ),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::ChosenDamageSource,
-                ),
-                EffectRecipient::Implicit,
-            ),
+            create_replacement_from_a_chosen_source(
+                ReplacementDef::new(
+                    EventPattern::DealDamage { source: Some(SourcePattern::chosen()), combat: None },
+                    AffectedSet { objects: affected, players },
+                    Rewrite::Retarget(RetargetSpec::ToDamageSourceController),
+                )
+                .once(),
+            )
+            .until_end_of_turn(),
         ))
         .build()
 }
@@ -1268,7 +1193,7 @@ mod tests {
         place_vanilla_creature, put_on_battlefield, set_attacking, setup_two_player_game,
         test_ctx, RecordingDecisionProvider,
     };
-    use crate::types::effects::CounterType;
+    use crate::types::effects::{CounterType, Duration, PatternFill, Primitive};
 
     /// A 2/2 for P0 and a board with no replacement source but the one under
     /// test. Damage to a *creature* throughout: RD-1's tests of damage to a

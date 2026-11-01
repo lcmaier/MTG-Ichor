@@ -21,13 +21,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{another, at_beginning_of, dies, enters, triggered_ability, whenever, Whose};
+use crate::cards::authoring::{
+    another, at_beginning_of, create, dies, enters, gain_life, host, its_controller_adds, lose_life, target_player, triggered_ability, whenever,
+    win_the_game, you, Whose,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerFact, PlayerSet,
-    Primitive, SelectionFilter, TargetCount, TokenDef,
+    AmountExpr, Condition, Effect, ManaOutput, ObjectFilter, PlayerFact, PlayerSet, SelectionFilter, TokenDef,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -59,7 +61,7 @@ pub fn soul_warden() -> Arc<CardData> {
         .rules_text("Whenever another creature enters, you gain 1 life.")
         .ability(triggered_ability("Whenever another creature enters, you gain 1 life.", whenever(
             enters(another(ObjectFilter::ByType(CardType::Creature))),
-            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            gain_life(you(), 1),
         )))
         .build()
 }
@@ -91,11 +93,8 @@ pub fn blood_artist() -> Arc<CardData> {
         .ability(triggered_ability("Whenever this creature or another creature dies, target player loses 1 life and you gain 1 life.", whenever(
             dies(ObjectFilter::ByType(CardType::Creature)),
             Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::LoseLife(AmountExpr::Fixed(1)),
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
-                ),
-                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                lose_life(target_player(), 1),
+                gain_life(you(), 1),
             ]),
         )))
         .build()
@@ -145,10 +144,7 @@ pub fn verdant_force() -> Arc<CardData> {
         .rules_text("At the beginning of each upkeep, create a 1/1 green Saproling creature token.")
         .ability(triggered_ability("At the beginning of each upkeep, create a 1/1 green Saproling creature token.", whenever(
             at_beginning_of(StepType::Upkeep, Whose::Each),
-            Effect::Atom(
-                Primitive::CreateToken(saproling_token(), AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
-            ),
+            create(you(), 1, saproling_token()),
         )))
         .build()
 }
@@ -183,13 +179,7 @@ pub fn wild_growth() -> Arc<CardData> {
         .enchant_filter(SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Land)))
         .ability(triggered_ability("Whenever enchanted land is tapped for mana, its controller adds an additional {G}.", whenever(
             TriggerEvent::ManaAdded { source: TriggerSubject::Host, tapped_for_mana: Some(true), mana: None },
-            Effect::Atom(
-                Primitive::ProduceMana(ManaOutput {
-                    mana: vec![(ManaType::Green, AmountExpr::Fixed(1))],
-                    special: vec![],
-                }),
-                EffectRecipient::Host,
-            ),
+            its_controller_adds(host(), ManaOutput { mana: vec![(ManaType::Green, AmountExpr::Fixed(1))], special: vec![] }),
         )))
         .build()
 }
@@ -234,7 +224,7 @@ pub fn felidar_sovereign() -> Arc<CardData> {
                 fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(40)),
             }),
             limit: None,
-            effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Controller),
+            effect: win_the_game(you()),
         }))
         .build()
 }

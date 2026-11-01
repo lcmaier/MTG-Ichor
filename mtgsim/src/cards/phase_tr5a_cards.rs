@@ -10,13 +10,13 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
+use crate::cards::authoring::{each, gains, put_counters, static_ability, triggering};
 use crate::cards::authoring::{triggered_ability, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    CounterType, ObjectFilter, PlayerRef,
 };
 use crate::types::history::CountIs;
 use crate::types::keywords::KeywordFlag;
@@ -62,16 +62,7 @@ pub fn sphere_grid() -> Arc<CardData> {
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
-    let counter_on_that_creature = Effect::Atom(
-        Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::Triggering(EventRole::DamageSource),
-    );
-    let grant = |keyword: KeywordFlag| {
-        Effect::Atom(
-            Primitive::GrantKeywordFlag(keyword, Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(with_a_counter.clone()),
-        )
-    };
+    let counter_on_that_creature = put_counters(triggering(EventRole::DamageSource), CounterType::PlusOnePlusOne, 1);
     CardDataBuilder::new("Sphere Grid")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .color(Color::Green)
@@ -80,7 +71,7 @@ pub fn sphere_grid() -> Arc<CardData> {
         .ability(triggered_ability(trigger_text, whenever(deals_combat_damage_to_a_player, counter_on_that_creature)))
         .ability(static_ability(
             unlock_text,
-            Effect::Sequence(vec![grant(KeywordFlag::Reach), grant(KeywordFlag::Trample)]),
+            gains(each(with_a_counter), KeywordFlag::Reach).and_gains(KeywordFlag::Trample),
         ))
         .build()
 }

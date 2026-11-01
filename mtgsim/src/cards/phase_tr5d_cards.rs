@@ -12,15 +12,14 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::spell_ability;
+use crate::cards::authoring::{create, create_replacement, deal_damage, put_counters, spell_ability, target_creature, this_object, you};
 use crate::cards::authoring::{damage_to_is_prevented, enters, triggered_ability, whenever};
 use crate::cards::phase_re_cards::goblin_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, PatternFill, PlayerRef, PlayerSet, Primitive,
-    SelectionFilter, TargetCount,
+    AmountExpr, CounterType, Effect, PlayerRef, PlayerSet,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -54,14 +53,8 @@ pub fn selfless_squire() -> Arc<CardData> {
     let shield_text = "When this creature enters, prevent all damage that would be dealt to you this turn.";
     let growth_text = "Whenever damage that would be dealt to you is prevented, put that many +1/+1 counters on this creature.";
     let prevent_all_to_you = ReplacementDef::new(EventPattern::DealDamage { source: None, combat: None }, PlayerSet::You, Rewrite::Prevent);
-    let shield = Effect::Atom(
-        Primitive::CreateReplacement(Box::new(prevent_all_to_you), Duration::UntilEndOfTurn, PatternFill::Authored),
-        EffectRecipient::Implicit,
-    );
-    let growth = Effect::Atom(
-        Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::TriggeringAmount, by: PlayerRef::You },
-        EffectRecipient::ThisObject,
-    );
+    let shield = create_replacement(prevent_all_to_you).until_end_of_turn();
+    let growth = put_counters(this_object(), CounterType::PlusOnePlusOne, AmountExpr::TriggeringAmount);
     CardDataBuilder::new("Selfless Squire")
         .mana_cost(ManaCost::build(&[ManaType::White], 3))
         .color(Color::White)
@@ -115,14 +108,8 @@ pub fn goblin_negotiation() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::DealDamage { amount: AmountExpr::X, unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-                ),
-                Effect::Atom(
-                    Primitive::CreateToken(goblin_token(), AmountExpr::ExcessDamageDealtThisWay),
-                    EffectRecipient::Controller,
-                ),
+                deal_damage(target_creature(), AmountExpr::X),
+                create(you(), AmountExpr::ExcessDamageDealtThisWay, goblin_token()),
             ]),
         ))
         .build()

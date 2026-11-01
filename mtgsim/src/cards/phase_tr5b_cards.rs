@@ -11,7 +11,9 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::activated_ability;
+use crate::cards::authoring::{
+    activated_ability, create_delayed_trigger, put_counters, remove_counters, target_permanent, this_object, win_the_game, you,
+};
 use crate::cards::authoring::static_replacement;
 use crate::cards::authoring::{at_beginning_of, counters_put_on, counters_removed_from, triggered_ability, whenever, Whose};
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -20,8 +22,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    Antecedent, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
-    SelectionFilter, TargetCount,
+    Antecedent, AmountExpr, Condition, CounterType, ObjectFilter, ObjectSet, PlayerRef,
 };
 use crate::types::history::CountIs;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -70,10 +71,7 @@ pub fn simic_ascendancy() -> Arc<CardData> {
     let growth_text = "Whenever one or more +1/+1 counters are put on a creature you control, put that many growth counters on this enchantment.";
     let win_text =
         "At the beginning of your upkeep, if this enchantment has twenty or more growth counters on it, you win the game.";
-    let growth = Effect::Atom(
-        Primitive::AddCounters { counter: CounterType::Growth, amount: AmountExpr::TriggeringAmount, by: PlayerRef::You },
-        EffectRecipient::ThisObject,
-    );
+    let growth = put_counters(this_object(), CounterType::Growth, AmountExpr::TriggeringAmount);
     let win = TriggerDef {
         condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
         intervening_if: Some(Condition::CounterCount {
@@ -82,7 +80,7 @@ pub fn simic_ascendancy() -> Arc<CardData> {
             count: CountIs::AtLeast(20),
         }),
         limit: None,
-        effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Controller),
+        effect: win_the_game(you()),
     };
     CardDataBuilder::new("Simic Ascendancy")
         .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Blue], 0))
@@ -93,10 +91,7 @@ pub fn simic_ascendancy() -> Arc<CardData> {
         .ability(activated_ability(
             activated_text,
             vec![Cost::Mana(ManaCost::build(&[ManaType::Green, ManaType::Blue], 1))],
-            Effect::Atom(
-                Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-                EffectRecipient::Target(SelectionFilter::Permanent(a_creature_you_control()), TargetCount::Exactly(1)),
-            ),
+            put_counters(target_permanent(a_creature_you_control()), CounterType::PlusOnePlusOne, 1),
         ))
         .ability(triggered_ability(
             growth_text,
@@ -161,20 +156,14 @@ pub fn protean_hydra() -> Arc<CardData> {
     let two_more = DelayedTriggerTemplate {
         def: Arc::new(whenever(
             at_beginning_of(StepType::End, Whose::Each),
-            Effect::Atom(
-                Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(2), by: PlayerRef::You },
-                EffectRecipient::ThisObject,
-            ),
+            put_counters(this_object(), CounterType::PlusOnePlusOne, 2),
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::NoneNamed,
         rules_text: "Put two +1/+1 counters on it at the beginning of the next end step.".into(),
     };
     let prevent = ReplacementDef::new(EventPattern::DealDamage { source: None, combat: None }, ObjectSet::SourceOnly, Rewrite::Prevent)
-        .with_then(Effect::Atom(
-            Primitive::RemoveCounters(CounterType::PlusOnePlusOne, AmountExpr::ReplacedAmount),
-            EffectRecipient::ThisObject,
-        ));
+        .with_then(remove_counters(this_object(), CounterType::PlusOnePlusOne, AmountExpr::ReplacedAmount));
     CardDataBuilder::new("Protean Hydra")
         .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Green)]))
         .color(Color::Green)
@@ -195,7 +184,7 @@ pub fn protean_hydra() -> Arc<CardData> {
             grow_text,
             whenever(
                 counters_removed_from(TriggerSubject::ThisObject, CounterType::PlusOnePlusOne),
-                Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(two_more)), EffectRecipient::Controller),
+                create_delayed_trigger(you(), two_more),
             ),
         ))
         .build()
