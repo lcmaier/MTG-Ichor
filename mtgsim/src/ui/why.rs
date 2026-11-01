@@ -1105,9 +1105,9 @@ fn changes(before: &EffectiveCharacteristics, after: &EffectiveCharacteristics) 
     out
 }
 
-/// Each ability's words, an ability the engine builds as several parts once,
-/// as `ui::display` prints a permanent's: its parts share a paragraph and,
-/// when granted, the grant.
+/// Each ability's words, a paragraph several abilities share once, as
+/// `ui::display` prints a permanent's: CR 603.11's linked abilities share a
+/// paragraph and, when granted, the grant.
 fn ability_words(abilities: &[AbilityDef]) -> Vec<&'static str> {
     let mut shown: Vec<(&'static str, Option<u16>, Option<RowId>)> = Vec::new();
     for ability in abilities {
