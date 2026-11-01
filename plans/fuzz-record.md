@@ -96,6 +96,35 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-10-31 for `card-layer-cleanup`'s second PR, the instruction words**
+(`cards/card-instruction-words`: every card-file instruction built by a verb and
+recipient word, `RowId::UNASSIGNED`, every reader of a static body taking each
+member of its kind, and Platinum Angel as one ability). No pool changed, so no
+table is re-recorded. One `close_out.py` sitting against **main** `856aafd1`
+(#301's merge): **engine** `0a36c0ad`, every code commit.
+
+**Predictions, written before any arm's output was read**: every gameplay row
+`IDENTICAL`, since every card but Platinum Angel fingerprints equal and it is
+not pooled; the cost rows unchanged; instructions a decision within ±1%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
+| instructions / decision, callgrind, the budget's board | | 0.6432 M → 0.6480 M, **+0.75%**; at the final head after the pre-review's fixes (`c8e59d25`) the same, every row above identical |
+| inclusive, the replacement gather: `gather` / `apply_replacements` / `prohibition_sweeping` | | 463.2 M → 462.2 M / 616.0 M → 616.0 M / 120.1 M → 121.4 M |
+| moved, inclusive: `run_turn_steps` / `advance_turn`; `get_effective_abilities` / `ManaAbilityWindowOffer::read`; `EffectiveCharacteristics`' drop glue | | −8.4 / +8.4; +5.1 / −3.4; between functions, each in one arm only: inlining boundaries |
+
+**The gather, which the readers sit on**: flat. Its reads became iterators over
+a static body's members (`Effect::static_members`) where they matched one
+shape, and the member index a replacement instance carries is a byte in the
+enum tag's padding, so `GameEvent` stays at 80 bytes. Nothing moved past its
+prediction.
+
+**CI's other sittings, run locally**: the release clone, history and
+scenario tests pass; the `release-checked` stress sitting (50 games, seed
+12345) exits clean, 0 errors and 0 panics.
+
 **Measured 2026-10-31 for `card-layer-cleanup`'s first PR, the ability words**
 (`cards/card-layer-cleanup`, PR #301: every `AbilityDef` built by a word or
 `AbilityDef::new`, the instance lists private, the activated kinds' `Activation`,

@@ -4908,8 +4908,12 @@ damage is divided only among the attackers it blocks.
     **The abilities landed in its first PR (2026-10-31):** every
     `AbilityDef` outside `objects::card_data` is built by a word in
     `cards/authoring/abilities.rs` or by `AbilityDef::new`, and the private
-    copies are gone. The instructions and the move are its next two PRs
-    (`plans/handoffs/card-layer-cleanup.md`, "The split").
+    copies are gone. **The instructions landed in its second (2026-10-31):**
+    every card file's instruction is a verb in `cards/authoring/instructions.rs`
+    on a recipient in `recipients.rs`, a continuous change stating its
+    duration as a suffix, and four files' private recipient words are the
+    shared ones. The move is its third PR (`plans/handoffs/card-layer-cleanup.md`,
+    "The split").
 
 ### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
 
@@ -10440,9 +10444,45 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      reshape. Both go together: once the file goes, the `Debug` is derived
      again, and prints the kind as it now is.
      **Reachability (2026-10-31):** nothing owed in a game — test
-     scaffolding; every fingerprint matches.
+     scaffolding; every fingerprint matches. The file was rewritten once, at
+     PR 2, for Platinum Angel alone, which became the one ability its
+     paragraph is.
+     **Owed when the file goes**, spellings the pin held to the base's
+     values: Crimson Wisps' and Call to Serve's chains follow their text's
+     order ("becomes red and gains haste", "gets +1/+2 and is an Angel"); a
+     row complete as authored has one word, where today it is
+     `create_replacement(def)` beside `create_replacement_for(you(), def)`,
+     and Skullcrack's `cant(you(), …)` names a recipient its resolution
+     reads as none; and "in addition to its other types" has one
+     constructor, where today it is two private helpers beside
+     `..TypeChange::NONE`.
      **Sized:** ~200 lines out (the test and its file) and ~20 back to a
-     derive.
+     derive; the owed spellings ~60 more, each a fingerprint that moves.
      **Slotted:** `card-layer-cleanup`, at its last mechanical PR's
      close-out (the move, PR 3 of its design note's split).
+
+### Found by `card-layer-cleanup`'s second PR (2026-10-31)
+
+359. **A layer change with its own "as long as" inside one ability's list
+     is refused.** One paragraph is one ability (CR 113.2c), and printed
+     cards give one member of it a condition of its own beside another:
+     Clutch of Undeath's "Enchanted creature gets +3/+3 as long as it's a
+     Zombie. Otherwise, it gets -3/-3", Bonds of Faith's "+2/+2 as long as
+     it's a Human. Otherwise, it can't attack or block", Tenza, Godo's
+     Maul's two clauses after an unconditional +1/+1. Counted on Scryfall
+     (`game:paper -is:funny`, 2026-10-31): `o:/as long as [^.]*\. otherwise, /`
+     13, `o:". as long as"` 4. The other kinds' readers take a member's own
+     clause (`Effect::static_members`), but a layer row's CR 604.2
+     existence check asks only the ability's one clause, so the lowering
+     refuses a layer change carrying its own: loud in tests, dropped in
+     release.
+     **Reachability (2026-10-31):** unreachable — no registered card writes
+     the shape, and the lowering's assert stops the first that does.
+     **Sized:** the row names its member as the replacement instance does:
+     `EffectOrigin::StaticAbility` gains the member's place (28 sites), the
+     lowering records it on each route (printed, granted, copied, the
+     look-ahead), and the existence check and the condition's reads take
+     that member's clause; ~100–150 lines with tests.
+     **Slotted:** `combat-restrictions`, whose Aura paragraphs bring the
+     first of these cards (Bonds of Faith's "can't attack or block").
 
