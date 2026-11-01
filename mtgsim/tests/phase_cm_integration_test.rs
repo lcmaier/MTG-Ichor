@@ -269,7 +269,9 @@ fn test_a_chosen_alternative_cost_is_modified_too() {
 // ---------------------------------------------------------------------------
 
 /// A `DecisionProvider` that records the options it was asked to order and
-/// answers with a scripted permutation.
+/// answers with a scripted permutation, by position on purpose: its tests
+/// walk every permutation to show each order agrees, and one of the sources
+/// is a spell whose id the cast creates.
 struct OrderingDp {
     order: Vec<usize>,
     offered: RefCell<Vec<Vec<ChoiceOption>>>,
