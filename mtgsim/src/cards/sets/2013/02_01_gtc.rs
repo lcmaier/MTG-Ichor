@@ -57,8 +57,8 @@ use crate::types::restriction::{ReplacementKindFilter, Restriction};
 /// # In `PERFORMANCE_POOL`
 ///
 /// The dynamic amount is a second new engine path RC-5 opened, and it is
-/// the one that costs a layer read per application. With `Everywhere` in the
-/// pool a `{2}{G}{U}` card is castable in every deck.
+/// the one that costs a layer read per application. With the five-color land
+/// in the pool a `{2}{G}{U}` card is castable in every deck.
 pub fn master_biomancer() -> Arc<CardData> {
     CardDataBuilder::new("Master Biomancer")
         .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Blue], 2))

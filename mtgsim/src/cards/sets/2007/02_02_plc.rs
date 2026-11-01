@@ -15,7 +15,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// `{T}: Switch target creature's power and toughness until end of turn.`
 ///
 /// The pool's only Layer 7d source, and the reason it is a creature rather than
-/// the instant that already existed as a fixture: `fixtures::inside_out`
+/// the instant that already existed as a fixture: `fixtures::inside_out_fixture`
 /// simplifies a hybrid cost the engine cannot express, so it cannot be
 /// registered without lying about the card (see its doc comment).
 ///

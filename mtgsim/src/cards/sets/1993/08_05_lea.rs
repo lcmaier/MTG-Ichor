@@ -221,6 +221,7 @@ pub fn dark_ritual() -> Arc<CardData> {
 pub fn earth_elemental() -> Arc<CardData> {
     CardDataBuilder::new("Earth Elemental")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Elemental))
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 3))
         .power_toughness(4, 5)
@@ -306,6 +307,7 @@ pub fn giant_growth() -> Arc<CardData> {
 pub fn giant_spider() -> Arc<CardData> {
     CardDataBuilder::new("Giant Spider")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Spider))
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(2, 4)
@@ -320,6 +322,7 @@ pub fn giant_spider() -> Arc<CardData> {
 pub fn grizzly_bears() -> Arc<CardData> {
     CardDataBuilder::new("Grizzly Bears")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Bear))
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(2, 2)
@@ -332,6 +335,7 @@ pub fn grizzly_bears() -> Arc<CardData> {
 pub fn hill_giant() -> Arc<CardData> {
     CardDataBuilder::new("Hill Giant")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Giant))
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 3))
         .power_toughness(3, 3)
@@ -579,6 +583,7 @@ pub fn savannah() -> Arc<CardData> {
 pub fn savannah_lions() -> Arc<CardData> {
     CardDataBuilder::new("Savannah Lions")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Cat))
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .power_toughness(2, 1)
@@ -596,6 +601,7 @@ pub fn scrubland() -> Arc<CardData> {
 pub fn serra_angel() -> Arc<CardData> {
     CardDataBuilder::new("Serra Angel")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Angel))
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
         .power_toughness(4, 4)
@@ -718,6 +724,7 @@ pub fn wall_of_stone() -> Arc<CardData> {
 pub fn war_mammoth() -> Arc<CardData> {
     CardDataBuilder::new("War Mammoth")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Elephant))
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(3, 3)

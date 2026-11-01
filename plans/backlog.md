@@ -1212,10 +1212,14 @@ mechanic rather than a migration, which is why it is here and not in
   resolution, not at activation — `ChoiceKind::ManaAbilityWindow`'s docs
   already anticipate a Cavern of Souls whose second mode is "add one mana of
   any color", and today that mode would have to be five abilities. **The
-  fuzz pool sidestepped it on 2026-09-03** with Everywhere
-  (`cards/dual_lands.rs::everywhere`): five one-color abilities, so the color *is*
-  the ability picked in the 601.2g window. That is faithful for a five-type
-  land and wrong for everything below, which prints one ability and a choice.
+  fuzz pool sidestepped it on 2026-09-03** with a five-type land, Everywhere
+  until 2026-11-01 and Five-Color Land Fixture
+  (`cards::fixtures::five_color_land_fixture`) since: five one-color
+  abilities, so the color *is* the ability picked in the 601.2g window. That
+  is faithful for a five-type land and wrong for everything below, which
+  prints one ability and a choice. The row that builds this,
+  `any-color-plus-painlands-plus-signets`, also decides whether `random_deck`
+  deals a printed any-color land in the fixture's place.
 - **Size** — small-to-medium. A `ManaOutput` arm (or a `ManaAtom`) for "one
   mana of any color", one `ChoiceKind` asked in `resolve_mana_effect`, and
   `fuzz_games::land_mana_colors` learning to read it. **Riders are not
@@ -2966,6 +2970,21 @@ tested the trigger on a fixture.
 | **Blocks** | `keyword:dredge`: 14 cards (Scryfall, 2026-10-22), Golgari Brownscale and Life from the Loam among them |
 | **Atoms** | ATOM-702.52a-001, ATOM-702.52b-001 (Phase 8) |
 | **Owner** | — |
+
+### 2.50 "Target spell or permanent" — one target from two zones
+
+**Found by `creature-types-plus-fixture-names` (2026-11-01)**, which could
+not write Moonlace whole and registered Moonlace Fixture, its shape narrowed
+to a target creature until end of turn.
+
+| Field | |
+|---|---|
+| **Rules** | CR 115.1's "target", one instance naming an object on the stack or on the battlefield; CR 400.7a, under which a change to a permanent spell's characteristics continues on the permanent it becomes |
+| **Verdict** | A target is a spell or a permanent today, never either: `SelectionFilter` has `Spell` and `Permanent(filter)` and no arm offering both, so the choice cannot be asked (CR 601.2c) or checked again at resolution (CR 608.2b). CR 400.7a's half is built: the prune spares a permanent spell's continuous rows as it enters (`copy-effects-architecture.md`'s CR 400.7 table) |
+| **Size** | ~1 small PR with its first card: the arm in `validate_selection` and `enumerate_legal_selections`, a recipient word, and Moonlace written whole, its two rulings tested (the effect never ends; a creature spell it targets enters colorless), retiring Moonlace Fixture from the pool |
+| **Blocks** | `o:"target spell or permanent"`: 20 cards (Scryfall, 2026-11-01): Moonlace and the other five "-lace" spells, Venser, Shaper Savant, Aether Gust, Divide by Zero, Spectral Shift; Sleight of Mind, Magical Hack, Artificial Evolution and Alter Reality need a text change (Layer 3) too |
+| **Atoms** | ATOM-400.7a-001, whose board is a "-lace" spell on a creature spell |
+| **Owner** | `cant-be-targeted` (`cant-effects-architecture.md`), which rewrites the same two functions for CR 115's target legality; the four cards that also change text follow `text-changing-effects` (the owner's review of #304, 2026-11-01) |
 
 ## 3. Dispositioned — sections that need no entry of their own
 

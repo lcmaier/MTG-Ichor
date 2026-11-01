@@ -5,12 +5,21 @@
 //! cleanup step expires UntilEndOfTurn effects.
 
 
+use std::sync::Arc;
+
+use mtgsim::cards::authoring::{has_base_power_and_toughness, spell_ability, target_creature};
 use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::oracle::characteristics::{
+    get_effective_power, get_effective_subtypes, get_effective_toughness, get_effective_types, has_keyword,
+};
 use mtgsim::oracle::legality::candidate_priority_actions;
+use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
+use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
-use mtgsim::types::mana::ManaType;
+use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
@@ -347,7 +356,7 @@ fn test_anthem_plus_pump_spell() {
 fn test_zhalfirin_shapecraft_sets_base_pt() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let _spell_id = put_in_hand(&mut game, fixtures::zhalfirin_shapecraft(), 0);
+    let _spell_id = put_in_hand(&mut game, printings::zhalfirin_shapecraft(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 2);
 
@@ -373,6 +382,70 @@ fn test_zhalfirin_shapecraft_sets_base_pt() {
     assert_eq!(game.players[0].hand.len(), 1); // drew 1 card
 }
 
+/// "Target creature has base power and toughness 1/1 until end of turn": a
+/// second Layer 7b setter, to order against Zhalfirin Shapecraft.
+fn one_one_setter() -> Arc<CardData> {
+    CardDataBuilder::new("One-One Setter")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
+        .color(Color::Blue)
+        .card_type(CardType::Instant)
+        .ability(spell_ability(
+            "Target creature has base power and toughness 1/1 until end of turn.",
+            has_base_power_and_toughness(target_creature(), 1, 1).until_end_of_turn(),
+        ))
+        .build()
+}
+
+// RULING: Zhalfirin Shapecraft #1 - "Zhalfirin Shapecraft overwrites all previous effects that set the creature's base ..."
+/// Within Layer 7b the later timestamp wins (CR 613.7): the Shapecraft
+/// overwrites a setter that resolved before it, and one that resolves after
+/// it overwrites the Shapecraft.
+#[test]
+fn zhalfirin_shapecraft_and_another_setter_apply_in_timestamp_order() {
+    let mut game = setup_two_player_game();
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    // In cast order, so index 1 is always the next spell.
+    let first = put_in_hand(&mut game, one_one_setter(), 0);
+    let shapecraft = put_in_hand(&mut game, printings::zhalfirin_shapecraft(), 0);
+    let last = put_in_hand(&mut game, one_one_setter(), 0);
+    fill_library(&mut game, 0, 5);
+    game.players[0].mana_pool.add(ManaType::Blue, 4);
+    let decisions = ScriptedDecisionProvider::new();
+
+    cast_and_resolve_targeted_spell(&mut game, &decisions, first, 1, None);
+    assert_eq!((get_effective_power(&game, bears_id), get_effective_toughness(&game, bears_id)), (Some(1), Some(1)));
+    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft, 1, None);
+    assert_eq!(
+        (get_effective_power(&game, bears_id), get_effective_toughness(&game, bears_id)),
+        (Some(4), Some(3)),
+        "the Shapecraft overwrites the earlier setter"
+    );
+    cast_and_resolve_targeted_spell(&mut game, &decisions, last, 1, None);
+    assert_eq!(
+        (get_effective_power(&game, bears_id), get_effective_toughness(&game, bears_id)),
+        (Some(1), Some(1)),
+        "a later setter overwrites the Shapecraft"
+    );
+}
+
+// RULING: Zhalfirin Shapecraft #3 - "Zhalfirin Shapecraft doesn't affect the creature's card types, creature types, or abilities."
+#[test]
+fn zhalfirin_shapecraft_leaves_types_and_abilities_alone() {
+    let mut game = setup_two_player_game();
+    let angel = put_on_battlefield(&mut game, printings::serra_angel(), 0);
+    let shapecraft = put_in_hand(&mut game, printings::zhalfirin_shapecraft(), 0);
+    fill_library(&mut game, 0, 5);
+    game.players[0].mana_pool.add(ManaType::Blue, 2);
+
+    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), shapecraft, 1, None);
+
+    assert_eq!((get_effective_power(&game, angel), get_effective_toughness(&game, angel)), (Some(4), Some(3)));
+    assert!(get_effective_types(&game, angel).contains(&CardType::Creature));
+    assert!(get_effective_subtypes(&game, angel).contains(&Subtype::Creature(CreatureType::Angel)));
+    assert!(has_keyword(&game, angel, KeywordFlag::Flying));
+    assert!(has_keyword(&game, angel, KeywordFlag::Vigilance));
+}
+
 // ---------------------------------------------------------------------------
 // Test 12: Inside Out switches P/T
 // ---------------------------------------------------------------------------
@@ -388,7 +461,7 @@ fn test_inside_out_switches_pt() {
         .power_toughness(4, 5)
         .build();
     let creature_id = put_on_battlefield(&mut game, creature_data, 0);
-    let _spell_id = put_in_hand(&mut game, fixtures::inside_out(), 0);
+    let _spell_id = put_in_hand(&mut game, fixtures::inside_out_fixture(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 2);
 
@@ -422,7 +495,7 @@ fn test_inside_out_switches_pt() {
 fn test_bull_rush_pumps_power() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let _spell_id = put_in_hand(&mut game, fixtures::bull_rush(), 0);
+    let _spell_id = put_in_hand(&mut game, printings::bull_rush(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -486,9 +559,9 @@ fn cast_and_resolve_targeted_spell(
 fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let shapecraft_id = put_in_hand(&mut game, fixtures::zhalfirin_shapecraft(), 0);
-    let bull_rush_id = put_in_hand(&mut game, fixtures::bull_rush(), 0);
-    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out(), 0);
+    let shapecraft_id = put_in_hand(&mut game, printings::zhalfirin_shapecraft(), 0);
+    let bull_rush_id = put_in_hand(&mut game, printings::bull_rush(), 0);
+    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out_fixture(), 0);
     fill_library(&mut game, 0, 5);
     // Provide plenty of mana: Blue for Shapecraft+Inside Out, Red for Bull Rush
     game.players[0].mana_pool.add(ManaType::Blue, 10);
@@ -520,6 +593,7 @@ fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
 // Proves the layer system applies in fixed order, not cast order.
 // ---------------------------------------------------------------------------
 
+// RULING: Zhalfirin Shapecraft #2 - "Effects that modify a creature's power and/or toughness ... will apply ..."
 // COVERS-PARTIAL: ATOM-613.4d-004
 //
 // The atom's mechanism exactly: Bull Rush's +2/+0 is created *after* the switch
@@ -537,9 +611,9 @@ fn test_layer_ordering_cast_in_reverse_order() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     // Add to hand in CAST ORDER so index 1 always picks the next intended spell
-    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out(), 0);
-    let bull_rush_id = put_in_hand(&mut game, fixtures::bull_rush(), 0);
-    let shapecraft_id = put_in_hand(&mut game, fixtures::zhalfirin_shapecraft(), 0);
+    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out_fixture(), 0);
+    let bull_rush_id = put_in_hand(&mut game, printings::bull_rush(), 0);
+    let shapecraft_id = put_in_hand(&mut game, printings::zhalfirin_shapecraft(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 10);
     game.players[0].mana_pool.add(ManaType::Red, 1);
@@ -574,9 +648,9 @@ fn test_layer_ordering_cast_7c_7d_7b() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     // Add to hand in CAST ORDER so index 1 always picks the next intended spell
-    let bull_rush_id = put_in_hand(&mut game, fixtures::bull_rush(), 0);
-    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out(), 0);
-    let shapecraft_id = put_in_hand(&mut game, fixtures::zhalfirin_shapecraft(), 0);
+    let bull_rush_id = put_in_hand(&mut game, printings::bull_rush(), 0);
+    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out_fixture(), 0);
+    let shapecraft_id = put_in_hand(&mut game, printings::zhalfirin_shapecraft(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 10);
     game.players[0].mana_pool.add(ManaType::Red, 1);
@@ -610,9 +684,9 @@ fn test_layer_ordering_cast_7c_7d_7b() {
 fn test_layer_effects_expire_at_cleanup() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let shapecraft_id = put_in_hand(&mut game, fixtures::zhalfirin_shapecraft(), 0);
-    let bull_rush_id = put_in_hand(&mut game, fixtures::bull_rush(), 0);
-    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out(), 0);
+    let shapecraft_id = put_in_hand(&mut game, printings::zhalfirin_shapecraft(), 0);
+    let bull_rush_id = put_in_hand(&mut game, printings::bull_rush(), 0);
+    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out_fixture(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 10);
     game.players[0].mana_pool.add(ManaType::Red, 1);
@@ -644,9 +718,9 @@ fn test_layer_effects_expire_at_cleanup() {
 // ---------------------------------------------------------------------------
 // Test 13: Merfolk Thaumaturgist — Layer 7d from a registered permanent
 //
-// `inside_out` above proves the *primitive*; it can never prove the pool,
-// because its printed cost is hybrid ({1}{U/R}) and it is therefore a fixture
-// that will not be registered. The Thaumaturgist is the registered 7d source,
+// `inside_out_fixture` above proves the *primitive*; it can never prove the
+// pool, because Inside Out's printed cost is hybrid ({1}{U/R}) and the
+// fixture that recosts it is not registered. The Thaumaturgist is the registered 7d source,
 // and it reaches the layer through the activated-ability path rather than a
 // spell — the first `AbilityType::Activated` ability in `CardRegistry`, so
 // `run_priority_round`'s ActivateAbility arm gets its first pool-level test

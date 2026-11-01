@@ -69,7 +69,7 @@ fn cast_and_resolve_targeted_perm_spell(
 fn test_liquimetal_adds_artifact_type() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, fixtures::liquimetal_coating_spell(), 0);
+    let _spell = put_in_hand(&mut game, fixtures::liquimetal_coating_spell_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
     // Verify base: Creature, not Artifact
@@ -100,11 +100,11 @@ fn test_liquimetal_adds_artifact_type() {
 fn test_call_to_serve_adds_angel_subtype() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, fixtures::call_to_serve_spell(), 0);
+    let _spell = put_in_hand(&mut game, fixtures::call_to_serve_spell_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::White, 2);
 
-    // Base: no subtypes (Grizzly Bears has no subtype in card data)
     let subtypes = get_effective_subtypes(&game, bears_id);
+    assert!(subtypes.contains(&Subtype::Creature(CreatureType::Bear)));
     assert!(!subtypes.contains(&Subtype::Creature(CreatureType::Angel)));
 
     let decisions = ScriptedDecisionProvider::new();
@@ -114,9 +114,10 @@ fn test_call_to_serve_adds_angel_subtype() {
         None,
     );
 
-    // Should now have Angel subtype
+    // An Angel in addition to its other types: still a Bear.
     let subtypes = get_effective_subtypes(&game, bears_id);
     assert!(subtypes.contains(&Subtype::Creature(CreatureType::Angel)));
+    assert!(subtypes.contains(&Subtype::Creature(CreatureType::Bear)));
 
     // +1/+2 applied (L7c)
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
@@ -131,7 +132,7 @@ fn test_call_to_serve_adds_angel_subtype() {
 fn test_on_serras_wings_adds_legendary() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, fixtures::on_serras_wings_spell(), 0);
+    let _spell = put_in_hand(&mut game, fixtures::on_serras_wings_spell_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::White, 4);
 
     // Base: no supertypes
@@ -170,7 +171,7 @@ fn test_ensoul_artifact_makes_artifact_creature() {
         .build();
     let artifact_id = put_on_battlefield(&mut game, artifact_data, 0);
 
-    let _spell = put_in_hand(&mut game, fixtures::ensoul_artifact_spell(), 0);
+    let _spell = put_in_hand(&mut game, fixtures::ensoul_artifact_spell_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 2);
 
     // Verify: not a creature yet
@@ -205,7 +206,7 @@ fn test_ensoul_artifact_makes_artifact_creature() {
 fn test_type_change_expires_at_cleanup() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, fixtures::liquimetal_coating_spell(), 0);
+    let _spell = put_in_hand(&mut game, fixtures::liquimetal_coating_spell_fixture(), 0);
     fill_library(&mut game, 0, 5);
     fill_library(&mut game, 1, 5);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
@@ -403,11 +404,13 @@ fn produced_mana_types(
     out
 }
 
+// RULING: Underground Sea #1 - "This has the mana abilities associated with both of its basic land types."
+// RULING: Underground Sea #2 - "This has basic land types, but it isn't a basic land. ..."
 // COVERS: ATOM-305.7-002
 #[test]
 fn test_blood_moon_strips_printed_abilities_and_grants_intrinsic_red() {
     let mut game = setup_two_player_game();
-    let land_id = put_on_battlefield(&mut game, fixtures::dual_land_ub(), 0);
+    let land_id = put_on_battlefield(&mut game, printings::underground_sea(), 0);
 
     // Base: the printed {U} and {B} mana abilities.
     assert_eq!(
@@ -436,7 +439,7 @@ fn test_blood_moon_does_not_strip_ability_granted_by_another_effect() {
     use mtgsim::types::keywords::KeywordFlag;
 
     let mut game = setup_two_player_game();
-    let land_id = put_on_battlefield(&mut game, fixtures::dual_land_ub(), 0);
+    let land_id = put_on_battlefield(&mut game, printings::underground_sea(), 0);
     let _granter = put_on_battlefield(&mut game, fixtures::lands_have_flying(), 0);
 
     assert!(has_keyword(&game, land_id, KeywordFlag::Flying));
@@ -468,7 +471,7 @@ fn test_layer6_grant_survives_blood_moon_registered_first() {
     let mut game = setup_two_player_game();
     // Granter enters BEFORE the land and before Blood Moon — earliest timestamp.
     let _granter = put_on_battlefield(&mut game, fixtures::lands_have_flying(), 0);
-    let land_id = put_on_battlefield(&mut game, fixtures::dual_land_ub(), 0);
+    let land_id = put_on_battlefield(&mut game, printings::underground_sea(), 0);
     let _blood_moon = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     assert!(has_keyword(&game, land_id, KeywordFlag::Flying));
@@ -529,7 +532,7 @@ fn test_urborg_on_a_real_swamp_does_not_double_grant_black() {
 #[test]
 fn test_blood_moon_removed_restores_printed_abilities() {
     let mut game = setup_two_player_game();
-    let land_id = put_on_battlefield(&mut game, fixtures::dual_land_ub(), 0);
+    let land_id = put_on_battlefield(&mut game, printings::underground_sea(), 0);
     let blood_moon_id = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     assert_eq!(produced_mana_types(&game, land_id), vec![ManaType::Red]);
@@ -549,7 +552,7 @@ fn test_activating_blood_mooned_land_produces_red() {
     use mtgsim::oracle::mana_supply::available_mana_sources;
 
     let mut game = setup_two_player_game();
-    let land_id = put_on_battlefield(&mut game, fixtures::dual_land_ub(), 0);
+    let land_id = put_on_battlefield(&mut game, printings::underground_sea(), 0);
     let _blood_moon = put_on_battlefield(&mut game, printings::blood_moon(), 0);
 
     // The mana-source enumeration offers only red for this land.

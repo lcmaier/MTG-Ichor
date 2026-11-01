@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     artifact, as_long_as, basic, becomes_colorless, becomes_types, color, creature, creatures_you_control, draw_cards, each, each_in, functioning_in,
-    gains_keyword, gets, has_base_power_and_toughness, host, is_also_color, land, non, spell_ability, static_ability, switch_power_and_toughness,
+    gains_keyword, gets, host, is_also_color, land, non, spell_ability, static_ability, switch_power_and_toughness,
     target_creature, target_permanent, this_object, with_subtype, you, you_control, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -16,37 +16,19 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
 
-/// Zhalfirin Shapecraft - {1}{U}
-/// Instant
-/// Target creature has base power and toughness 4/3 until end of turn.
-/// Draw a card.
-pub fn zhalfirin_shapecraft() -> Arc<CardData> {
-    CardDataBuilder::new("Zhalfirin Shapecraft")
-        .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
-        .color(Color::Blue)
-        .card_type(CardType::Instant)
-        .ability(spell_ability(
-            "Target creature has base power and toughness 4/3 until end of turn.\nDraw a card.",
-            Effect::Sequence(vec![
-                has_base_power_and_toughness(target_creature(), 4, 3).until_end_of_turn(),
-                draw_cards(you(), 1),
-            ]),
-        ))
-        .build()
-}
-
-/// Inside Out - {1}{U} **as modeled**; the printed cost is {1}{U/R}
+/// Inside Out Fixture — {1}{U}
 /// Instant
 /// Switch target creature's power and toughness until end of turn.
 /// Draw a card.
 ///
-/// The hybrid symbol is the whole reason this stays a fixture and never reaches
-/// `CardRegistry` — hybrid mana is unimplemented (`codebase-state.md`, CR 6),
-/// and a registry that feeds `cli_play` may not quietly recost a card. Layer 7d
+/// **Inside Out's shape at a cost the engine can pay**: the printed cost is
+/// {1}{U/R}, and no payment path handles a hybrid pip until
+/// `hybrid-and-phyrexian-payment`. A registry that feeds `cli_play` may not
+/// quietly recost a card, so this is a fixture under its own name. Layer 7d
 /// gets its registered source from `printings::merfolk_thaumaturgist`,
 /// whose text needs nothing the engine lacks.
-pub fn inside_out() -> Arc<CardData> {
-    CardDataBuilder::new("Inside Out")
+pub fn inside_out_fixture() -> Arc<CardData> {
+    CardDataBuilder::new("Inside Out Fixture")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
         .color(Color::Blue)
         .card_type(CardType::Instant)
@@ -60,17 +42,25 @@ pub fn inside_out() -> Arc<CardData> {
         .build()
 }
 
-/// Bull Rush - {R}
+/// Moonlace Fixture — {U}
 /// Instant
-/// Target creature gets +2/+0 until end of turn.
-pub fn bull_rush() -> Arc<CardData> {
-    CardDataBuilder::new("Bull Rush")
-        .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-        .color(Color::Red)
+/// Target creature becomes colorless until end of turn.
+///
+/// **A fixture of Moonlace's shape, narrower than the card**: Moonlace's
+/// one target is a spell or a permanent (CR 115.1), which no selection
+/// offers yet (`backlog.md#250-target-spell-or-permanent--one-target-from-two-zones`),
+/// and its effect lasts the game (its rulings: it "doesn't wear off", and a
+/// permanent spell it targets enters colorless, CR 400.7a). This one keeps
+/// the pool's Layer 5 colorless setter, on a creature until end of turn.
+pub fn moonlace_fixture() -> Arc<CardData> {
+    CardDataBuilder::new("Moonlace Fixture")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
+        .color(Color::Blue)
         .card_type(CardType::Instant)
+        .rules_text("Target creature becomes colorless until end of turn.")
         .ability(spell_ability(
-            "Target creature gets +2/+0 until end of turn.",
-            gets(target_creature(), 2, 0).until_end_of_turn(),
+            "Target creature becomes colorless until end of turn.",
+            becomes_colorless(target_creature()).until_end_of_turn(),
         ))
         .build()
 }
@@ -91,15 +81,16 @@ pub fn chromatic_ward() -> Arc<CardData> {
         .build()
 }
 
-/// Liquimetal Coating (simplified) — {2}
-/// Artifact
-/// {T}: Target permanent becomes an artifact in addition to its other types
-/// until end of turn.
+/// Liquimetal Coating Spell Fixture — {2}
+/// Instant
+/// Target permanent becomes an artifact in addition to its other types until
+/// end of turn.
 ///
-/// Modeled as an instant spell for testing (avoids activated ability infrastructure).
-/// Tests: AddType (adding Artifact to any permanent).
-pub fn liquimetal_coating_spell() -> Arc<CardData> {
-    CardDataBuilder::new("Liquimetal Torque")
+/// Liquimetal Coating's activated ability as an instant spell, a fixture by
+/// purpose: it gives a test Layer 4's `AddType` (adding Artifact to any
+/// permanent) without an activation.
+pub fn liquimetal_coating_spell_fixture() -> Arc<CardData> {
+    CardDataBuilder::new("Liquimetal Coating Spell Fixture")
         .mana_cost(ManaCost::build(&[ManaType::Colorless], 1))
         .card_type(CardType::Instant)
         .ability(spell_ability(
@@ -110,16 +101,17 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
         .build()
 }
 
-/// Ensoul Artifact (simplified) — {1}{U}
+/// Ensoul Artifact Spell Fixture — {1}{U}
 /// Instant
 /// Target artifact becomes an artifact creature with base power and toughness
 /// 5/5 until end of turn.
 ///
-/// Both atoms are one instance of "target" (CR 115.3) — the second declares
-/// nothing and refers back to the first.
-/// Tests: AddType(Creature) + SetPowerToughness on the same target.
-pub fn ensoul_artifact_spell() -> Arc<CardData> {
-    CardDataBuilder::new("Ensoul Artifact")
+/// Ensoul Artifact's Aura as an instant spell, a fixture by purpose: Layer
+/// 4's `AddType(Creature)` and Layer 7b's setter on one target. Both atoms
+/// are one instance of "target" (CR 115.3) — the second declares nothing and
+/// refers back to the first.
+pub fn ensoul_artifact_spell_fixture() -> Arc<CardData> {
+    CardDataBuilder::new("Ensoul Artifact Spell Fixture")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
         .color(Color::Blue)
         .card_type(CardType::Instant)
@@ -132,20 +124,16 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
         .build()
 }
 
-/// Call to Serve (simplified) — {1}{W}
-/// Instant (simplified from Aura for testing)
+/// Call to Serve Spell Fixture — {1}{W}
+/// Instant
 /// Target creature gets +1/+2 and is an Angel in addition to its other
 /// types until end of turn.
 ///
-/// Tests: AddSubtype (creature subtype — Angel) combined with P/T pump.
-/// Note: the printed card also grants flying. That was omitted because Layer 6
-/// had no resolution-time producer; it has one now (`Primitive::GrantKeywordFlag`
-/// through `resolve::register_resolution_ability_effect`), so the omission is a
-/// choice rather than a limit. Left as-is because this card is an Aura modeled as
-/// an Instant, so completing the grant would not make it faithful — see the note
-/// in `cards::registry` on why the `*_spell` cards stay unregistered.
-pub fn call_to_serve_spell() -> Arc<CardData> {
-    CardDataBuilder::new("Call to Serve")
+/// Call to Serve's Aura as an instant spell without its flying, a fixture by
+/// purpose: Layer 4's `AddSubtype` (a creature type, Angel) beside a P/T
+/// pump on one target.
+pub fn call_to_serve_spell_fixture() -> Arc<CardData> {
+    CardDataBuilder::new("Call to Serve Spell Fixture")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .color(Color::White)
         .card_type(CardType::Instant)
@@ -158,16 +146,15 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
         .build()
 }
 
-/// On Serra's Wings (simplified) — {3}{W}
-/// Instant (simplified from Legendary Enchantment — Aura)
+/// On Serra's Wings Spell Fixture — {3}{W}
+/// Instant
 /// Target creature is legendary and gets +1/+1 until end of turn.
 ///
-/// Tests: AddSupertype (Legendary) combined with P/T pump.
-/// Note: the printed card also grants flying, vigilance and lifelink. Omitted
-/// because Layer 6 had no resolution-time producer; it has one now, so this is a
-/// choice rather than a limit. Same reasoning as `call_to_serve_spell`.
-pub fn on_serras_wings_spell() -> Arc<CardData> {
-    CardDataBuilder::new("On Serra's Wings")
+/// On Serra's Wings' Aura as an instant spell without its three keywords, a
+/// fixture by purpose: Layer 4's `AddSupertype` (Legendary) beside a P/T
+/// pump on one target.
+pub fn on_serras_wings_spell_fixture() -> Arc<CardData> {
+    CardDataBuilder::new("On Serra's Wings Spell Fixture")
         .mana_cost(ManaCost::build(&[ManaType::White], 3))
         .color(Color::White)
         .card_type(CardType::Instant)
@@ -204,29 +191,6 @@ pub fn urborg_effect() -> Arc<CardData> {
             "Each land is a Swamp in addition to its other land types.",
             becomes_types(each(land()), TypeChange::adding(&[], &[], &[Subtype::Land(LandType::Swamp)])),
         ))
-        .build()
-}
-
-/// Underground Sea (simplified) — nonbasic dual land
-/// Land — Island Swamp
-/// {T}: Add {U}.
-/// {T}: Add {B}.
-///
-/// The board setup for ATOM-305.7-002 and COMP-305.7+305.6-001. The atoms
-/// specify a single "{T}: Add {U} or {B}" — modal mana abilities aren't
-/// supported yet, so it's modeled as two separate mana abilities. CR 305.7
-/// strips both either way, so the distinction doesn't affect what's under test.
-///
-/// Deliberately has NO Basic supertype, so Blood Moon's "nonbasic lands" filter
-/// matches it.
-pub fn dual_land_ub() -> Arc<CardData> {
-    CardDataBuilder::new("Underground Sea")
-        .card_type(CardType::Land)
-        .subtype(Subtype::Land(LandType::Island))
-        .subtype(Subtype::Land(LandType::Swamp))
-        .rules_text("{T}: Add {U}. {T}: Add {B}.")
-        .mana_ability_single(ManaType::Blue)
-        .mana_ability_single(ManaType::Black)
         .build()
 }
 

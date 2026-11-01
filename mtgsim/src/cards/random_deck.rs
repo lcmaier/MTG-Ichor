@@ -61,7 +61,7 @@ pub const BASIC_LANDS_PER_DECK: usize = 5;
 pub const NONLAND_PERCENT: usize = 60;
 
 /// How many of a deck's land slots are drawn from the registry's nonbasic
-/// lands — the ten original duals and Everywhere, uniformly.
+/// lands — the ten original duals and the five-color land, uniformly.
 ///
 /// A flat constant over a static pool, not a mana-base model. Replace it with a
 /// real picker when card breadth (Phase 8) gives it something to choose between.
@@ -77,7 +77,8 @@ pub const NONBASIC_LANDS_PER_DECK: usize = 5;
 /// 2. `NONBASIC_LANDS_PER_DECK` slots from the registry's nonbasic lands.
 /// 3. `BASIC_LANDS_PER_DECK` basics, one of each type.
 /// 4. Every remaining land slot is a land that taps for all five colors —
-///    Everywhere, today. A pool with no such land falls back to basics.
+///    `fixtures::five_color_land_fixture`, today. A pool with no such land
+///    falls back to basics.
 ///
 /// Deliberately crude — a fuzz harness, not a deckbuilder. It exists to
 /// produce a legal deck that casts spells and attacks. **Not singleton**, at

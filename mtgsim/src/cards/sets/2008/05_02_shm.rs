@@ -5,21 +5,34 @@ use std::sync::Arc;
 use crate::cards::authoring::{
     activated_ability, as_long_as, becomes_color, color, copy, creature, draw_cards, draw_two_instead, gains_ability, gains_keyword,
     nonlegendary_creature, persist, remove_counters, spell_ability, static_ability, static_replacement, tapped_for_mana, target_creature,
-    target_permanent, this_object, you, you_have, ContinuousChange,
+    target_permanent, that_target, this_object, untap, you, you_have, ContinuousChange,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{Condition, CopyRoles, CounterType, ObjectSet, PlayerFact, PlayerSet};
+use crate::types::effects::{Condition, CopyRoles, CounterType, Effect, ObjectSet, PlayerFact, PlayerSet};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AmountRewrite, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 
 /// Cerulean Wisps — {U}
 /// Instant
-/// Target creature becomes blue until end of turn.
+/// Target creature becomes blue until end of turn. Untap that creature.
 /// Draw a card.
+///
+/// # The rulings, and where each is tested
+///
+/// - *"An effect that changes a permanent's colors overwrites all its old
+///   colors …"* → a three-color Rhox War Monk becomes blue alone
+///   (`phase_lc_integration_test::cerulean_wisps_makes_a_three_color_creature_just_blue`).
+/// - *"Changing a permanent's color won't change its text."* → a creature
+///   whose static ability pumps green creatures, turned blue, still pumps a
+///   green one and no longer itself
+///   (`phase_lc_integration_test::a_creature_turned_blue_still_pumps_green_creatures`).
+/// - *"Colorless is not a color."* → a devoid creature it targets is blue
+///   alone, not blue and colorless
+///   (`rulings_pass_test::test_a_color_given_to_a_devoid_card_replaces_colorlessness_rather_than_joining_it`).
 pub fn cerulean_wisps() -> Arc<CardData> {
     CardDataBuilder::new("Cerulean Wisps")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
@@ -28,7 +41,10 @@ pub fn cerulean_wisps() -> Arc<CardData> {
         .rules_text("Target creature becomes blue until end of turn. Untap that creature.\nDraw a card.")
         .ability(spell_ability(
             "Target creature becomes blue until end of turn. Untap that creature.",
-            becomes_color(target_creature(), [Color::Blue]).until_end_of_turn(),
+            Effect::Sequence(vec![
+                becomes_color(target_creature(), [Color::Blue]).until_end_of_turn(),
+                untap(that_target(0)),
+            ]),
         ))
         .ability(spell_ability(
             "Draw a card.",
@@ -215,7 +231,7 @@ pub fn mana_reflection() -> Arc<CardData> {
 /// forbids, and CR 202.2's colors come out W and U exactly as printed.
 ///
 /// `codebase-state.md`'s 2026-08-24 entry set the opposite precedent —
-/// `fixtures::inside_out` stays unregistered because simplifying its
+/// `fixtures::inside_out_fixture` stays unregistered because simplifying its
 /// hybrid cost would "misrepresent the card". That was the right call there and
 /// is the wrong one here, for a reason that is about the *pool* rather than
 /// about the card: Inside Out had a registered substitute for the engine path it

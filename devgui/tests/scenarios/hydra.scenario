@@ -1,4 +1,4 @@
-# Protean Hydra's board: seven Everywheres and two Doubling Cubes pay for it
+# Protean Hydra's board: seven five-color lands and two Doubling Cubes pay for it
 # at X = 9. Tap all seven, then each Cube: the first doubles the 4 left
 # after its {3} to 8, the second the 5 left to 10, which is {X}{G} at 9.
 # Until the pool holds {3}, the payment shows each Cube greyed, with why.
@@ -13,13 +13,13 @@ hand 1: Lightning Bolt
 library 0: Forest | x8
 library 1: Mountain | x8
 
-battlefield: Everywhere | controller 0
-battlefield: Everywhere | controller 0
-battlefield: Everywhere | controller 0
-battlefield: Everywhere | controller 0
-battlefield: Everywhere | controller 0
-battlefield: Everywhere | controller 0
-battlefield: Everywhere | controller 0
+battlefield: Five-Color Land Fixture | controller 0
+battlefield: Five-Color Land Fixture | controller 0
+battlefield: Five-Color Land Fixture | controller 0
+battlefield: Five-Color Land Fixture | controller 0
+battlefield: Five-Color Land Fixture | controller 0
+battlefield: Five-Color Land Fixture | controller 0
+battlefield: Five-Color Land Fixture | controller 0
 battlefield: Doubling Cube | controller 0
 battlefield: Doubling Cube | controller 0
 battlefield: Mountain | controller 1

@@ -27,7 +27,7 @@ use mtgsim::cards::printings;
 use mtgsim::cards::printings::{
     incremental_growth, jagged_lightning, plague_spores, seat_of_the_synod, seeds_of_strength, skullcrack, vorinclex_monstrous_raider,
 };
-use mtgsim::cards::fixtures::ensoul_artifact_spell;
+use mtgsim::cards::fixtures::ensoul_artifact_spell_fixture;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
@@ -175,7 +175,7 @@ fn decisions_during(game: &mut GameState, f: impl FnOnce(&mut GameState)) -> u64
 /// 0/0 and hand it to CR 704.5a before any spell could target it.
 fn animated_artifact_land(game: &mut GameState, player: PlayerId) -> ObjectId {
     let land = put_on_battlefield(game, seat_of_the_synod(), player);
-    let ensoul = put_in_hand(game, ensoul_artifact_spell(), player);
+    let ensoul = put_in_hand(game, ensoul_artifact_spell_fixture(), player);
     pay_for(game, player, 1, &[(ManaType::Blue, 1)]);
     let dp = stopping_dp();
     cast_and_resolve(game, player, ensoul, &dp);
@@ -184,8 +184,8 @@ fn animated_artifact_land(game: &mut GameState, player: PlayerId) -> ObjectId {
 
 /// Make a permanent black until end of turn — the step ATOM-608.2b-002 needs
 /// between the announcement and the resolution. A fixture rather than a card:
-/// Moonlace, the pool's colour-changer, removes colours rather than setting
-/// one.
+/// Moonlace Fixture, the pool's color-changer, removes colors rather than
+/// setting one.
 fn make_black(game: &mut GameState, id: ObjectId, controller: PlayerId) {
     let ctx = ResolutionContext {
         source: id,

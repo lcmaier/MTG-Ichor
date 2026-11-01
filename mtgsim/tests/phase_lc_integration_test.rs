@@ -5,7 +5,9 @@
 //! layer system computes effective colors → cleanup step expires effects.
 
 
+use mtgsim::cards::authoring::{color, creature, each, gets, static_ability, you_control};
 use mtgsim::cards::{fixtures, printings};
+use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{get_effective_colors, get_effective_power, get_effective_toughness};
 use mtgsim::oracle::legality::candidate_priority_actions;
@@ -17,7 +19,7 @@ use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::test_support::test_ctx;
-use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_dp};
+use mtgsim::test_support::{creature_with_ability, fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_dp};
 
 /// Helper: cast a targeted creature spell from hand and resolve it.
 fn cast_and_resolve_targeted_spell(
@@ -122,7 +124,7 @@ fn test_color_change_expires_at_cleanup() {
 fn test_moonlace_makes_creature_colorless() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let moonlace_id = put_in_hand(&mut game, printings::moonlace(), 0);
+    let moonlace_id = put_in_hand(&mut game, fixtures::moonlace_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
 
     // Base: green
@@ -252,7 +254,7 @@ fn test_two_set_colors_later_overrides() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     let wisps1_id = put_in_hand(&mut game, printings::cerulean_wisps(), 0);
-    let moonlace_id = put_in_hand(&mut game, printings::moonlace(), 0);
+    let moonlace_id = put_in_hand(&mut game, fixtures::moonlace_fixture(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 2);
 
@@ -288,4 +290,88 @@ fn test_chromatic_ward_ignores_noncreatures() {
     // Land should still just be green (from its card data... though basic lands are typically colorless)
     let colors = get_effective_colors(&game, land_id);
     assert!(!colors.contains(&Color::Red)); // not a creature, not affected
+}
+
+// ===========================================================================
+// Cerulean Wisps as printed, and its rulings
+// ===========================================================================
+
+/// "Untap that creature": the target the color change took.
+#[test]
+fn cerulean_wisps_untaps_the_creature_it_targets() {
+    let mut game = setup_two_player_game();
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    game.execute_action(GameAction::Tap { object: bears_id }, &test_ctx()).unwrap();
+    let wisps_id = put_in_hand(&mut game, printings::cerulean_wisps(), 0);
+    fill_library(&mut game, 0, 5);
+    game.players[0].mana_pool.add(ManaType::Blue, 1);
+    assert!(game.battlefield[&bears_id].tapped);
+
+    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), wisps_id, 1);
+
+    assert!(!game.battlefield[&bears_id].tapped, "untapped by the Wisps");
+    assert_eq!(get_effective_colors(&game, bears_id), [Color::Blue].into());
+}
+
+// RULING: Cerulean Wisps #1 - "An effect that changes a permanent's colors overwrites all its old colors ..."
+#[test]
+fn cerulean_wisps_makes_a_three_color_creature_just_blue() {
+    let mut game = setup_two_player_game();
+    let monk = put_on_battlefield(&mut game, printings::rhox_war_monk(), 0);
+    let wisps_id = put_in_hand(&mut game, printings::cerulean_wisps(), 0);
+    fill_library(&mut game, 0, 5);
+    game.players[0].mana_pool.add(ManaType::Blue, 1);
+    assert_eq!(get_effective_colors(&game, monk).len(), 3, "green, white and blue as printed");
+
+    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), wisps_id, 1);
+
+    assert_eq!(get_effective_colors(&game, monk), [Color::Blue].into(), "blue alone, though it was blue before");
+}
+
+// RULING: Cerulean Wisps #2 - "Changing a permanent's color won't change its text. ..."
+/// Wilt-Leaf Liege's shape, one color: "Green creatures you control get
+/// +1/+1" on a green creature. Turned blue, it no longer pumps itself, and
+/// its text still pumps a green creature.
+#[test]
+fn a_creature_turned_blue_still_pumps_green_creatures() {
+    let mut game = setup_two_player_game();
+    let anthem = creature_with_ability(
+        "Green Anthem Bearer",
+        2,
+        2,
+        static_ability("Green creatures you control get +1/+1.", gets(each(creature().and(color(Color::Green)).and(you_control())), 1, 1)),
+    );
+    let bearer = put_on_battlefield(&mut game, anthem, 0);
+    let wisps_id = put_in_hand(&mut game, printings::cerulean_wisps(), 0);
+    fill_library(&mut game, 0, 5);
+    game.players[0].mana_pool.add(ManaType::Blue, 1);
+    assert_eq!(get_effective_power(&game, bearer), Some(3), "green, so it pumps itself");
+
+    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), wisps_id, 1);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+
+    assert_eq!(get_effective_power(&game, bearer), Some(2), "blue now, so not a green creature");
+    assert_eq!(get_effective_power(&game, bears_id), Some(3), "its text still says green");
+}
+
+// ===========================================================================
+// Moonlace Fixture lasts until end of turn, as its text says
+// ===========================================================================
+
+/// A target creature, colorless until end of turn and green again at the
+/// cleanup: the duration its text states, where Moonlace's effect never ends.
+#[test]
+fn moonlace_fixture_is_colorless_until_end_of_turn() {
+    let mut game = setup_two_player_game();
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let moonlace_id = put_in_hand(&mut game, fixtures::moonlace_fixture(), 0);
+    game.players[0].mana_pool.add(ManaType::Blue, 1);
+    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), moonlace_id, 1);
+    assert!(get_effective_colors(&game, bears_id).is_empty());
+
+    for _ in 0..6 {
+        game.advance_turn(&test_dp()).unwrap();
+    }
+    assert_eq!(game.phase.step, Some(mtgsim::state::game_state::StepType::Cleanup));
+    assert_eq!(get_effective_colors(&game, bears_id), [Color::Green].into(), "the effect ended with the turn");
 }

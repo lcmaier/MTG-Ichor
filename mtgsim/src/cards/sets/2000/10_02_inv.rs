@@ -66,7 +66,7 @@ pub fn opt() -> Arc<CardData> {
 /// spanning two instances would need a recipient the CR never asks for.
 ///
 /// Registered and unpooled: the board needs March of the Machines and Moonlace
-/// together, which a random game does not assemble.
+/// Fixture together, which a random game does not assemble.
 ///
 /// # The rulings, and where each is tested
 ///

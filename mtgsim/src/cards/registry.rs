@@ -7,10 +7,9 @@ use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
     fic, fut, gpt, grn, gtc, hob, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mkm, mmq, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg, usg,
-    vis, war, wth, zen, znr,
+    mkm, mmq, mom, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg, usg,
+    vis, war, wth, wwk, zen, znr,
 };
-use super::tokens;
 
 /// The board an engine change is measured against — **representative, not
 /// frozen** (revised 2026-09-01).
@@ -63,7 +62,7 @@ const PERFORMANCE_POOL: [&str; 124] = [
     "Glorious Anthem",
     "Cerulean Wisps",
     "Crimson Wisps",
-    "Moonlace",
+    "Moonlace Fixture",
     "Blood Moon",
     "March of the Machines",
     "Tarmogoyf",
@@ -125,7 +124,7 @@ const PERFORMANCE_POOL: [&str; 124] = [
     // `random_deck` fills every unassigned land slot with, so the pool cannot
     // build a deck without it, and every deck can pay for anything. The widest
     // board CR 305.7 has: Blood Moon strips five abilities here, not two.
-    "Everywhere",
+    "Five-Color Land Fixture",
     // Two engine paths, one card each. Thunder-Thrash Elder is an application
     // that *prompts and mutates* (CR 614.13), a rewrite that is not a pure
     // function of the event and a non-`EnterWith` member a CR 616.1 entry step
@@ -416,7 +415,7 @@ const PERFORMANCE_POOL: [&str; 124] = [
     // ("for the first time each turn"), which every life loss in a game
     // advances. Elvish Warmaster is "one or more" behind "triggers only once
     // each turn", and its pump is a one-shot over a filter; the pool's Elvish
-    // Archers is an Elf for it to see.
+    // Archers and Thornweald Archer are Elves for it to see.
     "Vengeful Warchief",
     "Elvish Warmaster",
     // TR-2b's two. Psychosis Crawler is a hand's count in the layer walk,
@@ -679,15 +678,20 @@ impl CardRegistry {
         // - Chromatic Ward and Windswept Heights are invented cards.
         // - Urborg Effect is a deliberate stand-in (an Enchantment carrying the
         //   land's ability) rather than Urborg itself.
-        // - The four `*_spell` cards are Auras and an Artifact re-modeled as
-        //   Instants to avoid machinery their phase did not need. Real names,
-        //   wrong card types.
-        // - Underground Sea, Cloudspire Mesa and Moonlit Steppe are Lands whose
-        //   phases modeled them loosely; the ten real dual lands below are what
-        //   `fuzz_games::random_deck` draws its nonbasic land slots from.
+        // - The four `*_spell_fixture` cards are an Aura's or an Artifact's
+        //   effect cast as an Instant, sparing machinery their phase did not
+        //   need.
+        // - Inside Out Fixture is Inside Out at a cost with no hybrid pip.
+        // - Cloudspire Mesa and Moonlit Steppe are invented Lands; the ten
+        //   real dual lands below are what `fuzz_games::random_deck` draws its
+        //   nonbasic land slots from.
+        //
+        // Moonlace Fixture is the one fixture this block registers: the
+        // pool's Layer 5 colorless setter, Moonlace's shape narrowed to a
+        // target creature until end of turn.
         registry.register("Cerulean Wisps", shm::cerulean_wisps);
         registry.register("Crimson Wisps", shm::crimson_wisps);
-        registry.register("Moonlace", tsp::moonlace);
+        registry.register("Moonlace Fixture", fixtures::moonlace_fixture);
         registry.register("Blood Moon", drk::blood_moon);
         registry.register("March of the Machines", mrd::march_of_the_machines);
         registry.register("Tarmogoyf", fut::tarmogoyf);
@@ -695,6 +699,11 @@ impl CardRegistry {
         registry.register("Humility", tmp::humility);
         registry.register("Citanul Hierophants", usg::citanul_hierophants);
         registry.register("Act of Treason", m10::act_of_treason);
+        // Layer 7b's and 7c's spells from the layer phase, written whole. Not
+        // pooled: Humility and March of the Machines already reach 7b, and
+        // Giant Growth reaches 7c from a resolution.
+        registry.register("Zhalfirin Shapecraft", mom::zhalfirin_shapecraft);
+        registry.register("Bull Rush", wwk::bull_rush);
 
         // Layer 7b and 7d's random-play coverage: March of the Machines needs an
         // artifact to animate, and nothing else switches a creature's P/T. Sol
@@ -716,11 +725,11 @@ impl CardRegistry {
         registry.register("Bayou", lea::bayou);
         registry.register("Plateau", lea::plateau);
         registry.register("Tropical Island", lea::tropical_island);
-        // The eleventh mana-base land, and a token rather than a card: the
-        // registry's only source of every color, which is what lets
-        // `fuzz_games --require` stop seeding a deck's colors from the
-        // required card's.
-        registry.register("Everywhere", tokens::everywhere);
+        // The eleventh mana-base land, and a fixture: the registry's only
+        // source of every color, which is what lets `fuzz_games --require`
+        // stop seeding a deck's colors from the required card's. Everywhere,
+        // whose shape it has, is a token, which no deck holds.
+        registry.register("Five-Color Land Fixture", fixtures::five_color_land_fixture);
 
         // The first replacement effect with printed card text.
         registry.register("Kalitas, Traitor of Ghet", ogw::kalitas_traitor_of_ghet);

@@ -88,6 +88,34 @@ fn test_all_basic_lands() {
     }
 }
 
+/// Each creature's creature types as its type line prints them, in printed
+/// order (Scryfall, 2026-11-01).
+#[test]
+fn the_fourteen_creatures_print_their_creature_types() {
+    use mtgsim::types::card_types::CreatureType::*;
+    let printed = [
+        (printings::citanul_hierophants(), vec![Human, Druid]),
+        (earth_elemental(), vec![Elemental]),
+        (giant_spider(), vec![Spider]),
+        (grizzly_bears(), vec![Bear]),
+        (hill_giant(), vec![Giant]),
+        (knight_of_meadowgrain(), vec![Kithkin, Knight]),
+        (raging_cougar(), vec![Cat]),
+        (rhox_war_monk(), vec![Rhino, Monk]),
+        (ridgetop_raptor(), vec![Dinosaur, Beast]),
+        (savannah_lions(), vec![Cat]),
+        (serra_angel(), vec![Angel]),
+        (thornweald_archer(), vec![Elf, Archer]),
+        (vampire_nighthawk(), vec![Vampire, Shaman]),
+        (war_mammoth(), vec![Elephant]),
+    ];
+    for (card, types) in printed {
+        let expected: Vec<Subtype> = types.into_iter().map(Subtype::Creature).collect();
+        let subtypes: Vec<Subtype> = card.subtypes.iter().cloned().collect();
+        assert_eq!(subtypes, expected, "{}", card.name);
+    }
+}
+
 #[test]
 fn test_grizzly_bears() {
     let bears = grizzly_bears();

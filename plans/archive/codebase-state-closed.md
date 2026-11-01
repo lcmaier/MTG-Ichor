@@ -9508,3 +9508,61 @@ the move because the move needed a home for the helper it replaced.
      derive; the owed spellings ~60 more, each a fingerprint that moves.
      **Slotted:** `card-layer-cleanup`, at its last mechanical PR's
      close-out (the move, PR 3 of its design note's split).
+
+207. **Fourteen registered creatures lack the creature types they print.**
+     Citanul Hierophants, Earth Elemental, Giant Spider, Grizzly Bears, Hill
+     Giant, Knight of Meadowgrain, Raging Cougar, Rhox War Monk, Ridgetop
+     Raptor, Savannah Lions, Serra Angel, Thornweald Archer, Vampire
+     Nighthawk and War Mammoth: a relic of the bootstrapped tests (the owner,
+     2026-10-02). A census of type lines against Scryfall found them: the
+     order the card files list types in reproduces the printed line for 165
+     of the 180 real registered cards, and these are 14 of the other 15. The
+     fifteenth is Everywhere, a token the pools deal as a land card, printed
+     as "Token Land".
+
+     **Reachability (2026-10-22):** reachable — wrong today: Thornweald Archer
+     is no Elf, so Elvish Warmaster neither triggers on it nor pumps it, in
+     both pools since the Warmaster joined `PERFORMANCE_POOL` (`70188c40`).
+     60 games each at seed 2026 (`--require "Elvish Warmaster,Thornweald
+     Archer"`): every Archer that entered under its controller's Warmaster
+     triggered nothing, 4 of 4 in `stress` and 3 of 3 in `performance`.
+
+     **Sized:** ~20 lines of card data and a fixture, Warmaster seeing the
+     Archer; every creature type the fourteen need is in `CreatureType`. It
+     moves both pools' streams, so it carries a re-record of each. **Slotted:**
+     beside `card-layer-cleanup` (`roadmap-v2.md` §C), the test-card reorganization before
+     Phase 8's breadth (the owner, 2026-10-02), as its own commit after the
+     move: `card-layer-cleanup`'s text keeps behavior out of the move, so the move stays a move.
+
+204. **Two test cards carry real cards' names: Cerulean Wisps and
+     Moonlace.** Each was written narrower than the card on purpose, to test
+     a color-changing effect (the owner, 2026-10-01): Cerulean Wisps leaves
+     out "Untap that creature.", and Moonlace targets a creature until end of
+     turn where the card makes a spell or permanent colorless for good (its
+     doc says "Simplified"). Their rules text became Oracle's in A6g's
+     ability names, so each now says more than it does.
+
+     **Reachability (2026-10-22):** reachable — wrong today: both are in
+     `PERFORMANCE_POOL`, and a tapped creature Cerulean Wisps targets stays
+     tapped. 5 of the 39 Wisps that resolved with a target in 40 performance
+     games left it tapped with no untap (`--require "Cerulean Wisps" --seed
+     2026`; game 1's Merfolk Thaumaturgist, tapped at event 406, the Wisps
+     resolved at 441). Moonlace's half is read from its source.
+
+     **Widened by `card-layer-cleanup`'s design note (2026-10-31):** the two
+     are a family. Eight card functions registered nowhere carry eight
+     printed cards' names: the four `*_spell` stand-ins (Liquimetal Torque,
+     Ensoul Artifact, Call to Serve, On Serra's Wings), Underground Sea,
+     Inside Out, Bull Rush and Zhalfirin Shapecraft (Scryfall
+     `/cards/collection`). None is dealt, so none changes a game; each is
+     read against its card.
+
+     **Sized:** ~20–40 lines for the two, and the eight beside them, by the
+     owner's rule at #301's first review round: a card the engine can express
+     is written whole, its rulings read, and registered; one it cannot keeps
+     its shape as a fixture, its function and its name taking the suffix
+     `_fixture`. The pool's names change, so it is a pool change with its
+     re-record (`engineering-practices.md#cards-and-pools`). **Slotted:** the test-card
+     cleanup before Phase 8's breadth (the owner, 2026-10-01), with
+     `roadmap-v2.md` §C's `card-layer-cleanup`, which moves the fixtures into
+     `cards::fixtures`.

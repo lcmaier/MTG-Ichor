@@ -81,21 +81,21 @@ fn grizzly_bears_is_never_offered_while_the_mana_falls_short() {
     assert!(has(&answer, "Offered to Player 0:", None) && has(&answer, &cast, None), "{answer:#?}");
 }
 
-/// The review board: one Everywhere is one mana, so Grizzly Bears' {1}{G} is
-/// never offered (`codebase-state.md` item 162, MA-1's exact check). A cast
+/// The review board: one five-color land is one mana, so Grizzly Bears' {1}{G}
+/// is never offered (`codebase-state.md` item 162, MA-1's exact check). A cast
 /// a seat began and could not pay is still reversed, and asked again the why
-/// says both tiers: never offered now, since Everywhere is tapped and one
-/// {G} floats, and offered and then reversed (CR 732.1).
+/// says both tiers: never offered now, since the land is tapped and one {G}
+/// floats, and offered and then reversed (CR 732.1).
 #[test]
-fn on_the_review_board_one_everywhere_does_not_pay_for_the_bears() {
-    let text = format!("{MAIN}hand 0: Lightning Bolt\nhand 0: Grizzly Bears\nbattlefield: Everywhere | controller 0\n");
+fn on_the_review_board_one_five_color_land_does_not_pay_for_the_bears() {
+    let text = format!("{MAIN}hand 0: Lightning Bolt\nhand 0: Grizzly Bears\nbattlefield: Five-Color Land Fixture | controller 0\n");
     let game = built(&text);
     let bears = find(&game, "Grizzly Bears");
     assert_eq!(can_cast(&game, 0, bears).err(), Some(CannotCast::ManaShort));
     let answer = at_priority(&game, 0, WhyAbout::Object(bears), None);
     assert!(has(&answer, "To cast it: the mana Player 0 can make now does not cover its cost {1}{G}.", Some("601.2h")));
 
-    let mut reversed = built(&text.replace("Everywhere | controller 0", "Everywhere | controller 0, tapped"));
+    let mut reversed = built(&text.replace("Fixture | controller 0", "Fixture | controller 0, tapped"));
     reversed.players[0].mana_pool.add(ManaType::Green, 1);
     let bears = find(&reversed, "Grizzly Bears");
     let answer = at_priority(&reversed, 0, WhyAbout::Object(bears), Some(Rejection::Reversed(PriorityAction::CastSpell(bears))));
@@ -139,14 +139,14 @@ fn the_window_says_why_each_mana_ability_is_not_offered() {
 
 /// The window offers Doubling Cube once the pool holds its {3}, and until
 /// then names it as not offered yet, with why: the mana the window does
-/// offer can bring it in. A tapped Cube and a tapped Everywhere are spent,
+/// offer can bring it in. A tapped Cube and a tapped five-color land are spent,
 /// so neither is named, though the Cube's {3} is checked ahead of its {T}.
 #[test]
 fn the_window_names_a_source_waiting_for_mana_it_does_not_offer_yet() {
     let mut game = built(&format!(
         "{MAIN}hand 0: Protean Hydra\n\
-         battlefield: Everywhere | controller 0\n\
-         battlefield: Everywhere | controller 0, tapped\n\
+         battlefield: Five-Color Land Fixture | controller 0\n\
+         battlefield: Five-Color Land Fixture | controller 0, tapped\n\
          battlefield: Doubling Cube | controller 0\n\
          battlefield: Doubling Cube | controller 0, tapped\n"
     ));
@@ -279,7 +279,7 @@ fn a_land_cannot_be_cast_as_a_spell() {
 #[test]
 fn each_ability_says_why_it_is_not_offered() {
     let mut game = built(&format!(
-        "{MAIN}battlefield: Everywhere | controller 0\n\
+        "{MAIN}battlefield: Five-Color Land Fixture | controller 0\n\
          battlefield: Temple Bell | controller 0, tapped\n\
          battlefield: Merfolk Thaumaturgist | controller 0, arrived this turn\n\
          battlefield: Elvish Warmaster | controller 0\n\
@@ -296,7 +296,7 @@ fn each_ability_says_why_it_is_not_offered() {
         assert_eq!(can_activate(&game, 0, id, ability), Err(reason), "{name}");
         (id, ability.rules_text.words)
     };
-    first("Everywhere", CannotActivate::ManaAbility);
+    first("Five-Color Land Fixture", CannotActivate::ManaAbility);
     first("Temple Bell", CannotActivate::Cost(CannotPay::AlreadyTapped));
     first("Merfolk Thaumaturgist", CannotActivate::Cost(CannotPay::SummoningSick));
     first("Elvish Warmaster", CannotActivate::ManaShort);
@@ -308,8 +308,8 @@ fn each_ability_says_why_it_is_not_offered() {
     let bell = WhyAbout::Object(find(&game, "Temple Bell"));
     let words = "To activate “{T}: Each player draws a card.”: it is already tapped, so it can't be tapped to pay {T}.";
     assert!(has(&at_priority(&game, 0, bell, None), words, Some("118.3")));
-    let everywhere = at_priority(&game, 0, WhyAbout::Object(find(&game, "Everywhere")), None);
-    assert!(question_lines(&everywhere).iter().any(|(_, rule)| *rule == Some("605.3a")), "{everywhere:#?}");
+    let land = at_priority(&game, 0, WhyAbout::Object(find(&game, "Five-Color Land Fixture")), None);
+    assert!(question_lines(&land).iter().any(|(_, rule)| *rule == Some("605.3a")), "{land:#?}");
     let theirs = at_priority(&game, 0, WhyAbout::Object(find(&game, "Words of Worship")), None);
     let words = "To activate its abilities: Player 1 controls it, and only its controller activates its abilities.";
     assert!(has(&theirs, words, Some("602.2")), "{theirs:#?}");
@@ -445,7 +445,7 @@ fn the_declare_blockers_question_says_who_can_block_whom() {
 /// and the why says it was reversed, and why.
 #[test]
 fn an_answer_reversed_at_this_question_is_said_on_its_own_tier() {
-    let game = built(&format!("{MAIN}hand 0: Lightning Bolt\nbattlefield: Everywhere | controller 0\n"));
+    let game = built(&format!("{MAIN}hand 0: Lightning Bolt\nbattlefield: Five-Color Land Fixture | controller 0\n"));
     let bolt = find(&game, "Lightning Bolt");
     let rejected = Rejection::Reversed(PriorityAction::CastSpell(bolt));
     let answer = at_priority(&game, 0, WhyAbout::Object(bolt), Some(rejected));

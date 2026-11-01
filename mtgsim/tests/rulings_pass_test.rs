@@ -110,6 +110,7 @@ fn test_devoid_makes_the_card_colorless_rather_than_colorless_and_black() {
 // RULING: Culling Drone #3 - "Other cards and abilities can give a card with
 //   devoid color. If that happens, it's just the new color, not that color and
 //   colorless."
+// RULING: Cerulean Wisps #3 - "Colorless is not a color."
 /// Cerulean Wisps is the pool's Layer 5 setter, and its row applies after the
 /// CDA (CR 613.3: CDAs first, then everything else in timestamp order). The
 /// assertion is the count: exactly one color, not blue alongside some residue

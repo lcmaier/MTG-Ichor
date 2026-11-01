@@ -5195,7 +5195,7 @@ Fixed by registering the ten original dual lands (`cards/dual_lands.rs`) and giv
 
 Still crude, and knowingly so: a flat constant over a static pool is not a mana-base model. Replace it with a real picker when card breadth (Phase 8) gives it something to choose between.
 
-**Inverted 2026-09-03 (`pool/everywhere-land`).** Every land in the registry made one or two colors, which is why a deck rolled one or two colors and filtered its nonlands to them, and why `--require` had to seed those colors from the required card's — a forced `{1}{G}{U}` in a deck that rolled red was included and never cast. Real "add one mana of any color" is not expressible (`backlog.md` §2.19), so the land is **Everywhere** (`cards/dual_lands.rs::everywhere`), the five-type token: it fills every land slot not taken by one basic of each type (`BASIC_LANDS_PER_DECK`, the contrast CR 305.7 needs) or by the `NONBASIC_LANDS_PER_DECK` draws. With that mana base the color roll and the nonland filter had nothing left to do and are gone: 36 nonlands come from the whole pool. What it bought and what it cost are under "Found by the Everywhere pool change" below; the short form is that `--require` now measures a card against a random board (200 of 200 games with a non-G/U permanent, from 0), and prints copies per deck beside the count because the first comparison across the two mana bases was counting copies — 16d has the correction.
+**Inverted 2026-09-03 (`pool/everywhere-land`).** Every land in the registry made one or two colors, which is why a deck rolled one or two colors and filtered its nonlands to them, and why `--require` had to seed those colors from the required card's — a forced `{1}{G}{U}` in a deck that rolled red was included and never cast. Real "add one mana of any color" is not expressible (`backlog.md` §2.19), so the land was **Everywhere**, the five-type token, and since `creature-types-plus-fixture-names` (2026-11-01) is **Five-Color Land Fixture** (`cards::fixtures::five_color_land_fixture`), the same shape on a card a deck can hold: it fills every land slot not taken by one basic of each type (`BASIC_LANDS_PER_DECK`, the contrast CR 305.7 needs) or by the `NONBASIC_LANDS_PER_DECK` draws. With that mana base the color roll and the nonland filter had nothing left to do and are gone: 36 nonlands come from the whole pool. What it bought and what it cost are under "Found by the Everywhere pool change" below; the short form is that `--require` now measures a card against a random board (200 of 200 games with a non-G/U permanent, from 0), and prints copies per deck beside the count because the first comparison across the two mana bases was counting copies — 16d has the correction.
 
 **~~Still open — no artifact exists anywhere in `CardRegistry`~~ — ✅ fixed 2026-08-24, together with the Layer 7d hole.** March of the Machines was registered and inert for the same reason Blood Moon had been: nothing in the crate outside the `phase_l*` fixtures was an artifact, so Layer 7b had zero random-play coverage. Layer 7d had none either — no registered card switched P/T, and the one fixture that does (`phase5_pre_cards::inside_out`) simplifies a hybrid cost the engine cannot express, so it cannot be registered without misrepresenting the card.
 
@@ -5226,7 +5226,7 @@ Sol Ring is the interesting row: it makes each turn 4.3% more expensive and each
 
 **Accepted.** The extra work is layers 7b and 7d actually running, which is what the cards were registered to cause — March of the Machines was free before because it applied to nothing. If fuzz throughput ever binds on this, the knob is deck composition (Sol Ring is colorless, so it is in *every* deck) rather than the engine, and the thread-parallel harness on the audit's list would dwarf it either way.
 
-**Also recorded, from `cards/dual_lands.rs`:** CR 305.6 makes a land's mana abilities *intrinsic to its basic land types* — the parenthesised reminder text on a printed dual is not rules text. We model them as two explicit printed `AbilityType::Mana` abilities, because base characteristics are read straight from `CardData` and nothing derives abilities from printed subtypes. The two models agree everywhere currently observable (305.7 clears `chars.abilities` wholesale before granting the new intrinsic; Humility removes mana abilities from an animated land either way). Revisit if an effect ever needs to tell an intrinsic ability from a printed one.
+**Also recorded, from `cards/dual_lands.rs`:** CR 305.6 makes a land's mana abilities *intrinsic to its basic land types* — the parenthesised reminder text on a printed dual is not rules text. We model them as two explicit printed `AbilityType::Mana` abilities, because base characteristics are read straight from `CardData` and nothing derives abilities from printed subtypes. The two models agree everywhere currently observable (305.7 clears `chars.abilities` wholesale before granting the new intrinsic; Humility removes mana abilities from an animated land either way). Revisit if an effect ever needs to tell an intrinsic ability from a printed one: Layer 3's word swap is the first, and main item 195 owes the derivation.
 
 **~~`fuzz_games --seed N` does not reproduce a run, and the perf protocol assumed it did.~~ — ✅ fixed 2026-08-23 (`fuzz/deterministic-seeding`).** `--seed N` now replays a run exactly: three consecutive 200-game runs at seed 12345 produce byte-identical output, and game *k* of a batch reproduces standalone from the per-game seed the harness prints, which is what makes "reproduce the panic from the seed" work.
 
@@ -8019,6 +8019,17 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
        that answers `writes_name` true, so the event record's names read it
        with no further change (#203). Spy Kit's "all names", and CR 201.2a's
        object with several names, need a name that can be a set;
+     - CR 305.6's mana abilities derived from a land's basic land types on
+       every frame, as Layer 4 already derives them for a type an effect
+       gives (`engine/layers/land_types.rs`). A land whose card prints a
+       basic land type writes its ability out instead (`mana_ability_single`:
+       the five basics, the ten duals, Everywhere, Five-Color Land Fixture and
+       the rest), which no board tells apart until a word swap changes a
+       printed land type: Magical Hack making an Underground Sea's "Swamp" a
+       "Mountain" must take its {B} and give it {R}, and the written-out
+       ability would stay {B}. Each such land then drops its written
+       abilities; ability ids become the synthesized ones, and a dual's
+       options follow `LandType` order, which moves both pools' streams;
      - the two gates' Layer 3 legs (`gather.rs`, `predicate.rs`, ~20 lines
        each), in "Two ETB-time scans read *printed* abilities" above;
      - the atoms waiting on it: `backlog.md`'s audit rows for CR 612 and
@@ -8139,38 +8150,15 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      a zone where an effect strips abilities; CR 113.2b's costs as abilities
      are designed beside it, and `casting-from-other-zones` builds them.
 
-204. **Two test cards carry real cards' names: Cerulean Wisps and
-     Moonlace.** Each was written narrower than the card on purpose, to test
-     a color-changing effect (the owner, 2026-10-01): Cerulean Wisps leaves
-     out "Untap that creature.", and Moonlace targets a creature until end of
-     turn where the card makes a spell or permanent colorless for good (its
-     doc says "Simplified"). Their rules text became Oracle's in A6g's
-     ability names, so each now says more than it does.
-
-     **Reachability (2026-10-22):** reachable — wrong today: both are in
-     `PERFORMANCE_POOL`, and a tapped creature Cerulean Wisps targets stays
-     tapped. 5 of the 39 Wisps that resolved with a target in 40 performance
-     games left it tapped with no untap (`--require "Cerulean Wisps" --seed
-     2026`; game 1's Merfolk Thaumaturgist, tapped at event 406, the Wisps
-     resolved at 441). Moonlace's half is read from its source.
-
-     **Widened by `card-layer-cleanup`'s design note (2026-10-31):** the two
-     are a family. Eight card functions registered nowhere carry eight
-     printed cards' names: the four `*_spell` stand-ins (Liquimetal Torque,
-     Ensoul Artifact, Call to Serve, On Serra's Wings), Underground Sea,
-     Inside Out, Bull Rush and Zhalfirin Shapecraft (Scryfall
-     `/cards/collection`). None is dealt, so none changes a game; each is
-     read against its card.
-
-     **Sized:** ~20–40 lines for the two, and the eight beside them, by the
-     owner's rule at #301's first review round: a card the engine can express
-     is written whole, its rulings read, and registered; one it cannot keeps
-     its shape as a fixture, its function and its name taking the suffix
-     `_fixture`. The pool's names change, so it is a pool change with its
-     re-record (`engineering-practices.md#cards-and-pools`). **Slotted:** the test-card
-     cleanup before Phase 8's breadth (the owner, 2026-10-01), with
-     `roadmap-v2.md` §C's `card-layer-cleanup`, which moves the fixtures into
-     `cards::fixtures`.
+204. **~~Two test cards carry real cards' names: Cerulean Wisps and
+     Moonlace.~~ — ✅ CLOSED 2026-11-01 (PR #304,
+     `creature-types-plus-fixture-names`).** — archived. The ten, by the
+     owner's rule: Cerulean Wisps (now untapping its target), Bull Rush and
+     Zhalfirin Shapecraft written whole, their rulings read, and registered;
+     Moonlace, Inside Out and the four `*_spell` stand-ins fixtures named
+     "… Fixture", Moonlace Fixture still registered and pooled; and the
+     fixture named Underground Sea deleted, its tests on Alpha's printing.
+     **Reachability (2026-11-01):** closed — PR #304.
 
 ### Found by A6g's playable review (2026-10-02)
 
@@ -8222,30 +8210,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      a fixture effect; whether a type given back gives its subtypes back is
      read against the rulings first, as above.
 
-207. **Fourteen registered creatures lack the creature types they print.**
-     Citanul Hierophants, Earth Elemental, Giant Spider, Grizzly Bears, Hill
-     Giant, Knight of Meadowgrain, Raging Cougar, Rhox War Monk, Ridgetop
-     Raptor, Savannah Lions, Serra Angel, Thornweald Archer, Vampire
-     Nighthawk and War Mammoth: a relic of the bootstrapped tests (the owner,
-     2026-10-02). A census of type lines against Scryfall found them: the
-     order the card files list types in reproduces the printed line for 165
-     of the 180 real registered cards, and these are 14 of the other 15. The
-     fifteenth is Everywhere, a token the pools deal as a land card, printed
-     as "Token Land".
-
-     **Reachability (2026-10-22):** reachable — wrong today: Thornweald Archer
-     is no Elf, so Elvish Warmaster neither triggers on it nor pumps it, in
-     both pools since the Warmaster joined `PERFORMANCE_POOL` (`70188c40`).
-     60 games each at seed 2026 (`--require "Elvish Warmaster,Thornweald
-     Archer"`): every Archer that entered under its controller's Warmaster
-     triggered nothing, 4 of 4 in `stress` and 3 of 3 in `performance`.
-
-     **Sized:** ~20 lines of card data and a fixture, Warmaster seeing the
-     Archer; every creature type the fourteen need is in `CreatureType`. It
-     moves both pools' streams, so it carries a re-record of each. **Slotted:**
-     beside `card-layer-cleanup` (`roadmap-v2.md` §C), the test-card reorganization before
-     Phase 8's breadth (the owner, 2026-10-02), as its own commit after the
-     move: `card-layer-cleanup`'s text keeps behavior out of the move, so the move stays a move.
+207. **~~Fourteen registered creatures lack the creature types they print.~~
+     — ✅ CLOSED 2026-11-01 (PR #304, `creature-types-plus-fixture-names`).**
+     — archived. Each of the fourteen prints its type line in its printed
+     order, and `warmaster_sees_thornweald_archer_as_an_elf` shows Elvish
+     Warmaster triggering on the Archer and pumping it. The census's
+     fifteenth, Everywhere, left the registry in the same PR.
+     **Reachability (2026-11-01):** closed — PR #304.
 
 ### Found at SU-3's merge (2026-10-03)
 

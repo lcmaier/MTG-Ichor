@@ -60,6 +60,8 @@ pub fn bone_splinters() -> Arc<CardData> {
 pub fn rhox_war_monk() -> Arc<CardData> {
     CardDataBuilder::new("Rhox War Monk")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Rhino))
+        .subtype(Subtype::Creature(CreatureType::Monk))
         .color(Color::Green)
         .color(Color::White)
         .color(Color::Blue)
