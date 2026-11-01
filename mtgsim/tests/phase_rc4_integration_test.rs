@@ -571,14 +571,14 @@ fn test_an_exit_beside_an_enters_tapped_is_one_outcome_and_not_asked() {
 #[test]
 fn test_a_power_filter_beside_counters_is_a_real_choice() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, small_creatures_enter_tapped(1), 1);
+    let enters_tapped = put_on_battlefield(&mut game, small_creatures_enter_tapped(1), 1);
 
     // Counters first: 3/3 by the next iteration, the tapped half never applies.
     let dp = ScriptedDecisionProvider::new();
     let shimmerer = put_in_graveyard(&mut game, adaptive_shimmerer(), 0);
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseReplacementEffect { affected_object: Some(shimmerer) },
-        vec![1],
+        vec![ChoiceOption::Object(shimmerer)],
     );
     game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .unwrap();
@@ -590,9 +590,9 @@ fn test_a_power_filter_beside_counters_is_a_real_choice() {
     // Tapped first: it applies to the 0/0, then the counters.
     let dp = ScriptedDecisionProvider::new();
     let shimmerer = put_in_graveyard(&mut game, adaptive_shimmerer(), 0);
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseReplacementEffect { affected_object: Some(shimmerer) },
-        vec![0],
+        vec![ChoiceOption::Object(enters_tapped)],
     );
     game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .unwrap();

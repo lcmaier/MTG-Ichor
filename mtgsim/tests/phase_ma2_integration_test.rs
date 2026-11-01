@@ -341,6 +341,7 @@ fn the_word_x_is_refused_where_nothing_has_an_x() {
 
 use mtgsim::cards::printings::{blaze, forest, protean_hydra};
 use mtgsim::engine::priority::PriorityResult;
+use mtgsim::oracle::characteristics::get_effective_abilities;
 use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::oracle::x_values::{LegalXValues, XOffer};
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
@@ -360,16 +361,19 @@ fn offered_x(seat: &ScriptedDecisionProvider) -> XOffer {
 }
 
 /// `seat` casts `card` at the priority question, announces `x`, targets
-/// `target` if it names one, and taps the first source each of `windows`
-/// windows offers.
-fn script_the_cast(seat: &ScriptedDecisionProvider, card: ObjectId, x: u64, target: Option<PlayerId>, windows: usize) {
+/// `target` if it names one, and taps `lands` in turn, one in each window.
+fn script_the_cast(seat: &ScriptedDecisionProvider, game: &GameState, card: ObjectId, x: u64, target: Option<PlayerId>, lands: &[ObjectId]) {
     seat.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(card))]);
     seat.expect_number(choose_x(card, LegalXValues::zero_through(x)), x);
     if let Some(target) = target {
         seat.expect_choice(blaze_target(card), vec![ChoiceOption::Player(target)]);
     }
-    for _ in 0..windows {
-        seat.expect_pick_n(ChoiceKind::ManaAbilityWindow { spell_or_ability_id: card, remaining_cost: ManaCost::zero() }, vec![0]);
+    for &land in lands {
+        let tap = get_effective_abilities(game, land)[0].id;
+        seat.expect_choice(
+            ChoiceKind::ManaAbilityWindow { spell_or_ability_id: card, remaining_cost: ManaCost::zero() },
+            vec![ChoiceOption::Action(PriorityAction::ActivateAbility(land, tap))],
+        );
     }
 }
 
@@ -430,13 +434,11 @@ fn a_cost_with_a_large_x_is_written_as_one_number() {
 #[test]
 fn blaze_is_offered_and_cast_from_untapped_lands() {
     let mut game = main_phase();
-    for _ in 0..4 {
-        put_on_battlefield(&mut game, mountain(), 0);
-    }
+    let mountains: Vec<ObjectId> = (0..4).map(|_| put_on_battlefield(&mut game, mountain(), 0)).collect();
     let card = put_in_hand(&mut game, blaze(), 0);
     assert!(candidate_priority_actions(&game, 0).contains(&PriorityAction::CastSpell(card)));
     let seat = ManaWindowStop::new(ScriptedDecisionProvider::new());
-    script_the_cast(seat.inner(), card, 3, Some(1), 4);
+    script_the_cast(seat.inner(), &game, card, 3, Some(1), &mountains);
     assert_eq!(game.run_priority_round(&seat), Ok(PriorityResult::ActionTaken));
     assert_eq!(offered_x(seat.inner()), XOffer::Interval { at_least: 0, at_most: 3 });
     assert_eq!(game.stack_entries[&card].x_value, Some(3));
@@ -450,13 +452,11 @@ fn blaze_is_offered_and_cast_from_untapped_lands() {
 #[test]
 fn protean_hydra_is_offered_at_the_priority_question() {
     let mut game = main_phase();
-    for _ in 0..3 {
-        put_on_battlefield(&mut game, forest(), 0);
-    }
+    let forests: Vec<ObjectId> = (0..3).map(|_| put_on_battlefield(&mut game, forest(), 0)).collect();
     let card = put_in_hand(&mut game, protean_hydra(), 0);
     assert!(candidate_priority_actions(&game, 0).contains(&PriorityAction::CastSpell(card)));
     let seat = ManaWindowStop::new(ScriptedDecisionProvider::new());
-    script_the_cast(seat.inner(), card, 2, None, 3);
+    script_the_cast(seat.inner(), &game, card, 2, None, &forests);
     assert_eq!(game.run_priority_round(&seat), Ok(PriorityResult::ActionTaken));
     assert_eq!(offered_x(seat.inner()), XOffer::Interval { at_least: 0, at_most: 2 });
     assert_eq!(game.stack_entries[&card].x_value, Some(2));

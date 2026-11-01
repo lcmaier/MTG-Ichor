@@ -23,8 +23,8 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::test_support::test_ctx;
@@ -34,23 +34,24 @@ use mtgsim::test_support::{
 };
 
 /// Helper: cast a spell targeting a permanent with an ObjectFilter.
-/// If `generic_allocation` is Some, queues the allocation for generic mana.
+/// If `generic_split` is Some, queues the split of the generic mana: what
+/// each mana type in the pool pays.
 fn cast_and_resolve_targeted_perm_spell(
     game: &mut mtgsim::state::game_state::GameState,
     decisions: &ScriptedDecisionProvider,
-    cast_index: usize,
-    generic_allocation: Option<Vec<u64>>,
+    spell: mtgsim::types::ids::ObjectId,
+    generic_split: Option<Vec<(ChoiceOption, u64)>>,
 ) {
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![cast_index]);
+    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell))]);
     // No target to script: one legal target on these boards, so the choice
     // is forced and no prompt is made.
-    if let Some(alloc) = generic_allocation {
-        decisions.expect_allocation(
+    if let Some(split) = generic_split {
+        decisions.expect_split(
             ChoiceKind::GenericManaAllocation {
                 spell_or_ability_id: mtgsim::types::ids::ObjectId::UNASSIGNED,
                 mana_cost: mtgsim::types::mana::ManaCost::zero(),
             },
-            alloc,
+            split,
         );
     }
     let result = game.run_priority_round(decisions).unwrap();
@@ -69,7 +70,7 @@ fn cast_and_resolve_targeted_perm_spell(
 fn test_liquimetal_adds_artifact_type() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, fixtures::liquimetal_coating_spell_fixture(), 0);
+    let spell = put_in_hand(&mut game, fixtures::liquimetal_coating_spell_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
     // Verify base: Creature, not Artifact
@@ -78,8 +79,8 @@ fn test_liquimetal_adds_artifact_type() {
     assert!(!types.contains(&CardType::Artifact));
 
     let decisions = ScriptedDecisionProvider::new();
-    // {2}: pool has [Colorless(2)], allocate 1 generic → [1]
-    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt.
+    // {2}: pool has [Colorless(2)]
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, spell,        // Forced split: one bucket, so no prompt.
         None,
     );
 
@@ -89,7 +90,7 @@ fn test_liquimetal_adds_artifact_type() {
     assert!(types.contains(&CardType::Artifact));
 
     // Spell is in graveyard
-    assert_eq!(game.get_object(_spell).unwrap().zone, Zone::Graveyard);
+    assert_eq!(game.get_object(spell).unwrap().zone, Zone::Graveyard);
 }
 
 // ===========================================================================
@@ -100,7 +101,7 @@ fn test_liquimetal_adds_artifact_type() {
 fn test_call_to_serve_adds_angel_subtype() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, fixtures::call_to_serve_spell_fixture(), 0);
+    let spell = put_in_hand(&mut game, fixtures::call_to_serve_spell_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::White, 2);
 
     let subtypes = get_effective_subtypes(&game, bears_id);
@@ -108,8 +109,8 @@ fn test_call_to_serve_adds_angel_subtype() {
     assert!(!subtypes.contains(&Subtype::Creature(CreatureType::Angel)));
 
     let decisions = ScriptedDecisionProvider::new();
-    // {1}{W}: pool has [White(2)], allocate 1 generic → [1]
-    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1, // helper uses SelectionFilter::Creature via card, but DP sees All here
+    // {1}{W}: pool has [White(2)]
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, spell, // helper uses SelectionFilter::Creature via card, but DP sees All here
         // Forced split: one bucket, so no prompt.
         None,
     );
@@ -132,7 +133,7 @@ fn test_call_to_serve_adds_angel_subtype() {
 fn test_on_serras_wings_adds_legendary() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, fixtures::on_serras_wings_spell_fixture(), 0);
+    let spell = put_in_hand(&mut game, fixtures::on_serras_wings_spell_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::White, 4);
 
     // Base: no supertypes
@@ -140,8 +141,8 @@ fn test_on_serras_wings_adds_legendary() {
     assert!(!supertypes.contains(&Supertype::Legendary));
 
     let decisions = ScriptedDecisionProvider::new();
-    // {3}{W}: pool has [White(4)], allocate 3 generic → [3]
-    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt.
+    // {3}{W}: pool has [White(4)]
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, spell,        // Forced split: one bucket, so no prompt.
         None,
     );
 
@@ -171,14 +172,14 @@ fn test_ensoul_artifact_makes_artifact_creature() {
         .build();
     let artifact_id = put_on_battlefield(&mut game, artifact_data, 0);
 
-    let _spell = put_in_hand(&mut game, fixtures::ensoul_artifact_spell_fixture(), 0);
+    let spell = put_in_hand(&mut game, fixtures::ensoul_artifact_spell_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 2);
 
     // Verify: not a creature yet
     assert!(!is_creature(&game, artifact_id));
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell))]);
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.
     let result = game.run_priority_round(&decisions).unwrap();
@@ -206,13 +207,13 @@ fn test_ensoul_artifact_makes_artifact_creature() {
 fn test_type_change_expires_at_cleanup() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let _spell = put_in_hand(&mut game, fixtures::liquimetal_coating_spell_fixture(), 0);
+    let spell = put_in_hand(&mut game, fixtures::liquimetal_coating_spell_fixture(), 0);
     fill_library(&mut game, 0, 5);
     fill_library(&mut game, 1, 5);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
     let decisions = ScriptedDecisionProvider::new();
-    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt.
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, spell,        // Forced split: one bucket, so no prompt.
         None,
     );
 

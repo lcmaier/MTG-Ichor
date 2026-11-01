@@ -978,7 +978,7 @@ fn place_targeting(game: &mut GameState, target: ObjectId) -> ObjectId {
 fn resolve_may(game: &mut GameState, yes: bool) {
     let (trigger, _) = top_targets(game);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: trigger }, if yes { vec![0] } else { vec![] });
+    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: trigger }, if yes { vec![ChoiceOption::Object(trigger)] } else { vec![] });
     game.resolve_top_of_stack(&dp).unwrap();
     assert!(dp.is_empty(), "the may was asked as it resolved");
 }
@@ -1214,7 +1214,7 @@ fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
         trigger: None,
     };
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source }, vec![]);
+    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source }, vec![]);
     game.resolve_effect(&effect, &ctx, &dp).unwrap();
     assert_eq!((pt(&game, first), pt(&game, second)), ((Some(2), Some(2)), (Some(3), Some(3))));
 }

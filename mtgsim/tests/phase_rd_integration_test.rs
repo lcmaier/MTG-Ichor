@@ -21,7 +21,7 @@ use mtgsim::test_support::{
 use mtgsim::types::effects::CounterType;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -568,12 +568,12 @@ fn trample_assigns_lethal_before_furnace_doubles() {
     set_blocking(&mut game, blocker, vec![mammoth]);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_allocation(
+    dp.expect_split(
         ChoiceKind::AssignTrampleDamage {
             attacker_id: mammoth,
             defending_target: ObjectOrPlayerId::Player(1),
         },
-        vec![2, 1],
+        vec![(ChoiceOption::Object(blocker), 2), (ChoiceOption::Player(1), 1)],
     );
     let assignments = assign_combat_damage(&game, &dp, 0, false);
     // The floor the prompt carried, which is this test's claim: CR 702.19b's
@@ -1140,16 +1140,15 @@ mod the_damage_cards {
     // prompt is the target.
     #[test]
     fn samite_healer_taps_for_a_count_of_one_and_the_row_names_the_healer() {
-        use mtgsim::ui::choice_types::ChoiceKind;
+        use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
         use mtgsim::ui::decision::ScriptedDecisionProvider;
 
         let mut game = setup_two_player_game();
         let healer = put_on_battlefield(&mut game, samite_healer(), 0);
         let dp = ScriptedDecisionProvider::new();
-        // `Any` offers the players first; index 1 is player 1.
-        dp.expect_pick_n(
+        dp.expect_choice(
             ChoiceKind::SelectRecipients { recipient: any_target(), spell_id: healer },
-            vec![1],
+            vec![ChoiceOption::Player(1)],
         );
         game.activate_ability(0, healer, 0, &dp).expect("{T} is payable");
         assert!(game.battlefield[&healer].tapped);

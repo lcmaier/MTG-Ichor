@@ -38,7 +38,7 @@ use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, SourcePattern, Uses,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -398,12 +398,12 @@ fn torbran_divides_before_adding_two() {
     set_blocking(&mut game, blocker, vec![trampler]);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_allocation(
+    dp.expect_split(
         ChoiceKind::AssignTrampleDamage {
             attacker_id: trampler,
             defending_target: ObjectOrPlayerId::Player(1),
         },
-        vec![2, 3],
+        vec![(ChoiceOption::Object(blocker), 2), (ChoiceOption::Player(1), 3)],
     );
     let assignments = assign_combat_damage(&game, &dp, 0, false);
     game.apply_combat_damage(assignments, &ActionContext::new(&dp)).unwrap();

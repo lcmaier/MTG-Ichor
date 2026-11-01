@@ -41,7 +41,7 @@ use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding, Uses,
 };
 use mtgsim::types::zones::ZoneChangeAct;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -206,7 +206,10 @@ fn two_shield_counters_under_two_blockers_lose_one_counter_and_take_no_damage() 
     let dp = ScriptedDecisionProvider::new();
     // The attacker divides its 3 among two blockers (CR 510.1c) — the one
     // prompt this board has, and it is the attacking player's.
-    dp.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![2, 1]);
+    dp.expect_split(
+        ChoiceKind::AssignCombatDamage { attacker_id: attacker },
+        vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)],
+    );
     game.process_combat_damage(&dp, false).unwrap();
 
     assert_eq!(marked(&game, attacker), 0, "both damages prevented");
@@ -241,7 +244,10 @@ fn two_shield_counters_under_a_first_striker_and_a_regular_blocker_lose_two() {
 
     // Regular step: the other blocker and the attacker. The attacker's split
     // is the step's one prompt; the Knight has dealt its damage (CR 510.4).
-    dp.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![2, 1]);
+    dp.expect_split(
+        ChoiceKind::AssignCombatDamage { attacker_id: attacker },
+        vec![(ChoiceOption::Object(regular), 2), (ChoiceOption::Object(knight), 1)],
+    );
     game.process_combat_damage(&dp, false).unwrap();
     assert_eq!(shield_counters(&game, attacker), 0, "and the second step spent the other");
     assert_eq!(marked(&game, attacker), 0);
@@ -387,10 +393,11 @@ fn two_attackers_into_a_shielded_player_prompt_one_allocation_and_any_answer_pre
         let before = game.recorded_events().len();
 
         let dp = ScriptedDecisionProvider::new();
-        // Buckets are the sources in batch order; the total is min(3, 6) = 3.
-        dp.expect_allocation(
+        // An amount per attacker, in the order they were made; the total is
+        // min(3, 6) = 3.
+        dp.expect_split(
             ChoiceKind::AllocateNextDamage { source: spell, remaining: 3 },
-            allocation.clone(),
+            attackers.iter().zip(&allocation).map(|(&attacker, &amount)| (ChoiceOption::Object(attacker), amount)).collect(),
         );
         game.process_combat_damage(&dp, false).unwrap();
 
@@ -452,10 +459,10 @@ fn a_count_spanning_you_and_your_permanents_is_allocated_once_divine_deflection_
     set_blocking(&mut game, wall, vec![b]);
 
     let dp = ScriptedDecisionProvider::new();
-    // Buckets: A's 2 to you, B's 4 to the wall — in batch order. Total 3.
-    dp.expect_allocation(
+    // A's 2 to you and B's 4 to the wall share the 3.
+    dp.expect_split(
         ChoiceKind::AllocateNextDamage { source: deflection, remaining: 3 },
-        vec![1, 2],
+        vec![(ChoiceOption::Object(a), 1), (ChoiceOption::Object(b), 2)],
     );
     game.process_combat_damage(&dp, false).unwrap();
 
@@ -679,19 +686,18 @@ fn samite_censer_bearer_makes_a_separate_count_on_each_creature_at_resolution() 
 /// the amount the other left, and the count is spent by 4 either way.
 #[test]
 fn mending_hands_beside_furnace_prevents_then_doubles_or_doubles_then_prevents() {
-    // `gather` reads the battlefield sweep before the registry: index 0 is
-    // Furnace of Rath, index 1 is Mending Hands.
-    for (pick, expected_life) in [(1usize, 20 - 2), (0usize, 20 - 6)] {
+    for (hands_first, expected_life) in [(true, 20 - 2), (false, 20 - 6)] {
         let mut game = setup_two_player_game();
         let source = source_for(&mut game, 0);
-        put_on_battlefield(&mut game, furnace_of_rath(), 0);
-        mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
+        let furnace = put_on_battlefield(&mut game, furnace_of_rath(), 0);
+        let hands = mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![pick]);
+        let first = if hands_first { hands } else { furnace };
+        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(first)]);
         bolt_with(&mut game, &dp, source, ObjectOrPlayerId::Player(1), 5);
 
-        assert_eq!(life(&game, 1), expected_life, "picking index {pick} first");
+        assert_eq!(life(&game, 1), expected_life, "Mending Hands first: {hands_first}");
         assert!(game.replacement_effects.is_empty(), "4 spent either way");
     }
 }
@@ -704,19 +710,19 @@ fn mending_hands_beside_furnace_prevents_then_doubles_or_doubles_then_prevents()
 /// spends anything it did not prevent.
 #[test]
 fn safe_passage_beside_mending_hands_spends_the_count_only_when_it_prevented() {
-    // Registration order: Safe Passage's row first, then Mending Hands'.
-    for (pick, expected_counts) in [(0usize, vec![4]), (1usize, vec![1])] {
+    for (hands_first, expected_counts) in [(false, vec![4]), (true, vec![1])] {
         let mut game = setup_two_player_game();
         let source = source_for(&mut game, 0);
-        resolve_spell(&mut game, safe_passage(), 1, Vec::new());
-        mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
+        let passage = resolve_spell(&mut game, safe_passage(), 1, Vec::new());
+        let hands = mending_hands_on(&mut game, 1, ObjectOrPlayerId::Player(1));
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![pick]);
+        let first = if hands_first { hands } else { passage };
+        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(first)]);
         bolt_with(&mut game, &dp, source, ObjectOrPlayerId::Player(1), 3);
 
-        assert_eq!(life(&game, 1), 20, "picking index {pick} first");
-        assert_eq!(counts(&game), expected_counts, "picking index {pick} first");
+        assert_eq!(life(&game, 1), 20, "Mending Hands first: {hands_first}");
+        assert_eq!(counts(&game), expected_counts, "Mending Hands first: {hands_first}");
         assert!(dp.is_empty(), "one prompt: the second effect never gets a second question");
     }
 }

@@ -27,7 +27,7 @@ use mtgsim::types::effects::{Effect, EffectRecipient, SelectionFilter, TargetCou
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaSpent, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -333,27 +333,27 @@ fn equip_ability_index(game: &GameState, equipment: ObjectId) -> usize {
         .expect("an Equipment with an equip ability")
 }
 
-/// Activate `equipment`'s equip with its {1} floating, pick the `pick`th legal
-/// target when there is a choice, and resolve. The error is the activation's — a resolution failure
+/// Activate `equipment`'s equip with its {1} floating, target `target` when
+/// there is a choice, and resolve. The error is the activation's — a resolution failure
 /// is a test bug.
 fn equip(
     game: &mut GameState,
     player: PlayerId,
     equipment: ObjectId,
-    pick: Option<usize>,
+    target: Option<ObjectId>,
 ) -> Result<(), String> {
     game.players[player].mana_pool.add(ManaType::White, 1);
     let decisions = ScriptedDecisionProvider::new();
     // `None` is a board with one legal creature: the target is
     // forced and nothing is asked. The {1} is never a question either — the
     // White is the only mana in the pool, so the split is forced too.
-    if let Some(pick) = pick {
-        decisions.expect_pick_n(
+    if let Some(target) = target {
+        decisions.expect_choice(
             ChoiceKind::SelectRecipients {
                 recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 spell_id: equipment,
             },
-            vec![pick],
+            vec![ChoiceOption::Object(target)],
         );
     }
     let idx = equip_ability_index(game, equipment);
@@ -460,10 +460,10 @@ fn test_re_equipping_moves_the_equipment_and_cleans_the_old_host() {
     let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
 
     // Two creatures, so this one is a real choice and is scripted.
-    equip(&mut game, 0, splitter, Some(0)).unwrap();
+    equip(&mut game, 0, splitter, Some(first)).unwrap();
     assert_eq!(pt(&game, first), (4, 2));
 
-    equip(&mut game, 0, splitter, Some(1)).unwrap();
+    equip(&mut game, 0, splitter, Some(second)).unwrap();
     assert_eq!(game.battlefield[&splitter].attached_to, Some(second));
     assert!(game.battlefield[&second].attached_by.contains(&splitter));
     assert!(!game.battlefield[&first].attached_by.contains(&splitter));

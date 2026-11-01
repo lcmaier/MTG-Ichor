@@ -39,7 +39,7 @@ use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -1578,9 +1578,10 @@ fn test_kalitas_and_a_finality_counter_are_one_choice_not_two_exiles() {
     add_counters(&mut game, victim, CounterType::Finality, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    // The finality counter, which is the victim's own.
+    dp.expect_choice(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![1],
+        vec![ChoiceOption::Object(victim)],
     );
     let asked = std::cell::RefCell::new(Vec::new());
     let recording = RecordingProvider { inner: &dp, asked: &asked };
@@ -1592,8 +1593,7 @@ fn test_kalitas_and_a_finality_counter_are_one_choice_not_two_exiles() {
     assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
     assert!(
         tokens(&game).is_empty(),
-        "index 1 is the finality counter — the battlefield sweep offers Kalitas \
-         first because Kalitas entered first"
+        "the finality counter was chosen, and it makes no Zombie"
     );
 }
 
@@ -1640,9 +1640,9 @@ fn test_a_commander_in_the_graveyard_may_go_to_the_command_zone() {
         .unwrap();
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
-        vec![0],
+        vec![ChoiceOption::Object(cmdr)],
     );
     let performed = game.check_state_based_actions(&dp).unwrap();
 
@@ -1660,7 +1660,7 @@ fn test_the_commander_sba_is_a_may_and_declining_leaves_it_in_the_graveyard() {
         .unwrap();
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
         vec![],
     );
@@ -1681,7 +1681,7 @@ fn test_the_offer_is_made_once_not_on_every_later_check() {
         .unwrap();
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
         vec![],
     );
@@ -1713,9 +1713,9 @@ fn test_a_commander_killed_by_a_state_based_action_is_still_offered() {
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Graveyard);
 
     // Check two: now it is in the graveyard, and it got there since check one.
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
-        vec![0],
+        vec![ChoiceOption::Object(cmdr)],
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Command);
@@ -1741,13 +1741,13 @@ fn test_two_commanders_offered_in_one_check_move_as_one_event() {
     let before = game.recorded_events().len();
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: first },
-        vec![0],
+        vec![ChoiceOption::Object(first)],
     );
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: second },
-        vec![0],
+        vec![ChoiceOption::Object(second)],
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
 
@@ -1784,11 +1784,11 @@ fn test_one_owner_may_accept_while_another_declines() {
         .unwrap();
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: accepted },
-        vec![0],
+        vec![ChoiceOption::Object(accepted)],
     );
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: declined },
         vec![],
     );
@@ -1827,11 +1827,11 @@ fn test_partner_commanders_of_one_owner_are_two_separate_offers() {
     // stable sort leaves them in `moved_since`'s move order — `kept` died
     // first, so `kept` is asked first.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: kept },
-        vec![0],
+        vec![ChoiceOption::Object(kept)],
     );
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: left_behind },
         vec![],
     );
@@ -1878,11 +1878,11 @@ fn test_the_offers_are_made_in_apnap_order_not_move_order() {
     game.begin_turn(2, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: active_players },
-        vec![0],
+        vec![ChoiceOption::Object(active_players)],
     );
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: moved_first },
         vec![],
     );
@@ -1924,9 +1924,9 @@ fn test_a_commander_headed_for_its_owners_hand_may_go_to_the_command_zone() {
     let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
-        vec![0],
+        vec![ChoiceOption::Object(cmdr)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(cmdr, Zone::Hand, ZoneChangeAct::Put, &ctx).unwrap();
@@ -1952,7 +1952,7 @@ fn test_903_9b_covers_the_library_too_and_declining_lets_it_through() {
     let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
         vec![],
     );
@@ -1983,7 +1983,7 @@ fn test_declining_903_9b_terminates_despite_the_614_5_exemption() {
     let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
         vec![],
     );
@@ -2124,7 +2124,7 @@ fn test_declined_optional_is_not_reoffered() {
     let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
         vec![],
     );
@@ -2332,9 +2332,9 @@ fn test_a_commander_exiled_may_go_to_the_command_zone() {
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Exile);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
-        vec![0],
+        vec![ChoiceOption::Object(cmdr)],
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Command);
@@ -2401,14 +2401,14 @@ fn test_kalitas_and_rest_in_peace_compete_and_choosing_kalitas_makes_a_zombie() 
     // controller — player 1, who owns the dying creature, not the player who
     // controls both replacement sources.
     let mut game = setup_two_player_game();
-    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
     let _rip = put_on_battlefield(&mut game, rest_in_peace(), 0);
     let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![0],
+        vec![ChoiceOption::Object(kalitas)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(victim, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
@@ -2416,27 +2416,26 @@ fn test_kalitas_and_rest_in_peace_compete_and_choosing_kalitas_makes_a_zombie() 
 
     assert!(dp.is_empty(), "CR 616.1 prompted, and with two printed cards");
     assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
-    // Index 0 is Kalitas: `gather` sweeps the battlefield in timestamp order and
-    // Kalitas entered first. Its CR 615.5 rider is what makes the choice
-    // *observable* — both effects exile, only one makes a Zombie.
+    // Kalitas's CR 615.5 rider is what makes the choice *observable* — both
+    // effects exile, only one makes a Zombie.
     assert_eq!(tokens(&game), vec!["Zombie Token".to_string()]);
 }
 
 // COVERS-PARTIAL: ATOM-616.1-001
 #[test]
 fn test_choosing_rest_in_peace_instead_exiles_without_the_zombie() {
-    // The same board and the other index. This is the assertion that proves the
+    // The same board and the other choice. This is the assertion that proves the
     // choice is real rather than decorative: if the prompt were not being
     // consulted, both runs would end identically.
     let mut game = setup_two_player_game();
     let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
-    let _rip = put_on_battlefield(&mut game, rest_in_peace(), 0);
+    let rip = put_on_battlefield(&mut game, rest_in_peace(), 0);
     let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![1],
+        vec![ChoiceOption::Object(rip)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(victim, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
