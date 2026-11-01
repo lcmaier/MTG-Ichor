@@ -10266,6 +10266,12 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      diverging. Thirteen scripted answers name them by place
      (`expect_choice_among_alike`, `expect_order_among_alike`) in RB, RC-5,
      RE-3, TR-1, TR-4c and TR-5e, and CV-2b's own provider by `then_index`.
+     A scenario's setup line that names such an option without its place
+     takes the first, where a script is refused. Whether a setup line refuses
+     too waits on whether setup lines stay that granular, against starting a
+     scenario at a turn's beginning and playing the decisions to the point
+     (the owner, #305's review): the scenario format's audit, which opens
+     `pausing-at-a-decision`'s design, decides both.
      **Reachability (2026-11-01):** reachable — not wrong in any game: the
      engine applies the effect at the place chosen, which is exact within a
      build; what is lost is a client's label and a replay across builds.
